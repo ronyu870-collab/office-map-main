@@ -230,6 +230,7 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .map-workbench :is(h1,h2) { font-size: 16px; font-weight: 600; line-height: 1.4; }
 .map-workbench :is(h3,h4) { font-size: 14px; font-weight: 600; }
 .map-page-header { display: flex; align-items: center; min-width: 0; gap: 12px; min-height: 56px; padding: 4px 16px; background: #f8fafc; }
+.map-page-header > a { min-height: 36px; }
 .map-page-header h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
 .map-header-navigation { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-shrink: 0; }
 .map-header-navigation-mobile { display: none; margin-left: auto; }
@@ -257,10 +258,23 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .map-disclosure-content { position: fixed; z-index: 750; width: min(336px,calc(100vw - 24px)); max-height: 65dvh; overflow: auto; overscroll-behavior: contain; padding: 16px; background: #f8fafc; border: 1px solid #c3ccd8; border-radius: 8px; box-shadow: 0 8px 24px rgb(23 32 51 / .1); }
 .map-disclosure-content h2 { margin: 0 0 8px; }
 .map-disclosure-content > div { flex-wrap: wrap; }
-.map-workspace-kpis { margin: 12px 0; }
-.map-workspace-kpis > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid #d9e0e8; }
-.map-workspace-kpis dt, .map-workspace-kpis dd span { color: #596779; }
-.map-workspace-kpis dd { margin: 0; font-variant-numeric: tabular-nums; }
+.map-live-stats { display: flex; flex: 1; align-items: center; gap: 6px; min-width: 0; max-width: 760px; }
+.map-workspace-kpis { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); flex: 1; gap: 6px; min-width: 0; margin: 0; }
+.map-workspace-kpis > div { min-width: 0; padding: 4px 10px; border: 1px solid #d9e1ea; border-radius: 8px; background: #f1f5f9; }
+.map-workspace-kpis dt { color: #596779; overflow-wrap: anywhere; }
+.map-workspace-kpis dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; margin: 0; color: #172033; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.map-workspace-kpis dd span { color: #596779; font-weight: 400; white-space: nowrap; }
+.map-market-overview summary { width: 32px; min-height: 32px; padding: 0; border: 0; background: transparent; color: #596779; }
+.map-market-overview summary > svg:last-child { display: none; }
+@media (max-width: 1100px) {
+  .map-page-header { flex-wrap: wrap; row-gap: 4px; }
+  .map-live-stats { order: 4; flex-basis: 100%; max-width: none; }
+}
+@media (max-width: 639px) {
+  .map-workspace-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .map-workspace-kpis > div { padding: 4px 8px; }
+  .map-market-overview summary { width: 44px; }
+}
 .workspace-note { color: #596779; margin: 8px 0; line-height: 1.6; overflow-wrap: anywhere; }
 .workspace-empty { color: #596779; padding: 16px; line-height: 1.6; }
 /* The side columns occupy real width. Auto-yielding never changes the stored open state. */
@@ -376,7 +390,7 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
   .map-page-header h1 { flex: 1; }
   .map-header-navigation { display: none; }
   .map-header-navigation-mobile { display: block; }
-  .map-page-header > a { padding-inline: 4px; }
+  .map-page-header > a { min-height: 44px; padding-inline: 4px; }
   .map-workspace-toolbar { padding: 8px 12px; }
   .map-workspace-toolbar button, .map-workspace-toolbar summary, .workspace-icon, .workspace-sheet-states button, .workspace-business-action, .workspace-list-options > button, .workspace-list-material, .workspace-list-query input, .workspace-list-query select, .map-disclosure summary, .map-disclosure-content button, .workspace-header-link { min-height: 44px; }
   .map-toolbar-primary > button, .map-toolbar-actions > button { min-width: 44px; }
@@ -449,3 +463,6 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
   .workspace-panel-title-row > .workspace-panel-actions { order: 2; }
   .workspace-panel-title-row > .workspace-sheet-states { order: 3; flex-basis: 100%; }
 }
+
+/* Explicit reading takes priority when the visual viewport is keyboard-sized. */
+.map-workbench[data-short-viewport]:has(.map-workspace-layout[data-expanded]) .map-live-stats { display: none; }

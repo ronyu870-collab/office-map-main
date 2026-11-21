@@ -266,3 +266,18 @@ it('restores reducer-owned search results after returning from building details'
   fireEvent.click(screen.getByRole('button', { name: '收起' }));
   expect(close).toHaveBeenCalledOnce();
 });
+
+
+it('keeps all four metrics visible and updates their values without opening a disclosure', () => {
+  const view = renderWorkbench();
+  const metrics = screen.getByRole('region', { name: '市场实时指标' });
+  expect(within(metrics).getByText('188.0')).toBeVisible();
+  expect(within(metrics).getByText('12.0')).toBeVisible();
+  expect(within(metrics).getByText('80')).toBeVisible();
+  expect(within(metrics).getByText('1,000,000')).toBeVisible();
+  expect(document.querySelector('.map-disclosure[open]')).toBeNull();
+  view.update({ stats: { avgRent: '146.1', overallVacancyPct: '21.1', visibleProjectCount: '601', projectCount: '650', totalArea: '36,077,944' } });
+  expect(within(metrics).getByText('146.1')).toBeVisible();
+  expect(within(metrics).getByText('601')).toBeVisible();
+  expect(within(metrics).queryByText('188.0')).not.toBeInTheDocument();
+});

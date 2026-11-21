@@ -82,15 +82,16 @@ try {
       await page.goto(new URL('/map', base).href);
       await page.locator('#map-container [data-building-id="cbd-a"]').first().waitFor();
       assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true');
+      const liveStats = page.getByRole('region', { name: '市场实时指标', exact: true });
+      await liveStats.getByText('有坐标项目', { exact: true }).waitFor();
       const overview = page.locator('.map-market-overview > summary');
       await overview.focus();
       await overview.press('Enter');
       const menu = page.locator('.map-disclosure-content');
-      await menu.getByText('有坐标项目', { exact: true }).waitFor();
       await menu.getByText(/按筛选结果统计，不随地图移动变化/).waitFor();
-      const statsBeforeMove = await menu.locator('dl').innerText();
+      const statsBeforeMove = await liveStats.locator('dl').innerText();
       await page.evaluate(() => { window.__workspaceMap.emit('moveend'); });
-      assert.equal(await menu.locator('dl').innerText(), statsBeforeMove);
+      assert.equal(await liveStats.locator('dl').innerText(), statsBeforeMove);
       const popup = await menu.boundingBox();
       assert.ok(popup.x >= 0 && popup.x + popup.width <= width && popup.y >= 0 && popup.y + popup.height <= height, 'statistics fit the visible viewport');
       await page.keyboard.press('Escape');
@@ -346,6 +347,7 @@ try {
         await choices.getByRole('button', { name: '清空关键词', exact: true }).waitFor();
         await choices.getByRole('button', { name: '全屏阅读工作区' }).click();
         await choices.getByRole('button', { name: '清空关键词', exact: true }).click();
+        await liveStats.getByText('有坐标项目', { exact: true }).waitFor();
         assert.equal(await search.inputValue(), '');
         assert.ok(await search.evaluate(el => el === document.activeElement));
         await page.setViewportSize({ width, height });
