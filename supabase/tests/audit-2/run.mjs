@@ -1,4 +1,3 @@
-import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import { mkdir,writeFile,readFile } from 'node:fs/promises';
@@ -26,14 +25,16 @@ try {
  await db.setup.query(actorMigration.slice(actorMigration.indexOf('create function private.snapshot_audit_actor()'),actorMigration.indexOf('-- Classify existing rows')));
  const backendPid=(await db.setup.query('select pg_backend_pid() as pid')).rows[0].pid;
  const tickRate=process.platform==='linux'?Number(execFileSync('getconf',['CLK_TCK'],{encoding:'utf8'})):null;
- const cpuSeconds=()=>{
-  if(tickRate){const stat=readFileSync(`/proc/${backendPid}/stat`,'utf8');const fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');return(Number(fields[11])+Number(fields[12]))/tickRate;}
+ const cpuSeconds=async()=>{
+  // The disposable CI database runs in a separate PID namespace. Read from
+  // the measured backend itself, never interpret its PID on the runner host.
+  if(tickRate){const stat=(await db.setup.query("select pg_read_file('/proc/self/stat') as stat")).rows[0].stat;const fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');return(Number(fields[11])+Number(fields[12]))/tickRate;}
   return execFileSync('ps',['-p',String(backendPid),'-o','time='],{encoding:'utf8'}).trim().split(':').map(Number).reduce((seconds,part)=>seconds*60+part,0);
  };
  const measure=async(run,prepare=async()=>undefined)=>{
-  const cpuBefore=cpuSeconds();
+  const cpuBefore=await cpuSeconds();
   const samples=[];for(let i=0;i<110;i++){await prepare(i);const start=performance.now();await run(i);if(i>=10)samples.push(performance.now()-start);}
-  samples.sort((a,b)=>a-b);return {samples:100,p95Ms:samples[94],medianMs:samples[49],backendCpuMs:(cpuSeconds()-cpuBefore)*1000,meanMs:samples.reduce((a,b)=>a+b,0)/samples.length};
+  samples.sort((a,b)=>a-b);return {samples:100,p95Ms:samples[94],medianMs:samples[49],backendCpuMs:((await cpuSeconds())-cpuBefore)*1000,meanMs:samples.reduce((a,b)=>a+b,0)/samples.length};
  };
  const businessBench=async()=>({
   ordinaryRead:await measure(()=>db.asUser(ADMIN,'select id,name from public.buildings order by name limit 50')),
@@ -51,14 +52,14 @@ try {
  const listQuery='select id,user_id,action_type,occurred_at,target_name,module,actor_name from public.audit_logs order by occurred_at desc,id desc limit 51';
  const beforeQuery=await explain(listQuery);
  const benchmark=async()=>{
-  const cpuBefore=cpuSeconds();
+  const cpuBefore=await cpuSeconds();
   const samples=[];
   for(let i=0;i<110;i++) {
    const start=performance.now();
    await db.asUser(ADMIN,`with b as (insert into public.buildings(name,leasable_area) values('Synthetic',100) returning id) select id from b`);
    if(i>=10)samples.push(performance.now()-start);
   }
-  samples.sort((a,b)=>a-b);return {samples:100,p95Ms:samples[94],medianMs:samples[49],backendCpuMs:(cpuSeconds()-cpuBefore)*1000,meanMs:samples.reduce((a,b)=>a+b,0)/samples.length};
+  samples.sort((a,b)=>a-b);return {samples:100,p95Ms:samples[94],medianMs:samples[49],backendCpuMs:((await cpuSeconds())-cpuBefore)*1000,meanMs:samples.reduce((a,b)=>a+b,0)/samples.length};
  };
  const before=await benchmark();
  await db.setup.query('truncate public.buildings,public.audit_logs');
