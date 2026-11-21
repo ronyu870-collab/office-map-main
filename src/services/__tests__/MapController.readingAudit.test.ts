@@ -28,8 +28,9 @@ it('unifies marker, list/search/return and future detail opens without merging d
   value.openFutureSupplyInfoWindow({ ...building, id: 'future-a', building_id: building.id });
   value.showBuildingPopup({ ...building, id: 'stock-b' }, null);
   expect(observed.events.map(event => [event.action, event.details.building_id, event.details.target_table])).toEqual([
-    ['VIEW_BUILDING', 'stock-a', 'buildings'], ['VIEW_BUILDING', 'stock-a', 'buildings'], ['VIEW_BUILDING', 'future-a', 'future_supplies'], ['VIEW_BUILDING', 'stock-b', 'buildings'],
+    ['VIEW_BUILDING', 'stock-a', 'buildings'], ['VIEW_BUILDING', 'future-a', 'future_supplies'], ['VIEW_BUILDING', 'stock-b', 'buildings'],
   ]);
+  expect(observed.events[0].details).toMatchObject({entry:'map_marker',correlation_id:expect.stringMatching(/^[0-9a-f-]{36}$/i)});
   expect(value.workspaceDetailHandler).toHaveBeenCalledTimes(5);
 });
 
