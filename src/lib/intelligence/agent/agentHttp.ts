@@ -1,6 +1,11 @@
 import { KNOWLEDGE_TOOL_NAMES, isKnowledgeResult, type KnowledgeToolName } from '../knowledge/protocol';
 import { queryKnowledge, knowledgeModelObservation, recheckKnowledgeResults } from '../knowledge/research';
 import { publicSearchConfigured } from '../knowledge/publicSearch';
+import { RESEARCH_TOOL_NAMES } from '../research/protocol';
+import { ResearchExecution } from '../research/execution';
+import { isResearchResult, researchObservation, researchSections, reviewIssueText } from '../research/workspace';
+import { recheckResearchResult } from '../research/authorization';
+import { generateResearchDeliverable } from '../research/deliverable';
 import { BUSINESS_TOOL_NAMES, isBusinessResult, type BusinessToolName } from '../business/protocol';
 import { queryBusinessResearch, businessModelObservation, recheckBusinessResults, businessCapabilities } from '../business/research';
 import { isLeaseResult } from '../lease/protocol';
@@ -99,6 +104,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
   let requestId: string = randomUUID();
   let audit: ReturnType<typeof createRpcAuditPort> | undefined;
   let received = false, completed = false;
+  let checkpointPreserved = false;
   try {
     const body = await readQueryBody(request, keys.digestKey);
     let parsed: z.infer<typeof inputSchema> | undefined;
@@ -166,10 +172,13 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         : 'DeepSeek 调用预算校验未通过，本轮没有调用模型。' }, 503);
     }
     const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal);
-    const reportHistory = /PDF/i.test(valid.question) && authority.grants.includes('export:internal')
+    const research = new ResearchExecution(history.contextResult && isResearchResult(history.contextResult) ? history.contextResult : undefined);
+    let researchTouched = false;
+    const reportHistory = /PDF/i.test(valid.question) && !research.task && authority.grants.includes('export:internal')
       ? await readReportHistory(client, actor, keys, authority, valid.conversation, signal) : undefined;
     for (const result of reportHistory?.results ?? []) workset.register(result, worksetOwner);
-    if (history.contextResult && !reportHistory?.results.some(r => r.resultId === history.contextResult!.resultId))
+    if (research.task) for (const section of researchSections(history.contextResult!)) workset.register(section.result, worksetOwner);
+    if (history.contextResult && !isResearchResult(history.contextResult) && !reportHistory?.results.some(r => r.resultId === history.contextResult!.resultId))
       workset.register(history.contextResult, worksetOwner);
     if (reportHistory) {
       const priorCheck = history.contextRecheck;
@@ -209,11 +218,12 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
     const knowledgeResults=new Map<string,QueryResult>();
-    if(history.contextResult?.parameters.knowledgeBindings || history.contextResult?.parameters.publicBindings) knowledgeResults.set(history.contextResult.resultId,history.contextResult);
+    const imported = research.task ? research.results : history.contextResult ? [history.contextResult] : [];
+    for (const r of imported) if(r.parameters.knowledgeBindings || r.parameters.publicBindings) knowledgeResults.set(r.resultId,r);
     const businessResults = new Map<string,QueryResult>();
-    if(history.contextResult?.parameters.businessBindings) businessResults.set(history.contextResult.resultId,history.contextResult);
+    for (const r of imported) if(r.parameters.businessBindings) businessResults.set(r.resultId,r);
     const leaseResults = new Map<string, QueryResult>();
-    if (history.contextResult?.parameters.leaseBindings) leaseResults.set(history.contextResult.resultId, history.contextResult);
+    for (const r of imported) if(r.parameters.leaseBindings) leaseResults.set(r.resultId,r);
     const recheckLeases = async (exporting = false) => {
       await recheckKnowledgeResults(client,actor,signal,[...knowledgeResults.values()],exporting);
       await recheckLeaseResults(client, actor, signal, [...leaseResults.values()], exporting);
@@ -225,6 +235,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     let reportFile: Record<string, unknown> | undefined;
     let preparedChart: QueryResult | undefined;
     let chartFile: Record<string, unknown> | undefined;
+    let preparedResearch: QueryResult | undefined;
+    let researchFiles: unknown;
     const exportFiles: Array<Record<string, unknown>> = [];
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
@@ -234,6 +246,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
         contextChart: history.contextChart,
+        ...(research.task ? { researchContext: researchObservation(research.checkpoint()!) } : {}),
         ...(history.contextResult && (isBusinessResult(history.contextResult)||isKnowledgeResult(history.contextResult)) ? { businessResults:workset.manifest(worksetOwner) } : {}),
         ...(history.contextResult && isLeaseResult(history.contextResult) ? { leaseResults: workset.manifest(worksetOwner) } : {}),
         ...(reportHistory ? { reportResults: workset.manifest(worksetOwner), reportHistoryLimited: reportHistory.limited } : {}),
@@ -269,11 +282,11 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           });
           // File delivery state comes from the server, never model prose.
           if (!(result.message.tool_calls?.length) && !leaseResults.size && !knowledgeResults.size && !preparedExport
-            && !preparedChart && !preparedReport && !/(?:导出|下载|Excel|CSV|xlsx|PNG|SVG|PDF|报告|图)/i.test(valid.question)) await flush();
+            && !preparedChart && !preparedReport && !research.task && !/(?:导出|下载|Excel|CSV|xlsx|PNG|SVG|PDF|Word|PPT|报告|图)/i.test(valid.question)) await flush();
           return result;
         },
         signal, onEvent,
-        runTool: async (name, args) => {
+        runTool: async function runTool(name, args): Promise<import('./agentOrchestrator').AgentToolObservation<QueryResult>> {
           if (!REGISTERED_AGENT_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
           const toolSignal = AbortSignal.any([signal, AbortSignal.timeout(20000)]);
           const rechecked = await loadDataAuthority(client, actor, toolSignal);
@@ -281,6 +294,33 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
           await recheckLeases();
+          if (RESEARCH_TOOL_NAMES.has(name)) {
+            researchTouched = true;
+            if (name === 'plan_research_task') return research.plan(args);
+            if (name === 'advance_research_task') {
+              try { return await research.advance(args, async (tool, input) => {
+                const observed = await runTool(tool, input);
+                await audit!.append(requestId, 'tool_finished', { protocol: 'research-step/1', taskId: research.task!.id,
+                  tool, resultId: observed.result?.resultId ?? null, status: observed.result ? 'complete' : 'blocked' });
+                return observed;
+              }, toolSignal); }
+              catch (error) {
+                if (signal.aborted || error instanceof Error && error.message === 'QUERY_DENIED') throw error;
+                const observed = research.observation();
+                return { ...observed, content: JSON.stringify({ ...JSON.parse(observed.content), status: 'limited',
+                  reason: '部分来源步骤未完成；可按最新游标重试或明确报告限制，不能编造结果。' }) };
+              }
+            }
+            if (name === 'review_research_task') return research.review(args);
+            const checkpoint = research.checkpoint();
+            if (!checkpoint) throw new Error('RESEARCH_TASK_NOT_FOUND');
+            await recheckResearchResult(client, actor, toolSignal, requestId, checkpoint, authority.permissionRevision, { exporting: true });
+            const file = await generateResearchDeliverable(checkpoint, args, requestId);
+            await recheckResearchResult(client, actor, toolSignal, requestId, file.result, authority.permissionRevision, { exporting: true });
+            preparedResearch = file.result;
+            researchFiles = JSON.parse(file.content).files;
+            return file;
+          }
           if(KNOWLEDGE_TOOL_NAMES.has(name)) {
             const observed=await queryKnowledge(client,actor,toolSignal,name as KnowledgeToolName,args);
             knowledgeResults.set(observed.result.resultId,observed.result);workset.register(observed.result,worksetOwner);
@@ -424,6 +464,21 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         cost: null, costStatus: 'planning_range_not_invoice',
         costEstimate: estimateAgentCostRange(reportedModel, reportedInput, reportedOutput),
         durationMs: Math.max(0, Date.now() - agentStartedAt) });
+      if (researchTouched && research.task && (request.signal.aborted || signal.aborted)) {
+        // A valid partial checkpoint is a successful archive write, not a claim
+        // that the research completed. Existing owner/session audit recovery is reused.
+        const checkpoint = research.checkpoint(true)!;
+        const checkpointSignal = AbortSignal.timeout(10000);
+        await recheckResearchResult(client, actor, checkpointSignal, requestId, checkpoint, authority.permissionRevision);
+        const answer = '研究已中断，已完成步骤已记录；可重新鉴权后恢复继续。尚未完成研究或生成新文件。';
+        await audit.append(requestId, 'tool_finished', { protocol: 'agent-answer/1', researchContext: true,
+          resolution: { protocol: 'deep-research/1' }, permissionRevision: authority.permissionRevision,
+          history: trimAgentHistory(history, valid.question, answer), executionStatus: 'partial', status: 'checkpoint_prepared' });
+        await audit.append(requestId, 'response_generated', { result: checkpoint });
+        await audit.append(requestId, 'succeeded', { delivery: 'not_sent', executionStatus: 'partial', researchInterrupted: true });
+        completed = true; checkpointPreserved = true;
+        await recordHistorySubmission(client, keys, actor, valid.conversation.id, requestId);
+      }
       throw error;
     }
     if(execution.unresolvedFailures.some(item=>item.code==='knowledge_public_search_disabled'))execution.answer='公开搜索服务尚未启用，本轮没有联网或发送外部查询。需由维护者配置正式搜索服务及公开研究授权。';
@@ -504,16 +559,40 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         ?'公开搜索已返回来源与摘要。请核对来源 URL、检索时间及资料时间；摘要尚未核验原网页。'
         :'内部资料证据已在结果表格交付，可按文档和页码／位置对照核查。私有正文未发送外部模型；文档陈述不等于已核验的当前事实。';
     }
+    const researchRequested = execution.toolNames.some(name => RESEARCH_TOOL_NAMES.has(name))
+      || /(?:Word|PPT|PowerPoint|docx|pptx)/i.test(valid.question) && /(?:生成|导出|制作|输出|报告|下载)/.test(valid.question);
+    const researchFailures = execution.unresolvedFailures.filter(f => RESEARCH_TOOL_NAMES.has(f.tool)).map(f => {
+      if (f.code === 'research_step_limit') return '本次范围超过八个数据步骤，请减少指标或模块，未截断结果。';
+      if (/^(?:report_|research_archive_limit|artifact_size_limit)/.test(f.code)) return '成果超过当前行数、页数、文件或可读排版容量，未裁剪数据；请缩小范围或分批生成。';
+      if (f.code === 'invalid_arguments') return '研究规格不符合受控范围：最多两个子市场、八个季度；请明确期间和业务口径。';
+      return '成果步骤未通过校验，请核对研究进度、当前授权和生成要求。';
+    });
+    if (researchRequested && !preparedResearch) execution.answer = '本轮未生成研究文件。' + [...new Set(researchFailures)].join('');
+    if (researchTouched && research.task) {
+      execution.result = preparedResearch ?? research.checkpoint()!;
+      const descriptor = researchObservation(execution.result);
+      const formats = execution.result.parameters.researchDeliverables as string[] | undefined;
+      execution.answer = formats ? '服务器已生成内部研究 ' + formats.map(f => ({ docx: 'Word', pptx: 'PPT', pdf: 'PDF', xlsx: 'Excel' } as Record<string, string>)[f]).join('、')
+        + ' 文件，可通过本条回答下载；尚未发起浏览器下载，未确认本机保存。对客发布须另行授权。'
+        : descriptor.state === 'reviewed' ? '研究步骤已完成并审查，正式结果、同源图表规格及来源保留在研究工作集中；本轮尚未生成成果文件。'
+        : '研究进度已记录，尚有步骤未完成；可在当前对话继续，不能将部分结果视为完整研究。';
+      if (descriptor.issues.length) execution.answer += '\n研究限制：' + [...new Set(descriptor.issues.map(i => reviewIssueText(i.code)))].join('');
+      if (researchFailures.length) execution.answer += '\n' + [...new Set(researchFailures)].join('');
+      if (descriptor.state !== 'reviewed' || execution.unresolvedFailures.length) execution.executionStatus = 'partial';
+    }
     const knowledgeAnswer=execution.result && isKnowledgeResult(execution.result);
     const businessAnswer=execution.result && isBusinessResult(execution.result);
     const leaseAnswer = execution.result && isLeaseResult(execution.result);
-    const answerPlan = execution.result && !leaseAnswer && !businessAnswer && !knowledgeAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
+    const researchAnswer = execution.result && isResearchResult(execution.result);
+    const answerPlan = execution.result && !researchAnswer && !leaseAnswer && !businessAnswer && !knowledgeAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
     await audit.append(requestId, 'tool_finished', {
       protocol: 'agent-answer/1', provider: 'deepseek', model: execution.model,
       permissionRevision: authority.permissionRevision,
       history: trimAgentHistory(history, valid.question, execution.answer),
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
+      ...(researchAnswer ? { researchContext: true, resolution: { protocol: 'deep-research/1' } } : {}),
+      ...(researchFiles ? { researchFiles, researchFileState: 'server_generated' } : {}),
       ...(knowledgeResults.size ? {knowledgeContext:true}: {}),
       ...(knowledgeAnswer ? {resolution:{protocol:'knowledge-research/1'}}:{}),
       ...(businessResults.size ? {businessContext:true} : {}),
@@ -557,7 +636,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     try {
       await history.contextRecheck?.();
       await recheckLeases();
-      if (preparedReport) {
+      if (preparedReport || researchAnswer) {
         const read = await readOwnResult(client, actor, requestId, 'archive', signal);
         await recoverOwnResult(client, actor, keys, requestId, read, signal);
       }
@@ -584,7 +663,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       catch { /* Audit persistence unavailable: never deliver a successful result. */ }
     }
     if (request.signal.aborted) return json({ requestId, status: 'cancelled',
-      error: '浏览器已中断请求，不能确认服务端是否完全停止。' }, 409);
+      error: checkpointPreserved ? '研究已中断，已完成的合法步骤已记录，可从历史恢复继续；研究尚未全部完成。' : '浏览器已中断请求，不能确认服务端是否完全停止。' }, 409);
+    if (checkpointPreserved) return json({ requestId, status: 'cancelled', error: '本轮执行时间已达限制，合法研究进度已记录，可从历史恢复继续；研究尚未全部完成。' }, 409);
     return json({ requestId, status: error instanceof Error && error.message === 'QUERY_DENIED' ? 'denied' : 'unavailable',
       error: providerMessage(error) },
       error instanceof Error && error.message === 'QUERY_DENIED' ? 403 : 503);

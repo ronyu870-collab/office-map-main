@@ -2,17 +2,14 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { PDFDocument, rgb, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { z } from 'zod';
-import { reportDescriptorSchema, REPORT_LIMITS } from './reportProtocol';
-import { resultViewSchema, resultSummary, cellText, units } from './presentation';
+import { REPORT_LIMITS } from './reportProtocol';
+import { readReportModel, reportSectionNarrative } from './reportModel';
+import { resultSummary, cellText, units } from './presentation';
 import { resultOutputDescriptor } from './resultOutput';
-import { researchAnalysisSchema } from './researchAnalysisView';
 import { buildResultChart } from './charts';
-import { chartRequestSchema } from './chartSpec';
 import { renderChartPng } from './chartPng';
-import { resultDigest, type QueryResult } from './result';
+import type { QueryResult } from './result';
 
-const sectionSchema = z.object({ result: resultViewSchema, chart: chartRequestSchema.nullable() });
 const color = (hex: string) => rgb(parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255, parseInt(hex.slice(4, 6), 16) / 255);
 const ink = color('172033'), blue = color('003e7e'), muted = color('667085'), rule = color('d9e0e8');
 const width = 841.89, height = 595.28, margin = 44, available = width - margin * 2, lineHeight = 17;
@@ -20,10 +17,7 @@ const clean = (s: string) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\
 
 /** Fixed PDF primitives only: no HTML parser, JavaScript, links, external assets or caller paths. */
 export async function renderResearchPdf(raw: QueryResult) {
-  const root = resultViewSchema.parse(raw), descriptor = reportDescriptorSchema.parse(root.parameters.agentReport);
-  const sections = z.array(sectionSchema).min(1).max(8).parse((root.parameters.agentReport as { sections: unknown }).sections);
-  if (descriptor.sectionCount !== sections.length || descriptor.rowCount !== sections.reduce((n, s) => n + s.result.table.rows.length, 0)
-    || descriptor.rowCount > REPORT_LIMITS.rows) throw new Error('REPORT_ROW_LIMIT');
+  const { root, descriptor, sections, manifest } = readReportModel(raw);
   const doc = await PDFDocument.create(); doc.registerFontkit(fontkit);
   // Embed the server-only static TrueType Chinese face. Fontkit subsets
   // glyphs and embeds a ToUnicode map for searchable Chinese.
@@ -71,11 +65,6 @@ export async function renderResearchPdf(raw: QueryResult) {
     for (const line of wrapped) { space(leading); text(line, margin, y, size, heading ? blue : ink); y += leading; }
     y += heading ? 8 : 7;
   }
-  const manifest = { version: 'research-pdf/1', purpose: 'internal', generatedAt: descriptor.generatedAt,
-    resultId: root.resultId, digest: resultDigest(raw), dataVersion: root.dataVersion,
-    sections: sections.map((s, i) => ({ resultId: s.result.resultId, snapshotId: s.result.snapshotId, dataVersion: s.result.dataVersion,
-      createdAt: s.result.createdAt, digest: resultDigest((root.parameters.agentReport as { sections: Array<{ result: QueryResult }> }).sections[i].result), parameters: s.result.parameters,
-      table: s.result.table, analysis: s.result.analysis, sources: s.result.sources, limitations: s.result.limitations, chart: s.chart })) };
   // Technical provenance stays in an inert JSON attachment, not business prose.
   await doc.attach(new Uint8Array(new TextEncoder().encode(JSON.stringify(manifest))), 'manifest.json', {
     mimeType: 'application/json', description: '来源、精确单元格、口径与结果版本', creationDate: generation, modificationDate: generation,
@@ -99,20 +88,7 @@ export async function renderResearchPdf(raw: QueryResult) {
     if (last && kpis.length) for (const c of kpis) paragraph(`${c.label}：${cellText(last.cells[c.key], c.unit)} ${units[c.unit!] ?? c.unit}（取自原表对应期间，样本见明细）`);
     else paragraph('本节按完整原表呈现，不把逐楼记录擅自汇总为市场指标。完整记录与限制见下文。');
     paragraph('研究分析与统计口径', true);
-    resultSummary(r).forEach(s => paragraph(s));
-    const research = researchAnalysisSchema.safeParse(r.parameters.researchAnalysis).data;
-    if (research) {
-      const known = new Set(r.sources.map(s => s.id));
-      if (research.findings.some(f => f.sourceIds.some(id => !known.has(id)))) throw new Error('REPORT_FINDING_SOURCE_INVALID');
-      for (const finding of research.findings) paragraph(`${finding.title}：${finding.text}`);
-      // Changes come only from the saved deterministic research supplement.
-      for (const series of research.series) for (const [label, changes] of [['环比', series.quarterOnQuarter], ['同比', series.yearOnYear]] as const) {
-        for (const change of changes) {
-          const period = `${change.current.year}Q${change.current.quarter}`;
-          paragraph(`${series.label || d.metric} ${period} ${label}：${change.change ? cellText({ kind: 'number', value: change.change, sourceIds: [] }, change.changeUnit) + ' ' + (units[change.changeUnit] ?? change.changeUnit) : '未知：缺少可比有效数据或基期为零'}。`);
-        }
-      }
-    }
+    reportSectionNarrative(r).forEach(s => paragraph(s));
     if (section.chart) {
       const chart = buildResultChart(r, section.chart);
       if (chart.request.kind === 'plot' && chart.points.length > 100) throw new Error('REPORT_CHART_LABEL_LIMIT');
