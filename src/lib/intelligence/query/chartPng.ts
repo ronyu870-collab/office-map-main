@@ -2,8 +2,8 @@ import path from 'node:path';
 import { renderChartSvg, type ResultChart } from './charts';
 
 /** Server-only, fixed SVG renderer; no caller-provided paths, SVG or URLs. */
-export async function renderChartPng(chart: ResultChart) {
-  const svg = renderChartSvg(chart);
+export async function renderChartPng(chart: ResultChart, options?: { provenance: 'attachment' }) {
+  const svg = renderChartSvg(chart, options);
   if (new TextEncoder().encode(svg).byteLength > 16 * 1024 * 1024) throw new Error('CHART_PNG_SOURCE_LIMIT');
   const size = /<svg[^>]* width="([\d.]+)" height="([\d.]+)"/.exec(svg);
   if (!size) throw new Error('CHART_PNG_SIZE_INVALID');

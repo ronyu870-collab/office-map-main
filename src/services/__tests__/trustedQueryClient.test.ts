@@ -119,6 +119,24 @@ describe('trusted query client current identity guard', () => {
     await expect(trustedQueryClient.download(scope, request, new AbortController().signal)).rejects.toThrow('身份已变化');
   });
 
+  it('verifies PDF MIME, extension, magic bytes and digest before releasing a report download', async () => {
+    vi.stubGlobal('crypto', webcrypto);
+    const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    async function response(text = '%PDF-1.7 synthetic transport fixture', mime = 'application/pdf', filename = 'report.pdf') {
+      const bytes = new TextEncoder().encode(text);
+      const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).map(b => b.toString(16).padStart(2, '0')).join('');
+      return new Response(bytes, { headers: { 'Content-Type': mime, 'Content-Disposition': `attachment; filename="${filename}"`, 'X-Query-Result-Id': id, 'X-Artifact-Sha256': digest } });
+    }
+    const fetcher = vi.fn().mockResolvedValueOnce(await response()).mockResolvedValueOnce(await response('<html>not PDF</html>'))
+      .mockResolvedValueOnce(await response('%PDF-', 'application/zip')).mockResolvedValueOnce(await response('%PDF-', 'application/pdf', 'report.zip'));
+    vi.stubGlobal('fetch', fetcher);
+    const request = { requestId: id, resultId: id, action: 'export' as const, format: 'pdf' as const };
+    expect((await trustedQueryClient.download(scope, request, new AbortController().signal)).filename).toBe('report.pdf');
+    await expect(trustedQueryClient.download(scope, request, new AbortController().signal)).rejects.toThrow('PDF 文件内容无效');
+    await expect(trustedQueryClient.download(scope, request, new AbortController().signal)).rejects.toThrow('PDF 下载格式不正确');
+    await expect(trustedQueryClient.download(scope, request, new AbortController().signal)).rejects.toThrow('PDF 下载格式不正确');
+  });
+
   it('acknowledges verified bytes and reports DOM separately, without resubmitting a query on receipt failure', async () => {
     vi.stubGlobal('crypto', webcrypto);
     const text = JSON.stringify({ status: 'clarification', message: '请明确季度。' });

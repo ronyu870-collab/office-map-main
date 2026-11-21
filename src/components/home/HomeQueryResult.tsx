@@ -12,6 +12,7 @@ import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailabil
 import { resultBuildingRows } from '@/src/lib/intelligence/query/buildingCards';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
+import { HomeQueryPdfDownload } from './HomeQueryPdfDownload';
 import { HomeQueryExportDownload } from './HomeQueryExportDownload';
 import { HomeQueryChartWorkspace } from './HomeQueryChartWorkspace';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
@@ -120,6 +121,8 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       </div>}
       <SourceOverview result={result} research={research} onSource={showSources} />
     </div>
+    {requestId && scope && <HomeQueryPdfDownload descriptor={result.parameters.agentReport}
+      requestId={requestId} resultId={result.resultId} scope={scope} internalExport={internalExport} />}
     {requestId && scope && <HomeQueryExportDownload descriptor={result.parameters.agentExport}
       requestId={requestId} resultId={result.resultId} scope={scope} internalExport={internalExport} />}
     {requestId && scope && result.parameters.agentChart != null && <HomeQueryChartWorkspace result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible} />}

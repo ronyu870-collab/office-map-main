@@ -1,3 +1,4 @@
+import { reportPeriodRange } from '../query/reportProtocol';
 import { randomUUID } from 'node:crypto';
 import { parseQueryPlan, type QueryPlan } from '../query/plan';
 import { STRUCTURED_DATA_SCHEMAS, type StructuredDataToolName } from './toolRegistry';
@@ -79,6 +80,10 @@ export async function executeStructuredDataTool(
   let planInput: unknown;
   let nameContains: string | undefined;
   switch (name) {
+    case 'query_report_market': {
+      const args = STRUCTURED_DATA_SCHEMAS.query_report_market.parse(input);
+      planInput = { operation: 'trend', scope: args.scope, metric: args.metric, mode: 'per_period', ...reportPeriodRange(args.recentCompletedQuarters) }; break;
+    }
     case 'analyze_rent_vacancy': {
       const args = STRUCTURED_DATA_SCHEMAS.analyze_rent_vacancy.parse(input);
       planInput = { operation: 'relationship', ...args }; break;
@@ -145,6 +150,7 @@ export async function executeStructuredDataTool(
   authorizeConversationPlan(plan, authority);
   const snapshots = await readQuerySnapshots(env.client, env.identity, await fresh(), plan, env.signal);
   let result: QueryResult = executeQueryPlan(plan, snapshots);
+  if (name === 'query_report_market') result = { ...result, parameters: { ...result.parameters, reportPeriodRule: 'completed-shanghai-calendar-quarters/1' }, limitations: [...result.limitations, '报告中的最近季度默认指最近已结束的北京时间日历季度；日历结束不等于数据已审定，缺期保留未知，不回退到其他季度。'] };
   // Search-by-name is a deterministic, result-only transformation of an already
   // authorized catalog snapshot. Preserve the original scope and source IDs.
   if (nameContains) {

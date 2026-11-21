@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { reportRequestSchema } from '../query/reportProtocol';
 import { distributionMeasureSchema } from '../query/distribution';
 import { chartRequestSchema } from '../query/chartSpec';
 
@@ -28,6 +29,7 @@ const rowFilter = z.strictObject({ field: z.string().min(1).max(50),
   operator: z.enum(['eq', 'contains', 'gte', 'lte']), value: z.union([z.string().max(160), z.number().finite()]) });
 
 export const STRUCTURED_DATA_SCHEMAS = {
+  query_report_market: z.strictObject({ scope, metric, recentCompletedQuarters: z.number().int().min(1).max(12).default(4) }),
   analyze_rent_vacancy: z.strictObject({ scope, period: quarter }),
   analyze_distribution: z.strictObject({ scope, period: quarter.nullable(), measure: distributionMeasureSchema }),
   list_buildings: z.strictObject({ scope, fields: z.array(field).max(6).default([]),
@@ -70,6 +72,7 @@ export const exportContextSchema = z.strictObject({
 
 export const WORKSET_TOOL_SCHEMAS = {
   export_table: exportTableSchema,
+  generate_pdf_report: reportRequestSchema,
   summarize_result: resultRef,
   read_result_page: z.strictObject({ resultId: z.uuid(), offset: z.number().int().min(0).max(100000).default(0),
     limit: z.number().int().min(1).max(100).default(30), sort: rowSort.optional(), filter: rowFilter.optional() }),
@@ -137,6 +140,7 @@ function def(name: string, description: string, properties: Record<string, unkno
 }
 const jsonScope = s;
 export const SPECIALIST_DATA_TOOLS = [
+  def('query_report_market', 'PDF研究报告的相对期间查询。用户未指定明确起止、说最近四季度时，报告默认最近4个已结束的北京时间日历季度；由服务器计算起止，缺期保留未知，不回退到最近有数季度。metric=rent|vacancy|totalArea，可分别执行后组合PDF。已指定起止或含本季度时应使用analyze_market_trends，不改写用户期间。', z.toJSONSchema(STRUCTURED_DATA_SCHEMAS.query_report_market).properties as Record<string, unknown>, ['scope', 'metric']),
   def('analyze_rent_vacancy', '查询同季度获权楼宇的净有效租金与空置率联合样本，用于散点；返回rent与vacancy列，空置率正式比例来自授权面积，不自行估算。', { scope: s, period: q }, ['scope', 'period']),
   def('analyze_distribution', '复用正式分布统计生成直方图或箱线图所需的完整获权结果；不由模型计算分箱和分位数。', z.toJSONSchema(STRUCTURED_DATA_SCHEMAS.analyze_distribution).properties as Record<string, unknown>, ['scope', 'period', 'measure']),
   def('list_buildings', '查询完整获权楼宇列表及最多6个组合数值字段；无季度只能查询目录/资料字段，季度数值须明确period。可供全量导出，绝不以预览行替代全表。',
@@ -164,6 +168,8 @@ export const SPECIALIST_DATA_TOOLS = [
       groupBy: { type: 'string', enum: ['submarket', 'grade'] } }, ['scope', 'start', 'end', 'metric']),
 ] as const;
 export const WORKSET_TOOLS = [
+  def('generate_pdf_report', '真实生成内部PDF研究报告。只接受本轮完整获权resultIds（含服务器重新授权导入的当前对话reportResults），允许不同列结构的多个结果组合；租金、空置率、面积应分别查询完整期间后一起提交。正文、KPI、研究结论、同比环比只来自正式结果，禁止模型提供数字或自写分析。可指定现有chart规格，默认复用已准备图表或原确定性图种。purpose=internal；client用途须另行正式发布授权，本工具不发布对客文件。成功仅表示服务器生成，回答提供可信下载，不能声称本机保存。历史未导入的ID须重新查询。',
+    z.toJSONSchema(reportRequestSchema).properties as Record<string, unknown>, ['resultIds']),
   def('export_table', '真实生成内部Excel或CSV与来源ZIP。只接受本轮完整正式resultIds，不能提交数值/SQL/路径。可选择现有列、组合筛选、排序、Top N；默认全部行，超限明确失败。多结果按同列结构纵向合并并保留结果ID/期间，禁止重算均值。singleSheet=true明确只生成一个工作表。跨轮“刚才结果”须按历史条件重新查询再导出。先获取合法resultId及列key；本工具成功只表示服务器生成，下载由回答中的真实操作交付，不表示本机已保存。',
     z.toJSONSchema(exportTableSchema).properties as Record<string, unknown>, ['resultIds', 'format']),
   def('summarize_result', '汇总本次请求中某一完整可信结果的总行数、正式结论、列有效样本数，非前8行。',

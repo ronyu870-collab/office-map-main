@@ -1,3 +1,4 @@
+import { verifyAi5Reports } from './ai5-pdf-scenarios.mjs';
 import { verifyAi5Charts } from './ai5-chart-scenarios.mjs';
 import { verifyAi5Exports } from './ai5-export-scenarios.mjs';
 import { setupCompanyAdmin, verifyCompanyAdmin } from './ai-company-admin-scenarios.mjs';
@@ -593,6 +594,7 @@ try{
   await verifyP2History({db,app,check,person,call,recover,artifact,events,decrypt,exportCaps});
   await verifyAi5Exports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Charts({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
+  await verifyAi5Reports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   if (process.env.AI_QUERY_PERFORMANCE === '1') {
     if (suite === 'regression') {
       performanceBaseline = await startQueryPerformanceBaseline({root,env,log,until});
