@@ -116,3 +116,26 @@ PERF_PROFILE_CPU=1 PERF_PROFILE_DIR=/tmp/amap-profiles PERF_COMMIT=<被测版本
 
 
 后续桌面复查又捕获 58/56ms，同样为 SDK 样式解析及其中的 MinorGC；该轮在手机启动因 SDK complete 已到、瓦片响应计数仍为 0 而中止，已保留失败状态。采集器现以最多 15 秒等待实际高德成功瓦片响应，继续要求 SDK/瓦片成功及无提供商网络错误，不以 complete 事件替代真实网络证据。相关回归包含早到 complete／晚到瓦片、非提供商/非瓦片/失败响应排除、已观察成功和超时传播。修复后重新运行三组共 48 动作全部通过，页面与提供商网络错误为 0，本轮无长任务；不抹去此前四次完整捕获。完整文件的节点/采样校验及 SHA-256 见定位摘要，本地交付目录为 `outputs/verification/live-amap-full-stack-20261122`。
+
+
+## 51–98ms 剩余事件复查与连续采样（2026-11-22）
+
+应用构建 `5a91b71`、Chrome 158 / Apple M1、真实 AMap 2.0 与瓦片、601 项目及 600 单元隔离业务夹具，未降速。标准逐动作 CPU 采样与未开启 Profiler 的对照各 48 动作通过，未复现长任务；整段原生时间线采样增加至 6 轮、共 93 动作，桌面第三次从 Stacking Plan 返回原项目时捕获 **57ms**。面板开合和快速切换无长任务；手机普通／减少动态效果组的动作断言通过。历史 51–98ms 没有当次 CPU profile，不能逐次追溯为同一来源。
+
+57ms 的完整 CPU 样本中，约 **44.011ms** 在高德调用链（其中包含 `decodeStyleList/parseStyle` 的 33.526ms）、12.547ms 在垃圾回收、0.442ms 为未细分 runtime；未出现应用函数帧。主线程 `XHRReadyStateChange` 57.263ms，内部 `MajorGC` 8.7ms；这些时间互相包含，不能相加。全文件含 10,689 节点、425,032 样本与对应时间差，样本引用均有效。[归因、完整性与文件 SHA-256](live-amap/return-57ms-diagnosis.json)。完整脱敏 CPU/主线程文件位于项目 `outputs/verification/live-amap-return-57ms-20261122`，可导入 Chrome DevTools。
+
+新增可选 `PERF_PROFILE_MODE=timeline`：从首屏前持续记录到整组操作结束，按进程与 profile id 重建来自 Profiler 线程的 CPU chunks，保留动作区间外任务、完整调用树及失败现场；帧／样本缺失、多个主线程 profile 或导航时钟重置显式失败。原生时间线采样有额外开销，不与常规耗时比较。另捕获到动作区间外的 52–75ms 初始化事件，包含 SDK 样式解析与字形生成；不能将其冒称为返回动作的捕获。
+
+同时修复采集器自身的 RAF 竞争：旧回调读取可被下一动作替换的 `p.sample`，结束后可能重新排帧并写入下一次帧计数。现绑定所属样本、结束时取消 RAF 并拒绝迟到回调，长任务观察器也绑定所属样本并读取待交付条目。原行为的执行测试失败、修复后通过；真实 Chrome 校准验证动作内外 CPU 栈、时间边界与帧循环清理，纳入现有必需 CI。历史跨动作帧间隔／数量不作为本轮提速证据，未修改应用运行代码。
+
+沿用上方公开图层复用无收益的对照，再次核对[高德公开 API](https://a.amap.com/jsapi/static/doc/20230922/index.html)：`mapStyle` 参数为 String，未找到 `parseStyle/decodeStyleList`、已解析样式复用或异步解析控制入口。本次返回事件的主要阻塞在 SDK 内部，未发现可直接拆分的应用调用。进一步解决需要高德提供公开的异步／缓存接口或 SDK 修复；不通过私有字段补丁、更换底图或破坏地图销毁与身份隔离来规避。
+
+修复后曾将 Chrome 校准与一次功能采样并行启动，该轮初始化出现较大的 WebGL/Shader 开销；因存在并行干扰，保留为功能结果，不作为性能对比，随后改为单独重跑。
+
+一次临时连续采样试跑仅记录到 TypeError 类型，后续多轮未复现，缺少当次错误帧，不能定责。本轮增加错误帧的脱敏保存，排除错误消息、URL 凭据／查询及非栈正文；失败试跑保留在本地证据目录，未计为通过。
+
+```sh
+PERF_PROFILE_CPU=1 PERF_PROFILE_MODE=timeline PERF_ACTION_ROUNDS=6 PERF_PROFILE_DIR=/tmp/amap-context-profiles PERF_COMMIT=<应用构建提交> npm run perf:map:live -- http://127.0.0.1:3211 /tmp/amap-context-results.json
+```
+
+默认仍为原有 3 轮逐动作采样；`PERF_ACTION_ROUNDS` 仅用于本专项的有界重复，不成为日常合并预算。手机为 Chrome 移动视口；生产认证、数据库与业务写入未参与测量。
