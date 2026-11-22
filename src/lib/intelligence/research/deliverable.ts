@@ -4,7 +4,8 @@ import { prepareReportResult } from '../agent/reportTool';
 import { buildResultArtifact } from '../query/artifacts';
 import type { QueryResult } from '../query/result';
 
-export async function generateResearchDeliverable(workspace: QueryResult, raw: unknown, requestId: string) {
+export async function generateResearchDeliverable(workspace: QueryResult, raw: unknown, requestId: string,
+  beforeRender?: (result: QueryResult) => void) {
   const args = RESEARCH_TOOL_SCHEMAS.generate_research_deliverable.parse(raw);
   const task = researchTaskSchema.parse(workspace.parameters.researchTask);
   if (task.id !== args.taskId) throw new Error('RESEARCH_TASK_NOT_FOUND');
@@ -16,6 +17,7 @@ export async function generateResearchDeliverable(workspace: QueryResult, raw: u
   const result: QueryResult = { ...base, parameters: { ...base.parameters, ...workspace.parameters,
     dataDomain: RESEARCH_DOMAIN, researchDeliverables: args.formats,
     agentReport: { ...(base.parameters.agentReport as object), version: 'research-output/1', format: args.formats[0] } } };
+  beforeRender?.(result);
   const files = [];
   for (const format of args.formats) {
     const file = await buildResultArtifact(result, { requestId, resultId: result.resultId, action: 'export', format });

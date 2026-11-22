@@ -1,0 +1,148 @@
+{
+  "protocol": "ai-evaluation/1",
+  "batchId": "5f64ace5-0f37-4a34-b8e9-a240b2a3ccf4",
+  "revision": {
+    "commit": "9e0c33ababc40140675c6ad13674e4aeb636a6ba",
+    "dirty": true,
+    "sourceSha256": "9d4854e5698d929c6792a7725404ff9249263be81f2eca79a65fe786c2f9ba84",
+    "trackedDiffSha256": "7d751271d665c125dbb22e8242d96a8d3ae03c199a982e76d0efc43477e0d484"
+  },
+  "environment": "synthetic-local",
+  "authorizedTotal": 0,
+  "currency": "USD",
+  "liveConcurrency": 1,
+  "model": "deepseek-flash",
+  "thinking": "disabled",
+  "fixture": "synthetic-v1",
+  "clock": "2026-11-22T04:00:00Z",
+  "pricing": {
+    "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "checkedOn": "2026-11-22 Asia/Shanghai",
+    "inputUpperPerMillion": 0.3,
+    "cachedInputUpperPerMillion": 0.006,
+    "outputUpperPerMillion": 1.2,
+    "basis": "published_peak_USD_conservative_no_assumed_cache_hit",
+    "recheckBeforePaidExecution": true
+  },
+  "proposedLivePackage": {
+    "diagnosticWorkflowUpperUsd": 0.072,
+    "acceptanceHoldUsd": 0.144,
+    "bufferHoldUsd": 0.02,
+    "totalProposedUpperUsd": 0.236,
+    "basis": "60000 cumulative tokens * maximum applicable rate 1.2 / 1e6 per complete workflow",
+    "limitation": "Synthetic model/tool seam only. Real Auth/DB/HTTP is a separate scripted evidence layer; production not authorized."
+  },
+  "rows": [
+    {
+      "id": "protocol",
+      "family": "capability-and-single-quarter",
+      "declaredSupported": true,
+      "status": "PASS",
+      "evidence": "deterministic_suite",
+      "durationMs": 4668,
+      "log": "/Users/yuhang/Documents/ChatGPT/高力国际/tmp/colliers-ai-6-1/verification/ai-evaluation/5f64ace5-0f37-4a34-b8e9-a240b2a3ccf4-protocol.log"
+    },
+    {
+      "id": "data",
+      "family": "data-and-units",
+      "declaredSupported": true,
+      "status": "PASS",
+      "evidence": "deterministic_suite",
+      "durationMs": 5333,
+      "log": "/Users/yuhang/Documents/ChatGPT/高力国际/tmp/colliers-ai-6-1/verification/ai-evaluation/5f64ace5-0f37-4a34-b8e9-a240b2a3ccf4-data.log"
+    },
+    {
+      "id": "permissions",
+      "family": "owner-revocation-and-download",
+      "declaredSupported": true,
+      "status": "PASS",
+      "evidence": "deterministic_suite",
+      "durationMs": 4383,
+      "log": "/Users/yuhang/Documents/ChatGPT/高力国际/tmp/colliers-ai-6-1/verification/ai-evaluation/5f64ace5-0f37-4a34-b8e9-a240b2a3ccf4-permissions.log"
+    },
+    {
+      "id": "files",
+      "family": "delivery-and-real-files",
+      "declaredSupported": true,
+      "status": "PASS",
+      "evidence": "deterministic_suite",
+      "durationMs": 21358,
+      "log": "/Users/yuhang/Documents/ChatGPT/高力国际/tmp/colliers-ai-6-1/verification/ai-evaluation/5f64ace5-0f37-4a34-b8e9-a240b2a3ccf4-files.log"
+    },
+    {
+      "id": "conversation",
+      "family": "stream-and-state",
+      "declaredSupported": true,
+      "status": "PASS",
+      "evidence": "deterministic_suite",
+      "durationMs": 20088,
+      "log": "/Users/yuhang/Documents/ChatGPT/高力国际/tmp/colliers-ai-6-1/verification/ai-evaluation/5f64ace5-0f37-4a34-b8e9-a240b2a3ccf4-conversation.log"
+    },
+    {
+      "id": "budget",
+      "family": "cost-and-replay-boundaries",
+      "declaredSupported": true,
+      "status": "PASS",
+      "evidence": "deterministic_suite",
+      "durationMs": 861,
+      "log": "/Users/yuhang/Documents/ChatGPT/高力国际/tmp/colliers-ai-6-1/verification/ai-evaluation/5f64ace5-0f37-4a34-b8e9-a240b2a3ccf4-budget.log"
+    },
+    {
+      "id": "lease",
+      "family": "lease-business-knowledge",
+      "declaredSupported": true,
+      "status": "PASS",
+      "evidence": "deterministic_suite",
+      "durationMs": 3924,
+      "log": "/Users/yuhang/Documents/ChatGPT/高力国际/tmp/colliers-ai-6-1/verification/ai-evaluation/5f64ace5-0f37-4a34-b8e9-a240b2a3ccf4-lease.log"
+    },
+    {
+      "id": "auth-http",
+      "family": "real-auth-db-http",
+      "declaredSupported": true,
+      "status": "NOT_RUN",
+      "evidence": "real_auth_http_not_run",
+      "reason": "Run the existing dedicated disposable Auth/PG harness separately; this command never initializes databases."
+    },
+    {
+      "id": "live-calibration",
+      "family": "live-natural-explanation",
+      "declaredSupported": true,
+      "status": "BUDGET_BLOCKED",
+      "question": "请解释空置率的含义。",
+      "evidence": "real_model_not_run"
+    },
+    {
+      "id": "live-capabilities",
+      "family": "live-capability-discovery",
+      "declaredSupported": true,
+      "status": "BUDGET_BLOCKED",
+      "question": "请检查我这次能读取哪些字段、覆盖哪些范围，能否导出？",
+      "evidence": "real_model_not_run"
+    },
+    {
+      "id": "live-quarter",
+      "family": "live-quarterly-task",
+      "declaredSupported": true,
+      "status": "BUDGET_BLOCKED",
+      "question": "查询 CBD 2026Q3 的净有效租金，说明单位和有效样本。",
+      "evidence": "real_model_not_run"
+    }
+  ],
+  "statusDistribution": {
+    "PASS": 7,
+    "PARTIAL": 0,
+    "FAIL": 0,
+    "EXPECTED_DENIAL": 0,
+    "UNSUPPORTED": 0,
+    "INFRA_BLOCKED": 0,
+    "BUDGET_BLOCKED": 3,
+    "NOT_RUN": 1
+  },
+  "completion": {
+    "n": 7,
+    "N": 11,
+    "evaluated": 7,
+    "unit": "predeclared semantic families; not test assertions or production success probability"
+  }
+}

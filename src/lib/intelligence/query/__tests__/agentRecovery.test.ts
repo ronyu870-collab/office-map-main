@@ -9,6 +9,7 @@ import { buildListResult, resultDigest } from '../result';
 import { fixture } from './fixtures';
 import { buildResultArtifact } from '../artifacts';
 import type { AnswerSelection } from '../answerSelection';
+import { prepareExportResult } from '../../agent/exportTableTool';
 
 const ids = { actor: randomUUID(), effective: randomUUID(), session: randomUUID() };
 const grant = { actorId: ids.actor, effectiveUserId: ids.effective, sessionId: ids.session, sessionActive: true,
@@ -62,7 +63,7 @@ async function recover(finalSegment: string, exportPlans?: unknown[]) {
 }
 
 describe('immutable source-rechecked Agent result recovery', () => {
-  async function recoverSelection(secondarySegment = 'CBD', deniedSecondarySource = false) {
+  async function recoverSelection(secondarySegment = 'CBD', deniedSecondarySource = false, files = false) {
     const requestId = randomUUID();
     const makeResult = (segment: string, label: string) => {
       const base = buildListResult(fixture(), []);
@@ -72,8 +73,10 @@ describe('immutable source-rechecked Agent result recovery', () => {
           cells: { ...row.cells, name: { ...row.cells.name, kind: 'text' as const, value: label } } })) },
         sources: base.sources.map(source => ({ ...source, entityId: mapping.get(source.entityId)! })) };
     };
-    const a = makeResult('CBD', '主结果楼宇'), b = makeResult(secondarySegment, '比较结果楼宇');
-    const selection: AnswerSelection = { version: 'answer-selection/1', task: 'comparison', status: 'answered',
+    const sourceA = makeResult('CBD', '主结果楼宇'), sourceB = makeResult(secondarySegment, '比较结果楼宇');
+    const a = files ? prepareExportResult([sourceA], { resultIds: [sourceA.resultId], format: 'xlsx' }) : sourceA;
+    const b = files ? prepareExportResult([sourceB], { resultIds: [sourceB.resultId], format: 'csv_zip' }) : sourceB;
+    const selection: AnswerSelection = { version: 'answer-selection/1', task: files ? 'file' : 'comparison', status: 'answered',
       primaryResultId: a.resultId, results: [{ role: 'primary', result: a as never }, { role: 'comparison', result: b as never }] };
     const events = [
       auditEvent(requestId, 1, 'received', { sessionId: ids.session, plan: { resolution: 'server_agent/1' } }),
@@ -111,6 +114,21 @@ describe('immutable source-rechecked Agent result recovery', () => {
   it('rejects the complete selection when an auxiliary scope or its current source ACL is denied', async () => {
     await expect(recoverSelection('UNAUTHORIZED_SEGMENT')).rejects.toThrow('QUERY_DENIED');
     await expect(recoverSelection('CBD', true)).rejects.toThrow('QUERY_DENIED');
+  });
+  it('recovers both generated file snapshots without losing content and rejects a revoked secondary source', async () => {
+    const { restored, a, b, requestId } = await recoverSelection('CBD', false, true);
+    const snapshots = restored.answerSelection!.results.map(entry => entry.result);
+    expect(snapshots.map(snapshot => resultDigest(snapshot as never))).toEqual([resultDigest(a), resultDigest(b)]);
+    const XLSX = await import('xlsx'); const { default: JSZip } = await import('jszip');
+    const xlsx = await buildResultArtifact(snapshots[0], { requestId, resultId: a.resultId, action: 'export', format: 'xlsx' });
+    const csv = await buildResultArtifact(snapshots[1], { requestId, resultId: b.resultId, action: 'export', format: 'csv_zip' });
+    if (xlsx.type !== 'download' || csv.type !== 'download') throw Error('missing recovered file');
+    const book = XLSX.read(xlsx.bytes, { type: 'array' });
+    const rows = XLSX.utils.sheet_to_json(book.Sheets['数据'], { header: 1 }) as unknown[][];
+    expect(rows).toHaveLength(5); expect(rows[1]).toContain('主结果楼宇');
+    const zip = await JSZip.loadAsync(csv.bytes);
+    expect(await zip.file('data.csv')!.async('string')).toContain('比较结果楼宇');
+    await expect(recoverSelection('CBD', true, true)).rejects.toThrow('QUERY_DENIED');
   });
   it('recovers the last model tool plan, not the earlier disallowed tool result', async () => {
     const recovered = await recover('CBD');

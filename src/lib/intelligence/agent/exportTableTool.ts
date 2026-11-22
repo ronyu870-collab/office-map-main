@@ -126,11 +126,12 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
 }
 
 export async function exportAuthorizedTable(workset: AuthorizedResultWorkset, owner: WorksetOwner,
-  raw: unknown, grants: readonly string[]) {
+  raw: unknown, grants: readonly string[], beforeRender?: (result: QueryResult) => void) {
   if (!grants.includes('export:internal')) throw new Error('AGENT_EXPORT_DENIED');
   const args = exportTableSchema.parse(raw);
   const results = args.resultIds.map(id => workset.read(id, owner));
   const result = prepareExportResult(results, args);
+  beforeRender?.(result);
   const file = await buildResultArtifact(result, { requestId: owner.requestId,
     resultId: result.resultId, action: 'export', format: args.format });
   if (file.type !== 'download') throw new Error('AGENT_EXPORT_NOT_GENERATED');

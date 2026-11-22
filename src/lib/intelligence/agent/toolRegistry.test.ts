@@ -5,6 +5,16 @@ import { parseAgentToolArguments, REGISTERED_AGENT_TOOL_NAMES,
 import { randomUUID } from 'node:crypto';
 
 describe('AI 5.0 structured native tool protocol', () => {
+  it('accepts empty and legacy capability requests with one advertised optional contract', () => {
+    const advertised = AGENT_TOOLS.find(tool => tool.function.name === 'get_data_capabilities')!;
+    expect(advertised.function.parameters.required).toEqual([]);
+    expect(parseAgentToolArguments('get_data_capabilities', {})).toEqual({});
+    expect(parseAgentToolArguments('get_data_capabilities', { question: '当前数据权限' }))
+      .toEqual({ question: '当前数据权限' });
+    for (const value of [{ question: '' }, { question: 1 }, { role: 'admin' }, { sql: 'select 1' }])
+      expect(() => parseAgentToolArguments('get_data_capabilities', value)).toThrow();
+  });
+
   it('advertises distinct parameter contracts rather than free-text aliases', () => {
     const toolNames = AGENT_TOOLS.map(tool => tool.function.name);
     expect(new Set(toolNames).size).toBe(toolNames.length);

@@ -9,6 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
+    "ai:eval": "node scripts/intelligence/evaluate.mjs",
+    "test:ai-eval": "node --test scripts/intelligence/evaluation/budget.node-test.mjs scripts/intelligence/evaluation/trace.node-test.mjs && node --require ./scripts/intelligence/evaluation/offline-guard.cjs docs/intelligence/evaluation/independent/run.mjs && node --require ./scripts/intelligence/evaluation/offline-guard.cjs docs/intelligence/evaluation/independent/review-regressions.mjs",
     "test:db:lease-audit": "node supabase/tests/lease-change-history/run.mjs",
     "test:db:building-renames": "node supabase/tests/building-renames/run.mjs",
     "test:watch": "vitest",

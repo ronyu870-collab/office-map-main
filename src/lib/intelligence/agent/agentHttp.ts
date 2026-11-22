@@ -17,7 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { IMPERSONATION_REQUEST_HEADER } from '@/src/lib/server/impersonationAuth';
 import type { QueryAuthority } from '../query/admission';
-import { createRpcAuditPort, type AuditKeys } from '../query/auditStore';
+import { createRpcAuditPort, sanitizeAuditContent, type AuditKeys } from '../query/auditStore';
 import { redactSubmittedCredentials } from '../query/auditCrypto';
 import { readQueryBody } from '../query/httpBody';
 import { recordQueryIntake } from '../query/intake';
@@ -256,10 +256,27 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     let preparedReport: QueryResult | undefined;
     let reportFile: Record<string, unknown> | undefined;
     let preparedChart: QueryResult | undefined;
+    let preparedChartSourceId: string | undefined;
     let chartFile: Record<string, unknown> | undefined;
     let preparedResearch: QueryResult | undefined;
     let researchFiles: unknown;
     const exportFiles: Array<Record<string, unknown>> = [];
+    // Reuse the bounded answer-selection archive. Every generated snapshot
+    // remains immutable and independently downloadable under current grants.
+    const generatedResults: QueryResult[] = [];
+    const generatedChartFiles: Array<Record<string, unknown>> = [];
+    const deliverySources = new Map<string, QueryResult>();
+    const fitsDeliveryArchive = (results: readonly QueryResult[]) => {
+      try {
+        // The existing encrypted archive is 16MiB. Keep the existing 15MiB
+        // deliverable envelope, leaving room for selection and audit framing.
+        return Buffer.byteLength(JSON.stringify(sanitizeAuditContent({ result: { results } }))) <= 15 * 1024 * 1024;
+      } catch { return false; }
+    };
+    const requireDeliverySlot = (candidate?: QueryResult) => {
+      if (generatedResults.length >= 3 || candidate && !fitsDeliveryArchive([...generatedResults, candidate]))
+        throw new Error('AGENT_DELIVERY_LIMIT');
+    };
     let selectedAnswer: AnswerSelection | undefined;
     const queriedIds = new Set<string>();
     // History is eligible evidence, not an automatic answer. Only a data
@@ -359,10 +376,12 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (name === 'review_research_task') return research.review(args);
             const checkpoint = research.checkpoint();
             if (!checkpoint) throw new Error('RESEARCH_TASK_NOT_FOUND');
+            requireDeliverySlot();
             await recheckResearchResult(client, actor, toolSignal, requestId, checkpoint, authority.permissionRevision, { exporting: true });
-            const file = await generateResearchDeliverable(checkpoint, args, requestId);
+            const file = await generateResearchDeliverable(checkpoint, args, requestId, requireDeliverySlot);
             await recheckResearchResult(client, actor, toolSignal, requestId, file.result, authority.permissionRevision, { exporting: true });
             preparedResearch = file.result;
+            generatedResults.push(file.result);
             researchFiles = JSON.parse(file.content).files;
             return file;
           }
@@ -389,19 +408,27 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           }
           if (PRESENTATION_TOOL_NAMES.has(name)) {
             toolSignal.throwIfAborted();
-            const id = typeof args.resultId === 'string' ? args.resultId : workset.latestId();
+            const id = typeof args.resultId === 'string' ? args.resultId
+              : ['modify_chart', 'export_chart'].includes(name)
+                ? preparedChartSourceId ?? history.contextChart?.resultId ?? workset.latestId() : workset.latestId();
             let chosen = id ? workset.read(id, worksetOwner) : undefined;
             if (chosen) referencedIds.add(chosen.resultId);
-            if (chosen && preparedChart?.resultId === chosen.resultId) chosen = preparedChart;
+            if (chosen && preparedChart && (preparedChart.resultId === chosen.resultId || preparedChartSourceId === chosen.resultId)) chosen = preparedChart;
             if(chosen && isKnowledgeResult(chosen)) return {content:JSON.stringify(knowledgeModelObservation(chosen))};
             if (name === 'export_chart') {
               if (!chosen) throw new Error('AGENT_RESULT_NOT_FOUND');
               if (!rechecked.grants.includes('export:internal')) throw new Error('AGENT_EXPORT_DENIED');
+              requireDeliverySlot();
               const prior = agentChartDescriptorSchema.safeParse(chosen.parameters.agentChart).data;
               const chart = chartRequestSchema.parse(args.chart ?? prior?.request);
               const format = args.format as 'png_zip' | 'svg_zip';
-              const next: QueryResult = { ...chosen, parameters: { ...chosen.parameters,
+              const next: QueryResult = { ...chosen,
+                // PNG and SVG may share source data, but need distinct sealed
+                // snapshots when both are delivered in the same answer.
+                resultId: generatedResults.some(r => r.resultId === chosen.resultId) ? randomUUID() : chosen.resultId,
+                parameters: { ...chosen.parameters,
                 agentChart: { version: 'chart-workspace/1', request: chart, format } } };
+              requireDeliverySlot(next);
               await recheckBusinessResults(client,actor,toolSignal,[next],true);
               if (isLeaseResult(next)) await recheckLeaseResult(client, actor, toolSignal, next, true);
               const file = await buildResultArtifact(next, { requestId, resultId: next.resultId, action: 'export', format, chart });
@@ -411,7 +438,10 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
               if (!current.grants.includes('export:internal') || current.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
               await recheckLeases(true);
               preparedChart = next;
+              preparedChartSourceId = id;
+              generatedResults.push(next);
               chartFile = { status: 'ready', state: 'server_generated', format, filename: file.filename, bytes: file.bytes.length, sha256: file.sha256 };
+              generatedChartFiles.push({ ...chartFile, resultId: next.resultId });
               return { content: JSON.stringify({ ...chartFile, resultId: next.resultId, note: '服务器已生成真实图片及来源包；回答提供下载操作，尚未发起浏览器下载，不能声称本机已保存。' }), result: next };
             }
             // Selected snapshots are archived in full. Map actions can now
@@ -421,6 +451,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if(name==='prepare_map_selection' && presentation.result) preparedMap=presentation.result;
             if (['prepare_chart', 'create_chart', 'modify_chart'].includes(name) && presentation.result) {
               preparedChart = presentation.result; chartFile = undefined;
+              preparedChartSourceId = id;
               if(isBusinessResult(presentation.result)) return {...presentation,content:JSON.stringify(businessModelObservation(presentation.result))};
               if (isLeaseResult(presentation.result)) return { ...presentation, content: JSON.stringify(leaseModelObservation(presentation.result)) };
               return presentation;
@@ -432,25 +463,29 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return id === workset.latestId() ? presentation : { content: presentation.content };
           }
           if (name === 'generate_pdf_report') {
+            requireDeliverySlot();
             if((args.resultIds as string[]).some(id=>isKnowledgeResult(workset.read(id,worksetOwner))))throw new Error('AGENT_EXPORT_DENIED');
             if ((args.resultIds as string[]).some(id => isBusinessResult(workset.read(id,worksetOwner)))) throw new Error('BUSINESS_PDF_UNSUPPORTED');
             if ((args.resultIds as string[]).some(id => isLeaseResult(workset.read(id, worksetOwner)))) throw new Error('LEASE_PDF_UNSUPPORTED');
-            const report = await generateAuthorizedReport(workset, worksetOwner, args, rechecked.grants, preparedChart);
+            const report = await generateAuthorizedReport(workset, worksetOwner, args, rechecked.grants,
+              preparedChart && preparedChartSourceId ? { ...preparedChart, resultId: preparedChartSourceId } : preparedChart, requireDeliverySlot);
             await history.contextRecheck?.();
             const current = await fresh();
             if (!current.grants.includes('export:internal') || current.permissionRevision !== authority.permissionRevision
               || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
             preparedReport = report.result; reportFile = JSON.parse(report.content);
+            generatedResults.push(report.result);
             return report;
           }
           if (name === 'export_table') {
+            requireDeliverySlot();
             if((args.resultIds as string[]).some(id=>isKnowledgeResult(workset.read(id,worksetOwner))))throw new Error('AGENT_EXPORT_DENIED');
             for (const id of args.resultIds as string[]) {
               const result = workset.read(id, worksetOwner);
               await recheckBusinessResults(client,actor,toolSignal,[result],true);
               if (isLeaseResult(result)) await recheckLeaseResult(client, actor, toolSignal, result, true);
             }
-            const exported = await exportAuthorizedTable(workset, worksetOwner, args, rechecked.grants);
+            const exported = await exportAuthorizedTable(workset, worksetOwner, args, rechecked.grants, requireDeliverySlot);
             // Derived export is archived as the terminal result. Do not duplicate
             // its rows into the bounded query workset or evict earlier queries.
             preparedExport = exported.result;
@@ -460,6 +495,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (!current.grants.includes('export:internal')
               || current.permissionRevision !== authority.permissionRevision
               || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+            generatedResults.push(exported.result);
+            for (const id of args.resultIds as string[]) deliverySources.set(id, workset.read(id, worksetOwner));
             return exported;
           }
           if (WORKSET_TOOL_NAMES.has(name)) {
@@ -603,7 +640,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       if (researchFailures.length) execution.answer += '\n' + [...new Set(researchFailures)].join('');
       if (descriptor.state !== 'reviewed' || execution.unresolvedFailures.length) execution.executionStatus = 'partial';
     }
-    const fulfillment = artifactFulfillment(valid.question, execution.result);
+    const fulfillment = artifactFulfillment(valid.question, execution.result, generatedResults);
     if (fulfillment.missing.length) {
       for (const format of fulfillment.missing) {
         const tool = fulfillment.toolFor(format);
@@ -614,7 +651,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       execution.answer = (delivered.length ? delivered.map(f => artifactLabels[f]).join('、') + ' 已可下载。' : '')
         + '本轮未生成 ' + fulfillment.missing.map(f => artifactLabels[f]).join('、') + ' 文件，任务尚未全部完成。请核对范围或重试。';
     }
-    const terminalDelivery = !!(preparedExport || preparedReport || preparedResearch);
+    const terminalDelivery = generatedResults.length > 0;
     if (!execution.result && execution.toolCalls === 0 && isLatestLeaseQuestion(valid.question) && !hasExplicitLeaseWindow(valid.question))
       execution.answer = '要查询哪个日期范围内的最新一笔租赁成交？';
     if (selectedAnswer && !needsSelection() && !terminalDelivery && !researchTouched) {
@@ -637,6 +674,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     // rendered by attachments; substantive partial-execution warnings stay in
     // the narrative. No keyword removal or model-supplied presentation values.
     if (execution.result) {
+      if (generatedResults.length) execution.result = generatedResults.find(r => r.resultId === execution.result!.resultId)
+        ?? generatedResults.at(-1)!;
       const delivery = !!(preparedExport || preparedReport || chartFile || preparedResearch);
       const listing = !isKnowledgeResult(execution.result) && !isResearchResult(execution.result)
         && !/(?:详细|完整报告|解释方法|为什么|原因|方法说明)/.test(valid.question);
@@ -653,7 +692,34 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     }
     if (execution.result) {
       const primary = execution.result;
-      if (!selectedAnswer || terminalDelivery || researchTouched) selectedAnswer = {
+      if (generatedResults.length) {
+        // Keep trusted, deterministic analysis on its original data shape.
+        // An export is a derived list and must not inherit incompatible
+        // analytics, nor may supplier-authored causal prose become evidence.
+        const analysisRequested = !!preparedExport && !preparedReport && !preparedResearch
+          && /分析|解释|比较|对比|差异|结论|总结/.test(valid.question);
+        const candidates = analysisRequested ? (selectedAnswer?.results.map(item => item.result as QueryResult)
+          ?? [...deliverySources.values()]).filter(r => r.analysis !== null || r.parameters.researchAnalysis) : [];
+        const additional = candidates.filter(r => !generatedResults.some(file => file.resultId === r.resultId));
+        const capacity = 3 - generatedResults.length;
+        const retainedAnalysis: QueryResult[] = [];
+        for (const candidate of additional) {
+          if (retainedAnalysis.length < capacity && fitsDeliveryArchive([...generatedResults, ...retainedAnalysis, candidate]))
+            retainedAnalysis.push(candidate);
+        }
+        if (analysisRequested && (!candidates.length || retainedAnalysis.length < additional.length)) {
+          execution.executionStatus = 'partial';
+          execution.unresolvedFailures.push({ tool: 'select_answer_results', code: retainedAnalysis.length < additional.length ? 'delivery_capacity' : 'analysis_not_available' });
+        }
+        selectedAnswer = {
+        version: 'answer-selection/1', task: 'file',
+        status: execution.executionStatus === 'completed' ? 'answered' : 'partial', primaryResultId: primary.resultId,
+        results: [{ role: 'primary', result: primary as AnswerSelection['results'][number]['result'] },
+          ...[...generatedResults.filter(r => r.resultId !== primary.resultId), ...retainedAnalysis].map(result => ({ role: 'comparison' as const,
+            result: result as AnswerSelection['results'][number]['result'] }))],
+        };
+      }
+      else if (!selectedAnswer || terminalDelivery || researchTouched) selectedAnswer = {
         version: 'answer-selection/1', task: answerTask(valid.question, primary),
         status: execution.executionStatus === 'completed' ? 'answered' : 'partial',
         primaryResultId: primary.resultId, results: [{ role: 'primary', result: primary as AnswerSelection['results'][number]['result'] }],
@@ -680,6 +746,10 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         const onlyMapFailure = mapNotice && execution.unresolvedFailures.length > 0
           && execution.unresolvedFailures.every(item => item.tool === 'prepare_map_selection');
         const executionNotice = fulfillment.missing.length ? execution.answer
+          : execution.unresolvedFailures.some(item => ['delivery_limit', 'delivery_capacity'].includes(item.code))
+            ? '交付内容超过本轮容量，已有成果仍可下载；其余部分请分次生成，任务尚未全部完成。'
+          : execution.unresolvedFailures.some(item => item.code === 'analysis_not_available')
+            ? '文件已生成，但尚未取得可核验的分析结论；任务尚未全部完成。'
           : onlyMapFailure ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
         selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, executionNotice].filter(Boolean).join(' ') };
       }
@@ -698,6 +768,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const leaseAnswer = execution.result && isLeaseResult(execution.result);
     const researchAnswer = execution.result && isResearchResult(execution.result);
     const answerPlan = execution.result && !researchAnswer && !leaseAnswer && !businessAnswer && !knowledgeAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
+    const archivedCharts = selectedAnswer?.results.map(item => item.result).filter(r => r.parameters.agentChart) ?? [];
+    const archivedChart = archivedCharts.find(r => r.resultId === preparedChart?.resultId) ?? archivedCharts.at(-1);
+    const archivedChartFile = archivedChart && generatedChartFiles.find(file => file.resultId === archivedChart.resultId);
     await audit.append(requestId, 'tool_finished', {
       protocol: 'agent-answer/1', provider: 'server_policy', model: execution.model,
       permissionRevision: authority.permissionRevision,
@@ -715,7 +788,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       ...(leaseAnswer ? { resolution: { protocol: 'lease-research/1' } } : {}),
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
       ...(preparedReport ? { reportFile } : {}),
-      ...(!preparedReport && preparedChart ? { chartContext: { resultId: preparedChart.resultId, chart: (preparedChart.parameters.agentChart as { request: ChartRequest }).request }, ...(chartFile ? { chartFile } : {}) } : {}),
+      ...(archivedChart ? { chartContext: { resultId: archivedChart.resultId, chart: (archivedChart.parameters.agentChart as { request: ChartRequest }).request },
+        ...(archivedChartFile ? { chartFile: archivedChartFile } : {}), ...(generatedChartFiles.length ? { chartFiles: generatedChartFiles } : {}) } : {}),
       ...(preparedExport && !isLeaseResult(preparedExport) && !isBusinessResult(preparedExport) && !isKnowledgeResult(preparedExport) ? { exportFiles, exportContext: {
         plans: preparedExport.parameters.exportPlans,
         selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {

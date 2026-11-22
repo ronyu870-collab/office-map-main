@@ -1,0 +1,32 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.6 <worktree>
+
+ ❯ src/lib/intelligence/agent/agentHttp.test.ts (54 tests | 2 failed) 2336ms
+     × retains every generated attachment with immutable source data: table-image 191ms
+     × retains every generated attachment with immutable source data: two-image-formats 164ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/intelligence/agent/agentHttp.test.ts > AI5 chart creation, same-snapshot modification and image delivery > retains every generated attachment with immutable source data: table-image
+ FAIL  src/lib/intelligence/agent/agentHttp.test.ts > AI5 chart creation, same-snapshot modification and image delivery > retains every generated attachment with immutable source data: two-image-formats
+Error: ARTIFACT_CHART_FORMAT_MISMATCH
+ ❯ renderResultArtifact src/lib/intelligence/query/artifacts.ts:37:98
+     35|   if (view.parameters.dataDomain === 'deep-research/1' && (!Array.isAr…
+     36|     || !view.parameters.researchDeliverables.includes(input.format) ||…
+     37|   if ((input.format === 'svg_zip' || input.format === 'png_zip') !== B…
+       |                                                                                                  ^
+     38|   let bytes: Uint8Array, contentType: string;
+     39|   if (input.format === 'docx' || input.format === 'pptx' || input.form…
+ ❯ buildResultArtifact src/lib/intelligence/query/artifacts.ts:90:19
+ ❯ src/lib/intelligence/agent/agentHttp.test.ts:767:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 87 passed (89)
+   Start at  23:08:55
+   Duration  3.70s (transform 1.12s, setup 282ms, import 1.62s, tests 2.47s, environment 2.46s)

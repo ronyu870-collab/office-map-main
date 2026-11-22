@@ -5,6 +5,7 @@ import { buildTrendResult, buildListResult, buildAggregateResult } from '../quer
 import { fixture, nameSource } from '../query/__tests__/fixtures';
 import { parseQueryPlan } from '../query/plan';
 import { encryptAuditContent } from '../query/auditCrypto';
+import { attachResearchAnalysis } from '../query/researchAnalysis';
 
 const state = vi.hoisted(() => ({
   receive: vi.fn(), append: vi.fn(), provider: vi.fn(), tool: vi.fn(), structured: vi.fn(), knowledge: vi.fn(), knowledgeCheck: vi.fn(),
@@ -627,6 +628,60 @@ describe('AI 5.0 natural-language export through the authenticated Agent handler
     }
   });
 
+  it('retains both generated Excel and CSV snapshots in the final answer and archive', async () => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const raw = buildListResult(fixture(), ['height']);
+    const result = { ...raw, parameters: { ...raw.parameters, executedPlan: { ...plan, fields: ['height'] } } };
+    state.structured.mockResolvedValue({ result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) });
+    state.provider.mockReset().mockResolvedValueOnce(model([call('list_buildings', { scope, fields: ['height'], period: plan.period })]))
+      .mockResolvedValueOnce(model(['xlsx', 'csv_zip'].map(format => call('export_table', { resultIds: [result.resultId], format }))))
+      .mockResolvedValueOnce(model());
+    const response = await handleAgentSubmission(fakeRequest('把结果导出 Excel 和 CSV。').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.agent.executionStatus).toBe('completed');
+    expect(body.answerSelection.results).toHaveLength(2);
+    const archive = state.append.mock.calls.find(x => x[1] === 'response_generated')?.[2]?.result;
+    expect(archive).toEqual(body.answerSelection);
+    const snapshots = body.answerSelection.results.map((entry: { result: typeof result }) => entry.result);
+    expect(new Set(snapshots.map((r: typeof result) => r.resultId)).size).toBe(2);
+    const { buildResultArtifact } = await import('../query/artifacts');
+    const XLSX = await import('xlsx'); const { default: JSZip } = await import('jszip');
+    for (const snapshot of snapshots) {
+      const format = snapshot.parameters.agentExport.format;
+      const file = await buildResultArtifact(snapshot, { requestId: body.requestId, resultId: snapshot.resultId, action: 'export', format });
+      if (file.type !== 'download') throw Error('missing file');
+      if (format === 'xlsx') {
+        const book = XLSX.read(file.bytes, { type: 'array' });
+        const rows = XLSX.utils.sheet_to_json(book.Sheets['数据'], { header: 1 }) as unknown[][];
+        expect(rows).toHaveLength(5); expect(rows[1]).toContain('A座'); expect(rows[1]).toContain(210);
+      } else {
+        const zip = await JSZip.loadAsync(file.bytes); const csv = await zip.file('data.csv')!.async('string');
+        expect(csv.split('\r\n')).toHaveLength(6); expect(csv).toContain('A座'); expect(csv).toContain('210');
+        expect(JSON.parse(await zip.file('manifest.json')!.async('string')).resultId).toBe(snapshot.resultId);
+      }
+    }
+  });
+
+  it('retains source-bound trend analysis alongside Excel without trusting supplier explanations', async () => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const start = { year: 2026, quarter: 2 }, end = { year: 2026, quarter: 3 };
+    const snapshots = [fixture(start), fixture(end)];
+    const raw = attachResearchAnalysis(buildTrendResult(snapshots, 'rent', 'per_period'), snapshots);
+    const formal = { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({ operation: 'trend', scope, start, end, metric: 'rent', mode: 'per_period' }) } };
+    state.structured.mockResolvedValue({ result: formal, content: JSON.stringify({ status: 'ready', resultId: formal.resultId }) });
+    state.provider.mockReset().mockResolvedValueOnce(model([call('analyze_market_trends', { scope, start, end, metric: 'rent' })]))
+      .mockResolvedValueOnce(model([call('export_table', { resultIds: [formal.resultId], format: 'xlsx' })]))
+      .mockResolvedValueOnce({ ...model(), message: { role: 'assistant', content: '租金上涨完全因为未经证实的政策补贴。' } });
+    const body = await (await handleAgentSubmission(fakeRequest('解释Q2到Q3的租金差异并导出 Excel。').request, deps())).json();
+    expect(body.agent.executionStatus).toBe('completed');
+    const analysis = body.answerSelection.results.find((entry: { result: { resultId: string } }) => entry.result.resultId === formal.resultId);
+    expect(analysis?.result.analysis).toEqual(formal.analysis);
+    expect(analysis?.result.parameters.researchAnalysis).toEqual(raw.parameters.researchAnalysis);
+    expect(analysis?.result.sources).toEqual(formal.sources);
+    expect(body.message).not.toContain('政策补贴');
+    expect(body.answerSelection.results.some((entry: { result: { parameters: { agentExport?: unknown } } }) => entry.result.parameters.agentExport)).toBe(true);
+  });
+
   it('keeps the trusted missing-CSV notice while the real Excel remains available', async () => {
     state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
     const raw = buildListResult(fixture(), ['height']);
@@ -644,6 +699,62 @@ describe('AI 5.0 natural-language export through the authenticated Agent handler
     const artifact = await buildResultArtifact(body.result, { requestId: body.requestId, resultId: body.result.resultId, action: 'export', format: 'xlsx' });
     expect(artifact.type).toBe('download');
   });
+  it('preserves the bounded archive and marks an additional generated-file request partial before rendering it', async () => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const raw = buildListResult(fixture(), ['height']);
+    const result = { ...raw, parameters: { ...raw.parameters, executedPlan: { ...plan, fields: ['height'] } } };
+    state.structured.mockResolvedValue({ result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) });
+    const outputs = [
+      { format: 'xlsx', fields: ['name'] }, { format: 'csv_zip', fields: ['name'] },
+      { format: 'xlsx', fields: ['height'] }, { format: 'csv_zip', fields: ['height'] },
+    ];
+    state.provider.mockReset().mockResolvedValueOnce(model([call('list_buildings', { scope, fields: ['height'], period: plan.period })]))
+      .mockResolvedValueOnce(model(outputs.map(output => call('export_table', { resultIds: [result.resultId], ...output }))))
+      .mockResolvedValueOnce(model());
+    const body = await (await handleAgentSubmission(fakeRequest('把楼宇名称和高度分别导出 Excel 和 CSV。').request, deps())).json();
+    expect(body.agent.executionStatus).toBe('partial'); expect(body.answerSelection.status).toBe('partial');
+    expect(body.answerSelection.results).toHaveLength(3);
+    expect(body.agent.unresolvedFailures).toContainEqual({ tool: 'export_table', code: 'delivery_limit' });
+    expect(body.message).toContain('尚未全部完成');
+    const event = state.append.mock.calls.find(entry => entry[1] === 'tool_finished' && entry[2]?.protocol === 'agent-answer/1')?.[2];
+    expect(event.exportFiles).toHaveLength(3);
+  });
+  it('retains the first real file when individually valid snapshots exceed the combined archive limit', async () => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const raw = buildListResult(fixture(), ['height']);
+    // Original parameters remain in each derived export's lineage. Each file
+    // fits by itself, while their combined immutable recovery envelope does not.
+    const result = { ...raw, parameters: { ...raw.parameters, executedPlan: { ...plan, fields: ['height'] },
+      archiveBoundaryFixture: '合'.repeat(3 * 1024 * 1024) } };
+    const { prepareExportResult } = await import('./exportTableTool');
+    const { sanitizeAuditContent } = await import('../query/auditStore');
+    const { encodeGeneratedArchive } = await import('../query/resultArchive');
+    const candidates = ['csv_zip', 'xlsx'].map(format => prepareExportResult([result], {
+      resultIds: [result.resultId], format: format as 'csv_zip' | 'xlsx' }));
+    for (const candidate of candidates) expect(() => encodeGeneratedArchive(JSON.stringify(sanitizeAuditContent({ result: candidate })))).not.toThrow();
+    expect(() => encodeGeneratedArchive(JSON.stringify(sanitizeAuditContent({ result: { results: candidates } })))).toThrow('AUDIT_CONTENT_LIMIT');
+    state.structured.mockResolvedValue({ result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) });
+    state.provider.mockReset().mockResolvedValueOnce(model([call('list_buildings', { scope, fields: ['height'], period: plan.period })]))
+      .mockResolvedValueOnce(model(['csv_zip', 'xlsx'].map(format => call('export_table', { resultIds: [result.resultId], format }))))
+      .mockResolvedValueOnce(model());
+    const body = await (await handleAgentSubmission(fakeRequest('导出 CSV 和 Excel。').request, deps())).json();
+    expect(body.agent.executionStatus).toBe('partial');
+    expect(body.answerSelection.results).toHaveLength(1);
+    expect(body.agent.unresolvedFailures).toContainEqual({ tool: 'export_table', code: 'delivery_limit' });
+    expect(body.message).toContain('未生成 Excel');
+    const archive = state.append.mock.calls.find(entry => entry[1] === 'response_generated')?.[2]?.result;
+    expect(archive).toEqual(body.answerSelection);
+    expect(() => encodeGeneratedArchive(JSON.stringify(sanitizeAuditContent({ result: archive })))).not.toThrow();
+    const { buildResultArtifact } = await import('../query/artifacts');
+    const snapshot = body.answerSelection.results[0].result;
+    const file = await buildResultArtifact(snapshot, { requestId: body.requestId, resultId: snapshot.resultId, action: 'export', format: 'csv_zip' });
+    if (file.type !== 'download') throw Error('missing first file');
+    const { default: JSZip } = await import('jszip');
+    const zip = await JSZip.loadAsync(file.bytes);
+    expect(await zip.file('data.csv')!.async('string')).toContain('A座');
+    const event = state.append.mock.calls.find(entry => entry[1] === 'tool_finished' && entry[2]?.protocol === 'agent-answer/1')?.[2];
+    expect(event.exportFiles).toHaveLength(1);
+  }, 20000);
   it('fails closed if export permission is withdrawn after generation and before final delivery', async () => {
     const raw = buildListResult(fixture(), ['height']);
     const result = { ...raw, parameters: { ...raw.parameters, executedPlan: { ...plan, fields: ['height'] } } };
@@ -671,6 +782,64 @@ describe('AI5 chart creation, same-snapshot modification and image delivery', ()
     const r = buildListResult(fixture(), ['height', 'netEffectiveRent']);
     return { ...r, parameters: { ...r.parameters, executedPlan: parseQueryPlan({ operation: 'list', fields: ['height', 'netEffectiveRent'], period: { year: 2026, quarter: 3 }, scope: { inventory: 'tracked', submarkets: ['CBD'] } }) } };
   }
+  it.each(['table-image', 'two-image-formats'])('retains every generated attachment with immutable source data: %s', async mode => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const formal = result(), spec = { kind: 'plot' as const, type: 'horizontal_bar' as const, x: 'name', y: ['height'] };
+    state.structured.mockResolvedValue({ content: JSON.stringify({ status: 'ready', resultId: formal.resultId }), result: formal });
+    const exports = mode === 'table-image'
+      ? [call('export_table', { resultIds: [formal.resultId], format: 'xlsx' }), call('export_chart', { resultId: formal.resultId, format: 'png_zip' })]
+      : ['png_zip', 'svg_zip'].map(format => call('export_chart', { resultId: formal.resultId, format }));
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('list_buildings', { scope: { inventory: 'tracked', submarkets: ['CBD'] }, fields: ['height', 'netEffectiveRent'], period: { year: 2026, quarter: 3 } })]))
+      .mockResolvedValueOnce(completed([call('create_chart', { resultId: formal.resultId, chart: spec })]))
+      .mockResolvedValueOnce(completed(exports)).mockResolvedValueOnce(completed());
+    const question = mode === 'table-image' ? '生成高度柱状图并导出 Excel 和 PNG。' : '生成高度柱状图并导出 PNG 和 SVG。';
+    const body = await (await handleAgentSubmission(fakeRequest(question).request, deps())).json();
+    expect(body.agent.executionStatus).toBe('completed'); expect(body.answerSelection.results).toHaveLength(2);
+    const snapshots = body.answerSelection.results.map((entry: { result: ReturnType<typeof result> }) => entry.result);
+    expect(new Set(snapshots.map((r: ReturnType<typeof result>) => r.resultId)).size).toBe(2);
+    const { buildResultArtifact } = await import('../query/artifacts'); const { default: JSZip } = await import('jszip');
+    for (const snapshot of snapshots) {
+      const format = snapshot.parameters.agentExport?.format ?? snapshot.parameters.agentChart.format;
+      const file = await buildResultArtifact(snapshot, { requestId: body.requestId, resultId: snapshot.resultId, action: 'export', format,
+        ...(format === 'png_zip' || format === 'svg_zip' ? { chart: spec } : {}) });
+      if (file.type !== 'download') throw Error('missing generated attachment');
+      if (format === 'xlsx') {
+        const XLSX = await import('xlsx'); const book = XLSX.read(file.bytes, { type: 'array' });
+        const rows = XLSX.utils.sheet_to_json(book.Sheets['数据'], { header: 1 }) as unknown[][];
+        expect(rows).toHaveLength(5); expect(rows[1]).toContain('A座'); expect(rows[1]).toContain(210);
+      } else {
+        expect(snapshot.table).toEqual(formal.table); expect(snapshot.sources).toEqual(formal.sources);
+        const zip = await JSZip.loadAsync(file.bytes), entry = Object.keys(zip.files).find(name => name.endsWith(format === 'png_zip' ? '.png' : '.svg'))!;
+        expect(entry).toBeTruthy();
+        if (format === 'png_zip') expect([...(await zip.file(entry)!.async('uint8array')).slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+        else expect(await zip.file(entry)!.async('string')).toContain('<svg');
+      }
+    }
+    const event = state.append.mock.calls.find(c => c[1] === 'tool_finished' && c[2]?.protocol === 'agent-answer/1')?.[2];
+    expect(body.answerSelection.results.some((entry: { result: { resultId: string } }) => entry.result.resultId === event.chartContext.resultId)).toBe(true);
+  });
+  it.each(['export_chart', 'modify_chart'])('prefers this turn chart over the restored chart for implicit %s', async tool => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const prior = result(), fresh = result();
+    const oldSpec = { kind: 'plot' as const, type: 'bar' as const, x: 'name', y: ['height'] };
+    const nextSpec = { ...oldSpec, type: 'horizontal_bar' as const, y: ['netEffectiveRent'] };
+    const old = { ...prior, parameters: { ...prior.parameters, agentChart: { version: 'chart-workspace/1', request: oldSpec } } };
+    state.history.mockResolvedValue(Object.assign([], { contextResult: old, contextChart: { resultId: old.resultId, chart: oldSpec },
+      contextRecheck: vi.fn().mockResolvedValue(undefined) }));
+    state.structured.mockResolvedValue({ content: JSON.stringify({ status: 'ready', resultId: fresh.resultId }), result: fresh });
+    state.provider.mockReset()
+      .mockResolvedValueOnce(completed([call('list_buildings', { scope: { inventory: 'tracked', submarkets: ['CBD'] }, fields: ['height', 'netEffectiveRent'], period: { year: 2026, quarter: 3 } })]))
+      .mockResolvedValueOnce(completed([call('select_answer_results', { primaryResultId: fresh.resultId, task: 'list', status: 'answered' })]))
+      .mockResolvedValueOnce(completed([call('create_chart', { resultId: fresh.resultId, chart: nextSpec })]))
+      .mockResolvedValueOnce(completed([call(tool, tool === 'export_chart' ? { format: 'png_zip' } : { chart: nextSpec })]))
+      .mockResolvedValueOnce(completed());
+    const response = await handleAgentSubmission(fakeRequest(tool === 'export_chart' ? '重新查数，生成租金横向柱状图并导出PNG。' : '重新查数并创建租金横向柱状图，再调整当前图。').request, deps());
+    const body = await response.json();
+    expect(response.status, JSON.stringify(body)).toBe(200); expect(body.agent.executionStatus).toBe('completed');
+    expect(body.result.resultId).toBe(fresh.resultId);
+    expect(body.result.parameters.agentChart.request).toEqual(nextSpec);
+    expect(body.result.table).toEqual(fresh.table); expect(body.result.sources).toEqual(fresh.sources);
+  });
   it('applies a full chart specification and delivers actual PNG bytes via the existing artifact engine', async () => {
     state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
     const formal = result(), spec = { kind: 'plot' as const, type: 'horizontal_bar' as const, x: 'name', y: ['netEffectiveRent'], sort: { field: 'netEffectiveRent', direction: 'desc' as const } };
@@ -692,14 +861,15 @@ describe('AI5 chart creation, same-snapshot modification and image delivery', ()
     if (artifact.type !== 'download') throw new Error();
     expect(artifact.sha256).toBe(event.chartFile.sha256);
   });
-  it.each(['combined', 'legacy chart-only', 'revoked'])('modifies a cross-turn chart through real encrypted history recovery: %s', async mode => {
+  it.each(['combined', 'legacy chart-only', 'chart-companion', 'revoked'])('modifies a cross-turn chart through real encrypted history recovery: %s', async mode => {
     const { readAgentHistory, AGENT_CONVERSATION_PROTOCOL } = await vi.importActual<typeof import('./agentConversation')>('./agentConversation');
     state.history.mockImplementation(readAgentHistory);
     const formal = result(), chart = { kind: 'plot' as const, type: 'bar' as const, x: 'name', y: ['height'] };
     const nextChart = { ...chart, type: 'horizontal_bar' as const, y: ['netEffectiveRent'] };
     const parentRequestId = randomUUID(), conversationId = randomUUID();
-    const selection = { version: 'answer-selection/1', task: 'list', status: 'answered', primaryResultId: formal.resultId,
-      results: [{ role: 'primary', result: formal }] };
+    const primary = mode === 'chart-companion' ? result() : formal;
+    const selection = { version: 'answer-selection/1', task: 'list', status: 'answered', primaryResultId: primary.resultId,
+      results: [{ role: 'primary', result: primary }, ...(mode === 'chart-companion' ? [{ role: 'comparison', result: formal }] : [])] };
     const event = (kind: string, content: unknown, sequence: number) => {
       const eventId = randomUUID();
       return { request_id: parentRequestId, event_id: eventId, kind, sequence,

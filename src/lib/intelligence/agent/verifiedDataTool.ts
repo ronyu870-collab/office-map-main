@@ -82,7 +82,11 @@ export async function executeStructuredDataTool(
   switch (name) {
     case 'query_report_market': {
       const args = STRUCTURED_DATA_SCHEMAS.query_report_market.parse(input);
-      planInput = { operation: 'trend', scope: args.scope, metric: args.metric, mode: 'per_period', ...reportPeriodRange(args.recentCompletedQuarters) }; break;
+      const range = reportPeriodRange(args.recentCompletedQuarters);
+      planInput = args.recentCompletedQuarters === 1
+        ? { operation: 'aggregate', scope: args.scope, metric: args.metric, period: range.end }
+        : { operation: 'trend', scope: args.scope, metric: args.metric, mode: 'per_period', ...range };
+      break;
     }
     case 'analyze_rent_vacancy': {
       const args = STRUCTURED_DATA_SCHEMAS.analyze_rent_vacancy.parse(input);
@@ -131,8 +135,13 @@ export async function executeStructuredDataTool(
     }
     case 'analyze_market_trends': {
       const args = STRUCTURED_DATA_SCHEMAS.analyze_market_trends.parse(input);
-      planInput = { operation: args.groupBy ? 'group_trend' : 'trend', scope: args.scope,
-        start: args.start, end: args.end, metric: args.metric, mode: args.mode,
+      // The tool schema and research DAG allow one quarter. Keep the formal
+      // trend protocol's >=2 quarters boundary and use its existing aggregate
+      // counterpart for one-period work, preserving the complete scope.
+      const singleQuarter = args.start.year === args.end.year && args.start.quarter === args.end.quarter;
+      planInput = { operation: singleQuarter ? args.groupBy ? 'group_aggregate' : 'aggregate' : args.groupBy ? 'group_trend' : 'trend',
+        scope: args.scope, metric: args.metric,
+        ...(singleQuarter ? { period: args.start } : { start: args.start, end: args.end, mode: args.mode }),
         ...(args.groupBy ? { groupBy: args.groupBy } : {}) };
       break;
     }

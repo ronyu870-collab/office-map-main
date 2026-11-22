@@ -156,6 +156,68 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(client.submitAgentStream).toHaveBeenCalledOnce();
   });
 
+  it.each(['disconnect', 'stop', 'reload'])('retains the streamed request reference for recovery after %s', async mode => {
+    client.capabilities.mockResolvedValue({ ...access, agentEnabled: true, agentStreamEnabled: true });
+    const terminal = deferred<void>();
+    client.submitAgentStream.mockImplementation(async (_scope: typeof scope, _body: Submission,
+      _signal: AbortSignal, onProgress: (event: AgentProgressEvent) => void) => {
+      onProgress({ type: 'run_started', requestId: requestIds[0] });
+      await terminal.promise;
+      throw new TypeError('connection interrupted');
+    });
+    client.recover.mockResolvedValue({ status: 'assistant', requestId: requestIds[0], message: '已恢复流式原请求' });
+    const opened = await open(); send(opened.input, '需要恢复的流式请求');
+    await screen.findByText('正在研究你的问题…');
+    const storageKey = `trusted-query:last:${JSON.stringify(scope)}`;
+    expect(sessionStorage.getItem(storageKey)).toBe(requestIds[0]);
+    if (mode === 'disconnect') await act(async () => terminal.resolve(undefined));
+    else if (mode === 'stop') fireEvent.click(screen.getByRole('button', { name: '停止等待' }));
+    else {
+      opened.unmount();
+      await open();
+    }
+    fireEvent.click(await screen.findByRole('button', { name: '检查状态并恢复结果' }));
+    await screen.findByText('已恢复流式原请求');
+    expect(client.recover).toHaveBeenCalledWith(scope, requestIds[0], expect.any(AbortSignal));
+    expect(client.submitAgentStream).toHaveBeenCalledOnce();
+    expect(client.submitAgent).not.toHaveBeenCalled();
+    expect(client.submit).not.toHaveBeenCalled();
+    await act(async () => terminal.resolve(undefined));
+  });
+
+  it('does not describe a limited tool observation as completed', async () => {
+    client.capabilities.mockResolvedValue({ ...access, agentEnabled: true, agentStreamEnabled: true });
+    const terminal = deferred<void>();
+    client.submitAgentStream.mockImplementation(async (_scope: typeof scope, body: Submission,
+      _signal: AbortSignal, onProgress: (event: AgentProgressEvent) => void) => {
+      onProgress({ type: 'run_started', requestId: requestIds[0] });
+      onProgress({ type: 'tool_completed', name: 'query_quarterly_metrics', status: 'limited' });
+      await terminal.promise;
+      return { requestId: requestIds[0], status: 'assistant', conversation: body.conversation, message: '本轮查询未完成。' };
+    });
+    const { input } = await open(); send(input, '当前查询');
+    await screen.findByText('部分数据步骤未完成，正在整理说明…');
+    expect(screen.queryByText('数据步骤已完成，正在整理回答…')).not.toBeInTheDocument();
+    await act(async () => terminal.resolve(undefined));
+  });
+
+  it('ignores a late stream start after the request was stopped', async () => {
+    client.capabilities.mockResolvedValue({ ...access, agentEnabled: true, agentStreamEnabled: true });
+    const terminal = deferred<void>(); let progress!: (event: AgentProgressEvent) => void;
+    client.submitAgentStream.mockImplementation(async (_scope: typeof scope, body: Submission,
+      _signal: AbortSignal, onProgress: (event: AgentProgressEvent) => void) => {
+      progress = onProgress; await terminal.promise;
+      return { requestId: requestIds[0], status: 'assistant', conversation: body.conversation, message: '迟到终态' };
+    });
+    const { input } = await open(); send(input, '稍后才开始的流');
+    fireEvent.click(await screen.findByRole('button', { name: '停止等待' }));
+    act(() => progress({ type: 'run_started', requestId: requestIds[0] }));
+    expect(sessionStorage.getItem(`trusted-query:last:${JSON.stringify(scope)}`)).toBeNull();
+    expect(screen.queryByRole('button', { name: '检查状态并恢复结果' })).not.toBeInTheDocument();
+    await act(async () => terminal.resolve(undefined));
+    expect(screen.queryByText('迟到终态')).not.toBeInTheDocument();
+  });
+
   it('closes a history action menu with Escape before closing the workspace', async () => {
     historyClient.list.mockResolvedValue({ entries: [{ conversationId: requestIds[0], requestId: requestIds[1],
       title: '季度研究', latestQuestion: '租金趋势', updatedAt: '2026-11-18T01:00:00.000Z', archived: false }],

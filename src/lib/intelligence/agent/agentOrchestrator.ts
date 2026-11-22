@@ -5,6 +5,7 @@ import { BUSINESS_TOOL_NAMES } from '../business/protocol';
 import { RESEARCH_TOOL_NAMES } from '../research/protocol';
 import type { QueryPlan } from '../query/plan';
 import { requestedArtifactFormats } from './artifactFulfillment';
+import { requiresDataFactEvidence } from './queryObligation';
 
 export const AGENT_LIMITS = { rounds: 9, tools: 12, maxToolText: 12000,
   maxHistoryTurns: 8, maxTotalTokens: 60000, recoveriesPerTool: 2 } as const;
@@ -84,6 +85,7 @@ function classifyToolError(error: unknown): string {
     if (/^(?:AGENT_EXPORT_(?:ARCHIVE|COLUMN)_LIMIT|ARTIFACT_SIZE_LIMIT|XLSX_)/.test(error.message)) return 'scope_too_large';
     if (error.message === 'AGENT_FIELD_NOT_AVAILABLE' || error.message === 'QUERY_DENIED_FIELD') return 'field_not_available';
     if (error.message === 'AGENT_RESULT_NOT_FOUND') return 'result_not_found';
+    if (error.message === 'AGENT_DELIVERY_LIMIT') return 'delivery_limit';
     if (error.message === 'QUERY_SCOPE_REQUIRES_BACKGROUND_JOB' || error.message === 'AGENT_WORKSET_LIMIT') return 'scope_too_large';
     if (error.message === 'AGENT_TOOL_RESULT_TOO_LARGE') return 'result_too_large';
     if (error.message === 'QUERY_READ_UNAVAILABLE' || error.message === 'QUERY_AUTHORITY_UNAVAILABLE') return 'source_unavailable';
@@ -95,6 +97,7 @@ function classifyToolError(error: unknown): string {
   return 'tool_unavailable';
 }
 const errorHint: Record<string, string> = {
+  delivery_limit: '本轮附件已达到交付容量，请分次生成；已生成的附件仍可下载，不能称整项任务已完成。',
   research_step_limit: '研究超过8个数据步骤，请分成两个明确主题，不会静默丢弃模块。',
   research_review_required: '研究范围或披露审查未通过，不生成文件。先完成并审查全部计划步骤。',
   research_dependency_pending: '前置数据步骤尚未完成，先继续advance_research_task。',
@@ -157,6 +160,9 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
   const errors = new Map<string, number>();
   let result: T | undefined, model = '', calls = 0, toolCalls = 0;
   let selectedResult: T | undefined;
+  let trustedClarification: string | undefined;
+  const dataFactRequired = requiresDataFactEvidence(input.question, input.contextPlan);
+  const permissionRequired = /数据权限|授权范围|获权范围/.test(input.question);
   const socialReply = /^(?:你好|您好|嗨|哈[喽啰]|hello|hi)[！!。.?？\s]*$/i.test(input.question.trim()) ? '你好。'
     : /^(?:谢谢|多谢|感谢|thanks|thank you)[！!。.?？\s]*$/i.test(input.question.trim()) ? '不客气。' : undefined;
   let inputTokens: number | null = 0, outputTokens: number | null = 0;
@@ -179,12 +185,14 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
       throw new Error('AGENT_TOKEN_BUDGET_EXCEEDED');
     const requested = socialReply ? [] : [...(completed.message.calls ?? [])];
     if (socialReply) completed.message = { role: 'assistant', content: socialReply };
-    const requiresVerifiedTool = /(?:数据权限|授权范围|获权范围|(?:CBD|金融街|望京).*?(?:所有楼|哪些楼|楼宇|写字楼|租金|高度|最高|最低|排名|前[二三四五六七八九十0-9]+))/i.test(input.question);
-    if (!requested.length && completed.message.content?.trim() && requiresVerifiedTool && toolCalls === 0) {
+    const dataLookupAttempted = toolNames.some(name => name === 'query_verified_real_estate' || STRUCTURED_DATA_TOOL_NAMES.has(name)
+      || BUSINESS_TOOL_NAMES.has(name) || KNOWLEDGE_TOOL_NAMES.has(name) || RESEARCH_TOOL_NAMES.has(name));
+    if (!requested.length && completed.message.content?.trim()
+      && (permissionRequired && toolCalls === 0 || dataFactRequired && result === undefined && !dataLookupAttempted)) {
       if (round >= limits.rounds - 1) throw new Error('AGENT_QUERY_NOT_EXECUTED');
       // Stage 02's fail-closed fallback uses Stage 03's validation,
       // permission recheck, phases, bounded recovery and result accounting.
-      const name = /数据权限|授权范围|获权范围/.test(input.question)
+      const name = permissionRequired && toolCalls === 0
         ? 'get_data_capabilities' : 'query_verified_real_estate';
       requested.push({ id: 'server_verified_tool_1', name, arguments: JSON.stringify({ question: input.question }) });
     }
@@ -197,7 +205,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
       await phase('synthesis');
       const attemptedData = toolNames.some(name => RESEARCH_TOOL_NAMES.has(name) || name === 'query_verified_real_estate'
         || STRUCTURED_DATA_TOOL_NAMES.has(name) || BUSINESS_TOOL_NAMES.has(name) || KNOWLEDGE_TOOL_NAMES.has(name));
-      if (attemptedData && result === undefined && !unresolved.size)
+      if ((attemptedData || dataFactRequired) && result === undefined && !unresolved.size)
         unresolved.set('verified_data', 'no_verified_result');
       if (/(?:Excel|CSV|xlsx|表格)/i.test(input.question)
         && !toolNames.includes('export_table') && !toolNames.includes('generate_research_deliverable') && result !== undefined) unresolved.set('export_table', 'not_generated');
@@ -213,7 +221,13 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
         ? '\n\n部分步骤未取得可核验的完整结果，任务尚未全部完成。'
         : '';
       await phase('completed');
-      return { answer: (completed.message.content + warning).slice(0, 12000),
+      // A tool being named is not evidence. When the governed lookup only
+      // produced clarification/failure, do not publish an invented free-text
+      // fact even if the model ignores that observation on its next turn.
+      const finalAnswer = dataFactRequired && result === undefined
+        ? trustedClarification ?? '本轮未取得可核验的数据结果，尚不能回答具体数值。请明确范围、期间和指标口径后重试。'
+        : completed.message.content;
+      return { answer: (finalAnswer + warning).slice(0, 12000),
         ...((selectedResult ?? result) === undefined ? {} : { result: selectedResult ?? result }), model, calls, toolCalls,
         inputTokens, outputTokens, toolNames, phases, executionStatus, unresolvedFailures: failures };
     }
@@ -268,7 +282,12 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
         try { status = (JSON.parse(observation.content) as { status?: string }).status; } catch { /* Model sees only bounded text. */ }
         if (status && ['ready', 'requires_clarification'].includes(status)) {
           if (status === 'ready') unresolved.delete(name);
-          else unresolved.set(name, 'conditions_required');
+          else {
+            unresolved.set(name, 'conditions_required');
+            const message: unknown = JSON.parse(observation.content).message;
+            if (name === 'query_verified_real_estate' && typeof message === 'string' && message.length <= 1000)
+              trustedClarification = message;
+          }
         } else if (status && status !== 'ready') unresolved.set(name, status);
         if (observation.result !== undefined) {
           if (name === 'select_answer_results') selectedResult = observation.result;

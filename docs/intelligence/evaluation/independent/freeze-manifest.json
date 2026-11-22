@@ -1,0 +1,14 @@
+{
+  "baseline": "9e0c33ababc40140675c6ad13674e4aeb636a6ba",
+  "originalFiles": {
+    "acceptance.ts": "949a4050d5e255687eec567982a7c64a256e574704d75bd2a9b6d85098f0e157",
+    "run.mjs": "2f814bd437828562852e045ebb685643e53e825194fe32737c7081c00e62ca40",
+    "budget-acceptance.mjs": "91e949cae08dba689fcd046cf093452f376859f56857bb862402221d901a9021"
+  },
+  "adaptation": "Only module import and output paths were made portable. Assertions, fixture values, prompts and expected results unchanged. H6 original FAIL retained; after tuning it is regression, not independent acceptance. Type-only union-field accessors preserve undefined for absent fields; assertion semantics unchanged. Lint-only rename module to ledgerModule; assertions unchanged.",
+  "portableFilesSha256": {
+    "acceptance.ts": "0238023193e0695b66dbe1ffda74ad216d2dcc7224c6f7b85ba301f3b02fbf6b",
+    "run.mjs": "0c63c9c0127fb1c37b038fd637ebc9980498582a21dd2886afa278af7880e59a",
+    "budget-acceptance.mjs": "a80bf594093204f783eb4756b595f3dbc4fe844166366c4ddc5a1f27df303c59"
+  }
+}

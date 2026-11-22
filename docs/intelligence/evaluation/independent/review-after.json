@@ -1,0 +1,118 @@
+{
+  "evidence": "independent-execution-after-fix-no-provider-requests",
+  "baseline": "9e0c33ababc40140675c6ad13674e4aeb636a6ba",
+  "reviewedFilesSha256": {
+    "scripts/intelligence/evaluation/budget.mjs": "3b14ef46111299ae039aa413da5b8d7aa6e0fcc46473b397d99aff61ae135bdf",
+    "scripts/intelligence/evaluation/offline-guard.cjs": "cba0c5797676d25435ba2513f9f64d9fb289647b11240a349a4d570f1ea573af",
+    "scripts/intelligence/evaluation/harness.ts": "fd8194c9fe71a07096738760f6114b877be1889ea7802f1701fac0cea87baf25",
+    "src/lib/intelligence/agent/queryObligation.ts": "85016a817ed803de9c827452e3da2b200a2eda131e0427bd647e9a81a3f335de",
+    "src/lib/intelligence/query/semanticPlanner.ts": "def88660ee2cb4bcc8bc1601c6d637ff1cff983b2501e9eac395638c575f4af6",
+    "src/lib/intelligence/agent/agentHttp.ts": "6c8d8d3284b1ebd18a67e8afc388f309a48151290a57ee40d7c1110e9d793fe2",
+    "src/lib/intelligence/agent/agentOrchestrator.ts": "7695a0b424478eb46a5c61f604b723ec783570a8cf78056c13caccb8bdd612b1"
+  },
+  "budgetHaltRace": {
+    "halted": "usage_exceeded_reservation",
+    "sentAfterHalt": false,
+    "error": "BUDGET_HALTED"
+  },
+  "workerPreloadEscape": {
+    "parentGuardedFetch": true,
+    "worker": {
+      "offline": "1",
+      "guardedFetch": true
+    }
+  },
+  "generalDiscussionMisclassification": [
+    {
+      "question": "做市场分析时，如何避免把租金涨幅和样本变化混为一谈？",
+      "requiresDataFactEvidence": false
+    },
+    {
+      "question": "我想讨论租金报告的写作思路",
+      "requiresDataFactEvidence": false
+    },
+    {
+      "question": "请帮我写一封邮件，说明净有效租金的概念",
+      "requiresDataFactEvidence": false
+    }
+  ],
+  "finalGuardChainProbe": [
+    {
+      "question": "请解释CBD写字楼租金的概念",
+      "requiresDataFactEvidence": false,
+      "calls": 0,
+      "status": "completed",
+      "pass": true
+    },
+    {
+      "question": "我想讨论CBD楼宇报告的写作思路",
+      "requiresDataFactEvidence": false,
+      "calls": 0,
+      "status": "completed",
+      "pass": true
+    },
+    {
+      "question": "什么是净有效租金",
+      "requiresDataFactEvidence": false,
+      "calls": 0,
+      "status": "completed",
+      "pass": true
+    },
+    {
+      "question": "What is net effective rent",
+      "requiresDataFactEvidence": false,
+      "calls": 0,
+      "status": "completed",
+      "pass": true
+    },
+    {
+      "question": "CBD所有楼宇",
+      "requiresDataFactEvidence": true,
+      "calls": 1,
+      "status": "limited",
+      "pass": true
+    },
+    {
+      "question": "CBD有哪些楼",
+      "requiresDataFactEvidence": true,
+      "calls": 1,
+      "status": "limited",
+      "pass": true
+    },
+    {
+      "question": "CBD最高的楼是哪栋",
+      "requiresDataFactEvidence": true,
+      "calls": 1,
+      "status": "limited",
+      "pass": true
+    },
+    {
+      "question": "2026Q3 CBD净有效租金是多少",
+      "requiresDataFactEvidence": true,
+      "calls": 1,
+      "status": "limited",
+      "pass": true
+    },
+    {
+      "question": "解释CBD租金口径，并告诉我当前是多少",
+      "requiresDataFactEvidence": true,
+      "calls": 1,
+      "status": "limited",
+      "pass": true
+    },
+    {
+      "question": "CBD写字楼数量是多少",
+      "requiresDataFactEvidence": true,
+      "calls": 1,
+      "status": "limited",
+      "pass": true
+    },
+    {
+      "question": "CBD楼宇有几栋",
+      "requiresDataFactEvidence": true,
+      "calls": 1,
+      "status": "limited",
+      "pass": true
+    }
+  ]
+}

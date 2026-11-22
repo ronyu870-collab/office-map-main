@@ -92,7 +92,8 @@ export async function readAgentHistory(
     // Recover once so the workset receives the exact same sealed object for
     // the primary entry and its selection, including resumed/chart-only turns.
     restored ??= await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
-    if (!restored.result || chartContext && restored.result.resultId !== chartContext.resultId) throw new Error('QUERY_DENIED');
+    if (!restored.result || chartContext && restored.result.resultId !== chartContext.resultId
+      && !restored.answerSelection?.results.some(item => item.result.resultId === chartContext.resultId)) throw new Error('QUERY_DENIED');
     history.contextResult = restored.result as QueryResult;
     history.contextResults = restored.answerSelection?.results.map(item => item.result as QueryResult);
     history.contextRecheck = restored.recheck;

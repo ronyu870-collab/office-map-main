@@ -57,10 +57,12 @@ export function prepareReportResult(results: readonly QueryResult[], raw: unknow
   return result;
 }
 
-export async function generateAuthorizedReport(workset: AuthorizedResultWorkset, owner: WorksetOwner, raw: unknown, grants: readonly string[], preparedChart?: QueryResult) {
+export async function generateAuthorizedReport(workset: AuthorizedResultWorkset, owner: WorksetOwner, raw: unknown, grants: readonly string[], preparedChart?: QueryResult,
+  beforeRender?: (result: QueryResult) => void) {
   if (!grants.includes('export:internal')) throw new Error('AGENT_EXPORT_DENIED');
   const args = reportRequestSchema.parse(raw);
   const result = prepareReportResult(args.resultIds.map(id => { const original = workset.read(id, owner); return preparedChart?.resultId === id ? preparedChart : original; }), args);
+  beforeRender?.(result);
   const file = await buildResultArtifact(result, { requestId: owner.requestId, resultId: result.resultId, action: 'export', format: 'pdf' });
   if (file.type !== 'download') throw new Error('AGENT_EXPORT_NOT_GENERATED');
   return { result, content: JSON.stringify({ status: 'ready', state: 'server_generated', format: 'pdf', purpose: 'internal',

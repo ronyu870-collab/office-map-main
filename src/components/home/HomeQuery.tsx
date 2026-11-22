@@ -187,6 +187,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     }
     setBusy(true); setTerminalFailure(false); setCollapsed(false); setStreamDraft(''); setMessage(recovering ? '正在核对权限并恢复结果…' : '正在处理你的问题…'); setReply(null); setAttempt(next);
     setBuildingSelection(null);
+    let observedRequestId = next.requestId;
     try {
       const useAgent = access.agentEnabled === true && !!next.conversation && !next.buildingSelection && !next.replayRequestId
         && (!next.conversation.resumeToken || resumedAgent);
@@ -208,10 +209,19 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
                 review_research_task: '核对范围、来源与统计口径',
                 generate_research_deliverable: '生成内部研究文件',
               };
-              if (event.type === 'run_started') setMessage('正在研究你的问题…');
+              if (event.type === 'run_started') {
+                // The terminal frame may never arrive. Keep only this opaque,
+                // identity-scoped reference so recovery reads the original run
+                // rather than issuing a fresh model request after interruption.
+                observedRequestId = event.requestId;
+                setAttempt({ ...next, requestId: event.requestId }); setSavedId(event.requestId);
+                try { sessionStorage.setItem(storageKey, event.requestId); } catch { /* Mounted-session recovery remains available. */ }
+                setMessage('正在研究你的问题…');
+              }
               else if (event.type === 'tool_started') {
                 setStreamDraft(''); setMessage('正在' + (labels[event.name] ?? '执行已授权数据查询') + '…');
-              } else if (event.type === 'tool_completed') setMessage('数据步骤已完成，正在整理回答…');
+              } else if (event.type === 'tool_completed') setMessage(event.status === 'ready'
+                ? '数据步骤已完成，正在整理回答…' : '部分数据步骤未完成，正在整理说明…');
               else if (event.type === 'message_delta') {
                 setStreamDraft(current => (current + event.delta).slice(0, 12000));
                 setMessage('正在生成回答…');
@@ -220,7 +230,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
           : useAgent ? await trustedQueryClient.submitAgent(scope, payload, controller.signal)
             : await trustedQueryClient.submit(scope, payload, controller.signal);
       if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;
-      const updated = { ...next, requestId: result.requestId ?? next.requestId }; setAttempt(updated);
+      const updated = { ...next, requestId: result.requestId ?? observedRequestId }; setAttempt(updated);
       // Capacity rejection and a confirmed failed recovery are terminal for
       // this request key. A smaller edited question gets its own new key.
       const historyExpired = result.status === 'failed' && result.reason === 'history_reopen';
