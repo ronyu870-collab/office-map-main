@@ -263,7 +263,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
       send(input, `第${index}个独立问题`); await screen.findByText(`助手回应：第${index}个独立问题`);
     }
     for (let index = 1; index <= 12; index++) {
-      expect(screen.getByText(`第${index}个独立问题`)).toBeInTheDocument();
+      expect(screen.getAllByText(`第${index}个独立问题`)[0]).toBeInTheDocument();
       expect(screen.getByText(`助手回应：第${index}个独立问题`)).toBeInTheDocument();
     }
     await expand(); await collapse();

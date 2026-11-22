@@ -180,9 +180,9 @@ export const trustedQueryClient = {
       || input.buildingId && value.buildings.some(building => building.id !== input.buildingId)) throw new Error('楼宇信息与当前结果不一致。');
     return received(scope, raw, value);
   },
-  copy: async (scope: QueryClientScope, input: { requestId: string; resultId: string; action: 'copy'; format: 'conclusion' | 'figures' | 'summary' }, signal: AbortSignal): Promise<{ text: string; resultId: string; format: 'conclusion' | 'figures' | 'summary' }> => {
+  copy: async (scope: QueryClientScope, input: { requestId: string; resultId: string; action: 'copy'; format: 'conclusion' | 'figures' | 'summary' | 'table' }, signal: AbortSignal): Promise<{ text: string; resultId: string; format: 'conclusion' | 'figures' | 'summary' | 'table' }> => {
     const raw = await call('/artifact', scope, signal, input);
-    const value = z.object({ status: z.literal('ready'), requestId: z.uuid(), resultId: z.uuid(), format: z.enum(['conclusion', 'figures', 'summary']), text: z.string().max(120000), resultDigest: z.string().regex(/^[0-9a-f]{64}$/) }).parse(raw);
+    const value = z.object({ status: z.literal('ready'), requestId: z.uuid(), resultId: z.uuid(), format: z.enum(['conclusion', 'figures', 'summary', 'table']), text: z.string().max(120000), resultDigest: z.string().regex(/^[0-9a-f]{64}$/) }).parse(raw);
     if (value.requestId !== input.requestId || value.resultId !== input.resultId || value.format !== input.format) throw new Error('复制内容与当前结果不一致。');
     return received(scope, raw, value);
   },

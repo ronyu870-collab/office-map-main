@@ -362,8 +362,8 @@ describe('AI 5.0 natural-language export through the authenticated Agent handler
     expect(output.status).toBe('ready');
     expect(output.result.parameters.agentExport).toMatchObject({ version: 'agent-export/1', format: scenario.format });
     expect(output.agent.toolCalls).toBe(2);
-    expect(output.message).toContain('服务器已生成');
-    expect(output.message).toContain('未确认本机保存');
+    expect(output.message).toContain('文件已准备好');
+    expect(output.message).not.toMatch(/已保存到电脑|已经保存在/);
     expect(output.message).not.toContain('已保存到你的桌面');
     expect(output.message).not.toContain('fake.invalid');
     const archived = state.append.mock.calls.find(x => x[1] === 'response_generated')?.[2]?.result;
@@ -424,7 +424,7 @@ describe('AI5 chart creation, same-snapshot modification and image delivery', ()
     expect(response.status).toBe(200); expect(body.agent.executionStatus).toBe('completed');
     expect(body.result.parameters.agentChart).toMatchObject({ request: spec, format: 'png_zip' });
     expect(body.result.table).toEqual(formal.table); expect(body.result.dataVersion).toBe(formal.dataVersion);
-    expect(body.message).toContain('服务器已生成 PNG'); expect(body.message).not.toContain('fake.invalid'); expect(body.message).not.toContain('已经保存在桌面');
+    expect(body.message).toContain('文件已准备好'); expect(body.message).not.toContain('fake.invalid'); expect(body.message).not.toContain('已经保存在桌面');
     const event = state.append.mock.calls.find(c => c[1] === 'tool_finished' && c[2]?.protocol === 'agent-answer/1')?.[2];
     expect(event.chartFile).toMatchObject({ state: 'server_generated', format: 'png_zip', bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
     const { buildResultArtifact } = await import('../query/artifacts');
@@ -481,7 +481,7 @@ describe('AI5 controlled PDF report tool', () => {
     state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] }); scripted();
     const response = await handleAgentSubmission(fakeRequest('CBD季度市场PDF研究报告').request, deps()), body = await response.json();
     expect(response.status).toBe(200); expect(body.result.parameters.agentReport).toMatchObject({ format: 'pdf', sectionCount: 1, purpose: 'internal' });
-    expect(body.message).toContain('服务器已生成'); expect(body.message).not.toMatch(/已保存到桌面|fake.invalid/);
+    expect(body.message).toContain('文件已准备好'); expect(body.message).not.toMatch(/已保存到桌面|fake.invalid/);
     expect(state.recoverArchive).toHaveBeenCalledOnce();
     const answer = state.append.mock.calls.find(x => x[1] === 'tool_finished' && x[2]?.protocol === 'agent-answer/1');
     expect(answer?.[2].reportFile).toMatchObject({ state: 'server_generated', format: 'pdf', bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });

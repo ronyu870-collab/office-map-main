@@ -34,6 +34,13 @@ describe('progressive research result in one retained workspace', () => {
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus();
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveTextContent('net_effective_rent');
   });
+  it('keeps material unknown values visible while source details start folded', () => {
+    const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
+    render(<HomeQueryResult result={result} presentation="compact" />);
+    expect(screen.getByLabelText('重要数据限制')).toHaveTextContent('有效样本');
+    const disclosure = screen.getByText('数据依据与统计口径').closest('details');
+    expect(disclosure).not.toHaveAttribute('open');
+  });
   it('opens nearby source metadata, returns focus, and keeps full sample exclusions visible', () => {
     const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
     render(<HomeQueryResult result={result} />);
@@ -49,7 +56,7 @@ describe('progressive research result in one retained workspace', () => {
     const limitations = screen.getByRole('region', { name: '统计口径与限制' });
     expect(limitations).toHaveTextContent('缺失');
     expect(limitations).toHaveTextContent('未核验');
-    expect(limitations.closest('details')).toBeNull();
+    expect(limitations.closest('details')).toBeInTheDocument();
   });
   it('keeps results, evidence and the footer actions available when chart generation fails', async () => {
     client.chart.mockRejectedValueOnce(new Error('synthetic chart unavailable'));
@@ -144,7 +151,7 @@ describe('progressive research result in one retained workspace', () => {
     const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
     const onClose = vi.fn(); render(<HomeQueryResearchPanel result={result} onClose={onClose} />);
     expect(screen.getByRole('complementary', { name: '研究资料与口径' })).toHaveTextContent('季度指标');
-    expect(screen.getByRole('region', { name: '当前分析范围' })).toHaveTextContent('2026 年第 3 季度');
+    expect(screen.getByRole('region', { name: '当前分析范围' })).toHaveTextContent('2026 Q3');
     expect(screen.getByRole('region', { name: '结果时间' })).toHaveTextContent('不代表最新市场数据');
     expect(screen.getByRole('region', { name: '统计口径' })).toHaveTextContent('按有效总面积加权');
     expect(screen.queryByText(result.resultId)).not.toBeInTheDocument();

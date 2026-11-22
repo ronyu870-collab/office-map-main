@@ -15,7 +15,8 @@
     "id": "homepage-query-composer",
     "roots": [
       "src/components/home/HomeQuery.tsx",
-      "src/components/home/HomeWorkspace.tsx"
+      "src/components/home/HomeWorkspace.tsx",
+      "src/components/home/HomeQueryComposer.tsx"
     ],
     "file": "src/components/home/__tests__/home-query.test.tsx",
     "cases": [
@@ -499,5 +500,15 @@
       "keeps inputs stable and applies field, orientation, sort and legitimate range without altering the source table"
     ],
     "file": "src/components/home/__tests__/home-query-chart-workspace.test.tsx"
+  },
+  {
+    "id": "home-query-data-table",
+    "roots": [
+      "src/components/home/HomeQueryDataTable.tsx"
+    ],
+    "file": "src/components/home/__tests__/home-query-data-table.test.tsx",
+    "cases": [
+      "continues search through result updates, middle edits, empty results and IME without losing focus or selection"
+    ]
   }
 ]

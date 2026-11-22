@@ -1,5 +1,6 @@
 .root {
   min-width: 0;
+  max-width: var(--cd-ai-reading-width);
   color: var(--cd-color-text-primary);
   font-size: var(--cd-ai-body-size);
   line-height: var(--cd-ai-body-leading);
@@ -15,7 +16,7 @@
   line-height: 1.5;
   scroll-margin-top: 24px;
 }
-.root h3 { font-size: var(--cd-font-size-xl); }
+.root h3 { font-size: var(--cd-ai-heading-size); }
 .root :is(h4, h5, h6) { font-size: var(--cd-ai-body-size); }
 .root strong { font-weight: 600; }
 .root em { font-style: italic; }
@@ -68,7 +69,7 @@
 .root td[align='center'], .root th[align='center'] { text-align: center; }
 .root hr { margin: 24px 0; border: 0; border-top: 1px solid var(--cd-color-border); }
 .imageDescription { color: var(--cd-color-text-secondary); }
-.outline { margin-bottom: 20px; font-size: var(--cd-font-size-sm); color: var(--cd-color-text-secondary); }
+.outline { margin-bottom: 20px; font-size: var(--cd-ai-body-size); color: var(--cd-color-text-secondary); }
 .outline summary { width: fit-content; padding: 8px 0; cursor: pointer; }
 .outline nav { display: grid; gap: 4px; padding: 8px 0; }
 .outline button { min-height: 44px; text-align: left; color: var(--cd-color-brand); padding: 8px 12px; border-radius: var(--cd-radius-md); background: transparent; border: 0; cursor: pointer; overflow-wrap: anywhere; }

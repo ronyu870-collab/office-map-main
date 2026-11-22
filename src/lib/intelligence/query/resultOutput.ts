@@ -6,7 +6,7 @@ import { researchAnalysisSchema } from './researchAnalysisView';
 import { numericFields } from './registry';
 import { researchTaskSchema } from '../research/protocol';
 
-export const resultCopyFormatSchema = z.enum(['conclusion', 'figures', 'summary']);
+export const resultCopyFormatSchema = z.enum(['conclusion', 'figures', 'summary', 'table']);
 export type ResultCopyFormat = z.infer<typeof resultCopyFormatSchema>;
 export const RESULT_COPY_MAX_CHARACTERS = 120000;
 const ROW_LIMIT = 20;
@@ -99,6 +99,16 @@ function keyFigures(result: QueryResultView): string[] {
  * source read, fresh quarter selection, or business-statistic recalculation. */
 export function renderResultCopy(result: QueryResultView, format: ResultCopyFormat): string {
   resultCopyFormatSchema.parse(format);
+  if (format === 'table') {
+    const clean = (text: string) => text.replace(/[\t\r\n]+/g, ' ');
+    const output = [result.table.columns.map(column => clean(`${column.label}${column.unit ? `（${units[column.unit] ?? column.unit}）` : ''}`)).join('\t'),
+      ...result.table.rows.map(row => result.table.columns.map(column => {
+        const cell = row.cells[column.key], text = clean(cellText(cell, column.unit));
+        return cell.kind === 'text' && /^[\s\p{Cf}]*[=+\-@]/u.test(text) ? `'${text}` : text;
+      }).join('\t'))].join('\n');
+    if (output.length > RESULT_COPY_MAX_CHARACTERS) throw new Error('RESULT_COPY_SIZE_LIMIT');
+    return output;
+  }
   const summary = resultSummary(result), research = researchFor(result);
   const findings = research?.findings ?? [];
   const trendFindings = findings.filter(finding => finding.kind === 'trend');

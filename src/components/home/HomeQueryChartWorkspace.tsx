@@ -58,7 +58,7 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
       anchor.href = url; anchor.download = file.filename; document.body.appendChild(anchor); anchor.click(); anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 30000);
       void trustedQueryClient.reportDelivery(scope, file, 'browser_download_dispatched');
-      setMessage('浏览器已发起图片与来源包下载；尚未确认文件已实际保存。仅供内部分析。');
+      setMessage('已发起图片与来源包下载 · 仅供内部分析');
     } catch (error) { if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : '图片下载未完成，请重试。'); }
     finally { if (!controller.signal.aborted) setBusy(false); if (active.current === controller) active.current = null; }
   }
@@ -71,7 +71,7 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
   }
   return <section className={workspaceStyles.workspace} aria-label="专业图表工作区">
     <div className={styles.actions}>
-      {descriptor?.format && <span>服务器已生成{descriptor.format === 'png_zip' ? ' PNG' : ' SVG'} 与来源包</span>}
+      {descriptor?.format && <span>{descriptor.format === 'png_zip' ? 'PNG' : 'SVG'} 与来源包已就绪</span>}
       {internalExport && <><Button variant="ghost" disabled={busy || !chart} onClick={() => void download('png_zip')}>下载 PNG 与来源</Button>
         <Button variant="ghost" disabled={busy || !chart} onClick={() => void download('svg_zip')}>下载 SVG 与来源</Button></>}
       {!chart && <Button variant="ghost" disabled={busy} onClick={() => void draw(initial)}>生成图表</Button>}

@@ -25,7 +25,7 @@ const sourceRequire = createRequire(`${sourceRoot}/package.json`);
 const screenshotPixels = sourceRequire('sharp');
 sourceRequire('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'CommonJS', moduleResolution: 'Node' } });
 const { fixture } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/__tests__/fixtures.ts`);
-const { buildAggregateResult, buildTrendResult } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/result.ts`);
+const { buildAggregateResult, buildTrendResult, buildListResult } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/result.ts`);
 const { attachResearchAnalysis } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/researchAnalysis.ts`);
 const { buildResultChart } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/charts.ts`);
 const { resultViewSchema } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/presentation.ts`);
@@ -57,12 +57,25 @@ function stableResult(result, resultId) {
 }
 const aggregate = stableResult(buildAggregateResult(fixture(), 'rent'), '11111111-1111-4111-8111-111111111111');
 const trend = stableResult(attachResearchAnalysis(buildTrendResult(snapshots, 'rent', 'paired'), snapshots), '22222222-2222-4222-8222-222222222222');
+// Larger source-bound list for AI6 table interactions. Only local fixture data.
+const listSnapshot = fixture();
+const originals = listSnapshot.rows;
+listSnapshot.rows = Array.from({ length: 32 }, (_, index) => {
+  const row = { ...originals[index % originals.length] };
+  row.id = `table-${index + 1}`; row.name = `合成楼${String(index + 1).padStart(2, '0')}`;
+  const qualify = source => ({ ...source, id: `${source.id}/table/${index}`, recordId: `${source.recordId}/table/${index}`, entityId: row.id });
+  row.nameSource = { ...qualify(row.nameSource), recordId: row.id, rawValue: row.name };
+  row.facts = Object.fromEntries(Object.entries(row.facts).map(([field, fact]) => [field, { ...fact, sources: fact.sources.map(qualify) }]));
+  return row;
+});
+listSnapshot.expectedCount = listSnapshot.rows.length;
+const tableResult = stableResult(buildListResult(listSnapshot, ['height', 'netEffectiveRent']), '44444444-4444-4444-8444-444444444444');
 const historyEntries = ['CBD 季度租金跟踪', '金融街与 CBD 区域对比', '北京办公楼空置率研究'].map((title, index) => ({
   conversationId: `33333333-3333-4333-8333-33333333333${index}`, title, updatedAt: '2026-11-17T02:30:00Z', latestQuestion: index ? '比较当前获权区域的季度指标，并核对统计样本。' : '2026Q3 CBD 净有效租金是多少？', requestId, archived: false,
 }));
 const notices = [{ id: 1, content: '季度数据已更新，请核对负责楼宇的填报进度。', updated_at: '2026-11-17T02:00:00Z', is_active: true }, { id: 2, content: '地图支持查看楼宇照片、租赁成交及历史季度指标。', updated_at: '2026-11-16T02:00:00Z', is_active: true }];
 const records = [];
-const fixtureDigest = createHash('sha256').update(JSON.stringify({ examples, aggregate, trend, historyEntries, notices })).digest('hex');
+const fixtureDigest = createHash('sha256').update(JSON.stringify({ examples, aggregate, trend, tableResult, historyEntries, notices })).digest('hex');
 const baseline = execFileSync('git', ['-C', sourceRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const sourceDiff = execFileSync('git', ['-C', sourceRoot, 'diff', '--', 'src/components/home', 'src/styles/tokens.css'], { encoding: 'utf8' });
 const sourceDiffSha256 = createHash('sha256').update(sourceDiff).digest('hex');
@@ -102,8 +115,8 @@ async function makePage(width, capability = 'enabled', role = 'admin') {
         const shared = { requestId, conversation: body.conversation, options: [] };
         if (control.answer === 'failure') return json({ ...shared, status: 'unavailable' });
         if (control.answer === 'clarification') return json({ ...shared, status: 'clarification', reason: 'period_required', message: '你想查看哪个季度的净有效租金？选择季度后，我会按当前获权样本继续查询。', options: [{ id: 'quarter', label: '2026 年第三季度', question: '2026Q3 CBD 净有效租金' }] });
-        if (control.answer === 'aggregate' || control.answer === 'complex') {
-          control.currentResult = control.answer === 'aggregate' ? aggregate : trend;
+        if (['aggregate', 'complex', 'table'].includes(control.answer)) {
+          control.currentResult = control.answer === 'table' ? tableResult : control.answer === 'aggregate' ? aggregate : trend;
           return json({ ...shared, status: 'ready', historySaved: true, result: control.currentResult });
         }
         return json({ ...shared, status: 'clarification', reason: 'assistant_help', message: '你好！我可以帮你查找北京办公楼，分析市场租金、空置率和季度变化。你可以从一个项目或区域开始。' });
@@ -447,6 +460,29 @@ try {
     await page.getByRole('region', { name: '对话记录', exact: true }).evaluate(node => { node.scrollTop = 0; });
     await capture(session, 'expanded-multiturn');
     await expanded(page, false);
+    await send(session, '列出获权楼宇并显示高度和净有效租金', 'table');
+    await expanded(page, true);
+    const table = page.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' }).last();
+    await table.waitFor();
+    assert.equal(await table.locator('tbody tr').count(), 25, 'list uses bounded pagination');
+    const tableSearch = page.getByRole('searchbox', { name: '搜索本次结果' }).last();
+    await tableSearch.fill('合成楼0');
+    await page.waitForFunction(() => document.querySelectorAll('table tbody tr').length >= 1);
+    const postsBeforeFilter = session.calls.filter(call => call.path === '/api/intelligence/query' && call.method === 'POST').length;
+    await tableSearch.pressSequentially('1');
+    assert.equal(await tableSearch.inputValue(), '合成楼01');
+    assert.equal(await tableSearch.evaluate(node => node === document.activeElement), true, 'table search keeps focus');
+    await table.getByRole('checkbox', { name: '选择合成楼01', exact: true }).check();
+    await tableSearch.dispatchEvent('compositionstart'); await tableSearch.fill('无匹配中文'); await tableSearch.dispatchEvent('compositionend');
+    await page.getByText('没有匹配的记录，可清除搜索或筛选。', { exact: true }).waitFor();
+    await tableSearch.fill('');
+    await table.getByRole('button', { name: '建筑高度（米）', exact: true }).click();
+    assert.equal(await table.locator('th[aria-sort="ascending"]').count(), 1);
+    await expanded(page, false); await expanded(page, true);
+    assert.equal(await table.getByRole('checkbox', { name: '选择合成楼01', exact: true }).isChecked(), true, 'selection survives workspace switches');
+    assert.equal(session.calls.filter(call => call.path === '/api/intelligence/query' && call.method === 'POST').length, postsBeforeFilter, 'table interactions never query the model/database');
+    session.interactionChecks.structuredTable = { passed: true, boundedRows: 25, returnedRows: 32, localSearchAndSort: true, retainedSelection: true, noQueryOnInteraction: true };
+    await capture(session, 'interactive-table');
     await send(session, '查看新的分析', 'failure');
     await page.getByRole('button', { name: '重试本次请求', exact: true }).waitFor();
     await capture(session, 'failure');

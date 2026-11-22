@@ -73,9 +73,16 @@ describe('native Office research files and shared evidence model', () => {
     }
     const xlsx = await buildResultArtifact(generated.result, { requestId: crypto.randomUUID(), resultId: generated.result.resultId, action: 'export', format: 'xlsx' });
     if (xlsx.type !== 'download') throw Error();
-    const book = XLSX.read(xlsx.bytes, { type: 'array' }); expect(book.SheetNames).toContain('研究说明');
+    const zipped = await JSZip.loadAsync(xlsx.bytes);
+    for (const path of Object.keys(zipped.files).filter(path => /^xl\/worksheets\/sheet\d+\.xml$/.test(path))) {
+      const xml = await zipped.file(path)!.async('string');
+      expect(parse(xml).querySelector('parsererror')).toBeNull();
+      expect(xml).toContain('state="frozen"');
+    }
+    const book = XLSX.read(xlsx.bytes, { type: 'array', cellNF: true }); expect(book.SheetNames).toContain('研究说明');
     expect(book.SheetNames.filter(n => n.endsWith('数据'))).toHaveLength(3);
     for (const i of [1, 2, 3]) expect(XLSX.utils.sheet_to_json(book.Sheets[`${i}_数据`], { header: 1 })).toHaveLength(5);
+    expect(Object.values(book.Sheets['2_数据']).some(cell => cell?.z === '0.00%')).toBe(true);
     expect(run.results.map(resultDigest)).toEqual(before);
   }, 30000);
   it('preserves every long-table row including literal malicious text and zero/missing in both Office files without links or scripts', async () => {

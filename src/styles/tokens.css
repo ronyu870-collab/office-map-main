@@ -47,9 +47,11 @@
 
   /* Continuous AI reading; shared business forms and tables retain their scale. */
   --cd-ai-reading-width: 50rem;
-  --cd-ai-body-size: var(--cd-font-size-lg);
-  --cd-ai-body-leading: 1.8;
-  --cd-ai-message-gap: var(--cd-space-10);
+  --cd-ai-body-size: var(--cd-font-size-md);
+  --cd-ai-body-leading: 1.7;
+  --cd-ai-message-gap: var(--cd-space-8);
+  --cd-ai-data-width: 76rem;
+  --cd-ai-heading-size: var(--cd-font-size-lg);
 
   --cd-radius-sm: 4px;
   --cd-radius-md: 6px;

@@ -6,6 +6,7 @@
 
 | 责任 | 当前入口 |
 | --- | --- |
+| Colliers AI 6.0 结构化回答、交互表格、附件与工作空间 | [实施与验证边界](ai6-workspace.md) |
 | Colliers AI 5.0 阶段 12 实际能力矩阵、成果完成判定、分页预算与最终回归 | [最终工程收口](ai5-final-hardening.md) |
 | Colliers AI 5.0 阶段 11 官方 Responses／DeepSeek 统一协议、有界恢复与成本治理 | [模型运行与运营治理](ai5-model-operations.md) |
 | Colliers AI 5.0 阶段 10 受控多步骤研究、可恢复工作集及 Word/PPT/PDF/Excel 共享成果 | [专题研究与综合成果](ai5-deep-research.md) |

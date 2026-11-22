@@ -38,7 +38,7 @@ it('shows the requested chart and PNG/SVG download beside a collapsed result, re
   await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce());
   expect(client.download).toHaveBeenCalledWith(scope, expect.objectContaining({ requestId, resultId: result.resultId, action: 'export', format: 'png_zip', chart: result.parameters.agentChart && (result.parameters.agentChart as { request: unknown }).request }), expect.any(AbortSignal));
   expect(client.reportDelivery).toHaveBeenCalledWith(scope, file, 'browser_download_dispatched');
-  expect(screen.getByText(/浏览器已发起/)).toHaveTextContent('尚未确认文件已实际保存');
+  expect(screen.getByText(/已发起图片与来源包下载/)).not.toHaveTextContent('已保存');
 });
 it('keeps inputs stable and applies field, orientation, sort and legitimate range without altering the source table', async () => {
   const result = formal(), original = structuredClone(result.table), onSource = vi.fn();

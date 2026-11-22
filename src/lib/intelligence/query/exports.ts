@@ -1,3 +1,4 @@
+import { presentWorkbook } from './workbookPresentation';
 import { distributionAnalysisSchema, distributionStatLabels } from './distribution';
 import { buildResultChart } from './charts';
 import { resultViewSchema, resultSummary, units } from './presentation';
@@ -147,5 +148,5 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ['numeric_precision', '数据页为数值型展示近似值；精确值与来源页保留未舍入分子/分母。'],
     ['intended_use', '仅供内部分析；对客成品须另行核验与授权。'],
   ]);
-  return new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer);
+  return presentWorkbook(new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer));
 }
