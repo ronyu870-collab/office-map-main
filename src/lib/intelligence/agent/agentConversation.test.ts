@@ -184,6 +184,40 @@ it('imports a chart snapshot only after owner/session/encrypted context and live
   await expect(readAgentHistory({ rpc } as unknown as SupabaseClient, identity, keys, authority, { id: conversationId, parentRequestId: requestId }, new AbortController().signal)).rejects.toThrow('QUERY_DENIED');
 });
 
+it.each([false, true])('restores combined answer and chart contexts once with shared immutable snapshots (resume=%s)', async resume => {
+  const requestId = randomUUID(), conversationId = randomUUID(), result = buildListResult(fixture(), ['height']);
+  const chart = { kind: 'plot', type: 'horizontal_bar', x: 'name', y: ['height'] };
+  const history = [{ user: '创建高度图表', assistant: '已生成同源图表。' }];
+  const selection = { version: 'answer-selection/1', task: 'list', status: 'answered', primaryResultId: result.resultId,
+    results: [{ role: 'primary', result }] };
+  const events = [
+    event(requestId, 'received', { sessionId: resume ? randomUUID() : identity.sessionId,
+      authority: { actorId: identity.actorId, effectiveUserId: identity.effectiveUserId }, metadata: { protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId } } }, 1),
+    event(requestId, 'tool_finished', { protocol: 'agent-answer/1', permissionRevision: authority.permissionRevision,
+      history, answerContext: true, chartContext: { resultId: result.resultId, chart } }, 2),
+    event(requestId, 'response_generated', { result: selection }, 3),
+  ];
+  const rpc = vi.fn().mockReturnValue({ abortSignal: vi.fn().mockResolvedValue({ data: { allowed: true,
+    permission_revision: authority.permissionRevision, state: 'succeeded', events }, error: null }) });
+  stubs.read.mockClear().mockResolvedValue({ state: 'succeeded', permission_revision: authority.permissionRevision, head_hash: 'f'.repeat(64), head_sequence: 3, events });
+  const recheck = vi.fn().mockResolvedValue(undefined);
+  stubs.recover.mockClear().mockImplementation(async () => {
+    // Real decryption creates a distinct graph on every recovery call.
+    const answerSelection = structuredClone(selection);
+    return { result: answerSelection.results[0].result, answerSelection, recheck };
+  });
+  const client = { rpc } as unknown as SupabaseClient;
+  const conversation = { id: conversationId, parentRequestId: requestId,
+    ...(resume ? { resumeToken: sealHistoryToken(identity, authority.permissionRevision, 'history-resume', { requestId, conversationId }, keys) } : {}) };
+  const restored = await readAgentHistory(client, identity, keys, authority, conversation, new AbortController().signal);
+  expect(restored.contextResult).toBe(restored.contextResults?.[0]);
+  expect(restored.contextChart).toEqual({ resultId: result.resultId, chart });
+  expect(stubs.read).toHaveBeenCalledOnce(); expect(stubs.recover).toHaveBeenCalledOnce();
+  expect(recheck).toHaveBeenCalledOnce();
+  recheck.mockRejectedValue(new Error('QUERY_DENIED'));
+  await expect(restored.contextRecheck?.()).rejects.toThrow('QUERY_DENIED');
+});
+
 it('imports multiple completed snapshots only along this conversation encrypted parent chain and rechecks every source', async () => {
   const conversationId = randomUUID(), requestIds = [randomUUID(), randomUUID()];
   const results = [buildListResult(fixture(), ['height']), buildListResult(fixture(), ['totalArea'])];

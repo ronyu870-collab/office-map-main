@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildAggregateResult } from '../result';
 import { fixture } from './fixtures';
+import type { AnswerSelection } from '../answerSelection';
+import { resultViewSchema } from '../presentation';
 
-const state = vi.hoisted(() => ({ exportGranted: true, reads: 0, revoked: false, sourceRevoked: false, result: null as unknown }));
+const state = vi.hoisted(() => ({ exportGranted: true, reads: 0, revoked: false, sourceRevoked: false, result: null as unknown, answerSelection: undefined as AnswerSelection | undefined }));
 vi.mock('../serverAuthority', () => ({
   verifyQueryIdentity: async () => ({ actorId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', effectiveUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', expiresAt: Date.now() + 60000 }),
@@ -13,13 +15,13 @@ vi.mock('../serverAuthority', () => ({
 vi.mock('../recovery', () => ({
   readOwnResult: async () => { state.reads++; return { allowed: true, state: 'succeeded', permission_revision: state.revoked && state.reads > 1 ? 'b'.repeat(64) : 'a'.repeat(64),
     head_hash: 'c'.repeat(64), head_sequence: 3, events: [] }; },
-  recoverOwnResult: async () => ({ result: state.result, resultId: (state.result as { resultId: string }).resultId, redactionTypes: [],
+  recoverOwnResult: async () => ({ answerSelection: state.answerSelection, result: state.result, resultId: (state.result as { resultId: string }).resultId, redactionTypes: [],
     recheck: async () => { if (state.sourceRevoked) throw new Error('QUERY_DENIED'); } }),
 }));
 import { handleResultRecovery } from '../recoveryHttp';
 const requestId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 describe('P2 copying requires independent export access at the server', () => {
-  beforeEach(() => { state.exportGranted = true; state.reads = 0; state.revoked = false; state.sourceRevoked = false; state.result = buildAggregateResult(fixture(), 'rent'); });
+  beforeEach(() => { state.exportGranted = true; state.reads = 0; state.revoked = false; state.sourceRevoked = false; state.result = buildAggregateResult(fixture(), 'rent'); state.answerSelection = undefined; });
   async function run(extra: Record<string, unknown> = {}) {
     const rpc = vi.fn(() => ({ abortSignal: () => Promise.resolve({ data: { event_id: crypto.randomUUID(), sequence: 1, event_hash: 'a'.repeat(64), replayed: false }, error: null }) }));
     const request = new Request('http://localhost/api/intelligence/query/artifact', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer synthetic' },
@@ -41,6 +43,25 @@ describe('P2 copying requires independent export access at the server', () => {
   });
   it.each(['revoked', 'sourceRevoked'] as const)('T12 refuses copy after %s before final response', async mode => {
     state[mode] = true; const { response, body } = await run();
+    expect(response.status).toBe(403); expect(body.text).toBeUndefined();
+  });
+
+  it('copies the requested auxiliary snapshot from a fully rechecked answer selection', async () => {
+    const primary = resultViewSchema.parse(state.result);
+    const secondary = resultViewSchema.parse(buildAggregateResult(fixture({ year: 2026, quarter: 2 }), 'rent'));
+    state.answerSelection = { version: 'answer-selection/1', task: 'comparison', status: 'answered', primaryResultId: primary.resultId,
+      results: [{ role: 'primary', result: primary }, { role: 'comparison', result: secondary }] };
+    const { response, body } = await run({ resultId: secondary.resultId });
+    expect(response.status).toBe(200);
+    expect(body.resultId).toBe(secondary.resultId);
+    expect(body.text).toContain('2026Q2');
+    expect(body.text).not.toContain('2026Q3');
+  });
+  it('refuses an unselected resultId even when it has a valid identifier', async () => {
+    const primary = resultViewSchema.parse(state.result);
+    state.answerSelection = { version: 'answer-selection/1', task: 'fact', status: 'answered', primaryResultId: primary.resultId,
+      results: [{ role: 'primary', result: primary }] };
+    const { response, body } = await run({ resultId: crypto.randomUUID() });
     expect(response.status).toBe(403); expect(body.text).toBeUndefined();
   });
   it('refuses supplied text rather than accepting a client-generated artifact', async () => {

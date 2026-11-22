@@ -61,6 +61,14 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     if(record.permission_revision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
     const restored=input.action!=='status'&&record.state==='succeeded'
       ?await recoverOwnResult(client,verified,keys,input.requestId,record,signal,{reauthorizedHistory:mode!=='recover',exporting:mode==='artifact'&&(input.action==='export'||input.action==='copy')}):null;
+    if (restored?.answerSelection && 'resultId' in input) {
+      const entry = restored.answerSelection.results.find(item => item.result.resultId === input.resultId);
+      if (!entry) throw new Error('QUERY_DENIED');
+      // The entire selected set has already passed current source checks.
+      // Local operations choose the requested exact snapshot, never the last.
+      restored.result = entry.result;
+      restored.resultId = entry.result.resultId;
+    }
     let artifact=mode==='artifact'&&restored?await buildResultArtifact(restored.result,input as ArtifactInput):null;
     if(mode==='document'){
       const p=documentInputSchema.parse(input);if(!restored || !(isKnowledgeResult(restored.result as {parameters:Record<string,unknown>}) || isResearchResult(restored.result as {parameters:Record<string,unknown>})) || restored.resultId!==p.resultId)throw new Error('QUERY_DENIED');
@@ -89,7 +97,8 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     }
     const responseBody=buildingContext?{attemptId,...buildingContext}:artifact?.type==='chart'?{attemptId,requestId:input.requestId,status:'ready',chart:artifact.chart,resultDigest:artifact.resultDigest}
       :artifact?.type==='copy'?{attemptId,requestId:input.requestId,status:'ready',resultId:artifact.resultId,format:artifact.format,text:artifact.text,resultDigest:artifact.resultDigest}
-      :restored?{attemptId,requestId:input.requestId,status:'ready',result:restored.result,redactionTypes:restored.redactionTypes}
+      :restored?{attemptId,requestId:input.requestId,status:'ready',result:restored.result,
+        ...(restored.answerSelection?{answerSelection:restored.answerSelection}:{}),redactionTypes:restored.redactionTypes}
       :{attemptId,requestId:input.requestId,status:record.state};
     const bodySha256=artifact?.type==='download'?artifact.sha256:createHash('sha256').update(JSON.stringify(responseBody)).digest('hex');
     await audit.append(attemptId,'response_generated',{result:{kind:'recovery_reference',sourceRequestId:input.requestId,

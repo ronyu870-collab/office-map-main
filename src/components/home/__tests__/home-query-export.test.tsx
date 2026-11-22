@@ -27,7 +27,7 @@ it('delivers a real download operation beside a collapsed answer; reports dispat
   const value = result(), file = { blob: new Blob(['synthetic downloaded bytes']), filename: 'query.xlsx' };
   client.download.mockResolvedValue(file);
   render(<HomeQueryResult result={value} presentation="compact" requestId={requestId} scope={scope} internalExport />);
-  expect(screen.getByRole('table').querySelectorAll('tbody tr')).toHaveLength(8);
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
   expect(client.download).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: '下载 Excel' }));
   await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce());
@@ -45,13 +45,16 @@ it('keeps the server-generated state and allows retry when the download is denie
   expect(screen.getByRole('button', { name: '下载 Excel' })).toBeEnabled();
 });
 
-it('renders a restored exported list as one attachment and one interactive table without a card per building', () => {
+it('renders a restored exported list as one attachment and one interactive table without a card per building', async () => {
   render(<HomeQueryResult result={result()} requestId={requestId} scope={scope} internalExport />);
-  expect(screen.getByRole('searchbox', { name: '搜索本次结果' })).toBeInTheDocument();
+  expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText(/查看数据明细/));
+  await screen.findByRole('searchbox', { name: '搜索本次结果' });
   expect(screen.getAllByRole('table')).toHaveLength(1);
-  expect(screen.getByRole('table').compareDocumentPosition(screen.getByRole('region', { name: '图表与分析' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByRole('region', { name: '本条回答生成的文件' }).compareDocumentPosition(screen.getByRole('table')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.queryByRole('region', { name: '图表与分析' })).not.toBeInTheDocument();
   expect(screen.queryAllByRole('article')).toHaveLength(0);
   expect(screen.getAllByRole('button', { name: '下载 Excel' })).toHaveLength(1);
   expect(screen.queryByText(/服务器已生成/)).not.toBeInTheDocument();
-  expect(screen.getByText('已找到 40 栋楼宇。')).toBeVisible();
+  expect(screen.queryByText('已找到 40 栋楼宇。')).not.toBeInTheDocument();
 });

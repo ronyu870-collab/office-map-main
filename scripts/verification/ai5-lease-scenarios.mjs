@@ -7,6 +7,7 @@ import { once } from 'node:events';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { loadAgentHandler } from './ai5-export-scenarios.mjs';
+import { observedResultReference, assertSelectedAnswer } from './agent-result-references.mjs';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { grantLeaseResearch, seedLeaseResearch } from '../../supabase/tests/ai-lease-research/fixture.mjs';
 export async function verifyAi5Leases({ db, service, keys, output, check, person, artifact, recover, events, decrypt, exportCaps, buildingIds }) {
@@ -24,7 +25,7 @@ export async function verifyAi5Leases({ db, service, keys, output, check, person
           for(const secret of ['合成保密客户_禁止模型日志','synthetic-lease-7','agency_person','submitter_name']) assert.equal(content.includes(secret),false);
           const step=scenario.round++;
           if(step===0) {
-            if(scenario.textOnly) return completion();
+            if(scenario.textOnly) return completion([tool('select_answer_results',{primaryResultId:scenario.reuseResultId,task:'list',status:'answered'})]);
             if(scenario.importResultId) { assert.ok(content.includes(scenario.importResultId)); return completion([tool('export_table',{resultIds:[scenario.importResultId],format:'xlsx'})]); }
             return completion([tool('query_lease_transactions',scenario.plan)]);
           }
@@ -37,6 +38,12 @@ export async function verifyAi5Leases({ db, service, keys, output, check, person
             }
             await scenario.beforeFollowup?.();
             if(scenario.followup) return completion([tool(scenario.followup,{...scenario.followupArgs,...(scenario.followup==='export_table'?{resultIds:[resultId],format:'xlsx'}:scenario.followup==='list_buildings'?{}:{resultId})})]);
+          }
+          if(step===2 && scenario.followup==='list_buildings') {
+            scenario.primaryResultId=observedResultReference(messages,'list_buildings');
+            scenario.supportingResultId=observedResultReference(messages,'query_lease_transactions');
+            return completion([tool('select_answer_results',{primaryResultId:scenario.primaryResultId,task:'list',status:'answered',
+              auxiliary:[{resultId:scenario.supportingResultId,role:'supporting'}]})]);
           }
           await scenario.beforeAnswer?.(); return completion();
         }});
@@ -67,11 +74,11 @@ export async function verifyAi5Leases({ db, service, keys, output, check, person
         if(source==='combined')combined=r;
       }
     });
-    await check('AI5成交 / 当前对话恢复获权结果继续导出，纯文字续轮仍绑定成交权限',async()=>{
+    await check('AI5成交 / 当前对话恢复获权结果继续导出，显式复用续轮仍绑定成交权限',async()=>{
       const restored=await submit(base,{importResultId:combined.body.result.resultId},who,{...combined.body.conversation,parentRequestId:combined.body.requestId});
       assert.equal(restored.status,200,JSON.stringify(restored.body));assert.equal((await download(restored)).status,200);
-      textHistory=await submit(base,{textOnly:true},who,{...restored.body.conversation,parentRequestId:restored.body.requestId});
-      assert.equal(textHistory.status,200);assert.equal(textHistory.body.result.parameters.dataDomain,'lease-research/1');
+      textHistory=await submit(base,{textOnly:true,reuseResultId:restored.body.result.resultId},who,{...restored.body.conversation,parentRequestId:restored.body.requestId});
+      assert.equal(textHistory.status,200);assertSelectedAnswer(textHistory.body,[{role:'primary',resultId:restored.body.result.resultId}]);assert.equal(textHistory.body.result.parameters.dataDomain,'lease-research/1');
     });
     await check('AI5成交 / 楼宇别名、记录级映射、行业分组、楼宇排名及季度低精度',async()=>{
       const alias=await submit({...base,buildingName:'合成历史楼名'});assert.equal(n(alias.body.result,'area'),300.75);
@@ -154,7 +161,7 @@ export async function verifyAi5Leases({ db, service, keys, output, check, person
     await check('AI5成交 / 混合季度和成交研究的最终档案仍复核成交权限',async()=>{
       await nextActor('mixed');await grant();
       const mixed=await submit(base,{followup:'list_buildings',followupArgs:{scope:{inventory:'all_authorized',buildingIds},fields:[],period:null}});
-      assert.equal(mixed.status,200);assert.equal(mixed.body.result.parameters.dataDomain,undefined);assert.ok(mixed.body.result.parameters.leaseBindings.length);
+      assert.equal(mixed.status,200);assertSelectedAnswer(mixed.body,[{role:'primary',resultId:scenario.primaryResultId},{role:'supporting',resultId:scenario.supportingResultId}]);assert.equal(mixed.body.result.parameters.dataDomain,undefined);assert.equal(mixed.body.result.parameters.leaseBindings,undefined);assert.ok(mixed.body.answerSelection.results[1].result.parameters.leaseBindings.length);
       await db.query('update private.ai_lease_research_grants set enabled=false where user_id=$1',[who.id]);assert.equal((await recover(who,mixed.body.requestId)).status,403);
     });
     await check('AI5成交 / 原记录或映射变更阻止旧文件并将过期去重关联明确保留为两条',async()=>{

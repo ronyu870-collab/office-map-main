@@ -186,17 +186,15 @@
 
 /* Two text sizes throughout the active research surface. Paragraphs retain a
    reading measure while the verified table can use the full work area. */
-.assistantResponse > :not([hidden]):not(:has([data-result-id])):not([data-result-id]) { max-width: var(--cd-ai-reading-width); }
+.assistantResponse > :not([hidden]):not(:has([data-result-id])):not([data-result-id]) { width: 100%; max-width: var(--cd-ai-reading-width); margin-inline: auto; }
+.questionRow { width: 100%; max-width: var(--cd-ai-reading-width); margin-inline: auto; }
 .conversation .welcome h3 { font-size: var(--cd-ai-heading-size); font-weight: 600; }
 .conversation :is(.welcome > p, .replyHeading strong, .replyLabel, .saveStatus, .notice, .tableFooter, .trace, .followUps button, .turnActions button, .suggestions button, .resultDisclosure, .chartSelect, .metricUnit) { font-size: var(--cd-ai-body-size); }
-.editQuestion { display: block; margin-left: auto; margin-top: var(--cd-space-1); min-height: 32px; font-size: var(--cd-ai-body-size); color: var(--cd-color-text-secondary); text-decoration: underline; text-underline-offset: 3px; }
+/* The edit target sits beside the question, never in a hidden extra row. */
+.editQuestion { position: absolute; inset-inline-end: 4px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; color: var(--cd-color-text-secondary); border-radius: var(--cd-radius-md); }
+.editQuestion:hover { color: var(--cd-color-brand); background: var(--cd-color-surface); }
 .editQuestion:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
-.question { margin-bottom: var(--cd-space-5); }
-@media (max-width: 639px), (pointer: coarse) { .editQuestion { min-height: 44px; } }
-
-/* Questions remain readable; editing stays discoverable by pointer and keyboard. */
-.question { padding: var(--cd-space-3) var(--cd-space-4); box-shadow: none; }
-.question .editQuestion { opacity: 0; transition: opacity 120ms ease; }
-.question:hover .editQuestion, .question:focus-within .editQuestion { opacity: 1; }
-@media (hover: none) { .question .editQuestion { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .question .editQuestion { transition: none; } }
+.question { position: relative; min-height: 44px; margin-bottom: var(--cd-space-5); padding: 12px 48px 12px 16px; box-shadow: none; }
+.replyHeading { min-height: 0; margin-bottom: 8px; color: var(--cd-color-text-secondary); }
+.replyHeading strong { font-weight: 400; }
+@media (max-width: 639px), (pointer: coarse) { .editQuestion { width: 44px; height: 44px; inset-inline-end: 0; } }

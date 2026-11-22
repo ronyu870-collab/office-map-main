@@ -23,6 +23,11 @@ function AssistantActions({ scope, requestId, conversationId, message, internalE
   const copyButton = React.useRef<HTMLButtonElement>(null);
   const id = React.useId();
   React.useEffect(() => () => active.current?.abort(), []);
+  React.useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => { setCopied(false); setStatus(''); }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
 
   async function copy() {
     if (!internalExport || active.current) return;

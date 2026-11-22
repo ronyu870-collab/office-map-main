@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildAggregateResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
@@ -21,7 +21,7 @@ describe('AI answer reading and evidence navigation', () => {
     expect(screen.getByText('研究结果')).toBeVisible();
   });
 
-  it('navigates a long result to its exact details without recalculating or replacing the result', () => {
+  it('navigates a long result to its exact details without recalculating or replacing the result', async () => {
     const result = resultViewSchema.parse(buildTrendResult(Array.from({ length: 12 }, (_, index) => {
       const snapshot = fixture({ year: 2024 + Math.floor(index / 4), quarter: index % 4 + 1 });
       return { ...snapshot, rows: snapshot.rows.map(row => ({ ...row, facts: Object.fromEntries(Object.entries(row.facts).map(([field, fact]) => [field,
@@ -29,13 +29,15 @@ describe('AI answer reading and evidence navigation', () => {
       ])) })) };
     }), 'rent', 'per_period'));
     render(<HomeQueryResult result={result} />);
-    const table = screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' });
-    const navigation = screen.getByRole('navigation', { name: '本条回答目录' });
-    fireEvent.click(within(navigation).getByRole('button', { name: '结果明细' }));
-    expect(screen.getByRole('region', { name: '结果明细' })).toHaveFocus();
-    expect(screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' })).toBe(table);
-    fireEvent.click(within(navigation).getByRole('button', { name: '来源与口径' }));
-    expect(screen.getByRole('region', { name: '数据来源' })).toHaveFocus();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/查看数据明细/));
+    const table = await screen.findByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' });
+    const source = screen.getByRole('button', { name: '数据依据' });
+    fireEvent.click(source);
+    expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: '关闭来源' }));
+    await waitFor(() => expect(source).toHaveFocus());
+    expect(screen.getByRole('table')).toBe(table);
   });
 
   it('keeps short metric answers free of an unnecessary section directory', () => {

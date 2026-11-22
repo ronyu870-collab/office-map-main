@@ -51,6 +51,10 @@ describe('P2 building identity and result contract', () => {
     const params = new URL(queryMapHref(a, b, true), 'https://example.invalid').searchParams;
     expect(parseQueryMapContext(params)).toEqual({ requestId: a, buildingId: b, details: true });
     expect(parseQueryMapContext(new URLSearchParams('aiRequest=other&aiBuilding=wrong'))).toBeNull();
+    const selected = new URL(queryMapHref(a, b, true, b), 'https://example.invalid').searchParams;
+    expect(parseQueryMapContext(selected)).toEqual({ requestId: a, resultId: b, buildingId: b, details: true });
+    expect(parseQueryMapContext(new URLSearchParams(`aiRequest=${a}&aiResult=invalid`))).toBeNull();
+    expect(() => queryMapHref(a, undefined, false, 'invalid')).toThrow();
   });
   it('T04 presentation wording uses the existing P1 planner and preserves metric/period ambiguity and every unsupported condition', () => {
     const normalize = (question: string) => mapPresentationQuestion(question).question;

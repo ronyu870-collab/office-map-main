@@ -193,6 +193,31 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(client.submit).toHaveBeenCalledOnce();
   });
 
+  it('reveals a clipped keyboard target within its scrollport when native focus does not scroll', async () => {
+    client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
+    const { input } = await open(); await expand(); send(input, 'CBD净有效租金');
+    const rendered = await screen.findByRole('region', { name: '查询结果' });
+    const target = within(rendered).getByRole('button', { name: '数据依据' });
+    const transcript = screen.getByRole('region', { name: '对话记录' });
+    const surface = screen.getByRole('dialog', { name: 'Colliers AI 工作空间' });
+    // jsdom focus changes activeElement without browser scroll assistance.
+    transcript.style.overflowY = 'auto';
+    Object.defineProperties(transcript, { clientHeight: { configurable: true, value: 300 }, scrollHeight: { configurable: true, value: 1200 } });
+    vi.spyOn(transcript, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 60, 768, 300));
+    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(() => new DOMRect(32, 640 - transcript.scrollTop, 56, 32));
+    const controls = Array.from(surface.querySelectorAll<HTMLElement>('button, a[href], input, textarea, select, summary'))
+      .filter(node => node.tabIndex >= 0 && !node.closest('[hidden], [inert], details:not([open]) > :not(summary)'));
+    const previous = controls[controls.indexOf(target) - 1];
+    previous.focus(); transcript.scrollTop = 0; document.documentElement.scrollTop = 47;
+    fireEvent.keyDown(previous, { key: 'Tab' });
+    expect(target).toHaveFocus();
+    expect(target.getBoundingClientRect().bottom).toBeLessThanOrEqual(360);
+    expect(transcript.scrollTop).toBe(312);
+    expect(document.documentElement.scrollTop).toBe(47);
+    fireEvent.keyDown(target, { key: 'Tab' });
+    expect(target).not.toHaveFocus();
+  });
+
   it('keeps the greeting compact until editor interaction and never uses question length to force full screen', async () => {
     client.submit.mockImplementation(async (_scope, body: Submission) => help(body));
     const { input } = await open();

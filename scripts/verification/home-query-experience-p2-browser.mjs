@@ -25,9 +25,11 @@ const sourceRequire = createRequire(`${sourceRoot}/package.json`);
 const screenshotPixels = sourceRequire('sharp');
 sourceRequire('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'CommonJS', moduleResolution: 'Node' } });
 const { fixture } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/__tests__/fixtures.ts`);
-const { buildAggregateResult, buildTrendResult, buildListResult } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/result.ts`);
+const { buildAggregateResult, buildTrendResult, buildListResult, buildRankResult } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/result.ts`);
+const { resolveNumericFact } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/facts.ts`);
 const { attachResearchAnalysis } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/researchAnalysis.ts`);
 const { buildResultChart } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/charts.ts`);
+const { buildResultArtifact } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/artifacts.ts`);
 const { resultViewSchema } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/presentation.ts`);
 const { chromium } = require(process.env.PERF_PLAYWRIGHT_MODULE || 'playwright-core');
 const id = '12345678-1111-4111-8111-111111111111';
@@ -56,7 +58,8 @@ function stableResult(result, resultId) {
   return resultViewSchema.parse(copy);
 }
 const aggregate = stableResult(buildAggregateResult(fixture(), 'rent'), '11111111-1111-4111-8111-111111111111');
-const trend = stableResult(attachResearchAnalysis(buildTrendResult(snapshots, 'rent', 'paired'), snapshots), '22222222-2222-4222-8222-222222222222');
+const gapSnapshots = snapshots.map((snapshot, index) => index !== 4 ? snapshot : { ...snapshot, rows: snapshot.rows.map(row => ({ ...row, facts: { ...row.facts, netEffectiveRent: resolveNumericFact('netEffectiveRent', row.id, row.facts.netEffectiveRent.sources.map(source => ({ ...source, rawValue: null })), snapshot.period) } })) });
+const trend = stableResult(attachResearchAnalysis(buildTrendResult(gapSnapshots, 'rent', 'per_period'), gapSnapshots), '22222222-2222-4222-8222-222222222222');
 // Larger source-bound list for AI6 table interactions. Only local fixture data.
 const listSnapshot = fixture();
 const originals = listSnapshot.rows;
@@ -70,12 +73,30 @@ listSnapshot.rows = Array.from({ length: 32 }, (_, index) => {
 });
 listSnapshot.expectedCount = listSnapshot.rows.length;
 const tableResult = stableResult(buildListResult(listSnapshot, ['height', 'netEffectiveRent']), '44444444-4444-4444-8444-444444444444');
+const ranking = stableResult(buildRankResult(listSnapshot, 'height', 5, 'desc'), '55555555-5555-4555-8555-555555555555');
+const fileResult = stableResult({ ...tableResult, parameters: { ...tableResult.parameters,
+  agentExport: { version: 'agent-export/1', format: 'xlsx', singleSheet: false, matchedRows: 32, exportedRows: 32 } } }, '66666666-6666-4666-8666-666666666666');
+function leaseFixture(available, quarter) {
+  const result = structuredClone(aggregate);
+  result.resultId = available ? '77777777-7777-4777-8777-777777777777' : '88888888-8888-4888-8888-888888888888';
+  result.operation = 'list'; result.analysis = {};
+  result.parameters = { dataDomain: 'lease-research/1', scope: { mode: 'aggregate', source: 'combined', from: quarter === 3 ? '2026-07-01' : '2026-10-01', to: quarter === 3 ? '2026-09-30' : '2026-12-31', groupBy: 'quarter' } };
+  result.sources = [];
+  const unknown = { kind: 'unknown', state: 'missing', reason: 'no_valid_sample', sourceIds: [] };
+  const number = value => ({ kind: 'number', value: { numeric: value, exact: { numerator: String(value), denominator: '1' } }, sourceIds: [] });
+  result.table = { id: 'synthetic-lease-summary', columns: [{ key: 'group', label: '季度', unit: null }, { key: 'count', label: '成交记录数', unit: 'transaction_count' }, { key: 'area', label: '成交面积', unit: 'm2' }], rows: [{ entityId: `2026-Q${quarter}`, cells: { group: { kind: 'text', value: `2026-Q${quarter}`, sourceIds: [] }, count: available ? number(12) : unknown, area: available ? number(18300) : unknown } }] };
+  result.limitations = ['合成夹具，仅用于界面回归；不是生产成交数据。'];
+  return resultViewSchema.parse(result);
+}
+const leaseSummary = leaseFixture(true, 3), leaseUnknown = leaseFixture(false, 4);
+const leaseSelection = { version: 'answer-selection/1', task: 'record', status: 'partial', primaryResultId: leaseSummary.resultId,
+  notice: '当前结果仅包含汇总，尚不能确认最新一笔成交。', results: [{ role: 'alternative', result: leaseSummary }, { role: 'supporting', result: leaseUnknown }] };
 const historyEntries = ['CBD 季度租金跟踪', '金融街与 CBD 区域对比', '北京办公楼空置率研究'].map((title, index) => ({
   conversationId: `33333333-3333-4333-8333-33333333333${index}`, title, updatedAt: '2026-11-17T02:30:00Z', latestQuestion: index ? '比较当前获权区域的季度指标，并核对统计样本。' : '2026Q3 CBD 净有效租金是多少？', requestId, archived: false,
 }));
 const notices = [{ id: 1, content: '季度数据已更新，请核对负责楼宇的填报进度。', updated_at: '2026-11-17T02:00:00Z', is_active: true }, { id: 2, content: '地图支持查看楼宇照片、租赁成交及历史季度指标。', updated_at: '2026-11-16T02:00:00Z', is_active: true }];
 const records = [];
-const fixtureDigest = createHash('sha256').update(JSON.stringify({ examples, aggregate, trend, tableResult, historyEntries, notices })).digest('hex');
+const fixtureDigest = createHash('sha256').update(JSON.stringify({ examples, aggregate, trend, tableResult, ranking, fileResult, leaseSelection, historyEntries, notices })).digest('hex');
 const baseline = execFileSync('git', ['-C', sourceRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const sourceDiff = execFileSync('git', ['-C', sourceRoot, 'diff', '--', 'src/components/home', 'src/styles/tokens.css'], { encoding: 'utf8' });
 const sourceDiffSha256 = createHash('sha256').update(sourceDiff).digest('hex');
@@ -104,7 +125,14 @@ async function makePage(width, capability = 'enabled', role = 'admin') {
         return json({ status: 'saved' });
       }
       if (url.pathname === '/api/intelligence/query/artifact') {
-        if (body.action === 'chart') return json({ status: 'ready', chart: buildResultChart(control.currentResult, body.chart) });
+        if (body.action === 'chart') {
+          const selected = [aggregate, trend, tableResult, ranking, fileResult, leaseSummary, leaseUnknown].find(result => result.resultId === body.resultId);
+          return json({ status: 'ready', chart: buildResultChart(selected ?? control.currentResult, body.chart) });
+        }
+        if (body.action === 'export' && body.resultId === fileResult.resultId) {
+          const artifact = await buildResultArtifact(fileResult, body);
+          return route.fulfill({ body: Buffer.from(artifact.bytes), contentType: artifact.contentType, headers: { 'content-disposition': `attachment; filename="fixture.xlsx"`, 'x-query-result-id': body.resultId, 'x-artifact-sha256': artifact.sha256 } });
+        }
         if (body.action === 'copy') return json({ status: 'ready', requestId: body.requestId, resultId: body.resultId, format: body.format, text: '合成视觉夹具的研究结论。', resultDigest: 'a'.repeat(64) });
         return route.fulfill({ status: 503, json: { error: 'Visual fixture does not implement file export; original export regressions remain required.' } });
       }
@@ -115,11 +143,11 @@ async function makePage(width, capability = 'enabled', role = 'admin') {
         const shared = { requestId, conversation: body.conversation, options: [] };
         if (control.answer === 'failure') return json({ ...shared, status: 'unavailable' });
         if (control.answer === 'clarification') return json({ ...shared, status: 'clarification', reason: 'period_required', message: '你想查看哪个季度的净有效租金？选择季度后，我会按当前获权样本继续查询。', options: [{ id: 'quarter', label: '2026 年第三季度', question: '2026Q3 CBD 净有效租金' }] });
-        if (['aggregate', 'complex', 'table'].includes(control.answer)) {
-          control.currentResult = control.answer === 'table' ? tableResult : control.answer === 'aggregate' ? aggregate : trend;
-          return json({ ...shared, status: 'ready', historySaved: true, result: control.currentResult });
+        if (['aggregate', 'complex', 'table', 'ranking', 'file', 'lease-unknown', 'lease-alternative'].includes(control.answer)) {
+          control.currentResult = ({ table: tableResult, aggregate, complex: trend, ranking, file: fileResult, 'lease-unknown': leaseUnknown, 'lease-alternative': leaseSummary })[control.answer];
+          return json({ ...shared, status: 'ready', historySaved: true, result: control.currentResult, ...(control.answer === 'lease-alternative' ? { answerSelection: leaseSelection } : {}) });
         }
-        return json({ ...shared, status: 'clarification', reason: 'assistant_help', message: '你好！我可以帮你查找北京办公楼，分析市场租金、空置率和季度变化。你可以从一个项目或区域开始。' });
+        return json({ ...shared, status: 'clarification', reason: 'assistant_help', message: '你好！今天想了解什么？' });
       }
       if (url.pathname.startsWith('/api/')) return json({ issues: [], data: [], messages: [] });
       return route.continue();
@@ -140,7 +168,7 @@ async function makePage(width, capability = 'enabled', role = 'admin') {
     localStorage.setItem('sb-example-auth-token', JSON.stringify(saved));
   }, { saved, base });
   const page = await context.newPage();
-  page.on('pageerror', error => errors.push(error.message));
+  page.on('pageerror', error => errors.push(error.stack || error.message));
   page.on('console', entry => { if (entry.type() === 'error') console.error('browser console:', entry.text()); });
   page.setDefaultTimeout(20000);
   await page.goto(base, { waitUntil: 'networkidle' });
@@ -171,9 +199,17 @@ async function capture(session, state) {
     const input = document.querySelector('#home-query'), composer = input?.parentElement;
     const rect = node => { if (!node) return null; const box = node.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height, bottom: box.bottom }; };
     const dialog = document.querySelector('[aria-label="Colliers AI 工作空间"]');
-    return { viewport: { width: innerWidth, height: innerHeight }, scrollWidth: document.documentElement.scrollWidth, surface: rect(document.querySelector('#colliers-ai')), input: rect(input), composer: rect(composer), dialog: rect(dialog), inputCount: document.querySelectorAll('#home-query').length, nav: rect(document.querySelector('[aria-label="业务入口"]')), activeElement: document.activeElement?.id, colors: { page: getComputedStyle(document.querySelector('main')).backgroundColor, workspace: getComputedStyle(document.querySelector('#colliers-ai') || document.body).backgroundColor, composer: composer ? getComputedStyle(composer).backgroundColor : null } };
+    const toolbar = document.querySelector('#colliers-ai > header'), identity = toolbar?.firstElementChild;
+    const identityBox = identity?.getBoundingClientRect();
+    const toolbarNonOverlap = !identityBox || [...(toolbar?.querySelectorAll('button') || [])].every(node => {
+      const box = node.getBoundingClientRect();
+      return box.width === 0 || box.height === 0 || box.left >= identityBox.right - 1 || box.top >= identityBox.bottom - 1 || box.bottom <= identityBox.top + 1;
+    });
+    const current = document.querySelector('[aria-label="本次问答"]');
+    const readingSurfaces = [...(current?.querySelectorAll('summary, [aria-label="图表与分析"], figure') || [])].map(node => ({ tag: node.tagName, text: node.textContent?.slice(0, 70), className: node.className, rect: rect(node), maxWidth: getComputedStyle(node).maxWidth, width: getComputedStyle(node).width, marginInline: getComputedStyle(node).marginInline }));
+    return { viewport: { width: innerWidth, height: innerHeight }, scrollWidth: document.documentElement.scrollWidth, surface: rect(document.querySelector('#colliers-ai')), input: rect(input), composer: rect(composer), dialog: rect(dialog), inputCount: document.querySelectorAll('#home-query').length, nav: rect(document.querySelector('[aria-label="业务入口"]')), activeElement: document.activeElement?.id, toolbarNonOverlap, readingSurfaces, colors: { page: getComputedStyle(document.querySelector('main')).backgroundColor, workspace: getComputedStyle(document.querySelector('#colliers-ai') || document.body).backgroundColor, composer: composer ? getComputedStyle(composer).backgroundColor : null } };
   });
-  const checks = { pageOverflow: metrics.scrollWidth <= width, singleInput: role !== 'admin' ? metrics.inputCount === 0 : metrics.inputCount === 1, expandedInputWithinViewport: !metrics.dialog || !metrics.input || (metrics.input.y >= -1 && metrics.input.bottom <= height + 1) };
+  const checks = { pageOverflow: metrics.scrollWidth <= width, toolbarNonOverlap: metrics.toolbarNonOverlap, singleInput: role !== 'admin' ? metrics.inputCount === 0 : metrics.inputCount === 1, expandedInputWithinViewport: !metrics.dialog || !metrics.input || (metrics.input.y >= -1 && metrics.input.bottom <= height + 1) };
   if (chart) {
     checks.chartGeometryReady = chart.validGeometry;
     // Complex-answer screenshots may legitimately show the conclusion with the
@@ -193,7 +229,7 @@ async function capture(session, state) {
   }
   records.push({ state, width, height, role, capability, metrics, checks, ...(chart ? { chart } : {}), interactionChecks: session.interactionChecks || {}, errors: [...errors], queryPosts: calls.filter(call => call.path === '/api/intelligence/query' && call.method === 'POST').length });
   console.log(`${variant}: ${width}px ${state} ${Object.values(checks).every(Boolean) ? 'visual/layout checks pass' : 'VISUAL OR LAYOUT ISSUE (retained)'}`);
-  await writeFile(`${out}/${variant}-browser.json`, JSON.stringify({ variant, baseline, sourceRoot, sourceDiffSha256, fixtureDigest, browser: browser.version(), recordCount: records.length, screenshots: 'Full page; fonts ready and at least two animation frames after scrolling; Playwright animations disabled for stable finite animation endpoints; no CSS injection', environment: `Next ${buildMode} server; real React DOM; synthetic session and intercepted HTTP; no production writes`, limitations: ['Not a real authentication/DB test', 'Not physical iOS/Android; no real soft keyboard or file handling', 'No quantitative production performance claim', 'Chart geometry and raster ink checks supplement, rather than replace, independent visual review'], records }, null, 2));
+  await writeFile(`${out}/${variant}-browser.json`, JSON.stringify({ variant, baseline, sourceRoot, sourceDiffSha256, fixtureDigest, browser: browser.version(), recordCount: records.length, screenshots: 'Full page; fonts ready and at least two animation frames after scrolling; Playwright animations disabled for stable finite animation endpoints; no CSS injection', environment: `Next ${buildMode} server; real React DOM; synthetic session and intercepted HTTP; no production writes`, limitations: ['Not a real authentication/DB test', 'Not physical iOS/Android; no real soft keyboard or file handling', 'No quantitative production performance claim', 'Implemented UI checked at representative viewports; no independent visual approval gate'], records }, null, 2));
 }
 async function settledPaint(page) {
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
@@ -232,7 +268,7 @@ async function chartEvidence(page) {
           const coordinates = (line.getAttribute('points') || '').trim().split(/[\s,]+/).map(Number);
           return coordinates.length >= 4 && coordinates.every(Number.isFinite) && line.getTotalLength() > 0;
         });
-    }, trend.table.rows.length, { timeout: 10000 });
+    }, trend.table.rows.filter(row => row.cells.value?.kind === 'number').length, { timeout: 10000 });
   } catch (error) { readinessError = error.message.split('\n')[0]; }
   if (!await chart.count() || !await chart.locator('svg').count()) return { validGeometry: false, readinessError: readinessError || 'Chart SVG is absent' };
   const svg = chart.locator('svg').first();
@@ -316,6 +352,9 @@ async function focusedControl(page) {
         && !node.closest('[hidden],[inert]') && rect.right > left && rect.left < right && rect.bottom > top && rect.top < bottom,
       withinDialog: !!dialog?.contains(node),
       wasBelowFold: !!window.__p2BelowFoldControls?.has(node),
+      rect: rect ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom } : null,
+      scrollport: { left, top, right, bottom },
+      scrollerTop: node?.closest('[aria-label="对话记录"]')?.scrollTop,
     };
   });
 }
@@ -336,7 +375,10 @@ async function checkLongResultFocus(session) {
     for (let step = 0; step < 60; step++) {
       await page.keyboard.press(direction);
       const active = await focusedControl(page);
-      if (!active.visible || !active.withinDialog) issues.push({ direction, step, active });
+      if (!active.visible || !active.withinDialog) {
+        issues.push({ direction, step, active });
+        console.error('long-result focus issue:', JSON.stringify({ width: session.width, direction, step, active }));
+      }
       if (active.wasBelowFold && active.visible) revealedBelowFold++;
     }
   }
@@ -402,7 +444,7 @@ try {
     assert.equal(await input.inputValue(), draftBeforeSwitch, 'draft survives mode change');
     session.interactionChecks.sameComposerAndDraft = true;
     await send(session, '你好', 'short');
-    await page.getByText('你好！我可以帮你查找北京办公楼，分析市场租金、空置率和季度变化。你可以从一个项目或区域开始。', { exact: true }).waitFor();
+    await page.getByText('你好！今天想了解什么？', { exact: true }).waitFor();
     await capture(session, 'short-answer');
     await send(session, '查看 CBD 的净有效租金', 'clarification');
     await page.getByRole('button', { name: '2026 年第三季度', exact: true }).waitFor();
@@ -412,6 +454,20 @@ try {
     await capture(session, 'data-result');
     await page.getByRole('region', { name: '查询结果', exact: true }).last().evaluate(node => node.scrollIntoView({ block: 'start', inline: 'nearest' }));
     await capture(session, 'data-summary');
+    const axis = await page.evaluate(() => {
+      const current = document.querySelector('[aria-label="本次问答"]');
+      const input = document.querySelector('#home-query').parentElement.getBoundingClientRect();
+      const heading = current.querySelector('[class*="replyHeading"]').getBoundingClientRect();
+      const question = current.querySelector('[class*="questionRow"]').getBoundingClientRect();
+      return { composerCenter: input.x + input.width / 2, headingCenter: heading.x + heading.width / 2, questionCenter: question.x + question.width / 2,
+        questionHeight: current.querySelector('p[class*="question"]').getBoundingClientRect().height };
+    });
+    assert.ok(Math.abs(axis.composerCenter - axis.headingCenter) <= 2 && Math.abs(axis.composerCenter - axis.questionCenter) <= 2, 'answer, question and composer share their reading axis');
+    assert.ok(axis.questionHeight < 85, 'short question does not reserve a hidden edit row');
+    assert.equal(await page.getByText('基于授权数据', { exact: true }).count(), 0);
+    assert.equal(await page.getByText('本次分析已自动保存至历史记录。', { exact: true }).count(), 0);
+    session.interactionChecks.readingAxis = { passed: true, ...axis };
+
     await expanded(page, true);
     if (await page.getByRole('button', { name: '关闭历史', exact: true }).isVisible()) await page.getByRole('button', { name: '关闭历史', exact: true }).click();
     const sourceTrigger = page.getByRole('region', { name: '核心指标', exact: true }).getByRole('button', { name: /^查看来源：/ }).first();
@@ -433,6 +489,8 @@ try {
     await send(session, '比较 CBD 各个季度的净有效租金趋势，并核对共同有效样本', 'complex');
     await page.getByRole('region', { name: '查询结果', exact: true }).last().waitFor();
     await page.getByRole('figure', { name: '同源查询图表', exact: true }).waitFor();
+    const trendDetails = page.getByRole('region', { name: '查询结果', exact: true }).last().locator('summary').filter({ hasText: '查看数据明细' });
+    if (await trendDetails.count()) await trendDetails.click();
     await checkLongResultFocus(session);
     await page.getByRole('region', { name: '对话记录', exact: true }).evaluate(node => { node.scrollTop = node.scrollHeight; });
     await capture(session, 'expanded-complex-bottom');
@@ -494,6 +552,41 @@ try {
     assert.equal(session.calls.filter(call => call.path === '/api/intelligence/query' && call.method === 'POST').length, postsBeforeFilter, 'workspace switching uses saved result only');
     session.interactionChecks.structuredTable = { passed: true, boundedRows: 25, returnedRows: 32, localSearchAndSort: true, retainedSelection: true, noQueryOnInteraction: true };
     await capture(session, 'interactive-table');
+    await send(session, '按建筑高度查看最高五栋楼', 'ranking');
+    const activeAnswer = page.getByRole('article', { name: '本次问答', exact: true });
+    await activeAnswer.getByRole('figure', { name: '同源查询图表', exact: true }).waitFor();
+    assert.equal(await activeAnswer.getByRole('table').count(), 0, 'ranking defaults to one comparison visual');
+    const rankingLead = await activeAnswer.getByRole('button', { name: '编辑问题', exact: true }).evaluate(viewportGeometry);
+    assert.ok(rankingLead.visible && rankingLead.intersection.height >= 32, 'new structured answer keeps its question and lead visible rather than jumping to the tail');
+    await capture(session, 'default-ranking');
+    await send(session, '查看第四季度成交汇总', 'lease-unknown');
+    await activeAnswer.getByRole('heading', { name: '该期间暂无可交付统计', exact: true }).waitFor();
+    assert.equal(await activeAnswer.getByText('该期间暂无可交付统计', { exact: true }).filter({ visible: true }).count(), 1, 'unavailable state is stated once');
+    assert.equal(await activeAnswer.getByRole('searchbox').count(), 0);
+    assert.equal(await activeAnswer.getByRole('link', { name: '在地图中查看', exact: true }).count(), 0);
+    assert.equal(await activeAnswer.getByRole('figure').count(), 0);
+    assert.equal(await activeAnswer.getByRole('button', { name: /查看散点图|下一页/ }).count(), 0);
+    await capture(session, 'unavailable-lease');
+    await send(session, '最近一年最新一笔租赁成交', 'lease-alternative');
+    await activeAnswer.getByText(leaseSelection.notice, { exact: true }).waitFor();
+    await activeAnswer.getByText('替代信息 · 成交汇总', { exact: true }).waitFor();
+    assert.equal(await activeAnswer.getByText('2026-Q3', { exact: true }).count(), 1);
+    assert.equal(await activeAnswer.getByText('2026-Q4', { exact: true }).isVisible(), false);
+    await capture(session, 'lease-alternative');
+    await activeAnswer.getByText('查看辅助依据', { exact: true }).click();
+    await activeAnswer.getByRole('heading', { name: '该期间暂无可交付统计', exact: true }).waitFor();
+    assert.equal(await activeAnswer.getByText('该期间暂无可交付统计', { exact: true }).filter({ visible: true }).count(), 1, 'unavailable state is stated once');
+    await activeAnswer.getByText('查看辅助依据', { exact: true }).click();
+    await send(session, '导出本次楼宇清单Excel', 'file');
+    await activeAnswer.getByRole('button', { name: '下载 Excel', exact: true }).waitFor();
+    assert.equal(await activeAnswer.getByRole('table').count(), 0, 'file attachment leads; details are opt-in');
+    const downloaded = page.waitForEvent('download');
+    await activeAnswer.getByRole('button', { name: '下载 Excel', exact: true }).click();
+    const file = await downloaded;
+    assert.equal(file.suggestedFilename(), 'fixture.xlsx');
+    await activeAnswer.getByText('已发起下载', { exact: true }).waitFor();
+    session.interactionChecks.representativeAnswers = { passed: true, rankingDefaultChart: true, allUnknownState: true, selectedLeaseAlternative: true, realWorkbookDownloaded: true };
+    await capture(session, 'file-delivery');
     await send(session, '查看新的分析', 'failure');
     await page.getByRole('button', { name: '重试本次请求', exact: true }).waitFor();
     await capture(session, 'failure');

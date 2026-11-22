@@ -35,6 +35,9 @@ describe('P2 source-bound building cards', () => {
     expect(screen.queryByRole('link', { name: '查看楼宇详情' })).not.toBeInTheDocument();
     expect(card).toHaveTextContent('现有楼宇详情依赖地图位置');
     expect(screen.getAllByRole('link', { name: '在地图中查看' }).at(-1)).toHaveAttribute('href', expect.stringContaining(ids[0]));
+    for (const link of screen.getAllByRole('link', { name: '在地图中查看' })) {
+      expect(new URL(link.getAttribute('href')!, 'https://example.invalid').searchParams.get('aiResult')).toBe(data.resultId);
+    }
   });
   it('T15 bounds card rendering and loads only selected page metadata; retained rows never requery metrics', async () => {
     const data = result(7); client.buildings.mockImplementation(async (_scope, input) => metadata(data, input.offset));

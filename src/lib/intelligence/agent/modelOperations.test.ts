@@ -159,7 +159,9 @@ describe('bounded routing, fallback and model cost governance', () => {
       calls: [{ id: 'tool1', name: 'get_data_capabilities', arguments: JSON.stringify({ question: '当前数据权限' }) }] } }).mockResolvedValue(success('openai'));
     const run = runtime({ openai }); const runTool = vi.fn().mockResolvedValue({ content: '{"status":"ready"}' });
     const result = await runAgentLoop({ question: '你好', invoke: run.invoke, limits: run.limits, signal: signal(), runTool });
-    expect(result.toolCalls).toBe(1); expect(runTool.mock.calls[0][0]).toBe('get_data_capabilities');
+    expect(result.toolCalls).toBe(0); expect(runTool).not.toHaveBeenCalled();
+    expect(result.answer.length).toBeLessThanOrEqual(40);
+    expect(modelToolCatalogue('你好', 'quick', messages)).toEqual([]);
     vi.stubEnv('AI_OPENAI_ACTOR_IDS', 'someone-else'); const deepseek = vi.fn().mockResolvedValue(success('deepseek'));
     expect((await runtime({ deepseek, openai }).invoke(messages, signal())).provider).toBe('deepseek');
     const names = modelToolCatalogue('CBD研究Word报告', 'deep', messages).map(t => t.name);

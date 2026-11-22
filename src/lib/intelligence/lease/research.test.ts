@@ -113,6 +113,9 @@ describe('controlled lease research deterministic facts and real files', () => {
     const r = buildLeaseResult(f, { ...plan, groupBy: 'quarter' });
     expect(r.table.rows).toHaveLength(4);
     expect(r.table.rows.every(row => row.cells.area.kind === 'unknown')).toBe(true);
+    expect(r.parameters.leaseCoverage).not.toHaveProperty('suppressedGroups');
+    expect(r.limitations.join(' ')).not.toMatch(/共抑制\s*\d+\s*组/);
+    expect(leaseModelObservation(r).coverage).not.toHaveProperty('suppressedGroups');
     expect(() => buildLeaseResult(f, { ...plan, mode: 'details' })).toThrow('QUERY_DENIED');
     f.rows.forEach(r => { r.area = null; }); f.rows[0].area = '100';
     expect(buildLeaseResult(f, plan).table.rows[0].cells.area).toMatchObject({ kind: 'unknown', reason: 'disclosure_threshold' });

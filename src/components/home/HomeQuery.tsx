@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowUpRight, ArrowDown, ChevronDown, ChevronRight, CircleHelp, History, Maximize2, Minimize2, PanelRight, Plus, X } from 'lucide-react';
+import { ArrowUpRight, ArrowDown, ChevronDown, ChevronRight, CircleHelp, History, Maximize2, Minimize2, PanelRight, Pencil, Plus, X } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
 import { IconButton } from '@/src/components/ui/IconButton';
 import { trustedQueryClient, queryScopeKey, type QueryAccess, type QueryClientScope, type QueryReply } from '@/src/services/trustedQueryClient';
@@ -10,8 +10,7 @@ import { queryActionSchema, type QueryAction, type QueryConversation } from '@/s
 import { HomeQueryDetailProvider, HomeQueryDetailPanel, useQueryDetail } from './HomeQueryDetailPanel';
 import { HomeQueryComposer, type QueryComposerHandle } from './HomeQueryComposer';
 import { HomeQueryResponse } from './HomeQueryResponse';
-import { responseNarrative } from '@/src/lib/intelligence/query/responsePresentation';
-import { resultSummary } from '@/src/lib/intelligence/query/presentation';
+import { resultSummary, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { QueryWelcome, AssistantHeading, QueryWorkingIndicator, queryStarters } from './HomeQueryExperience';
 import { QueryClientError, queryFailureMessage, queryServiceMessage } from '@/src/services/queryClientErrors';
 import { readMapQueryContext, type BuildingSelection } from '@/src/lib/intelligence/query/buildingNavigation';
@@ -105,6 +104,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const scroll = useQueryScroll(workspaceScrollRef,
     `${attempt?.idempotencyKey ?? ''}:${busy}:${message}:${streamDraft.length}:${reply?.status ?? ''}:${reply?.result?.resultId ?? ''}`,
     transitioning);
+  const revealNextAnswer = scroll.revealNextAnswer;
   const historyToggle = React.useRef<HTMLButtonElement>(null);
   const researchToggle = React.useRef<HTMLButtonElement>(null);
   const helpToggle = React.useRef<HTMLButtonElement>(null);
@@ -236,6 +236,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
         setMessage(result.error ?? '当前查询资格已不可用，请重新核对权限。');
         return;
       }
+      if (!recovering && result.status === 'ready' && result.result) revealNextAnswer();
       setStreamDraft(''); setReply(result);
       setHistoryRefresh(value => value + 1);
       // Only completed, attributed turns become parents. A restored old request
@@ -262,7 +263,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       if (current.current === controller) current.current = null;
       if (alive.current && ticket === generation.current) setBusy(false);
     }
-  }, [access.enabled, access.agentEnabled, access.agentStreamEnabled, resumedAgent, attempt, reply, message, clearSaved, resetConversation, scope, storageKey]);
+  }, [access.enabled, access.agentEnabled, access.agentStreamEnabled, resumedAgent, attempt, reply, message, clearSaved, resetConversation, scope, storageKey, revealNextAnswer]);
   function stopWaiting() {
     generation.current++; current.current?.abort(); current.current = null; setBusy(false); setStreamDraft('');
     setMessage('已停止等待，回答可能仍在生成。可以检查状态并恢复结果。');
@@ -375,6 +376,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const ready = reply?.status === 'ready' && !!reply.result;
   const assistantHelp = reply?.status === 'clarification' && reply.reason === 'assistant_help';
   const needsConditions = reply?.status === 'clarification' && !assistantHelp;
+  const recoveryAvailable = !!savedId && !busy && !ready && reply?.status !== 'assistant';
   const retry = attempt && !busy && !terminalFailure && !reply?.result && !['clarification', 'assistant'].includes(reply?.status ?? '');
   const examples = [...new Set(access.examples)];
   const starters = queryStarters(examples);
@@ -496,24 +498,25 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
         presentation={presentation} onExpand={expandWorkspace}
         canFollowUp={!busy && (turn.reply?.conversation ?? turn.attempt.conversation)?.id === conversationId} onFollowUp={action => followUp(action, turn)} />)}
       {attempt && <article key={attempt.idempotencyKey} className={styles.turn} aria-label="本次问答" data-query-turn={attempt.idempotencyKey}>
-        <p className={styles.question}><span className="sr-only">你的问题：</span>{attempt.question || '已恢复的查询'}{!busy && <button type="button" className={styles.editQuestion} onClick={() => edit(attempt.question)}>编辑问题</button>}</p>
+        <div className={styles.questionRow}><p className={styles.question}><span className="sr-only">你的问题：</span>{attempt.question || '已恢复的查询'}{!busy && <button type="button" className={styles.editQuestion} onClick={() => edit(attempt.question)} aria-label="编辑问题" title="编辑问题"><Pencil size={14} aria-hidden="true" /></button>}</p></div>
         <div className={styles.assistantResponse}>
-        <AssistantHeading label={busy ? '正在处理' : reply?.status === 'assistant' ? undefined : assistantHelp ? '助手介绍' : needsConditions ? '需要补充条件' : ready ? '基于授权数据' : '查询状态'} />
+        <AssistantHeading label={needsConditions ? '需要补充条件' : terminalFailure ? '查询未完成' : undefined} />
       <div role="status" aria-live="polite" className={ready || reply?.status === 'assistant' || assistantHelp ? 'sr-only' : styles.status} data-state={busy ? 'working' : needsConditions ? 'clarification' : terminalFailure ? 'error' : 'status'}>
         {busy && <QueryWorkingIndicator />}{message}
       </div>
       {busy && streamDraft && <HomeQueryMarkdown text={streamDraft} streaming aria-label="正在生成的部分回答" />}
-      {(reply?.status === 'assistant' || ready || assistantHelp) && <HomeQueryResponse message={reply?.message} result={ready ? reply?.result : undefined} executionStatus={reply?.agent?.executionStatus} delivery={reply ?? undefined} requestId={reply?.requestId} scope={scope} internalExport={access.internalExport === true} presentation={presentation} onExpand={expandWorkspace} collapsed={collapsed} />}
+      {(reply?.status === 'assistant' || ready || assistantHelp) && <HomeQueryResponse message={reply?.message} answerSelection={reply?.answerSelection} result={ready ? reply?.result : undefined} executionStatus={reply?.agent?.executionStatus} delivery={reply ?? undefined} requestId={reply?.requestId} scope={scope} internalExport={access.internalExport === true} presentation={presentation} onExpand={expandWorkspace} collapsed={collapsed} onReveal={() => setCollapsed(false)} responseActions={ready && attempt ? <>
+        <Button variant="ghost" onClick={reexecute} disabled={!attempt.question || !attempt.requestId || busy}>重新查询</Button>
+        {longResult(reply?.result) && <Button variant="ghost" aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>收起本次结果</Button>}
+      </> : undefined} />}
       {(reply?.status === 'assistant' || assistantHelp) && reply?.requestId && <HomeQueryAssistantActions scope={scope} requestId={reply.requestId} conversationId={reply.conversation?.id ?? conversationId} message={reply.message ?? ''} internalExport={access.internalExport === true} />}
       {activeTurn && activeContext && needsConditions && <QueryActions label="请选择查询口径" actions={reply?.options} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
-      {ready && reply?.historySaved !== undefined && <p className={styles.saveStatus}>{reply.historySaved ? '本次分析已自动保存至历史记录。' : '本次结果已留存，历史列表暂不可用。'}</p>}
+      {ready && reply?.historySaved === false && <p role="status" className={styles.saveStatus}>本次结果已留存，历史列表暂不可用。</p>}
       {activeTurn && activeContext && ready && !collapsed && <QueryActions label="继续分析" actions={suggestions(reply)} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
-      <div className={`${styles.actions} ${styles.turnActions}`}>
+      {(retry || recoveryAvailable) && <div className={`${styles.actions} ${styles.turnActions}`}>
         {retry && <Button variant="secondary" onClick={() => void run(attempt)}>重试本次请求</Button>}
-        {savedId && !busy && !ready && reply?.status !== 'assistant' && <Button variant="ghost" onClick={() => void run({ idempotencyKey: attempt?.idempotencyKey ?? crypto.randomUUID(), question: attempt?.question ?? '', requestId: savedId, conversation: attempt?.conversation }, true)}>检查状态并恢复结果</Button>}
-        {ready && attempt && <><Button variant="ghost" onClick={reexecute} disabled={!attempt.question || !attempt.requestId || busy}>重新查询</Button>
-          <Button variant="ghost" aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>{collapsed ? '展开本次结果' : '收起本次结果'}</Button></>}
-      </div>
+        {recoveryAvailable && <Button variant="ghost" onClick={() => void run({ idempotencyKey: attempt?.idempotencyKey ?? crypto.randomUUID(), question: attempt?.question ?? '', requestId: savedId, conversation: attempt?.conversation }, true)}>检查状态并恢复结果</Button>}
+      </div>}
         </div>
       </article>}
       {!attempt && message && <p role="status" aria-live="polite" className={styles.status}>{message}</p>}
@@ -554,27 +557,36 @@ const PreviousTurn = React.memo(function PreviousTurn({ turn, scope, internalExp
   const resultPanelId = React.useId();
   const result = turn.reply?.status === 'ready' ? turn.reply.result : undefined;
   const help = turn.reply?.reason === 'assistant_help';
+  const text = turn.reply?.message ?? turn.message;
+  const longText = text.length > 240;
   const actions = turn.reply?.status === 'clarification' ? turn.reply.options : suggestions(turn.reply);
   const controls = <>
     {turn.reply?.requestId && !help && <QueryActions label={turn.reply.status === 'clarification' ? '请选择查询口径' : '基于这条回答继续分析'}
       actions={actions} disabled={!canFollowUp} onSelect={onFollowUp} />}
   </>;
   return <article className={styles.previousTurn} aria-label="此前问答" data-query-turn={turn.attempt.idempotencyKey}>
-    <p className={styles.question}><span className="sr-only">你的问题：</span>{turn.attempt.question || '已恢复的查询'}<button type="button" className={styles.editQuestion} onClick={() => onEdit(turn.attempt.question)}>编辑这个问题</button></p>
+    <div className={styles.questionRow}><p className={styles.question}><span className="sr-only">你的问题：</span>{turn.attempt.question || '已恢复的查询'}<button type="button" className={styles.editQuestion} onClick={() => onEdit(turn.attempt.question)} aria-label="编辑这个问题" title="编辑这个问题"><Pencil size={14} aria-hidden="true" /></button></p></div>
     <div className={styles.assistantResponse}>
-      <AssistantHeading label={result ? '基于授权数据' : turn.reply?.status === 'assistant' ? undefined : help ? '助手介绍' : turn.reply?.status === 'clarification' ? '需要补充条件' : '查询状态'} />
+      <AssistantHeading label={!help && turn.reply?.status === 'clarification' ? '需要补充条件' : undefined} />
       {result ? <>
-        {!open && <HomeQueryMarkdown text={responseNarrative(turn.reply?.message, result, turn.reply?.agent?.executionStatus) || resultSummary(result)[0]} navigation={false} />}
+        {!open && <HomeQueryMarkdown text={turn.reply?.answerSelection?.notice ?? resultSummary(result)[0]} navigation={false} />}
         <Button className={styles.resultDisclosure} variant="ghost" aria-expanded={open} aria-controls={resultPanelId} data-query-result-disclosure={result.resultId}
           onClick={() => { setOpen(value => !value); setMounted(true); }}>{open ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}{open ? '收起数据与来源' : '展开数据与来源'}</Button>
         <div id={resultPanelId} hidden={!open}>
-          {mounted && <HomeQueryResponse message={turn.reply?.message} result={result} executionStatus={turn.reply?.agent?.executionStatus} delivery={turn.reply ?? undefined} requestId={turn.reply?.requestId} scope={scope} internalExport={internalExport} presentation={presentation} onExpand={onExpand} collapsed={!open} />}
+          {mounted && <HomeQueryResponse message={turn.reply?.message} answerSelection={turn.reply?.answerSelection} result={result} executionStatus={turn.reply?.agent?.executionStatus} delivery={turn.reply ?? undefined} requestId={turn.reply?.requestId} scope={scope} internalExport={internalExport} presentation={presentation} onExpand={onExpand} collapsed={!open} />}
           {open && controls}
         </div>
       </> : <>
-        <HomeQueryMarkdown text={turn.reply?.message ?? turn.message} navigation />
-        {(turn.reply?.status === 'assistant' || help) && turn.reply?.requestId && turn.attempt.conversation && <HomeQueryAssistantActions scope={scope} requestId={turn.reply.requestId} conversationId={turn.attempt.conversation.id} message={turn.reply.message ?? ''} internalExport={internalExport} />}
-        <div className={styles.turnActions}>{controls}</div>
+        {longText && <>
+          {!open && <p className={styles.previousSummary}>已保存的文字回答</p>}
+          <Button className={styles.resultDisclosure} variant="ghost" aria-expanded={open} aria-controls={resultPanelId}
+            onClick={() => { setOpen(value => !value); setMounted(true); }}>{open ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}{open ? '收起完整回答' : '展开完整回答'}</Button>
+        </>}
+        <div id={resultPanelId} hidden={longText && !open}>
+          {(!longText || mounted) && <HomeQueryMarkdown text={text} navigation />}
+          {(turn.reply?.status === 'assistant' || help) && turn.reply?.requestId && turn.attempt.conversation && <HomeQueryAssistantActions scope={scope} requestId={turn.reply.requestId} conversationId={turn.attempt.conversation.id} message={turn.reply.message ?? ''} internalExport={internalExport} />}
+          <div className={styles.turnActions}>{controls}</div>
+        </div>
       </>}
     </div>
   </article>;
@@ -583,9 +595,12 @@ function historyTurn(snapshot: HistoryOpened['selected'], conversation: QueryCon
   return { attempt: { idempotencyKey: crypto.randomUUID(), requestId: snapshot.requestId, question: snapshot.question, conversation: snapshot.reply.conversation ?? conversation },
     reply: snapshot.reply, message: snapshot.reply.message ?? snapshot.reply.error ?? '' };
 }
+function longResult(result?: QueryResultView): boolean {
+  return !!result && (result.table.rows.length > 5 || result.table.columns.length > 6 || result.parameters.researchTask != null);
+}
 function suggestions(reply: QueryReply | null): QueryAction[] {
   const parsed = queryActionSchema.array().max(6).safeParse(reply?.result?.parameters.suggestions);
-  return parsed.success ? parsed.data : [];
+  return parsed.success ? parsed.data.slice(0, 2) : [];
 }
 function StarterQuestions({ starters, onSelect }: { starters: { question: string; label: string }[]; onSelect: (question: string) => void }) {
   if (!starters.length) return null;
@@ -598,7 +613,7 @@ function ExampleQuestion({ question, label, variant, onSelect }: { question: str
 }
 function QueryActions({ actions, label, disabled, onSelect }: { actions?: QueryAction[]; label: string; disabled: boolean; onSelect: (action: QueryAction) => void }) {
   if (!actions?.length) return null;
-  return <section className={styles.followUps} aria-label={label}><p>{label}</p><div className={styles.actions}>
+  return <section className={styles.followUps} aria-label={label}><div className={styles.actions}>
     {actions.map(action => <Button key={action.id} variant="secondary" disabled={disabled} onClick={() => onSelect(action)}>{action.label}</Button>)}
   </div></section>;
 }

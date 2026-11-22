@@ -1,11 +1,12 @@
 import { resultViewSchema, cellText, resultSummary, type QueryResultView } from '../query/presentation';
 import type { QueryResult } from '../query/result';
+import { answerSelectionSchema, selectAnswerResultsSchema, type AnswerSelection } from '../query/answerSelection';
 
 export type WorksetOwner = Readonly<{
   requestId: string; actorId: string; effectiveUserId: string;
   sessionId: string; permissionRevision: string; policyVersion: string;
 }>;
-type Entry = { result: QueryResult; view: QueryResultView; owner: WorksetOwner };
+type Entry = { result: QueryResult; view: QueryResultView; owner: WorksetOwner; sealed: string };
 type Sort = { field: string; direction: 'asc' | 'desc' };
 type Filter = { field: string; operator: 'eq' | 'contains' | 'gte' | 'lte'; value: string | number };
 type Page = { resultId: string; offset: number; limit: number; sort?: Sort; filter?: Filter };
@@ -34,7 +35,7 @@ export class AuthorizedResultWorkset {
     const rows = [...this.entries.values()].reduce((sum, entry) => sum + entry.view.table.rows.length, 0);
     if (this.entries.size >= WORKSET_LIMITS.results || rows + view.table.rows.length > WORKSET_LIMITS.totalRows)
       throw new Error('AGENT_WORKSET_LIMIT');
-    this.entries.set(view.resultId, { owner: identity, result, view });
+    this.entries.set(view.resultId, { owner: identity, result, view, sealed: JSON.stringify(result) });
     return this.describe(view);
   }
 
@@ -47,7 +48,24 @@ export class AuthorizedResultWorkset {
   }
 
   read(resultId: string, identity: WorksetOwner): QueryResult {
-    return this.getEntry(resultId, identity).result;
+    const entry = this.getEntry(resultId, identity);
+    if (entry.sealed !== JSON.stringify(entry.result)) throw new Error('AGENT_RESULT_CHANGED');
+    return entry.result;
+  }
+
+  select(input: unknown, identity: WorksetOwner): AnswerSelection {
+    const requested = selectAnswerResultsSchema.parse(input);
+    const entries = [{ resultId: requested.primaryResultId, role: 'primary' as const }, ...requested.auxiliary];
+    // Read full immutable snapshots, not the manifest or a supplier preview.
+    // Result scope, periods, metrics and every source binding remain those of
+    // the registered query; the model cannot provide or amend any of them.
+    const selection = { version: 'answer-selection/1' as const, task: requested.task,
+      status: requested.status, primaryResultId: requested.primaryResultId,
+      results: entries.map(item => ({ role: item.role, result: this.read(item.resultId, identity) })) };
+    answerSelectionSchema.parse(selection);
+    // Schema projections may reorder object properties. Keep original snapshot
+    // bytes for file digests and immutable archive recovery.
+    return selection as AnswerSelection;
   }
 
   latestId() { return [...this.entries.keys()].at(-1); }

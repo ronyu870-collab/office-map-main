@@ -66,7 +66,7 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
     return true;
   });
   let resultRows: Array<{ entityId: string; cells: Record<string, ResultCell> }>;
-  let fields: string[]; let suppressed = 0, uncertainQuarter = 0;
+  let fields: string[]; let uncertainQuarter = 0;
   if (plan.mode === 'details') {
     fields = plan.fields ?? ['building', 'submarket', 'industry', 'period', 'precision', 'identity', 'source', 'area'];
     if (new Set(fields).size !== fields.length) throw new Error('LEASE_DUPLICATE_FIELDS');
@@ -101,7 +101,7 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
     fields = ['group', 'count', 'area', 'areaValidCount'];
     resultRows = [...groups.entries()].flatMap(([key, group]) => {
       // Aggregate-only users cannot obtain single-record facts through tiny groups.
-      if (!snapshot.details && group.rows.length < snapshot.minGroupSize) { suppressed++; return []; }
+      if (!snapshot.details && group.rows.length < snapshot.minGroupSize) return [];
       let sum = Decimal.zero(), valid = 0;
       for (const row of group.rows) { const n = Decimal.parse(row.area); if (n && n.compare(Decimal.zero()) >= 0) { sum = sum.add(n); valid++; } }
       return [{ entityId: hash(key), cells: { group: text(group.label), count: number(group.rows.length),
@@ -143,7 +143,7 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
     resultId: randomUUID(), createdAt: new Date().toISOString(), snapshotId: version, dataVersion: version,
     scopeFingerprint: scope, registryVersion: FIELD_REGISTRY_VERSION, operation: 'list', analysis: null,
     parameters: { dataDomain: LEASE_DOMAIN, leaseProviderMinGroupSize: snapshot.minGroupSize, leaseBindings: [{ plan, permissionRevision: snapshot.permission_revision, snapshotHash: version }],
-      leaseCoverage: { matchedRows, returnedRows: resultRows.length, suppressedGroups: suppressed, uncertainDates, boundaryDates, uncertainQuarter,
+      leaseCoverage: { matchedRows, returnedRows: resultRows.length, uncertainDates, boundaryDates, uncertainQuarter,
         verifiedDuplicates: dedup.verified, staleDuplicateLinks: dedup.stale },
       scope: { from: plan.from, to: plan.to, source: plan.source, groupBy: plan.groupBy, mode: plan.mode } },
     table: { id: 'lease-research', columns: fields.map(f => f === 'group' ? { key: 'group', label: plan.groupBy === 'quarter' ? '季度' : '分组', unit: null } : column(f)), rows: resultRows },
@@ -160,7 +160,7 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
       '季度范围内没有可交付统计的期间保留未知，不当成零；时间轴保留这些期间，不跨缺期插值连线。',
       '缺失面积不当成零，面积合计仅含有效面积，成交笔数同时列出有效面积样本数。',
       '两表租金分别保留原始面价和有效租金口径；历史有效租金未认定为净有效租金，原始租金和物业费单位待核验，不跨表计算平均租金，不推算普通或净有效租金。',
-      ...(!snapshot.details ? [`聚合专用资格：少于 ${snapshot.minGroupSize} 条的分组不交付；面积有效样本不足该阈值时面积值不交付，共抑制 ${suppressed} 组；不提供原始明细。该抑制不构成差分隐私保证。`] : []),
+      ...(!snapshot.details ? [`聚合专用资格：少于 ${snapshot.minGroupSize} 条的分组不交付；面积有效样本不足该阈值时面积值不交付，不提供原始明细。未交付内容不能用于推断分组是否存在或其数量；该披露规则不构成差分隐私保证。`] : []),
       ...(plan.topN ? [`Top ${plan.topN} 保留末位并列，共 ${matchedRows} 个匹配结果，交付 ${resultRows.length} 个。`] : [])],
   };
 }

@@ -9,30 +9,34 @@ import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { agentChartDescriptorSchema } from '@/src/lib/intelligence/query/chartProtocol';
 import { chartBounds, distributionGeometry, chartFacets, heatmapFill, heatmapLegend, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
+import { defaultResultChartRequest, resultChartEligibility, resultNumericColumns } from '@/src/lib/intelligence/query/resultEligibility';
 import { distributionStatLabels } from '@/src/lib/intelligence/query/distribution';
 import { formatExact, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
-import { metricLabels, resultMetrics, resultMetricColumns, type ResultMetric } from '@/src/lib/intelligence/query/multiMetricView';
+import { metricLabels, resultMetrics, type ResultMetric } from '@/src/lib/intelligence/query/multiMetricView';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryResultActions } from './HomeQueryResultActions';
 import styles from './HomeQuery.module.css';
 import experienceStyles from './HomeQueryResultExperience.module.css';
 
 type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean; visible?: boolean;
-  actionContainer?: HTMLElement | null;
+  actionContainer?: HTMLElement | null; responseActions?: React.ReactNode;
   onSource: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void };
-export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource, visible = true, actionContainer }: Props) {
-  const numeric = React.useMemo(() => result.table.columns.filter(c => c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text')), [result]);
-  const [field, setField] = React.useState(numeric[0]?.key ?? '');
+export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource, visible = true, actionContainer, responseActions }: Props) {
+  const numeric = React.useMemo(() => resultNumericColumns(result), [result]);
+  const [field, setField] = React.useState(typeof result.parameters.field === 'string' && numeric.some(column => column.key === result.parameters.field) ? result.parameters.field : numeric[0]?.key ?? '');
   const metrics = React.useMemo(() => resultMetrics(result), [result]);
   const multipleMetrics = metrics.length > 1;
   const [metric, setMetric] = React.useState<ResultMetric>(metrics[0] ?? 'rent');
   const selectedMetric = metrics.includes(metric) ? metric : metrics[0];
-  const metricColumns = React.useMemo(() => multipleMetrics && selectedMetric ? resultMetricColumns(result, selectedMetric) : null, [result, multipleMetrics, selectedMetric]);
-  const selectedField = metricColumns?.value ?? metricColumns?.base ?? field;
   const [chart, setChart] = React.useState<ResultChart | null>(null);
   const [message, setMessage] = React.useState('');
   const [messageTarget, setMessageTarget] = React.useState<'chart' | 'download'>('chart');
   const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => {
+    if (!message.startsWith('已发起下载')) return;
+    const timer = window.setTimeout(() => setMessage(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
   const [page, setPage] = React.useState(0);
   useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'histogram'?'histogram_all':chart.kind === 'box_plot'?'box_plot_all':chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null, visible);
   const active = React.useRef<AbortController | null>(null);
@@ -81,8 +85,10 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   // Charts use the same authorized result; exports always require a user action.
   const automaticKey = `${requestId}:${result.resultId}:${multipleMetrics ? selectedMetric : field}`;
   const started = React.useRef<string | null>(null);
-  const canAuto = !result.parameters.agentChart && result.operation !== 'aggregate' && result.operation !== 'list' && numeric.length > 0
-    && (multipleMetrics ? result.table.rows.length > 0 : result.table.rows.some(row => row.cells[selectedField]?.kind === 'number'));
+  const eligible = resultChartEligibility(result, request).eligible;
+  const canVisualize = eligible && result.operation !== 'aggregate' && (result.table.rows.length > 1 || result.operation === 'compare');
+  const canConfigure = canVisualize || multipleMetrics && result.operation !== 'aggregate' && metrics.some(metric => defaultResultChartRequest(result, metric));
+  const canAuto = !result.parameters.agentChart && !!defaultResultChartRequest(result, selectedMetric) && eligible;
   React.useEffect(() => {
     let disposed = false;
     if (canAuto && visible) queueMicrotask(() => {
@@ -98,47 +104,50 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const position = (value: number) => (value - min) / span * 100;
   const tableDownloads = ['list', 'rank'].includes(result.operation) || !!result.parameters.agentExport;
   const actions = <div hidden={!visible} role="group" aria-label="结果操作与反馈">
-    {!result.parameters.researchTask && <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport}>
+    {!result.parameters.researchTask && <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport} responseActions={responseActions}>
       {internalExport && (!tableDownloads || chart) && result.parameters.domain!=='knowledge-research/1' && <HomeQueryMenu label={tableDownloads ? '下载图表' : '下载本次结果'}>
         {!tableDownloads && <><Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
         <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button></>}
-        {numeric.length > 0 && <><Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button><Button variant="ghost" disabled={busy} onClick={() => void run('png_zip')}>PNG 图与来源</Button></>}
+        {canVisualize && <><Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button><Button variant="ghost" disabled={busy} onClick={() => void run('png_zip')}>PNG 图与来源</Button></>}
       </HomeQueryMenu>}
     </HomeQueryResultActions>}
-    <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{messageTarget === 'download' ? message : ''}</p>
+    {messageTarget === 'download' && message && <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{message}</p>}
   </div>;
   return <div className={styles.artifacts}>
     {(result.parameters.domain==='knowledge-research/1' || result.parameters.dataDomain==='deep-research/1') && <HomeQueryKnowledge result={result} requestId={requestId} scope={scope} visible={visible} />}
-    {!result.parameters.agentChart && <div className={`${styles.actions} ${experienceStyles.chartTools}`}>
-      {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
-        const chosen = metrics.find(item => item === event.target.value);
-        if (!chosen || active.current) return;
-        setChart(null); completedRequest.current = null; setMessage(''); setPage(0); setMetric(chosen);
-      }}>{metrics.map(item => <option key={item} value={item}>{metricLabels[item]}</option>)}</select></label>
-        : !multipleMetrics && numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
-      {numeric.length > 0 && result.operation !== 'aggregate' && <Button variant="ghost" disabled={busy} onClick={() => void run(request)}>{isDistribution?'查看直方图':isRelationship?'查看散点图':isCross?'查看热力表':isTrend?'查看折线图':'查看柱状图'}</Button>}
-      {isDistribution && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'box_plot'})}>查看箱线图</Button>}
-      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value', ...(multipleMetrics ? { metric: selectedMetric } : {})})}>查看柱状图</Button>}
-      {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
-      {chart && <Button variant="ghost" onClick={() => { setChart(null); completedRequest.current = null; }}>收起图表</Button>}
-    </div>}
-    <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{messageTarget === 'chart' ? message : ''}</p>
     {chart && <HomeQueryChartFrame id={`${result.resultId}-statistics-chart`} title={chart.title}><figure className={styles.chart} aria-label="同源查询图表">
       <figcaption className={experienceStyles.chartCaption}>
         <span>{chart.distribution ? `${chart.distribution.label}（${units[chart.distribution.unit] ?? chart.distribution.unit}）` : chart.kind === 'scatter' ? `${chart.xLabel}（${units[chart.xUnit ?? ''] ?? chart.xUnit}）与${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）` : `${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）`}</span>
-        <span className={experienceStyles.chartNote}>{chart.distribution ? `有效样本 ${chart.distribution.validCount} 栋，排除 ${chart.distribution.excludedCount} 栋。` : `有效图示 ${chart.renderedCount} 项，未知 ${chart.unknownCount} 项；未知不画成零。`}</span>
+        {chart.distribution ? <span className={experienceStyles.chartNote}>有效样本 {chart.distribution.validCount} 栋，排除 {chart.distribution.excludedCount} 栋。</span>
+          : chart.unknownCount > 0 && <span className={experienceStyles.chartNote}>{chart.kind === 'line' || chart.kind === 'faceted_line' ? `${chart.unknownCount} 项缺失，缺期保留缺口。` : `${chart.unknownCount} 项未知，未按零绘制。`}</span>}
       </figcaption>
       {chart.kind === 'histogram'||chart.kind === 'box_plot' ? <DistributionPlot chart={chart} onSource={onSource}/> : chart.kind === 'heatmap' ? <Heatmap chart={chart} onSource={onSource}/> : chart.kind === 'bar' ? <>
-        <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>
         <div>{shown.map((point, i) => <div className={styles.barRow} key={`${point.yCell.entityId}:${point.yCell.key}:${i}`}>
           <span>{point.label}</span><div className={styles.barTrack} aria-hidden="true"><i className={styles.zero} style={{ left: `${position(0)}%` }} />{point.y !== null && <i className={styles.bar} style={{ left: `${Math.min(position(0), position(point.y))}%`, width: `${Math.abs(position(point.y) - position(0))}%` }} />}</div>
           <button type="button" className={styles.cell} onClick={event => onSource(point.yCell.sourceIds, `${point.label}：${point.yText}`, event.currentTarget)}>{point.yText}</button>
         </div>)}</div>
         {chart.points.length > 25 && <div className={styles.tableFooter}><p>图示第 {page * 25 + 1}–{Math.min((page + 1) * 25, chart.points.length)} 条，共 {chart.points.length} 条；分页不改变统计范围。</p><div className={styles.actions}><Button variant="ghost" disabled={page === 0} onClick={() => setPage(p => p - 1)}>上一页图示</Button><Button variant="ghost" disabled={(page + 1) * 25 >= chart.points.length} onClick={() => setPage(p => p + 1)}>下一页图示</Button></div></div>}
-      </> : chart.kind==='faceted_line'?<><p className={styles.notice}>各组共用相同纵轴范围 {min}–{max}，缺期断线。数值和来源见下方原表。</p>{chartFacets(chart).map((part,i)=><div key={chart.facets![i].key}><p>{part.title}</p><TrendLine chart={part} onSource={onSource} height={250} bounds={[min,max]}/></div>)}</>:chart.kind==='line'?<TrendLine chart={chart} onSource={onSource}/>:<Scatter chart={chart} onSource={onSource} />}
-      {(chart.kind==='line'||chart.kind==='faceted_line') && <p className={styles.notice}>季度连续排列，缺数据处断线；数值与来源见下方原表。横向滚动可查看全部季度。</p>}
-      {chart.kind === 'scatter' && <p className={styles.notice}>仅绘制两个字段都有有效值的联合样本，不代表因果关系。各楼数值和可点选来源见下方原表。</p>}
+      </> : chart.kind==='faceted_line'?<>{chartFacets(chart).map((part,i)=><div key={chart.facets![i].key}><p>{part.title}</p><TrendLine chart={part} onSource={onSource} height={250} bounds={[min,max]}/></div>)}</>:chart.kind==='line'?<TrendLine chart={chart} onSource={onSource}/>:<Scatter chart={chart} onSource={onSource} />}
+      {chart.kind === 'scatter' && <p className={styles.notice}>仅含两个字段均有效的联合样本，不代表因果关系。</p>}
     </figure></HomeQueryChartFrame>}
+    {!result.parameters.agentChart && canConfigure && <details className={experienceStyles.chartSettings}><summary>图表设置</summary>
+      {chart?.kind === 'bar' && <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>}
+      {chart?.kind === 'faceted_line' && <p className={styles.notice}>各组共用相同纵轴范围 {min}–{max}，不连接不同组。</p>}
+      {(chart?.kind === 'line' || chart?.kind === 'faceted_line') && <p className={styles.notice}>季度连续排列，可横向滚动查看全部季度；点选图元查看数值与来源。</p>}
+      <div className={`${styles.actions} ${experienceStyles.chartTools}`}>
+      {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
+        const chosen = metrics.find(item => item === event.target.value);
+        if (!chosen || active.current) return;
+        setChart(null); completedRequest.current = null; started.current = null; setMessage(''); setPage(0); setMetric(chosen);
+      }}>{metrics.map(item => <option key={item} value={item}>{metricLabels[item]}{defaultResultChartRequest(result, item) ? '' : '（暂无可绘图数据）'}</option>)}</select></label>
+        : !multipleMetrics && numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => { setChart(null); completedRequest.current = null; started.current = null; setField(e.target.value); }}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
+      {eligible && result.operation !== 'aggregate' && <Button variant="ghost" disabled={busy} onClick={() => void run(request)}>{isDistribution?'查看直方图':isRelationship?'查看散点图':isCross?'查看热力表':isTrend?'查看折线图':'查看柱状图'}</Button>}
+      {isDistribution && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'box_plot'})}>查看箱线图</Button>}
+      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value', ...(multipleMetrics ? { metric: selectedMetric } : {})})}>查看柱状图</Button>}
+            {chart && <Button variant="ghost" onClick={() => { setChart(null); completedRequest.current = null; }}>收起图表</Button>}
+    </div></details>}
+    {canConfigure && !eligible && <p role="status" className={styles.notice}>该指标暂无可绘图的有效数据；原始状态与来源仍可查看。</p>}
+    {messageTarget === 'chart' && message && <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{message}</p>}
     {actionContainer === undefined ? actions : actionContainer ? createPortal(actions, actionContainer) : null}
   </div>;
 }

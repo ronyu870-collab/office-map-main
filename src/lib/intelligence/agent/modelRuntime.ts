@@ -48,8 +48,9 @@ const retryable = new Set(['not_configured', 'rate_limited', 'timeout', 'provide
 /** Avoid sending four copies of the 11KiB chart spec and unrelated domain tools
  * on every round. This is a model capability catalogue, never a data grant. */
 export function modelToolCatalogue(question: string, mode: ModelMode, messages: AgentMessage[], hasChartContext = false, contextDomains: readonly ContextDomain[] = []) {
+  if (/^(?:你好|您好|嗨|哈[喽啰]|hello|hi|谢谢|多谢|感谢|thanks|thank you)[！!。.?？\s]*$/i.test(question.trim())) return [];
   const selected = new Set(['query_verified_real_estate', 'get_data_capabilities', 'search_buildings', 'get_building_profile',
-    'list_buildings', 'query_quarterly_metrics', 'rank_buildings', 'summarize_result', 'check_data_coverage', 'get_source_evidence']);
+    'list_buildings', 'query_quarterly_metrics', 'rank_buildings', 'summarize_result', 'check_data_coverage', 'get_source_evidence', 'select_answer_results']);
   if (mode === 'deep' || /比较|对比|变化|趋势|同比|环比|多季度|过去|近.{0,6}季度|(?:和|与|、).{0,30}(?:同一|一张|一起|同图)/.test(question))
     for (const name of ['compare_market_segments', 'analyze_market_trends', 'compare_result_sets']) selected.add(name);
   if (mode === 'deep' || /空置|散点|相关|联合/.test(question)) selected.add('analyze_rent_vacancy');

@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import * as XLSX from 'xlsx';
 import { loadAgentHandler } from './ai5-export-scenarios.mjs';
+import { observedResultReference, assertSelectedAnswer } from './agent-result-references.mjs';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { grantBusiness, seedBusiness } from '../../supabase/tests/ai-business-research/fixture.mjs';
 export async function verifyAi5Business({db,app,service,keys,output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds}) {
@@ -23,13 +24,19 @@ export async function verifyAi5Business({db,app,service,keys,output,check,person
    const content=JSON.stringify(messages);
    for(const secret of ['合成租户_不得传播','合成保密备注','tenant_name','lease_steps','evidence_storage_path'])assert.equal(content.includes(secret),false);
    const step=scenario.round++;
-   if(step===0)return scenario.textOnly?complete():complete([tool(scenario.name,scenario.args)]);
+   if(step===0)return scenario.textOnly?complete([tool('select_answer_results',{primaryResultId:scenario.reuseResultId,task:'list',status:'answered'})]):complete([tool(scenario.name,scenario.args)]);
    const observations=messages.filter(m=>m.role==='tool').map(m=>JSON.parse(m.content));
    const resultId=observations.find(o=>o.resultId)?.resultId;
    if(step===1){
     if(scenario.name==='query_stacking_plan'){assert.equal(JSON.stringify(observations[0]).includes('1001'),false);assert.equal(JSON.stringify(observations[0]).includes('600'),false);}
     await scenario.beforeFollowup?.();
     if(scenario.followup)return complete([tool(scenario.followup,{...scenario.followupArgs,...(scenario.followup==='export_table'?{resultIds:[resultId],format:'xlsx'}:scenario.followup==='list_buildings'?{}:{resultId})})]);
+   }
+   if(step===2 && scenario.followup==='list_buildings') {
+    scenario.primaryResultId=observedResultReference(messages,'list_buildings');
+    scenario.supportingResultId=observedResultReference(messages,scenario.name);
+    return complete([tool('select_answer_results',{primaryResultId:scenario.primaryResultId,task:'list',status:'answered',
+     auxiliary:[{resultId:scenario.supportingResultId,role:'supporting'}]})]);
    }
    await scenario.beforeAnswer?.();return complete();
   }});
@@ -57,7 +64,7 @@ export async function verifyAi5Business({db,app,service,keys,output,check,person
    const periodSources=dossier.body.result.sources.filter(s=>s.table==='building_metrics');
    assert.deepEqual(periodSources.map(s=>s.recordId).sort(),periodRows.map(r=>r.id).sort());
    for(const source of periodSources){const original=periodRows.find(r=>r.id===source.recordId);assert.deepEqual(source.period,{year:original.record_year,quarter:original.record_quarter});}
-   history=await submit('query_building_dossier',plan,{textOnly:true},who,{...dossier.body.conversation,parentRequestId:dossier.body.requestId});assert.equal(history.status,200);assert.ok(history.body.result.parameters.businessBindings.length);
+   history=await submit('query_building_dossier',plan,{textOnly:true,reuseResultId:dossier.body.result.resultId},who,{...dossier.body.conversation,parentRequestId:dossier.body.requestId});assert.equal(history.status,200);assertSelectedAnswer(history.body,[{role:'primary',resultId:dossier.body.result.resultId}]);assert.ok(history.body.result.parameters.businessBindings.length);
   });
   await check('AI5业务 / 楼书多候选不取最新覆盖，冲突明确未知',async()=>{
    const id=randomUUID();await db.query('insert into public.building_brochure_data(id,building_id,gfa_total) values($1,$2,999)',[id,buildingIds[0]]);
@@ -108,7 +115,7 @@ export async function verifyAi5Business({db,app,service,keys,output,check,person
    await next('midflight');let changed=false;const r=await submit('query_building_dossier',plan,{followup:'export_table',beforeAnswer:async()=>{if(!changed){changed=true;await db.query('update private.ai_business_research_grants set enabled=false where user_id=$1',[who.id]);}}});assert.equal(r.status,403);assert.equal(r.body.result,undefined);assert.ok((await events(r.body.requestId)).some(e=>e.kind==='denied'));
   });
   await check('AI5业务 / 混合季度与资料任务的最终档案保留业务撤权约束',async()=>{
-   await next('mixed');const mixed=await submit('query_building_dossier',plan,{followup:'list_buildings',followupArgs:{scope:{inventory:'all_authorized',buildingIds},fields:[],period:null}});assert.equal(mixed.status,200,JSON.stringify(mixed.body));assert.equal(mixed.body.result.parameters.dataDomain,undefined);assert.ok(mixed.body.result.parameters.businessBindings.length);
+   await next('mixed');const mixed=await submit('query_building_dossier',plan,{followup:'list_buildings',followupArgs:{scope:{inventory:'all_authorized',buildingIds},fields:[],period:null}});assert.equal(mixed.status,200,JSON.stringify(mixed.body));assertSelectedAnswer(mixed.body,[{role:'primary',resultId:scenario.primaryResultId},{role:'supporting',resultId:scenario.supportingResultId}]);assert.equal(mixed.body.result.parameters.dataDomain,undefined);assert.equal(mixed.body.result.parameters.businessBindings,undefined);assert.ok(mixed.body.answerSelection.results[1].result.parameters.businessBindings.length);
    await db.query('update private.ai_business_research_grants set enabled=false where user_id=$1',[who.id]);assert.equal((await recover(who,mixed.body.requestId)).status,403);
   });
   await check('AI5业务 / 来源变化使旧文件失效，客户端不能直调业务RPC或跨会话',async()=>{

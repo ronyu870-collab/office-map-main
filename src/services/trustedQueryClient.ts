@@ -34,11 +34,12 @@ function received<T extends object>(scope: QueryClientScope, raw: unknown, value
 }
 import type { ArtifactInput } from '@/src/lib/intelligence/query/artifacts';
 import type { ChartRequest, ResultChart } from '@/src/lib/intelligence/query/charts';
+import { answerSelectionSchema } from '@/src/lib/intelligence/query/answerSelection';
 import { resultViewSchema, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { queryActionSchema, queryClarificationReasonSchema, queryConversationSchema, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 
 const capabilitiesSchema = z.object({ modelModes: z.array(z.enum(['quick', 'professional', 'deep'])).optional(), enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional(), agentEnabled: z.boolean().optional(), agentStreamEnabled: z.boolean().optional() });
-export const queryReplySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.union([queryClarificationReasonSchema, z.enum(['scope_limit', 'history_reopen'])]).optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(), historySaved: z.boolean().optional(), isNativeAgent: z.boolean().optional(),
+export const queryReplySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.union([queryClarificationReasonSchema, z.enum(['scope_limit', 'history_reopen'])]).optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(), answerSelection: answerSelectionSchema.optional(), historySaved: z.boolean().optional(), isNativeAgent: z.boolean().optional(),
   conversation: queryConversationSchema.optional(), options: z.array(queryActionSchema).max(6).optional(),
   agent: z.object({
     model: z.string().max(120), modelCalls: z.number().int().nonnegative(),
@@ -55,7 +56,12 @@ export const queryReplySchema = z.object({ requestId: z.uuid().optional(), statu
       createdAt: z.string() })).max(8).optional(),
     unresolvedFailures: z.array(z.object({ tool: z.string().max(100),
       code: z.string().max(100) })).max(12).optional(),
-  }).optional() });
+  }).optional() }).superRefine((reply, ctx) => {
+  if (!reply.answerSelection) return;
+  const primary = reply.answerSelection.results.find(item => item.result.resultId === reply.answerSelection!.primaryResultId)?.result;
+  if (!reply.result || JSON.stringify(reply.result) !== JSON.stringify(primary))
+    ctx.addIssue({ code: 'custom', message: 'Selected answer differs from its primary snapshot' });
+});
 const replySchema = queryReplySchema;
 export type QueryReply = z.infer<typeof replySchema>;
 function decodeQueryReply(value: unknown): QueryReply {

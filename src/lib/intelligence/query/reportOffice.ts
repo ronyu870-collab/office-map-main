@@ -1,6 +1,7 @@
 import { readReportModel, reportSectionNarrative } from './reportModel';
 import { resultOutputDescriptor } from './resultOutput';
 import { cellText, units } from './presentation';
+import { resultChartEligibility } from './resultEligibility';
 import { buildResultChart } from './charts';
 import { renderChartPng } from './chartPng';
 import { REPORT_LIMITS } from './reportProtocol';
@@ -60,7 +61,7 @@ function boundedText(model: Model) {
   if (characters > REPORT_LIMITS.textCharacters) throw new Error('REPORT_TEXT_LIMIT');
 }
 async function chartImage(section: Section) {
-  if (!section.chart) return null;
+  if (!section.chart || !resultChartEligibility(section.result, section.chart).eligible) return null;
   const chart = buildResultChart(section.result, section.chart);
   if (chart.request.kind === 'plot' && chart.points.length > 100) throw new Error('REPORT_CHART_LABEL_LIMIT');
   // Full narrative and limitations are laid out as editable text beside the

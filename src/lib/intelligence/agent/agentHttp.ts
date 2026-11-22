@@ -47,6 +47,8 @@ import { REGISTERED_AGENT_TOOL_NAMES, STRUCTURED_DATA_TOOL_NAMES, WORKSET_TOOL_N
 import { AuthorizedResultWorkset, type WorksetOwner } from './resultWorkset';
 import { PRESENTATION_TOOL_NAMES, runResultPresentationTool } from './resultTools';
 import { AGENT_CONVERSATION_PROTOCOL, readAgentHistory, trimAgentHistory } from './agentConversation';
+import { selectedAnswerResult, type AnswerSelection } from '../query/answerSelection';
+import { answerTask, applyAnswerPolicy, hasExplicitLeaseWindow, isLatestLeaseQuestion } from './answerPolicy';
 
 const inputSchema = z.strictObject({
   idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(s => !!s.trim()),
@@ -183,6 +185,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const reportHistory = /PDF/i.test(valid.question) && !research.task && authority.grants.includes('export:internal')
       ? await readReportHistory(client, actor, keys, authority, valid.conversation, signal) : undefined;
     for (const result of reportHistory?.results ?? []) workset.register(result, worksetOwner);
+    for (const result of history.contextResults ?? [])
+      if (!reportHistory?.results.some(item => item.resultId === result.resultId)) workset.register(result, worksetOwner);
     if (research.task) for (const section of researchSections(history.contextResult!)) workset.register(section.result, worksetOwner);
     if (history.contextResult && !isResearchResult(history.contextResult) && !reportHistory?.results.some(r => r.resultId === history.contextResult!.resultId))
       workset.register(history.contextResult, worksetOwner);
@@ -224,7 +228,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
     const knowledgeResults=new Map<string,QueryResult>();
-    const imported = research.task ? research.results : history.contextResult ? [history.contextResult] : [];
+    const imported = research.task ? research.results : history.contextResults ?? (history.contextResult ? [history.contextResult] : []);
     for (const r of imported) if(r.parameters.knowledgeBindings || r.parameters.publicBindings) knowledgeResults.set(r.resultId,r);
     const businessResults = new Map<string,QueryResult>();
     for (const r of imported) if(r.parameters.businessBindings) businessResults.set(r.resultId,r);
@@ -256,6 +260,19 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     let preparedResearch: QueryResult | undefined;
     let researchFiles: unknown;
     const exportFiles: Array<Record<string, unknown>> = [];
+    let selectedAnswer: AnswerSelection | undefined;
+    const queriedIds = new Set<string>();
+    // History is eligible evidence, not an automatic answer. Only a data
+    // task or an actual workset/chart read makes it participate now.
+    const comparisonRequested = /(?:比较|对比|相比|环比|同比|差异|变化|涨跌|compare|versus|\bvs\b)/i.test(valid.question)
+      && !/(?:解释|说明|介绍).*(?:方法|口径|含义|定义|规则)|(?:如何|怎么).*(?:比较|对比|计算)/.test(valid.question);
+    const historicalDataRequested = comparisonRequested
+      || /(?:查|展示|显示|分析|总结|概括|继续).*(?:数据|统计|结果|季度|租金|成交|排名|趋势)/.test(valid.question)
+        && !/(?:解释|说明|介绍).*(?:方法|口径|含义|定义|规则)/.test(valid.question);
+    const referencedIds = new Set<string>(historicalDataRequested ? workset.manifest(worksetOwner).map(item => item.resultId) : []);
+    const needsSelection = () => new Set([...queriedIds, ...referencedIds]).size > 1
+      && (!selectedAnswer || comparisonRequested && !selectedAnswer.results.some(item => item.role === 'comparison'));
+
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
@@ -264,10 +281,12 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
         contextChart: history.contextChart,
+        ...(history.contextResults?.length ? { answerResults: workset.manifest(worksetOwner) } : {}),
         ...(research.task ? { researchContext: researchObservation(research.checkpoint()!) } : {}),
         ...(history.contextResult && (isBusinessResult(history.contextResult)||isKnowledgeResult(history.contextResult)) ? { businessResults:workset.manifest(worksetOwner) } : {}),
         ...(history.contextResult && isLeaseResult(history.contextResult) ? { leaseResults: workset.manifest(worksetOwner) } : {}),
         ...(reportHistory ? { reportResults: workset.manifest(worksetOwner), reportHistoryLimited: reportHistory.limited } : {}),
+        needsAnswerSelection: () => needsSelection() && !preparedExport && !preparedReport && !research.task,
         revalidate: async currentSignal => {
           await history.contextRecheck?.();
           await recheckLeases();
@@ -299,7 +318,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (pending.length > 12000) throw new Error('AGENT_STREAM_EVENT_TOO_LARGE');
           });
           // File delivery state comes from the server, never model prose.
-          if (!(result.message.calls?.length) && !leaseResults.size && !knowledgeResults.size && !preparedExport
+          if (!/^(?:你好|您好|嗨|哈[喽啰]|hello|hi|谢谢|多谢|感谢|thanks|thank you)[！!。.?？\s]*$/i.test(valid.question.trim())
+            && !(result.message.calls?.length) && !referencedIds.size && !queriedIds.size && !leaseResults.size && !knowledgeResults.size && !preparedExport
             && !preparedChart && !preparedReport && !research.task && !/(?:导出|下载|Excel|CSV|xlsx|PNG|SVG|PDF|Word|PPT|报告|图)/i.test(valid.question)) await flush();
           return result;
         },
@@ -312,6 +332,13 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
           await recheckLeases();
+          if (name === 'select_answer_results') {
+            selectedAnswer = workset.select(args, worksetOwner);
+            return { content: JSON.stringify({ status: 'ready', primaryResultId: selectedAnswer.primaryResultId,
+              task: selectedAnswer.task, answerStatus: selectedAnswer.status,
+              references: selectedAnswer.results.map(item => ({ role: item.role, resultId: item.result.resultId })) }),
+              result: workset.read(selectedAnswer.primaryResultId, worksetOwner) };
+          }
           if (RESEARCH_TOOL_NAMES.has(name)) {
             researchTouched = true;
             if (name === 'plan_research_task') return research.plan(args);
@@ -341,19 +368,19 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           }
           if(KNOWLEDGE_TOOL_NAMES.has(name)) {
             const observed=await queryKnowledge(client,actor,toolSignal,name as KnowledgeToolName,args);
-            knowledgeResults.set(observed.result.resultId,observed.result);workset.register(observed.result,worksetOwner);
+            knowledgeResults.set(observed.result.resultId,observed.result);workset.register(observed.result,worksetOwner);queriedIds.add(observed.result.resultId);
             return observed;
           }
           if(BUSINESS_TOOL_NAMES.has(name)) {
             const observed=await queryBusinessResearch(client,actor,toolSignal,name as BusinessToolName,args);
-            businessResults.set(observed.result.resultId,observed.result);
+            businessResults.set(observed.result.resultId,observed.result);queriedIds.add(observed.result.resultId);
             const manifest=workset.register(observed.result,worksetOwner);
             return {...observed,content:JSON.stringify({...JSON.parse(observed.content),workset:manifest})};
           }
           if (name === 'query_lease_transactions') {
             const observed = await queryLeaseResearch(client, actor, toolSignal, args);
             if (!observed.result) return observed;
-            leaseResults.set(observed.result.resultId, observed.result);
+            leaseResults.set(observed.result.resultId, observed.result);queriedIds.add(observed.result.resultId);
             const manifest = workset.register(observed.result, worksetOwner);
             return { ...observed, content: JSON.stringify({ ...JSON.parse(observed.content), workset: manifest }) };
           }
@@ -364,6 +391,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             toolSignal.throwIfAborted();
             const id = typeof args.resultId === 'string' ? args.resultId : workset.latestId();
             let chosen = id ? workset.read(id, worksetOwner) : undefined;
+            if (chosen) referencedIds.add(chosen.resultId);
             if (chosen && preparedChart?.resultId === chosen.resultId) chosen = preparedChart;
             if(chosen && isKnowledgeResult(chosen)) return {content:JSON.stringify(knowledgeModelObservation(chosen))};
             if (name === 'export_chart') {
@@ -386,11 +414,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
               chartFile = { status: 'ready', state: 'server_generated', format, filename: file.filename, bytes: file.bytes.length, sha256: file.sha256 };
               return { content: JSON.stringify({ ...chartFile, resultId: next.resultId, note: '服务器已生成真实图片及来源包；回答提供下载操作，尚未发起浏览器下载，不能声称本机已保存。' }), result: next };
             }
-            // Existing map navigation points to the final archived result,
-            // not any arbitrary earlier result of this multi-step task.
-            if (name === 'prepare_map_selection' && id !== workset.latestId())
-              return { content: JSON.stringify({ status: 'unsupported',
-                reason: '地图当前仅能跳转到本轮最后一项正式结果；不能把较早结果冒充为最终快照。' }) };
+            // Selected snapshots are archived in full. Map actions can now
+            // refer to an earlier selected result without changing its role.
             const presentation = runResultPresentationTool(name as Parameters<typeof runResultPresentationTool>[0],
               requestId, chosen, args as { chart?: ChartRequest });
             if(name==='prepare_map_selection' && presentation.result) preparedMap=presentation.result;
@@ -439,6 +464,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           }
           if (WORKSET_TOOL_NAMES.has(name)) {
             const ids = name === 'compare_result_sets' ? args.resultIds as string[] : [args.resultId as string];
+            for (const id of ids) { workset.read(id, worksetOwner); referencedIds.add(id); }
             const knowledge=ids.map(id=>workset.read(id,worksetOwner)).filter(isKnowledgeResult);
             if(knowledge.length)return {content:JSON.stringify({status:'ready',results:knowledge.map(knowledgeModelObservation)})};
             const businesses=ids.map(id=>workset.read(id,worksetOwner)).filter(isBusinessResult);
@@ -467,6 +493,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
               requestId, authority, signal: toolSignal }, name as StructuredDataToolName, args);
           } else throw new Error('AGENT_UNREGISTERED_TOOL');
           if (observation.result) {
+            queriedIds.add(observation.result.resultId);
             const manifest = workset.register(observation.result, worksetOwner);
             const original = JSON.parse(observation.content) as Record<string, unknown>;
             observation = { ...observation, content: JSON.stringify({ ...original,
@@ -504,26 +531,25 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     if (execution.unresolvedFailures.some(item => item.code === 'lease_scope_too_large')) execution.answer = '获权成交数据池超过20000条，未返回部分结果。请由授权维护者缩小正式研究授权范围后重试；本轮未完成成交查询。';
     if (!preparedChart && (execution.toolNames.some(name => ['prepare_chart', 'create_chart', 'modify_chart'].includes(name))
       || execution.unresolvedFailures.some(item => ['create_chart', 'modify_chart'].includes(item.tool)))) execution.answer = '本轮未生成图表。请核对获权字段、单位、范围及图表规格后重试。';
-    if (preparedChart) {
+    if (preparedChart && (!selectedAnswer || selectedAnswer.primaryResultId === preparedChart.resultId)) {
       execution.result = preparedChart;
       execution.answer = chartFile ? '服务器已生成 ' + (chartFile.format === 'png_zip' ? 'PNG' : 'SVG') + ' 图片与来源包，可通过本条回答下载；尚未发起浏览器下载，未确认本机保存。'
         : '已使用本次获权结果生成同源图表，图表与来源见本条回答；图表修改不改变正式数值。';
-      if (execution.unresolvedFailures.length) execution.answer += '\n执行限制：' + execution.unresolvedFailures.map(item => item.tool + '（' + item.code + '）').join('、');
+      if (execution.unresolvedFailures.length) execution.answer += '\n部分步骤未完成。';
     }
     if (preparedExport && !preparedChart) {
       execution.result = preparedExport;
       execution.answer = '服务器已生成 ' + preparedExport.table.rows.length
         + ' 行' + ((preparedExport.parameters.agentExport as { format: string }).format === 'xlsx' ? ' Excel 文件' : ' CSV 与来源包')
         + '，可通过本条回答的下载操作获取；尚未发起浏览器下载，也未确认本机保存。'
-        + (execution.unresolvedFailures.length ? '\n\n执行限制：' + execution.unresolvedFailures
-          .map(item => item.tool + '（' + item.code + '）').join('、') + '。其余步骤未全部完成。' : '');
+        + (execution.unresolvedFailures.length ? '\n其余步骤未全部完成。' : '');
     }
     if (!preparedExport && (execution.toolNames.includes('export_table')
       || execution.unresolvedFailures.some(item => item.tool === 'export_table'))) {
       execution.answer = '本轮未生成文件。'
         + (execution.unresolvedFailures.some(item => item.code === 'export_not_authorized')
           ? '当前身份没有独立的内部导出资格。' : '导出步骤未通过，请调整范围、字段或规格后重试。')
-        + '\n执行限制：' + execution.unresolvedFailures.map(item => item.tool + '（' + item.code + '）').join('、');
+        + '其余步骤未全部完成。';
     }
     if (!chartFile && (execution.toolNames.includes('export_chart') || execution.unresolvedFailures.some(item => item.tool === 'export_chart'))) {
       execution.answer = '本轮未生成图片文件。' + (preparedChart ? '同源图表仍可查看。' : '')
@@ -548,21 +574,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     if (current.permissionRevision !== authority.permissionRevision
       || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
     await recheckLeases();
-    if (leaseResults.size) {
-      execution.result ??= [...leaseResults.values()].at(-1);
-      if (execution.result && !isLeaseResult(execution.result)) execution.result = { ...execution.result,
-        parameters: { ...execution.result.parameters, leaseBindings: [...leaseResults.values()].flatMap(r => r.parameters.leaseBindings as unknown[]) } };
-    }
-    if(businessResults.size) {
-      execution.result ??= [...businessResults.values()].at(-1);
-      if(execution.result) execution.result={...execution.result,parameters:{...execution.result.parameters,
-        businessBindings:[...businessResults.values()].flatMap(r=>r.parameters.businessBindings as unknown[])}};
-    }
     if(knowledgeResults.size){
-      execution.result??=[...knowledgeResults.values()].at(-1);
-      if(execution.result)execution.result={...execution.result,parameters:{...execution.result.parameters,
-        knowledgeBindings:[...knowledgeResults.values()].flatMap(r=>r.parameters.knowledgeBindings as unknown[]??[]),
-        publicBindings:[...knowledgeResults.values()].flatMap(r=>r.parameters.publicBindings as unknown[]??[])}};
       // Do not feed model-authored claims about unread private text into history.
       if(execution.result && isKnowledgeResult(execution.result)) execution.answer=execution.result.table.rows.length===0
         ?'当前获权范围没有检索到匹配证据；未编造原文或研究判断。可调整文档范围和关键词，未命中不代表全文没有该信息。'
@@ -599,26 +611,79 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       }
       execution.executionStatus = execution.result ? 'partial' : 'limited';
       const delivered = fulfillment.requested.filter(f => fulfillment.available.includes(f));
-      execution.answer = (delivered.length ? '服务器已生成可通过本条回答下载的 ' + delivered.map(f => artifactLabels[f]).join('、') + ' 文件。' : '')
-        + '本轮未生成 ' + fulfillment.missing.map(f => artifactLabels[f]).join('、') + ' 文件，或尚未保留为本条回答可下载的成果；任务尚未全部完成。'
-        + '请核对当前授权、数据与生成步骤后继续。尚未发起浏览器下载，未确认本机保存。';
+      execution.answer = (delivered.length ? delivered.map(f => artifactLabels[f]).join('、') + ' 已可下载。' : '')
+        + '本轮未生成 ' + fulfillment.missing.map(f => artifactLabels[f]).join('、') + ' 文件，任务尚未全部完成。请核对范围或重试。';
+    }
+    const terminalDelivery = !!(preparedExport || preparedReport || preparedResearch);
+    if (!execution.result && execution.toolCalls === 0 && isLatestLeaseQuestion(valid.question) && !hasExplicitLeaseWindow(valid.question))
+      execution.answer = '要查询哪个日期范围内的最新一笔租赁成交？';
+    if (selectedAnswer && !needsSelection() && !terminalDelivery && !researchTouched) {
+      selectedAnswer = { ...selectedAnswer, results: selectedAnswer.results.map(item => {
+        const prepared = preparedChart?.resultId === item.result.resultId ? preparedChart
+          : preparedMap?.resultId === item.result.resultId ? preparedMap : undefined;
+        return prepared ? { ...item, result: prepared as typeof item.result } : item;
+      }) };
+      execution.result = selectedAnswerResult(selectedAnswer) as QueryResult;
+    } else if (needsSelection() && !terminalDelivery && !researchTouched) {
+      selectedAnswer = undefined;
+      // Fail closed rather than pair an unbound model narrative with the last
+      // query (which may only be a coverage or future-period check).
+      execution.result = undefined;
+      execution.answer = '本轮取得多个结果，但尚未确认与当前问题对应的主结果。请明确需要比较的期间或范围。';
+      execution.executionStatus = 'limited';
+      execution.unresolvedFailures.push({ tool: 'select_answer_results', code: 'conditions_required' });
     }
     // Persist presentation intent with the archived snapshot. Delivery prose is
     // rendered by attachments; substantive partial-execution warnings stay in
     // the narrative. No keyword removal or model-supplied presentation values.
     if (execution.result) {
       const delivery = !!(preparedExport || preparedReport || chartFile || preparedResearch);
-      const listing = ['list', 'rank'].includes(execution.result.operation)
-        && !execution.result.parameters.dataDomain && !execution.result.parameters.domain && !preparedChart && !preparedMap;
-      const narrativeRole = execution.unresolvedFailures.length || execution.executionStatus !== 'completed'
-        ? 'analysis' : delivery ? 'delivery_status' : listing ? 'result_summary' : 'analysis';
+      const listing = !isKnowledgeResult(execution.result) && !isResearchResult(execution.result)
+        && !/(?:详细|完整报告|解释方法|为什么|原因|方法说明)/.test(valid.question);
+      const narrativeRole = delivery ? 'delivery_status' : listing ? 'result_summary' : 'analysis';
       // Already-generated files bind the original digest. Never mutate their
       // snapshot after generation; their versioned artifact descriptor is the
       // legacy adapter's presentation input.
       if (!delivery) execution.result = { ...execution.result, parameters: { ...execution.result.parameters,
         responsePresentation: { version: 'response-presentation/1', narrativeRole } } };
-      if (narrativeRole === 'delivery_status') execution.answer = '文件已准备好，可从附件下载。仅供内部分析。';
-      else if (narrativeRole === 'result_summary') execution.answer = '查询结果见下方表格。';
+      if (execution.executionStatus === 'completed') {
+        if (narrativeRole === 'delivery_status') execution.answer = '文件已准备好，可从附件下载。仅供内部分析。';
+        else if (narrativeRole === 'result_summary') execution.answer = '查询结果见下方表格。';
+      }
+    }
+    if (execution.result) {
+      const primary = execution.result;
+      if (!selectedAnswer || terminalDelivery || researchTouched) selectedAnswer = {
+        version: 'answer-selection/1', task: answerTask(valid.question, primary),
+        status: execution.executionStatus === 'completed' ? 'answered' : 'partial',
+        primaryResultId: primary.resultId, results: [{ role: 'primary', result: primary as AnswerSelection['results'][number]['result'] }],
+      };
+      else selectedAnswer = { ...selectedAnswer, results: selectedAnswer.results.map(item =>
+        item.result.resultId === primary.resultId ? { ...item, result: primary as typeof item.result } : item) };
+      selectedAnswer = applyAnswerPolicy(valid.question, selectedAnswer, execution.executionStatus);
+      // Data-summary ownership must not swallow a separate, trusted action
+      // outcome. Preparing a map never means that the browser opened it.
+      const mapAttempted = execution.toolNames.includes('prepare_map_selection');
+      const mapResultId = preparedMap?.resultId;
+      const mapDelivered = mapResultId && selectedAnswer.results.some(item =>
+        item.result.resultId === mapResultId && item.result.parameters.agentMap);
+      const mapNotice = mapAttempted ? mapDelivered
+        ? '地图操作已准备，尚未打开地图或改变当前地图选择。'
+        : preparedMap ? '地图操作未随当前回答交付，尚未打开地图或改变当前地图选择。'
+        : '本轮未准备地图操作。当前结果无法准备所选操作，尚未打开地图。' : undefined;
+      if (mapNotice) selectedAnswer = { ...selectedAnswer,
+        notice: [selectedAnswer.notice, mapNotice].filter(Boolean).join(' ') };
+      if (execution.executionStatus !== 'completed') {
+        // Summary ownership stays with formal blocks even after partial tool
+        // execution. A separate trusted notice retains what did not complete;
+        // no arbitrary supplier prose or Markdown table is scanned/deleted.
+        const onlyMapFailure = mapNotice && execution.unresolvedFailures.length > 0
+          && execution.unresolvedFailures.every(item => item.tool === 'prepare_map_selection');
+        const executionNotice = fulfillment.missing.length ? execution.answer
+          : onlyMapFailure ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
+        selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, executionNotice].filter(Boolean).join(' ') };
+      }
+      if (selectedAnswer.notice) execution.answer = selectedAnswer.notice;
     }
     await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: execution.executionStatus,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
@@ -656,9 +721,10 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {
           selection: { resultIds: string[] } }).selection; void _ids; return selection; })(),
       } } : {}),
+      ...(selectedAnswer ? { answerContext: true, resolution: { protocol: 'answer-selection/1' } } : {}),
       status: 'answer_prepared',
     });
-    await audit.append(requestId, 'response_generated', { result: execution.result ?? {
+    await audit.append(requestId, 'response_generated', { result: selectedAnswer ?? execution.result ?? {
       version: 'agent-message/1', text: execution.answer, model: execution.model,
     } });
     await audit.append(requestId, 'succeeded', { delivery: 'not_yet_sent',
@@ -669,6 +735,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const historySaved = await recordHistorySubmission(client, keys, actor, valid.conversation.id, requestId);
     const responseBody = { requestId, status: execution.result ? 'ready' : 'assistant',
       message: execution.answer, ...(execution.result ? { result: execution.result } : {}),
+      ...(selectedAnswer ? { answerSelection: selectedAnswer } : {}),
       conversation: valid.conversation, historySaved,
       agent: { model: execution.model, modelCalls: execution.calls, operations: runtime.summary(),
         toolCalls: execution.toolCalls, inputTokens: execution.inputTokens,

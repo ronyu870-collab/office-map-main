@@ -9,8 +9,8 @@ import type { ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnal
 import { HomeQueryDetailContent } from './HomeQueryDetailPanel';
 import styles from './HomeQuery.module.css';
 import experienceStyles from './HomeQueryResultExperience.module.css';
-export function HomeQuerySources({ detailId, result, context, selected, sources, sourcePage, setSourcePage, onClose, panelRef }: {
-  detailId: string; result: QueryResultView; context: string[];
+export function HomeQuerySources({ detailId, result, context, research = null, selected, sources, sourcePage, setSourcePage, onClose, panelRef }: {
+  detailId: string; result: QueryResultView; context: string[]; research?: ResearchAnalysis | null;
   selected: { ids: readonly string[]; label: string }; sources: QueryResultView['sources']; sourcePage: number;
   setSourcePage: React.Dispatch<React.SetStateAction<number>>;
   onClose: () => void; panelRef: React.RefObject<HTMLElement | null>;
@@ -23,13 +23,14 @@ export function HomeQuerySources({ detailId, result, context, selected, sources,
     <div className={styles.sourceHeading}><h3>{selected.label}</h3><Button variant="ghost" onClick={onClose}>关闭来源</Button></div>
 
     <details className={experienceStyles.sourceDisclosure}><summary>统计口径与限制</summary><section aria-label="统计口径与限制">
+      <SourceOverview result={result} research={research} />
       {[...new Set([...context, ...result.limitations])].map(line => <p key={line}>{line}</p>)}
     </section></details>
     <p>候选来源可能包含未参与计算的记录；具体指标以单元格关联的来源为准。</p>
-      {!sources.length ? <p>该项没有关联的数据库来源。季度标签来自本次查询条件；指标值和参与样本请查看对应单元格的来源。</p> : <>
+      {!sources.length ? <p>该项没有关联的来源记录；范围与期间来自保存的查询条件。</p> : <>
         {sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => <div className={styles.source} key={source.id}><dl>
           <dt>原始记录值</dt><dd>{source.rawValue === null || source.rawValue === undefined ? '未填写' : typeof source.rawValue === 'string' ? source.rawValue : JSON.stringify(source.rawValue)}</dd>
-          <dt>期间与单位</dt><dd>{source.period ? `${source.period.year} 年第 ${source.period.quarter} 季度` : '不属于季度指标'}；{units[source.unit] ?? source.unit}</dd>
+          <dt>期间与单位</dt><dd>{source.period ? `${source.period.year} 年第 ${source.period.quarter} 季度` : '未提供季度标签'}；{source.unit === 'snapshot' ? '来源快照（非计量单位）' : source.unit === 'text' ? '文字' : units[source.unit] ?? source.unit}</dd>
           <dt>原始资料</dt><dd>{source.original ? `${source.original.documentId}，版本 ${source.original.version}${source.original.location ? `，${source.original.location}` : source.original.page ? `，第 ${source.original.page} 页` : ''}${source.original.sheet ? `，表 ${source.original.sheet}` : ''}${source.original.row ? `，第 ${source.original.row} 行` : ''}` : '尚未关联原件，仅能溯源到数据库记录。'}</dd>
           <dt>核验状态</dt><dd>{{ database_only: '仅数据库记录', verified_original: '已核验原件', unreviewed: '未核验', historical: '历史来源' }[source.verification]}</dd>
           <dt>业务截至</dt><dd>{source.businessAsOf ?? '未知，不能用入库时间替代。'}</dd>
@@ -57,19 +58,34 @@ export function HomeQuerySources({ detailId, result, context, selected, sources,
 }
 
 const analysisCoverageSchema = z.object({ coverage: z.object({ valid: z.number().int().nonnegative() }) });
-export function SourceOverview({ result, research, onSource }: { result: QueryResultView; research: ResearchAnalysis | null;
-  onSource?: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void }) {
+export function sourceOverviewLabel(result: QueryResultView): string {
   const periods = ['period', 'start', 'end', 'base', 'current'].flatMap(key => {
     const parsed = quarterSchema.safeParse(result.parameters[key]);
     return parsed.success ? [`${parsed.data.year} Q${parsed.data.quarter}`] : [];
   });
-  const period = [...new Set(periods)].join(result.operation === 'compare' ? ' 与 ' : ' 至 ');
+  if (!periods.length) for (const source of result.sources) if (source.period) periods.push(`${source.period.year} Q${source.period.quarter}`);
+  const distinct = [...new Set(periods)].sort();
+  const period = distinct.length <= 2 ? distinct.join(result.operation === 'compare' ? ' 与 ' : ' 至 ') : `${distinct[0]} 至 ${distinct.at(-1)}`;
+  const scope = z.object({ inventory: z.string().optional(), from: z.string().optional(), to: z.string().optional(), source: z.string().optional() }).safeParse(result.parameters.scope).data;
+  const dateRange = scope?.from && scope?.to ? scope.from === scope.to ? scope.from : `${scope.from} 至 ${scope.to}` : period;
+  if (result.parameters.dataDomain === 'lease-research/1') return [dateRange, scope?.source === 'live' ? '当前成交记录' : scope?.source === 'history' ? '历史成交记录' : '获权成交记录'].filter(Boolean).join('，');
+  if (result.parameters.dataDomain === 'business-research/1') return [period, '获权业务资料'].filter(Boolean).join('，');
+  if (result.parameters.domain === 'knowledge-research/1') return result.parameters.evidenceKind === 'external_public' ? '公开研究来源' : '获权知识资料';
+  if (result.parameters.dataDomain === 'deep-research/1' || result.parameters.agentReport) return '组合研究来源，各部分保留原期间';
+  if (result.parameters.dataDomain || result.parameters.domain) return [period, '获权数据来源'].filter(Boolean).join('，');
   const hasQuarter = result.sources.some(source => source.period !== null) || periods.length > 0;
-  const scope = z.object({ inventory: z.string().optional() }).safeParse(result.parameters.scope);
-  const tracked = scope.success && scope.data.inventory === 'tracked';
-  const source = hasQuarter ? `${period ? `${period} ` : ''}${tracked ? '季度跟踪样本' : '季度数据'}` : result.sources.some(item => item.table === 'building_brochure_data') ? '楼宇目录及楼书参数' : '当前获权楼宇目录';
+  const source = hasQuarter ? scope?.inventory === 'tracked' ? '季度跟踪样本' : '楼宇季度数据'
+    : result.sources.some(item => item.table === 'building_brochure_data') ? '楼宇目录及楼书参数'
+      : result.sources.some(item => item.table === 'buildings') ? '当前获权楼宇目录' : '获权数据来源';
+  return [period, source].filter(Boolean).join('，');
+}
+
+export function SourceOverview({ result, research, onSource, compact = false }: { result: QueryResultView; research: ResearchAnalysis | null; compact?: boolean;
+  onSource?: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void }) {
+  const source = sourceOverviewLabel(result);
   const sourceLabel = <p>数据来源：{onSource ? <button type="button" className={experienceStyles.sourceLink}
     onClick={event => onSource(result.sources.map(item => item.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>{source}</button> : source}</p>;
+  if (compact) return <section className={experienceStyles.basis} aria-label="数据依据摘要">{sourceLabel}</section>;
   const metrics = resultMetrics(result);
   if (metrics.length > 1) return <section className={`${experienceStyles.basis} ${experienceStyles.multipleBasis}`} aria-label="数据依据摘要">
     {sourceLabel}

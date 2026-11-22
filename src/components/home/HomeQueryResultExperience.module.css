@@ -80,3 +80,37 @@
 .result .conclusion { font-weight: 600; }
 .result .metricReading .metricValue { font-size: var(--cd-ai-heading-size); }
 .result .sectionTitle { font-size: var(--cd-ai-body-size); }
+
+.chartSettings { width: 100%; max-width: var(--cd-ai-reading-width, 50rem); margin-inline: auto; margin-block-start: var(--cd-space-3); color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-md); }
+.chartSettings > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; width: fit-content; }
+.chartSettings > summary:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+@media (pointer: coarse) { .chartSettings > summary { min-height: 44px; } }
+
+/* The answer owns one reading axis; only the data surface may grow wider. */
+.answer, .metrics, .entity, .sourceSummary, .answerNotice, .resultRole, .resultActions { width: 100%; max-width: var(--cd-ai-reading-width); margin-inline: auto; }
+.answer .conclusion { font-size: var(--cd-ai-body-size); font-weight: 400; line-height: var(--cd-ai-body-leading); letter-spacing: normal; }
+.result .metrics { display: flex; flex-wrap: wrap; border: 0; padding-block: var(--cd-space-3); margin-block: 0; }
+.fact { flex: 1 1 160px; min-width: 0; }
+.fact h3, .entity h3 { margin: 0 0 var(--cd-space-2); font-size: var(--cd-ai-body-size); font-weight: 400; color: var(--cd-color-text-secondary); }
+.result .metricReading .metricValue { font-size: var(--cd-ai-heading-size); font-weight: 600; background: transparent; border: 0; padding: 0; }
+.entity h3 { color: var(--cd-color-text-primary); font-size: var(--cd-font-size-lg); font-weight: 600; }
+.entity dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cd-space-3) var(--cd-space-6); margin: var(--cd-space-3) 0; }
+.entity dl > div { min-width: 0; }
+.entity dt { color: var(--cd-color-text-secondary); }
+.entity dd { margin: var(--cd-space-1) 0 0; font-variant-numeric: tabular-nums; }
+.details { margin-block: var(--cd-space-3); }
+.details > summary { min-height: 36px; width: fit-content; padding-block: var(--cd-space-2); cursor: pointer; color: var(--cd-color-text-secondary); }
+.details > summary:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 3px; border-radius: var(--cd-radius-sm); }
+.sourceSummary { border-top: 0; margin-top: var(--cd-space-4); padding-top: 0; gap: var(--cd-space-2) var(--cd-space-4); }
+.sourceSummary p { flex-basis: auto; }
+.answerNotice { margin-block: 0 var(--cd-space-4); font-size: var(--cd-ai-body-size); line-height: var(--cd-ai-body-leading); }
+.resultRole { color: var(--cd-color-text-secondary); margin-block: var(--cd-space-2); }
+.comparisonResult { margin-top: var(--cd-space-6); }
+@media (max-width: 639px) {
+  .entity dl { grid-template-columns: 1fr; }
+  .metrics > .fact { flex-basis: auto; }
+  .details > summary { min-height: 44px; }
+}
+.result > .scope, .result > [aria-label="查询数据状态"] { width: 100%; max-width: var(--cd-ai-reading-width); margin-inline: auto; }
+.readingVisual { width: 100%; max-width: var(--cd-ai-reading-width); margin-inline: auto; }
+.details > summary { width: 100%; max-width: var(--cd-ai-reading-width); margin-inline: auto; }
