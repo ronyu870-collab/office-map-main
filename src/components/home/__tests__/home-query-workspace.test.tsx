@@ -197,7 +197,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
     const { input } = await open(); await expand(); send(input, 'CBD净有效租金');
     const rendered = await screen.findByRole('region', { name: '查询结果' });
-    const target = within(rendered).getByRole('button', { name: '数据依据', exact: true });
+    const target = within(rendered).getByRole('button', { name: '数据依据' });
     const transcript = screen.getByRole('region', { name: '对话记录' });
     const surface = screen.getByRole('dialog', { name: 'Colliers AI 工作空间' });
     // jsdom focus changes activeElement without browser scroll assistance.
