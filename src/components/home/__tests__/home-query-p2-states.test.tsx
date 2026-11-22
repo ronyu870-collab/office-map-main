@@ -5,6 +5,7 @@ import { buildAggregateResult, buildListResult } from '@/src/lib/intelligence/qu
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
 import { resolveNumericFact } from '@/src/lib/intelligence/query/facts';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
+import { QueryClientError } from '@/src/services/queryClientErrors';
 
 const client = vi.hoisted(() => ({ capabilities: vi.fn(), submit: vi.fn(), recover: vi.fn(), reportDelivery: vi.fn().mockResolvedValue(true) }));
 vi.mock('@/src/services/trustedQueryClient', () => ({ trustedQueryClient: client, queryScopeKey: (scope: { actorId: string }) => scope.actorId }));
@@ -22,6 +23,20 @@ async function submit() {
 describe('P2 query failure, empty results and recovery lifecycle', () => {
   beforeEach(() => { sessionStorage.clear(); client.capabilities.mockReset().mockResolvedValue({ enabled: true, permissionRevision: 'one', examples: [] }); client.submit.mockReset(); client.recover.mockReset(); });
   afterEach(cleanup);
+  it.each(['json', 'stream'])('shows the controlled budget explanation for %s failures', async transport => {
+    const error = '本轮模型调用已达到 token 或费用估算预算，未继续调用供应商。';
+    if (transport === 'json') client.submit.mockResolvedValue({ requestId, status: 'unavailable', error });
+    else client.submit.mockRejectedValue(new QueryClientError('service', error));
+    render(<HomeQuery scope={scope} />); await submit();
+    expect(await screen.findByText(error)).toBeInTheDocument();
+    expect(client.submit).toHaveBeenCalledOnce();
+  });
+  it('keeps arbitrary transport content out of service failure messages', async () => {
+    client.submit.mockResolvedValue({ requestId, status: 'unavailable', error: 'synthetic-private-credential' });
+    render(<HomeQuery scope={scope} />); await submit();
+    expect(await screen.findByText(/查询服务暂时不可用/)).toBeInTheDocument();
+    expect(screen.queryByText(/synthetic-private-credential/)).not.toBeInTheDocument();
+  });
   it('distinguishes a network failure and retries the same idempotency key', async () => {
     client.submit.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce({ requestId, status: 'running' });
     render(<HomeQuery scope={scope} />); await submit();

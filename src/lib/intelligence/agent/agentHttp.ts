@@ -474,7 +474,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         },
       });
     } catch (error) {
-      await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: 'incomplete',
+      await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: 'incomplete', toolTrace,
         modelCallsCompleted: completedModels, inputTokens: reportedInput, outputTokens: reportedOutput,
         providerRequestIds: providerRequestIds.slice(0, 6),
         cost: null, costStatus: 'planning_range_not_invoice',
