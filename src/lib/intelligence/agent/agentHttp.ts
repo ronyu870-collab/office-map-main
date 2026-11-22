@@ -409,7 +409,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           if (PRESENTATION_TOOL_NAMES.has(name)) {
             toolSignal.throwIfAborted();
             const id = typeof args.resultId === 'string' ? args.resultId
-              : ['modify_chart', 'export_chart'].includes(name) && history.contextChart ? history.contextChart.resultId : workset.latestId();
+              : ['modify_chart', 'export_chart'].includes(name)
+                ? preparedChartSourceId ?? history.contextChart?.resultId ?? workset.latestId() : workset.latestId();
             let chosen = id ? workset.read(id, worksetOwner) : undefined;
             if (chosen) referencedIds.add(chosen.resultId);
             if (chosen && preparedChart && (preparedChart.resultId === chosen.resultId || preparedChartSourceId === chosen.resultId)) chosen = preparedChart;

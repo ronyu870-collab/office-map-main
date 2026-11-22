@@ -818,6 +818,28 @@ describe('AI5 chart creation, same-snapshot modification and image delivery', ()
     const event = state.append.mock.calls.find(c => c[1] === 'tool_finished' && c[2]?.protocol === 'agent-answer/1')?.[2];
     expect(body.answerSelection.results.some((entry: { result: { resultId: string } }) => entry.result.resultId === event.chartContext.resultId)).toBe(true);
   });
+  it.each(['export_chart', 'modify_chart'])('prefers this turn chart over the restored chart for implicit %s', async tool => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const prior = result(), fresh = result();
+    const oldSpec = { kind: 'plot' as const, type: 'bar' as const, x: 'name', y: ['height'] };
+    const nextSpec = { ...oldSpec, type: 'horizontal_bar' as const, y: ['netEffectiveRent'] };
+    const old = { ...prior, parameters: { ...prior.parameters, agentChart: { version: 'chart-workspace/1', request: oldSpec } } };
+    state.history.mockResolvedValue(Object.assign([], { contextResult: old, contextChart: { resultId: old.resultId, chart: oldSpec },
+      contextRecheck: vi.fn().mockResolvedValue(undefined) }));
+    state.structured.mockResolvedValue({ content: JSON.stringify({ status: 'ready', resultId: fresh.resultId }), result: fresh });
+    state.provider.mockReset()
+      .mockResolvedValueOnce(completed([call('list_buildings', { scope: { inventory: 'tracked', submarkets: ['CBD'] }, fields: ['height', 'netEffectiveRent'], period: { year: 2026, quarter: 3 } })]))
+      .mockResolvedValueOnce(completed([call('select_answer_results', { primaryResultId: fresh.resultId, task: 'list', status: 'answered' })]))
+      .mockResolvedValueOnce(completed([call('create_chart', { resultId: fresh.resultId, chart: nextSpec })]))
+      .mockResolvedValueOnce(completed([call(tool, tool === 'export_chart' ? { format: 'png_zip' } : { chart: nextSpec })]))
+      .mockResolvedValueOnce(completed());
+    const response = await handleAgentSubmission(fakeRequest(tool === 'export_chart' ? '重新查数，生成租金横向柱状图并导出PNG。' : '重新查数并创建租金横向柱状图，再调整当前图。').request, deps());
+    const body = await response.json();
+    expect(response.status, JSON.stringify(body)).toBe(200); expect(body.agent.executionStatus).toBe('completed');
+    expect(body.result.resultId).toBe(fresh.resultId);
+    expect(body.result.parameters.agentChart.request).toEqual(nextSpec);
+    expect(body.result.table).toEqual(fresh.table); expect(body.result.sources).toEqual(fresh.sources);
+  });
   it('applies a full chart specification and delivers actual PNG bytes via the existing artifact engine', async () => {
     state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
     const formal = result(), spec = { kind: 'plot' as const, type: 'horizontal_bar' as const, x: 'name', y: ['netEffectiveRent'], sort: { field: 'netEffectiveRent', direction: 'desc' as const } };

@@ -61,6 +61,16 @@
       "file": "colliers-location-discussion-after.log",
       "originalSha256": "31a154818e0fa2546d5f53cb5039768ebdffeeab5400810c7391397b7930ee48",
       "portableSha256": "650da4a93dde842eccb94a5cfce211565e901b70b1b0d92ed47931f277c0a8e3"
+    },
+    {
+      "file": "pr269-review-chart-before.log",
+      "originalSha256": "c9c3015e14d5b4c839538a82a1f66fa84e3904e95a955c12a30056efbe882513",
+      "portableSha256": "31a570524ddaadf0cce104ce105db9291e4ae546ad2b88c748db524d835a31f9"
+    },
+    {
+      "file": "pr269-review-chart-after.log",
+      "originalSha256": "73f0d2049bef0161ec6c6cb152aab00e81c65deff287b182f1a4d5742a4dcd7a",
+      "portableSha256": "3ba9ff932f94741d092bdac4bfeddd5a93967ac91cf04247e353ae130b698872"
     }
   ],
   "curatedFilesSha256": {
@@ -84,6 +94,8 @@
     "final-conversation-results.json": "05a678a37211ffb5aa5069d1ad8bcb48fcd7a7b91a83097bbbfa6cbdb574c30c",
     "full-check-summary.txt": "354cbfae8309947ba57fc5028140dd329c532d30998c7f76b55d14c1d27058e9",
     "layered-results.json": "fc931eca2bf5ef44983f9e3d0be225c4c4f65028c08b8cd03e44d060fdfbf9de",
-    "offline-original.json": "83dc0d8ffd93252cc21aad762a148b0ee33bc3262825965ad332e3aff74925c5"
+    "offline-original.json": "83dc0d8ffd93252cc21aad762a148b0ee33bc3262825965ad332e3aff74925c5",
+    "pr269-review-chart-after.log": "3ba9ff932f94741d092bdac4bfeddd5a93967ac91cf04247e353ae130b698872",
+    "pr269-review-chart-before.log": "31a570524ddaadf0cce104ce105db9291e4ae546ad2b88c748db524d835a31f9"
   }
 }
