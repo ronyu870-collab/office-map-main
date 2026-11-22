@@ -53,3 +53,38 @@ export function installLiveAmapProbe() {
     set(value) { amap = value; instrument(value); },
   });
 }
+
+export function beginLiveAmapSample() {
+  const p = window.__liveAmapProbe;
+  const sample = p.sample = { start: performance.now(), intervals: [], activeIntervals: [], longTasks: [], calls: p.calls.length, events: p.events.length, created: p.created };
+  sample.observer = new PerformanceObserver(list => sample.longTasks.push(...list.getEntries().map(x => ({ startTime: x.startTime, duration: x.duration }))));
+  sample.observer.observe({ type: 'longtask' });
+  let previous;
+  const frame = now => {
+    if (sample.done) return;
+    if (previous !== undefined) {
+      sample.intervals.push(now - previous);
+      if (now - sample.start <= 1000) sample.activeIntervals.push(now - previous);
+    }
+    previous = now;
+    sample.frame = requestAnimationFrame(frame);
+  };
+  sample.frame = requestAnimationFrame(frame);
+}
+
+export function finishLiveAmapSample() {
+  const p = window.__liveAmapProbe, s = p.sample;
+  s.done = true; cancelAnimationFrame(s.frame);
+  s.longTasks.push(...s.observer.takeRecords().map(task => ({ startTime: task.startTime, duration: task.duration })));
+  s.observer.disconnect();
+  const frames = s.intervals.sort((a,b) => a-b), active = s.activeIntervals.sort((a,b)=>a-b);
+  const calls = p.calls.slice(s.calls), events = p.events.slice(s.events);
+  const command = calls.filter(x=>['setCenter','setZoomAndCenter','setBounds'].includes(x.name)).at(-1);
+  const end = events.filter(x=>['moveend','zoomend'].includes(x.name)).at(-1);
+  return { startTime: s.start, endTime: performance.now(), elapsedMs: performance.now()-s.start, frames: frames.length, frameP95Ms: frames[Math.floor(frames.length*.95)] ?? null,
+    firstSecondFrameP95Ms: active[Math.floor(active.length*.95)] ?? null,
+    intervalsOver33Ms: frames.filter(x=>x>33.4).length, longestFrameMs: frames.at(-1) ?? null, longTasksMs: s.longTasks,
+    resizeCalls: calls.filter(x=>x.name==='resize').length, newMapInstances: p.created-s.created,
+    cameraEndMs: end ? end.at-s.start : null,
+    cameraAfterLastCommandMs: end && command && end.at >= command.at ? end.at-command.at : null };
+}

@@ -3,10 +3,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { user, session, stock, project, stacking } from './fixtures/workspace-data.mjs';
-import { installLiveAmapProbe, waitForLiveAmapTiles } from './fixtures/live-amap-probe.mjs';
-import { summarizeLongTasks, sanitizeCpuProfile, sanitizeMainThreadTrace } from './fixtures/long-task-profile.mjs';
+import { installLiveAmapProbe, waitForLiveAmapTiles, beginLiveAmapSample, finishLiveAmapSample } from './fixtures/live-amap-probe.mjs';
+import { summarizeLongTasks, sanitizeCpuProfile, sanitizeMainThreadTrace, sanitizeErrorStack } from './fixtures/long-task-profile.mjs';
+import { cpuProfilesFromTrace, observeContextLongTasks, scopeContextTasks } from './fixtures/context-cpu-profile.mjs';
 
 const profileCPU = process.env.PERF_PROFILE_CPU === '1';
+const profileMode = process.env.PERF_PROFILE_MODE ?? 'profiler';
+assert.ok(['profiler', 'timeline'].includes(profileMode), 'PERF_PROFILE_MODE must be profiler or timeline');
+const contextProfile = profileMode === 'timeline';
+if (contextProfile && !profileCPU) throw new Error('Timeline CPU capture requires PERF_PROFILE_CPU=1');
+const rounds = Number(process.env.PERF_ACTION_ROUNDS ?? 3);
+assert.ok(Number.isInteger(rounds) && rounds >= 1 && rounds <= 20, 'PERF_ACTION_ROUNDS must be an integer from 1 to 20');
 const profileDirectory = process.env.PERF_PROFILE_DIR;
 if (profileDirectory && !profileCPU) throw new Error('PERF_PROFILE_DIR requires PERF_PROFILE_CPU=1');
 if (profileDirectory) fs.mkdirSync(profileDirectory, { recursive: true, mode: 0o700 });
@@ -25,7 +32,7 @@ const buildings = [...stock, ...Array.from({ length: 598 }, (_, i) => ({
   ...stock[0], id: `load-${i}`, name: `性能样本${String(i).padStart(3, '0')}`, submarket: '其他',
   location_lng: 116.22 + (i % 30) * .012, location_lat: 39.78 + Math.floor(i / 30) * .012,
 }))];
-const results = { cpuProfilingEnabled: profileCPU, timingScope: profileCPU ? 'diagnostic sampling; not comparable to unprofiled benchmark' : 'unprofiled benchmark', schema: 1, environment: 'production React + real AMap 2.0/tiles + isolated business/auth fixtures',
+const results = { cpuProfilingEnabled: profileCPU, profileMode: profileCPU ? profileMode : null, actionRounds: rounds, timingScope: profileCPU ? 'diagnostic sampling; not comparable to unprofiled benchmark' : 'unprofiled benchmark', schema: 1, environment: 'production React + real AMap 2.0/tiles + isolated business/auth fixtures',
   collectedAt: new Date().toISOString(), applicationCommit: process.env.PERF_COMMIT ?? 'unrecorded',
   browser: await browser.version(), locatedProjects: 601, scenarios: [], limitations: [
     'Mobile is a desktop Chrome viewport, not an iOS/Android device.',
@@ -64,10 +71,11 @@ try {
       localStorage.setItem('sb-example-auth-token', JSON.stringify(session));
     }, { origin: base.origin, session });
     await context.addInitScript(installLiveAmapProbe);
+    if (contextProfile) await context.addInitScript(observeContextLongTasks);
     const page = await context.newPage();
     page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(10000);
     // Error classes only: SDK errors may contain credentials or query strings.
-    page.on('pageerror', error => errors.push(error.name));
+    page.on('pageerror', error => errors.push(sanitizeErrorStack(error)));
     page.on('response', response => {
       const target = new URL(response.url());
       if (!provider(target.hostname)) return;
@@ -82,139 +90,150 @@ try {
     });
     const cdp = await context.newCDPSession(page);
     await cdp.send('Performance.enable');
-    if (profileCPU) {
+    if (profileCPU && !contextProfile) {
       await cdp.send('Profiler.enable');
       await cdp.send('Profiler.setSamplingInterval', { interval: 1000 });
     }
     const trace = [];
     cdp.on('Tracing.dataCollected', event => trace.push(...event.value));
-    const detail = page.getByRole('region', { name: 'CBD甲楼楼宇详情' });
-    const list = page.getByRole('region', { name: '项目列表', exact: true });
-    const camera = () => page.evaluate(() => { const m = window.__workspaceMap, c = m.getCenter(); return { zoom: m.getZoom(), center: [c.lng, c.lat] }; });
-    const focus = async (center = [116.46, 39.91]) => {
-      await page.waitForFunction(target => { const m = window.__workspaceMap, c = m?.getCenter(); return c && m.getZoom() >= 13.99 && Math.abs(c.lng - target[0]) < .00001 && Math.abs(c.lat - target[1]) < .00001; }, center);
-    };
-    const measure = async (name, action) => {
-      phase = `${width}/${reduced ? 'reduced' : 'motion'}/${name}`;
-      const before = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value]));
-      await page.evaluate(() => {
-        const p = window.__liveAmapProbe;
-        p.sample = { start: performance.now(), intervals: [], activeIntervals: [], longTasks: [], calls: p.calls.length, events: p.events.length, created: p.created };
-        p.sample.observer = new PerformanceObserver(list => p.sample.longTasks.push(...list.getEntries().map(x => ({ startTime: x.startTime, duration: x.duration }))));
-        p.sample.observer.observe({ type: 'longtask' });
-        let previous;
-        const frame = now => {
-          if (previous !== undefined) {
-            p.sample.intervals.push(now - previous);
-            if (now - p.sample.start <= 1000) p.sample.activeIntervals.push(now - previous);
+    const contextScenarios = [];
+    if (contextProfile) await cdp.send('Tracing.start', { traceConfig: { includedCategories: ['devtools.timeline', 'disabled-by-default-v8.cpu_profiler'], enableSampling: true }, transferMode: 'ReportEvents' });
+    try {
+      const detail = page.getByRole('region', { name: 'CBD甲楼楼宇详情' });
+      const list = page.getByRole('region', { name: '项目列表', exact: true });
+      const camera = () => page.evaluate(() => { const m = window.__workspaceMap, c = m.getCenter(); return { zoom: m.getZoom(), center: [c.lng, c.lat] }; });
+      const focus = async (center = [116.46, 39.91]) => {
+        await page.waitForFunction(target => { const m = window.__workspaceMap, c = m?.getCenter(); return c && m.getZoom() >= 13.99 && Math.abs(c.lng - target[0]) < .00001 && Math.abs(c.lat - target[1]) < .00001; }, center);
+      };
+      const measure = async (name, action) => {
+        phase = `${width}/${reduced ? 'reduced' : 'motion'}/${name}`;
+        const before = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value]));
+        await page.evaluate(beginLiveAmapSample);
+        if (!contextProfile) {
+          trace.length = 0;
+          if (profileCPU) await cdp.send('Profiler.start');
+          await cdp.send('Tracing.start', { categories: profileCPU ? 'devtools.timeline,v8,disabled-by-default-v8.gc' : 'devtools.timeline', transferMode: 'ReportEvents' });
+        }
+        await action();
+        await page.waitForTimeout(1200);
+        const sample = await page.evaluate(finishLiveAmapSample);
+        sample.navigationStart = before.NavigationStart;
+        if (!contextProfile) {
+          const complete = new Promise(resolve => cdp.once('Tracing.tracingComplete', resolve));
+          await cdp.send('Tracing.end'); await complete;
+          const profile = profileCPU ? (await cdp.send('Profiler.stop')).profile : null;
+          if (profile) sample.longTaskDetails = summarizeLongTasks({ tasks: sample.longTasksMs, profile, trace, navigationStart: before.NavigationStart, origin: base.origin });
+          if (profile && profileDirectory && sample.longTasksMs.length) {
+            const stem = `${width}-${reduced ? 'reduced' : 'motion'}-${name}`;
+            fs.writeFileSync(path.join(profileDirectory, `${stem}.cpuprofile`), JSON.stringify(sanitizeCpuProfile(profile)), { mode: 0o600 });
+            fs.writeFileSync(path.join(profileDirectory, `${stem}.trace.json`), JSON.stringify({ traceEvents: sanitizeMainThreadTrace(trace), navigationStart: before.NavigationStart, tasks: sample.longTasksMs }), { mode: 0o600 });
+            sample.profileFile = `${stem}.cpuprofile`;
+            sample.traceFile = `${stem}.trace.json`;
           }
-          previous = now; if (!p.sample.done) requestAnimationFrame(frame);
-        };
-        requestAnimationFrame(frame);
-      });
-      trace.length = 0;
-      if (profileCPU) await cdp.send('Profiler.start');
-      await cdp.send('Tracing.start', { categories: profileCPU ? 'devtools.timeline,v8,disabled-by-default-v8.gc' : 'devtools.timeline', transferMode: 'ReportEvents' });
-      await action();
-      await page.waitForTimeout(1200);
-      const sample = await page.evaluate(() => {
-        const p = window.__liveAmapProbe, s = p.sample; s.done = true; s.observer.disconnect();
-        const frames = s.intervals.sort((a,b) => a-b), active = s.activeIntervals.sort((a,b)=>a-b);
-        const calls = p.calls.slice(s.calls), events = p.events.slice(s.events);
-        const command = calls.filter(x=>['setCenter','setZoomAndCenter','setBounds'].includes(x.name)).at(-1);
-        const end = events.filter(x=>['moveend','zoomend'].includes(x.name)).at(-1);
-        return { elapsedMs: performance.now()-s.start, frames: frames.length, frameP95Ms: frames[Math.floor(frames.length*.95)] ?? null,
-          firstSecondFrameP95Ms: active[Math.floor(active.length*.95)] ?? null,
-          intervalsOver33Ms: frames.filter(x=>x>33.4).length, longestFrameMs: frames.at(-1) ?? null, longTasksMs: s.longTasks,
-          resizeCalls: calls.filter(x=>x.name==='resize').length, newMapInstances: p.created-s.created,
-          cameraEndMs: end ? end.at-s.start : null,
-          cameraAfterLastCommandMs: end && command && end.at >= command.at ? end.at-command.at : null };
-      });
-      const complete = new Promise(resolve => cdp.once('Tracing.tracingComplete', resolve));
-      await cdp.send('Tracing.end'); await complete;
-      const profile = profileCPU ? (await cdp.send('Profiler.stop')).profile : null;
-      if (profile) sample.longTaskDetails = summarizeLongTasks({ tasks: sample.longTasksMs, profile, trace, navigationStart: before.NavigationStart, origin: base.origin });
-      if (profile && profileDirectory && sample.longTasksMs.length) {
-        const stem = `${width}-${reduced ? 'reduced' : 'motion'}-${name}`;
-        fs.writeFileSync(path.join(profileDirectory, `${stem}.cpuprofile`), JSON.stringify(sanitizeCpuProfile(profile)), { mode: 0o600 });
-        fs.writeFileSync(path.join(profileDirectory, `${stem}.trace.json`), JSON.stringify({ traceEvents: sanitizeMainThreadTrace(trace), navigationStart: before.NavigationStart, tasks: sample.longTasksMs }), { mode: 0o600 });
-        sample.profileFile = `${stem}.cpuprofile`;
-        sample.traceFile = `${stem}.trace.json`;
+          sample.longTasksMs = sample.longTasksMs.map(task => task.duration);
+        }
+        const after = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value]));
+        sample.cpuMs = Object.fromEntries(['LayoutDuration','RecalcStyleDuration','ScriptDuration','TaskDuration'].map(name=>[name,(after[name]-before[name])*1000]));
+        if (!contextProfile) sample.paintTraceMs = trace.filter(x=>x.name==='Paint' && x.ph==='X').reduce((sum,x)=>sum+(x.dur??0)/1000,0);
+        sample.camera = await camera();
+        const scenario = { width, height, reduced, name, ...sample };
+        results.scenarios.push(scenario); contextScenarios.push(scenario);
+        console.log(`completed ${width}/${reduced ? 'reduced' : 'motion'} ${name}`);
+        return sample;
+      };
+      await page.goto(new URL(`/map?building=${project}`, base).href);
+      await detail.waitFor(); await focus();
+      await page.waitForFunction(() => window.__liveAmapProbe.events.some(e=>e.name==='complete'));
+      // SDK complete/target camera can precede the first response in a warm or
+      // small viewport. Require real transport success without an early race.
+      await waitForLiveAmapTiles(page, network);
+      assert.ok(network.tileOK > 0 && network.sdkOK > 0, 'real provider SDK and tile responses required');
+      const startup = await page.evaluate(() => window.__liveAmapProbe.stages);
+      await page.getByRole('tab', { name: '成交与资料', exact: true }).click();
+      if (width === 390) await detail.getByRole('button', { name: '阅读', exact: true }).click();
+      const link = page.getByRole('link', { name: 'Stacking Plan', exact: true });
+      await link.scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
+      const top = await detail.locator('.workspace-scroll').evaluate(e => e.scrollTop);
+      const beforeCamera = await camera();
+      for (let round = 0; round < rounds; round++) {
+        await link.click(); await page.waitForURL(u => u.pathname === `/stacking-plan/${project}`);
+        await page.getByRole('button', { name: /A 座 60层 连续性租户599/ }).waitFor();
+        await measure(`stack-return-${round}`, async () => {
+          await page.getByRole('link', { name: '返回项目详情', exact: true }).click(); await detail.waitFor(); await focus();
+          assert.equal(await page.getByRole('tab', { name: '成交与资料', exact: true }).getAttribute('aria-selected'), 'true');
+          await page.waitForFunction(top => Math.abs(document.querySelector('.workspace-building-scroll')?.scrollTop - top) < 2, top);
+          assert.equal(await page.locator('.map-selected-marker').count(), 1);
+        });
+        const afterCamera = await camera();
+        const initialCamera = await page.evaluate(() => window.__liveAmapProbe.initialCameras.at(-1));
+        assert.ok(Math.abs(initialCamera.zoom - beforeCamera.zoom) < .01, 'return must construct at saved zoom');
+        assert.ok(initialCamera.center.every((v,i)=>Math.abs(v-beforeCamera.center[i])<.00001), 'return must construct at saved center');
+        assert.ok(Math.abs(afterCamera.zoom - beforeCamera.zoom) < .01);
+        assert.ok(afterCamera.center.every((v,i)=>Math.abs(v-beforeCamera.center[i])<.00001));
       }
-      sample.longTasksMs = sample.longTasksMs.map(task => task.duration);
-      const after = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value]));
-      sample.cpuMs = Object.fromEntries(['LayoutDuration','RecalcStyleDuration','ScriptDuration','TaskDuration'].map(name=>[name,(after[name]-before[name])*1000]));
-      sample.paintTraceMs = trace.filter(x=>x.name==='Paint' && x.ph==='X').reduce((sum,x)=>sum+(x.dur??0)/1000,0);
-      sample.camera = await camera();
-      results.scenarios.push({ width, height, reduced, name, ...sample });
-      console.log(`completed ${width}/${reduced ? 'reduced' : 'motion'} ${name}`);
-      return sample;
-    };
-    await page.goto(new URL(`/map?building=${project}`, base).href);
-    await detail.waitFor(); await focus();
-    await page.waitForFunction(() => window.__liveAmapProbe.events.some(e=>e.name==='complete'));
-    // SDK complete/target camera can precede the first response in a warm or
-    // small viewport. Require real transport success without an early race.
-    await waitForLiveAmapTiles(page, network);
-    assert.ok(network.tileOK > 0 && network.sdkOK > 0, 'real provider SDK and tile responses required');
-    const startup = await page.evaluate(() => window.__liveAmapProbe.stages);
-    await page.getByRole('tab', { name: '成交与资料', exact: true }).click();
-    if (width === 390) await detail.getByRole('button', { name: '阅读', exact: true }).click();
-    const link = page.getByRole('link', { name: 'Stacking Plan', exact: true });
-    await link.scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
-    const top = await detail.locator('.workspace-scroll').evaluate(e => e.scrollTop);
-    const beforeCamera = await camera();
-    for (let round = 0; round < 3; round++) {
       await link.click(); await page.waitForURL(u => u.pathname === `/stacking-plan/${project}`);
+        await page.getByRole('button', { name: /A 座 60层 连续性租户599/ }).waitFor();
+      await page.goBack({waitUntil:'commit'}); await detail.waitFor(); await focus();
+      await page.goForward({waitUntil:'commit'}); await page.waitForURL(u => u.pathname === `/stacking-plan/${project}`);
       await page.getByRole('button', { name: /A 座 60层 连续性租户599/ }).waitFor();
-      await measure(`stack-return-${round}`, async () => {
-        await page.getByRole('link', { name: '返回项目详情', exact: true }).click(); await detail.waitFor(); await focus();
-        assert.equal(await page.getByRole('tab', { name: '成交与资料', exact: true }).getAttribute('aria-selected'), 'true');
-        await page.waitForFunction(top => Math.abs(document.querySelector('.workspace-building-scroll')?.scrollTop - top) < 2, top);
-        assert.equal(await page.locator('.map-selected-marker').count(), 1);
-      });
-      const afterCamera = await camera();
-      const initialCamera = await page.evaluate(() => window.__liveAmapProbe.initialCameras.at(-1));
-      assert.ok(Math.abs(initialCamera.zoom - beforeCamera.zoom) < .01, 'return must construct at saved zoom');
-      assert.ok(initialCamera.center.every((v,i)=>Math.abs(v-beforeCamera.center[i])<.00001), 'return must construct at saved center');
-      assert.ok(Math.abs(afterCamera.zoom - beforeCamera.zoom) < .01);
-      assert.ok(afterCamera.center.every((v,i)=>Math.abs(v-beforeCamera.center[i])<.00001));
+      await measure('history-return', async () => { await page.goBack({waitUntil:'commit'}); await detail.waitFor(); await focus(); });
+      for (let round = 0; round < rounds; round++) {
+        const filter = await measure(`filter-toggle-${round}`, async () => {
+          await page.getByRole('button', { name: '筛选', exact: true }).click();
+          await page.waitForTimeout(70);
+          await page.getByRole('button', { name: '筛选', exact: true }).click();
+        });
+        assert.equal(filter.newMapInstances, 0, 'filter reversal must retain map');
+        const close = await measure(`panel-close-${round}`, async () => { await page.getByRole('button', { name: '关闭楼宇详情' }).click(); });
+        assert.equal(close.newMapInstances, 0, 'panel close must retain map');
+        assert.ok(close.resizeCalls <= 2, `coalesced resize expected, got ${close.resizeCalls}`);
+        const open = await measure(`panel-open-${round}`, async () => {
+          await page.getByRole('button', { name: '项目列表', exact: true }).click(); await list.waitFor();
+          await list.getByRole('button', { name: /^CBD甲楼/ }).click(); await detail.waitFor(); await focus();
+        });
+        assert.equal(open.newMapInstances, 0, 'panel open must retain map');
+        await measure(`rapid-switch-${round}`, async () => {
+          await page.getByRole('button', { name: '项目列表', exact: true }).click(); await list.waitFor();
+          await list.getByRole('button', { name: /^CBD乙楼/ }).click();
+          await page.getByRole('button', { name: '关闭楼宇详情' }).click();
+          await page.getByRole('button', { name: '项目列表', exact: true }).click();
+          await list.getByRole('button', { name: /^CBD甲楼/ }).click(); await detail.waitFor(); await focus();
+        });
+        await focus(); assert.equal(await page.locator('.map-selected-marker').count(),1);
+      }
+      results.scenarios.push({width,height,reduced,name:'startup-and-network',startup,network,errors,readingScroll:top});
+      assert.deepEqual(errors, []);
+      assert.equal(network.providerHTTPFailures, 0);
+      assert.equal(network.failedRequests, 0);
+    } finally {
+      if (contextProfile) {
+        const complete = new Promise(resolve => cdp.once('Tracing.tracingComplete', resolve));
+        await cdp.send('Tracing.end'); await complete;
+        const profiles = cpuProfilesFromTrace(trace);
+        const stem = `${width}-${reduced ? 'reduced' : 'motion'}-context`;
+        const navigationStart = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value])).NavigationStart;
+        const tasks = await page.evaluate(() => window.__liveAmapContextTasks ?? []);
+        const scopes = scopeContextTasks(tasks, contextScenarios);
+        if (profileDirectory) {
+          for (const [index, profile] of profiles.entries()) fs.writeFileSync(path.join(profileDirectory, `${stem}-${index}.cpuprofile`), JSON.stringify(sanitizeCpuProfile(profile)), { mode: 0o600 });
+          fs.writeFileSync(path.join(profileDirectory, `${stem}.trace.json`), JSON.stringify({ traceEvents: sanitizeMainThreadTrace(trace), navigationStart, tasks: scopes }), { mode: 0o600 });
+        }
+        // Never silently attribute a different renderer's CPU or a reset clock.
+        assert.equal(profiles.length, 1, 'one renderer-main CPU profile required');
+        assert.ok(contextScenarios.every(sample => sample.navigationStart === navigationStart), 'context navigation clock must remain stable');
+        const profile = profiles[0];
+        for (const sample of contextScenarios) {
+          sample.longTaskDetails = summarizeLongTasks({ tasks: sample.longTasksMs, profile, trace, navigationStart, origin: base.origin });
+          sample.longTasksMs = sample.longTasksMs.map(task => task.duration);
+          sample.profileFile = `${stem}-0.cpuprofile`; sample.traceFile = `${stem}.trace.json`;
+        }
+        results.scenarios.push({ width, height, reduced, name: 'context-cpu-capture',
+          profileFile: `${stem}-0.cpuprofile`, traceFile: `${stem}.trace.json`,
+          profileStats: { nodes: profile.nodes.length, samples: profile.samples.length },
+          tasks: scopes, longTaskDetails: summarizeLongTasks({ tasks, profile, trace, navigationStart, origin: base.origin }) });
+      }
+      await context.close();
     }
-    await link.click(); await page.waitForURL(u => u.pathname === `/stacking-plan/${project}`);
-      await page.getByRole('button', { name: /A 座 60层 连续性租户599/ }).waitFor();
-    await page.goBack({waitUntil:'commit'}); await detail.waitFor(); await focus();
-    await page.goForward({waitUntil:'commit'}); await page.waitForURL(u => u.pathname === `/stacking-plan/${project}`);
-    await page.getByRole('button', { name: /A 座 60层 连续性租户599/ }).waitFor();
-    await measure('history-return', async () => { await page.goBack({waitUntil:'commit'}); await detail.waitFor(); await focus(); });
-    for (let round = 0; round < 3; round++) {
-      const filter = await measure(`filter-toggle-${round}`, async () => {
-        await page.getByRole('button', { name: '筛选', exact: true }).click();
-        await page.waitForTimeout(70);
-        await page.getByRole('button', { name: '筛选', exact: true }).click();
-      });
-      assert.equal(filter.newMapInstances, 0, 'filter reversal must retain map');
-      const close = await measure(`panel-close-${round}`, async () => { await page.getByRole('button', { name: '关闭楼宇详情' }).click(); });
-      assert.equal(close.newMapInstances, 0, 'panel close must retain map');
-      assert.ok(close.resizeCalls <= 2, `coalesced resize expected, got ${close.resizeCalls}`);
-      const open = await measure(`panel-open-${round}`, async () => {
-        await page.getByRole('button', { name: '项目列表', exact: true }).click(); await list.waitFor();
-        await list.getByRole('button', { name: /^CBD甲楼/ }).click(); await detail.waitFor(); await focus();
-      });
-      assert.equal(open.newMapInstances, 0, 'panel open must retain map');
-      await measure(`rapid-switch-${round}`, async () => {
-        await page.getByRole('button', { name: '项目列表', exact: true }).click(); await list.waitFor();
-        await list.getByRole('button', { name: /^CBD乙楼/ }).click();
-        await page.getByRole('button', { name: '关闭楼宇详情' }).click();
-        await page.getByRole('button', { name: '项目列表', exact: true }).click();
-        await list.getByRole('button', { name: /^CBD甲楼/ }).click(); await detail.waitFor(); await focus();
-      });
-      await focus(); assert.equal(await page.locator('.map-selected-marker').count(),1);
-    }
-    results.scenarios.push({width,height,reduced,name:'startup-and-network',startup,network,errors,readingScroll:top});
-    assert.deepEqual(errors, []);
-    assert.equal(network.providerHTTPFailures, 0);
-    assert.equal(network.failedRequests, 0);
-    await context.close();
   }
   results.status = 'passed';
 } catch (error) {

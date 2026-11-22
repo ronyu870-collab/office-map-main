@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { summarizeLongTasks, sanitizeCpuProfile, sanitizeMainThreadTrace } from './fixtures/long-task-profile.mjs';
+import { summarizeLongTasks, sanitizeCpuProfile, sanitizeMainThreadTrace, sanitizeErrorStack } from './fixtures/long-task-profile.mjs';
 
 const secret = 'a'.repeat(32);
 const frame = (functionName, url = '') => ({ functionName, url, lineNumber: 9 });
@@ -13,6 +13,12 @@ const profile = {
   ],
   samples: [3, 4, 1, 1], timeDeltas: [0, 60000, 40000, 10000],
 };
+
+it('keeps error frame sources and locations without messages, credentials or URL queries', () => {
+  const result = sanitizeErrorStack({ name: 'TypeError', stack: `TypeError: ${secret}\nprivate message continuation\n at parse (https://user:${secret}@webapi.amap.com/maps?key=${secret}:1:42)\n at ${secret} (http://localhost/app.js:2:3)` });
+  expect(result).toEqual({ name: 'TypeError', frames: [' at parse (https://webapi.amap.com/maps:1:42)', ' at [redacted] (http://localhost/app.js:2:3)'] });
+  expect(JSON.stringify(result)).not.toContain(secret);
+});
 
 it('aligns task-relative time with monotonic CPU samples, clips overlap and strips URL queries', () => {
   const result = summarizeLongTasks({
