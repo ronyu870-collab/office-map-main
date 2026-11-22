@@ -10,13 +10,13 @@
 .root > :first-child { margin-top: 0; }
 .root > :last-child { margin-bottom: 0; }
 .root p { margin: 0 0 16px; }
-.root :is(h3, h4, h5, h6) {
+.root :is(h2, h3, h4, h5, h6) {
   margin: 24px 0 12px;
   font-weight: 600;
   line-height: 1.5;
   scroll-margin-top: 24px;
 }
-.root h3 { font-size: var(--cd-ai-heading-size); }
+.root :is(h2, h3) { font-size: var(--cd-ai-heading-size); }
 .root :is(h4, h5, h6) { font-size: var(--cd-ai-body-size); }
 .root strong { font-weight: 600; }
 .root em { font-style: italic; }
@@ -37,7 +37,7 @@
 .root blockquote {
   margin: 16px 0;
   padding: 4px 0 4px 16px;
-  border-left: 3px solid var(--cd-color-border-strong);
+  border-left: 1px solid var(--cd-color-border-strong);
   color: var(--cd-color-text-secondary);
 }
 .root blockquote > :last-child { margin-bottom: 0; }
@@ -78,3 +78,7 @@
   .root :is(th, td) { padding: 8px 12px; }
   .root pre { padding: 12px; }
 }
+
+.root { font-variant-numeric: tabular-nums; }
+.root :is(h2, h3, h4, h5, h6) { text-wrap: pretty; }
+.root pre code { font-size: inherit; }

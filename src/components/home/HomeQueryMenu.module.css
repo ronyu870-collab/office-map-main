@@ -1,0 +1,12 @@
+.menu { position: relative; font-size: var(--cd-ai-body-size); }
+.menu > summary { list-style: none; cursor: pointer; min-height: 36px; padding: var(--cd-space-2); color: var(--cd-color-text-secondary); display: flex; align-items: center; gap: var(--cd-space-2); border-radius: var(--cd-radius-md); }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu[open] > summary, .menu > summary:hover { background: var(--cd-color-surface-alt); }
+.body { position: absolute; inset-inline-end: 0; inset-block-start: 100%; z-index: 5; display: grid; gap: var(--cd-space-1); min-width: 210px; width: max-content; max-width: min(320px, calc(100vw - 48px)); max-height: min(360px, 60dvh); overflow: auto; padding: var(--cd-space-2); background: var(--cd-color-surface); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-lg); box-shadow: var(--cd-shadow-popover); }
+.body :is(button, label) { min-height: 36px; text-align: start; font: inherit; }
+.body button { justify-content: flex-start; white-space: normal; height: auto; }
+.body label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cd-space-2); }
+.body select { width: 100%; min-height: 36px; font: inherit; color: inherit; background: var(--cd-color-surface); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-md); padding: var(--cd-space-2); }
+.menu :is(summary, button, select, input):focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+@media (max-width: 639px), (pointer: coarse) { .menu > summary, .body :is(button, label, select) { min-height: 44px; } }
+@media (max-width: 479px) { .menu { position: static; } .body { inset-inline: 0; width: auto; } }

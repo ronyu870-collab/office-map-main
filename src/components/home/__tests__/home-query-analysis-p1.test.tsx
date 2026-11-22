@@ -51,7 +51,7 @@ describe('P1 source-backed research result presentation', () => {
     render(<HomeQueryResult result={result} />);
     expect(screen.getByRole('region', { name: '数据依据摘要' })).toHaveTextContent('2026 Q3 季度跟踪样本');
     expect(screen.getByRole('region', { name: '数据依据摘要' })).toHaveTextContent('有效样本：3 栋');
-    fireEvent.click(screen.getByText('来源、口径与结果版本')); fireEvent.click(screen.getByText('实际执行条件'));
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' })); fireEvent.click(screen.getByText('高级技术信息')); fireEvent.click(screen.getByText('实际执行条件'));
     expect(JSON.parse(screen.getByText(/"operation": "aggregate"/).textContent!)).toEqual(plan);
     expect(screen.getByText(/使用的数据表与字段/)).toHaveTextContent('building_metrics.net_effective_rent');
     expect(screen.queryByText(/internal-context-marker/)).not.toBeInTheDocument();

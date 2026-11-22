@@ -152,7 +152,8 @@
   .toolbarActions button { transition: none; }
 }
 @media (max-width: 479px) {
-  .toolbarActions .newConversation { display: none; }
+  .toolbarActions .newConversation { min-width: 44px; padding-inline: var(--cd-space-2); }
+  .toolbarActions .newConversation span { display: none; }
   .help { inset: 0; width: 100%; border: 0; border-radius: 0; padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom); }
 }
 
@@ -162,3 +163,5 @@
 .surface:is([data-mode="focus"], [data-mode="expanded"]) .main { background: var(--cd-color-workspace); }
 .surface:is([data-mode="focus"], [data-mode="expanded"]) .inputDock { background: var(--cd-color-workspace); }
 @media (max-width: 767px) { .conversationTitle { display: none; } }
+
+.body:has(> aside:not([hidden])) .main { flex: 1 1 42%; min-width: 0; }

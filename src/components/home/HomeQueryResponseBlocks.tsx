@@ -6,7 +6,6 @@ import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { agentExportDescriptorSchema } from '@/src/lib/intelligence/query/exportProtocol';
 import { buildArtifactFilename } from '@/src/lib/intelligence/query/artifactFilename';
 import { HomeQueryDataTable } from './HomeQueryDataTable';
-import { HomeQueryChartWorkspace } from './HomeQueryChartWorkspace';
 import { HomeQueryExportDownload } from './HomeQueryExportDownload';
 import { HomeQueryPdfDownload } from './HomeQueryPdfDownload';
 
@@ -28,7 +27,7 @@ function FileBlock({ result, requestId, scope, internalExport }: {
 export const responseBlockRenderers = Object.freeze({
   text: dynamic(() => import('./HomeQueryMarkdown').then(module => module.HomeQueryMarkdown), { loading: () => null }),
   table: HomeQueryDataTable,
-  chart: HomeQueryChartWorkspace,
+  chart: dynamic(() => import('./HomeQueryChartWorkspace').then(module => module.HomeQueryChartWorkspace), { loading: () => <p role="status">正在打开图表…</p> }),
   building: dynamic(() => import('./HomeQueryBuildings').then(module => module.HomeQueryBuildings), {
     loading: () => <p role="status">正在打开楼宇信息…</p>,
   }),

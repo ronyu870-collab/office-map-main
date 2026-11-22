@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { Button } from '@/src/components/ui/Button';
+import { HomeQueryDetailContent, useQueryDetail } from './HomeQueryDetailPanel';
 import { z } from 'zod';
 import { HomeQueryFileAttachment } from './HomeQueryFileAttachment';
 import { buildArtifactFilename } from '@/src/lib/intelligence/query/artifactFilename';
@@ -20,9 +22,13 @@ export function HomeQueryResearch({ result, requestId, scope, internalExport, re
   const task = researchTaskSchema.safeParse(result.parameters.researchTask).data;
   const sections = sectionsSchema.safeParse(result.parameters.researchSections).data ?? [];
   const formats = z.array(z.enum(researchFormats)).safeParse(result.parameters.researchDeliverables).data ?? [];
+  const detail = useQueryDetail();
+  const instanceId = React.useId();
+  const detailId = `${result.resultId}-${instanceId}-research`;
   const [opened, setOpened] = React.useState<string[]>([]);
   if (!task) return null;
-  return <section aria-label="研究工作集">
+  return <HomeQueryDetailContent id={detailId}><section aria-label="研究工作集">
+    {detail && detail.active?.id !== detailId && <Button variant="ghost" onClick={event => detail.open(detailId, '研究成果', event.currentTarget)}>打开研究成果</Button>}
     <p>{task.spec.submarkets.join('、')} · {task.start.year}Q{task.start.quarter} 至 {task.end.year}Q{task.end.quarter}。</p>
     <p>{task.state === 'reviewed' ? '研究步骤已审查，来源和限制随各部分保留。' : '研究尚未完成；可在当前对话中继续已获权步骤，恢复时重新核对权限。'}</p>
     {!!formats.length && <div aria-label="本条回答生成的研究文件">
@@ -46,5 +52,5 @@ export function HomeQueryResearch({ result, requestId, scope, internalExport, re
         </>}
       </details>;
     })}
-  </section>;
+  </section></HomeQueryDetailContent>;
 }

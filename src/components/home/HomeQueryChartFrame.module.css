@@ -1,0 +1,11 @@
+.frame { position: relative; margin-block: var(--cd-space-4); font-size: var(--cd-ai-body-size); min-width: 0; }
+.frame > header { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: var(--cd-space-2) var(--cd-space-4); padding-bottom: var(--cd-space-3); }
+.frame h3 { margin: 0; font-size: var(--cd-ai-heading-size); font-weight: 600; }
+.actions { display: flex; align-items: center; gap: var(--cd-space-2); }
+.actions > button { min-height: 36px; color: var(--cd-color-text-secondary); }
+.body { min-width: 0; }
+.body figure { margin: 0; }
+.body svg { font-family: inherit; font-size: var(--cd-ai-body-size); }
+.body svg :is(circle, [role="button"]):focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 3px; }
+.frame :is(button, summary):focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+@media (max-width: 639px), (pointer: coarse) { .actions > button { min-height: 44px; } }

@@ -193,3 +193,10 @@
 .editQuestion:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
 .question { margin-bottom: var(--cd-space-5); }
 @media (max-width: 639px), (pointer: coarse) { .editQuestion { min-height: 44px; } }
+
+/* Questions remain readable; editing stays discoverable by pointer and keyboard. */
+.question { padding: var(--cd-space-3) var(--cd-space-4); box-shadow: none; }
+.question .editQuestion { opacity: 0; transition: opacity 120ms ease; }
+.question:hover .editQuestion, .question:focus-within .editQuestion { opacity: 1; }
+@media (hover: none) { .question .editQuestion { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .question .editQuestion { transition: none; } }

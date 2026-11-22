@@ -9,3 +9,5 @@
 .controls input[type="checkbox"] { width: 24px; }
 .controls input:focus-visible, .controls select:focus-visible, .canvas:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
 @media (max-width: 639px) { .controls { grid-template-columns: minmax(0, 1fr); } }
+.advanced { grid-column: 1 / -1; }
+.advanced > summary { cursor: pointer; min-height: 44px; padding-block: var(--cd-space-2); color: var(--cd-color-text-secondary); }

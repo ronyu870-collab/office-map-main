@@ -27,7 +27,7 @@ it('delivers a real download operation beside a collapsed answer; reports dispat
   const value = result(), file = { blob: new Blob(['synthetic downloaded bytes']), filename: 'query.xlsx' };
   client.download.mockResolvedValue(file);
   render(<HomeQueryResult result={value} presentation="compact" requestId={requestId} scope={scope} internalExport />);
-  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(screen.getByRole('table').querySelectorAll('tbody tr')).toHaveLength(8);
   expect(client.download).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: '下载 Excel' }));
   await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce());

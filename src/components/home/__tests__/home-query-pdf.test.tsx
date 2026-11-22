@@ -27,7 +27,7 @@ it('delivers a real download operation beside a collapsed answer; reports dispat
   const value = result(), file = { blob: new Blob(['synthetic downloaded bytes']), filename: 'query.pdf' };
   client.download.mockResolvedValue(file);
   render(<HomeQueryResult result={value} presentation="compact" requestId={requestId} scope={scope} internalExport />);
-  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(screen.getByRole('table').querySelectorAll('tbody tr')).toHaveLength(8);
   expect(client.download).not.toHaveBeenCalled();
   expect(screen.getByText(/本次内部 PDF 包含 3 个研究部分/)).toHaveTextContent('保留 40 条原表记录');
   expect(screen.queryByText(/符合条件的楼宇共/)).not.toBeInTheDocument();
