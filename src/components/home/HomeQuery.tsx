@@ -10,7 +10,7 @@ import { queryActionSchema, type QueryAction, type QueryConversation } from '@/s
 import { HomeQueryResult } from './HomeQueryResult';
 import { resultSummary } from '@/src/lib/intelligence/query/presentation';
 import { QueryWelcome, AssistantHeading, QueryWorkingIndicator, queryStarters } from './HomeQueryExperience';
-import { QueryClientError, queryFailureMessage } from '@/src/services/queryClientErrors';
+import { QueryClientError, queryFailureMessage, queryServiceMessage } from '@/src/services/queryClientErrors';
 import { readMapQueryContext, type BuildingSelection } from '@/src/lib/intelligence/query/buildingNavigation';
 import type { HistoryOpened } from '@/src/lib/intelligence/query/historyProtocol';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
@@ -248,7 +248,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       else if (result.status === 'clarification') { setMessage(result.reason === 'assistant_help' ? '' : result.message ?? '请补充完整查询条件。'); clearSaved(); }
       else if (result.status === 'running' || result.status === 'received') setMessage('请求已接收，服务端仍在处理。可检查状态并恢复原结果；不会重新查数。');
       else if (['already_received', 'succeeded', 'changed'].includes(result.status)) setMessage('请求已接收，可检查状态并恢复原结果；不会重新查数。');
-      else if (result.status === 'unavailable') setMessage('查询服务暂时不可用，不能据此判断没有数据。可稍后检查状态或重试本次请求。');
+      else if (result.status === 'unavailable') setMessage(queryServiceMessage(result.error));
       else { setMessage(result.error ?? '本次请求没有可恢复的结果，请检查权限或修改条件后重新查询。'); if (result.status === 'denied') clearSaved(); }
     } catch (error) {
       if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;

@@ -6,6 +6,7 @@ import { createDeepSeekAdapter } from './deepseekAdapter';
 
 export const modelModeSchema = z.enum(['quick', 'professional', 'deep']);
 export type ModelMode = z.infer<typeof modelModeSchema>;
+type ContextDomain = 'lease' | 'business' | 'knowledge';
 const limits = { quick: { rounds: 3, tools: 4 }, professional: { rounds: 7, tools: 10 }, deep: { rounds: 9, tools: 12 } } as const;
 const boundedNumber = (name: string, fallback: number, min: number, max: number) => {
   const configured = process.env[name];
@@ -46,11 +47,25 @@ const retryable = new Set(['not_configured', 'rate_limited', 'timeout', 'provide
 
 /** Avoid sending four copies of the 11KiB chart spec and unrelated domain tools
  * on every round. This is a model capability catalogue, never a data grant. */
-export function modelToolCatalogue(question: string, mode: ModelMode, messages: AgentMessage[], hasChartContext = false) {
+export function modelToolCatalogue(question: string, mode: ModelMode, messages: AgentMessage[], hasChartContext = false, contextDomains: readonly ContextDomain[] = []) {
   const selected = new Set(['query_verified_real_estate', 'get_data_capabilities', 'search_buildings', 'get_building_profile',
-    'list_buildings', 'query_quarterly_metrics', 'rank_buildings', 'compare_market_segments', 'analyze_market_trends',
-    'analyze_rent_vacancy', 'analyze_distribution', 'export_table', 'summarize_result', 'read_result_page',
-    'check_data_coverage', 'compare_result_sets', 'get_source_evidence', 'prepare_map_selection', 'prepare_research_output']);
+    'list_buildings', 'query_quarterly_metrics', 'rank_buildings', 'summarize_result', 'check_data_coverage', 'get_source_evidence']);
+  if (mode === 'deep' || /比较|对比|变化|趋势|同比|环比|多季度|过去|近.{0,6}季度|(?:和|与|、).{0,30}(?:同一|一张|一起|同图)/.test(question))
+    for (const name of ['compare_market_segments', 'analyze_market_trends', 'compare_result_sets']) selected.add(name);
+  if (mode === 'deep' || /空置|散点|相关|联合/.test(question)) selected.add('analyze_rent_vacancy');
+  if (mode === 'deep' || /分布|直方|箱线|异常/.test(question)) selected.add('analyze_distribution');
+  if (/Excel|CSV|xlsx|导出|表格|全部结果/i.test(question)) selected.add('export_table');
+  if (/翻页|下一页|第.{0,6}页|继续列|更多结果/.test(question)) selected.add('read_result_page');
+  if (/地图|定位|只查看|只看|选中/.test(question)) selected.add('prepare_map_selection');
+  if (mode === 'deep' || /摘要|总结|结论/.test(question)) selected.add('prepare_research_output');
+  // Follow-up tasks retain tools already selected by this verified conversation.
+  // This is discoverability only: the executor still rechecks every grant.
+  const domainTools = new Set(['query_lease_transactions', 'query_building_dossier', 'query_submarket_profile',
+    'query_future_supply', 'query_stacking_plan', 'list_knowledge_documents', 'search_internal_documents', 'search_public_building_information']);
+  for (const message of messages) for (const call of message.calls ?? []) if (domainTools.has(call.name)) selected.add(call.name);
+  if (contextDomains.includes('lease')) selected.add('query_lease_transactions');
+  if (contextDomains.includes('business')) for (const name of ['query_building_dossier', 'query_submarket_profile', 'query_future_supply', 'query_stacking_plan']) selected.add(name);
+  if (contextDomains.includes('knowledge')) for (const name of ['list_knowledge_documents', 'search_internal_documents']) selected.add(name);
   if (mode === 'deep') for (const name of ['plan_research_task', 'advance_research_task', 'review_research_task', 'generate_research_deliverable', 'query_report_market']) selected.add(name);
   if (/PDF/i.test(question)) selected.add('generate_pdf_report');
   if (/成交|租赁|租户|租在哪|行业|免租|签约|TMT|lease|transaction|tenant|industry/i.test(question)) selected.add('query_lease_transactions');
@@ -68,12 +83,22 @@ export function modelToolCatalogue(question: string, mode: ModelMode, messages: 
     selected.add(modifying ? 'modify_chart' : 'create_chart');
     if (/导出|下载|PNG|SVG/i.test(question)) selected.add('export_chart');
   }
-  return AGENT_TOOLS.filter(t => selected.has(t.function.name)).map(t => t.function);
+  return AGENT_TOOLS.filter(t => selected.has(t.function.name)).map(t => {
+    const definition = t.function;
+    // Packaging reuses the already applied chart. Avoid resending its complete
+    // 11KiB edit schema in both creation and export tools on every model round.
+    if (definition.name === 'export_chart' || definition.name === 'generate_pdf_report' && filePackaging) {
+      const properties: Record<string, unknown> = { ...definition.parameters.properties };
+      delete properties.chart; delete properties.charts;
+      return { ...definition, parameters: { ...definition.parameters, properties } };
+    }
+    return definition;
+  });
 }
 
 /** Request-local budget and routing; the existing DB receipt admission still
  * enforces the cross-instance per-account minute/day cap. No automatic SDK retries. */
-export function createModelRuntime(input: { actorId: string; question: string; mode?: ModelMode; hasChartContext?: boolean;
+export function createModelRuntime(input: { actorId: string; question: string; mode?: ModelMode; hasChartContext?: boolean; contextDomains?: readonly ContextDomain[];
   revalidate: (signal: AbortSignal) => Promise<void>; onAttempt: (attempt: ModelAttempt) => Promise<void>;
   legacyInvoke?: typeof completeWithDeepSeek; adapters?: Partial<Record<ProviderId, ModelAdapter>> }) {
   const mode = chooseModelMode(input.question, input.mode), configured = process.env[`AI_PROVIDER_${mode.toUpperCase()}`] ?? 'deepseek';
@@ -111,7 +136,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         settings = { model: 'unconfigured', rates: { input: 0, output: 0, basis: 'request_not_sent' } };
       }
       const { model, rates } = settings;
-      const tools = modelToolCatalogue(input.question, mode, messages, input.hasChartContext);
+      const tools = modelToolCatalogue(input.question, mode, messages, input.hasChartContext, input.contextDomains);
       // UTF-8 bytes are a conservative preflight token envelope, with framing
       // and native opaque continuation included. No silent context truncation.
       const upperInput = Buffer.byteLength(JSON.stringify(messages)) + Buffer.byteLength(JSON.stringify(tools))
