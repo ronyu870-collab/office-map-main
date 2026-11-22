@@ -249,6 +249,18 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.provider).not.toHaveBeenCalled();
     expect(state.append.mock.calls.map(x => x[1])).toContain('failed');
   });
+  it('retains bounded tool failure metadata when a later model round fails, without persisting tool arguments or raw errors', async () => {
+    state.provider.mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+      message: { role: 'assistant', content: null, tool_calls: [{ id: 'one', type: 'function',
+        function: { name: 'rank_buildings', arguments: JSON.stringify({ scope: { inventory: 'tracked', submarkets: ['CBD'] },
+          field: 'height', direction: 'desc', limit: 10 }) } }] } }).mockRejectedValueOnce(new Error('synthetic-private-error-do-not-log'));
+    state.structured.mockRejectedValue(new Error('QUERY_READ_UNAVAILABLE'));
+    const response = await handleAgentSubmission(fakeRequest('CBD最高十栋楼').request, deps());
+    expect(response.status).toBe(503);
+    const failure = state.append.mock.calls.find(c => c[1] === 'accounting' && c[2]?.status === 'incomplete')![2];
+    expect(failure.toolTrace).toEqual([expect.objectContaining({ name: 'rank_buildings', status: 'limited', errorCode: 'source_unavailable' })]);
+    expect(JSON.stringify(failure)).not.toMatch(/synthetic-private-error|submarkets|arguments/);
+  });
   it('routes structured tool calls through authorized executor and paginates an earlier result by its genuine ID', async () => {
     const rawA = buildListResult(fixture(), ['height']);
     const rawB = buildListResult(fixture(), ['height']);

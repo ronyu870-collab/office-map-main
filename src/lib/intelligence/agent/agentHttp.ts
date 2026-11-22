@@ -243,6 +243,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     };
     const runtime = createModelRuntime({ actorId: actor.actorId, question: valid.question, mode: valid.mode ?? (research.task ? 'deep' : undefined),
       hasChartContext: !!history.contextChart,
+      contextDomains: [...(leaseResults.size ? ['lease' as const] : []), ...(businessResults.size ? ['business' as const] : []),
+        ...(knowledgeResults.size ? ['knowledge' as const] : [])],
       legacyInvoke: dependencies.invokeModel ?? completeWithDeepSeek, revalidate: revalidateModel,
       onAttempt: async attempt => { await audit!.append(requestId, 'accounting', attempt); } });
     let preparedMap: QueryResult | undefined;
@@ -474,7 +476,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         },
       });
     } catch (error) {
-      await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: 'incomplete',
+      await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: 'incomplete', toolTrace,
         modelCallsCompleted: completedModels, inputTokens: reportedInput, outputTokens: reportedOutput,
         providerRequestIds: providerRequestIds.slice(0, 6),
         cost: null, costStatus: 'planning_range_not_invoice',

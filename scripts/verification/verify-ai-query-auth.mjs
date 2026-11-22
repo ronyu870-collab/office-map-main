@@ -34,6 +34,7 @@ import { verifyQuarterTrend } from './ai-query-trend-scenarios.mjs';
 import { verifyResearchAnalysis } from './ai-query-research-scenarios.mjs';
 import { verifyConversation } from './ai-query-conversation-scenarios.mjs';
 import { verifyQueryHomeDependencies } from './ai-query-home-dependencies.mjs';
+import { waitForPostgrestAuth } from './postgrest-auth-readiness.mjs';
 import { verifyMultiMetricAnalysis } from './ai-query-multi-metric-scenarios.mjs';
 import { verifyP2Outputs } from './ai-query-p2-output-scenarios.mjs';
 import { setupP2Buildings, verifyP2Buildings } from './ai-query-p2-building-scenarios.mjs';
@@ -83,6 +84,7 @@ async function person(role,label){
   const signed=await entry.client.auth.signInWithPassword({email,password});assert.equal(signed.error,null);entry.token=signed.data.session.access_token;
   entry.sessionId=JSON.parse(Buffer.from(entry.token.split('.')[1],'base64url')).session_id;
   assert.ok((await db.query('select id from auth.sessions where id=$1 and user_id=$2',[entry.sessionId,entry.id])).rowCount);
+  await waitForPostgrestAuth(() => entry.client.from('user_roles').select('role').eq('user_id',entry.id).limit(1));
   return entry;
 }
 const rank={operation:'rank',scope:{inventory:'tracked',submarkets:['CBD']},field:'height',period:null,direction:'desc',limit:1};

@@ -20,6 +20,8 @@
 
 只读生产元数据确认：基础季度 RPC 包含 locked／draft 校验；成交 `ai_lease_research_snapshot`、业务 `ai_business_research_snapshot`、知识 `ai_knowledge_access` 及三组 private grants 尚不存在，因此相应模块**生产未启用**。本轮没有生产账号模型调用或私有文件下载验收；下表生产真实账号全部为**未验证**。没有应用生产迁移、配置资格、扩大 RLS、批量读私有原件或写生产业务记录。
 
+后续生产启用与真实模型验收见[生产记录](ai5-production-enablement.md)。下表保留阶段 12 当时证据，不代表后续生产状态。
+
 ## 25 项业务能力矩阵
 
 Q=`supabase/tests/ai-query-authority/run.mjs`、`query/__tests__/ai5-query-correctness.test.ts`；HTTP 脚本位于 `scripts/verification/`，单元测试位于 `src/lib/intelligence/`。“基线合并／部署”只表示上述 SHA 的代码，数据库与服务启用条件另列。

@@ -6,6 +6,14 @@ export class QueryClientError extends Error {
   }
 }
 
+/** Only fixed server-authored explanations may cross the generic service error
+ * boundary. Arbitrary transport errors, provider bodies and private text stay hidden. */
+export function queryServiceMessage(message?: string): string {
+  if (message === '本轮模型调用已达到 token 或费用估算预算，未继续调用供应商。'
+    || message === '本轮研究超过模型 token 安全预算，未执行后续工具或生成新的结论。') return message;
+  return '查询服务暂时不可用，不能据此判断没有数据。可稍后检查状态或重试本次请求。';
+}
+
 /** Only recognized states get specific guidance. Never surface raw transport payloads. */
 export function queryFailureMessage(error: unknown): string {
   if ((error instanceof QueryClientError && error.kind === 'timeout')
@@ -16,7 +24,7 @@ export function queryFailureMessage(error: unknown): string {
     return '网络连接中断，尚未确认本次请求的处理结果。连接恢复后可重试本次请求，核对原请求而不重复执行。';
   }
   if (error instanceof QueryClientError && error.kind === 'identity') return '登录身份已变化，旧对话已收起。请重新进入 Colliers AI。';
-  if (error instanceof QueryClientError && error.kind === 'service') return '查询服务暂时不可用，不能据此判断没有数据。可稍后检查状态或重试本次请求。';
+  if (error instanceof QueryClientError && error.kind === 'service') return queryServiceMessage(error.message);
   if (error instanceof QueryClientError && error.kind === 'protocol') return '查询响应格式与当前页面不兼容。可重试本次请求核对原请求；若仍失败，请联系系统维护人员。';
   return '未能取得查询响应。可用“重试本次请求”核对原请求，避免重复执行。';
 }
