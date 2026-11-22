@@ -73,6 +73,15 @@ describe('native Office research files and shared evidence model', () => {
     }
     const xlsx = await buildResultArtifact(generated.result, { requestId: crypto.randomUUID(), resultId: generated.result.resultId, action: 'export', format: 'xlsx' });
     if (xlsx.type !== 'download') throw Error();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2030-01-01T00:00:00Z'));
+      const restored = JSON.parse(JSON.stringify(generated.result));
+      const later = await buildResultArtifact(restored, { requestId: crypto.randomUUID(), resultId: restored.resultId, action: 'export', format: 'xlsx' });
+      if (later.type !== 'download') throw Error('expected rebuilt workbook');
+      expect(later.sha256).toBe(xlsx.sha256);
+    } finally { vi.useRealTimers(); }
+    expect(xlsx.sha256).toBe(generatedFiles.find(file => file.format === 'xlsx')!.sha256);
     const zipped = await JSZip.loadAsync(xlsx.bytes);
     for (const path of Object.keys(zipped.files).filter(path => /^xl\/worksheets\/sheet\d+\.xml$/.test(path))) {
       const xml = await zipped.file(path)!.async('string');

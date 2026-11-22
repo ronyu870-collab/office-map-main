@@ -27,5 +27,8 @@ export async function presentWorkbook(bytes: Uint8Array): Promise<Uint8Array> {
     zip.file(path, sheet, { date });
   }
   zip.file('xl/styles.xml', styles, { date });
+  // Replacing parts may create ZIP directory entries with wall-clock dates.
+  // Normalize every entry so authorized rebuilds match the generated digest.
+  for (const entry of Object.values(zip.files)) entry.date = date;
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
 }
