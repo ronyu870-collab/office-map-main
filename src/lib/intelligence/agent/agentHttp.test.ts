@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildTrendResult, buildListResult, buildAggregateResult } from '../query/result';
 import { fixture, nameSource } from '../query/__tests__/fixtures';
 import { parseQueryPlan } from '../query/plan';
+import { encryptAuditContent } from '../query/auditCrypto';
 
 const state = vi.hoisted(() => ({
   receive: vi.fn(), append: vi.fn(), provider: vi.fn(), tool: vi.fn(), structured: vi.fn(), knowledge: vi.fn(), knowledgeCheck: vi.fn(),
@@ -626,6 +627,55 @@ describe('AI5 chart creation, same-snapshot modification and image delivery', ()
     const artifact = await buildResultArtifact(body.result, { requestId: body.requestId, resultId: body.result.resultId, action: 'export', format: 'png_zip', chart: spec });
     if (artifact.type !== 'download') throw new Error();
     expect(artifact.sha256).toBe(event.chartFile.sha256);
+  });
+  it.each(['combined', 'legacy chart-only', 'revoked'])('modifies a cross-turn chart through real encrypted history recovery: %s', async mode => {
+    const { readAgentHistory, AGENT_CONVERSATION_PROTOCOL } = await vi.importActual<typeof import('./agentConversation')>('./agentConversation');
+    state.history.mockImplementation(readAgentHistory);
+    const formal = result(), chart = { kind: 'plot' as const, type: 'bar' as const, x: 'name', y: ['height'] };
+    const nextChart = { ...chart, type: 'horizontal_bar' as const, y: ['netEffectiveRent'] };
+    const parentRequestId = randomUUID(), conversationId = randomUUID();
+    const selection = { version: 'answer-selection/1', task: 'list', status: 'answered', primaryResultId: formal.resultId,
+      results: [{ role: 'primary', result: formal }] };
+    const event = (kind: string, content: unknown, sequence: number) => {
+      const eventId = randomUUID();
+      return { request_id: parentRequestId, event_id: eventId, kind, sequence,
+        cipher: encryptAuditContent(JSON.stringify({ content, redactionTypes: [] }), { requestId: parentRequestId, eventId,
+          actorId, effectiveUserId: actorId }, keys.keyId, keys.encryptionKey) };
+    };
+    const events = [
+      event('received', { sessionId, authority: { actorId, effectiveUserId: actorId },
+        metadata: { protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId } } }, 1),
+      event('tool_finished', { protocol: 'agent-answer/1', permissionRevision: authority.permissionRevision,
+        history: [{ user: '创建高度图表', assistant: '已生成同源图表。' }],
+        ...(mode !== 'legacy chart-only' ? { answerContext: true } : {}), chartContext: { resultId: formal.resultId, chart } }, 2),
+      event('response_generated', { result: mode === 'legacy chart-only' ? formal : selection }, 3),
+    ];
+    state.readArchive.mockResolvedValue({ state: 'succeeded', permission_revision: authority.permissionRevision,
+      head_hash: 'f'.repeat(64), head_sequence: 3, events });
+    const recheck = mode === 'revoked' ? vi.fn().mockRejectedValue(new Error('QUERY_DENIED')) : vi.fn().mockResolvedValue(undefined);
+    state.recoverArchive.mockImplementation(async () => {
+      const answerSelection = structuredClone(selection);
+      return mode === 'legacy chart-only' ? { result: structuredClone(formal), recheck }
+        : { result: answerSelection.results[0].result, answerSelection, recheck };
+    });
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('modify_chart', { chart: nextChart })])).mockResolvedValueOnce(completed());
+    const rpc = vi.fn((name: string) => ({ abortSignal: () => Promise.resolve({ data: name === 'ai_query_context_read'
+      ? { allowed: true, permission_revision: authority.permissionRevision, state: 'succeeded', events } : { allowed: true }, error: null }) }));
+    const request = new Request('https://www.colliersdata.com/api/intelligence/query/agent', { method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer isolated-test-only' },
+      body: JSON.stringify({ idempotencyKey: randomUUID(), question: '改成横向柱状图', conversation: { id: conversationId, parentRequestId } }) });
+    const response = await handleAgentSubmission(request, { ...deps(), client: { rpc } as unknown as SupabaseClient });
+    const body = await response.json();
+    expect(response.status).toBe(mode === 'revoked' ? 403 : 200);
+    expect(state.readArchive).toHaveBeenCalledOnce(); expect(state.recoverArchive).toHaveBeenCalledOnce();
+    if (mode === 'revoked') {
+      expect(body.result).toBeUndefined(); expect(state.provider).not.toHaveBeenCalled();
+    } else {
+      expect(body.result.resultId).toBe(formal.resultId); expect(body.result.parameters.agentChart.request).toEqual(nextChart);
+      expect(body.result.table).toEqual(formal.table); expect(body.result.sources).toEqual(formal.sources);
+      expect(body.result.snapshotId).toBe(formal.snapshotId); expect(body.result.dataVersion).toBe(formal.dataVersion);
+      expect(state.structured).not.toHaveBeenCalled(); expect(state.tool).not.toHaveBeenCalled();
+    }
   });
   it('uses a reauthorized prior chart result in the new workset without requerying or changing data', async () => {
     const formal = result(), chart = { kind: 'plot' as const, type: 'bar' as const, x: 'name', y: ['height'] };
