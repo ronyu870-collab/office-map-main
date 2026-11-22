@@ -7,6 +7,7 @@ import { once } from 'node:events';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { loadAgentHandler } from './ai5-export-scenarios.mjs';
+import { observedResultReference, assertSelectedAnswer } from './agent-result-references.mjs';
 
 export async function verifyAi5Reports({ db, service, keys, output, check, person, artifact, recover, events, decrypt, exportCaps, buildingIds }) {
   const handle = await loadAgentHandler(output);
@@ -27,7 +28,13 @@ export async function verifyAi5Reports({ db, service, keys, output, check, perso
           }
           if (step === 0) return completion((scenario.metrics ?? ['rent', 'vacancy', 'totalArea']).map(metric => tool('query_report_market', {
             scope: { inventory: 'all_authorized', submarkets: [scenario.empty ? '望京' : 'CBD'], buildingIds }, metric, recentCompletedQuarters: 4 })));
-          if (scenario.queryOnly) return { ...completion(), message: { role: 'assistant', content: '已查询正式结果。' } };
+          if (scenario.queryOnly) {
+            if (step === 1) {
+              scenario.answerResultId = observedResultReference(messages, 'query_report_market');
+              return completion([tool('select_answer_results', { primaryResultId: scenario.answerResultId, task: 'trend', status: 'answered' })]);
+            }
+            return { ...completion(), message: { role: 'assistant', content: '已查询正式结果。' } };
+          }
           if (step === 1 && !scenario.historyResultIds) {
             const results = messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content));
             results.forEach(r => assert.equal(r.status, 'ready'));
@@ -80,7 +87,10 @@ export async function verifyAi5Reports({ db, service, keys, output, check, perso
       let parentRequestId;
       for (const metric of ['rent', 'vacancy', 'totalArea']) {
         const reply = await submit(who, { queryOnly: true, metrics: [metric], conversation: { id: conversationId, ...(parentRequestId ? { parentRequestId } : {}) } });
-        assert.equal(reply.status, 200, JSON.stringify(reply.body)); originals.push(reply.body.result); parentRequestId = reply.body.requestId;
+        assert.equal(reply.status, 200, JSON.stringify(reply.body));
+        assertSelectedAnswer(reply.body, [{ role: 'primary', resultId: scenario.answerResultId }]);
+        assert.equal(reply.body.result.parameters.executedPlan.metric, metric);
+        originals.push(reply.body.result); parentRequestId = reply.body.requestId;
       }
       const reply = await submit(who, { historyResultIds: originals.map(r => r.resultId), conversation: { id: conversationId, parentRequestId } });
       assert.equal(reply.status, 200, JSON.stringify(reply.body));
