@@ -202,10 +202,11 @@ export async function renderResearchXlsx(raw: QueryResult) {
   const { buildXlsx } = await import('./exports');
   const workbook = XLSX.utils.book_new();
   for (const [i, section] of model.sections.entries()) {
-    const source = XLSX.read(await buildXlsx(section.result as QueryResult), { type: 'array' });
+    const source = XLSX.read(await buildXlsx(section.result as QueryResult), { type: 'array', cellNF: true });
     for (const name of source.SheetNames) XLSX.utils.book_append_sheet(workbook, source.Sheets[name], `${i + 1}_${name}`.slice(0, 31));
   }
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['研究用途', '仅供内部研究，对客发布须另行授权'],
     ...content(model).map(s => ['范围与限制', s]), ['结果版本', model.root.dataVersion]]), '研究说明');
-  return new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer);
+  const { presentWorkbook } = await import('./workbookPresentation');
+  return presentWorkbook(new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer));
 }

@@ -603,6 +603,23 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         + '本轮未生成 ' + fulfillment.missing.map(f => artifactLabels[f]).join('、') + ' 文件，或尚未保留为本条回答可下载的成果；任务尚未全部完成。'
         + '请核对当前授权、数据与生成步骤后继续。尚未发起浏览器下载，未确认本机保存。';
     }
+    // Persist presentation intent with the archived snapshot. Delivery prose is
+    // rendered by attachments; substantive partial-execution warnings stay in
+    // the narrative. No keyword removal or model-supplied presentation values.
+    if (execution.result) {
+      const delivery = !!(preparedExport || preparedReport || chartFile || preparedResearch);
+      const listing = ['list', 'rank'].includes(execution.result.operation)
+        && !execution.result.parameters.dataDomain && !execution.result.parameters.domain && !preparedChart && !preparedMap;
+      const narrativeRole = execution.unresolvedFailures.length || execution.executionStatus !== 'completed'
+        ? 'analysis' : delivery ? 'delivery_status' : listing ? 'result_summary' : 'analysis';
+      // Already-generated files bind the original digest. Never mutate their
+      // snapshot after generation; their versioned artifact descriptor is the
+      // legacy adapter's presentation input.
+      if (!delivery) execution.result = { ...execution.result, parameters: { ...execution.result.parameters,
+        responsePresentation: { version: 'response-presentation/1', narrativeRole } } };
+      if (narrativeRole === 'delivery_status') execution.answer = '文件已准备好，可从附件下载。仅供内部分析。';
+      else if (narrativeRole === 'result_summary') execution.answer = '查询结果见下方表格。';
+    }
     await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: execution.executionStatus,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),

@@ -29,18 +29,29 @@ it('delivers a real download operation beside a collapsed answer; reports dispat
   render(<HomeQueryResult result={value} presentation="compact" requestId={requestId} scope={scope} internalExport />);
   expect(screen.queryByRole('table')).not.toBeInTheDocument();
   expect(client.download).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: '下载生成的 Excel' }));
+  fireEvent.click(screen.getByRole('button', { name: '下载 Excel' }));
   await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce());
   expect(client.download).toHaveBeenCalledWith(scope, { requestId, resultId: value.resultId, action: 'export', format: 'xlsx' }, expect.any(AbortSignal));
   expect(client.reportDelivery).toHaveBeenCalledWith(scope, file, 'browser_download_dispatched');
-  expect(screen.getByText(/浏览器已发起下载/)).toHaveTextContent('尚未确认文件已实际保存');
+  expect(screen.getByText('已发起下载')).not.toHaveTextContent('已保存');
 });
 it('keeps the server-generated state and allows retry when the download is denied or fails', async () => {
   client.download.mockRejectedValue(new Error('无法访问此请求。'));
   render(<HomeQueryResult result={result()} presentation="compact" requestId={requestId} scope={scope} internalExport />);
-  fireEvent.click(screen.getByRole('button', { name: '下载生成的 Excel' }));
-  await screen.findByText('无法访问此请求。');
+  fireEvent.click(screen.getByRole('button', { name: '下载 Excel' }));
+  await screen.findByText('文件暂不可用或下载失败，请重试。');
   expect(client.reportDelivery).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), 'browser_download_dispatched');
   expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: '下载生成的 Excel' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: '下载 Excel' })).toBeEnabled();
+});
+
+it('renders a restored exported list as one attachment and one interactive table without a card per building', () => {
+  render(<HomeQueryResult result={result()} requestId={requestId} scope={scope} internalExport />);
+  expect(screen.getByRole('searchbox', { name: '搜索本次结果' })).toBeInTheDocument();
+  expect(screen.getAllByRole('table')).toHaveLength(1);
+  expect(screen.getByRole('table').compareDocumentPosition(screen.getByRole('region', { name: '图表与分析' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.queryAllByRole('article')).toHaveLength(0);
+  expect(screen.getAllByRole('button', { name: '下载 Excel' })).toHaveLength(1);
+  expect(screen.queryByText(/服务器已生成/)).not.toBeInTheDocument();
+  expect(screen.getByText('已找到 40 栋楼宇。')).toBeVisible();
 });

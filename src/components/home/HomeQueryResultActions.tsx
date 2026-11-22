@@ -39,8 +39,10 @@ function ResultActions({ result, requestId, scope, internalExport, children }: P
         if (disclosure !== opened) disclosure.open = false;
       });
     };
+    const dismiss = (event: PointerEvent) => { if (!element.contains(event.target as Node)) element.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(menu => { menu.open = false; }); };
+    document.addEventListener('pointerdown', dismiss);
     element.addEventListener('toggle', keepSingleDisclosure, true);
-    return () => element.removeEventListener('toggle', keepSingleDisclosure, true);
+    return () => { document.removeEventListener('pointerdown', dismiss); element.removeEventListener('toggle', keepSingleDisclosure, true); };
   }, []);
 
   async function copy(format: ResultCopyFormat, trigger: HTMLButtonElement) {
@@ -56,7 +58,7 @@ function ResultActions({ result, requestId, scope, internalExport, children }: P
       try {
         if (!navigator.clipboard?.writeText) throw new Error('CLIPBOARD_UNAVAILABLE');
         await navigator.clipboard.writeText(output.text);
-        if (!controller.signal.aborted) setMessage(format === 'figures' ? '已复制关键数字。' : format === 'summary' ? '已复制分析摘要。' : '已复制结论。');
+        if (!controller.signal.aborted) setMessage(format === 'table' ? '已复制结果表格。' : format === 'figures' ? '已复制关键数字。' : format === 'summary' ? '已复制分析摘要。' : '已复制结论。');
       } catch {
         if (!controller.signal.aborted) { setManualText(output.text); setMessage('浏览器未完成自动复制。可选择下方文字后手动复制。'); }
       }
@@ -93,6 +95,7 @@ function ResultActions({ result, requestId, scope, internalExport, children }: P
       <details className={styles.menu}>
         <summary><MoreHorizontal size={16} aria-hidden="true" />更多操作</summary>
         <div className={styles.menuBody}>
+          {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('table', event.currentTarget)}>复制结果表格</Button>}
           {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('figures', event.currentTarget)}><Copy size={16} aria-hidden="true" />复制关键数字</Button>}
           <Button variant="ghost" size="sm" onClick={event => { summaryTrigger.current = event.currentTarget; showSummary(); }}><FileText size={16} aria-hidden="true" />生成分析摘要</Button>
         </div>

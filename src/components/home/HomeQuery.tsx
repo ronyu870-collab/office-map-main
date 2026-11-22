@@ -2,12 +2,14 @@
 
 import * as React from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowUp, ArrowUpRight, ArrowDown, ChevronDown, ChevronRight, CircleHelp, Square, History, Maximize2, Minimize2, PanelRight, Plus, X } from 'lucide-react';
+import { ArrowUpRight, ArrowDown, ChevronDown, ChevronRight, CircleHelp, History, Maximize2, Minimize2, PanelRight, Plus, X } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
 import { IconButton } from '@/src/components/ui/IconButton';
 import { trustedQueryClient, queryScopeKey, type QueryAccess, type QueryClientScope, type QueryReply } from '@/src/services/trustedQueryClient';
 import { queryActionSchema, type QueryAction, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
-import { HomeQueryResult } from './HomeQueryResult';
+import { HomeQueryComposer, type QueryComposerHandle } from './HomeQueryComposer';
+import { HomeQueryResponse } from './HomeQueryResponse';
+import { responseNarrative } from '@/src/lib/intelligence/query/responsePresentation';
 import { resultSummary } from '@/src/lib/intelligence/query/presentation';
 import { QueryWelcome, AssistantHeading, QueryWorkingIndicator, queryStarters } from './HomeQueryExperience';
 import { QueryClientError, queryFailureMessage, queryServiceMessage } from '@/src/services/queryClientErrors';
@@ -41,7 +43,8 @@ export function HomeQuery({ scope, displayName }: { scope: QueryClientScope; dis
 function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; displayName?: string }) {
   const [access, setAccess] = React.useState<QueryAccess>(CLOSED);
   const [accessError, setAccessError] = React.useState(false);
-  const [draft, setDraft] = React.useState('');
+  const composerHandle = React.useRef<QueryComposerHandle>(null);
+  const setDraft = React.useCallback((value: string) => composerHandle.current?.setValue(value), []);
   const [reply, setReply] = React.useState<QueryReply | null>(null);
   const [message, setMessage] = React.useState('');
   const [streamDraft, setStreamDraft] = React.useState('');
@@ -130,7 +133,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       setHistoryOpen(false); setCompactHistoryOpen(false); setHistoryMounted(false); setResearchMounted(false);
     }
     clearSaved();
-  }, [clearSaved, exitWorkspace, clearWorkspaceComposition]);
+  }, [clearSaved, exitWorkspace, clearWorkspaceComposition, setDraft]);
 
   React.useEffect(() => {
     alive.current = true; generation.current++;
@@ -162,14 +165,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     const timer = window.setInterval(focus, 30000);
     return () => { alive.current = false; previous?.abort(); current.current?.abort(); current.current = null; earlierRequest.current?.abort(); window.clearInterval(timer); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', focus); };
   }, [scope, storageKey, resetConversation]);
-  React.useLayoutEffect(() => {
-    const node = input.current;
-    if (node) {
-      node.style.height = 'auto';
-      const compact = node.closest('[data-mode]')?.getAttribute('data-mode') === 'compact';
-      node.style.height = `${Math.max(compact ? 28 : 44, Math.min(node.scrollHeight, 200))}px`;
-    }
-  }, [draft, access.enabled]);
+
 
   const run = React.useCallback(async (next: Attempt, recovering = false) => {
     if (current.current || !access.enabled || composing.current) return;
@@ -267,7 +263,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     setDraft(question);
     if (!expanded) focusWorkspace();
     input.current?.focus({ preventScroll: true });
-  }, [expanded, focusWorkspace]);
+  }, [expanded, focusWorkspace, setDraft]);
   function newAttempt(question: string, parent = parentRequest): Attempt {
     return { idempotencyKey: crypto.randomUUID(), question,
       ...(buildingSelection ? { buildingSelection } : {}),
@@ -275,6 +271,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
         ...(resumedContext?.parentRequestId === parent && resumedContext?.resumeToken ? { resumeToken: resumedContext.resumeToken } : {}) } };
   }
   function submitDraft() {
+    const draft = composerHandle.current?.value() ?? '';
     if (!draft.trim() || busy || current.current || !access.enabled || composing.current) return;
     const submitted = draft;
     scroll.followNext();
@@ -364,7 +361,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
         if (current.current === controller) current.current = null;
         if (alive.current && ticket === generation.current) setBusy(false);
       });
-  }, [access.enabled, run, openHistory, scope]);
+  }, [access.enabled, run, openHistory, scope, setDraft]);
   const activeTurn: Turn | null = attempt ? { attempt, reply, message } : null;
   const activeContext = !!attempt && !!reply?.requestId && (reply.conversation ?? attempt.conversation)?.id === conversationId;
   const ready = reply?.status === 'ready' && !!reply.result;
@@ -430,7 +427,9 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     if (disclosure?.getAttribute('aria-expanded') === 'false') disclosure.click();
     window.requestAnimationFrame(() => {
       if (!alive.current || ticket !== generation.current) return;
-      workspaceSurfaceRef.current?.querySelector<HTMLButtonElement>(`[data-result-id="${resultId}"] [data-query-all-sources]`)?.click();
+      const sourceAction = workspaceSurfaceRef.current?.querySelector<HTMLButtonElement>(`[data-result-id="${resultId}"] [data-query-all-sources]`);
+      const disclosure = sourceAction?.closest('details'); if (disclosure) disclosure.open = true;
+      sourceAction?.click();
     });
   }
   const preserveEditorFocus = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -446,7 +445,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     role={floating ? 'dialog' : undefined} aria-modal={floating ? true : undefined}
     aria-label={floating ? 'Colliers AI 工作空间' : undefined} tabIndex={-1}>
     <header className={workspaceStyles.toolbar} inert={!!modalPanel}>
-      <div className={workspaceStyles.identity}><strong>Colliers <span>AI</span></strong></div>
+      <div className={workspaceStyles.identity}><strong>Colliers <span>AI</span></strong>{expanded && attempt?.question && <span className={workspaceStyles.conversationTitle} title={attempt.question}>{attempt.question}</span>}</div>
       {access.enabled && <div className={workspaceStyles.toolbarActions}>
         {(expanded || attempt || history.length > 0) && <Button className={workspaceStyles.newConversation} variant="ghost" disabled={busy} aria-label="新对话" title="新对话" onClick={startNew}><Plus size={16} aria-hidden="true" /><span>新对话</span></Button>}
         <IconButton ref={historyToggle} variant="ghost" label="历史记录" aria-expanded={historyShown} aria-controls="query-workspace-history" onClick={toggleHistory}><History size={16} aria-hidden="true" /></IconButton>
@@ -488,23 +487,21 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
         presentation={presentation} onExpand={expandWorkspace}
         canFollowUp={!busy && (turn.reply?.conversation ?? turn.attempt.conversation)?.id === conversationId} onFollowUp={action => followUp(action, turn)} />)}
       {attempt && <article key={attempt.idempotencyKey} className={styles.turn} aria-label="本次问答" data-query-turn={attempt.idempotencyKey}>
-        <p className={styles.question}><span className="sr-only">你的问题：</span>{attempt.question || '已恢复的查询'}</p>
+        <p className={styles.question}><span className="sr-only">你的问题：</span>{attempt.question || '已恢复的查询'}{!busy && <button type="button" className={styles.editQuestion} onClick={() => edit(attempt.question)}>编辑问题</button>}</p>
         <div className={styles.assistantResponse}>
         <AssistantHeading label={busy ? '正在处理' : reply?.status === 'assistant' ? undefined : assistantHelp ? '助手介绍' : needsConditions ? '需要补充条件' : ready ? '基于授权数据' : '查询状态'} />
       <div role="status" aria-live="polite" className={ready || reply?.status === 'assistant' || assistantHelp ? 'sr-only' : styles.status} data-state={busy ? 'working' : needsConditions ? 'clarification' : terminalFailure ? 'error' : 'status'}>
         {busy && <QueryWorkingIndicator />}{message}
       </div>
       {busy && streamDraft && <HomeQueryMarkdown text={streamDraft} streaming aria-label="正在生成的部分回答" />}
-      {(reply?.status === 'assistant' || ready || assistantHelp) && reply?.message && <HomeQueryMarkdown text={reply.message} navigation />}
+      {(reply?.status === 'assistant' || ready || assistantHelp) && <HomeQueryResponse message={reply?.message} result={ready ? reply?.result : undefined} executionStatus={reply?.agent?.executionStatus} delivery={reply ?? undefined} requestId={reply?.requestId} scope={scope} internalExport={access.internalExport === true} presentation={presentation} onExpand={expandWorkspace} collapsed={collapsed} />}
       {(reply?.status === 'assistant' || assistantHelp) && reply?.requestId && <HomeQueryAssistantActions scope={scope} requestId={reply.requestId} conversationId={reply.conversation?.id ?? conversationId} message={reply.message ?? ''} internalExport={access.internalExport === true} />}
       {activeTurn && activeContext && needsConditions && <QueryActions label="请选择查询口径" actions={reply?.options} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
-      {ready && reply?.result && <div hidden={collapsed}><HomeQueryResult key={reply.result.resultId} result={reply.result} delivery={reply} requestId={reply.requestId} scope={scope} internalExport={access.internalExport === true} presentation={presentation} onExpand={expandWorkspace} visible={!collapsed} /></div>}
       {ready && reply?.historySaved !== undefined && <p className={styles.saveStatus}>{reply.historySaved ? '本次分析已自动保存至历史记录。' : '本次结果已留存，历史列表暂不可用。'}</p>}
       {activeTurn && activeContext && ready && !collapsed && <QueryActions label="继续分析" actions={suggestions(reply)} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
       <div className={`${styles.actions} ${styles.turnActions}`}>
         {retry && <Button variant="secondary" onClick={() => void run(attempt)}>重试本次请求</Button>}
         {savedId && !busy && !ready && reply?.status !== 'assistant' && <Button variant="ghost" onClick={() => void run({ idempotencyKey: attempt?.idempotencyKey ?? crypto.randomUUID(), question: attempt?.question ?? '', requestId: savedId, conversation: attempt?.conversation }, true)}>检查状态并恢复结果</Button>}
-        {attempt && !busy && <Button variant="ghost" onClick={() => edit(attempt.question)}>编辑问题</Button>}
         {ready && attempt && <><Button variant="ghost" onClick={reexecute} disabled={!attempt.question || !attempt.requestId || busy}>重新查询</Button>
           <Button variant="ghost" aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>{collapsed ? '展开本次结果' : '收起本次结果'}</Button></>}
       </div>
@@ -520,22 +517,9 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     <div ref={workspaceComposerSlotRef} className={workspaceStyles.composerSlot}>
     <div ref={workspaceComposerRef} className={`${styles.composer} ${access.enabled ? styles.enabled : ''}`}>
       {buildingSelection && <div className={styles.selectionContext}><span>来自地图 · 已选择 {buildingSelection.ids.length} 栋楼宇</span><Button variant="ghost" onClick={() => setBuildingSelection(null)}>移除项目范围</Button></div>}
-      <textarea ref={input} id="home-query" aria-label="向 Colliers AI 提问" aria-describedby="home-query-status" disabled={!access.enabled}
-        rows={1} maxLength={6000} value={draft} onChange={event => setDraft(event.target.value)}
-        onFocus={() => { if (access.enabled && mode === 'compact') focusWorkspace(); }}
-        onPointerDown={() => { if (access.enabled && mode === 'compact') focusWorkspace(); }}
-        onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
-        placeholder={access.enabled ? (attempt ? '继续追问或换个问题…' : '输入楼宇或市场问题…') : '对话查询尚未开放'}
-        onKeyDown={event => {
-          if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || composing.current || event.keyCode === 229) return;
-          event.preventDefault();
-          submitDraft();
-        }} />
-      <div className={styles.composerFooter}>
-        <p id="home-query-status" className={access.enabled ? styles.keyboardHint : undefined}>{access.enabled ? 'Enter 发送 · Shift+Enter 换行' : message || (accessError ? '暂时无法核对查询资格，请稍后重进主页。原业务入口仍可使用。' : '目前请使用下方业务入口。')}</p>
-        {busy ? <Button className={styles.sendButton} size="icon" variant="secondary" aria-label="停止等待" onClick={stopWaiting}><Square size={16} aria-hidden="true" /></Button>
-          : <Button className={styles.sendButton} size="icon" aria-label="发送问题" disabled={!access.enabled || !draft.trim()} onClick={submitDraft}><ArrowUp size={18} strokeWidth={1.5} aria-hidden="true" /></Button>}
-      </div>
+      <HomeQueryComposer editorRef={input} composingRef={composing} handle={composerHandle} enabled={access.enabled} busy={busy} followUp={!!attempt}
+        onFocus={() => { if (access.enabled && mode === 'compact') focusWorkspace(); }} onSubmit={submitDraft} onStop={stopWaiting}
+        status={message || (accessError ? '暂时无法核对查询资格，请稍后重进主页。原业务入口仍可使用。' : '目前请使用下方业务入口。')} />
     </div>
     </div>
     {access.enabled && emptyConversation && !expanded && <StarterQuestions starters={starters} onSelect={edit} />}
@@ -554,7 +538,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   </div>
   </div>;
 }
-function PreviousTurn({ turn, scope, internalExport, onEdit, canFollowUp, onFollowUp, presentation, onExpand }: { turn: Turn; scope: QueryClientScope; internalExport: boolean; onEdit: (question: string) => void; canFollowUp: boolean; onFollowUp: (action: QueryAction) => void; presentation: 'compact' | 'expanded'; onExpand: () => void }) {
+const PreviousTurn = React.memo(function PreviousTurn({ turn, scope, internalExport, onEdit, canFollowUp, onFollowUp, presentation, onExpand }: { turn: Turn; scope: QueryClientScope; internalExport: boolean; onEdit: (question: string) => void; canFollowUp: boolean; onFollowUp: (action: QueryAction) => void; presentation: 'compact' | 'expanded'; onExpand: () => void }) {
   const [open, setOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   const resultPanelId = React.useId();
@@ -564,18 +548,17 @@ function PreviousTurn({ turn, scope, internalExport, onEdit, canFollowUp, onFoll
   const controls = <>
     {turn.reply?.requestId && !help && <QueryActions label={turn.reply.status === 'clarification' ? '请选择查询口径' : '基于这条回答继续分析'}
       actions={actions} disabled={!canFollowUp} onSelect={onFollowUp} />}
-    <Button variant="ghost" onClick={() => onEdit(turn.attempt.question)}>编辑这个问题</Button>
   </>;
   return <article className={styles.previousTurn} aria-label="此前问答" data-query-turn={turn.attempt.idempotencyKey}>
-    <p className={styles.question}><span className="sr-only">你的问题：</span>{turn.attempt.question || '已恢复的查询'}</p>
+    <p className={styles.question}><span className="sr-only">你的问题：</span>{turn.attempt.question || '已恢复的查询'}<button type="button" className={styles.editQuestion} onClick={() => onEdit(turn.attempt.question)}>编辑这个问题</button></p>
     <div className={styles.assistantResponse}>
       <AssistantHeading label={result ? '基于授权数据' : turn.reply?.status === 'assistant' ? undefined : help ? '助手介绍' : turn.reply?.status === 'clarification' ? '需要补充条件' : '查询状态'} />
       {result ? <>
-        {!open && <HomeQueryMarkdown text={turn.reply?.message || resultSummary(result)[0]} navigation={false} />}
+        {!open && <HomeQueryMarkdown text={responseNarrative(turn.reply?.message, result, turn.reply?.agent?.executionStatus) || resultSummary(result)[0]} navigation={false} />}
         <Button className={styles.resultDisclosure} variant="ghost" aria-expanded={open} aria-controls={resultPanelId} data-query-result-disclosure={result.resultId}
           onClick={() => { setOpen(value => !value); setMounted(true); }}>{open ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}{open ? '收起数据与来源' : '展开数据与来源'}</Button>
         <div id={resultPanelId} hidden={!open}>
-          {mounted && <HomeQueryResult result={result} delivery={turn.reply ?? undefined} requestId={turn.reply?.requestId} scope={scope} internalExport={internalExport} presentation={presentation} onExpand={onExpand} visible={open} />}
+          {mounted && <HomeQueryResponse message={turn.reply?.message} result={result} executionStatus={turn.reply?.agent?.executionStatus} delivery={turn.reply ?? undefined} requestId={turn.reply?.requestId} scope={scope} internalExport={internalExport} presentation={presentation} onExpand={onExpand} collapsed={!open} />}
           {open && controls}
         </div>
       </> : <>
@@ -585,7 +568,7 @@ function PreviousTurn({ turn, scope, internalExport, onEdit, canFollowUp, onFoll
       </>}
     </div>
   </article>;
-}
+});
 function historyTurn(snapshot: HistoryOpened['selected'], conversation: QueryConversation): Turn {
   return { attempt: { idempotencyKey: crypto.randomUUID(), requestId: snapshot.requestId, question: snapshot.question, conversation: snapshot.reply.conversation ?? conversation },
     reply: snapshot.reply, message: snapshot.reply.message ?? snapshot.reply.error ?? '' };

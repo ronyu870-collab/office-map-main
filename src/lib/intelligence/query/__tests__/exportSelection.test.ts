@@ -1,0 +1,40 @@
+import { expect, it } from 'vitest';
+import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
+import { buildResultArtifact } from '../artifacts';
+import { selectExportRows } from '../exportSelection';
+import { buildListResult } from '../result';
+import { fixture } from './fixtures';
+const requestId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+it('exports only selected immutable rows and their evidence, with real numeric cells and complete metadata', async () => {
+  const result = buildListResult(fixture(), ['height', 'netEffectiveRent']);
+  const before = JSON.stringify(result);
+  const file = await buildResultArtifact(result, { requestId, resultId: result.resultId, action: 'export', format: 'xlsx', selection: { kind: 'selected', rowIndexes: [1] } });
+  expect(file.type).toBe('download'); if (file.type !== 'download') return;
+  const workbook = XLSX.read(file.bytes, { type: 'array' });
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets['数据'], { header: 1 }) as unknown[][];
+  expect(rows).toHaveLength(2); expect(rows[1]).toContain('B座'); expect(rows[1]).toContain(198);
+  expect(JSON.stringify(rows)).not.toContain('A座');
+  const sources = XLSX.utils.sheet_to_json(workbook.Sheets['来源']);
+  expect(JSON.stringify(sources)).not.toContain('A座');
+  const zip = await JSZip.loadAsync(file.bytes);
+  expect(await zip.file('xl/worksheets/sheet1.xml')!.async('string')).toContain('state="frozen"');
+  expect(await zip.file('xl/styles.xml')!.async('string')).toContain('<b/>');
+  expect(workbook.SheetNames).toContain('口径与快照'); expect(file.filename).toContain('已选1条');
+  expect(JSON.stringify(result)).toBe(before);
+});
+it('exports all filtered rows independently of displayed pagination in CSV and prevents formulas', async () => {
+  const result = structuredClone(buildListResult(fixture(), ['height']));
+  const originalRow = result.table.rows[1];
+  const unsafeResult = { ...result, table: { ...result.table, rows: result.table.rows.map((row, index) => index === 1 ? { ...originalRow, cells: { ...originalRow.cells, name: { kind: 'text' as const, value: '=HYPERLINK("https://invalid")', sourceIds: [] } } } : row) } };
+  const file = await buildResultArtifact(unsafeResult, { requestId, resultId: result.resultId, action: 'export', format: 'csv_zip', selection: { kind: 'filtered', rowIndexes: [0, 1, 2] } });
+  if (file.type !== 'download') throw new Error('No download');
+  const zip = await JSZip.loadAsync(file.bytes), csv = await zip.file('data.csv')!.async('string');
+  expect(csv.split('\r\n').filter(Boolean)).toHaveLength(4); expect(csv).toContain("'=HYPERLINK");
+  expect(csv).not.toContain('D座');
+});
+it('rejects fabricated, duplicate, out-of-range, empty and incompatible selections', async () => {
+  const result = buildListResult(fixture(), ['height']);
+  for (const rowIndexes of [[4], [-1], [0, 0], []]) expect(() => selectExportRows(result, { kind: 'selected', rowIndexes })).toThrow();
+  await expect(buildResultArtifact(result, { requestId, resultId: result.resultId, action: 'export', format: 'pdf', selection: { kind: 'selected', rowIndexes: [0] } })).rejects.toThrow('ARTIFACT_SELECTION_INVALID');
+});

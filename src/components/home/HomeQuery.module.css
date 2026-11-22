@@ -183,3 +183,13 @@
   .workingIndicator i { animation: none; }
   .composer, .suggestions button, .sendButton, .keyboardHint { transition: none; }
 }
+
+/* Two text sizes throughout the active research surface. Paragraphs retain a
+   reading measure while the verified table can use the full work area. */
+.assistantResponse > :not([hidden]):not(:has([data-result-id])):not([data-result-id]) { max-width: var(--cd-ai-reading-width); }
+.conversation .welcome h3 { font-size: var(--cd-ai-heading-size); font-weight: 600; }
+.conversation :is(.welcome > p, .replyHeading strong, .replyLabel, .saveStatus, .notice, .tableFooter, .trace, .followUps button, .turnActions button, .suggestions button, .resultDisclosure, .chartSelect, .metricUnit) { font-size: var(--cd-ai-body-size); }
+.editQuestion { display: block; margin-left: auto; margin-top: var(--cd-space-1); min-height: 32px; font-size: var(--cd-ai-body-size); color: var(--cd-color-text-secondary); text-decoration: underline; text-underline-offset: 3px; }
+.editQuestion:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.question { margin-bottom: var(--cd-space-5); }
+@media (max-width: 639px), (pointer: coarse) { .editQuestion { min-height: 44px; } }

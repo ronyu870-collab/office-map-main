@@ -64,7 +64,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
         void trustedQueryClient.reportDelivery(scope, file, 'browser_download_dispatched');
         // Give the browser time to take ownership of the download, then release it.
         window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-        setMessage('文件已交给浏览器下载；包含原结果与来源。尚未确认本机保存完成，仅供内部分析。');
+        setMessage('已发起下载 · 仅供内部分析');
       } else {
         const next = await trustedQueryClient.chart(scope, requestId, result, input, controller.signal);
         if (controller.signal.aborted) return;
@@ -94,11 +94,12 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const [min, max] = chart ? chartBounds(chart, 'y') : [0, 0];
   const span = max - min || 1;
   const position = (value: number) => (value - min) / span * 100;
+  const tableDownloads = ['list', 'rank'].includes(result.operation) || !!result.parameters.agentExport;
   const actions = <div hidden={!visible} role="group" aria-label="结果操作与反馈">
     {!result.parameters.researchTask && <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport}>
-      {internalExport && result.parameters.domain!=='knowledge-research/1' && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>
-        <Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
-        <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button>
+      {internalExport && (!tableDownloads || chart) && result.parameters.domain!=='knowledge-research/1' && <details className={styles.exportMenu}><summary>{tableDownloads ? '下载图表' : '下载本次结果'}</summary><div className={styles.actions}>
+        {!tableDownloads && <><Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
+        <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button></>}
         {numeric.length > 0 && <><Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button><Button variant="ghost" disabled={busy} onClick={() => void run('png_zip')}>PNG 图与来源</Button></>}
       </div></details>}
     </HomeQueryResultActions>}

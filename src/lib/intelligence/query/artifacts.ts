@@ -1,3 +1,4 @@
+import { selectExportRows, tableExportSelectionSchema } from './exportSelection';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { chartRequestSchema, buildResultChart, renderChartSvg } from './charts';
@@ -10,19 +11,21 @@ import { renderResultCopy, resultCopyFormatSchema } from './resultOutput';
 const common = { requestId: z.uuid(), resultId: z.uuid() };
 export const artifactInputSchema = z.discriminatedUnion('action', [
   z.strictObject({ ...common, action: z.literal('chart'), chart: chartRequestSchema }),
-  z.strictObject({ ...common, action: z.literal('export'), format: z.enum(['csv_zip', 'xlsx', 'svg_zip', 'png_zip', 'pdf', 'docx', 'pptx']), chart: chartRequestSchema.optional() }),
+  z.strictObject({ ...common, action: z.literal('export'), format: z.enum(['csv_zip', 'xlsx', 'svg_zip', 'png_zip', 'pdf', 'docx', 'pptx']), chart: chartRequestSchema.optional(), selection: tableExportSelectionSchema.optional() }),
   z.strictObject({ ...common, action: z.literal('copy'), format: resultCopyFormatSchema }),
 ]);
 export type ArtifactInput = z.infer<typeof artifactInputSchema>;
 
 /** Only the recovered, currently authorized archive is accepted here. The HTTP
  * layer persists this action first and rechecks grants/sources before delivery. */
-export async function buildResultArtifact(rawResult: unknown, input: ArtifactInput) {
+async function renderResultArtifact(rawResult: unknown, input: ArtifactInput) {
   input = artifactInputSchema.parse(input);
   const view = resultViewSchema.parse(rawResult);
   if (view.resultId !== input.resultId) throw new Error('ARTIFACT_RESULT_MISMATCH');
   // Keep the archived object intact for its digest and export metadata.
-  const result = rawResult as QueryResult;
+  const original = rawResult as QueryResult;
+  if (input.action === 'export' && input.selection && !['xlsx', 'csv_zip'].includes(input.format)) throw new Error('ARTIFACT_SELECTION_INVALID');
+  const result = input.action === 'export' && input.selection ? selectExportRows(original, input.selection) : original;
   if (input.action === 'chart') {
     const chart = buildResultChart(view, input.chart);
     return { type: 'chart' as const, chart, resultDigest: resultDigest(result) };
@@ -62,6 +65,40 @@ export async function buildResultArtifact(rawResult: unknown, input: ArtifactInp
     bytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }); contentType = 'application/zip';
   }
   if (bytes.byteLength > 32 * 1024 * 1024) throw new Error('ARTIFACT_SIZE_LIMIT');
-  return { type: 'download' as const, bytes, contentType, filename: buildArtifactFilename(view, input.format),
+  return { type: 'download' as const, bytes, contentType, filename: buildArtifactFilename(resultViewSchema.parse(result), input.format),
     sha256: createHash('sha256').update(bytes).digest('hex'), resultDigest: resultDigest(result) };
+}
+
+// Only renderer bytes are cached, for a short bounded interval. Every HTTP
+// download still recovers the owner-only archive and checks live grants/ACLs
+// before this function and rechecks before delivery. No auth decisions cached.
+type Artifact = Awaited<ReturnType<typeof renderResultArtifact>>;
+const downloads = new Map<string, { value: Artifact; expires: number; bytes: number }>();
+const rendering = new Map<string, Promise<Artifact>>();
+const CACHE_BYTES = 16 * 1024 * 1024;
+export async function buildResultArtifact(rawResult: unknown, rawInput: ArtifactInput): Promise<Artifact> {
+  const input = artifactInputSchema.parse(rawInput);
+  if (input.action !== 'export') return renderResultArtifact(rawResult, input);
+  const view = resultViewSchema.parse(rawResult);
+  if (view.resultId !== input.resultId) throw new Error('ARTIFACT_RESULT_MISMATCH');
+  const key = createHash('sha256').update(resultDigest(rawResult as QueryResult)).update(JSON.stringify(input)).digest('hex');
+  for (const [id, cached] of downloads) if (cached.expires <= Date.now()) downloads.delete(id);
+  const cached = downloads.get(key);
+  if (cached) return cached.value;
+  const pending = rendering.get(key);
+  if (pending) return pending;
+  const promise = renderResultArtifact(rawResult, input);
+  rendering.set(key, promise);
+  try {
+    const value = await promise;
+    if (value.type === 'download' && value.bytes.byteLength <= CACHE_BYTES) {
+      let size = [...downloads.values()].reduce((total, item) => total + item.bytes, 0);
+      while (downloads.size && (downloads.size >= 8 || size + value.bytes.byteLength > CACHE_BYTES)) {
+        const oldest = downloads.keys().next().value!;
+        size -= downloads.get(oldest)!.bytes; downloads.delete(oldest);
+      }
+      downloads.set(key, { value, expires: Date.now() + 60000, bytes: value.bytes.byteLength });
+    }
+    return value;
+  } finally { rendering.delete(key); }
 }

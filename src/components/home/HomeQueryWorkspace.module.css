@@ -1,5 +1,5 @@
 .anchor { min-width: 0; width: 100%; margin-inline: auto; }
-.backdrop { position: fixed; inset: 0; z-index: var(--cd-z-dialog-backdrop, 59); background: var(--cd-color-overlay); opacity: 0; pointer-events: none; transition: opacity 300ms cubic-bezier(.22, 1, .36, 1); }
+.backdrop { position: fixed; inset: 0; z-index: var(--cd-z-dialog-backdrop, 59); background: var(--cd-color-overlay); opacity: 0; pointer-events: none; transition: opacity 180ms cubic-bezier(.22, 1, .36, 1); }
 .backdrop[data-open="true"] { opacity: 1; pointer-events: auto; }
 .backdrop[hidden] { display: none; }
 .composerSlot { min-width: 0; width: 100%; }
@@ -18,7 +18,7 @@
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: var(--cd-color-surface);
+  background: var(--cd-color-workspace);
 }
 .surface[data-floating="true"][data-mode="focus"] {
   --query-focus-width: min(1200px, calc(var(--query-viewport-width, 100vw) - 64px));
@@ -61,7 +61,7 @@
 .main { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; }
 .scroller { min-width: 0; min-height: 0; max-height: min(60dvh, 560px); overflow: auto; overflow-x: hidden; overscroll-behavior: contain; overflow-anchor: none; padding-inline: 32px; }
 .scroller:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: -2px; }
-.reading { max-width: var(--cd-ai-reading-width); width: 100%; margin-inline: auto; padding: 0 0 8px; overflow-wrap: anywhere; }
+.reading { max-width: var(--cd-ai-data-width); width: 100%; margin-inline: auto; padding: 0 0 8px; overflow-wrap: anywhere; }
 .inputDock { position: relative; flex: 0 0 auto; min-width: 0; width: 100%; max-width: calc(var(--cd-ai-reading-width) + 64px); margin-inline: auto; padding: 0 32px 24px; }
 .jump { display: flex; justify-content: center; margin-block: 8px; }
 .jump button { min-height: 44px; font-size: 13px; box-shadow: var(--cd-shadow-sm); }
@@ -155,3 +155,10 @@
   .toolbarActions .newConversation { display: none; }
   .help { inset: 0; width: 100%; border: 0; border-radius: 0; padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom); }
 }
+
+/* The conversation title and chrome share the same reading axis. */
+.identity { display: flex; align-items: center; gap: var(--cd-space-5); overflow: hidden; }
+.conversationTitle { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--cd-font-size-md); color: var(--cd-color-text-secondary); }
+.surface:is([data-mode="focus"], [data-mode="expanded"]) .main { background: var(--cd-color-workspace); }
+.surface:is([data-mode="focus"], [data-mode="expanded"]) .inputDock { background: var(--cd-color-workspace); }
+@media (max-width: 767px) { .conversationTitle { display: none; } }

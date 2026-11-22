@@ -6,6 +6,7 @@ import { Button } from '@/src/components/ui';
 import { trustedQueryClient, queryScopeKey, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { cellText, units, resultScopeText, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { resultBuildingRows, type BuildingContext, type QueryBuildingRow } from '@/src/lib/intelligence/query/buildingCards';
+import { gradeLabel } from '@/src/lib/intelligence/query/tableView';
 import { queryMapHref } from '@/src/lib/intelligence/query/buildingNavigation';
 import styles from './HomeQueryBuildings.module.css';
 
@@ -36,7 +37,7 @@ function BuildingResults({ result, requestId, scope, buildings, onSource }: { re
   return <section className={styles.section} aria-label="查询楼宇信息">
     <div className={styles.heading}><h3>{buildings.length === 1 ? '楼宇信息' : `本次结果 · ${buildings.length} 栋楼宇`}</h3>
       <Link className={styles.link} href={queryMapHref(requestId)} prefetch={false}>{result.parameters.agentMap ? '打开已准备的地图选择' : `在地图中查看${buildings.length > 1 ? '全部项目' : ''}`}</Link></div>
-    <p className={styles.note}>{resultScopeText(result)}。指标保留本次结果期间；子市场、等级和照片按当前目录读取。</p>
+    <p className={styles.note}>{resultScopeText(result)} 指标保留本次结果期间；子市场、等级和照片按当前目录读取。</p>
     {error ? <div role="alert"><p>{error}</p><Button variant="ghost" onClick={() => setRevision(value => value + 1)}>重试楼宇信息</Button></div>
       : !pageContext ? <p role="status" className={styles.note}>正在核对楼宇访问权限与当前目录…</p>
       : <div className={styles.list}>{buildings.slice(page * 5, page * 5 + 5).map(building => {
@@ -67,7 +68,7 @@ function BuildingCard({ building, metadata, result, requestId, scope, single, on
   const columns = result.table.columns.filter(column => column.key !== 'name' && building.cells[column.key]);
   const visible = expanded ? columns : columns.slice(0, 2);
   return <article className={`${styles.card} ${photoRequested && metadata?.photo ? styles.withPhoto : ''}`} aria-label={`${building.name}楼宇卡片`}>
-    <div className={styles.cardHeading}><h4>{building.name}</h4><p>{metadata?.submarket ?? '子市场未知'} · {metadata?.grade ?? '等级未知'} <span>（当前目录）</span></p></div>
+    <div className={styles.cardHeading}><h4>{building.name}</h4><p>{metadata?.submarket ?? '子市场未知'} · {metadata?.grade ? gradeLabel(metadata.grade) : '等级未知'} <span>（当前目录）</span></p></div>
     {photoRequested && metadata?.photo && <figure className={styles.photo}>
       {photo ? <><img src={photo.url} alt={metadata.photo.caption} loading="lazy" onError={() => { setPhoto(undefined); setError('照片加载失败，请重试。'); }} />
         <figcaption>{metadata.photo.caption}{photo.license_url && <> · <a href={photo.source_url} target="_blank" rel="noopener noreferrer">{photo.source_name || '图片来源'}</a>{photo.attribution_text && ` · ${photo.attribution_text}`} · <a href={photo.license_url} target="_blank" rel="noopener noreferrer">许可说明</a></>}</figcaption></>

@@ -69,7 +69,7 @@ export function resultSummary(result: QueryResultView): string[] {
   const report = reportDescriptorSchema.safeParse(result.parameters.agentReport).data;
   if (report) return [`本次内部 ${report.format.toUpperCase()} 包含 ${report.sectionCount} 个研究部分，保留 ${report.rowCount} 条原表记录；各部分独立统计，记录数不等于楼宇总数。`];
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
-  if (exported) return [`本次导出 ${exported.exportedRows} 条记录，筛选后共 ${exported.matchedRows} 条；文件使用完整正式结果，不受界面分页限制。`];
+  if (exported) return [result.operation === 'list' ? `已找到 ${result.table.rows.length} 栋楼宇。` : `本次结果共 ${result.table.rows.length} 条记录。`];
   if (result.parameters.dataDomain === 'lease-research/1') return [`获权成交研究结果共 ${result.table.rows.length} 行；成交记录数按有效身份关联去重，未经核验的跨表重叠仍可能存在。`, '成交面积与有效面积样本数分别列示，不代表净吸纳量或市场全集。'];
   if(result.parameters.dataDomain==='business-research/1')return [`本次获权业务资料共 ${result.table.rows.length} 条记录。`,...result.limitations.slice(0,2)];
   const metrics = resultMetrics(result);
@@ -150,5 +150,5 @@ export function resultScopeText(result: QueryResultView): string {
   const start=quarterSchema.safeParse(result.parameters.start),end=quarterSchema.safeParse(result.parameters.end);
   const isTrend = result.operation === 'trend' || result.operation === 'group_trend' || result.operation === 'cross_trend';
   const range=isTrend&&start.success&&end.success?`，${start.data.year}Q${start.data.quarter} 至 ${end.data.year}Q${end.data.quarter}`:'';
-  return `${s.submarkets?.join('、') || '当前获权范围'}${range}${period.success && !isTrend ? `，${period.data.year} 年第 ${period.data.quarter} 季度` : ''}；${s.inventory === 'tracked' ? '当前跟踪楼宇样本' : '当前楼宇目录'}。`;
+  return `数据范围：${s.submarkets?.join('、') || '当前获权范围'}${range}${period.success && !isTrend ? `，${period.data.year} Q${period.data.quarter}` : ''} · ${s.inventory === 'tracked' ? '当前跟踪楼宇样本' : '当前楼宇目录'}。`;
 }

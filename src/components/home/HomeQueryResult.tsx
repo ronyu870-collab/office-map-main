@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import dynamic from 'next/dynamic';
 import { z } from 'zod';
 import { Button } from '@/src/components/ui/Button';
 import { cellText, resultScopeText, resultSummary, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
@@ -9,21 +8,15 @@ import { quarterSchema } from '@/src/lib/intelligence/query/contracts';
 import { researchAnalysisSchema, type ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnalysisView';
 import { metricLabels, resultMetrics, resultMetricColumns, resultMetricAnalysis } from '@/src/lib/intelligence/query/multiMetricView';
 import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailability';
-import { resultBuildingRows } from '@/src/lib/intelligence/query/buildingCards';
+import { composeResponse } from '@/src/lib/intelligence/query/responsePresentation';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
-import { HomeQueryPdfDownload } from './HomeQueryPdfDownload';
 import { HomeQueryResearch } from './HomeQueryResearch';
-import { HomeQueryExportDownload } from './HomeQueryExportDownload';
-import { HomeQueryChartWorkspace } from './HomeQueryChartWorkspace';
+import { responseBlockRenderers } from './HomeQueryResponseBlocks';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
 import { HomeQueryInsights } from './HomeQueryInsights';
 import styles from './HomeQuery.module.css';
 import experienceStyles from './HomeQueryResultExperience.module.css';
-
-const HomeQueryBuildings = dynamic(() => import('./HomeQueryBuildings').then(module => module.HomeQueryBuildings), {
-  loading: () => <p role="status">正在打开楼宇信息…</p>,
-});
 
 export const HomeQueryResult = React.memo(function HomeQueryResult({ result, requestId, scope, delivery, internalExport = false, presentation = 'expanded', onExpand, visible = true }: {
   result: QueryResultView; requestId?: string; scope?: QueryClientScope; delivery?: object; internalExport?: boolean;
@@ -38,8 +31,9 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   const returnFocus = React.useRef<HTMLButtonElement | null>(null);
   const sectionId = React.useId();
   const summary = resultSummary(result);
+  const blocks = React.useMemo(() => composeResponse(undefined, result).blocks, [result]);
+  const hasBlock = (type: string) => blocks.some(block => block.type === type);
   const availability = resultAvailability(result);
-  const hasBuildings = React.useMemo(() => resultBuildingRows(result).length > 0, [result]);
   const metrics = resultMetrics(result);
   const multipleMetrics = metrics.length > 1;
   const research = React.useMemo(() => {
@@ -73,7 +67,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
     }).filter(Boolean).join('；') : null;
   const conclusion = primaryFinding?.text ?? (aggregateConclusion ? `${aggregateConclusion}。` : summary[conclusionIndex] ?? summary[0]);
   const context = summary.filter((line, index) => (primaryFinding || index !== conclusionIndex) && line !== conclusion);
-  const rows = result.table.rows.slice(page * 25, (page + 1) * 25);
+
   const sourceMap = React.useMemo(() => new Map(result.sources.map(source => [source.id, source])), [result]);
   const sources = selected ? selected.ids.flatMap(id => sourceMap.has(id) ? [sourceMap.get(id)!] : []) : [];
   useQueryPresentationReceipt(scope, delivery, { surface: 'answer_table', page, pageSize: 25, sourceIds: sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => source.id) }, visible && (!condensed || !!scalar || !!selected));
@@ -92,6 +86,11 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
     sourcePanel.current?.focus({ preventScroll: true });
     sourcePanel.current?.scrollIntoView?.({ block: 'nearest' });
   }, [selected]);
+  const tableFirst = ['list', 'rank'].includes(result.operation);
+  const analysisSection = (requestId && scope || research) && <section id={`${sectionId}-analysis`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="图表与分析">
+    {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible && !condensed} actionContainer={actionContainer} />}
+    {research && <HomeQueryInsights research={research} primaryFindingId={primaryFinding?.id} onSource={showSources} />}
+    </section>;
   return <section ref={resultPanel} tabIndex={-1} className={`${styles.result} ${experienceStyles.result}`} aria-label="查询结果" data-presentation={presentation} data-result-id={result.resultId}>
     {availability && <section className={styles.emptyState} aria-label="查询数据状态"><h3>{availability.title}</h3><p>{availability.description}</p></section>}
     <div className={experienceStyles.answer}>
@@ -100,14 +99,15 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
           onClick={event => showSources(primaryFinding.sourceIds, primaryFinding.title, event.currentTarget)}>依据</button>}
       </p>
       <p className={experienceStyles.scope}>{resultScopeText(result)}</p>
-      {scalar && scalarColumn && <section className={`${styles.metric} ${experienceStyles.metric}`} aria-label="核心指标">
+      <ResultBoundary result={result} research={research} />
+      {hasBlock('metrics') && scalar && scalarColumn && <section className={`${styles.metric} ${experienceStyles.metric}`} aria-label="核心指标">
         <h3>{scalarColumn.label}</h3>
         <div className={experienceStyles.metricReading}><button type="button" className={scalar.kind === 'number' ? `${styles.metricValue} ${experienceStyles.metricValue}` : styles.metricUnknown}
           aria-label={`查看来源：${scalarColumn.label} ${cellText(scalar, scalarColumn.unit)}`}
           onClick={event => showSources(scalar.sourceIds, scalarColumn.label, event.currentTarget)}>{cellText(scalar, scalarColumn.unit)}</button>
         {scalar.kind === 'number' && <span className={experienceStyles.metricUnit}>{units[scalarColumn.unit ?? ''] ?? scalarColumn.unit}</span>}</div>
       </section>}
-      {multipleMetrics && result.operation === 'aggregate' && result.table.rows.length === 1 && <div className={`${styles.multiMetrics} ${experienceStyles.metrics}`}>
+      {hasBlock('metrics') && multipleMetrics && result.operation === 'aggregate' && result.table.rows.length === 1 && <div className={`${styles.multiMetrics} ${experienceStyles.metrics}`}>
         {metrics.map(metric => {
           const key = resultMetricColumns(result, metric).value;
           const column = result.table.columns.find(item => item.key === key);
@@ -120,63 +120,44 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
           </section> : null;
         })}
       </div>}
-      <SourceOverview result={result} research={research} onSource={showSources} />
+
     </div>
     {result.parameters.researchTask != null && <HomeQueryResearch result={result} requestId={requestId} scope={scope} internalExport={internalExport}
       renderResult={child => <HomeQueryResult result={child} />} />}
-    {requestId && scope && !result.parameters.researchTask && <HomeQueryPdfDownload descriptor={result.parameters.agentReport}
-      requestId={requestId} resultId={result.resultId} scope={scope} internalExport={internalExport} />}
-    {requestId && scope && <HomeQueryExportDownload descriptor={result.parameters.agentExport}
-      requestId={requestId} resultId={result.resultId} scope={scope} internalExport={internalExport} />}
-    {requestId && scope && result.parameters.agentChart != null && <HomeQueryChartWorkspace result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible} />}
+    {requestId && scope && hasBlock('file') && <responseBlockRenderers.file result={result} requestId={requestId} scope={scope} internalExport={internalExport} />}
+    {requestId && scope && hasBlock('chart') && result.parameters.agentChart != null && <responseBlockRenderers.chart result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible} />}
     {condensed && <div className={experienceStyles.preview}>
       <p>完整分析包含 {result.table.rows.length} 条结果，可查看图表、项目明细及逐项来源。</p>
       <Button variant="secondary" data-result-expand onClick={() => { if (onExpand) onExpand(); else setInlineExpanded(true); }}>{onExpand ? '在全屏中查看完整分析' : '展开完整分析'}</Button>
     </div>}
-    {complex && !condensed && <nav className={experienceStyles.directory} aria-label="本条回答目录">
+    {complex && !condensed && !tableFirst && <nav className={experienceStyles.directory} aria-label="本条回答目录">
       <span>跳转至</span>
       {hasAnalysisNavigation && <button type="button" aria-controls={`${sectionId}-analysis`} onClick={() => goToSection('analysis')}>图表与分析</button>}
-      {hasBuildings && requestId && scope && <button type="button" aria-controls={`${sectionId}-buildings`} onClick={() => goToSection('buildings')}>相关楼宇</button>}
-      {!scalar && result.table.rows.length > 0 && <button type="button" aria-controls={`${sectionId}-table`} onClick={() => goToSection('table')}>结果明细</button>}
+      {hasBlock('building') && requestId && scope && <button type="button" aria-controls={`${sectionId}-buildings`} onClick={() => goToSection('buildings')}>相关楼宇</button>}
+      {!scalar && hasBlock('table') && <button type="button" aria-controls={`${sectionId}-table`} onClick={() => goToSection('table')}>结果明细</button>}
       <button type="button" aria-controls={`${sectionId}-sources`} onClick={() => goToSection('sources')}>来源与口径</button>
     </nav>}
     {detailsMounted && <div hidden={condensed} className={experienceStyles.details}>
-    {(requestId && scope || research) && <section id={`${sectionId}-analysis`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="图表与分析">
-    {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible && !condensed} actionContainer={actionContainer} />}
-    {research && <HomeQueryInsights research={research} primaryFindingId={primaryFinding?.id} onSource={showSources} />}
-    </section>}
-    {hasBuildings && requestId && scope && <section id={`${sectionId}-buildings`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="相关楼宇"><HomeQueryBuildings result={result} requestId={requestId} scope={scope} onSource={showSources} /></section>}
-    {!scalar && result.table.rows.length > 0 && <section id={`${sectionId}-table`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="结果明细">
+    {!tableFirst && analysisSection}
+    {hasBlock('building') && requestId && scope && <section id={`${sectionId}-buildings`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="相关楼宇"><responseBlockRenderers.building result={result} requestId={requestId} scope={scope} onSource={showSources} /></section>}
+    {!scalar && hasBlock('table') && <section id={`${sectionId}-table`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="结果明细">
       <h3 className={experienceStyles.sectionTitle}>结果明细</h3>
-      <div className={`${styles.tableScroll} ${experienceStyles.table}`} tabIndex={0} aria-label="查询结果表，可横向滚动">
-        <table><caption className="sr-only">本次结果的完整表格，分页不改变统计范围</caption><thead><tr>{result.table.columns.map(column =>
-          <th key={column.key} scope="col" className={column.unit ? styles.number : undefined}>{column.label}{column.unit ? `（${units[column.unit] ?? column.unit}）` : ''}</th>)}</tr></thead>
-          <tbody>{rows.map((row, index) => <tr key={`${page}:${row.entityId}:${index}`}>{result.table.columns.map(column => {
-            const cell = row.cells[column.key];
-            const value = cellText(cell, column.unit);
-            return <td key={column.key} className={cell.kind === 'number' ? styles.number : undefined}>
-              <button type="button" className={styles.cell} aria-label={`查看来源：${column.label} ${value}`}
-                onClick={event => showSources(cell.sourceIds, `${column.label}：${value}`, event.currentTarget)}>{value}</button>
-            </td>;
-          })}</tr>)}</tbody></table>
-      </div>
-      <div className={styles.tableFooter}><p>第 {page * 25 + 1}–{Math.min((page + 1) * 25, result.table.rows.length)} 条，共 {result.table.rows.length} 条。点选单元格查看来源。</p>
-        {result.table.rows.length > 25 && <div className={styles.actions}>
-          <Button variant="ghost" disabled={page === 0} onClick={() => setPage(value => value - 1)}>上一页</Button>
-          <Button variant="ghost" disabled={(page + 1) * 25 >= result.table.rows.length} onClick={() => setPage(value => value + 1)}>下一页</Button>
-        </div>}
-      </div>
+      <responseBlockRenderers.table result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} onPage={setPage} />
     </section>}
+    {tableFirst && analysisSection}
     </div>}
     <section id={`${sectionId}-sources`} tabIndex={-1} className={experienceStyles.sourceSummary} aria-label="数据来源">
-      <h3>数据来源</h3>
-      <button type="button" data-query-all-sources className={experienceStyles.sourceLink} onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看 {result.sources.length} 条获权来源</button>
-      <p>包含未参与计算的候选记录；点选具体数值可查看对应依据。</p>
+      <details className={experienceStyles.sourceDisclosure}>
+        <summary>数据依据与统计口径</summary>
+        <SourceOverview result={result} research={research} onSource={showSources} />
+        <button type="button" data-query-all-sources className={experienceStyles.sourceLink} onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看 {result.sources.length} 条获权来源</button>
+        <p>来源数量包含未参与计算的候选记录；具体指标的参与依据以单元格来源为准。</p>
+        {(context.length > 0 || result.limitations.length > 0) && <section className={`${styles.limitations} ${experienceStyles.limitations}`} aria-label="统计口径与限制">
+          <h3>统计口径与限制</h3>
+          {[...new Set([...context, ...result.limitations])].map(line => <p key={line}>{line}</p>)}
+        </section>}
+      </details>
     </section>
-    {(context.length > 0 || result.limitations.length > 0) && <section className={`${styles.limitations} ${experienceStyles.limitations}`} aria-label="统计口径与限制">
-      <h3>统计口径与限制</h3>
-      {[...new Set([...context, ...result.limitations])].map(line => <p key={line}>{line}</p>)}
-    </section>}
     <details className={`${styles.trace} ${experienceStyles.provenance}`}>
       <summary>来源、口径与结果版本</summary>
       <details className={styles.trace}><summary>实际执行条件</summary>
@@ -264,4 +245,24 @@ export function SourceOverview({ result, research, onSource }: { result: QueryRe
 
 function metricMethod(metric: 'rent' | 'vacancy' | 'totalArea'): string {
   return metric === 'rent' ? '按有效总面积加权' : metric === 'vacancy' ? '有效空置面积合计 ÷ 有效总面积合计' : '有效季度总面积求和';
+}
+
+/** Keep material uncertainty visible; detailed source and method prose can fold.
+ * These signals come from typed cells/source metadata, never keyword matching. */
+function ResultBoundary({ result, research }: { result: QueryResultView; research: ResearchAnalysis | null }) {
+  const unknown = result.table.rows.reduce((count, row) => count + Object.values(row.cells).filter(cell => cell.kind === 'unknown').length, 0);
+  const scope = z.object({ inventoryTime: z.string().optional() }).safeParse(result.parameters.scope).data;
+  const historical = result.sources.some(source => source.verification === 'historical');
+  const limited = research?.resourceUsage && research.resourceUsage.status !== 'complete';
+  const coverageNotes = resultMetrics(result).flatMap(metric => {
+    const coverage = z.object({ coverage: z.object({ total: z.number().int().nonnegative(), valid: z.number().int().nonnegative() }) })
+      .safeParse(resultMetricAnalysis(result, metric)).data?.coverage;
+    return coverage && coverage.valid < coverage.total ? [`${metricLabels[metric]}有效样本 ${coverage.valid}/${coverage.total} 栋。`] : [];
+  });
+  const incompletePeriods = research?.series.some(series => series.periods.some(period => period.coverage.valid < period.coverage.total));
+  const notices = [...coverageNotes, unknown ? `${unknown} 个结果值未知，不按零处理。` : '',
+    incompletePeriods ? '部分候选未参与计算，各期有效样本与缺失情况见明细。' : '',
+    scope?.inventoryTime === 'current_catalog' && result.sources.some(source => source.period) ? '分类依据当前目录，不代表历史市场全集。' : '',
+    historical ? '含历史来源，不能确认当前有效性。' : '', limited ? '研究分析受资源范围限制，详见数据依据。' : ''].filter(Boolean);
+  return notices.length ? <p className={experienceStyles.scope} aria-label="重要数据限制">{notices.join(' ')}</p> : null;
 }

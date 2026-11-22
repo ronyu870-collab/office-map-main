@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildAggregateResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
+import { buildAggregateResult, buildTrendResult, buildListResult } from '@/src/lib/intelligence/query/result';
 import { buildResultChart } from '@/src/lib/intelligence/query/charts';
 import { resultViewSchema, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import * as presentation from '@/src/lib/intelligence/query/presentation';
@@ -34,6 +34,13 @@ describe('progressive research result in one retained workspace', () => {
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus();
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveTextContent('net_effective_rent');
   });
+  it('keeps material unknown values visible while source details start folded', () => {
+    const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
+    render(<HomeQueryResult result={result} presentation="compact" />);
+    expect(screen.getByLabelText('重要数据限制')).toHaveTextContent('有效样本');
+    const disclosure = screen.getByText('数据依据与统计口径').closest('details');
+    expect(disclosure).not.toHaveAttribute('open');
+  });
   it('opens nearby source metadata, returns focus, and keeps full sample exclusions visible', () => {
     const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
     render(<HomeQueryResult result={result} />);
@@ -49,7 +56,7 @@ describe('progressive research result in one retained workspace', () => {
     const limitations = screen.getByRole('region', { name: '统计口径与限制' });
     expect(limitations).toHaveTextContent('缺失');
     expect(limitations).toHaveTextContent('未核验');
-    expect(limitations.closest('details')).toBeNull();
+    expect(limitations.closest('details')).toBeInTheDocument();
   });
   it('keeps results, evidence and the footer actions available when chart generation fails', async () => {
     client.chart.mockRejectedValueOnce(new Error('synthetic chart unavailable'));
@@ -67,6 +74,25 @@ describe('progressive research result in one retained workspace', () => {
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus();
     expect(client.chart).toHaveBeenCalledOnce();
     expect(client.download).not.toHaveBeenCalled();
+  });
+  it('keeps PNG and SVG export for an optional list chart after table downloads move into the table', async () => {
+    const result = resultViewSchema.parse(buildListResult(fixture(), ['height', 'netEffectiveRent']));
+    vi.stubGlobal('URL', class extends URL { static createObjectURL = vi.fn(() => 'blob:list-chart'); static revokeObjectURL = vi.fn(); });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    try {
+      client.download.mockResolvedValue({ blob: new Blob(['chart transport']), filename: 'chart.zip' });
+      render(<HomeQueryResult result={result} requestId={requestId} scope={scope} internalExport />);
+      expect(screen.queryByText('下载本次结果')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: '查看散点图' }));
+      await screen.findByRole('figure', { name: '同源查询图表' });
+      fireEvent.click(screen.getByText('下载图表'));
+      expect(screen.getByRole('button', { name: 'SVG 图与来源' })).toBeEnabled();
+      fireEvent.click(screen.getByRole('button', { name: 'PNG 图与来源' }));
+      await waitFor(() => expect(click).toHaveBeenCalledOnce());
+      expect(client.download).toHaveBeenCalledWith(scope, { requestId, resultId: result.resultId, action: 'export', format: 'png_zip',
+        chart: { kind: 'scatter', x: 'height', y: 'netEffectiveRent' } }, expect.any(AbortSignal));
+      expect(client.chart).toHaveBeenCalledOnce();
+    } finally { click.mockRestore(); vi.unstubAllGlobals(); }
   });
   it('shows download progress and failure beside the footer controls without losing the current chart', async () => {
     let rejectDownload!: (reason: Error) => void;
@@ -144,7 +170,7 @@ describe('progressive research result in one retained workspace', () => {
     const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
     const onClose = vi.fn(); render(<HomeQueryResearchPanel result={result} onClose={onClose} />);
     expect(screen.getByRole('complementary', { name: '研究资料与口径' })).toHaveTextContent('季度指标');
-    expect(screen.getByRole('region', { name: '当前分析范围' })).toHaveTextContent('2026 年第 3 季度');
+    expect(screen.getByRole('region', { name: '当前分析范围' })).toHaveTextContent('2026 Q3');
     expect(screen.getByRole('region', { name: '结果时间' })).toHaveTextContent('不代表最新市场数据');
     expect(screen.getByRole('region', { name: '统计口径' })).toHaveTextContent('按有效总面积加权');
     expect(screen.queryByText(result.resultId)).not.toBeInTheDocument();

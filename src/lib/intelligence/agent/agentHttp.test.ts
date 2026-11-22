@@ -6,7 +6,7 @@ import { fixture, nameSource } from '../query/__tests__/fixtures';
 import { parseQueryPlan } from '../query/plan';
 
 const state = vi.hoisted(() => ({
-  receive: vi.fn(), append: vi.fn(), provider: vi.fn(), tool: vi.fn(), structured: vi.fn(),
+  receive: vi.fn(), append: vi.fn(), provider: vi.fn(), tool: vi.fn(), structured: vi.fn(), knowledge: vi.fn(), knowledgeCheck: vi.fn(),
   readArchive: vi.fn(), recoverArchive: vi.fn(), identity: vi.fn(), authority: vi.fn(), intake: vi.fn(), history: vi.fn(), save: vi.fn(),
 }));
 
@@ -23,6 +23,10 @@ vi.mock('../query/historyStore', () => ({ recordHistorySubmission: state.save })
 vi.mock('./modelProvider', async original => ({
   ...(await original<typeof import('./modelProvider')>()),
   completeWithDeepSeek: state.provider,
+}));
+vi.mock('../knowledge/research', async original => ({
+  ...(await original<typeof import('../knowledge/research')>()),
+  queryKnowledge: state.knowledge, recheckKnowledgeResults: state.knowledgeCheck,
 }));
 vi.mock('./verifiedDataTool', () => ({ queryVerifiedRealEstate: state.tool, executeStructuredDataTool: state.structured }));
 vi.mock('./agentConversation', async original => ({
@@ -66,6 +70,7 @@ beforeEach(() => {
   state.append.mockResolvedValue(undefined);
   state.intake.mockResolvedValue(undefined);
   state.history.mockResolvedValue([]);
+  state.knowledgeCheck.mockResolvedValue(undefined);
   state.save.mockResolvedValue(true);
   state.readArchive.mockResolvedValue({}); state.recoverArchive.mockResolvedValue({});
   state.provider.mockResolvedValue({ model: 'deepseek-v4-flash', inputTokens: 12, outputTokens: 18,
@@ -112,6 +117,23 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
       costEstimate: { minUsd: expect.any(Number), maxUsd: expect.any(Number) },
     });
     expect(response.headers.get('x-query-delivery-token')).toMatch(/\./);
+  });
+
+  it('preserves privacy and evidence limitations for knowledge lists instead of replacing them with a generic table notice', async () => {
+    const raw = buildListResult(fixture(), []);
+    const result = { ...raw, parameters: { ...raw.parameters, domain: 'knowledge-research/1', evidenceKind: 'internal_document', knowledgeBindings: [], publicBindings: [] } };
+    state.knowledge.mockResolvedValue({ result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) });
+    state.provider.mockReset().mockResolvedValueOnce({ model: 'deepseek-v4-flash', inputTokens: 20, outputTokens: 20,
+      message: { role: 'assistant', content: null, tool_calls: [{ id: 'knowledge-1', type: 'function', function: {
+        name: 'search_internal_documents', arguments: JSON.stringify({ documentIds: [actorId], terms: ['空调系统'], limit: 12 }),
+      } }] } }).mockResolvedValueOnce({ model: 'deepseek-v4-flash', inputTokens: 20, outputTokens: 20, message: { role: 'assistant', content: '模型没有读取原文。' } });
+    const response = await handleAgentSubmission(fakeRequest('查找获权楼书中的空调系统证据。').request, deps());
+    const output = await response.json();
+    expect(response.status, JSON.stringify(output)).toBe(200);
+    expect(output.message).toContain('私有正文未发送外部模型');
+    expect(output.message).toContain('文档陈述不等于已核验的当前事实');
+    expect(output.result.parameters.responsePresentation).toMatchObject({ narrativeRole: 'analysis' });
+    expect(state.knowledgeCheck).toHaveBeenCalled();
   });
 
   it('executes a native tool request and uses the returned tool fact for subsequent model synthesis', async () => {
@@ -374,8 +396,8 @@ describe('AI 5.0 natural-language export through the authenticated Agent handler
     expect(output.status).toBe('ready');
     expect(output.result.parameters.agentExport).toMatchObject({ version: 'agent-export/1', format: scenario.format });
     expect(output.agent.toolCalls).toBe(2);
-    expect(output.message).toContain('服务器已生成');
-    expect(output.message).toContain('未确认本机保存');
+    expect(output.message).toContain('文件已准备好');
+    expect(output.message).not.toMatch(/已保存到电脑|已经保存在/);
     expect(output.message).not.toContain('已保存到你的桌面');
     expect(output.message).not.toContain('fake.invalid');
     const archived = state.append.mock.calls.find(x => x[1] === 'response_generated')?.[2]?.result;
@@ -436,7 +458,7 @@ describe('AI5 chart creation, same-snapshot modification and image delivery', ()
     expect(response.status).toBe(200); expect(body.agent.executionStatus).toBe('completed');
     expect(body.result.parameters.agentChart).toMatchObject({ request: spec, format: 'png_zip' });
     expect(body.result.table).toEqual(formal.table); expect(body.result.dataVersion).toBe(formal.dataVersion);
-    expect(body.message).toContain('服务器已生成 PNG'); expect(body.message).not.toContain('fake.invalid'); expect(body.message).not.toContain('已经保存在桌面');
+    expect(body.message).toContain('文件已准备好'); expect(body.message).not.toContain('fake.invalid'); expect(body.message).not.toContain('已经保存在桌面');
     const event = state.append.mock.calls.find(c => c[1] === 'tool_finished' && c[2]?.protocol === 'agent-answer/1')?.[2];
     expect(event.chartFile).toMatchObject({ state: 'server_generated', format: 'png_zip', bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
     const { buildResultArtifact } = await import('../query/artifacts');
@@ -493,7 +515,7 @@ describe('AI5 controlled PDF report tool', () => {
     state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] }); scripted();
     const response = await handleAgentSubmission(fakeRequest('CBD季度市场PDF研究报告').request, deps()), body = await response.json();
     expect(response.status).toBe(200); expect(body.result.parameters.agentReport).toMatchObject({ format: 'pdf', sectionCount: 1, purpose: 'internal' });
-    expect(body.message).toContain('服务器已生成'); expect(body.message).not.toMatch(/已保存到桌面|fake.invalid/);
+    expect(body.message).toContain('文件已准备好'); expect(body.message).not.toMatch(/已保存到桌面|fake.invalid/);
     expect(state.recoverArchive).toHaveBeenCalledOnce();
     const answer = state.append.mock.calls.find(x => x[1] === 'tool_finished' && x[2]?.protocol === 'agent-answer/1');
     expect(answer?.[2].reportFile).toMatchObject({ state: 'server_generated', format: 'pdf', bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
