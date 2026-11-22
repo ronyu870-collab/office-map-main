@@ -184,17 +184,18 @@ it('imports a chart snapshot only after owner/session/encrypted context and live
   await expect(readAgentHistory({ rpc } as unknown as SupabaseClient, identity, keys, authority, { id: conversationId, parentRequestId: requestId }, new AbortController().signal)).rejects.toThrow('QUERY_DENIED');
 });
 
-it.each([false, true])('restores combined answer and chart contexts once with shared immutable snapshots (resume=%s)', async resume => {
+it.each([[false, false], [true, false], [true, true]])('restores combined answer and chart contexts once with shared immutable snapshots (resume=%s, companion=%s)', async (resume, companion) => {
   const requestId = randomUUID(), conversationId = randomUUID(), result = buildListResult(fixture(), ['height']);
   const chart = { kind: 'plot', type: 'horizontal_bar', x: 'name', y: ['height'] };
+  const chartResult = companion ? buildListResult(fixture(), ['height']) : result;
   const history = [{ user: '创建高度图表', assistant: '已生成同源图表。' }];
   const selection = { version: 'answer-selection/1', task: 'list', status: 'answered', primaryResultId: result.resultId,
-    results: [{ role: 'primary', result }] };
+    results: [{ role: 'primary', result }, ...(companion ? [{ role: 'comparison', result: chartResult }] : [])] };
   const events = [
     event(requestId, 'received', { sessionId: resume ? randomUUID() : identity.sessionId,
       authority: { actorId: identity.actorId, effectiveUserId: identity.effectiveUserId }, metadata: { protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId } } }, 1),
     event(requestId, 'tool_finished', { protocol: 'agent-answer/1', permissionRevision: authority.permissionRevision,
-      history, answerContext: true, chartContext: { resultId: result.resultId, chart } }, 2),
+      history, answerContext: true, chartContext: { resultId: chartResult.resultId, chart } }, 2),
     event(requestId, 'response_generated', { result: selection }, 3),
   ];
   const rpc = vi.fn().mockReturnValue({ abortSignal: vi.fn().mockResolvedValue({ data: { allowed: true,
@@ -211,7 +212,7 @@ it.each([false, true])('restores combined answer and chart contexts once with sh
     ...(resume ? { resumeToken: sealHistoryToken(identity, authority.permissionRevision, 'history-resume', { requestId, conversationId }, keys) } : {}) };
   const restored = await readAgentHistory(client, identity, keys, authority, conversation, new AbortController().signal);
   expect(restored.contextResult).toBe(restored.contextResults?.[0]);
-  expect(restored.contextChart).toEqual({ resultId: result.resultId, chart });
+  expect(restored.contextChart).toEqual({ resultId: chartResult.resultId, chart });
   expect(stubs.read).toHaveBeenCalledOnce(); expect(stubs.recover).toHaveBeenCalledOnce();
   expect(recheck).toHaveBeenCalledOnce();
   recheck.mockRejectedValue(new Error('QUERY_DENIED'));

@@ -1,0 +1,25 @@
+{
+  "evidence": "synthetic-sqlite-workers-no-model",
+  "results": [
+    {
+      "id": "H7.zero",
+      "status": "PASS"
+    },
+    {
+      "id": "H7.restart-timeout",
+      "status": "PASS"
+    },
+    {
+      "id": "H7.acceptance-isolation",
+      "status": "PASS"
+    },
+    {
+      "id": "H7.concurrent-workers",
+      "status": "PASS"
+    },
+    {
+      "id": "H7.usage-halt-cache",
+      "status": "PASS"
+    }
+  ]
+}

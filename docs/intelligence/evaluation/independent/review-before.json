@@ -1,0 +1,10 @@
+{
+  "evidence": "independent-execution-before-fix-no-provider-requests",
+  "budgetHaltRace": {"halted":"usage_exceeded_reservation","sentAfterHalt":true},
+  "workerPreloadEscape": {"parentGuardedFetch":true,"worker":{"offline":null,"guardedFetch":false}},
+  "generalDiscussionMisclassification": [
+    {"question":"做市场分析时，如何避免把租金涨幅和样本变化混为一谈？","requiresDataFactEvidence":true},
+    {"question":"我想讨论租金报告的写作思路","requiresDataFactEvidence":true},
+    {"question":"请帮我写一封邮件，说明净有效租金的概念","requiresDataFactEvidence":true}
+  ]
+}

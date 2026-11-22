@@ -1,0 +1,13 @@
+{
+  "taskId": "replace-with-one-authorized-task-id",
+  "total": 0,
+  "acceptance": 144000000,
+  "buffer": 20000000,
+  "acceptanceCaseIds": ["live-capabilities", "live-quarter"],
+  "currency": "USD",
+  "model": "deepseek-flash",
+  "returnedModels": ["deepseek-v4-flash", "DeepSeek-V4.1-Flash-1017"],
+  "rates": {"input": 0.3, "cachedInput": 0.006, "output": 1.2},
+  "pricingSource": "https://api-docs.deepseek.com/quick_start/pricing/",
+  "pricingCheckedAt": "2026-11-22T15:00:00Z"
+}

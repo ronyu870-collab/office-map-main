@@ -146,6 +146,9 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Offline AI evaluation budget and replay boundaries
+        run: npm run test:ai-eval
+
       - name: Archived original ingestion regression
         run: |
           node --experimental-strip-types scripts/sales-materials/verify-local.mjs

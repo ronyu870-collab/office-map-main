@@ -27,6 +27,7 @@ const predicate = z.strictObject({
   value: z.string().max(100).regex(/^[+-]?\d+(?:\.\d+)?$/),
 });
 const legacy = z.strictObject({ question: z.string().trim().min(2).max(1000) });
+const capabilityRequest = z.strictObject({ question: legacy.shape.question.optional() });
 const resultRef = z.strictObject({ resultId: z.uuid() });
 const optionalResultRef = z.strictObject({ resultId: z.uuid().optional() });
 const rowSort = z.strictObject({ field: z.string().min(1).max(50), direction: z.enum(['asc', 'desc']) });
@@ -113,6 +114,7 @@ export function parseAgentToolArguments(name: string, input: unknown): Record<st
   if (BUSINESS_TOOL_NAMES.has(name)) return BUSINESS_TOOL_SCHEMAS[name as BusinessToolName].parse(input);
   if (name === 'query_lease_transactions') return leasePlanSchema.parse(input);
   if (name === 'query_verified_real_estate') return legacy.parse(input);
+  if (name === 'get_data_capabilities') return capabilityRequest.parse(input);
   if (LEGACY_TOOL_NAMES.has(name) && typeof input === 'object' && input !== null
     && Object.hasOwn(input, 'question')) return legacy.parse(input);
   if (STRUCTURED_DATA_TOOL_NAMES.has(name)) {
@@ -170,7 +172,7 @@ export const SPECIALIST_DATA_TOOLS = [
   def('list_buildings', '查询完整获权楼宇列表及最多6个组合数值字段；无季度只能查询目录/资料字段，季度数值须明确period。可供全量导出，绝不以预览行替代全表。',
     { scope: s, fields: { type: 'array', items: f, maxItems: 6 }, period: { anyOf: [q, { type: 'null' }] }, filter: p }, ['scope']),
   def('get_data_capabilities', '实时检查当前登录身份的楼宇、字段、范围、操作和内部导出授权；授权不保证数据覆盖，不得凭推测回答权限。',
-    { question: { type: 'string', minLength: 2, maxLength: 1000 } }, ['question']),
+    z.toJSONSchema(capabilityRequest).properties as Record<string, unknown>),
   def('search_buildings', '列出获权楼宇目录，可用名称子串进一步筛选。先使用此工具取得真实楼宇ID，不接受模糊生成的ID。',
     { scope: jsonScope, nameContains: { type: 'string', minLength: 1, maxLength: 100 } }, ['scope']),
   def('get_building_profile', '读取指定已授权楼宇ID的资料。建筑高度/楼层/车位为资料字段；季度字段须提供具体period。',

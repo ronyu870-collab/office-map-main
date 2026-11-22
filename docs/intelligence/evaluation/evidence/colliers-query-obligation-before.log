@@ -1,0 +1,36 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.6 <worktree>
+
+ ❯ src/lib/intelligence/agent/queryObligationHttp.test.ts (11 tests | 5 failed) 51ms
+     × does not publish an unqueried fact: 全市平均净有效租金是多少？ 29ms
+     × does not publish an unqueried fact: 平均空置率是多少？ 4ms
+     × does not publish an unqueried fact: What is the average net effective rent? 3ms
+     × does not publish an unqueried fact: What is the current vacancy rate? 2ms
+     × does not publish an unqueried fact: 解释净有效租金，并告诉我全市现在是多少。 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/intelligence/agent/queryObligationHttp.test.ts > HTTP data-fact obligations independent of model tool selection > does not publish an unqueried fact: 全市平均净有效租金是多少？
+ FAIL  src/lib/intelligence/agent/queryObligationHttp.test.ts > HTTP data-fact obligations independent of model tool selection > does not publish an unqueried fact: 平均空置率是多少？
+ FAIL  src/lib/intelligence/agent/queryObligationHttp.test.ts > HTTP data-fact obligations independent of model tool selection > does not publish an unqueried fact: What is the average net effective rent?
+ FAIL  src/lib/intelligence/agent/queryObligationHttp.test.ts > HTTP data-fact obligations independent of model tool selection > does not publish an unqueried fact: What is the current vacancy rate?
+ FAIL  src/lib/intelligence/agent/queryObligationHttp.test.ts > HTTP data-fact obligations independent of model tool selection > does not publish an unqueried fact: 解释净有效租金，并告诉我全市现在是多少。
+AssertionError: expected "vi.fn()" to be called once, but got 0 times
+ ❯ src/lib/intelligence/agent/queryObligationHttp.test.ts:49:24
+     47|     const response = await submit(question);
+     48|     expect(response.status).toBe(200);
+     49|     expect(state.tool).toHaveBeenCalledOnce();
+       |                        ^
+     50|     expect(state.tool.mock.calls[0][1]).toBe(question);
+     51|     expect(response.body.agent.toolCalls).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 6 passed (11)
+   Start at  23:08:10
+   Duration  1.49s (transform 474ms, setup 52ms, import 617ms, tests 51ms, environment 552ms)

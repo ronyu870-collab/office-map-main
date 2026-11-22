@@ -558,6 +558,10 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
 
   // Every condition must be consumed by a supported slot. Negations and
   // unsupported filters remain here and therefore cannot disappear silently.
+  // A parent-bound correction may replace its period without restating the
+  // metric or scope. Consume only this leading verb after one explicit quarter
+  // has already been parsed; all remaining conditions still require validation.
+  if (prior && absolute.length === 1) consume(/^(?:请)?改到/);
   for (const market of QUESTION_SUBMARKETS) remaining = remaining.replaceAll(market, '');
   consume(/望京|全部获权楼宇|全部获权范围|全部有权访问的楼宇/g);
   consume(/净有效租金|季度总面积|空置面积|空置率|建筑高度|楼层数|总车位数|租金/g);

@@ -1,0 +1,89 @@
+{
+  "baseline": "9e0c33ababc40140675c6ad13674e4aeb636a6ba",
+  "adaptation": "Only local worktree absolute paths replaced with <worktree>. Original test failures retained. Conversation guard before logs are interim-implementation failures, not baseline production failures. Portable text logs also remove trailing blank lines only.",
+  "files": [
+    {
+      "file": "colliers-protocol-exact-before.log",
+      "originalSha256": "203510fce815d7ec7a37cbb67c24559c787b5b4e33c3da1c1dc726d93415e804",
+      "portableSha256": "2fc4e9b10cbfa9f4daae4556ded4358ea5b11a56feb95a767c601c3c5ad74959"
+    },
+    {
+      "file": "colliers-protocol-after.log",
+      "originalSha256": "3a1c1d006a29f66a4504b35305f1cc4b846adf0bbf6e2c13ba2a437bc04520be",
+      "portableSha256": "ba2d3728e5e8b9ada7cfbcc78261519a72ce9669d3809f06648f3a175094cf3e"
+    },
+    {
+      "file": "colliers-ai-delivery-baseline-failures.log",
+      "originalSha256": "e19f54c3c9016c61e42748553e09781c3c22de3f84e6cad2b78294b82418405a",
+      "portableSha256": "bba557331cbd9b725cbc8042f18dba6e971fd91de047a2193a7d25e6686cc742"
+    },
+    {
+      "file": "colliers-ai-delivery-regression-passed.log",
+      "originalSha256": "ac66ca5d3acbf4ea3f6f1abc3898be9462c38a0e1ade9a62bbc8d25e1ef6c1aa",
+      "portableSha256": "c67963484038e74f059308f39bf87fca4d2e1ff4e3356ccde82aa07a50564b8d"
+    },
+    {
+      "file": "colliers-query-obligation-before.log",
+      "originalSha256": "13e544d1d6f1f4971b7f5794a77f7b786531fdd8cda14d1f1080394925e479ef",
+      "portableSha256": "b0856edf2bd9a8ac4b692b4a3713de8f604c19083b94522939dba91f46f26795"
+    },
+    {
+      "file": "colliers-query-obligation-after.log",
+      "originalSha256": "fea66a07147c3d3bb0c7ec28b8f5f11d6e2c4cbd0acc1741f6e3ef0ce6ae681c",
+      "portableSha256": "2deacecd889c884668955b0cc6d388dcd760a3eeef7c3e87a1ac7e7d7b206fbf"
+    },
+    {
+      "file": "colliers-semantic-followup-before.log",
+      "originalSha256": "85d344331540f2cddc622d0bc4f93e1e83dc0795fd18e99e9cf1c359b674e9c9",
+      "portableSha256": "e11e2289aa8d87f196d2f9f752accf8a323f9dc769f669ff7e8e8b6401f2636c"
+    },
+    {
+      "file": "colliers-semantic-followup-after.log",
+      "originalSha256": "fd053af1028189f80ab21ad87b41d18e1d98ee20eb56c792a6f566cf2a45932a",
+      "portableSha256": "7ba3ddbc2cae8795adfcee726b4b4fc4cd1487e75fda9ce650ee1040554aa713"
+    },
+    {
+      "file": "colliers-conversation-guard-before.log",
+      "originalSha256": "bf27c2c1d37c14701aa46dcfde65d3fa0255cc8b41e9acb609e7e268b16d18f6",
+      "portableSha256": "9bf8138a44caa7f824c3b00347f4fbe68ce36dacb0c4a3153c12148e5200940e"
+    },
+    {
+      "file": "colliers-conversation-guard-after.log",
+      "originalSha256": "2feb2a15d68561265d337f8146b5b26f755d4ed339dbc96b6eb4071c831d9606",
+      "portableSha256": "2eae5559a5f8f7c95ebf1a7884fa3ba14171d709f973b9b310a56b7463aa4605"
+    },
+    {
+      "file": "colliers-location-discussion-before.log",
+      "originalSha256": "ad03b7a07ffc216166c90162bec03fe3b0f0183667216af92d4eb1f5e1a332ad",
+      "portableSha256": "c9214be7437f462caf6aeacfcf609bf09a378e6010298fcd27666f131d564127"
+    },
+    {
+      "file": "colliers-location-discussion-after.log",
+      "originalSha256": "31a154818e0fa2546d5f53cb5039768ebdffeeab5400810c7391397b7930ee48",
+      "portableSha256": "650da4a93dde842eccb94a5cfce211565e901b70b1b0d92ed47931f277c0a8e3"
+    }
+  ],
+  "curatedFilesSha256": {
+    "auth-http-results.json": "57949925e6defb758113fa55f71068eb178d93822a3cad022638ff1cb920f998",
+    "auth-http.log": "e2d87e4f894366713668b51aa234bb673b9bf58674bb5a791fad3fb7305332ce",
+    "budget-independent.log": "b8de5ee63a1b92424c9a95270f74b7e2a4027d1119fedce15adaca7a2f5b8daf",
+    "checks.json": "f8ab54b594d5a2d89a8e83c41479a0fe818eb3f1c7fce8d312035552e219dabb",
+    "colliers-ai-delivery-baseline-failures.log": "bba557331cbd9b725cbc8042f18dba6e971fd91de047a2193a7d25e6686cc742",
+    "colliers-ai-delivery-regression-passed.log": "c67963484038e74f059308f39bf87fca4d2e1ff4e3356ccde82aa07a50564b8d",
+    "colliers-conversation-guard-after.log": "2eae5559a5f8f7c95ebf1a7884fa3ba14171d709f973b9b310a56b7463aa4605",
+    "colliers-conversation-guard-before.log": "9bf8138a44caa7f824c3b00347f4fbe68ce36dacb0c4a3153c12148e5200940e",
+    "colliers-location-discussion-after.log": "650da4a93dde842eccb94a5cfce211565e901b70b1b0d92ed47931f277c0a8e3",
+    "colliers-location-discussion-before.log": "c9214be7437f462caf6aeacfcf609bf09a378e6010298fcd27666f131d564127",
+    "colliers-protocol-after.log": "ba2d3728e5e8b9ada7cfbcc78261519a72ce9669d3809f06648f3a175094cf3e",
+    "colliers-protocol-exact-before.log": "2fc4e9b10cbfa9f4daae4556ded4358ea5b11a56feb95a767c601c3c5ad74959",
+    "colliers-query-obligation-after.log": "2deacecd889c884668955b0cc6d388dcd760a3eeef7c3e87a1ac7e7d7b206fbf",
+    "colliers-query-obligation-before.log": "b0856edf2bd9a8ac4b692b4a3713de8f604c19083b94522939dba91f46f26795",
+    "colliers-semantic-followup-after.log": "7ba3ddbc2cae8795adfcee726b4b4fc4cd1487e75fda9ce650ee1040554aa713",
+    "colliers-semantic-followup-before.log": "e11e2289aa8d87f196d2f9f752accf8a323f9dc769f669ff7e8e8b6401f2636c",
+    "equivalent-query-paths.log": "691fc31d743839a28b42e448c352721799088f0337f8024b3abb92747f244a3a",
+    "final-conversation-results.json": "05a678a37211ffb5aa5069d1ad8bcb48fcd7a7b91a83097bbbfa6cbdb574c30c",
+    "full-check-summary.txt": "354cbfae8309947ba57fc5028140dd329c532d30998c7f76b55d14c1d27058e9",
+    "layered-results.json": "fc931eca2bf5ef44983f9e3d0be225c4c4f65028c08b8cd03e44d060fdfbf9de",
+    "offline-original.json": "83dc0d8ffd93252cc21aad762a148b0ee33bc3262825965ad332e3aff74925c5"
+  }
+}

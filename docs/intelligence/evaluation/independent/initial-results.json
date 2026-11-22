@@ -1,0 +1,32 @@
+{
+  "planSha256": "4dffcb92c36a55ef9738a69d2071bc6e32403eeeb871d6aee2b799049b5c288d",
+  "evidence": "deterministic-typescript-real-file-no-auth-no-model",
+  "blockedFetches": 0,
+  "results": [
+    {
+      "id": "H1",
+      "status": "PASS"
+    },
+    {
+      "id": "H2",
+      "status": "PASS"
+    },
+    {
+      "id": "H3",
+      "status": "PASS"
+    },
+    {
+      "id": "H4",
+      "status": "PASS"
+    },
+    {
+      "id": "H5",
+      "status": "PASS"
+    },
+    {
+      "id": "H6",
+      "status": "FAIL",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 'clarification'\n- 'plan'\n"
+    }
+  ]
+}

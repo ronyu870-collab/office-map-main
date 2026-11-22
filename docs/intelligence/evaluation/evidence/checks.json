@@ -1,0 +1,30 @@
+{
+  "baseline": "9e0c33ababc40140675c6ad13674e4aeb636a6ba",
+  "productSourceSha256": "b09aceeff2ca73813318d2a7697c90e0cdf5392479ab73d64da9e8dcc2e66eeb",
+  "fullCheck": {
+    "status": "PASS",
+    "suites": 366,
+    "tests": 2757,
+    "lintErrors": 0,
+    "lintWarnings": 936,
+    "rawLogSha256": "15a8f1ffd57926a0684eba585d69a032ac616b0ae4f46956061a2b29f0743851",
+    "basis": "Working tree before last conversation supplement; final supplement independently reviewed and relevant 4 suites 99 assertions passed. Exact final head full validation is PR CI."
+  },
+  "finalRelated": {
+    "suites": 4,
+    "tests": 99,
+    "status": "PASS"
+  },
+  "finalOracle": {
+    "tests": 10,
+    "status": "PASS"
+  },
+  "finalTypecheck": "PASS",
+  "finalChangedLint": "PASS",
+  "authScenarios": 237,
+  "authEvidence": "auth-http-results.json",
+  "realProviderRequests": 0,
+  "estimatedUsd": 0,
+  "unsettled": 0,
+  "actualBill": null
+}

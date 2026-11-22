@@ -1,0 +1,123 @@
+
+> office-map-main@0.1.0 test:ai-eval
+> node --test scripts/intelligence/evaluation/budget.node-test.mjs scripts/intelligence/evaluation/trace.node-test.mjs && node --require ./scripts/intelligence/evaluation/offline-guard.cjs docs/intelligence/evaluation/independent/run.mjs && node --require ./scripts/intelligence/evaluation/offline-guard.cjs docs/intelligence/evaluation/independent/review-regressions.mjs
+
+TAP version 13
+# (node:58575) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: zero authorization blocks adapter; restart cannot reset money or pending requests
+ok 1 - zero authorization blocks adapter; restart cannot reset money or pending requests
+  ---
+  duration_ms: 7.633708
+  ...
+# Subtest: all phase allocations and request transitions count each reservation once
+ok 2 - all phase allocations and request transitions count each reservation once
+  ---
+  duration_ms: 8.253958
+  ...
+# Subtest: crashes/timeouts hold money; unexpected usage halts every following worker
+ok 3 - crashes/timeouts hold money; unexpected usage halts every following worker
+  ---
+  duration_ms: 5.821334
+  ...
+# Subtest: cache tokens are a subset of prompt; reasoning is a subset of completion
+ok 4 - cache tokens are a subset of prompt; reasoning is a subset of completion
+  ---
+  duration_ms: 0.219208
+  ...
+# Subtest: unpriced returned model and malformed usage keep the full reservation and halt; unresolved pools cannot close
+ok 5 - unpriced returned model and malformed usage keep the full reservation and halt; unresolved pools cannot close
+  ---
+  duration_ms: 8.600167
+  ...
+# Subtest: a worker reserved before another worker halts must not send after the halt
+ok 6 - a worker reserved before another worker halts must not send after the halt
+  ---
+  duration_ms: 13.479208
+  ...
+# Subtest: SQLite serializes two processes competing for the last task allocation
+ok 7 - SQLite serializes two processes competing for the last task allocation
+  ---
+  duration_ms: 91.678292
+  ...
+# Subtest: exact replay refuses changed permissions, data, messages or schemas; no raw thinking is stored
+ok 8 - exact replay refuses changed permissions, data, messages or schemas; no raw thinking is stored
+  ---
+  duration_ms: 1.244708
+  ...
+# Subtest: offline guard blocks external fetch, raw TCP, fallback SDK transport and children even with clean env
+ok 9 - offline guard blocks external fetch, raw TCP, fallback SDK transport and children even with clean env
+  ---
+  duration_ms: 477.402417
+  ...
+# Subtest: Worker with empty env and execArgv cannot drop the offline guard
+ok 10 - Worker with empty env and execArgv cannot drop the offline guard
+  ---
+  duration_ms: 125.118834
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 786.396333
+{
+  "blockedFetches": 0,
+  "results": [
+    {
+      "id": "H1",
+      "status": "PASS"
+    },
+    {
+      "id": "H2",
+      "status": "PASS"
+    },
+    {
+      "id": "H3",
+      "status": "PASS"
+    },
+    {
+      "id": "H4",
+      "status": "PASS"
+    },
+    {
+      "id": "H5",
+      "status": "PASS"
+    },
+    {
+      "id": "H6",
+      "status": "PASS"
+    }
+  ]
+}
+(node:58591) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[
+  {
+    "id": "H7.zero",
+    "status": "PASS"
+  },
+  {
+    "id": "H7.restart-timeout",
+    "status": "PASS"
+  },
+  {
+    "id": "H7.acceptance-isolation",
+    "status": "PASS"
+  },
+  {
+    "id": "H7.concurrent-workers",
+    "status": "PASS"
+  },
+  {
+    "id": "H7.usage-halt-cache",
+    "status": "PASS"
+  }
+]
+Independent evidence: /var/folders/77/jr_dhf1s77xbs6knrhwv2j2h0000gn/T/colliers-independent-evidence-4x0ZR7
+{"workerPreloadRegression":{"parentGuardedFetch":true,"worker":{"offline":"1","guardedFetch":true}},"haltBeforeSendRegression":"PASS"}
+(node:58594) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

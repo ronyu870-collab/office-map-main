@@ -1,0 +1,51 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.6 <worktree>
+
+ ❯ src/lib/intelligence/query/__tests__/semanticFollowupCorrection.test.ts (3 tests | 2 failed) 32ms
+     × changes only the period, then only the market, keeping the original vacancy meaning 25ms
+     × retains the parent inventory, explicit building scope and full numeric predicate 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/intelligence/query/__tests__/semanticFollowupCorrection.test.ts > independent H6 failure promoted to explicit-period correction regression > changes only the period, then only the market, keeping the original vacancy meaning
+AssertionError: expected 'clarification' to be 'plan' // Object.is equality
+
+Expected: "plan"
+Received: "clarification"
+
+ ❯ ready src/lib/intelligence/query/__tests__/semanticFollowupCorrection.test.ts:9:27
+      7| const ask = (question: string, context?: SemanticContext) => resolveSe…
+      8| const ready = (resolution: SemanticResolution) => {
+      9|   expect(resolution.kind).toBe('plan');
+       |                           ^
+     10|   if (resolution.kind !== 'plan') throw new Error(JSON.stringify(resol…
+     11|   return resolution;
+ ❯ src/lib/intelligence/query/__tests__/semanticFollowupCorrection.test.ts:17:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/intelligence/query/__tests__/semanticFollowupCorrection.test.ts > independent H6 failure promoted to explicit-period correction regression > retains the parent inventory, explicit building scope and full numeric predicate
+AssertionError: expected 'clarification' to be 'plan' // Object.is equality
+
+Expected: "plan"
+Received: "clarification"
+
+ ❯ ready src/lib/intelligence/query/__tests__/semanticFollowupCorrection.test.ts:9:27
+      7| const ask = (question: string, context?: SemanticContext) => resolveSe…
+      8| const ready = (resolution: SemanticResolution) => {
+      9|   expect(resolution.kind).toBe('plan');
+       |                           ^
+     10|   if (resolution.kind !== 'plan') throw new Error(JSON.stringify(resol…
+     11|   return resolution;
+ ❯ src/lib/intelligence/query/__tests__/semanticFollowupCorrection.test.ts:28:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
+   Start at  23:15:22
+   Duration  621ms (transform 94ms, setup 41ms, import 117ms, tests 32ms, environment 328ms)
