@@ -607,7 +607,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     if (execution.result) {
       const delivery = !!(preparedExport || preparedReport || chartFile || preparedResearch);
       const listing = ['list', 'rank'].includes(execution.result.operation)
-        && !execution.result.parameters.dataDomain && !preparedChart && !preparedMap;
+        && !execution.result.parameters.dataDomain && !execution.result.parameters.domain && !preparedChart && !preparedMap;
       const narrativeRole = execution.unresolvedFailures.length || execution.executionStatus !== 'completed'
         ? 'analysis' : delivery ? 'delivery_status' : listing ? 'result_summary' : 'analysis';
       // Already-generated files bind the original digest. Never mutate their
