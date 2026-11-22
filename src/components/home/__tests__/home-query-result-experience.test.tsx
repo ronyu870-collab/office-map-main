@@ -38,14 +38,15 @@ describe('progressive research result in one retained workspace', () => {
     const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
     render(<HomeQueryResult result={result} presentation="compact" />);
     expect(screen.getByLabelText('重要数据限制')).toHaveTextContent('有效样本');
-    const disclosure = screen.getByText('数据依据与统计口径').closest('details');
-    expect(disclosure).not.toHaveAttribute('open');
+    expect(screen.queryByRole('region', { name: '来源详情' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '数据依据' })).toBeEnabled();
   });
   it('opens nearby source metadata, returns focus, and keeps full sample exclusions visible', () => {
     const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
     render(<HomeQueryResult result={result} />);
     const summary = screen.getByRole('region', { name: '数据依据摘要' });
-    const source = within(summary).getByRole('button', { name: /季度数据/ });
+    expect(summary).toHaveTextContent('季度数据');
+    const source = screen.getByRole('button', { name: '数据依据' });
     fireEvent.click(source);
     const panel = screen.getByRole('region', { name: '来源详情' });
     expect(panel).toHaveFocus();
@@ -53,6 +54,8 @@ describe('progressive research result in one retained workspace', () => {
     expect(panel).toHaveTextContent('记录版本');
     fireEvent.click(screen.getByRole('button', { name: '关闭来源' }));
     expect(source).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' }));
+    fireEvent.click(screen.getByText('统计口径与限制'));
     const limitations = screen.getByRole('region', { name: '统计口径与限制' });
     expect(limitations).toHaveTextContent('缺失');
     expect(limitations).toHaveTextContent('未核验');
@@ -65,12 +68,14 @@ describe('progressive research result in one retained workspace', () => {
     await screen.findByText('synthetic chart unavailable');
     expect(screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' })).toBeVisible();
     const sources = screen.getByRole('region', { name: '数据来源' });
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' }));
+    fireEvent.click(screen.getByText('统计口径与限制'));
     const limitations = screen.getByRole('region', { name: '统计口径与限制' });
     const copy = screen.getByRole('button', { name: '复制结论' });
     expect(copy).toBeEnabled();
     expect(sources.compareDocumentPosition(limitations) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(limitations.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    fireEvent.click(within(sources).getByRole('button', { name: /获权来源/ }));
+    expect(copy).toBeEnabled();
+    fireEvent.click(within(sources).getByRole('button', { name: '数据依据' }));
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus();
     expect(client.chart).toHaveBeenCalledOnce();
     expect(client.download).not.toHaveBeenCalled();
@@ -162,7 +167,7 @@ describe('progressive research result in one retained workspace', () => {
   });
   it('offers all source details from a compact preview without generating or querying results again', () => {
     const result = longResult(); render(<HomeQueryResult result={result} presentation="compact" />);
-    fireEvent.click(within(screen.getByRole('region', { name: '数据来源' })).getByRole('button', { name: /获权来源/ }));
+    fireEvent.click(within(screen.getByRole('region', { name: '数据来源' })).getByRole('button', { name: '数据依据' }));
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveTextContent('全部获权候选来源');
     expect(client.chart).not.toHaveBeenCalled(); expect(client.download).not.toHaveBeenCalled();
   });

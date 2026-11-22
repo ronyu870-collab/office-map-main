@@ -32,7 +32,7 @@ describe('P1 current-catalog cross-dimensional trend presentation', () => {
   it('exposes both executed dimensions and the operation for legacy results without an executed plan', () => {
     const value = result(); delete value.parameters.executedPlan;
     render(<HomeQueryResult result={value} />);
-    fireEvent.click(screen.getByText('来源、口径与结果版本'));
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' })); fireEvent.click(screen.getByText('高级技术信息'));
     fireEvent.click(screen.getByText('实际执行条件'));
     const conditions = screen.getByText(/"operation": "cross_trend"/);
     expect(conditions).toBeVisible();
@@ -48,7 +48,7 @@ describe('P1 current-catalog cross-dimensional trend presentation', () => {
     const value = resultViewSchema.parse(executeQueryPlan(plan, crossTrendSnapshots(plan)));
     value.parameters.executedPlan = plan;
     render(<HomeQueryResult result={value} />);
-    fireEvent.click(screen.getByText('来源、口径与结果版本'));
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' })); fireEvent.click(screen.getByText('高级技术信息'));
     fireEvent.click(screen.getByText('实际执行条件'));
     const conditions = screen.getByText(/"operation": "cross_trend"/);
     const displayed = JSON.parse(conditions.textContent!);

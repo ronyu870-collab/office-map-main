@@ -53,8 +53,33 @@ it('sends exact selected snapshot indexes for export, without model or new query
   client.download.mockResolvedValue({ blob: new Blob(['xlsx bytes']), filename: '选中.xlsx' });
   render(<HomeQueryDataTable result={value} requestId={requestId} scope={scope} internalExport onSource={vi.fn()} />);
   fireEvent.click(screen.getByRole('checkbox', { name: '选择B座' })); fireEvent.click(screen.getByText('导出表格'));
-  fireEvent.click(screen.getByRole('button', { name: 'Excel · 已选 1 条' }));
+  expect(screen.getByRole('combobox', { name: '导出范围' })).toHaveValue('selected');
+  fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
   await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce());
   expect(client.download).toHaveBeenCalledWith(scope, { requestId, resultId: value.resultId, action: 'export', format: 'xlsx', selection: { kind: 'selected', rowIndexes: [1] } }, expect.any(AbortSignal));
   expect(screen.getByText('已发起下载')).toBeVisible();
+});
+
+function classified() {
+  const raw = resultViewSchema.parse(buildListResult(fixture(), ['height']));
+  return resultViewSchema.parse({ ...raw, table: { ...raw.table, columns: [...raw.table.columns, { key: 'submarket', label: '子市场', unit: null }, { key: 'grade', label: '等级', unit: null }],
+    rows: raw.table.rows.map((row, i) => ({ ...row, cells: { ...row.cells, submarket: { kind: 'text', value: i < 3 ? 'CBD' : '望京', sourceIds: [] }, grade: { kind: 'text', value: i % 2 ? 'B' : 'A', sourceIds: [] } } })) } });
+}
+it('combines returned categories, explains outside selections, restores original sort and removes one filter', () => {
+  const value = classified(), original = JSON.stringify(value);
+  render(<HomeQueryDataTable result={value} internalExport={false} onSource={vi.fn()} />);
+  fireEvent.click(screen.getByRole('checkbox', { name: '选择B座' }));
+  fireEvent.click(screen.getByText('筛选'));
+  fireEvent.change(screen.getByRole('combobox', { name: '筛选子市场' }), { target: { value: 'CBD' } });
+  fireEvent.change(screen.getByRole('combobox', { name: '筛选等级' }), { target: { value: '甲级' } });
+  expect(screen.getByRole('table').querySelectorAll('tbody tr')).toHaveLength(2);
+  expect(screen.getByRole('status')).toHaveTextContent('筛选外 1 条');
+  fireEvent.click(screen.getByRole('button', { name: '建筑高度（米）' }));
+  fireEvent.click(screen.getByRole('button', { name: '建筑高度（米）' }));
+  fireEvent.click(screen.getByRole('button', { name: '恢复原始顺序' }));
+  expect(screen.getByRole('columnheader', { name: '建筑高度（米）' })).toHaveAttribute('aria-sort', 'none');
+  fireEvent.click(screen.getByRole('button', { name: '移除筛选：甲级' }));
+  expect(screen.getByRole('table').querySelectorAll('tbody tr')).toHaveLength(3);
+  expect(screen.getByRole('checkbox', { name: '选择B座' })).toBeChecked();
+  expect(JSON.stringify(value)).toBe(original);
 });

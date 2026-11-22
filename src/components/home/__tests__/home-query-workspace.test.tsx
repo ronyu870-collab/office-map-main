@@ -448,7 +448,9 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     const sourcePanel = await screen.findByRole('region', { name: '来源详情' });
     await expand(); await collapse(); await expand();
     expect(screen.getByRole('region', { name: '查询结果' })).toBe(rendered);
-    expect(screen.getByRole('region', { name: '来源详情' })).toBe(sourcePanel);
+    expect(sourcePanel).not.toBeInTheDocument();
+    fireEvent.click(within(rendered).getByRole('button', { name: /^查看来源：/ }));
+    expect(screen.getByRole('region', { name: '来源详情' })).toBeVisible();
     expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
   });
 
@@ -469,7 +471,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     await user.click(trigger);
     await waitFor(() => expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus());
     await user.tab({ shift: true });
-    expect(within(rendered).getByText('来源、口径与结果版本')).toHaveFocus();
+    expect(screen.getByRole('button', { name: '返回对话' })).toHaveFocus();
     expect(screen.getByRole('region', { name: '查询结果' })).toBe(rendered);
     expect(screen.getByLabelText('Colliers AI')).toBe(input);
     expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
@@ -489,11 +491,12 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(within(summaryPanel).getByRole('button', { name: '收起摘要' })).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(screen.queryByRole('region', { name: '市场分析摘要' })).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
+    expect(within(rendered).getByText('更多操作')).toHaveFocus();
+    await user.click(within(rendered).getByText('更多操作'));
     await user.click(trigger);
     await waitFor(() => expect(screen.getByRole('region', { name: '市场分析摘要' })).toHaveFocus());
     await user.tab({ shift: true });
-    expect(trigger).toHaveFocus();
+    expect(within(rendered).getByText('更多操作')).toHaveFocus();
     expect(screen.getByRole('region', { name: '查询结果' })).toBe(rendered);
     expect(screen.getByLabelText('Colliers AI')).toBe(input);
     expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();

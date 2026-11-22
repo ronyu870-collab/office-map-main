@@ -14,11 +14,23 @@ export const gradeLabel = (value: string) => ({ A: '甲级', B: '乙级' }[value
 export function tableCellText(cell: DisplayCell, key: string, unit: string | null): string {
   return key === 'grade' && cell.kind === 'text' ? gradeLabel(cell.value) : cellText(cell, unit);
 }
-export function tableRowIndexes(result: QueryResultView, search: string, filter: { key: string; value: string } | null, sort: TableSort): number[] {
+export type TableFilter = { key: string; value: string };
+const searchIndexes = new WeakMap<QueryResultView, string[]>();
+function searchIndex(result: QueryResultView) {
+  let index = searchIndexes.get(result);
+  if (!index) {
+    index = result.table.rows.map(row => result.table.columns.map(column => tableCellText(row.cells[column.key], column.key, column.unit).toLocaleLowerCase()).join('\u0000'));
+    searchIndexes.set(result, index);
+  }
+  return index;
+}
+export function tableRowIndexes(result: QueryResultView, search: string, filter: TableFilter | readonly TableFilter[] | null, sort: TableSort): number[] {
   const query = search.trim().toLocaleLowerCase();
+  const filters: readonly TableFilter[] = !filter ? [] : 'key' in filter ? [filter] : filter;
+  const text = query ? searchIndex(result) : [];
   const indexes = result.table.rows.flatMap((row, index) => {
-    if (filter && tableCellText(row.cells[filter.key], filter.key, null) !== filter.value) return [];
-    return !query || result.table.columns.some(column => tableCellText(row.cells[column.key], column.key, column.unit).toLocaleLowerCase().includes(query)) ? [index] : [];
+    if (filters.some(item => !row.cells[item.key] || tableCellText(row.cells[item.key], item.key, null) !== item.value)) return [];
+    return !query || text[index].includes(query) ? [index] : [];
   });
   if (sort) indexes.sort((a, b) => {
     const left = result.table.rows[a].cells[sort.key], right = result.table.rows[b].cells[sort.key];

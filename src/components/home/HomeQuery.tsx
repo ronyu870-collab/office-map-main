@@ -7,6 +7,7 @@ import { Button } from '@/src/components/ui/Button';
 import { IconButton } from '@/src/components/ui/IconButton';
 import { trustedQueryClient, queryScopeKey, type QueryAccess, type QueryClientScope, type QueryReply } from '@/src/services/trustedQueryClient';
 import { queryActionSchema, type QueryAction, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
+import { HomeQueryDetailProvider, HomeQueryDetailPanel, useQueryDetail } from './HomeQueryDetailPanel';
 import { HomeQueryComposer, type QueryComposerHandle } from './HomeQueryComposer';
 import { HomeQueryResponse } from './HomeQueryResponse';
 import { responseNarrative } from '@/src/lib/intelligence/query/responsePresentation';
@@ -38,9 +39,10 @@ const CLOSED: QueryAccess = { enabled: false, examples: [] };
 
 /** A different verified identity must never inherit even in-memory questions. */
 export function HomeQuery({ scope, displayName }: { scope: QueryClientScope; displayName?: string }) {
-  return <HomeQuerySession key={queryScopeKey(scope)} scope={scope} displayName={displayName} />;
+  return <HomeQueryDetailProvider key={queryScopeKey(scope)}><HomeQuerySession scope={scope} displayName={displayName} /></HomeQueryDetailProvider>;
 }
 function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; displayName?: string }) {
+  const detail = useQueryDetail();
   const [access, setAccess] = React.useState<QueryAccess>(CLOSED);
   const [accessError, setAccessError] = React.useState(false);
   const composerHandle = React.useRef<QueryComposerHandle>(null);
@@ -94,6 +96,12 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     }
   }, [historyOpen, researchOpen, workspaceComposerRef, workspaceSurfaceRef]);
   const panelLayout = useQueryPanelLayout(workspaceSurfaceRef, mode, preparePanelsForDrawer);
+  const detailId = detail?.active?.id;
+  const onDetailOpen = detail?.onOpen;
+  React.useEffect(() => onDetailOpen?.(() => {
+    setHistoryOpen(false); setCompactHistoryOpen(false); setResearchOpen(false); setHelpOpen(false);
+    if (!expanded) focusWorkspace();
+  }), [onDetailOpen, expanded, focusWorkspace]);
   const scroll = useQueryScroll(workspaceScrollRef,
     `${attempt?.idempotencyKey ?? ''}:${busy}:${message}:${streamDraft.length}:${reply?.status ?? ''}:${reply?.result?.resultId ?? ''}`,
     transitioning);
@@ -373,8 +381,8 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const emptyConversation = !attempt && !history.length;
   const latestResult = React.useMemo(() => ready ? reply?.result : history.findLast(turn => turn.reply?.status === 'ready')?.reply?.result, [ready, reply, history]);
   const presentation = expanded ? 'expanded' : 'compact';
-  const historyShown = historyOpen && (expanded || compactHistoryOpen);
-  const researchShown = researchOpen && expanded;
+  const historyShown = !detailId && historyOpen && (expanded || compactHistoryOpen);
+  const researchShown = !detailId && researchOpen && expanded;
   const modalPanel = helpOpen ? 'help' : expanded && panelLayout === 'drawer' ? (historyShown ? 'history' : researchShown ? 'research' : null) : null;
   React.useLayoutEffect(() => {
     if (!modalPanel) {
@@ -391,6 +399,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   function closeHistory() { setHistoryOpen(false); setCompactHistoryOpen(false); historyToggle.current?.focus({ preventScroll: true }); }
   function closeResearch() { setResearchOpen(false); researchToggle.current?.focus({ preventScroll: true }); }
   function toggleHistory() {
+    detail?.close();
     if (composing.current) return;
     setHistoryMounted(true); setHistoryOpen(!historyShown);
     if (!expanded) { setCompactHistoryOpen(!historyShown); focusWorkspace(); }
@@ -400,9 +409,9 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     scroll.followNext(); openHistory(opened);
     if (panelLayout === 'drawer') closeHistory();
   };
-  const startNew = () => { panelReturnFocus.current = input.current; resetConversation(false); setHistoryOpen(false); setCompactHistoryOpen(false); scroll.followNext(); input.current?.focus({ preventScroll: true }); };
+  const startNew = () => { detail?.close(); panelReturnFocus.current = input.current; resetConversation(false); setHistoryOpen(false); setCompactHistoryOpen(false); scroll.followNext(); input.current?.focus({ preventScroll: true }); };
   const closeHelp = () => { setHelpOpen(false); };
-  const returnHome = () => { if (!exitWorkspace()) return; setHelpOpen(false); setHistoryOpen(false); setCompactHistoryOpen(false); };
+  const returnHome = () => { detail?.close(); if (!exitWorkspace()) return; setHelpOpen(false); setHistoryOpen(false); setCompactHistoryOpen(false); };
   function panelKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.defaultPrevented || event.nativeEvent.isComposing || event.keyCode === 229 || isWorkspaceComposing()) return;
     if (event.key === 'Escape' && (helpOpen || (panelLayout === 'drawer' && (historyShown || researchShown)))) {
@@ -444,17 +453,17 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     data-panels={panelLayout} onKeyDown={panelKeyDown}
     role={floating ? 'dialog' : undefined} aria-modal={floating ? true : undefined}
     aria-label={floating ? 'Colliers AI 工作空间' : undefined} tabIndex={-1}>
-    <header className={workspaceStyles.toolbar} inert={!!modalPanel}>
+    <header className={workspaceStyles.toolbar} inert={!!modalPanel || (!!detailId && panelLayout === 'drawer')}>
       <div className={workspaceStyles.identity}><strong>Colliers <span>AI</span></strong>{expanded && attempt?.question && <span className={workspaceStyles.conversationTitle} title={attempt.question}>{attempt.question}</span>}</div>
       {access.enabled && <div className={workspaceStyles.toolbarActions}>
         {(expanded || attempt || history.length > 0) && <Button className={workspaceStyles.newConversation} variant="ghost" disabled={busy} aria-label="新对话" title="新对话" onClick={startNew}><Plus size={16} aria-hidden="true" /><span>新对话</span></Button>}
         <IconButton ref={historyToggle} variant="ghost" label="历史记录" aria-expanded={historyShown} aria-controls="query-workspace-history" onClick={toggleHistory}><History size={16} aria-hidden="true" /></IconButton>
         {latestResult && <IconButton ref={researchToggle} variant="ghost" label="研究资料" aria-expanded={researchShown} aria-controls="query-workspace-research" onClick={() => {
-          setResearchMounted(true); setResearchOpen(!researchShown);
+          detail?.close(); setResearchMounted(true); setResearchOpen(!researchShown);
           if (!expanded) focusWorkspace();
           if (panelLayout !== 'both') setHistoryOpen(false);
         }}><PanelRight size={16} aria-hidden="true" /></IconButton>}
-        <IconButton ref={helpToggle} variant="ghost" label="能力与范围" aria-expanded={helpOpen} aria-controls="query-workspace-help" onClick={() => { if (composing.current) return; setHelpOpen(true); if (!expanded) focusWorkspace(); }}><CircleHelp size={16} aria-hidden="true" /></IconButton>
+        <IconButton ref={helpToggle} variant="ghost" label="能力与范围" aria-expanded={helpOpen} aria-controls="query-workspace-help" onClick={() => { if (composing.current) return; detail?.close(); setHelpOpen(true); if (!expanded) focusWorkspace(); }}><CircleHelp size={16} aria-hidden="true" /></IconButton>
         {expanded && <IconButton className={workspaceStyles.fullscreenToggle} variant="ghost" label={mode === 'expanded' ? '退出全屏 Colliers AI 工作空间' : '全屏 Colliers AI 工作空间'}
           aria-pressed={mode === 'expanded'} aria-controls="query-workspace-body" onPointerDown={preserveEditorFocus}
           onClick={() => mode === 'expanded' ? focusWorkspace() : expandWorkspace()}>
@@ -474,7 +483,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       {access.enabled && historyMounted && <HomeQueryHistory key={`${queryScopeKey(scope)}:${access.permissionRevision ?? ''}`} scope={scope} permissionRevision={access.permissionRevision} refreshKey={historyRefresh}
         contextEpoch={historyContextEpoch} activeConversationId={conversationId} activeRequestId={attempt?.requestId} busy={busy} onOpen={currentHistory} onClose={closeHistory} onNew={startNew} onHome={returnHome} />}
     </div>
-    <div className={workspaceStyles.main} inert={!!modalPanel}>
+    <div className={workspaceStyles.main} inert={!!modalPanel || (!!detailId && panelLayout === 'drawer')}>
     <div ref={workspaceScrollRef} className={workspaceStyles.scroller} role="region" aria-label="对话记录" tabIndex={0}
       onScroll={scroll.onScroll}>
     <div className={workspaceStyles.reading}>
@@ -529,6 +538,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       role={modalPanel === 'research' ? 'dialog' : undefined} aria-modal={modalPanel === 'research' ? true : undefined} aria-label={modalPanel === 'research' ? '研究资料侧栏' : undefined} tabIndex={-1}>
       {access.enabled && researchMounted && latestResult && <HomeQueryResearchPanel result={latestResult} onClose={closeResearch} onViewSources={viewResearchSources} />}
     </div>
+    <HomeQueryDetailPanel drawer={panelLayout === 'drawer'} />
     {helpOpen && <button type="button" tabIndex={-1} className={workspaceStyles.helpBackdrop} aria-label="关闭帮助" onClick={closeHelp} />}
     <div ref={helpPanel} id="query-workspace-help" className={workspaceStyles.help} hidden={!access.enabled || !helpOpen} inert={!access.enabled || !helpOpen}
       role="dialog" aria-modal="true" aria-labelledby="query-help-heading" tabIndex={-1}>

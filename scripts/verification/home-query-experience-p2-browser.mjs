@@ -481,6 +481,17 @@ try {
     await expanded(page, false); await expanded(page, true);
     assert.equal(await table.getByRole('checkbox', { name: '选择合成楼01', exact: true }).isChecked(), true, 'selection survives workspace switches');
     assert.equal(session.calls.filter(call => call.path === '/api/intelligence/query' && call.method === 'POST').length, postsBeforeFilter, 'table interactions never query the model/database');
+    await page.getByRole('button', { name: '展开表格', exact: true }).last().click();
+    const dataWorkspace = page.getByRole('region', { name: '数据工作区', exact: true }).or(page.getByRole('dialog', { name: '数据工作区', exact: true }));
+    await dataWorkspace.waitFor();
+    assert.equal(await dataWorkspace.getByRole('checkbox', { name: '选择合成楼01', exact: true }).isChecked(), true, 'expanded table keeps selected snapshot row');
+    await dataWorkspace.getByRole('searchbox').fill('合成楼01');
+    assert.equal(await dataWorkspace.getByRole('searchbox').evaluate(node => node === document.activeElement), true, 'expanded search retains focus');
+    await dataWorkspace.getByRole('button', { name: '返回对话', exact: true }).click();
+    const restoredSearch = page.getByRole('searchbox', { name: '搜索本次结果' }).last();
+    assert.equal(await restoredSearch.inputValue(), '合成楼01');
+    assert.equal(await page.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' }).last().getByRole('checkbox', { name: '选择合成楼01', exact: true }).isChecked(), true);
+    assert.equal(session.calls.filter(call => call.path === '/api/intelligence/query' && call.method === 'POST').length, postsBeforeFilter, 'workspace switching uses saved result only');
     session.interactionChecks.structuredTable = { passed: true, boundedRows: 25, returnedRows: 32, localSearchAndSort: true, retainedSelection: true, noQueryOnInteraction: true };
     await capture(session, 'interactive-table');
     await send(session, '查看新的分析', 'failure');

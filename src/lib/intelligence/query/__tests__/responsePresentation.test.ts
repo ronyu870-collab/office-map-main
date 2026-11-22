@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { composeResponse, responseNarrative } from '../responsePresentation';
 import { buildListResult } from '../result';
-import { resultViewSchema } from '../presentation';
+import { resultViewSchema, type QueryResultView } from '../presentation';
 import { fixture } from './fixtures';
 const result = () => resultViewSchema.parse(buildListResult(fixture(), ['height']));
 it('preserves prose about servers and arbitrary user content without keyword removal', () => {
@@ -30,4 +30,18 @@ it('adapts legacy file history to one attachment without losing the saved table'
 it('retains partial execution warnings alongside an otherwise valid legacy attachment', () => {
   const value = result(); value.parameters.agentExport = { version: 'agent-export/1', format: 'xlsx', singleSheet: false, matchedRows: 4, exportedRows: 4 };
   expect(responseNarrative('Excel已生成，但PDF未生成。', value, 'partial')).toContain('PDF未生成');
+});
+
+it('uses trusted operation and validated delivery shape for dynamic composition without mutating snapshots', () => {
+  const value = result(), original = JSON.stringify(value);
+  const types = (operation: QueryResultView['operation']) => composeResponse(undefined, { ...value, operation }).blocks.map(block => block.type);
+  expect(types('rank').indexOf('table')).toBeLessThan(types('rank').indexOf('analysis'));
+  expect(types('trend').indexOf('analysis')).toBeLessThan(types('trend').indexOf('table'));
+  expect(composeResponse('你好').layout).toBe('conversation');
+  value.parameters.agentExport = { version: 'agent-export/1', format: 'xlsx', singleSheet: false, matchedRows: 4, exportedRows: 4 };
+  const document = composeResponse(undefined, value);
+  expect(document.layout).toBe('delivery');
+  expect(document.blocks.map(block => block.type).indexOf('file')).toBeLessThan(document.blocks.map(block => block.type).indexOf('table'));
+  delete value.parameters.agentExport;
+  expect(JSON.stringify(value)).toBe(original);
 });

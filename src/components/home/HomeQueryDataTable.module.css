@@ -46,3 +46,15 @@
 @media (max-width: 479px) { .search { max-width: none; flex-basis: 100%; } .toolbar { position: relative; } .menu { position: static; } .menuBody { inset-block-start: auto; inset-inline-end: 0; } }
 
 .checkTarget { display: inline-flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; cursor: pointer; }
+.primaryActions { display: flex; align-items: center; gap: var(--cd-space-2); margin-inline-start: auto; flex-wrap: wrap; }
+.primaryActions > button { min-height: 36px; color: var(--cd-color-text-secondary); padding: var(--cd-space-2); }
+.menuBody label { flex-wrap: wrap; }
+.menuBody select { width: 100%; }
+.scroll .check { position: sticky; inset-inline-start: 0; z-index: 2; }
+.scroll .name { position: sticky; inset-inline-start: 0; z-index: 2; border-inline-end: 1px solid var(--cd-color-border); }
+.root[data-selectable="true"] .scroll .name { inset-inline-start: 44px; }
+.scroll thead :is(.check, .name) { z-index: 3; }
+.scroll th.number button { justify-content: flex-end; width: 100%; }
+.root[data-expanded="true"] .scroll { max-height: none; overflow-y: visible; }
+.scroll { scrollbar-color: var(--cd-color-border-strong) var(--cd-color-surface-alt); }
+.toolbar { position: relative; }

@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { HomeQueryChartFrame } from './HomeQueryChartFrame';
+import { HomeQueryMenu } from './HomeQueryMenu';
 import { Button } from '@/src/components/ui/Button';
 import { agentChartDescriptorSchema } from '@/src/lib/intelligence/query/chartProtocol';
 import { renderChartSvg, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
@@ -47,6 +49,13 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
     return () => { disposed = true; };
   }, [initial, draw, visible]);
   const svg = React.useMemo(() => chart ? renderChartSvg(chart) : '', [chart]);
+  const canvas = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    canvas.current?.querySelectorAll<SVGElement>('[data-entity][data-key]').forEach(node => {
+      node.setAttribute('tabindex', '0'); node.setAttribute('role', 'button');
+      node.setAttribute('aria-label', node.querySelector('title')?.textContent ?? '查看图示数值');
+    });
+  }, [svg]);
   if (!initial) return null;
   async function download(format: 'png_zip' | 'svg_zip') {
     if (active.current || !chart) return;
@@ -67,19 +76,22 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
     if (!draft) return;
     const min = minimum.trim() ? Number(minimum) : undefined, max = maximum.trim() ? Number(maximum) : undefined;
     if (min !== undefined && !Number.isFinite(min) || max !== undefined && !Number.isFinite(max)) { setMessage('坐标范围须填写有限数值，留空使用默认范围。'); return; }
+    if (min !== undefined && max !== undefined && min >= max) { setMessage('最小值须小于最大值。'); return; }
     void draw({ ...draft, yAxis: { ...draft.yAxis, min, max, ticks } });
   }
-  return <section className={workspaceStyles.workspace} aria-label="专业图表工作区">
+  return <HomeQueryChartFrame id={`${result.resultId}-chart`} title={chart?.title ?? '图表'}><section className={workspaceStyles.workspace} aria-label="专业图表工作区">
     <div className={styles.actions}>
       {descriptor?.format && <span>{descriptor.format === 'png_zip' ? 'PNG' : 'SVG'} 与来源包已就绪</span>}
-      {internalExport && <><Button variant="ghost" disabled={busy || !chart} onClick={() => void download('png_zip')}>下载 PNG 与来源</Button>
-        <Button variant="ghost" disabled={busy || !chart} onClick={() => void download('svg_zip')}>下载 SVG 与来源</Button></>}
+      {internalExport && <HomeQueryMenu label="下载图表"><Button variant="ghost" disabled={busy || !chart} onClick={() => void download('png_zip')}>下载 PNG 与来源</Button>
+        <Button variant="ghost" disabled={busy || !chart} onClick={() => void download('svg_zip')}>下载 SVG 与来源</Button></HomeQueryMenu>}
       {!chart && <Button variant="ghost" disabled={busy} onClick={() => void draw(initial)}>生成图表</Button>}
     </div>
     <p role="status" className={styles.notice}>{message}</p>
     {chart && <figure className={workspaceStyles.figure}>
       <figcaption>{chart.title}　{chart.yLabel}（{units[chart.yUnit] ?? chart.yUnit}）</figcaption>
-      <div className={workspaceStyles.canvas} tabIndex={0} aria-label="图表画布，可滚动查看完整图形；逐点数值与来源在下方"
+      <div onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') { const point = (event.target as Element).closest?.('[data-entity][data-key]'); if (point) { event.preventDefault(); (point as SVGElement).dispatchEvent(new MouseEvent('click', { bubbles: true })); } }
+      }} ref={canvas} className={workspaceStyles.canvas} tabIndex={0} aria-label="图表画布，可滚动查看完整图形；逐点数值与来源在下方"
         onClick={event => {
           const point = (event.target as Element).closest?.('[data-entity][data-key]');
           if (!point) return;
@@ -108,11 +120,13 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
           setDraft({ ...draft, sort: field ? { field, direction: direction as 'asc' | 'desc' } : undefined });
         }}><option value="">沿用正式结果顺序</option>{result.table.columns.flatMap(c => ['asc', 'desc'].map(d => <option key={`${c.key}:${d}`} value={`${c.key}:${d}`}>{c.label} · {d === 'asc' ? '升序' : '降序'}</option>))}</select></label>
       </>}
-      <label>数值轴最小值<input inputMode="decimal" value={minimum} onChange={event => setMinimum(event.target.value)} placeholder="默认范围" /></label>
+      <details className={workspaceStyles.advanced}><summary>高级坐标设置</summary><div className={workspaceStyles.controls}><label>数值轴最小值<input inputMode="decimal" value={minimum} onChange={event => setMinimum(event.target.value)} placeholder="默认范围" /></label>
       <label>数值轴最大值<input inputMode="decimal" value={maximum} onChange={event => setMaximum(event.target.value)} placeholder="默认范围" /></label>
       <label>数值轴刻度数<select value={ticks} onChange={event => setTicks(Number(event.target.value))}>{[3, 4, 5, 6, 8, 10, 12].map(n => <option key={n}>{n}</option>)}</select></label>
       <label>图例<input type="checkbox" checked={draft?.legend !== false} onChange={event => draft && setDraft({ ...draft, legend: event.target.checked })} /></label>
+      </div></details>
+      <Button variant="ghost" disabled={busy} onClick={() => { setMinimum(initial?.yAxis?.min?.toString() ?? ''); setMaximum(initial?.yAxis?.max?.toString() ?? ''); setTicks(initial?.yAxis?.ticks ?? 5); setDraft(initial); void draw(initial!); }}>恢复默认图表</Button>
       <Button variant="secondary" disabled={busy} type="submit">应用图表配置</Button>
     </form></details>
-  </section>;
+  </section></HomeQueryChartFrame>;
 }
