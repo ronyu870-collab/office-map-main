@@ -68,7 +68,7 @@ function contextLines(result: QueryResultView): string[] {
   return [
     `分析主题：${descriptor.object} · ${descriptor.metric}`,
     `数据期间：${descriptor.period}`,
-    `数据范围：${resultScopeText(result)}`,
+    resultScopeText(result),
     ...(filter ? [`筛选条件：${filter}`] : []),
     ...(result.operation === 'rank' ? [`排名：${result.parameters.direction === 'asc' ? '从低到高' : '从高到低'}，前 ${String(result.parameters.limit)} 名（保留末位并列）。`] : []),
   ];

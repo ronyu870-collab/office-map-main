@@ -14,7 +14,7 @@
 .menuBody button { justify-content: flex-start; text-align: left; white-space: normal; height: auto; font: inherit; }
 .export { display: flex; align-items: center; flex-wrap: wrap; gap: var(--cd-space-2); }
 .export > span, .scope { color: var(--cd-color-text-secondary); }
-.selection { display: flex; flex-wrap: wrap; gap: var(--cd-space-3); padding-block: var(--cd-space-2); color: var(--cd-color-text-secondary); }
+.selection { display: flex; align-items: center; flex-wrap: wrap; gap: var(--cd-space-3); padding-block: var(--cd-space-2); color: var(--cd-color-text-secondary); }
 .selection button, .mapLink, .buildingLink { color: var(--cd-color-brand); text-decoration: underline; text-underline-offset: 3px; }
 .mapLink { padding: var(--cd-space-2); }
 .scroll { width: 100%; overflow: auto; max-height: 520px; border-block: 1px solid var(--cd-color-border); }
