@@ -48,6 +48,25 @@ function visibleControls(surface: HTMLElement): HTMLElement[] {
   });
 }
 
+/** Native focus scrolling can leave a target clipped in nested scrollports.
+ * Correct only the workspace's scrollable ancestors; never move the page. */
+function revealControl(control: HTMLElement, surface: HTMLElement) {
+  for (let parent = control.parentElement; parent && parent !== surface; parent = parent.parentElement) {
+    const style = getComputedStyle(parent), box = parent.getBoundingClientRect();
+    const target = control.getBoundingClientRect();
+    if (/(auto|scroll)/.test(style.overflowY) && parent.clientHeight > 0 && parent.scrollHeight > parent.clientHeight) {
+      const top = box.top + parent.clientTop, bottom = top + parent.clientHeight;
+      if (target.bottom > bottom) parent.scrollTop += target.bottom - bottom;
+      else if (target.top < top) parent.scrollTop += target.top - top;
+    }
+    if (/(auto|scroll)/.test(style.overflowX) && parent.clientWidth > 0 && parent.scrollWidth > parent.clientWidth) {
+      const left = box.left + parent.clientLeft, right = left + parent.clientWidth;
+      if (target.right > right) parent.scrollLeft += target.right - right;
+      else if (target.left < left) parent.scrollLeft += target.left - left;
+    }
+  }
+}
+
 /** A single DOM/React tree changes its bounds. No portal, router, query or session
  * key participates in a mode switch. The placeholder preserves the homepage. */
 export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
@@ -317,6 +336,7 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
       // Let the browser reveal a target inside a long answer/history scroller.
       // Suppressing scrolling here would leave a valid keyboard focus offscreen.
       next.focus();
+      revealControl(next, node);
     };
     const focusin = (event: FocusEvent) => {
       if (event.target instanceof Node && !node.contains(event.target)) toggle.current?.focus({ preventScroll: true });

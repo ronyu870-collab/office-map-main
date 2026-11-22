@@ -352,6 +352,9 @@ async function focusedControl(page) {
         && !node.closest('[hidden],[inert]') && rect.right > left && rect.left < right && rect.bottom > top && rect.top < bottom,
       withinDialog: !!dialog?.contains(node),
       wasBelowFold: !!window.__p2BelowFoldControls?.has(node),
+      rect: rect ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom } : null,
+      scrollport: { left, top, right, bottom },
+      scrollerTop: node?.closest('[aria-label="对话记录"]')?.scrollTop,
     };
   });
 }
@@ -372,7 +375,10 @@ async function checkLongResultFocus(session) {
     for (let step = 0; step < 60; step++) {
       await page.keyboard.press(direction);
       const active = await focusedControl(page);
-      if (!active.visible || !active.withinDialog) issues.push({ direction, step, active });
+      if (!active.visible || !active.withinDialog) {
+        issues.push({ direction, step, active });
+        console.error('long-result focus issue:', JSON.stringify({ width: session.width, direction, step, active }));
+      }
       if (active.wasBelowFold && active.visible) revealedBelowFold++;
     }
   }
