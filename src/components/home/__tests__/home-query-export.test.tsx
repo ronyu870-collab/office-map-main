@@ -49,6 +49,7 @@ it('renders a restored exported list as one attachment and one interactive table
   render(<HomeQueryResult result={result()} requestId={requestId} scope={scope} internalExport />);
   expect(screen.getByRole('searchbox', { name: '搜索本次结果' })).toBeInTheDocument();
   expect(screen.getAllByRole('table')).toHaveLength(1);
+  expect(screen.getByRole('table').compareDocumentPosition(screen.getByRole('region', { name: '图表与分析' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(screen.queryAllByRole('article')).toHaveLength(0);
   expect(screen.getAllByRole('button', { name: '下载 Excel' })).toHaveLength(1);
   expect(screen.queryByText(/服务器已生成/)).not.toBeInTheDocument();

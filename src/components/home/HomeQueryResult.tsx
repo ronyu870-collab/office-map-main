@@ -86,6 +86,11 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
     sourcePanel.current?.focus({ preventScroll: true });
     sourcePanel.current?.scrollIntoView?.({ block: 'nearest' });
   }, [selected]);
+  const tableFirst = ['list', 'rank'].includes(result.operation);
+  const analysisSection = (requestId && scope || research) && <section id={`${sectionId}-analysis`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="图表与分析">
+    {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible && !condensed} actionContainer={actionContainer} />}
+    {research && <HomeQueryInsights research={research} primaryFindingId={primaryFinding?.id} onSource={showSources} />}
+    </section>;
   return <section ref={resultPanel} tabIndex={-1} className={`${styles.result} ${experienceStyles.result}`} aria-label="查询结果" data-presentation={presentation} data-result-id={result.resultId}>
     {availability && <section className={styles.emptyState} aria-label="查询数据状态"><h3>{availability.title}</h3><p>{availability.description}</p></section>}
     <div className={experienceStyles.answer}>
@@ -125,7 +130,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       <p>完整分析包含 {result.table.rows.length} 条结果，可查看图表、项目明细及逐项来源。</p>
       <Button variant="secondary" data-result-expand onClick={() => { if (onExpand) onExpand(); else setInlineExpanded(true); }}>{onExpand ? '在全屏中查看完整分析' : '展开完整分析'}</Button>
     </div>}
-    {complex && !condensed && <nav className={experienceStyles.directory} aria-label="本条回答目录">
+    {complex && !condensed && !tableFirst && <nav className={experienceStyles.directory} aria-label="本条回答目录">
       <span>跳转至</span>
       {hasAnalysisNavigation && <button type="button" aria-controls={`${sectionId}-analysis`} onClick={() => goToSection('analysis')}>图表与分析</button>}
       {hasBlock('building') && requestId && scope && <button type="button" aria-controls={`${sectionId}-buildings`} onClick={() => goToSection('buildings')}>相关楼宇</button>}
@@ -133,15 +138,13 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       <button type="button" aria-controls={`${sectionId}-sources`} onClick={() => goToSection('sources')}>来源与口径</button>
     </nav>}
     {detailsMounted && <div hidden={condensed} className={experienceStyles.details}>
-    {(requestId && scope || research) && <section id={`${sectionId}-analysis`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="图表与分析">
-    {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible && !condensed} actionContainer={actionContainer} />}
-    {research && <HomeQueryInsights research={research} primaryFindingId={primaryFinding?.id} onSource={showSources} />}
-    </section>}
+    {!tableFirst && analysisSection}
     {hasBlock('building') && requestId && scope && <section id={`${sectionId}-buildings`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="相关楼宇"><responseBlockRenderers.building result={result} requestId={requestId} scope={scope} onSource={showSources} /></section>}
     {!scalar && hasBlock('table') && <section id={`${sectionId}-table`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="结果明细">
       <h3 className={experienceStyles.sectionTitle}>结果明细</h3>
       <responseBlockRenderers.table result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} onPage={setPage} />
     </section>}
+    {tableFirst && analysisSection}
     </div>}
     <section id={`${sectionId}-sources`} tabIndex={-1} className={experienceStyles.sourceSummary} aria-label="数据来源">
       <details className={experienceStyles.sourceDisclosure}>
