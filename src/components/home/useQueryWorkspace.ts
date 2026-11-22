@@ -353,10 +353,12 @@ export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | nul
   const deferredLayout = React.useRef(false);
   const prependPosition = React.useRef<ReadingPosition | null>(null);
   const expectedScrollTop = React.useRef<number | null>(null);
+  const revealNext = React.useRef(false);
+  const answerAnchor = React.useRef<HTMLElement | null>(null);
   const transitionRef = React.useRef(transitioning);
   React.useLayoutEffect(() => { transitionRef.current = transitioning; }, [transitioning]);
   const toLatest = React.useCallback(() => {
-    following.current = true; prependPosition.current = null; setUnseen(false);
+    following.current = true; prependPosition.current = null; answerAnchor.current = null; revealNext.current = false; setUnseen(false);
     const node = scrollerRef.current;
     if (node) {
       node.scrollTop = node.scrollHeight;
@@ -374,7 +376,7 @@ export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | nul
       expectedScrollTop.current = null;
       return;
     }
-    expectedScrollTop.current = null; prependPosition.current = null;
+    expectedScrollTop.current = null; prependPosition.current = null; answerAnchor.current = null; revealNext.current = false;
     following.current = node.scrollHeight - node.clientHeight - node.scrollTop < 72;
     if (following.current) setUnseen(false);
   }, [scrollerRef]);
@@ -382,7 +384,16 @@ export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | nul
     if (transitionRef.current) { deferredLayout.current = true; return; }
     const node = scrollerRef.current;
     if (!node) return;
-    if (prependPosition.current) {
+    if (revealNext.current) {
+      revealNext.current = false;
+      answerAnchor.current = node.querySelector<HTMLElement>('[aria-label="本次问答"]');
+      if (answerAnchor.current) { following.current = false; setUnseen(false); }
+    }
+    if (answerAnchor.current?.isConnected) {
+      const position = node.scrollTop + answerAnchor.current.getBoundingClientRect().top - node.getBoundingClientRect().top - 16;
+      node.scrollTop = Math.max(0, position);
+      expectedScrollTop.current = node.scrollTop;
+    } else if (prependPosition.current) {
       const previousTop = node.scrollTop;
       restorePosition(node, prependPosition.current);
       if (node.scrollTop !== previousTop) expectedScrollTop.current = node.scrollTop;
@@ -394,29 +405,39 @@ export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | nul
     const node = scrollerRef.current;
     if (!node || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(applyLayout);
+    // User interaction ends the initial answer reveal; local details and chart
+    // settings must keep their own reading position after this point.
+    const releaseAnswer = () => { answerAnchor.current = null; revealNext.current = false; };
+    node.addEventListener('pointerdown', releaseAnswer); node.addEventListener('keydown', releaseAnswer);
     observer.observe(node);
     if (node.firstElementChild) observer.observe(node.firstElementChild);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); node.removeEventListener('pointerdown', releaseAnswer); node.removeEventListener('keydown', releaseAnswer); };
   }, [scrollerRef, applyLayout]);
   React.useLayoutEffect(() => {
     if (transitionRef.current) { deferredUpdate.current = true; return; }
-    if (following.current) toLatest();
+    if (revealNext.current || answerAnchor.current) applyLayout();
+    else if (following.current) toLatest();
     else setUnseen(true);
-  }, [update, toLatest]);
+  }, [update, toLatest, applyLayout]);
   React.useLayoutEffect(() => {
     if (transitioning) return;
     const updated = deferredUpdate.current, resized = deferredLayout.current;
     deferredUpdate.current = false;
     deferredLayout.current = false;
     if (updated || resized) applyLayout();
-    if (updated && !following.current) setUnseen(true);
+    if (updated && !following.current && !answerAnchor.current) setUnseen(true);
   }, [transitioning, applyLayout]);
   const followNext = React.useCallback(() => {
-    following.current = true; prependPosition.current = null; expectedScrollTop.current = null; setUnseen(false);
+    following.current = true; prependPosition.current = null; expectedScrollTop.current = null; answerAnchor.current = null; revealNext.current = false; setUnseen(false);
   }, []);
   const preserveBeforePrepend = React.useCallback(() => {
     prependPosition.current = readPosition(scrollerRef.current);
-    following.current = false; expectedScrollTop.current = null;
+    following.current = false; expectedScrollTop.current = null; answerAnchor.current = null; revealNext.current = false;
   }, [scrollerRef]);
-  return { onScroll, toLatest, followNext, preserveBeforePrepend, unseen };
+  const revealNextAnswer = React.useCallback(() => {
+    // Explicit terminal result insertion may reveal its lead only while the
+    // reader is following this request. Scrolling back always takes priority.
+    if (following.current) revealNext.current = true;
+  }, []);
+  return { onScroll, toLatest, followNext, preserveBeforePrepend, revealNextAnswer, unseen };
 }

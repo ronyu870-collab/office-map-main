@@ -31,7 +31,9 @@ it('shows the requested chart and PNG/SVG download beside a collapsed result, re
   fireEvent.click(screen.getByText('下载图表'));
   expect(screen.getByRole('button', { name: '下载 PNG 与来源' })).toBeEnabled();
   expect(screen.getByRole('button', { name: '下载 SVG 与来源' })).toBeEnabled();
-  expect(screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' }).querySelectorAll('tbody tr')).toHaveLength(8);
+  expect(screen.queryByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('查看数据明细（40 行）'));
+  expect((await screen.findByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' })).querySelectorAll('tbody tr')).toHaveLength(25);
   expect(client.download).not.toHaveBeenCalled();
   const file = { blob: new Blob(['verified transport bytes'], { type: 'application/zip' }), filename: 'chart_png_zip.zip' };
   client.download.mockResolvedValue(file);

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { defaultResultChartRequest, resultChartEligibility, resultNumericColumns } from '../query/resultEligibility';
 import { buildResultChart, type ChartRequest } from '../query/charts';
 import { queryMapHref } from '../query/buildingNavigation';
 import { resultBuildingRows } from '../query/buildingCards';
@@ -19,24 +20,18 @@ const limited = (reason: string): AgentToolObservation<QueryResult> => ({
 });
 
 export function preferredChartRequest(view: QueryResultView): ChartRequest | null {
+  const primary = defaultResultChartRequest(view);
+  if (primary) return primary;
+  let request: ChartRequest | null = null;
   if (view.parameters.dataDomain === 'lease-research/1') {
     if (!view.table.columns.some(c => c.key === 'group')) return null;
-    const bindings = view.parameters.leaseBindings as Array<{ plan?: { groupBy?: string } }>;
-    return { kind: 'plot', type: bindings?.[0]?.plan?.groupBy === 'quarter' ? 'line' : 'bar', x: 'group', y: ['area'] };
+    const bindings = view.parameters.leaseBindings as Array<{ plan?: { groupBy?: string } }> | undefined;
+    request = { kind: 'plot', type: bindings?.[0]?.plan?.groupBy === 'quarter' ? 'line' : 'bar', x: 'group', y: ['area'] };
+  } else if (view.operation === 'list') {
+    const column = resultNumericColumns(view)[0];
+    if (column) request = { kind: 'bar', field: column.key };
   }
-  const op = view.operation;
-  if (op === 'trend') return { kind: 'time_series' };
-  if (op === 'group_trend' || op === 'cross_trend') return { kind: 'grouped_time_series' };
-  if (op === 'compare') return { kind: 'period_comparison' };
-  if (op === 'cross_aggregate') return { kind: 'heatmap' };
-  if (op === 'distribution') return { kind: 'histogram' };
-  if (op === 'relationship') return { kind: 'scatter', x: 'rent', y: 'vacancy' };
-  if (op === 'list' || op === 'rank' || op === 'group_aggregate') {
-    const column = view.table.columns.find(c => c.unit !== null
-      && view.table.rows.some(row => row.cells[c.key]?.kind === 'number'));
-    if (column) return { kind: 'bar', field: column.key };
-  }
-  return null;
+  return request && resultChartEligibility(view, request).eligible ? request : null;
 }
 
 /** Presentation tools never read a database or accept model-provided IDs,
@@ -92,7 +87,7 @@ export function runResultPresentationTool(
     if(intent==='focus' && buildingIds.length!==1) throw new Error('AGENT_INVALID_TOOL_ARGUMENTS');
     const next={...result,parameters:{...result.parameters,agentMap:{version:'map-selection/1',buildingIds,intent}}};
     return {content:JSON.stringify({status:'ready',resultId:view.resultId,buildingCount:buildingIds.length,intent,
-      mapHref:queryMapHref(uuid.parse(requestId)),note:'地图操作已准备。打开时重新验证本人会话、来源、楼宇权限及现有地图坐标；当前回答尚未打开地图，不代表已经定位。'}),result:next};
+      mapHref:queryMapHref(uuid.parse(requestId),undefined,false,view.resultId),note:'地图操作已准备。打开时重新验证本人会话、来源、楼宇权限及现有地图坐标；当前回答尚未打开地图，不代表已经定位。'}),result:next};
   }
   const rendered = renderResultCopy(view, 'summary');
   return { content: JSON.stringify({ status: 'ready', resultId: view.resultId,

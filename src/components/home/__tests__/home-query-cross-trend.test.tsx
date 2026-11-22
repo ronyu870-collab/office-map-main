@@ -62,7 +62,7 @@ describe('P1 current-catalog cross-dimensional trend presentation', () => {
     const plot = await screen.findByRole('figure', { name: '同源查询图表' });
     expect(within(plot).getAllByRole('img')).toHaveLength(4);
     for (const name of ['CBD / A', 'CBD / B', '金融街 / A', '金融街 / B']) expect(plot).toHaveTextContent(name);
-    expect(plot).toHaveTextContent('缺期断线');
+    expect(plot).toHaveTextContent('缺期保留缺口');
     expect(screen.getByRole('button', { name: '查看折线图' })).toBeEnabled();
     expect(client.chart).toHaveBeenCalledTimes(1);
     expect(client.chart.mock.calls[0][3]).toEqual({ kind: 'grouped_time_series', ...(multiple ? { metric: 'rent' } : {}) });
@@ -90,7 +90,8 @@ describe('P1 current-catalog cross-dimensional trend presentation', () => {
         expect(point.yCell.sourceIds).toEqual(value.table.rows.find(row => row.entityId === point.yCell.entityId)!.cells[key].sourceIds);
       }
     }
-    const table = screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' });
+    fireEvent.click(screen.getByText(`查看数据明细（${value.table.rows.length} 行）`));
+    const table = await screen.findByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' });
     const validRow = value.table.rows.findIndex(row => row.cells.vacancy_value.kind === 'number');
     expect(validRow).toBeGreaterThanOrEqual(0);
     fireEvent.click(within(table).getAllByRole('button', { name: /^查看来源：空置率 · 空置率 / })[validRow]);
@@ -119,10 +120,13 @@ describe('P1 current-catalog cross-dimensional trend presentation', () => {
     render(<HomeQueryResult result={result(true, true)} requestId={requestId} scope={scope} />);
     await screen.findByRole('figure', { name: '同源查询图表' });
     fireEvent.change(screen.getByRole('combobox', { name: '图表指标' }), { target: { value: 'vacancy' } });
-    const plot = await screen.findByRole('figure', { name: '同源查询图表' });
-    expect(plot).toHaveTextContent('有效图示 0 项，未知 8 项');
-    expect(plot.querySelectorAll('circle')).toHaveLength(0);
-    expect(within(plot).getAllByRole('img')).toHaveLength(4);
+    expect(await screen.findByText('该指标暂无可绘图的有效数据；原始状态与来源仍可查看。')).toBeVisible();
+    expect(screen.queryByRole('figure', { name: '同源查询图表' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: '图表指标' })).toHaveValue('vacancy');
+    expect(client.chart).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText('查看数据明细（8 行）'));
+    const table = await screen.findByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' });
+    expect(within(table).getAllByRole('button', { name: /查看来源：空置率 · 空置率 未知/ })).toHaveLength(8);
   });
 
   it('retries the chosen cross-trend metric after failure without showing the previous metric chart', async () => {

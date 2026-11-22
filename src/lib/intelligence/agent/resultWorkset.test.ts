@@ -20,6 +20,23 @@ function manyBuildings(count = 25) {
 }
 
 describe('AI 5.0 ephemeral authorized result workset', () => {
+  it('selects exact full snapshots and rejects invented, foreign-owner and changed references', () => {
+    const identity = owner(), workset = new AuthorizedResultWorkset(identity);
+    const a = manyBuildings(32), b = manyBuildings(2);
+    workset.register(a, identity); workset.register(b, identity);
+    const request = { primaryResultId: a.resultId, task: 'comparison', status: 'answered',
+      auxiliary: [{ resultId: b.resultId, role: 'comparison' }] };
+    const selection = workset.select(request, identity);
+    expect(selection.results[0].result.table.rows).toHaveLength(32);
+    expect(selection.results[1].result).toBe(b);
+    expect(selection.results[0].result.snapshotId).toBe(a.snapshotId);
+    expect(selection.results[0].result.scopeFingerprint).toBe(a.scopeFingerprint);
+    expect(() => workset.select({ ...request, primaryResultId: randomUUID() }, identity)).toThrow('AGENT_RESULT_NOT_FOUND');
+    expect(() => workset.select(request, { ...identity, sessionId: randomUUID() })).toThrow('QUERY_DENIED');
+    expect(() => workset.select({ ...request, sources: [] }, identity)).toThrow();
+    a.table.rows[0].cells.name = { kind: 'text', value: '改变后的原始结果', sourceIds: [] };
+    expect(() => workset.select(request, identity)).toThrow('AGENT_RESULT_CHANGED');
+  });
   it('fits Chinese pages to the UTF-8 budget with bounded serialization and lossless continuation', () => {
     const identity = owner(), workset = new AuthorizedResultWorkset(identity);
     const result = manyBuildings(50000);

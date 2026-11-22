@@ -13,7 +13,6 @@ const historyClient = vi.hoisted(() => ({ open: vi.fn() }));
 vi.mock('@/src/services/trustedQueryClient', () => ({ trustedQueryClient: client,
   queryScopeKey: (scope: { actorId: string; effectiveId: string; sessionId: string }) => JSON.stringify(scope) }));
 vi.mock('@/src/services/trustedQueryHistoryClient', () => ({ trustedQueryHistoryClient: historyClient }));
-vi.mock('../HomeQueryArtifacts', () => ({ HomeQueryArtifacts: () => null }));
 import { HomeQuery } from '../HomeQuery';
 
 const scope = { actorId: 'navigation-owner', effectiveId: 'navigation-owner', sessionId: 'current-session', targetId: null };
@@ -86,7 +85,7 @@ describe('P2 AI, map and original historical snapshot navigation', () => {
   it('explicitly reexecutes the archived plan in a new conversation and preserves that reference on retry', async () => {
     client.submit.mockRejectedValueOnce(new TypeError('Failed to fetch'))
       .mockImplementation(async (_scope, input: Submission) => response(input));
-    await openArchived(); fireEvent.click(screen.getByRole('button', { name: '重新查询' }));
+    await openArchived(); fireEvent.click(await screen.findByText('更多操作')); fireEvent.click(screen.getByRole('button', { name: '重新查询' }));
     await screen.findByText(/网络连接中断/);
     const request = client.submit.mock.calls[0][1];
     expect(request).toEqual({ idempotencyKey: expect.any(String), question: turn.question,

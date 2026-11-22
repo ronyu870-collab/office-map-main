@@ -20,9 +20,12 @@ export async function readReportHistory(client: SupabaseClient, identity: Verifi
     const restored = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
     checks.push(restored.recheck);
     const root = restored.result;
-    const candidates = root?.parameters.agentReport
+    const selected = restored.answerSelection?.results.flatMap(item => item.result.parameters.agentReport
+      ? (item.result.parameters.agentReport as { sections: Array<{ result: unknown }> }).sections.map(section => resultViewSchema.parse(section.result))
+      : [item.result]);
+    const candidates = selected ?? (root?.parameters.agentReport
       ? (root.parameters.agentReport as { sections: Array<{ result: unknown }> }).sections.map(s => resultViewSchema.parse(s.result))
-      : root ? [root] : [];
+      : root ? [root] : []);
     for (const result of candidates) {
       if (result.parameters.agentExport || result.parameters.agentReport || results.has(result.resultId)) continue;
       if (results.size >= 8) throw new Error('REPORT_HISTORY_RESULT_LIMIT');

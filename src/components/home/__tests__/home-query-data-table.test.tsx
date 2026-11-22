@@ -13,6 +13,20 @@ const requestId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const result = () => resultViewSchema.parse(buildListResult(fixture(), ['height', 'netEffectiveRent']));
 beforeEach(() => { vi.resetAllMocks(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+it('links both all-buildings and a single building to this exact source-bound result snapshot', () => {
+  const value = result(), id = crypto.randomUUID(), first = value.table.rows[0];
+  const nameSource = value.sources.find(source => source.id === first.cells.name.sourceIds[0])!;
+  first.entityId = id; nameSource.entityId = id; nameSource.recordId = id;
+  value.table.rows = [first];
+  render(<HomeQueryDataTable result={value} requestId={requestId} scope={scope} internalExport={false} onSource={vi.fn()} />);
+  const all = new URL(screen.getByRole('link', { name: '在地图中查看' }).getAttribute('href')!, 'https://example.invalid');
+  const building = new URL(screen.getByRole('link', { name: 'A座' }).getAttribute('href')!, 'https://example.invalid');
+  expect(all.searchParams.get('aiResult')).toBe(value.resultId);
+  expect(all.searchParams.get('aiBuilding')).toBeNull();
+  expect(building.searchParams.get('aiResult')).toBe(value.resultId);
+  expect(building.searchParams.get('aiBuilding')).toBe(id);
+  expect(building.searchParams.get('aiDetails')).toBe('1');
+});
 it('continues search through result updates, middle edits, empty results and IME without losing focus or selection', async () => {
   const user = userEvent.setup();
   render(<HomeQueryDataTable result={result()} internalExport={false} onSource={vi.fn()} />);

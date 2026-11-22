@@ -116,4 +116,29 @@ describe('real research PDFs from authorized formal results', () => {
     expect(() => prepareReportResult([huge], { resultIds: [huge.resultId] })).toThrow('REPORT_ROW_LIMIT');
     expect(() => prepareReportResult([r], { resultIds: [r.resultId], charts: [{ resultId: r.resultId, chart: { kind: 'plot', type: 'bar', x: 'name', y: ['private_phone'] } }] })).toThrow();
   }, 30000);
+  it('keeps an archived missing-data chart readable without changing its stored snapshot or digest', async () => {
+    const result = structuredClone(trend());
+    result.table.rows = result.table.rows.map(row => ({ ...row, cells: { ...row.cells,
+      value: { kind: 'unknown', state: 'missing', reason: 'no_valid_sample', sourceIds: [] } } }));
+    const report = prepareReportResult([result], { resultIds: [result.resultId] });
+    // Older archives could retain a structural chart request with no real points.
+    // Construct that archive before recording the digest; rendering must be read-only.
+    const descriptor = report.parameters.agentReport as { sections: Array<{ chart: unknown }> };
+    expect(descriptor.sections[0].chart).toBeNull();
+    descriptor.sections[0].chart = { kind: 'time_series' };
+    const before = resultDigest(report);
+    const file = await buildResultArtifact(report, { requestId: crypto.randomUUID(), resultId: report.resultId, action: 'export', format: 'pdf' });
+    if (file.type !== 'download') throw new Error();
+    const opened = await readPdf(file.bytes);
+    try {
+      const text = opened.pages.map(page => page.text).join('');
+      expect(text).toContain('当前结果没有满足图形条件的有效数据');
+      expect(text).toContain('没有可用的趋势数值');
+      const manifest = JSON.parse(new TextDecoder().decode((await opened.pdf.getAttachmentContent('manifest.json'))!));
+      expect(manifest.digest).toBe(before);
+      expect(manifest.sections[0].table).toEqual(result.table);
+      expect(manifest.sections[0].chart).toEqual({ kind: 'time_series' });
+      expect(resultDigest(report)).toBe(before);
+    } finally { await opened.task.destroy(); }
+  }, 30000);
 });

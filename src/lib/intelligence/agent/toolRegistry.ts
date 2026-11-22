@@ -6,6 +6,7 @@ import { reportRequestSchema } from '../query/reportProtocol';
 import { distributionMeasureSchema } from '../query/distribution';
 import { chartRequestSchema } from '../query/chartSpec';
 import { RESEARCH_TOOL_SCHEMAS, RESEARCH_TOOL_NAMES, type ResearchToolName } from '../research/protocol';
+import { selectAnswerResultsSchema } from '../query/answerSelection';
 
 /**
  * The public DeepSeek contract is structured. Only the legacy query adapter
@@ -75,6 +76,7 @@ export const exportContextSchema = z.strictObject({
 });
 
 export const WORKSET_TOOL_SCHEMAS = {
+  select_answer_results: selectAnswerResultsSchema,
   export_table: exportTableSchema,
   generate_pdf_report: reportRequestSchema,
   summarize_result: resultRef,
@@ -190,6 +192,8 @@ export const SPECIALIST_DATA_TOOLS = [
       groupBy: { type: 'string', enum: ['submarket', 'grade'] } }, ['scope', 'start', 'end', 'metric']),
 ] as const;
 export const WORKSET_TOOLS = [
+  def('select_answer_results', '明确本轮回答的主要结果和至多两个必要辅助结果，必须引用本轮工具真实返回或已正式复核导入的resultId。后续来源、覆盖率检查不改变主结果。比较必须用comparison角色列出另一完整结果；检查结果只用supporting，不把工作集全部展示。task按用户实际问题，status区分已回答/部分回答/需补条件/不可提供；不能把聚合当单笔。不要提供数值、权限或原因，服务端独立校验。',
+    z.toJSONSchema(selectAnswerResultsSchema).properties as Record<string, unknown>, ['primaryResultId', 'task', 'status']),
   ...Object.entries(RESEARCH_TOOL_SCHEMAS).map(([name, schema]) => def(name, ({
     plan_research_task: '规划多步骤专题研究：明确1至2个子市场、最多8季度、净有效租金/空置率/季度面积、逐期或共同样本；可选成交quarter/industry、未来供应、子市场资料、真实buildingIds资料、末期联合分析/分布、已获权文档/批准公开研究。默认最近4个已结束北京时间季度。服务端生成固定工具依赖图，最多8个数据步骤，超限明确失败。核心租金口径不明确须先澄清。只创建计划，未取得数据；不能自写数字/SQL/流程。',
     advance_research_task: '继续当前受控研究taskId，每次最多执行两个现有数据工具。afterStep为上次返回的游标，首次null。必须继续到全部数据步骤complete，然后审查。可恢复服务器重新鉴权导入的researchContext，已完成步骤复用原快照。工具失败不代表空数据或完成。',

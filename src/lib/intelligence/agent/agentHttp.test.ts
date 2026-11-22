@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { buildTrendResult, buildListResult } from '../query/result';
+import { buildTrendResult, buildListResult, buildAggregateResult } from '../query/result';
 import { fixture, nameSource } from '../query/__tests__/fixtures';
 import { parseQueryPlan } from '../query/plan';
 
@@ -78,6 +78,148 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it('does not pair a Q3 narrative with the last all-unknown Q4 check when no primary result was chosen', async () => {
+    const rawA = buildAggregateResult(fixture(), 'rent');
+    const a = { ...rawA, parameters: { ...rawA.parameters, executedPlan: parseQueryPlan({ operation: 'aggregate',
+      scope: { inventory: 'tracked' }, period: { year: 2026, quarter: 3 }, metric: 'rent' }) } };
+    const rawB = buildAggregateResult(fixture({ year: 2026, quarter: 4 }), 'rent');
+    const b = { ...rawB, parameters: { ...rawB.parameters, period: { year: 2026, quarter: 4 },
+      executedPlan: parseQueryPlan({ operation: 'aggregate', scope: { inventory: 'tracked' }, period: { year: 2026, quarter: 4 }, metric: 'rent' }) },
+      table: { ...rawB.table, rows: rawB.table.rows.map(row => ({ ...row, cells: Object.fromEntries(
+        Object.entries(row.cells).map(([key, cell]) => [key, { kind: 'unknown' as const, state: 'missing' as const,
+          reason: 'no_valid_sample', sourceIds: cell.sourceIds }])) })) } };
+    const tool = (id: string, quarter: number) => ({ id, type: 'function', function: {
+      name: 'query_quarterly_metrics', arguments: JSON.stringify({ scope: { inventory: 'tracked' },
+        period: { year: 2026, quarter }, metric: 'rent' }) } });
+    state.provider.mockReset().mockResolvedValue({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+      message: { role: 'assistant', content: 'Q3有可用统计，Q4只是覆盖检查。' } })
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+        message: { role: 'assistant', content: null, tool_calls: [tool('a', 3), tool('b', 4)] } });
+    state.structured.mockResolvedValueOnce({ result: a, content: '{"status":"ready"}' })
+      .mockResolvedValueOnce({ result: b, content: '{"status":"ready"}' });
+    const response = await handleAgentSubmission(fakeRequest('查询季度统计，并检查后一季度覆盖。').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.result).toBeUndefined();
+    expect(body.agent.executionStatus).toBe('limited');
+    expect(body.message).toContain('尚未确认');
+    expect(body.message).not.toContain('Q3有可用统计');
+  });
+
+  it('keeps an explicitly selected Q3 primary after a later all-unknown Q4 query without archiving the unrelated check', async () => {
+    const rawA = buildAggregateResult(fixture(), 'rent');
+    const a = { ...rawA, parameters: { ...rawA.parameters, executedPlan: parseQueryPlan({ operation: 'aggregate',
+      scope: { inventory: 'tracked' }, period: { year: 2026, quarter: 3 }, metric: 'rent' }) } };
+    const rawB = buildAggregateResult(fixture({ year: 2026, quarter: 4 }), 'rent');
+    const b = { ...rawB, parameters: { ...rawB.parameters, period: { year: 2026, quarter: 4 } },
+      table: { ...rawB.table, rows: rawB.table.rows.map(row => ({ ...row, cells: Object.fromEntries(
+        Object.entries(row.cells).map(([key, cell]) => [key, { kind: 'unknown' as const, state: 'missing' as const,
+          reason: 'no_valid_sample', sourceIds: cell.sourceIds }])) })) } };
+    const call = (id: string, name: string, args: object) => ({ id, type: 'function', function: { name, arguments: JSON.stringify(args) } });
+    const model = (calls?: unknown[]) => ({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+      message: { role: 'assistant', content: calls ? null : 'Q3统计已核验。', ...(calls ? { tool_calls: calls } : {}) } });
+    state.provider.mockReset().mockResolvedValueOnce(model([call('a', 'query_quarterly_metrics', {
+      scope: { inventory: 'tracked' }, period: { year: 2026, quarter: 3 }, metric: 'rent' })]))
+      .mockResolvedValueOnce(model([call('select', 'select_answer_results', { primaryResultId: a.resultId, task: 'fact', status: 'answered' })]))
+      .mockResolvedValueOnce(model([call('b', 'query_quarterly_metrics', {
+        scope: { inventory: 'tracked' }, period: { year: 2026, quarter: 4 }, metric: 'rent' })]))
+      .mockResolvedValueOnce(model());
+    state.structured.mockResolvedValueOnce({ result: a, content: '{"status":"ready"}' })
+      .mockResolvedValueOnce({ result: b, content: '{"status":"ready"}' });
+    const response = await handleAgentSubmission(fakeRequest('查询Q3统计，并核对Q4覆盖。').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.result.resultId).toBe(a.resultId);
+    expect(body.answerSelection.primaryResultId).toBe(a.resultId);
+    expect(body.answerSelection.results).toHaveLength(1);
+    expect(body.answerSelection.results[0].result.table).toEqual(a.table);
+    expect(body.agent.workset).toHaveLength(2);
+    expect(body.result.parameters.responsePresentation.narrativeRole).toBe('result_summary');
+    const archived = state.append.mock.calls.find(entry => entry[1] === 'response_generated')?.[2].result;
+    expect(archived.primaryResultId).toBe(a.resultId);
+    expect(archived.results[0].result.table).toEqual(a.table);
+  });
+  it.each(['new query', 'history only', 'history reads', 'history summary', 'incomplete selection'])('requires both formal references for a continuation comparison: %s', async mode => {
+    const formal = (quarter: number) => {
+      const raw = buildAggregateResult(fixture({ year: 2026, quarter }), 'rent');
+      return { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({ operation: 'aggregate',
+        scope: { inventory: 'tracked' }, period: { year: 2026, quarter }, metric: 'rent' }) } };
+    };
+    const a = formal(3), b = formal(2);
+    const imported = mode === 'new query' ? [a] : [a, b];
+    const recheck = vi.fn().mockResolvedValue(undefined);
+    state.history.mockResolvedValue(Object.assign([], { contextResult: a, contextResults: imported, contextRecheck: recheck }));
+    const call = (id: string, name: string, args: object) => ({ id, type: 'function', function: { name, arguments: JSON.stringify(args) } });
+    const model = (calls?: unknown[]) => ({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+      message: { role: 'assistant', content: calls ? null : 'Q3和Q2的比较已经完成。', ...(calls ? { tool_calls: calls } : {}) } });
+    state.provider.mockReset().mockResolvedValue(model());
+    if (mode === 'new query') {
+      state.provider.mockResolvedValueOnce(model([call('b', 'query_quarterly_metrics', {
+        scope: { inventory: 'tracked' }, period: { year: 2026, quarter: 2 }, metric: 'rent' })]));
+      state.structured.mockResolvedValue({ result: b, content: '{"status":"ready"}' });
+    } else if (mode === 'history reads') state.provider.mockResolvedValueOnce(model([
+      call('a', 'summarize_result', { resultId: a.resultId }), call('b', 'summarize_result', { resultId: b.resultId })]));
+    else if (mode === 'incomplete selection') state.provider.mockResolvedValueOnce(model([
+      call('select', 'select_answer_results', { primaryResultId: b.resultId, task: 'fact', status: 'answered' })]));
+    const observed: Array<{ type: string }> = [];
+    const question = mode === 'history reads' ? '分别概括两份已选资料'
+      : mode === 'history summary' ? '总结上述两个结果' : '比较Q3与Q2两个结果';
+    const response = await handleAgentSubmission(fakeRequest(question).request, deps(), async event => { observed.push(event); });
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.result).toBeUndefined(); expect(body.answerSelection).toBeUndefined();
+    expect(body.agent.executionStatus).toBe('limited'); expect(body.message).toContain('尚未确认');
+    expect(observed.filter(event => event.type === 'message_delta')).toHaveLength(0);
+    expect(recheck).toHaveBeenCalled();
+  });
+  it('archives both selected historical comparison results without requerying', async () => {
+    const formal = (quarter: number) => {
+      const raw = buildAggregateResult(fixture({ year: 2026, quarter }), 'rent');
+      return { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({ operation: 'aggregate',
+        scope: { inventory: 'tracked' }, period: { year: 2026, quarter }, metric: 'rent' }) } };
+    };
+    const a = formal(3), b = formal(2);
+    state.history.mockResolvedValue(Object.assign([], { contextResult: a, contextResults: [a, b], contextRecheck: vi.fn().mockResolvedValue(undefined) }));
+    state.provider.mockReset().mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+      message: { role: 'assistant', content: null, tool_calls: [{ id: 'select', type: 'function', function: {
+        name: 'select_answer_results', arguments: JSON.stringify({ primaryResultId: a.resultId, task: 'comparison', status: 'answered',
+          auxiliary: [{ resultId: b.resultId, role: 'comparison' }] }) } }] } })
+      .mockResolvedValue({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18, message: { role: 'assistant', content: '已比较。' } });
+    const response = await handleAgentSubmission(fakeRequest('比较Q3与Q2两个结果').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.answerSelection.results.map((item: { result: { resultId: string } }) => item.result.resultId)).toEqual([a.resultId, b.resultId]);
+    const archived = state.append.mock.calls.find(entry => entry[1] === 'response_generated')?.[2].result;
+    expect(archived.results[1].result.table).toEqual(b.table);
+    expect(state.structured).not.toHaveBeenCalled();
+  });
+  it.each(['你好', '请解释同比的计算方法'])('does not force historical selections for a greeting or method explanation: %s', async question => {
+    const a = buildAggregateResult(fixture(), 'rent'), b = buildAggregateResult(fixture({ year: 2026, quarter: 2 }), 'rent');
+    state.history.mockResolvedValue(Object.assign([], { contextResult: a, contextResults: [a, b], contextRecheck: vi.fn().mockResolvedValue(undefined) }));
+    const response = await handleAgentSubmission(fakeRequest(question).request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.agent.executionStatus).toBe('completed');
+    expect(state.provider).toHaveBeenCalledOnce(); expect(body.result).toBeUndefined();
+  });
+  it('owns the structured summary even after partial execution and keeps one trusted failure notice', async () => {
+    const raw = buildAggregateResult(fixture(), 'rent');
+    const result = { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({ operation: 'aggregate',
+      scope: { inventory: 'tracked' }, period: { year: 2026, quarter: 3 }, metric: 'rent' }) } };
+    const call = (id: string, quarter: number) => ({ id, type: 'function', function: { name: 'query_quarterly_metrics',
+      arguments: JSON.stringify({ scope: { inventory: 'tracked' }, period: { year: 2026, quarter }, metric: 'rent' }) } });
+    state.provider.mockReset().mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+      message: { role: 'assistant', content: null, tool_calls: [call('a', 3), call('b', 4)] } })
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+        message: { role: 'assistant', content: '|季度|租金|\n|---|---|\n|Q3|123|\n独立猜测原因。' } });
+    state.structured.mockResolvedValueOnce({ result, content: '{"status":"ready"}' })
+      .mockRejectedValueOnce(new Error('QUERY_READ_UNAVAILABLE'));
+    const response = await handleAgentSubmission(fakeRequest('查询Q3净有效租金，并核对Q4覆盖。').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.agent.executionStatus).toBe('partial');
+    expect(body.result.parameters.responsePresentation.narrativeRole).toBe('result_summary');
+    expect(body.answerSelection.notice).toContain('部分步骤未取得');
+    expect(body.message).not.toMatch(/\|季度\||猜测|query_quarterly_metrics|source_unavailable/);
+  });
   it.each(['Excel', 'CSV', 'PNG', 'SVG'])('rejects an invented %s file even without a formal result', async format => {
     state.provider.mockResolvedValue({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
       message: { role: 'assistant', content: format + '已生成 https://fake.invalid/download，已保存桌面。' } });
@@ -221,6 +363,22 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(observed.filter(event => event.type === 'run_started')).toHaveLength(1);
   });
 
+
+  it('does not stream a provider capability monologue before the short greeting', async () => {
+    const observed: Array<{ type: string; delta?: string }> = [];
+    state.provider.mockImplementation(async (_messages: unknown, _signal: AbortSignal,
+      onDelta: ((value: string) => Promise<void>) | undefined) => {
+      await onDelta?.('我可以帮你分析市场、成交、租金、空置率，并介绍完整能力目录。');
+      return { model: 'deepseek-flash', inputTokens: 120, outputTokens: 80,
+        message: { role: 'assistant', content: '我可以帮你分析市场、成交、租金、空置率，并介绍完整能力目录。' } };
+    });
+    const { request } = fakeRequest('你好');
+    const response = await handleAgentSubmission(request, deps(), async event => { observed.push(event); });
+    expect(response.status).toBe(200);
+    expect((await response.json()).message).toBe('你好。');
+    expect(observed.filter(event => event.type === 'message_delta')).toHaveLength(0);
+    expect(state.tool).not.toHaveBeenCalled();
+  });
   it('denies unauthenticated access without model or tool execution', async () => {
     state.identity.mockRejectedValue(new Error('QUERY_UNAUTHENTICATED'));
     const { request } = fakeRequest();
@@ -281,7 +439,8 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
           tool_calls: [call('b', 'search_buildings', { scope: { inventory: 'tracked', submarkets: ['金融街'] } })] } })
       .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 25, outputTokens: 20,
         message: { role: 'assistant', content: null,
-          tool_calls: [call('page', 'read_result_page', { resultId: a.resultId, offset: 1, limit: 2 })] } })
+          tool_calls: [call('page', 'read_result_page', { resultId: a.resultId, offset: 1, limit: 2 }),
+            call('select', 'select_answer_results', { primaryResultId: a.resultId, task: 'comparison', status: 'answered', auxiliary: [{ resultId: b.resultId, role: 'comparison' }] })] } })
       .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 20, outputTokens: 25,
         message: { role: 'assistant', content: '已分别核验CBD及金融街楼宇目录，结果按授权样本列示。' } });
     state.structured
@@ -291,15 +450,16 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     const response = await handleAgentSubmission(request, deps());
     const output = await response.json();
     expect(response.status).toBe(200);
-    expect(output.result.resultId).toBe(b.resultId);
-    expect(output.agent.toolCalls).toBe(3);
+    expect(output.result.resultId).toBe(a.resultId);
+    expect(output.answerSelection.results.map((item: { result: { resultId: string } }) => item.result.resultId)).toEqual([a.resultId, b.resultId]);
+    expect(output.agent.toolCalls).toBe(4);
     expect(output.agent.executionStatus).toBe('completed');
     expect(output.agent.workset).toHaveLength(2);
     expect(output.agent.workset.map((item: { resultId: string }) => item.resultId))
       .toEqual([a.resultId, b.resultId]);
     expect(state.structured).toHaveBeenCalledTimes(2);
     expect(state.structured.mock.calls.map((entry: unknown[]) => entry[1])).toEqual(['search_buildings', 'search_buildings']);
-    const page = JSON.parse(state.provider.mock.calls[3][0].at(-1).content);
+    const page = JSON.parse(state.provider.mock.calls[3][0].find((message: { role: string; content: string }) => message.role === 'tool' && JSON.parse(message.content).offset === 1).content);
     expect(page.status).toBe('ready');
     expect(page.resultId).toBe(a.resultId);
     expect(page.totalMatched).toBe(a.table.rows.length);
@@ -308,7 +468,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     const saved = state.append.mock.calls.find(entry => entry[1] === 'tool_finished'
       && entry[2]?.protocol === 'agent-answer/1')?.[2];
     expect(saved.workset).toHaveLength(2);
-    expect(saved.toolTrace).toHaveLength(3);
+    expect(saved.toolTrace).toHaveLength(4);
   });
 
   it('fails authorization after a first result instead of reading the workset after revocation', async () => {
@@ -400,7 +560,8 @@ describe('AI 5.0 natural-language export through the authenticated Agent handler
     expect(output.message).not.toMatch(/已保存到电脑|已经保存在/);
     expect(output.message).not.toContain('已保存到你的桌面');
     expect(output.message).not.toContain('fake.invalid');
-    const archived = state.append.mock.calls.find(x => x[1] === 'response_generated')?.[2]?.result;
+    const archive = state.append.mock.calls.find(x => x[1] === 'response_generated')?.[2]?.result;
+    const archived = archive.results.find((item: { result: { resultId: string } }) => item.result.resultId === archive.primaryResultId).result;
     expect(archived.resultId).toBe(output.result.resultId);
     const artifact = await import('../query/artifacts').then(m => m.buildResultArtifact(archived,
       { requestId: output.requestId, resultId: archived.resultId, action: 'export', format: scenario.format as 'xlsx' | 'csv_zip' }));

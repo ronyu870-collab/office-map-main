@@ -35,7 +35,8 @@ export function MapQuerySelection({ context, onChange }: { context: QueryMapCont
         setCanRentTrend(access.enabled && (access.examples ?? []).some(example => example.includes('净有效租金') && example.includes('趋势')));
         if (!access.enabled) throw new Error('当前 AI 查询资格已不可用。');
         if (context) {
-          const next = await trustedQueryClient.buildings(scope, { requestId: context.requestId, buildingId: context.buildingId, mapSelection:true, limit: 500 }, controller.signal);
+          const next = await trustedQueryClient.buildings(scope, { requestId: context.requestId,
+            ...(context.resultId ? { resultId: context.resultId } : {}), buildingId: context.buildingId, mapSelection:true, limit: 500 }, controller.signal);
           if (!controller.signal.aborted) { setResult(next); setError(''); onChange(next); }
         }
       } catch (reason) {

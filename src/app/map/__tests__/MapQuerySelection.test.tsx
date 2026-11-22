@@ -20,6 +20,16 @@ beforeEach(() => {
   mock.capabilities.mockResolvedValue({ enabled: true }); mock.buildings.mockResolvedValue(result);
 });
 describe('AI map authorization bridge', () => {
+  it('requests the exact comparison result instead of silently showing the primary map selection', async () => {
+    const secondaryId = '10000000-0000-4000-8000-000000000003';
+    const secondary = { ...result, resultId: secondaryId, total: 1, buildings: [result.buildings[1]] };
+    mock.buildings.mockImplementation(async (_scope, input) => input.resultId === secondaryId ? secondary : result);
+    const change = vi.fn();
+    render(<MapQuerySelection context={{ ...context, resultId: secondaryId }} onChange={change} />);
+    expect(await screen.findByText(/本次结果 1 栋；可定位 0 栋/)).toBeVisible();
+    expect(mock.buildings).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ requestId, resultId: secondaryId, mapSelection: true }), expect.any(AbortSignal));
+    expect(change).toHaveBeenLastCalledWith(secondary);
+  });
   it('T06 reports available/missing locations and original-result navigation without coordinate invention', async () => {
     const change = vi.fn(); render(<MapQuerySelection context={context} onChange={change} />);
     expect(await screen.findByText(/可定位 1 栋；1 栋缺少可靠坐标/)).toBeVisible();

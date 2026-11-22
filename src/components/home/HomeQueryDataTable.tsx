@@ -4,6 +4,8 @@ import * as React from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowUp, Search } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
+import { resultMapEligible, resultTablePolicy } from '@/src/lib/intelligence/query/resultEligibility';
+import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailability';
 import { resultBuildingRows } from '@/src/lib/intelligence/query/buildingCards';
 import { queryMapHref } from '@/src/lib/intelligence/query/buildingNavigation';
 import { tableCellText, tableRowIndexes, type TableSort, type TableFilter } from '@/src/lib/intelligence/query/tableView';
@@ -15,12 +17,13 @@ import { useQueryDownload } from './useQueryDownload';
 import styles from './HomeQueryDataTable.module.css';
 
 type Props = { result: QueryResultView; requestId?: string; scope?: QueryClientScope; internalExport: boolean;
-  onSource: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void; onPage?: (page: number) => void; preview?: boolean };
+  onSource: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void; onPage?: (page: number) => void; preview?: boolean; statusShown?: boolean };
 export const HomeQueryDataTable = React.memo(function HomeQueryDataTable(props: Props) {
   return <DataTable key={props.result.resultId} {...props} />;
 });
-function DataTable({ result, requestId, scope, internalExport, onSource, onPage, preview = false }: Props) {
+function DataTable({ result, requestId, scope, internalExport, onSource, onPage, preview = false, statusShown = false }: Props) {
   const [search, setSearch] = React.useState('');
+  const [toolsOpen, setToolsOpen] = React.useState(false);
   const [sort, setSort] = React.useState<TableSort>(null);
   const [page, setPage] = React.useState(0);
   const [filters, setFilters] = React.useState<readonly TableFilter[]>([]);
@@ -54,19 +57,29 @@ function DataTable({ result, requestId, scope, internalExport, onSource, onPage,
     return () => document.removeEventListener('pointerdown', dismiss);
   }, []);
   function changePage(next: number) { setPage(next); onPage?.(next); }
-  const canSelect = ['list', 'rank'].includes(result.operation) && !result.parameters.agentReport && !result.parameters.researchTask;
+  const availability = resultAvailability(result);
+  const policy = resultTablePolicy(result, expanded);
+  const fullControls = !availability && (policy.controls || toolsOpen || selected.size > 0 || filters.length > 0 || hiddenColumns.size > 0 || !!search);
+  const canSelect = fullControls && ['list', 'rank'].includes(result.operation) && !result.parameters.agentReport && !result.parameters.researchTask;
+  const canExport = ['list', 'rank'].includes(result.operation) && !result.parameters.agentReport && !result.parameters.researchTask;
+  const mapEligible = resultMapEligible(result);
   const pageCount = Math.max(1, Math.ceil(indexes.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
   const shown = indexes.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
-  return <HomeQueryDetailContent id={detailId}><div ref={root} data-expanded={expanded} data-selectable={canSelect} className={styles.root} onKeyDown={event => {
+  if (availability) {
+    const rawTable = <div className={styles.scroll}><table><thead><tr>{result.table.columns.map(column => <th key={column.key}>{column.label}</th>)}</tr></thead><tbody>{result.table.rows.map(row => <tr key={row.entityId}>{result.table.columns.map(column => <td key={column.key}><button type="button" className={styles.cell} onClick={event => onSource(row.cells[column.key].sourceIds, column.label, event.currentTarget)}>{tableCellText(row.cells[column.key], column.key, column.unit)}</button></td>)}</tr>)}</tbody></table></div>;
+    return statusShown ? <div className={styles.root}>{rawTable}</div> : <section aria-label="查询结果状态" className={styles.root}><p>{availability.title}</p><p className={styles.scope}>{availability.description}</p><details><summary>查看原始结果</summary>{rawTable}</details></section>;
+  }
+
+  return <HomeQueryDetailContent id={detailId}><div ref={root} data-expanded={expanded} data-nested-scroll={policy.nestedScroll} data-selectable={canSelect} className={styles.root} onKeyDown={event => {
     if (event.key !== 'Escape' || event.nativeEvent.isComposing) return;
     const menu = event.target instanceof HTMLElement ? event.target.closest('details[open]') : null;
     if (menu instanceof HTMLDetailsElement) { event.preventDefault(); event.stopPropagation(); menu.open = false; menu.querySelector('summary')?.focus(); }
   }}>
     <div className={styles.toolbar} aria-label="结果表格工具栏">
-      <label className={styles.search}><Search size={16} aria-hidden="true" /><span className="sr-only">搜索本次结果</span>
-        <input value={search} type="search" placeholder="搜索本次结果" onChange={event => { setSearch(event.target.value); changePage(0); }} /></label>
-      {filterOptions.length > 0 && <HomeQueryMenu label={<>筛选{filters.length ? ` · ${filters.length}` : ''}</>}>
+      {fullControls && <label className={styles.search}><Search size={16} aria-hidden="true" /><span className="sr-only">搜索本次结果</span>
+        <input value={search} type="search" placeholder={`搜索已返回的 ${result.table.rows.length} 条记录`} onChange={event => { setSearch(event.target.value); changePage(0); }} /></label>}
+      {fullControls && filterOptions.length > 0 && <HomeQueryMenu label={<>筛选{filters.length ? ` · ${filters.length}` : ''}</>}>
         {filterOptions.map(column => <label key={column.key}>{column.label}<select aria-label={`筛选${column.label}`} value={filters.find(item => item.key === column.key)?.value ?? ''} onChange={event => {
           const value = event.target.value;
           setFilters(current => [...current.filter(item => item.key !== column.key), ...(value ? [{ key: column.key, value }] : [])]); changePage(0);
@@ -74,15 +87,17 @@ function DataTable({ result, requestId, scope, internalExport, onSource, onPage,
       </HomeQueryMenu>}
       <div className={styles.primaryActions}>
       {detail && !expanded && <button type="button" onClick={event => detail.open(detailId, '数据工作区', event.currentTarget)}>展开表格</button>}
-      <HomeQueryMenu label="显示字段">{result.table.columns.map(column => <label key={column.key}>
+      {!policy.controls && <button type="button" aria-expanded={toolsOpen} onClick={() => setToolsOpen(value => !value)}>表格工具</button>}
+      {fullControls && <HomeQueryMenu label="显示字段">{result.table.columns.map(column => <label key={column.key}>
         <input type="checkbox" checked={!hiddenColumns.has(column.key)} disabled={!hiddenColumns.has(column.key) && columns.length === 1}
-          onChange={() => setHiddenColumns(current => { const next = new Set(current); if (next.has(column.key)) next.delete(column.key); else next.add(column.key); return next; })} />{column.label}</label>)}</HomeQueryMenu>
-      {canSelect && requestId && <Link className={styles.mapLink} href={queryMapHref(requestId)} prefetch={false}>在地图中查看</Link>}
-      {requestId && scope && internalExport && canSelect && <TableExport result={result} requestId={requestId} scope={scope} filtered={indexes} selected={selected} hasFilter={!!search || filters.length > 0} />}
+          onChange={() => setHiddenColumns(current => { const next = new Set(current); if (next.has(column.key)) next.delete(column.key); else next.add(column.key); return next; })} />{column.label}</label>)}</HomeQueryMenu>}
+      {mapEligible && requestId && <Link className={styles.mapLink} href={queryMapHref(requestId, undefined, false, result.resultId)} prefetch={false}>在地图中查看</Link>}
+      {requestId && scope && internalExport && canExport && <TableExport result={result} requestId={requestId} scope={scope} filtered={indexes} selected={selected} hasFilter={!!search || filters.length > 0} />}
       </div>
     </div>
     {(search || filters.length > 0 || selected.size > 0 || sort) && <div className={styles.selection} role="status">
       <span>筛选 {indexes.length} / {result.table.rows.length} 条{selected.size > 0 ? `，已选 ${selected.size} 条（筛选内 ${selectedInView} 条${selected.size > selectedInView ? `，筛选外 ${selected.size - selectedInView} 条` : ''}）` : ''}</span>
+      {!!search && <button type="button" onClick={() => { setSearch(''); changePage(0); }}>清除搜索</button>}
       {filters.map(filter => <button key={filter.key} type="button" aria-label={`移除筛选：${filter.value}`} onClick={() => { setFilters(current => current.filter(item => item.key !== filter.key)); changePage(0); }}>{filter.value} ×</button>)}
       {sort && <button type="button" onClick={() => { setSort(null); changePage(0); }}>恢复原始顺序</button>}
       {selected.size > 0 && <button type="button" onClick={() => setSelected(new Set())}>清除选择</button>}
@@ -105,18 +120,17 @@ function DataTable({ result, requestId, scope, internalExport, onSource, onPage,
             {columns.map(column => { const cell = row.cells[column.key]; const value = tableCellText(cell, column.key, column.unit);
               return <td key={column.key} className={`${cell.kind === 'number' ? styles.number : ''} ${column.key === 'name' ? styles.name : ''}`} title={value}>
                 {column.key === 'name' && requestId && buildings.has(row.entityId)
-                  ? <Link className={styles.buildingLink} href={queryMapHref(requestId, row.entityId, true)} prefetch={false}>{value}</Link>
+                  ? <Link className={styles.buildingLink} href={queryMapHref(requestId, row.entityId, true, result.resultId)} prefetch={false}>{value}</Link>
                   : <button type="button" className={styles.cell} aria-label={`查看来源：${column.label} ${value}`} onClick={event => onSource(cell.sourceIds, `${column.label}：${value}`, event.currentTarget)}>{value}</button>}
               </td>; })}
           </tr>;
         })}{!shown.length && <tr><td colSpan={columns.length + (canSelect ? 1 : 0)}>没有匹配的记录，可清除搜索或筛选。</td></tr>}</tbody>
       </table>
     </div>
-    <div className={styles.footer}><span>第 {indexes.length ? currentPage * PAGE_SIZE + 1 : 0}–{Math.min((currentPage + 1) * PAGE_SIZE, indexes.length)} 条，共 {indexes.length} 条</span>
+    {indexes.length > PAGE_SIZE && <div className={styles.footer}><span>第 {indexes.length ? currentPage * PAGE_SIZE + 1 : 0}–{Math.min((currentPage + 1) * PAGE_SIZE, indexes.length)} 条，共 {indexes.length} 条</span>
       {indexes.length > PAGE_SIZE && <div><Button variant="ghost" disabled={currentPage === 0} onClick={() => changePage(currentPage - 1)}>上一页</Button>
-        <Button variant="ghost" disabled={currentPage + 1 >= pageCount} onClick={() => changePage(currentPage + 1)}>下一页</Button></div>}</div>
+        <Button variant="ghost" disabled={currentPage + 1 >= pageCount} onClick={() => changePage(currentPage + 1)}>下一页</Button></div>}</div>}
     {selected.size > 3000 && <p role="status">单次范围导出最多 3,000 条；可减少选择或导出全部正式结果。</p>}
-    <p className={styles.scope}>搜索、排序与筛选作用于本次返回的 {result.table.rows.length} 条记录。</p>
   </div></HomeQueryDetailContent>;
 }
 function TableExport({ result, requestId, scope, filtered, selected, hasFilter }: { result: QueryResultView; requestId: string; scope: QueryClientScope; filtered: number[]; selected: ReadonlySet<number>; hasFilter: boolean }) {
@@ -127,6 +141,7 @@ function TableExport({ result, requestId, scope, filtered, selected, hasFilter }
     <label>导出范围<select aria-label="导出范围" value={range} disabled={busy} onChange={event => setRange(event.target.value as typeof range)}>
       <option value="all">全部结果 · {result.table.rows.length} 条</option><option value="filtered">当前筛选 · {filtered.length} 条</option><option value="selected" disabled={!selected.size}>已选项目 · {selected.size} 条</option>
     </select></label>
+    <p>导出包含全部获权字段，不受显示字段设置影响。</p>
     {range === 'selected' && selected.size > filtered.filter(index => selected.has(index)).length && <p>包含筛选外已选记录。</p>}
     {(['xlsx', 'csv_zip'] as const).map(format => <Button key={format} variant="ghost" disabled={busy || !count || (range !== 'all' && count > 3000)} onClick={() => void download({ format,
       ...(range === 'all' ? {} : { selection: { kind: range, rowIndexes: range === 'selected' ? [...selected].sort((a, b) => a - b) : filtered } }),

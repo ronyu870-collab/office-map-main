@@ -4,6 +4,7 @@ import * as React from 'react';
 import { HomeQueryChartFrame } from './HomeQueryChartFrame';
 import { HomeQueryMenu } from './HomeQueryMenu';
 import { Button } from '@/src/components/ui/Button';
+import { resultChartEligibility, resultNumericColumns } from '@/src/lib/intelligence/query/resultEligibility';
 import { agentChartDescriptorSchema } from '@/src/lib/intelligence/query/chartProtocol';
 import { renderChartSvg, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
 import { units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
@@ -22,16 +23,23 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
   const [chart, setChart] = React.useState<ResultChart | null>(null);
   const [draft, setDraft] = React.useState<ChartRequest | undefined>(initial);
   const [message, setMessage] = React.useState(''), [busy, setBusy] = React.useState(false), [page, setPage] = React.useState(0);
+  React.useEffect(() => {
+    if (!message.startsWith('已发起图片')) return;
+    const timer = window.setTimeout(() => setMessage(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
   const [selectedPoint, setSelectedPoint] = React.useState<number | null>(null);
   const [minimum, setMinimum] = React.useState(initial?.yAxis?.min?.toString() ?? '');
   const [maximum, setMaximum] = React.useState(initial?.yAxis?.max?.toString() ?? '');
   const [ticks, setTicks] = React.useState(initial?.yAxis?.ticks ?? 5);
   const active = React.useRef<AbortController | null>(null), started = React.useRef(false);
-  const numeric = result.table.columns.filter(c => c.unit && result.table.rows.every(row => row.cells[c.key].kind !== 'text'));
+  const numeric = resultNumericColumns(result);
+  const eligible = initial ? resultChartEligibility(result, initial).eligible : false;
   useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page: 0, pageSize: 25, layout: 'workspace_all' } : null, visible);
   React.useEffect(() => () => { active.current?.abort(); }, [requestId, result.resultId, scope.actorId, scope.effectiveId, scope.sessionId, scope.targetId]);
   const draw = React.useCallback(async (request: ChartRequest) => {
     if (active.current) return;
+    if (!resultChartEligibility(result, request).eligible) { setMessage('所选字段没有满足该图形条件的有效数据，请调整字段或查看原始结果。'); return; }
     const controller = new AbortController(); active.current = controller; setBusy(true); setMessage('正在核对权限并绘制…');
     try {
       const next = await trustedQueryClient.chart(scope, requestId, result, request, controller.signal);
@@ -42,12 +50,12 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
   }, [result, requestId, scope]);
   React.useEffect(() => {
     let disposed = false;
-    if (visible && initial && !started.current) queueMicrotask(() => {
+    if (visible && initial && eligible && !started.current) queueMicrotask(() => {
       if (disposed || started.current) return;
       started.current = true; void draw(initial);
     });
     return () => { disposed = true; };
-  }, [initial, draw, visible]);
+  }, [initial, draw, visible, eligible]);
   const svg = React.useMemo(() => chart ? renderChartSvg(chart) : '', [chart]);
   const canvas = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
@@ -57,6 +65,7 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
     });
   }, [svg]);
   if (!initial) return null;
+  if (!eligible) return <p role="status" className={styles.notice}>当前结果没有满足该图形条件的有效数据，可查看原始结果与数据依据。</p>;
   async function download(format: 'png_zip' | 'svg_zip') {
     if (active.current || !chart) return;
     const controller = new AbortController(); active.current = controller; setBusy(true); setMessage('正在核对导出权限并生成图片与来源包…');
@@ -88,7 +97,7 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
     </div>
     <p role="status" className={styles.notice}>{message}</p>
     {chart && <figure className={workspaceStyles.figure}>
-      <figcaption>{chart.title}　{chart.yLabel}（{units[chart.yUnit] ?? chart.yUnit}）</figcaption>
+      <figcaption>{chart.yLabel}（{units[chart.yUnit] ?? chart.yUnit}）</figcaption>
       <div onKeyDown={event => {
         if (event.key === 'Enter' || event.key === ' ') { const point = (event.target as Element).closest?.('[data-entity][data-key]'); if (point) { event.preventDefault(); (point as SVGElement).dispatchEvent(new MouseEvent('click', { bubbles: true })); } }
       }} ref={canvas} className={workspaceStyles.canvas} tabIndex={0} aria-label="图表画布，可滚动查看完整图形；逐点数值与来源在下方"
@@ -98,7 +107,7 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
           const index = chart.points.findIndex(p => p.yCell.entityId === point.getAttribute('data-entity') && p.yCell.key === point.getAttribute('data-key'));
           if (index >= 0) setSelectedPoint(index);
         }} dangerouslySetInnerHTML={{ __html: svg }} />
-      <p className={styles.notice}>有效图示 {chart.renderedCount} 项，未知 {chart.unknownCount} 项。未知不按零绘制；调整图形不改变原表数值。</p>
+      {chart.unknownCount > 0 && <p className={styles.notice}>{chart.unknownCount} 项未知，未按零绘制。</p>}
       {selectedPoint !== null && chart.points[selectedPoint] && <div className={styles.actions}><span>{chart.points[selectedPoint].label}：{chart.points[selectedPoint].yText}</span><Button variant="ghost" onClick={event => { const point = chart.points[selectedPoint]; onSource([...new Set([...point.yCell.sourceIds, ...(point.xCell?.sourceIds ?? [])])], `${point.label}：${point.xText}，${point.yText}`, event.currentTarget); }}>查看图元来源</Button></div>}
       <details><summary>图示数值与来源</summary>
         <div className={styles.tableScroll} tabIndex={0} aria-label="图示数值与来源表，可横向滚动"><table><thead><tr><th>对象</th><th>{chart.xLabel}</th><th>{chart.yLabel}</th></tr></thead>
@@ -109,11 +118,11 @@ export function HomeQueryChartWorkspace({ result, requestId, scope, internalExpo
           <Button variant="ghost" disabled={(page + 1) * 25 >= chart.points.length} onClick={() => setPage(p => p + 1)}>下一页数值</Button></div>
       </details>
     </figure>}
-    <details><summary>调整图表</summary><form onSubmit={apply} className={workspaceStyles.controls}>
+    <details><summary>调整图表</summary><p className={styles.notice}>调整图形不改变原表数值，画布与导出使用同一配置。</p><form onSubmit={apply} className={workspaceStyles.controls}>
       {draft?.kind === 'plot' && <>
         <label>图表类型<select value={draft.type} onChange={event => setDraft({ ...draft, type: event.target.value as typeof draft.type })}>
-          <option value="bar">柱状图</option><option value="horizontal_bar">横向条形图</option><option value="line">折线图</option><option value="scatter">散点图</option></select></label>
-        <label>X 轴字段<select value={draft.x} onChange={event => setDraft({ ...draft, x: event.target.value })}>{result.table.columns.map(c => <option key={c.key} value={c.key}>{c.label}{c.unit ? `（${units[c.unit] ?? c.unit}）` : ''}</option>)}</select></label>
+          {(['bar', 'horizontal_bar', 'line', 'scatter'] as const).filter(type => resultChartEligibility(result, { ...draft, type }).eligible).map(type => <option key={type} value={type}>{{ bar: '柱状图', horizontal_bar: '横向条形图', line: '折线图', scatter: '散点图' }[type]}</option>)}</select></label>
+        <label>X 轴字段<select value={draft.x} onChange={event => setDraft({ ...draft, x: event.target.value })}>{result.table.columns.filter(c => draft.type === 'scatter' ? numeric.some(item => item.key === c.key) : c.unit === null).map(c => <option key={c.key} value={c.key}>{c.label}{c.unit ? `（${units[c.unit] ?? c.unit}）` : ''}</option>)}</select></label>
         <label>Y 轴字段<select value={draft.y[0]} onChange={event => setDraft({ ...draft, y: [event.target.value, ...draft.y.slice(1).filter(key => key !== event.target.value)] })}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}（{units[c.unit!] ?? c.unit}）</option>)}</select></label>
         <label>排序<select value={draft.sort ? `${draft.sort.field}:${draft.sort.direction}` : ''} onChange={event => {
           const [field, direction] = event.target.value.split(':');

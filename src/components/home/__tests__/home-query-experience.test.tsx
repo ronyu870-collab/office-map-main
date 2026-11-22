@@ -65,7 +65,7 @@ describe('experience 2.0 P0', () => {
     const { input } = await open('Ron'); send(input, '你好');
     expect(await screen.findByText('你好，我是 Colliers AI。')).toBeVisible();
     expect(client.submit).toHaveBeenCalledOnce();
-    expect(screen.getByText('助手介绍')).toBeVisible();
+    expect(screen.queryByText('助手介绍')).not.toBeInTheDocument();
     expect(screen.queryByText('需要补充条件')).not.toBeInTheDocument();
     expect(screen.queryByText('请选择查询口径')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '重试本次请求' })).not.toBeInTheDocument();

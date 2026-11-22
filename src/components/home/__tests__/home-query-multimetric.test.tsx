@@ -45,6 +45,8 @@ describe('P1 follow-up multi-metric result presentation', () => {
 
   it('shows both metric values and distinct valid samples without opening details', () => {
     render(<HomeQueryResult result={multiResult('aggregate')} />);
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' }));
+    fireEvent.click(screen.getByText('统计口径与限制'));
     const rent = screen.getByRole('region', { name: '净有效租金依据' });
     const vacancy = screen.getByRole('region', { name: '空置率依据' });
     expect(rent).toHaveTextContent('有效样本：3 栋');
@@ -58,8 +60,10 @@ describe('P1 follow-up multi-metric result presentation', () => {
     expect(screen.getByRole('region', { name: '来源详情' })).not.toHaveTextContent('net_effective_rent');
   });
 
-  it('keeps the first trend and sample finding for every metric visible by default', () => {
+  it('keeps the first trend and sample finding for every metric reachable in analysis details', async () => {
     render(<HomeQueryResult result={multiResult('trend')} />);
+    fireEvent.click(screen.getByText('分析与样本核查'));
+    await screen.findByRole('region', { name: '净有效租金分析' });
     const rent = screen.getByRole('region', { name: '净有效租金分析' });
     const vacancy = screen.getByRole('region', { name: '空置率分析' });
     expect(rent).toHaveTextContent('2026-Q2'); expect(rent).toHaveTextContent('2026-Q3');
@@ -98,6 +102,8 @@ describe('P1 follow-up multi-metric result presentation', () => {
   it('shows an entirely missing second metric as unknown, retaining its selection and zero valid sample', async () => {
     render(<HomeQueryResult result={multiResult('aggregate', true)} />);
     expect(screen.getByRole('region', { name: '空置率指标' })).toHaveTextContent('未知：无有效样本');
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' }));
+    fireEvent.click(screen.getByText('统计口径与限制'));
     expect(screen.getByRole('region', { name: '空置率依据' })).toHaveTextContent('有效样本：0 栋');
   });
 
@@ -105,18 +111,23 @@ describe('P1 follow-up multi-metric result presentation', () => {
     render(<HomeQueryResult result={multiResult('trend', true)} requestId={requestId} scope={scope} />);
     await screen.findByRole('figure', { name: '同源查询图表' });
     fireEvent.change(screen.getByRole('combobox', { name: '图表指标' }), { target: { value: 'vacancy' } });
-    await waitFor(() => expect(client.chart).toHaveBeenCalledTimes(2));
-    const plot = await screen.findByRole('figure', { name: '同源查询图表' });
-    expect(plot).toHaveTextContent('有效图示 0 项，未知 2 项');
-    expect(plot.querySelectorAll('circle')).toHaveLength(0);
-    const chart = await client.chart.mock.results[1].value;
-    expect(chart.points.every((point: { y: unknown }) => point.y === null)).toBe(true);
+    expect(await screen.findByText('该指标暂无可绘图的有效数据；原始状态与来源仍可查看。')).toBeVisible();
+    expect(screen.queryByRole('figure', { name: '同源查询图表' })).not.toBeInTheDocument();
+    expect(client.chart).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('combobox', { name: '图表指标' })).toHaveValue('vacancy');
+    fireEvent.change(screen.getByRole('combobox', { name: '图表指标' }), { target: { value: 'rent' } });
+    await screen.findByRole('figure', { name: '同源查询图表' });
+    expect(client.chart).toHaveBeenCalledTimes(2);
+    expect(client.chart.mock.calls[1][3]).toEqual({ kind: 'time_series', metric: 'rent' });
   });
 
   it('switches grouped trends without losing the independent group sample summaries', async () => {
     render(<HomeQueryResult result={multiResult('group_trend')} requestId={requestId} scope={scope} />);
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' }));
+    fireEvent.click(screen.getByText('统计口径与限制'));
     expect(screen.getByRole('region', { name: '净有效租金依据' })).toHaveTextContent('CBD');
     expect(screen.getByRole('region', { name: '空置率依据' })).toHaveTextContent('金融街');
+    fireEvent.click(screen.getByRole('button', { name: '关闭来源' }));
     await screen.findByRole('figure', { name: '同源查询图表' });
     fireEvent.change(screen.getByRole('combobox', { name: '图表指标' }), { target: { value: 'vacancy' } });
     await waitFor(() => expect(client.chart).toHaveBeenCalledTimes(2));

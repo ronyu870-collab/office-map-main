@@ -6,6 +6,7 @@ import { REPORT_LIMITS } from './reportProtocol';
 import { readReportModel, reportSectionNarrative } from './reportModel';
 import { resultSummary, cellText, units } from './presentation';
 import { resultOutputDescriptor } from './resultOutput';
+import { resultChartEligibility } from './resultEligibility';
 import { buildResultChart } from './charts';
 import { renderChartPng } from './chartPng';
 import type { QueryResult } from './result';
@@ -89,7 +90,8 @@ export async function renderResearchPdf(raw: QueryResult) {
     else paragraph('本节按完整原表呈现，不把逐楼记录擅自汇总为市场指标。完整记录与限制见下文。');
     paragraph('研究分析与统计口径', true);
     reportSectionNarrative(r).forEach(s => paragraph(s));
-    if (section.chart) {
+    if (section.chart && !resultChartEligibility(r, section.chart).eligible) paragraph('当前结果没有满足图形条件的有效数据，保留原始数值、状态与来源。');
+    if (section.chart && resultChartEligibility(r, section.chart).eligible) {
       const chart = buildResultChart(r, section.chart);
       if (chart.request.kind === 'plot' && chart.points.length > 100) throw new Error('REPORT_CHART_LABEL_LIMIT');
       const png = await renderChartPng(chart, { provenance: 'attachment' });

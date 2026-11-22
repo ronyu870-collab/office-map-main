@@ -13,6 +13,7 @@ import type { QueryResult } from '../query/result';
 import { exportContextSchema } from './toolRegistry';
 import { authorizeConversationPlan } from '../query/conversationStore';
 import { agentMemorySchema, type AgentMemory } from './agentMemory';
+import type { AnswerSelection } from '../query/answerSelection';
 
 export const AGENT_CONVERSATION_PROTOCOL = 'colliers-agent-conversation/1';
 const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequence: z.number().int().positive(),
@@ -20,7 +21,7 @@ const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequenc
 const historySchema = z.array(z.strictObject({
   user: z.string().min(1).max(1800), assistant: z.string().min(1).max(3000),
 })).max(8);
-export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextRecheck?: () => Promise<void> };
+export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextResults?: QueryResult[]; contextRecheck?: () => Promise<void> };
 
 /** Load only server-side encrypted previous answers from the existing owner/session-bound
  * RPC; never accept arbitrary client-provided history text as context. */
@@ -83,10 +84,11 @@ export async function readAgentHistory(
     context.plans.forEach(raw => authorizeConversationPlan(parseQueryPlan(raw), authority));
     history.contextExport = context;
   }
-  if (prior.leaseContext === true || prior.businessContext === true || prior.knowledgeContext === true || prior.researchContext === true) {
+  if (prior.answerContext === true || prior.leaseContext === true || prior.businessContext === true || prior.knowledgeContext === true || prior.researchContext === true) {
     const restored = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
     if (!restored.result) throw new Error('QUERY_DENIED');
     history.contextResult = restored.result as QueryResult;
+    history.contextResults = restored.answerSelection?.results.map(item => item.result as QueryResult);
     history.contextRecheck = restored.recheck;
   }
   if (prior.chartContext) {
@@ -143,6 +145,7 @@ export async function restoreOwnAgentAnswer(
   if (!generated) throw new Error('QUERY_HISTORY_UNAVAILABLE');
   const output = decrypt(generated)?.result;
   let message: string, result: ReturnType<typeof resultViewSchema.parse> | undefined;
+  let answerSelection: AnswerSelection | undefined;
   let recheck: () => Promise<void>;
   if (output?.version === 'agent-message/1') {
     message = z.string().min(1).max(12000).parse(output.text);
@@ -157,12 +160,14 @@ export async function restoreOwnAgentAnswer(
   } else {
     const restored = await recoverOwnResult(client, identity, keys, requestId, read, signal,
       { reauthorizedHistory: true });
-    result = resultViewSchema.parse(restored.result);
+    resultViewSchema.parse(restored.result);
+    result = restored.result as ReturnType<typeof resultViewSchema.parse>;
+    answerSelection = restored.answerSelection;
     message = lastAnswer.assistant;
     recheck = restored.recheck;
   }
   await recheck();
-  return { message, ...(result ? { result } : {}), recheck, headHash: read.head_hash,
+  return { message, ...(result ? { result } : {}), ...(answerSelection ? { answerSelection } : {}), recheck, headHash: read.head_hash,
     headSequence: read.head_sequence,
     parentRequestId: z.uuid().optional().parse(receipt?.metadata?.conversation?.parentRequestId) };
 }

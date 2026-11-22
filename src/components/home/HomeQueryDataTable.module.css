@@ -58,3 +58,7 @@
 .root[data-expanded="true"] .scroll { max-height: none; overflow-y: visible; }
 .scroll { scrollbar-color: var(--cd-color-border-strong) var(--cd-color-surface-alt); }
 .toolbar { position: relative; }
+
+.root[data-nested-scroll="false"] .scroll { max-height: none; overflow-y: visible; }
+.root > details { margin-block: var(--cd-space-2); }
+.root > details > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; }

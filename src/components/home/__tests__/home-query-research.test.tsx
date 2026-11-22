@@ -23,7 +23,7 @@ it('delivers selected Office formats in the answer, lazily reveals the complete 
   render(<HomeQueryResult result={result} requestId={requestId} scope={scope} internalExport />);
   expect(screen.queryByText('下载 PDF 研究报告')).not.toBeInTheDocument();
   expect(screen.queryByText('下载本次结果')).not.toBeInTheDocument();
-  expect(screen.getByText(/已完成 2\/2 个数据步骤/)).toBeInTheDocument();
+  expect(screen.getByText('研究步骤已审查，来源和限制随各部分保留。')).toBeInTheDocument();
   expect(client.download).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: '下载 Word' }));
   await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce());

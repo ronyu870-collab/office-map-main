@@ -9,19 +9,20 @@ import { renderResultCopy, type ResultCopyFormat } from '@/src/lib/intelligence/
 import type { QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import styles from './HomeQueryResultActions.module.css';
 
-type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean; children?: React.ReactNode };
+type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean; children?: React.ReactNode; responseActions?: React.ReactNode };
 
 export function HomeQueryResultActions(props: Props) {
   // A new identity/result always disposes clipboard requests and old fallback text.
   return <ResultActions key={JSON.stringify([props.scope, props.requestId, props.result.resultId, props.internalExport])} {...props} />;
 }
 
-function ResultActions({ result, requestId, scope, internalExport, children }: Props) {
+function ResultActions({ result, requestId, scope, internalExport, children, responseActions }: Props) {
   const copyId = React.useId();
   const root = React.useRef<HTMLDivElement>(null);
   const [summary, setSummary] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const [copySucceeded, setCopySucceeded] = React.useState(false);
   const [manualText, setManualText] = React.useState<string | null>(null);
   const active = React.useRef<AbortController | null>(null);
   const manual = React.useRef<HTMLTextAreaElement>(null);
@@ -29,6 +30,11 @@ function ResultActions({ result, requestId, scope, internalExport, children }: P
   const summaryTrigger = React.useRef<HTMLButtonElement>(null);
   const copyTrigger = React.useRef<HTMLButtonElement | null>(null);
   React.useEffect(() => () => active.current?.abort(), []);
+  React.useEffect(() => {
+    if (!copySucceeded) return;
+    const timer = window.setTimeout(() => { setMessage(''); setCopySucceeded(false); }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [copySucceeded]);
   React.useEffect(() => { if (summary) summaryRef.current?.focus({ preventScroll: true }); }, [summary]);
   React.useEffect(() => {
     const element = root.current;
@@ -50,7 +56,7 @@ function ResultActions({ result, requestId, scope, internalExport, children }: P
     if (!internalExport || active.current) return;
     copyTrigger.current = trigger;
     const controller = new AbortController(); active.current = controller;
-    setBusy(true); setMessage('正在复制…'); setManualText(null);
+    setBusy(true); setCopySucceeded(false); setMessage('正在复制…'); setManualText(null);
     try {
       const output = await trustedQueryClient.copy(scope, { requestId, resultId: result.resultId, action: 'copy', format }, controller.signal);
       if (controller.signal.aborted) return;
@@ -59,7 +65,7 @@ function ResultActions({ result, requestId, scope, internalExport, children }: P
       try {
         if (!navigator.clipboard?.writeText) throw new Error('CLIPBOARD_UNAVAILABLE');
         await navigator.clipboard.writeText(output.text);
-        if (!controller.signal.aborted) setMessage(format === 'table' ? '已复制结果表格。' : format === 'figures' ? '已复制关键数字。' : format === 'summary' ? '已复制分析摘要。' : '已复制结论。');
+        if (!controller.signal.aborted) { setCopySucceeded(true); setMessage(format === 'table' ? '已复制结果表格。' : format === 'figures' ? '已复制关键数字。' : format === 'summary' ? '已复制分析摘要。' : '已复制结论。'); }
       } catch {
         if (!controller.signal.aborted) { setManualText(output.text); setMessage('浏览器未完成自动复制。可选择下方文字后手动复制。'); }
       }
@@ -97,6 +103,7 @@ function ResultActions({ result, requestId, scope, internalExport, children }: P
           {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('table', event.currentTarget)}>复制结果表格</Button>}
           {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('figures', event.currentTarget)}><Copy size={16} aria-hidden="true" />复制关键数字</Button>}
           <Button variant="ghost" size="sm" onClick={event => { summaryTrigger.current = event.currentTarget; showSummary(); }}><FileText size={16} aria-hidden="true" />生成分析摘要</Button>
+          {responseActions}
       </HomeQueryMenu>
     </div>
     {message && <p className={styles.message} role="status">{message}</p>}

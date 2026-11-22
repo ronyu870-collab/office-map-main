@@ -19,8 +19,9 @@ export function buildingAnalysisHref(ids: string[], intent: BuildingSelection['i
   selected.ids.forEach(id => params.append('aiBuilding', id));
   return `/?${params}#colliers-ai`;
 }
-export function queryMapHref(requestId: string, buildingId?: string, details = false): string {
+export function queryMapHref(requestId: string, buildingId?: string, details = false, resultId?: string): string {
   const params = new URLSearchParams({ aiRequest: z.uuid().parse(requestId) });
+  if (resultId) params.set('aiResult', z.uuid().parse(resultId));
   if (buildingId) params.set('aiBuilding', z.uuid().parse(buildingId));
   if (details) params.set('aiDetails', '1');
   return `/map?${params}`;
@@ -28,10 +29,12 @@ export function queryMapHref(requestId: string, buildingId?: string, details = f
 export function queryReturnHref(requestId: string): string {
   return `/?${new URLSearchParams({ aiRequest: z.uuid().parse(requestId) })}#colliers-ai`;
 }
-export type QueryMapContext = { requestId: string; buildingId?: string; details: boolean };
+export type QueryMapContext = { requestId: string; resultId?: string; buildingId?: string; details: boolean };
 export function parseQueryMapContext(params: Pick<URLSearchParams, 'get'>): QueryMapContext | null {
   const request = z.uuid().safeParse(params.get('aiRequest'));
   const building = params.get('aiBuilding');
-  if (!request.success || building !== null && !z.uuid().safeParse(building).success) return null;
-  return { requestId: request.data, ...(building ? { buildingId: building } : {}), details: params.get('aiDetails') === '1' };
+  const result = params.get('aiResult');
+  if (!request.success || building !== null && !z.uuid().safeParse(building).success
+    || result !== null && !z.uuid().safeParse(result).success) return null;
+  return { requestId: request.data, ...(result ? { resultId: result } : {}), ...(building ? { buildingId: building } : {}), details: params.get('aiDetails') === '1' };
 }
