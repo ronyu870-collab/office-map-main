@@ -47,6 +47,18 @@ it('renders both verified comparison snapshots and their separate evidence rathe
   expect(screen.queryByRole('table')).not.toBeInTheDocument();
   expect(screen.getByRole('region', { name: '共同参与比较的结果' })).toBeVisible();
 });
+it('keeps a trusted map outcome visible once when formal data owns the result summary', () => {
+  const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
+  result.parameters.responsePresentation = { version: 'response-presentation/1', narrativeRole: 'result_summary' };
+  const notice = '本轮未准备地图操作。当前结果无法准备所选操作，尚未打开地图。';
+  const answerSelection: AnswerSelection = { version: 'answer-selection/1', task: 'fact', status: 'partial', primaryResultId: result.resultId,
+    notice, results: [{ role: 'primary', result }] };
+  render(<HomeQueryResponse message={notice} result={result} answerSelection={answerSelection} executionStatus="partial"
+    scope={scope} internalExport={false} presentation="expanded" onExpand={() => {}} />);
+  expect(screen.getByRole('status')).toHaveTextContent(notice);
+  expect(screen.getAllByText(notice)).toHaveLength(1);
+  expect(screen.getByRole('region', { name: '核心指标' })).toBeVisible();
+});
 it('shows the one real dated trend fact after three missing quarters without an empty chart', () => {
   const result = resultViewSchema.parse(buildTrendResult([1, 2, 3, 4].map(quarter => fixture({ year: 2026, quarter: quarter as 1 | 2 | 3 | 4 })), 'rent', 'per_period'));
   for (const row of result.table.rows.slice(0, 3)) row.cells.value = { kind: 'unknown', state: 'missing', reason: 'no_valid_sample', sourceIds: row.cells.value.sourceIds };

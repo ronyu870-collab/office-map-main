@@ -201,6 +201,40 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(response.status).toBe(200); expect(body.agent.executionStatus).toBe('completed');
     expect(state.provider).toHaveBeenCalledOnce(); expect(body.result).toBeUndefined();
   });
+  it.each([true, false])('retains the trusted map operation outcome outside the formal result summary (prepared=%s)', async prepared => {
+    let raw = prepared ? buildListResult(fixture(), ['height']) : buildAggregateResult(fixture(), 'rent');
+    if (prepared) {
+      const ids = new Map(raw.table.rows.map(row => [row.entityId, randomUUID()]));
+      raw = { ...raw, table: { ...raw.table, rows: raw.table.rows.map(row => ({ ...row, entityId: ids.get(row.entityId)! })) },
+        sources: raw.sources.map(source => ({ ...source, entityId: ids.get(source.entityId) ?? source.entityId,
+          recordId: ids.get(source.recordId) ?? source.recordId })) };
+    }
+    const formal = { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan(prepared
+      ? { operation: 'list', fields: ['height'], period: null, scope: { inventory: 'tracked' } }
+      : { operation: 'aggregate', metric: 'rent', period: { year: 2026, quarter: 3 }, scope: { inventory: 'tracked' } }) } };
+    const call = (name: string, args: object) => ({ id: randomUUID(), type: 'function', function: { name, arguments: JSON.stringify(args) } });
+    state.structured.mockResolvedValue({ result: formal, content: '{"status":"ready"}' });
+    state.provider.mockReset().mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+      message: { role: 'assistant', content: null, tool_calls: [
+        call(prepared ? 'list_buildings' : 'query_quarterly_metrics', prepared ? { scope: { inventory: 'tracked' }, fields: ['height'], period: null }
+          : { scope: { inventory: 'tracked' }, period: { year: 2026, quarter: 3 }, metric: 'rent' }),
+        call('prepare_map_selection', { resultId: formal.resultId, intent: 'select' })] } })
+      .mockResolvedValue({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+        message: { role: 'assistant', content: '已在地图中定位并选中这些楼宇。' } });
+    const response = await handleAgentSubmission(fakeRequest('在地图上查看当前结果。').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.result.resultId).toBe(formal.resultId);
+    expect(body.result.parameters.responsePresentation.narrativeRole).toBe('result_summary');
+    expect(body.message).toBe(body.answerSelection.notice);
+    expect(body.message).toContain(prepared ? '地图操作已准备' : '未准备地图操作');
+    expect(body.message).toContain('尚未打开地图');
+    expect(body.message).not.toMatch(/已在地图中定位|AGENT_|unavailable|部分步骤未取得/);
+    expect(body.agent.executionStatus).toBe(prepared ? 'completed' : 'partial');
+    if (prepared) expect(body.result.parameters.agentMap).toMatchObject({ intent: 'select', buildingIds: formal.table.rows.map(row => row.entityId) });
+    else expect(body.result.parameters.agentMap).toBeUndefined();
+    const archived = state.append.mock.calls.find(entry => entry[1] === 'response_generated')?.[2].result;
+    expect(archived.notice).toBe(body.answerSelection.notice);
+  });
   it('owns the structured summary even after partial execution and keeps one trusted failure notice', async () => {
     const raw = buildAggregateResult(fixture(), 'rent');
     const result = { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({ operation: 'aggregate',
@@ -279,6 +313,19 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.knowledgeCheck).toHaveBeenCalled();
   });
 
+  it('retains the trusted disabled-public-search boundary instead of supplier claims', async () => {
+    state.knowledge.mockRejectedValue(new Error('KNOWLEDGE_PUBLIC_SEARCH_DISABLED'));
+    state.provider.mockReset().mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+      message: { role: 'assistant', content: null, tool_calls: [{ id: 'public-search', type: 'function', function: {
+        name: 'search_public_building_information', arguments: JSON.stringify({ buildingId: actorId, topic: 'completion_year' }),
+      } }] } }).mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+        message: { role: 'assistant', content: '已经联网查明竣工时间。' } });
+    const response = await handleAgentSubmission(fakeRequest('查公开竣工信息。').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.agent.executionStatus).toBe('limited'); expect(body.result).toBeUndefined();
+    expect(body.message).toContain('尚未启用'); expect(body.message).toContain('没有联网');
+    expect(body.message).not.toContain('已经联网查明');
+  });
   it('executes a native tool request and uses the returned tool fact for subsequent model synthesis', async () => {
     state.provider.mockReset()
       .mockResolvedValueOnce({ model: 'deepseek-v4-flash', inputTokens: 30, outputTokens: 15,
@@ -580,6 +627,23 @@ describe('AI 5.0 natural-language export through the authenticated Agent handler
     }
   });
 
+  it('keeps the trusted missing-CSV notice while the real Excel remains available', async () => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const raw = buildListResult(fixture(), ['height']);
+    const result = { ...raw, parameters: { ...raw.parameters, executedPlan: { ...plan, fields: ['height'] } } };
+    state.structured.mockResolvedValue({ result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) });
+    state.provider.mockReset().mockResolvedValueOnce(model([call('list_buildings', { scope, fields: ['height'], period: plan.period })]))
+      .mockResolvedValueOnce(model([call('export_table', { resultIds: [result.resultId], format: 'xlsx' })]))
+      .mockResolvedValueOnce(model());
+    const response = await handleAgentSubmission(fakeRequest('把结果导出 CSV。').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.agent.executionStatus).toBe('partial');
+    expect(body.message).toBe(body.answerSelection.notice); expect(body.message).toContain('未生成 CSV');
+    expect(body.result.parameters.agentExport.format).toBe('xlsx');
+    const { buildResultArtifact } = await import('../query/artifacts');
+    const artifact = await buildResultArtifact(body.result, { requestId: body.requestId, resultId: body.result.resultId, action: 'export', format: 'xlsx' });
+    expect(artifact.type).toBe('download');
+  });
   it('fails closed if export permission is withdrawn after generation and before final delivery', async () => {
     const raw = buildListResult(fixture(), ['height']);
     const result = { ...raw, parameters: { ...raw.parameters, executedPlan: { ...plan, fields: ['height'] } } };

@@ -661,12 +661,26 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       else selectedAnswer = { ...selectedAnswer, results: selectedAnswer.results.map(item =>
         item.result.resultId === primary.resultId ? { ...item, result: primary as typeof item.result } : item) };
       selectedAnswer = applyAnswerPolicy(valid.question, selectedAnswer, execution.executionStatus);
+      // Data-summary ownership must not swallow a separate, trusted action
+      // outcome. Preparing a map never means that the browser opened it.
+      const mapAttempted = execution.toolNames.includes('prepare_map_selection');
+      const mapResultId = preparedMap?.resultId;
+      const mapDelivered = mapResultId && selectedAnswer.results.some(item =>
+        item.result.resultId === mapResultId && item.result.parameters.agentMap);
+      const mapNotice = mapAttempted ? mapDelivered
+        ? '地图操作已准备，尚未打开地图或改变当前地图选择。'
+        : preparedMap ? '地图操作未随当前回答交付，尚未打开地图或改变当前地图选择。'
+        : '本轮未准备地图操作。当前结果无法准备所选操作，尚未打开地图。' : undefined;
+      if (mapNotice) selectedAnswer = { ...selectedAnswer,
+        notice: [selectedAnswer.notice, mapNotice].filter(Boolean).join(' ') };
       if (execution.executionStatus !== 'completed') {
         // Summary ownership stays with formal blocks even after partial tool
         // execution. A separate trusted notice retains what did not complete;
         // no arbitrary supplier prose or Markdown table is scanned/deleted.
+        const onlyMapFailure = mapNotice && execution.unresolvedFailures.length > 0
+          && execution.unresolvedFailures.every(item => item.tool === 'prepare_map_selection');
         const executionNotice = fulfillment.missing.length ? execution.answer
-          : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
+          : onlyMapFailure ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
         selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, executionNotice].filter(Boolean).join(' ') };
       }
       if (selectedAnswer.notice) execution.answer = selectedAnswer.notice;
