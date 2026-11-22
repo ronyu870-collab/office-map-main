@@ -170,6 +170,10 @@ describe('bounded routing, fallback and model cost governance', () => {
     expect(names('最近一年 TMT 行业主要租在哪些楼？')).toContain('query_lease_transactions');
     expect(names('国贸的空调系统和绿色认证是什么？')).toContain('query_building_dossier');
     expect(names('按租金从高到低排列。', true)).toContain('modify_chart');
+    expect(names('把 CBD 和金融街放到同一张图。')).toContain('compare_market_segments');
+    expect(modelToolCatalogue('把刚才结果导出 Excel', 'professional', messages, false, ['lease']).map(t => t.name)).toContain('query_lease_transactions');
+    expect(modelToolCatalogue('再看层数', 'professional', messages, false, ['business']).map(t => t.name)).toContain('query_building_dossier');
+    expect(modelToolCatalogue('比较刚才两份', 'professional', messages, false, ['knowledge']).map(t => t.name)).toContain('search_internal_documents');
     expect(names('按租金从高到低排列。')).not.toContain('modify_chart');
   });
   it('packages an existing chart as PDF within the unchanged budget, while keeping explicit chart edits available', async () => {
