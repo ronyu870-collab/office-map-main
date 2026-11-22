@@ -8,6 +8,14 @@ const publicURL = value => {
   } catch { return ''; }
 };
 
+export function sanitizeErrorStack(error) {
+  return { name: /^[A-Za-z ]*Error$/.test(error.name) ? error.name : 'Error',
+    frames: String(error.stack ?? '').split('\n').slice(1).filter(line => /^\s+at\s/.test(line)).map(line => line.replace(/https?:\/\/[^\s)]+/g, value => {
+      const position = value.match(/:\d+:\d+$/)?.[0] ?? '';
+      return publicURL(position ? value.slice(0, -position.length) : value) + position;
+    }).replace(/[a-f\d]{32,}/gi, '[redacted]')) };
+}
+
 export function sanitizeCpuProfile(profile) {
   return {
     startTime: profile.startTime, endTime: profile.endTime,

@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { observeNavigation } from './readiness.mjs';
+import { verifyContextCpuCapture } from './verify-context-cpu-capture.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = process.env.PERF_PLAYWRIGHT_MODULE
@@ -154,10 +155,11 @@ try {
   result = await page.evaluate(() => window.__colliersNavigationProbe.result);
   assert.equal(result.status, 'preexisting_content');
   assert.equal(result.content_usable_ms, null, '已有内容不能当作本次操作的可用时刻');
+  await verifyContextCpuCapture(browser);
   await verifyDocumentCollector();
   console.log(JSON.stringify({ status: 'pass', browser: await browser.version(),
     coverage: ['shell_vs_content', 'cached_vs_fresh', 'missing_metric', 'application_error', 'timeout',
-      'preexisting_content', 'document_start', 'map_readiness', 'redirect_boundary', 'request_privacy', 'server_timing_allowlist'] }));
+      'preexisting_content', 'document_start', 'map_readiness', 'redirect_boundary', 'request_privacy', 'server_timing_allowlist', 'context_cpu_stacks', 'outside_action_long_tasks', 'sample_raf_cleanup'] }));
 } finally {
   await browser.close();
 }

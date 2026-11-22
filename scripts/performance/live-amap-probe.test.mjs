@@ -1,8 +1,31 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { installLiveAmapProbe, waitForLiveAmapTiles } from './fixtures/live-amap-probe.mjs';
+import { installLiveAmapProbe, waitForLiveAmapTiles, beginLiveAmapSample, finishLiveAmapSample } from './fixtures/live-amap-probe.mjs';
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   for (const key of ['AMap', '__workspaceMap', '__liveAmapProbe', '__colliersNavigationProbe']) delete window[key];
+});
+
+it('ends a sample frame loop even when its queued callback arrives after the next sample starts', () => {
+  let sequence = 0;
+  const callbacks = new Map();
+  vi.stubGlobal('requestAnimationFrame', vi.fn(callback => { callbacks.set(++sequence, callback); return sequence; }));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.stubGlobal('PerformanceObserver', class { observe() {} disconnect() {} takeRecords() { return []; } });
+  window.__liveAmapProbe = { calls: [], events: [], created: 1 };
+  beginLiveAmapSample();
+  const lateFrame = callbacks.get(1);
+  finishLiveAmapSample();
+  beginLiveAmapSample();
+  const current = window.__liveAmapProbe.sample;
+  const scheduled = sequence;
+  lateFrame(100);
+  lateFrame(116);
+  expect(sequence).toBe(scheduled);
+  expect(current.intervals).toEqual([]);
+  callbacks.get(scheduled)(132);
+  expect(sequence).toBe(scheduled + 1);
+  finishLiveAmapSample();
 });
 
 it('waits for actual provider tiles after early SDK completion and rejects unrelated responses', async () => {
