@@ -275,7 +275,7 @@ function MetricStrip({ stats, busy }: { stats: MapStatsState; busy: boolean }) {
   const metrics = [
     { label: '净有效租金', value: stats.avgRent, unit: '元/㎡/月' },
     { label: '空置率', value: stats.overallVacancyPct, unit: '%' },
-    { label: '有坐标项目', value: stats.visibleProjectCount, unit: '个' },
+    { label: '项目', value: stats.visibleProjectCount, unit: '个' },
     { label: '总体量', value: stats.totalArea, unit: '㎡' },
   ];
 
@@ -285,11 +285,11 @@ function MetricStrip({ stats, busy }: { stats: MapStatsState; busy: boolean }) {
   return (
     <section className="map-live-stats" aria-label="市场实时指标" aria-busy={busy}>
       {busy ? <span className="map-stats-updating">更新中</span> : null}
-      <dl className="map-workspace-kpis" aria-live="off">{metrics.map((metric, index) => <MetricValue key={metric.label} metric={metric} index={index} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
+      <dl className="map-workspace-kpis" aria-live="off">{metrics.map(metric => <MetricValue key={metric.label} metric={metric} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
     </section>
   );
 }
-function MetricValue({ metric, index }: { metric: { label: string; value: string; unit: string }; index: number }) {
+function MetricValue({ metric }: { metric: { label: string; value: string; unit: string } }) {
   const number = React.useRef<HTMLElement>(null);
   const previous = React.useRef(metric.value);
   React.useEffect(() => {
@@ -298,7 +298,7 @@ function MetricValue({ metric, index }: { metric: { label: string; value: string
     const animation = animateWorkspace(number.current, [{ opacity: .7 }, { opacity: 1 }], WORKSPACE_MOTION.feedback);
     return () => animation?.cancel();
   }, [metric.value]);
-  return <div><dt>{metric.label}</dt><dd><b ref={number} className="map-metric-number" style={{ minWidth: `${[5, 4, 4, 10][index]}ch` }}>{metric.value}</b><span>{metric.unit}</span></dd></div>;
+  return <div><dt>{metric.label}</dt><dd><b ref={number} className="map-metric-number">{metric.value}</b><span>{metric.unit}</span></dd></div>;
 }
 
 function SupplyProjectList({ projects, onSelect }: { projects: FullListBuilding[]; onSelect: (project: FullListBuilding) => void }) {

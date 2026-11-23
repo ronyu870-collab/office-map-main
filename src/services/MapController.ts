@@ -3,6 +3,8 @@
  */
 
 "use client";
+import { coordinateIssue, fitMapExtent } from '@/src/app/map/runtime/mapExtent';
+
 import { WORKSPACE_MOTION } from '@/src/app/map/runtime/workspaceMotion';
 import {beginBuildingReading,type ReadingEntry} from '@/src/utils/readingAuditContext';
 import { createSelectionMarker, markerBadgeImage, futureSupplyImage } from '@/src/app/map/runtime/mapSelectionMarker';
@@ -17,7 +19,7 @@ import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
 import { recordMapStartup } from "@/src/utils/mapStartupProbe";
 import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
-import { panMapFocusIntoAvailableArea } from "@/src/app/map/runtime/mapFocusViewport";
+import { readMapVisibleArea, visibleMapRect } from "@/src/app/map/runtime/mapFocusViewport";
 import { mapOptionalNumber, observedVacantArea } from "@/src/app/map/model/vacancyMetrics";
 import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
@@ -441,7 +443,6 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private compCenterMarker: any | null = null;
   private compExitButton: HTMLDivElement | null = null;
   private _isClearingCompetitor = false;
-  private _competitorNavigationVersion = 0;
 
   // 🌟 CL-010: 周边项目对比状态
   private _compCenterPoint: [number, number] | null = null;
@@ -1086,16 +1087,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       : competitors;
     this._renderDistanceMarkers(markersToRender);
 
-    const navigationVersion = ++this._competitorNavigationVersion;
-    this.map.setFitView([this.compRadiusCircle]);
-    setTimeout(() => {
-      if (
-        navigationVersion !== this._competitorNavigationVersion ||
-        this._compBuildingId !== buildingId ||
-        !this.map
-      ) return;
-      if (this.map.getZoom() < 13.5) this.map.setZoom(13.6);
-    }, 100);
+    this.fitToBuildings(markersToRender);
 
     this.showCompExitButton();
 
@@ -1174,7 +1166,6 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   private clearCompetitorElements() {
-    this._competitorNavigationVersion += 1;
     if (this.map) {
       if (this.compRadiusCircle) this.map.remove(this.compRadiusCircle);
       if (this.compCenterMarker) this.map.remove(this.compCenterMarker);
@@ -1638,42 +1629,40 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     }
   }
 
-  fitToBuildings(buildingsData: BuildingWithMetrics[]) {
+  private workspaceCameraHandler: ((move: (immediately?: boolean) => void) => void) | null = null;
+  setWorkspaceCameraHandler(handler: ((move: (immediately?: boolean) => void) => void) | null) { this.workspaceCameraHandler = handler; }
+
+  fitToBuildings(buildingsData: BuildingWithMetrics[], coordinated = false, immediately = false) {
+    if (!coordinated && this.workspaceCameraHandler) {
+      this.workspaceCameraHandler(immediate => this.fitToBuildings(buildingsData, true, immediate));
+      return;
+    }
     if (!this.map || !this.AMap || buildingsData.length === 0) return;
 
-    // Fitting results must not exit a separate, explicitly selected competitor session.
-    const withCoords = buildingsData.filter(b => Number.isFinite(b.location_lng) && Number.isFinite(b.location_lat));
-    if (withCoords.length === 0) return;
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-
-    if (withCoords.length === 1 && withCoords[0]) {
-      this.map.setZoomAndCenter(16, [
-        withCoords[0].location_lng,
-        withCoords[0].location_lat,
-      ], reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
-      panMapFocusIntoAvailableArea(this.map);
-    } else {
-      let minLng = 180,
-        maxLng = -180,
-        minLat = 90,
-        maxLat = -90;
-      withCoords.forEach((b) => {
-        if (b.location_lng < minLng) minLng = b.location_lng;
-        if (b.location_lng > maxLng) maxLng = b.location_lng;
-        if (b.location_lat < minLat) minLat = b.location_lat;
-        if (b.location_lat > maxLat) maxLat = b.location_lat;
-      });
-      const bounds = new this.AMap.Bounds([minLng, minLat], [maxLng, maxLat]);
-      // Do not override the fitted extent with a forced minimum zoom: scattered
-      // search matches would be pushed out of the viewport after 50ms.
-      this.map.setBounds(bounds, reduced);
-    }
+    const container = this.map.getContainer?.() ?? document.getElementById('map-container');
+    if (!container) return;
+    const { rect, reserved } = readMapVisibleArea(container);
+    const camera = fitMapExtent(buildingsData, rect, visibleMapRect(rect, reserved));
+    // Diagnose invalid coordinates without correcting production records or
+    // excluding a geographically distant but valid business project.
+    const invalid = buildingsData.flatMap(building => {
+      const issue = coordinateIssue(building);
+      return issue && issue !== 'missing' ? [{ id: building.id, issue }] : [];
+    });
+    if (invalid.length) console.warn('[MapController] Unlocatable project coordinates', invalid);
+    if (!camera) return;
+    const reduced = immediately || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+    this.map.setZoomAndCenter(camera.zoom, camera.center, reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
   }
 
   /** 恢复地图工作台的初始总览视野（大气泡层级）。 */
-  resetToDefaultView() {
+  resetToDefaultView(coordinated = false, immediately = false) {
+    if (!coordinated && this.workspaceCameraHandler) {
+      this.workspaceCameraHandler(immediate => this.resetToDefaultView(true, immediate));
+      return;
+    }
     if (!this.map) return;
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const reduced = immediately || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
     this.map.setZoomAndCenter(DEFAULT_MAP_ZOOM, [
       DEFAULT_MAP_CENTER.lng,
       DEFAULT_MAP_CENTER.lat,
@@ -1808,7 +1797,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         lineJoin: "round",
       });
       this.map.add(this.subwayPolyline);
-      this.map.setFitView([this.subwayPolyline]);
+      // Completing an asynchronous layer read does not own the workspace camera.
+      if (!this.isWorkspaceActive()) this.map.setFitView([this.subwayPolyline]);
       return subwayData.stations;
     } catch (error) {
       if (renderVersion === this._subwayRenderVersion) {
@@ -1842,7 +1832,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       zIndex: 50,
     });
     this.map.add([this.stationMarker, this.radiusCircle]);
-    this.map.setFitView([this.radiusCircle]);
+    if (!this.isWorkspaceActive()) this.map.setFitView([this.radiusCircle]);
   }
 
   private _clearSubwayElementsNow() {

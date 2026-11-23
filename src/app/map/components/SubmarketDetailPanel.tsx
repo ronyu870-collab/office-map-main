@@ -28,8 +28,7 @@ type Props = {
   futureCount: number;
   canEdit: boolean;
   suspended?: boolean;
-  retained?: boolean;
-  onRetain?: () => void;
+  mapLocationNotice?: string;
   onExitGuardChange?: (guard: (() => boolean) | null) => void;
   onClose: () => void;
   onShowAll: () => void;
@@ -182,7 +181,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
 }
 
 export function SubmarketDetailPanel({
-  name, summary, buildings, futureCount, canEdit, suspended = false, retained = false, onRetain, onExitGuardChange, onClose, onShowAll, onOpenBuilding,
+  name, summary, buildings, futureCount, canEdit, suspended = false, mapLocationNotice, onExitGuardChange, onClose, onShowAll, onOpenBuilding,
 }: Props) {
   const workspace = React.useContext(WorkspacePanelContext);
   const [detail, setDetail] = React.useState<SubmarketDetailPayload | null>(null);
@@ -300,8 +299,8 @@ export function SubmarketDetailPanel({
 
         {!editing ? <div className="map-submarket-primary-actions">
           <button type="button" onClick={onShowAll}>查看全部项目</button>
-          <button type="button" aria-pressed={retained} onClick={onRetain}>{retained ? '已保留区域筛选' : '保留该区域筛选'}</button>
         </div> : null}
+        {mapLocationNotice ? <p role="status" className="workspace-note">{mapLocationNotice}</p> : null}
         {!editing ? (
           <nav role="tablist" aria-label="子市场研究内容"
             onKeyDown={event => {

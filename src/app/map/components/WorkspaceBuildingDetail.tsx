@@ -22,13 +22,14 @@ function Photos({ detail, reading, onChange }: { detail: Detail; reading?: Build
   const changeRef = React.useRef(onChange);
   React.useEffect(() => { readingRef.current = reading; changeRef.current = onChange; }, [reading, onChange]);
   const safeName = (detail.building.name ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
+  const markup = React.useMemo(() => ({ __html: buildPhotoTrigger(galleryId, detail.photos.length) + buildPhotoGallery(galleryId, safeName, detail.photos) }), [galleryId, safeName, detail.photos]);
   React.useEffect(() => {
     if (!root.current || !id || !detail.photos.length) return;
     return bindBuildingPhotoGallery(root.current, id, detail.photos, { initial: readingRef.current, onChange: photo => changeRef.current(photo) }) ?? undefined;
-  }, [id, detail.photos]);
-  if (!id || !detail.photos.length || detail.isDemo) return null;
-  return <div ref={root} className="workspace-building-photos" dangerouslySetInnerHTML={{ __html:
-    buildPhotoTrigger(galleryId) + buildPhotoGallery(galleryId, safeName, detail.photos) }} />;
+  }, [id, detail.photos, detail.isDemo, markup]);
+  if (detail.isDemo) return null;
+  if (!id || !detail.photos.length) return <p className="workspace-note">暂无项目图片</p>;
+  return <div ref={root} className="workspace-building-photos" dangerouslySetInnerHTML={markup} />;
 }
 const number = (value: unknown, suffix = '') => {
   const numeric = finiteMetric(value);
@@ -68,29 +69,28 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
   const materialId = future ? building.building_id : building.id;
   const name = isDemo ? '***' : building.name || '未命名项目';
   const protectedValue = (value: unknown) => isDemo && value ? '***' : String(value ?? '未提供');
-  const rows: Array<[string, React.ReactNode]> = future ? [
-    ['预计入市', futureSupplyDate(building)],
+  const ownership: Array<[string, React.ReactNode]> = future ? [
     ['业主', protectedValue(building.owner)], ['备注', protectedValue(building.notes)],
   ] : [
-    [overrides.grade?.display_label ?? '楼宇等级', overrides.grade?.display_value ?? displayListGrade(building.grade)],
-    [overrides.submarket?.display_label ?? '子市场', overrides.submarket?.display_value ?? building.submarket ?? '未提供'],
-    ['入市时间', String(building.completion_year ?? '未提供')], ['项目业主', protectedValue(building.owner)],
-    ['物业公司', protectedValue(building.property_management)], ['LEED', building.leed_certification ?? '未提供'],
+    ['项目业主', protectedValue(building.owner)],
+    ['物业公司', protectedValue(building.property_management)],
   ];
   const action = (label: string, id: string, local?: Action, disabled = false) => <button type="button" data-map-action={id}
     disabled={disabled} onClick={local ? () => onAction(local) : undefined} className="workspace-business-action">{label}</button>;
   return <section className="workspace-building building-popup" data-building-id={future ? materialId ?? '' : building.id}
     data-building-name={name} aria-label={`${name}楼宇详情`}>
-    <WorkspacePanelHeader title={name} subtitle={future ? futureSupplyDisplayLabel(building) : [displayListGrade(building.grade), building.submarket].filter(Boolean).join(' · ')} onClose={onClose} closeLabel="关闭楼宇详情" actions={hasBuildingLocation(building) ? <button type="button" className="workspace-icon" aria-label="定位当前项目" title="定位当前项目" onClick={() => onAction('locate')}><LocateFixed size={17} aria-hidden="true" /></button> : null} />
+    <WorkspacePanelHeader title={name} subtitle={future ? futureSupplyDisplayLabel(building) : [overrides.grade?.display_value ?? displayListGrade(building.grade), overrides.submarket?.display_value ?? building.submarket].filter(Boolean).join(' · ')} onClose={onClose} closeLabel="关闭楼宇详情" actions={hasBuildingLocation(building) ? <button type="button" className="workspace-icon" aria-label="定位当前项目" title="定位当前项目" onClick={() => onAction('locate')}><LocateFixed size={17} aria-hidden="true" /></button> : null} />
     <div ref={scroll} className="workspace-building-scroll workspace-scroll" onScroll={event => report({ tab, scrollTop: event.currentTarget.scrollTop })}>
       {outsideResults ? <p role="status" className="workspace-note">当前项目不在筛选结果中，已保留详情供继续查阅。</p> : null}
       {!hasBuildingLocation(building) ? <p role="status">此项目未提供有效坐标，可继续查看资料。</p> : null}
-      <dl className="workspace-building-metrics">
-        <div><dt>净有效租金 · <span className="whitespace-nowrap">元/㎡/月</span></dt><dd>{number(metric?.net_effective_rent)}</dd></div>
-        <div><dt>空置率</dt><dd>{number(listVacancyPercent(finiteMetric(metric?.vacancy_rate)), '%')}</dd></div>
-        <div><dt>{future ? '预计总体量' : '建筑面积'} · ㎡</dt><dd>{number(future ? building.total_area : metric?.total_area)}</dd></div>
-      </dl>
-      <p className="workspace-period" data-workspace-summary>{future ? '未来供应，非当前存量指标' : metric ? `指标期间：${metric.record_year}Q${metric.record_quarter}` : '暂无季度指标'}</p>
+      <section className="workspace-metric-summary" aria-label="核心经营指标" data-workspace-summary>
+        <p className="workspace-period">{future ? '未来供应 · 非当前存量指标' : metric ? `${metric.record_year}Q${metric.record_quarter} 指标` : '暂无季度指标'}</p>
+        <dl className="workspace-building-metrics">
+          <div className="workspace-rent-metric"><dt>净有效租金</dt><dd>{number(metric?.net_effective_rent)}<span>元/㎡/月</span></dd></div>
+          <div><dt>空置率</dt><dd>{number(listVacancyPercent(finiteMetric(metric?.vacancy_rate)), '%')}</dd></div>
+          <div><dt>{future ? '预计总体量' : '建筑面积'}</dt><dd>{number(future ? building.total_area : metric?.total_area)}<span>㎡</span></dd></div>
+        </dl>
+      </section>
       <nav role="tablist" aria-label="楼宇详情分区" className="workspace-building-tabs" onKeyDown={event => {
         if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
         event.preventDefault();
@@ -103,15 +103,23 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
             aria-controls={`workspace-building-panel-${id}`} tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
       <div ref={panel} role="tabpanel" id={`workspace-building-panel-${tab}`} aria-labelledby={`workspace-building-tab-${tab}`}>
-        {tab === 'overview' ? <><dl className="workspace-building-facts">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{typeof value === 'string' && !value.trim() ? '未提供' : value}</dd></div>)}</dl><Photos detail={detail} reading={state.current.photo} onChange={photo => report({ photo })} /></> : null}
+        {tab === 'overview' ? <>
+          <section className="workspace-detail-group" aria-label="项目属性"><dl className="workspace-building-facts">
+            <div><dt>{future ? '预计入市' : '入市时间'}</dt><dd>{future ? futureSupplyDate(building) : String(building.completion_year ?? '').trim() || '未提供'}</dd></div>
+            {!future ? <div><dt>LEED</dt><dd>{String(building.leed_certification ?? '').trim() || '未提供'}</dd></div> : null}
+          </dl></section>
+          <section className="workspace-detail-group" aria-label="业主与物业"><dl className="workspace-building-facts">{ownership.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{typeof value === 'string' && !value.trim() ? '未提供' : value}</dd></div>)}</dl></section>
+          <Photos detail={detail} reading={state.current.photo} onChange={photo => report({ photo })} />
+        </> : null}
         {tab === 'market' ? <>
-          <dl className="workspace-building-facts"><div><dt>表面租金 · 元/㎡/月</dt><dd>{number(metric?.face_rent)}</dd></div><div><dt>物业费 · 元/㎡/月</dt><dd>{number(metric?.management_fee)}</dd></div></dl>
+          <dl className="workspace-building-facts workspace-market-facts"><div><dt>表面租金</dt><dd>{number(metric?.face_rent)} <span>元/㎡/月</span></dd></div><div><dt>物业费</dt><dd>{number(metric?.management_fee)} <span>元/㎡/月</span></dd></div></dl>
           {!future ? <div className="workspace-business-actions">
             {action('周边项目对比', 'nearby-compare', 'nearby', !hasBuildingLocation(building))}
             {action('楼宇对比', 'building-compare')}
             <button type="button" className="workspace-business-action" aria-expanded={trendOpen} aria-controls="info-chart-panel" onClick={() => { onAction('trend'); setTrendOpen(current => !current); report({ trendOpen: !trendOpen }); }}>季度趋势</button>
-            {canEdit ? action('编辑指标', 'edit-metrics', 'edit') : null}
+            <button type="button" data-map-action="building-ai" className="workspace-business-action" hidden>AI 分析</button>
           </div> : null}
+          {canEdit ? <div className="workspace-maintenance-actions workspace-business-actions">{action('编辑指标', 'edit-metrics', 'edit')}</div> : null}
         </> : null}
         {tab === 'materials' ? <div className="workspace-business-actions">
           {!future ? <>{action('关联成交', 'related-leases')}{action('联系方式', 'contact', 'contact')}</> : null}
@@ -122,7 +130,6 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
           {canEdit && building.id === '9ee3e3ff-4845-41a1-a78f-390c11b1917a' ? <Link href={`/stacking-plan/${building.id}${stackingBack ? `?back=${encodeURIComponent(stackingBack)}` : ''}`} prefetch={false} className="workspace-business-action">Stacking Plan</Link> : null}
         </div> : null}
       </div>
-      <button type="button" data-map-action="building-ai" hidden>AI 分析</button>
       <div data-map-proposal-slot hidden />
       {!future ? <div hidden={tab !== 'market'}><div id="info-chart-panel" style={{ display: 'none' }}><div className="workspace-chart-heading"><h3>近五年趋势追踪</h3>{workspace ? <button type="button" className="workspace-business-action" onClick={() => workspace.setMode('full')}>展开图表</button> : null}</div><div className="workspace-business-actions"><button type="button" id="chart-btn-rent" data-chart="rent">租金</button><button type="button" id="chart-btn-vac" data-chart="vac">空置率</button></div><div id="info-chart-container" style={{ height: 280 }} /></div></div> : null}
     </div>

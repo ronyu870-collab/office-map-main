@@ -12,6 +12,32 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 describe('map camera/layout coordination', () => {
+  it('stops an active extent animation when the user takes over', () => {
+    const host = document.createElement('div');
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 600 } as DOMRect);
+    const map = { getCenter: () => [116, 40], getZoom: () => 12, setZoomAndCenter: vi.fn() };
+    const coordinator = observeMapCanvas(host, map);
+    const fit = vi.fn(); coordinator.focus({ fit }); flush();
+    expect(fit).toHaveBeenCalledOnce();
+    host.dispatchEvent(new Event('wheel'));
+    expect(map.setZoomAndCenter).toHaveBeenCalledExactlyOnceWith(12, [116, 40], true, 0);
+    coordinator();
+  });
+  it('ignores stale data and preserves gesture ownership until an explicit new intent', () => {
+    const host = document.createElement('div');
+    const rect = new DOMRect(0, 0, 800, 600);
+    vi.spyOn(host, 'getBoundingClientRect').mockImplementation(() => rect);
+    const coordinator = observeMapCanvas(host, { resize: vi.fn() });
+    const fitA = vi.fn(), fitB = vi.fn();
+    coordinator.focus({ fit: fitA }, 'A'); coordinator.focus({ fit: fitB }, 'B');
+    coordinator.update('A', { fit: fitA }); flush();
+    expect(fitA).not.toHaveBeenCalled(); expect(fitB).toHaveBeenCalledOnce();
+    host.dispatchEvent(new Event('pointerdown'));
+    coordinator.update('B', { fit: fitB }); resize(); flush();
+    expect(fitB).toHaveBeenCalledOnce();
+    coordinator.focus({ fit: fitB }, 'B'); flush(); expect(fitB).toHaveBeenCalledTimes(2);
+    coordinator();
+  });
   it('keeps a useful saved camera but restores project focus from a city or distant view', () => {
     const camera = { center: [116.46, 39.91] as [number, number], zoom: 15 };
     expect(projectCamera([116.461, 39.911], camera, 800, 600)).toEqual(camera);

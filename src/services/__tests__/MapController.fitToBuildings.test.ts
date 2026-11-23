@@ -1,58 +1,51 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MapController } from '@/src/services/MapController';
+import { mercatorPoint } from '@/src/app/map/runtime/mapExtent';
 
 const examples = [
   { id: 'western', name: '西部项目', location_lng: 116.16, location_lat: 39.82 },
   { id: 'eastern', name: '东部项目', location_lng: 116.51, location_lat: 39.99 },
 ];
-
-afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
-
-describe('MapController search extent', () => {
-  it('fits widely dispersed matches without overriding the SDK bounds after a delay', () => {
+afterEach(() => { document.body.replaceChildren(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+function setup(width = 800, height = 600) {
+  const host = document.createElement('div'); document.body.append(host);
+  host.getBoundingClientRect = () => new DOMRect(0, 0, width, height);
+  const map = { getContainer: () => host, setZoomAndCenter: vi.fn() };
+  const controller = new MapController(); Object.assign(controller, { map, AMap: {} });
+  return { controller, map };
+}
+describe('MapController geographic extent', () => {
+  it.each([[800,600], [320,160], [1200,220], [844,84]])('contains the actual extreme coordinates with marker room on %sx%s', (width, height) => {
     vi.useFakeTimers();
-    const map = { setBounds: vi.fn(), setZoom: vi.fn(), setZoomAndCenter: vi.fn(), getZoom: vi.fn(() => 11) };
-    const controller = new MapController();
-    Object.assign(controller, {
-      map,
-      AMap: { Bounds: class { constructor(public southwest: number[], public northeast: number[]) {} } },
-    });
-    vi.spyOn(controller as any, 'clearCompetitorElements').mockImplementation(() => {});
-    controller.fitToBuildings(examples as unknown as Parameters<MapController['fitToBuildings']>[0]);
-    expect(map.setBounds).toHaveBeenCalledTimes(1);
-    expect(map.setBounds.mock.calls[0]?.[0]).toMatchObject({ southwest: [116.16, 39.82], northeast: [116.51, 39.99] });
-    vi.advanceTimersByTime(250);
-    expect(map.setZoom).not.toHaveBeenCalled();
+    const { controller, map } = setup(width, height);
+    controller.fitToBuildings(examples as never);
+    const [zoom, center] = map.setZoomAndCenter.mock.calls[0];
+    const c = mercatorPoint(...center as [number,number]);
+    for (const b of examples) {
+      const p = mercatorPoint(b.location_lng, b.location_lat);
+      const x = (p[0]-c[0])*256*2**zoom + width/2, y = (p[1]-c[1])*256*2**zoom + height/2;
+      expect(x).toBeGreaterThan(30); expect(x).toBeLessThan(width-30);
+      expect(y).toBeGreaterThan(25); expect(y).toBeLessThan(height-25);
+    }
+    vi.advanceTimersByTime(1000);
+    expect(map.setZoomAndCenter).toHaveBeenCalledOnce();
   });
-
-  it('still centers a single matching building at zoom 16', () => {
-    const map = { setBounds: vi.fn(), setZoom: vi.fn(), setZoomAndCenter: vi.fn(), getZoom: vi.fn(() => 11) };
-    const controller = new MapController();
-    Object.assign(controller, { map, AMap: { Bounds: class {} } });
-    vi.spyOn(controller as any, 'clearCompetitorElements').mockImplementation(() => {});
-    controller.fitToBuildings(examples.slice(0, 1) as unknown as Parameters<MapController['fitToBuildings']>[0]);
-    expect(map.setZoomAndCenter).toHaveBeenCalledWith(16, [116.16, 39.82], false, 240);
-    expect(map.setBounds).not.toHaveBeenCalled();
+  it('caps single or identical coordinates and never relocates an empty region', () => {
+    const { controller, map } = setup();
+    controller.fitToBuildings([examples[0], examples[0]] as never);
+    expect(map.setZoomAndCenter.mock.lastCall?.[0]).toBe(16);
+    expect(map.setZoomAndCenter.mock.lastCall?.[1][0]).toBeCloseTo(116.16, 8);
+    controller.fitToBuildings([]); expect(map.setZoomAndCenter).toHaveBeenCalledOnce();
+  });
+  it('honors reduced motion without a later pan or zoom', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    const { controller, map } = setup(); controller.fitToBuildings(examples as never);
+    expect(map.setZoomAndCenter.mock.lastCall?.slice(2)).toEqual([true, 0]);
+    controller.resetToDefaultView(); expect(map.setZoomAndCenter.mock.lastCall?.slice(2)).toEqual([true, 0]);
   });
 });
-
-
 it('keeps radius filtering meaningful when SDK geometry is unavailable', () => {
   const value = new MapController();
   expect(value.calculateDistance([116, 40], [116, 40])).toBe(0);
   expect(value.calculateDistance([116, 40], [116, 40.01])).toBeCloseTo(1113.195, 1);
-});
-
-
-it('honors reduced motion for single-result, result-extent and reset camera entries', () => {
-  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
-  const map = { setBounds: vi.fn(), setZoomAndCenter: vi.fn() };
-  const value = new MapController();
-  Object.assign(value, { map, AMap: { Bounds: class {} } });
-  value.fitToBuildings(examples.slice(0, 1) as unknown as Parameters<MapController['fitToBuildings']>[0]);
-  expect(map.setZoomAndCenter).toHaveBeenLastCalledWith(16, [116.16, 39.82], true, 0);
-  value.fitToBuildings(examples as unknown as Parameters<MapController['fitToBuildings']>[0]);
-  expect(map.setBounds).toHaveBeenLastCalledWith(expect.anything(), true);
-  value.resetToDefaultView();
-  expect(map.setZoomAndCenter.mock.lastCall?.slice(2)).toEqual([true, 0]);
 });

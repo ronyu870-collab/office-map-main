@@ -34,4 +34,11 @@ describe('lazy building photo client', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: '图片已撤回' }), { status: 404 })));
     await expect(loadStoredBuildingPhoto('building', 'photo', new AbortController().signal)).rejects.toThrow('图片已撤回');
   });
+  it.each(['preview', 'original', 'download'] as const)('discards a late %s response after the effective identity changes', async mode => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => {
+      sessionStorage.setItem('__impersonation_state', JSON.stringify({ targetUserId: 'another-viewer' }));
+      return new Response(JSON.stringify({ url: 'https://images.example.com/previous-user.jpg' }));
+    }));
+    await expect(loadStoredBuildingPhoto('building', 'photo', new AbortController().signal, mode)).rejects.toThrow('登录状态已变化');
+  });
 });

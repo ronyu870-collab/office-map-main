@@ -7,6 +7,17 @@ import { MapReadingContext } from '../workspace/continuity';
 
 const base: Detail = { building: { id: 'stock-a', name: '甲楼', _dataType: 'existing', submarket: 'CBD', location_lng: null, location_lat: null, metrics: [], owner: '业主' }, metric: null, photos: [], canEdit: false, isDemo: false, overrides: {} };
 const actions = () => ({ onClose: vi.fn(), onAction: vi.fn(), onDisposeTrend: vi.fn() });
+it('keeps the photo trigger bound after a same-project parent render', () => {
+  const detail = { ...base, canEdit: true, photos: [{ id: 'b04ed43e-bf3a-4d63-919e-c44d60d4fe75', caption: '楼宇外观' }] };
+  const callbacks = actions();
+  const view = render(<WorkspaceBuildingDetail detail={detail} {...callbacks} />);
+  view.rerender(<WorkspaceBuildingDetail detail={{ ...detail }} {...callbacks} />);
+  const trigger = screen.getByRole('button', { name: /看图/ });
+  fireEvent.click(trigger);
+  expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  expect(view.container.querySelector('[data-building-photo-gallery]')).not.toHaveAttribute('hidden');
+  expect(screen.getByText('正在加载图片…')).toBeVisible();
+});
 it('preserves missing metrics as unknown and offers readable details without a false location', () => {
   const callbacks = actions();
   render(<WorkspaceBuildingDetail detail={base} {...callbacks} />);

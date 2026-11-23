@@ -40,12 +40,12 @@ const controllerRef = vi.hoisted(() => ({ current: controller }));
 
 vi.mock('next/dynamic', () => ({
   default: () => function MockDynamicComponent({
-    name, suspended, onOpenBuilding,
-  }: { name?: string; suspended?: boolean; onOpenBuilding?: (id: string) => void }) {
+    name, suspended, onOpenBuilding, onClose,
+  }: { name?: string; suspended?: boolean; onOpenBuilding?: (id: string) => void; onClose?: () => void }) {
     if (!name || !onOpenBuilding) return null;
-    return <button type="button" disabled={suspended} onClick={() => onOpenBuilding('building-1')}>
+    return <><button type="button" onClick={onClose}>close-submarket</button><button type="button" disabled={suspended} onClick={() => onOpenBuilding('building-1')}>
       open-submarket-test-building
-    </button>;
+    </button></>;
   },
 }));
 
@@ -161,6 +161,19 @@ describe('MapClient render mode synchronization', () => {
       if (building) publish?.({ building, metric: null, photos: [], isDemo: false, canEdit: false, overrides: {} });
     });
     queryBridge.selection = null; queryBridge.publish = undefined;
+  });
+
+  it('keeps the latest region and displayed projects when closing research', async () => {
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    act(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } })));
+    await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(1));
+    act(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: '中关村' } })));
+    await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(0));
+    fireEvent.click(screen.getByRole('button', { name: 'close-submarket' }));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+    expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(0);
+    expect(controller.resetToDefaultView).not.toHaveBeenCalled();
   });
 
   it('cancels queued project focus when switching to a list and can refocus the same project later', async () => {

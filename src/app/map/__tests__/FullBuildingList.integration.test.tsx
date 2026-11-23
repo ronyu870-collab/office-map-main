@@ -26,6 +26,8 @@ vi.mock('@/src/app/map/runtime/useMapRuntime', () => ({ useMapRuntime: (options:
   const { onError } = options;
   React.useEffect(() => {
     runtime.fail = onError; runtime.edit = options.onEditBuildingMetrics;
+    const canvas = document.getElementById('map-container');
+    if (canvas) canvas.getBoundingClientRect = () => new DOMRect(0,0,800,600);
     runtime.mounts += 1;
     let cancelled = false;
     void onReady(controller, () => cancelled);
@@ -599,7 +601,7 @@ describe('map search P0 navigation and visibility regressions', () => {
     await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledTimes(1));
     expect(controller.fitToBuildings).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: 'b-2' }),
-    ]);
+    ], true, false);
     fireEvent.click(screen.getByRole('button', { name: '搜索' }));
     await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledTimes(2));
   });
@@ -690,7 +692,7 @@ describe('map search P1 candidates and explicit viewport navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: '搜索' }));
     await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'b-2' }),
-    ]));
+    ], true, false));
   });
 
   it('can dismiss suggestions with Escape without clearing the draft or stealing the input focus', async () => {
@@ -738,14 +740,15 @@ describe('map search P2 result scope and competitor continuity', () => {
 });
 
 
-it('restores temporary research filters when the future supply toolbar closes its workspace', async () => {
+it('retains the active region when the future supply toolbar closes its workspace', async () => {
   render(<MapClient initialIntelligenceHandoff={null} />);
   await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
   fireEvent(window, new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } }));
   await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(30));
   fireEvent.click(screen.getByRole('button', { name: '未来供应' }));
   fireEvent.click(screen.getByRole('button', { name: '未来供应' }));
-  await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(44));
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+  expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(30);
   expect(screen.getByLabelText('地图业务工作区')).toHaveAttribute('aria-hidden', 'true');
 });
 
