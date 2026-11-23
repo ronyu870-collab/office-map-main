@@ -89,6 +89,7 @@ type MapWorkbenchViewProps = {
   baseMapPointsVisible?: boolean;
   onBaseMapPointsChange?: (visible: boolean) => void;
   compareGroups: CompareGroup[];
+  filterCompareGroups?: CompareGroup[];
   isFilterPanelOpen: boolean;
   isSupplyOpen: boolean;
   isListVisible: boolean;
@@ -400,6 +401,7 @@ export function MapWorkbenchView({
   renderMode,
   baseMapPointsVisible = false, onBaseMapPointsChange,
   compareGroups,
+  filterCompareGroups,
   isFilterPanelOpen,
   isSupplyOpen,
   isListVisible,
@@ -610,6 +612,7 @@ export function MapWorkbenchView({
               subwayLines={MAP_SUBWAYS}
               availableStations={currentSubwayStations}
               initialState={filterState ?? undefined}
+              initialCompareGroups={filterCompareGroups ?? compareGroups}
               onFilterChange={onFilterChange}
               onCompareGroupsChange={onCompareGroupsChange}
               filterCommand={filterCommand}

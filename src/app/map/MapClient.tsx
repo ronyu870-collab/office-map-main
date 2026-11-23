@@ -981,6 +981,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         baseMapPointsVisible={baseMapPointsVisible}
         onBaseMapPointsChange={visible => { readingStore.baseMapPointsVisible = visible; setBaseMapPointsVisible(visible); }}
         compareGroups={activeCompareGroups}
+        filterCompareGroups={compareGroups}
         isFilterPanelOpen={isFilterPanelOpen}
         isSupplyOpen={isSupplyOpen}
         isListVisible={isListVisible}

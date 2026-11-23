@@ -4,6 +4,7 @@ import type { SidebarFilterState } from '@/src/components/SidebarFilter';
 import { MAP_DISTRICTS, MAP_LEEDS, MAP_SUBMARKETS, MAP_SUBMARKETS_SECONDARY, createDefaultFilterState, filterFutureSupplies } from '@/src/app/map/model/mapDomain';
 import { MapDataStore } from '@/src/app/map/model/MapDataStore';
 import type { BuildingWithMetrics } from '@/src/types';
+import { filterBuildings } from '@/src/utils/filterBuildings';
 
 function building(
   id: string,
@@ -58,6 +59,15 @@ function defaultFilter(): SidebarFilterState {
 }
 
 describe('MapDataStore', () => {
+  it.each(['districts', 'submarkets', 'leeds'] as const)('does not treat an unchecked global %s category as unrestricted', field => {
+    const row = building('target', { name: '目标楼宇' });
+    const store = new MapDataStore([row]);
+    const filterState = { ...defaultFilter(), [field]: [] };
+    const compareGroups = [{ id: 'group', name: '组1', color: '#000', submarkets: ['CBD'], grades: ['甲级'], districts: [] }];
+    expect.soft(store.filter({ filterState, compareGroups, keyword: '目标' })).toEqual([]);
+    expect.soft(filterBuildings([row], filterState)).toEqual([]);
+    expect(store.filter({ filterState: defaultFilter(), compareGroups, keyword: '目标' })).toEqual([row]);
+  });
   it('finds reassigned Yuyuantan stock and commercial supply without relaxing other submarket filters', () => {
     const yufu = building('yufu', { name: '裕阜商务中心', submarket: '玉渊潭', district: '海淀区', grade: 'B' });
     const cetc = building('cetc', { name: '中国电科科技创新园（海淀）', submarket: '玉渊潭', district: '海淀区', grade: '' });

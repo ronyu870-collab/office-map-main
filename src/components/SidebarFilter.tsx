@@ -49,6 +49,7 @@ export interface SidebarFilterProps {
   subwayLines: string[]; availableStations: any[]; initialState?: Partial<SidebarFilterState>;
   onFilterChange: (state: SidebarFilterState) => void; title?: string;
   onCompareGroupsChange?: (groups: CompareGroup[]) => void;
+  initialCompareGroups?: CompareGroup[];
   filterCommand?: SidebarFilterCommand | null;
   embedded?: boolean;
   defaultExpanded?: boolean;
@@ -122,7 +123,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
   const [globalFilterOpen, setGlobalFilterOpen] = React.useState(props.defaultExpanded ?? false);
 
   // ── 项目对比筛选状态 ──
-  const [compareGroups, setCompareGroups] = React.useState<CompareGroup[]>([]);
+  const [compareGroups, setCompareGroups] = React.useState<CompareGroup[]>(() => props.initialCompareGroups ?? []);
   const [openCompareGroups, setOpenCompareGroups] = React.useState<Record<string, boolean>>({});
   const [compareSectionOpen, setCompareSectionOpen] = React.useState(false);
 

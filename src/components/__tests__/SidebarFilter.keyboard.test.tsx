@@ -43,3 +43,22 @@ it('names condition inputs and allows keyboard comparison expansion and independ
   expect(comparison).toHaveAttribute('aria-expanded','true');
   expect(screen.getByRole('button',{name:'添加筛选组'})).toHaveFocus();
 });
+
+it('retains restored comparison conditions on mount and edits the restored group', async () => {
+  const user = userEvent.setup();
+  const restored = [{ id: 'saved-cbd', name: '组1', color: '#3b82f6', submarkets: ['CBD'], grades: ['甲级'], districts: [] }];
+  const onCompareGroupsChange = vi.fn();
+  render(<SidebarFilter {...{ ...props(), initialCompareGroups: restored, onCompareGroupsChange }} />);
+  expect(onCompareGroupsChange).toHaveBeenLastCalledWith(restored);
+  await user.click(screen.getByRole('button', { name: '项目对比筛选' }));
+  const group = screen.getByRole('button', { name: '组1' });
+  if (group.getAttribute('aria-expanded') !== 'true') await user.click(group);
+  const panel = document.getElementById(group.getAttribute('aria-controls')!)!;
+  expect(within(panel).getByRole('checkbox', { name: 'CBD' })).toBeChecked();
+  expect(within(panel).getByRole('checkbox', { name: '甲级' })).toBeChecked();
+  await user.click(within(panel).getByRole('checkbox', { name: '望京-酒仙桥' }));
+  expect(onCompareGroupsChange).toHaveBeenLastCalledWith([{ ...restored[0], submarkets: ['CBD', '望京-酒仙桥'] }]);
+  await user.click(screen.getByRole('button', { name: '移除组1' }));
+  expect(onCompareGroupsChange).toHaveBeenLastCalledWith([]);
+  expect(restored[0].submarkets).toEqual(['CBD']);
+});

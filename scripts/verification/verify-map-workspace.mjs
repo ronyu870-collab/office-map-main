@@ -14,6 +14,7 @@ import { verifySubmarketReading } from './workspace-submarket-reading.mjs';
 import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
 import { verifyFutureConditions } from './workspace-future-filters.mjs';
 import { verifyWorkspaceFilters } from './workspace-filters.mjs';
+import { verifyTransitFilters, transitMapData } from './workspace-transit-filters.mjs';
 import { clickWorkspaceAction } from './workspace-actions.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -52,6 +53,8 @@ function instrumentMap() {
   const BaseMap = window.AMap.Map;
   const stats = window.__workspaceSDK = { created: 0, resized: 0, centers: [], nativeOpens: 0 };
   window.AMap.Bounds = class { constructor(southwest, northeast) { this.southwest = southwest; this.northeast = northeast; } };
+  window.AMap.Polyline = class { constructor(options) { this.options = options; } };
+  window.AMap.Circle = class { constructor(options) { this.options = options; } };
   window.AMap.Map = class extends BaseMap {
     constructor(id, options) { super(id, options); stats.created++; window.__workspaceMap = this; this.host = document.getElementById(id); }
     getContainer() { return this.host; }
@@ -82,6 +85,7 @@ try {
       await context.route('**/*', async route => {
         const url = new URL(route.request().url());
         if (url.origin === base.origin) {
+          if (url.pathname === '/data/beijing_map_data.json') return route.fulfill({ json: transitMapData });
           if (url.pathname === '/api/intelligence/query/capabilities') return route.fulfill({json:{enabled:width===1024,examples:[]}});
           if (url.pathname === '/api/map/building-photos') {
             assert.equal(url.searchParams.get('building_id'),stock[0].id);
@@ -185,6 +189,7 @@ try {
       observations.push({width,validDisplayedProjects:5,stockOnlyProjects:3,invalidOrMissingStockReadable:2,futureLayerCountFollowsVisibility:true});
       if ([1536,390,320].includes(width)) {
         observations.push(await verifyWorkspaceFilters(page, { width, height, stock }));
+        observations.push(await verifyTransitFilters(page, { width, height, stock }));
         observations.push(await verifyFutureConditions(page, {width,stock,future}));
       }
       await page.getByRole('button', { name: '项目列表', exact: true }).click();

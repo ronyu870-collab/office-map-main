@@ -173,6 +173,7 @@ export class MapDataStore {
   filter(request: MapFilterRequest): BuildingWithMetrics[] {
     const { filterState, compareGroups } = request;
     const keyword = request.keyword?.trim() ?? '';
+    if (!filterState.districts.length || !filterState.submarkets.length || !filterState.leeds.length) return [];
 
     const activeCompareGroups = getConfiguredCompareGroups(compareGroups);
 

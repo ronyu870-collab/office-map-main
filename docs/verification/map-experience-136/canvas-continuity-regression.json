@@ -176,5 +176,14 @@
     "12 reading cycles cover the SPA photo/chart/material loop and full-screen every third cycle; Stacking/history round trips are separately verified, not part of this CPU sample",
     "Forced GC and profiler are diagnostic; heap still grows during warmup, no multi-hour leak-free or unprofiled performance claim",
     "Necessary exact-head CI is still required before this batch merges; no production deployment or production account verification claim"
-  ]
+  ],
+  "resolution": {
+    "pr": 294,
+    "head": "dd8cf0faf7e7f867e8f54d24bd0da57641b442fc",
+    "verifyRun": 45267378878,
+    "requiredChecks": "Search and filter focus coverage + Typecheck, lint, test and build: SUCCESS; Engineering and both real Auth jobs SUCCESS",
+    "mergedAt": "2026-11-23T21:36:33Z",
+    "main": "796f56e3042df288f29aa65953a6a8d7a1cc81ce",
+    "production": "Not independently verified on production deployment."
+  }
 }
