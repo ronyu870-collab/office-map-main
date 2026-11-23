@@ -80,7 +80,16 @@
   "limits": [
     "Business/auth/SDK transport and long station are isolated fixtures; real production station, native select popup, phone keyboard and native gestures are not claimed.",
     "Financial statistics continue to use filtered stock quarterly metrics. Future visibility and transit distance are checked separately; comparison grade groups are tested with future layer explicitly hidden.",
-    "Functional browser suites ran concurrently; their timing and long-task fields are not performance evidence.",
-    "Exact PR head necessary CI and main merge remain pending; local product and functional checks passed."
-  ]
+    "Functional browser suites ran concurrently; their timing and long-task fields are not performance evidence."
+  ],
+  "resolution": {
+    "pr": "https://github.com/ronyu870-collab/office-map-main/pull/295",
+    "testedHead": "e8fd9ae13c7759dbe1909f199ef16b45b079b673",
+    "verifyRun": "45271885903",
+    "necessaryChecks": "Search and filter focus coverage, Engineering regressions, both Real Auth integrations and Typecheck, lint, test and build all SUCCESS",
+    "mergedAt": "2026-11-23T22:02:52Z",
+    "mainCommit": "6fae6e5bbd470c3c1388dd4abb0730763e0b5438",
+    "testedAndMainTree": "6da00518bf1d9888fc7ffc737439f03c593fd6cb",
+    "productionVerification": "Not claimed from preview or merge"
+  }
 }

@@ -80,7 +80,8 @@ export async function verifySurfaceContinuity(page, { width, base, frameStallMs 
   const frameGaps=times.slice(1).map((time,index)=>time-times[index]);
   if(frameStallMs>0)assert.ok(frameGaps.some(gap=>gap>=frameStallMs*.75),'artificial low-frame test must actually observe delayed frames');
   const paths = readingPaths ? await verifyReadingSurfacePaths(page) : [];
-  return { width, surfaceCloseAndReverse: true, frameStallMs, frameGaps, traces, paths };
+  const fullscreenReading = readingPaths && width < 640 ? await verifyFullscreenReading(page) : null;
+  return { width, surfaceCloseAndReverse: true, frameStallMs, frameGaps, traces, paths, fullscreenReading };
 }
 
 // Public UI handlers plus actual Web Animations and frame geometry. Capture
@@ -167,4 +168,58 @@ async function verifyReadingSurfacePaths(page) {
     paths.push({ kind, reversals: kind === 'fullscreen' ? 2 : 3, frames });
   }
   return paths;
+}
+
+async function verifyFullscreenReading(page) {
+  const detail = page.getByRole('region', { name: 'CBD甲楼楼宇详情', exact: true });
+  await detail.getByRole('tab', { name: '成交与资料', exact: true }).click();
+  await page.waitForFunction(() => !document.querySelector('.map-workspace-right').getAnimations().some(a => a.playState === 'running' || a.pending));
+  const scroll = detail.locator('.workspace-scroll');
+  const box = await scroll.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 900);
+  await page.waitForFunction(() => document.querySelector('.workspace-building-scroll').scrollTop > 30);
+  const geometry = () => {
+    const el = document.querySelector('.workspace-building-scroll');
+    return { top: el.scrollTop, height: el.clientHeight, total: el.scrollHeight };
+  };
+  const before = await page.evaluate(geometry);
+  await page.evaluate(() => {
+    const el = document.querySelector('.workspace-building-scroll');
+    window.__fullscreenReadingBoundaries = [];
+    window.__fullscreenReadingObserver = new ResizeObserver(() => {
+      window.__fullscreenReadingBoundaries.push({ top:el.scrollTop, height:el.clientHeight, total:el.scrollHeight, expanded:!!document.querySelector('.map-workspace-layout[data-expanded]') });
+    });
+    window.__fullscreenReadingObserver.observe(el);
+  });
+  await clickWorkspaceAction(page, '全屏阅读工作区');
+  await page.waitForFunction(() => document.querySelector('.map-workspace-layout').hasAttribute('data-expanded') && !document.querySelector('.map-workspace-right').getAnimations().some(a => a.playState === 'running' || a.pending));
+  await page.waitForFunction(() => window.__fullscreenReadingBoundaries.some(frame => frame.expanded));
+  const full = await page.evaluate(geometry);
+  assert.ok(full.top < before.top, 'fullscreen actually reduces the available scroll range');
+  await clickWorkspaceAction(page, '返回地图分屏');
+  await page.waitForFunction(() => !document.querySelector('.map-workspace-layout').hasAttribute('data-expanded') && !document.querySelector('.map-workspace-right').getAnimations().some(a => a.playState === 'running' || a.pending));
+  await page.waitForFunction(() => {
+    const rows = window.__fullscreenReadingBoundaries, expanded = rows.findIndex(frame => frame.expanded);
+    return expanded >= 0 && rows.slice(expanded + 1).some(frame => !frame.expanded);
+  });
+  const boundaries = await page.evaluate(() => { window.__fullscreenReadingObserver.disconnect(); return window.__fullscreenReadingBoundaries; });
+  const firstReturn = boundaries.slice(boundaries.findIndex(frame => frame.expanded) + 1).find(frame => !frame.expanded);
+  assert.ok(Math.abs(firstReturn.top - before.top) < 2, 'the first resize delivery after the application observer already retains the reading position');
+  const after = await page.evaluate(geometry);
+  assert.ok(Math.abs(after.top - before.top) < 2, `fullscreen lost reading: ${JSON.stringify({ before, full, after })}`);
+  // A real user gesture in fullscreen establishes the new reading intent.
+  await clickWorkspaceAction(page, '全屏阅读工作区');
+  await page.waitForFunction(() => !document.querySelector('.map-workspace-right').getAnimations().some(a => a.playState === 'running' || a.pending));
+  const fullBox = await scroll.boundingBox();
+  await page.mouse.move(fullBox.x + fullBox.width / 2, fullBox.y + fullBox.height / 2);
+  await scroll.evaluate(el => { window.__fullscreenUserWheel = false; el.addEventListener('wheel', () => { window.__fullscreenUserWheel = true; }, { once:true }); });
+  await page.mouse.wheel(0, -900);
+  await page.waitForFunction(() => window.__fullscreenUserWheel);
+  await page.waitForFunction(() => document.querySelector('.workspace-building-scroll').scrollTop === 0);
+  await clickWorkspaceAction(page, '返回地图分屏');
+  await page.waitForFunction(() => !document.querySelector('.map-workspace-layout').hasAttribute('data-expanded') && !document.querySelector('.map-workspace-right').getAnimations().some(a => a.playState === 'running' || a.pending));
+  const userAfter = await page.evaluate(geometry);
+  assert.equal(userAfter.top, 0, 'the newer fullscreen user gesture supersedes the earlier compact position');
+  return { before, full, after, userAfter, boundaries, actualWheelTakeover: true };
 }

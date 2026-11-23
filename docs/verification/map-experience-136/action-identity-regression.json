@@ -22,5 +22,11 @@
     "No fresh production account switching or real SDK measurement.",
     "No new local production build: effect timer cleanup is exercised by the actual component regression; full build/browser gates remain required in exact-head CI.",
     "PR and main merge pending."
-  ]
+  ],
+  "followupVerification": {
+    "combinedFinalBuild": "Includes compare timer cleanup and shared reading fix; production build exit0",
+    "combinedActualComponentSuite": "10files110tests pass, process exit0; type pass, changed lint0errors8warnings",
+    "details": "fullscreen-reading-regression.json",
+    "exactHeadCi": "pending"
+  }
 }

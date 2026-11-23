@@ -14,8 +14,8 @@
   ],
   "initialHarnessError": "Mobile actions render in Portal: first test searched only pane children. Corrected by opening actual summary then following aria-controls; not a product failure.",
   "nativeCheck": {
-    "at": "2026-11-23T21:54:00Z",
-    "result": "CUA inventory: apps empty, native Mac locked and automatic unlock failed; IAB/MCPApps have no tabs. No production switching, native zoom, keyboard or gesture claim. No repeat unlock request."
+    "result": "CUA inventory: apps empty, native Mac locked and automatic unlock failed; IAB/MCPApps have no tabs. No production switching, native zoom, keyboard or gesture claim. No repeat unlock request.",
+    "checkedAfterUtc": "2026-11-23T21:53:32Z"
   },
   "sourceSha256": {
     "scripts/verification/workspace-surface-continuity.mjs": "6cac668246a609c9a651f6eed761c0bc6df227e612b6c971e59aff04ef8f044a",
