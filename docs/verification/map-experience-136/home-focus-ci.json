@@ -1,0 +1,244 @@
+{
+  "scope": "Homepage CI focus blocker for map PR 279; local production build and synthetic HTTP/session, no production writes",
+  "beforeCi": {
+    "run": 45207623216,
+    "baseline": "2e8868bdba21d09d31fd85a5001be7bc9002b478",
+    "sourceDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "browser": "145.0.7632.6",
+    "recordCount": 113,
+    "environment": "Next production server; real React DOM; synthetic session and intercepted HTTP; no production writes",
+    "cycles": {
+      "1280": {
+        "passed": true,
+        "belowFoldControls": 20,
+        "revealedBelowFold": 9,
+        "backgroundStayedFixed": true,
+        "issues": []
+      },
+      "1536": {
+        "passed": true,
+        "belowFoldControls": 20,
+        "revealedBelowFold": 9,
+        "backgroundStayedFixed": true,
+        "issues": []
+      },
+      "768": {
+        "passed": false,
+        "belowFoldControls": 19,
+        "revealedBelowFold": 12,
+        "backgroundStayedFixed": true,
+        "issues": [
+          {
+            "direction": "Tab",
+            "step": 30,
+            "active": {
+              "tag": "BUTTON",
+              "text": "复制结论",
+              "visible": false,
+              "withinDialog": true,
+              "wasBelowFold": true,
+              "rect": {
+                "left": 32,
+                "top": 1769.46875,
+                "right": 121,
+                "bottom": 1809.46875
+              },
+              "scrollport": {
+                "left": 0,
+                "top": 61,
+                "right": 768,
+                "bottom": 922
+              },
+              "scrollerTop": 899
+            }
+          }
+        ]
+      },
+      "390": {
+        "passed": true,
+        "belowFoldControls": 21,
+        "revealedBelowFold": 17,
+        "backgroundStayedFixed": true,
+        "issues": []
+      },
+      "320": {
+        "passed": true,
+        "belowFoldControls": 21,
+        "revealedBelowFold": 10,
+        "backgroundStayedFixed": true,
+        "issues": []
+      }
+    }
+  },
+  "beforeLocal": {
+    "baseline": "0aecbe06b41df085243a77f377e1c529720d4b4c",
+    "sourceDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "browser": "145.0.7632.6",
+    "recordCount": 46,
+    "environment": "Next production server; real React DOM; synthetic session and intercepted HTTP; no production writes",
+    "cycles": {
+      "768": {
+        "passed": false,
+        "belowFoldControls": 19,
+        "revealedBelowFold": 12,
+        "backgroundStayedFixed": true,
+        "issues": [
+          {
+            "direction": "Tab",
+            "step": 29,
+            "active": {
+              "tag": "BUTTON",
+              "text": "数据依据",
+              "visible": false,
+              "withinDialog": true,
+              "wasBelowFold": true,
+              "rect": {
+                "left": 32,
+                "top": 1717.46875,
+                "right": 88,
+                "bottom": 1749.46875
+              },
+              "scrollport": {
+                "left": 0,
+                "top": 61,
+                "right": 768,
+                "bottom": 922
+              },
+              "scrollerTop": 899
+            }
+          }
+        ]
+      },
+      "1280": {
+        "passed": true,
+        "belowFoldControls": 20,
+        "revealedBelowFold": 9,
+        "backgroundStayedFixed": true,
+        "issues": []
+      }
+    }
+  },
+  "followingOnlyCandidate": {
+    "baseline": "4ec063e01151bfde6edc206d09a076269a375b34",
+    "sourceDiffSha256": "032ec03b6a3ab82d97d1fc81600e23ed079708833f6804bfdcd9e2f20d2225f9",
+    "browser": "145.0.7632.6",
+    "recordCount": 113,
+    "environment": "Next production server; real React DOM; synthetic session and intercepted HTTP; no production writes",
+    "cycles": {
+      "1280": {
+        "passed": true,
+        "belowFoldControls": 20,
+        "revealedBelowFold": 9,
+        "backgroundStayedFixed": true,
+        "issues": []
+      },
+      "1536": {
+        "passed": true,
+        "belowFoldControls": 20,
+        "revealedBelowFold": 9,
+        "backgroundStayedFixed": true,
+        "issues": []
+      },
+      "768": {
+        "passed": false,
+        "belowFoldControls": 19,
+        "revealedBelowFold": 12,
+        "backgroundStayedFixed": true,
+        "issues": [
+          {
+            "direction": "Shift+Tab",
+            "step": 2,
+            "active": {
+              "tag": "BUTTON",
+              "text": "复制结论",
+              "visible": false,
+              "withinDialog": true,
+              "wasBelowFold": true,
+              "rect": {
+                "left": 32,
+                "top": 1769.46875,
+                "right": 134,
+                "bottom": 1809.46875
+              },
+              "scrollport": {
+                "left": 0,
+                "top": 61,
+                "right": 768,
+                "bottom": 922
+              },
+              "scrollerTop": 899
+            }
+          }
+        ]
+      },
+      "390": {
+        "passed": true,
+        "belowFoldControls": 21,
+        "revealedBelowFold": 10,
+        "backgroundStayedFixed": true,
+        "issues": []
+      },
+      "320": {
+        "passed": true,
+        "belowFoldControls": 21,
+        "revealedBelowFold": 10,
+        "backgroundStayedFixed": true,
+        "issues": []
+      }
+    }
+  },
+  "after": {
+    "baseline": "4ec063e01151bfde6edc206d09a076269a375b34",
+    "sourceDiffSha256": "661e0d9d9d0af45fdbcfa3549d6f07d43879515c15d3157daa36487a76209a34",
+    "browser": "145.0.7632.6",
+    "recordCount": 113,
+    "environment": "Next production server; real React DOM; synthetic session and intercepted HTTP; no production writes",
+    "cycles": {
+      "1280": {
+        "passed": true,
+        "belowFoldControls": 20,
+        "revealedBelowFold": 9,
+        "backgroundStayedFixed": true,
+        "issues": []
+      },
+      "1536": {
+        "passed": true,
+        "belowFoldControls": 20,
+        "revealedBelowFold": 9,
+        "backgroundStayedFixed": true,
+        "issues": []
+      },
+      "768": {
+        "passed": true,
+        "belowFoldControls": 19,
+        "revealedBelowFold": 8,
+        "backgroundStayedFixed": true,
+        "issues": []
+      },
+      "390": {
+        "passed": true,
+        "belowFoldControls": 21,
+        "revealedBelowFold": 10,
+        "backgroundStayedFixed": true,
+        "issues": []
+      },
+      "320": {
+        "passed": true,
+        "belowFoldControls": 21,
+        "revealedBelowFold": 17,
+        "backgroundStayedFixed": true,
+        "issues": []
+      }
+    }
+  },
+  "unitRegression": {
+    "before": "3 failed, 1 passed, 46 skipped; layout ancestor 200 vs 0, reader 1500 vs 100",
+    "after": "3 files, 62 passed"
+  },
+  "limits": [
+    "Original CI browser assertions unchanged.",
+    "The two unit orderings are deterministic; the intermittent CI observation does not alone prove every failure has one cause.",
+    "No native phone keyboard or production authentication claim.",
+    "Exact pushed head still requires necessary CI."
+  ]
+}

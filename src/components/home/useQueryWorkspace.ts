@@ -333,9 +333,9 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
         next = (active && node.contains(active)
           ? ordered.find(control => active.compareDocumentPosition(control) & direction) : undefined) ?? ordered[0];
       }
-      // Let the browser reveal a target inside a long answer/history scroller.
-      // Suppressing scrolling here would leave a valid keyboard focus offscreen.
-      next.focus();
+      // Reveal only workspace scrollports after transferring focus. Native focus
+      // scrolling can also move overflow-hidden layout ancestors.
+      next.focus({ preventScroll: true });
       revealControl(next, node);
     };
     const focusin = (event: FocusEvent) => {
@@ -427,11 +427,16 @@ export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | nul
     const observer = new ResizeObserver(applyLayout);
     // User interaction ends the initial answer reveal; local details and chart
     // settings must keep their own reading position after this point.
-    const releaseAnswer = () => { answerAnchor.current = null; revealNext.current = false; };
-    node.addEventListener('pointerdown', releaseAnswer); node.addEventListener('keydown', releaseAnswer);
+    const releaseAnswer = () => {
+      answerAnchor.current = null; revealNext.current = false;
+      // Focus can reveal an older control before the browser dispatches scroll.
+      // A ResizeObserver in that interval must not follow the result tail again.
+      following.current = false; prependPosition.current = null; expectedScrollTop.current = null;
+    };
+    node.addEventListener('pointerdown', releaseAnswer); node.addEventListener('keydown', releaseAnswer); node.addEventListener('focusin', releaseAnswer);
     observer.observe(node);
     if (node.firstElementChild) observer.observe(node.firstElementChild);
-    return () => { observer.disconnect(); node.removeEventListener('pointerdown', releaseAnswer); node.removeEventListener('keydown', releaseAnswer); };
+    return () => { observer.disconnect(); node.removeEventListener('pointerdown', releaseAnswer); node.removeEventListener('keydown', releaseAnswer); node.removeEventListener('focusin', releaseAnswer); };
   }, [scrollerRef, applyLayout]);
   React.useLayoutEffect(() => {
     if (transitionRef.current) { deferredUpdate.current = true; return; }
