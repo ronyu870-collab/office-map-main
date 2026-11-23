@@ -1,0 +1,70 @@
+{
+  "environment": "Production app with synthetic SDK, authorized business and identity fixtures",
+  "viewports": [
+    {
+      "width": 1536,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "integerRentSameAcrossThreeLists": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 33809,
+        "restored": 33809
+      },
+      "fullFutureAreaNamed": true
+    },
+    {
+      "width": 390,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "integerRentSameAcrossThreeLists": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 34771,
+        "restored": 34771
+      },
+      "fullFutureAreaNamed": true
+    },
+    {
+      "width": 320,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "integerRentSameAcrossThreeLists": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 34786,
+        "restored": 34786
+      },
+      "fullFutureAreaNamed": true
+    },
+    {
+      "width": 844,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "integerRentSameAcrossThreeLists": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 31595,
+        "restored": 31595
+      },
+      "fullFutureAreaNamed": true
+    }
+  ],
+  "status": "pass"
+}
