@@ -103,7 +103,7 @@
 }
 .row { border-bottom: 1px solid var(--cd-color-border); padding: 13px 0 15px; }
 .identity { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
-.name {
+.identity .name {
   font: inherit;
   font-size: var(--cd-font-size-lg);
   font-weight: 600;
@@ -119,21 +119,19 @@
 .name:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
 .name:disabled { cursor: default; color: var(--cd-color-text-primary); }
 .meta { color: var(--cd-color-text-secondary); display: flex; flex-wrap: wrap; gap: 4px 8px; }
-.facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; }
-.facts > div {
+.identityFacts { display: flex; flex-wrap: wrap; gap: 4px 24px; margin: 4px 0 0; }
+.identityFacts > div {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 8px;
+  gap: 8px;
   min-width: 0;
-  max-width: 100%;
-  padding: 5px 9px;
-  border: 1px solid var(--cd-color-border);
-  border-radius: var(--cd-radius-md);
-  background: var(--cd-color-surface-alt);
 }
-.facts dt { color: var(--cd-color-text-secondary); }
-.facts dd { margin: 0; min-width: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 12px 0 0; }
+.facts > div { min-width: 0; }
+.identityFacts dt, .facts dt { color: var(--cd-color-text-secondary); }
+.identityFacts dt { flex-shrink: 0; }
+.identityFacts dd, .facts dd { margin: 0; min-width: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.facts dd { margin-top: 4px; }
 .locationNote { color: var(--cd-color-text-secondary); margin-top: 6px; }
 .context { color: var(--cd-color-text-secondary); font: inherit; margin: 0; }
 .warning {
@@ -160,6 +158,11 @@
 .workspace :focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 3px; }
 .header h1[tabindex="-1"]:focus { outline: none; }
 
+@media (min-width: 1024px) {
+  .facts { margin-top: 8px; }
+  .facts > div { display: flex; align-items: baseline; gap: 8px; }
+  .facts dd { margin-top: 0; }
+}
 @media (max-width: 760px) {
   .filterBar { position: relative; }
   .quickFilters { display: contents; }
@@ -183,29 +186,8 @@
   .sort > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
   .row { padding-block: 9px 13px; }
   .name { min-height: 44px; }
-  .facts { row-gap: 0; }
-  .facts > div { padding-inline: 7px; gap: 2px 6px; }
-  /* Break between the identity fields and the three operating metrics. */
-  .facts::after {
-    content: "";
-    order: 1;
-    flex: 0 0 100%;
-    height: 0;
-  }
-  .facts > div:nth-child(-n+2) { margin-block-end: 6px; }
-  .facts > div:first-child { max-inline-size: calc(100% - 102px); }
-  .facts > div:nth-child(2) { max-inline-size: 96px; }
-  .facts > div:nth-child(n+3) {
-    order: 2;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0;
-    padding-block: 4px;
-  }
-  /* Leave room for both gaps while giving rent the most room to wrap. */
-  .facts > div:nth-child(3) { max-inline-size: calc(32% - 4px); }
-  .facts > div:nth-child(4) { max-inline-size: calc(44% - 4px); }
-  .facts > div:nth-child(5) { max-inline-size: calc(24% - 4px); }
+  .identityFacts { column-gap: 16px; }
+  .facts { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, .8fr); gap: 8px; margin-top: 8px; }
   .footer { align-items: flex-start; flex-wrap: wrap; }
   .status { padding: 24px 0; }
 }

@@ -37,7 +37,7 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   await panel.locator('canvas').waitFor();
   await capture('summary');
   const metrics=await panel.getByRole('region',{name:'市场核心指标',exact:true}).boundingBox();
-  if(await page.locator('.map-workspace-layout[data-short-stage]').count()){const bounds=await panel.boundingBox();assert.ok(metrics.y+metrics.height<=bounds.y+bounds.height+1,'short summary contains all three market values');}
+  if(await page.locator('.map-workspace-layout[data-short-stage]').count()){const bounds=await panel.boundingBox();assert.ok(metrics.y+metrics.height<=bounds.y+bounds.height+1,`short summary contains all three market values: ${JSON.stringify({metrics,bounds})}`);}
   const intro=await panel.getByRole('region',{name:'区域定位',exact:true}).boundingBox();
   assert.ok(metrics.y<intro.y,'core metrics precede introduction');
   const primary=await panel.getByRole('button',{name:'查看全部项目',exact:true}).boundingBox();

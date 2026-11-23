@@ -155,9 +155,11 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
                       {targetBuildingId === building.id ? <span>目标楼宇</span> : null}
                     </div>
                   </div>
-                  <dl className={styles.facts}>
+                  <dl className={styles.identityFacts}>
                     <div><dt>区位</dt><dd>{[building.district, submarket].filter(Boolean).join(' · ') || '—'}</dd></div>
                     <div><dt>等级</dt><dd>{grade}</dd></div>
+                  </dl>
+                  <dl className={styles.facts}>
                     <div><dt>统计面积</dt><dd>{format(values.area, 0, '㎡')}</dd></div>
                     <div><dt>净有效租金</dt><dd>{format(values.rent, 1, '元/㎡/月')}</dd></div>
                     <div><dt>空置率</dt><dd>{vacancy === null ? '—' : `${vacancy.toFixed(1)}%`}</dd></div>
