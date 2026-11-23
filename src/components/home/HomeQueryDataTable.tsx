@@ -50,12 +50,6 @@ function DataTable({ result, requestId, scope, internalExport, onSource, onPage,
   })), [result]);
   const selectedInView = indexes.filter(index => selected.has(index)).length;
   React.useEffect(() => { if (allSelected.current) allSelected.current.indeterminate = selectedInView > 0 && selectedInView < indexes.length; }, [indexes.length, selectedInView]);
-  // Menus are per table, without per-row listeners. Escape closes locally.
-  React.useEffect(() => {
-    const dismiss = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) root.current?.querySelectorAll('details[open]').forEach(node => (node as HTMLDetailsElement).open = false); };
-    document.addEventListener('pointerdown', dismiss);
-    return () => document.removeEventListener('pointerdown', dismiss);
-  }, []);
   function changePage(next: number) { setPage(next); onPage?.(next); }
   const availability = resultAvailability(result);
   const policy = resultTablePolicy(result, expanded);
@@ -71,11 +65,7 @@ function DataTable({ result, requestId, scope, internalExport, onSource, onPage,
     return statusShown ? <div className={styles.root}>{rawTable}</div> : <section aria-label="查询结果状态" className={styles.root}><p>{availability.title}</p><p className={styles.scope}>{availability.description}</p><details><summary>查看原始结果</summary>{rawTable}</details></section>;
   }
 
-  return <HomeQueryDetailContent id={detailId}><div ref={root} data-expanded={expanded} data-nested-scroll={policy.nestedScroll} data-selectable={canSelect} className={styles.root} onKeyDown={event => {
-    if (event.key !== 'Escape' || event.nativeEvent.isComposing) return;
-    const menu = event.target instanceof HTMLElement ? event.target.closest('details[open]') : null;
-    if (menu instanceof HTMLDetailsElement) { event.preventDefault(); event.stopPropagation(); menu.open = false; menu.querySelector('summary')?.focus(); }
-  }}>
+  return <HomeQueryDetailContent id={detailId}><div ref={root} data-expanded={expanded} data-nested-scroll={policy.nestedScroll} data-selectable={canSelect} className={styles.root}>
     <div className={styles.toolbar} aria-label="结果表格工具栏">
       {fullControls && <label className={styles.search}><Search size={16} aria-hidden="true" /><span className="sr-only">搜索本次结果</span>
         <input value={search} type="search" placeholder={`搜索已返回的 ${result.table.rows.length} 条记录`} onChange={event => { setSearch(event.target.value); changePage(0); }} /></label>}
