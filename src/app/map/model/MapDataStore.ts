@@ -2,6 +2,7 @@ import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarF
 import type { BuildingWithMetrics } from '@/src/types';
 import { getConfiguredCompareGroups, STOCK_PROJECT_TYPES } from './mapDomain';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { matchesMapConditions } from '@/src/utils/mapFilterConditions';
 import { normalizeMapSearchText } from './mapSearchText';
 
 export type MapRole = 'viewer' | 'editor' | 'admin' | string;
@@ -106,50 +107,10 @@ function matchesCompareGroup(building: BuildingWithMetrics, group: CompareGroup)
 }
 
 function matchesNumericFilters(building: BuildingWithMetrics, filterState: SidebarFilterState): boolean {
-  if (filterState.numericFilters.length === 0) return true;
   const latest = getLatestMetric(building.metrics);
-
-  for (const condition of filterState.numericFilters) {
-    if (condition.value === '' || condition.value === null || condition.value === undefined) continue;
-
-    if (condition.field === 'owner' || condition.field === 'property_management') {
-      const target = String(building[condition.field] || '').toLowerCase();
-      const query = String(condition.value).trim().toLowerCase();
-      if (query && !target.includes(query)) return false;
-      continue;
-    }
-
-    if (!latest) return false;
-    if (Number.isNaN(Number(condition.value))) continue;
-
-    const raw = latest[condition.field as keyof typeof latest];
-    if (raw === null || raw === undefined || raw === '') return false;
-    let metricValue = Number(raw);
-    const filterValue = Number(condition.value);
-    if (!Number.isFinite(metricValue)) return false;
-    // building_metrics stores a 0–1 fraction; the filter input is in percent.
-    if (condition.field === 'vacancy_rate') metricValue *= 100;
-
-    switch (condition.operator) {
-      case '>=':
-        if (!(metricValue >= filterValue)) return false;
-        break;
-      case '<=':
-        if (!(metricValue <= filterValue)) return false;
-        break;
-      case '=':
-        if (!(metricValue === filterValue)) return false;
-        break;
-      case '>':
-        if (!(metricValue > filterValue)) return false;
-        break;
-      case '<':
-        if (!(metricValue < filterValue)) return false;
-        break;
-    }
-  }
-
-  return true;
+  return matchesMapConditions(filterState.numericFilters, field =>
+    field === 'owner' || field === 'property_management' ? building[field] : latest?.[field],
+  );
 }
 
 export class MapDataStore {

@@ -1,4 +1,5 @@
 'use client';
+import { matchesMapConditions } from '@/src/utils/mapFilterConditions';
 import { coordinateIssue } from '@/src/lib/map-coordinates';
 import { serializableMapFilters } from './model/mapFilterPreference';
 import {type ReadingEntry} from '@/src/utils/readingAuditContext';
@@ -490,8 +491,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   
   const districtLeedStats = React.useMemo(() => buildDistrictLeedStats(allBuildings), [allBuildings]);
   
-  const scopedFutureSupplies = React.useMemo(() => filterState?.submarkets.length === 1
-    ? futureSupplies.filter(supply => normalizeMapSubmarket(supply.submarket) === filterState.submarkets[0]) : futureSupplies, [filterState, futureSupplies]);
+  const scopedFutureSupplies = React.useMemo(() => futureSupplies.filter(supply =>
+    (filterState?.submarkets.length !== 1 || normalizeMapSubmarket(supply.submarket) === filterState.submarkets[0])
+    && matchesMapConditions(filterState?.numericFilters, field => supply[field]),
+  ), [filterState, futureSupplies]);
   const futureSupplyCalendar = React.useMemo(() => buildFutureSupplyCalendar(scopedFutureSupplies), [scopedFutureSupplies]);
   React.useEffect(() => {
     if (mapReady) controllerRef.current?.setWorkspaceSubmarket?.(filterState?.submarkets.length === 1 ? filterState.submarkets[0] : null);

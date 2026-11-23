@@ -92,9 +92,10 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
     buildingDetailPanel, rightKind, backLabel, onWorkspaceBack,
     onRenderModeChange,
     onSearch, onOpenList,
-    onFilterChange, stats,
+    onFilterChange, stats, futureSupplies,
   }: {
     stats: {visibleProjectCount:string; totalArea:string};
+    futureSupplies: {id:string}[];
     queryPanel?: React.ReactNode;
     submarketDetailPanel?: React.ReactNode;
     buildingDetailPanel?: React.ReactNode; rightKind?: string; backLabel?: string; onWorkspaceBack?: () => void;
@@ -105,6 +106,7 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
     <>
       {queryPanel}
       <output aria-label="current-map-projects">{stats.visibleProjectCount}</output>
+      <output aria-label="supply-calendar-projects">{futureSupplies.map(row=>row.id).join(',')}</output>
       <output aria-label="current-market-area">{stats.totalArea}</output>
       {submarketDetailPanel}
       {rightKind === 'building' ? buildingDetailPanel : null}
@@ -116,6 +118,12 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
       <button type="button" onClick={() => onFilterChange({
         ...createDefaultFilterState(), districts: ['海淀区'], showFutureSupply: false, futureSupplyGrades: [], futureSupplyYears: [],
       })}>close-layer-with-district-filter</button>
+      <button type="button" onClick={() => onFilterChange({
+        ...createDefaultFilterState(), numericFilters:[{id:'owner',field:'owner',operator:'=',value:'华润'},{id:'area',field:'total_area',operator:'>=',value:50000}],
+      })}>apply-owner-and-area</button>
+      <button type="button" onClick={() => onFilterChange({
+        ...createDefaultFilterState(), numericFilters:[{id:'rent',field:'net_effective_rent',operator:'>=',value:0}],
+      })}>apply-rent-condition</button>
       <button type="button" onClick={() => onSearch('玉渊潭 640')}>search-commercial</button>
       <button type="button" onClick={() => onSearch('华润')}>
         search-owner
@@ -280,6 +288,23 @@ describe('MapClient render mode synchronization', () => {
     await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^2$/));
     fireEvent.click(screen.getByRole('button',{name:'close-layer-with-district-filter'}));
     await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^0$/));
+  });
+
+  it('applies the same active conditions to stock and supplies, rendering and counting only matches', async () => {
+    const supply={id:'future',name:'未来楼',grade:'A',type:'办公',district:'朝阳区',submarket:'CBD',launch_year:2027,location_lng:116.47,location_lat:39.92,owner:'华润置地',total_area:80000};
+    controller.fetchFutureSupplies.mockResolvedValue([supply,{...supply,id:'missing-owner',owner:null},{...supply,id:'small',total_area:1000}]);
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^4$/));
+    fireEvent.click(screen.getByRole('button',{name:'apply-owner-and-area'}));
+    await waitFor(()=>expect(controller.renderFutureMarkers).toHaveBeenLastCalledWith([supply],'default'));
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^2$/));
+    expect(screen.getByLabelText('current-market-area')).toHaveTextContent('100,000');
+    expect(screen.getByLabelText('supply-calendar-projects')).toHaveTextContent(/^future$/);
+    fireEvent.click(screen.getByRole('button',{name:'apply-rent-condition'}));
+    await waitFor(()=>expect(controller.renderFutureMarkers).toHaveBeenLastCalledWith([],'default'));
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^1$/));
+    expect(screen.getByLabelText('current-market-area')).toHaveTextContent('100,000');
+    expect(screen.getByLabelText('supply-calendar-projects')).toBeEmptyDOMElement();
   });
 
   it('excludes hidden commercial projects from search when future supply is off', async () => {

@@ -1,0 +1,31 @@
+{
+  "environment": "real production site and existing administrator Chrome session; no identity, business or photo fixtures",
+  "observedAt": "2026-11-23 Asia/Shanghai evening",
+  "url": "https://colliersdata.com/map",
+  "buildingId": "78042253-6e6d-4442-9a71-0ce3de344e02",
+  "buildingName": "PICC大厦",
+  "caption": "PICC大厦双塔外观",
+  "observations": [
+    "administrator backend accessible before navigating to map",
+    "map initially blank; later displayed SDK initialization timeout",
+    "PICC search narrowed actual project count to 1",
+    "first list load failed with Loading chunk 6839 failed for the www static asset",
+    "in-page reload recovered and reopening list showed PICC大厦",
+    "opened actual detail with the exact building ID in the URL",
+    "看图 · 1张 immediately showed 正在加载图片…",
+    "actual twin-tower photo visibly rendered in the preview",
+    "single click on 查看大图 displayed the full photograph with correct caption",
+    "closing large view restored focus to 查看大图",
+    "行情 to 概览 preserved the photo state and rendered again",
+    "workspace full-screen then split-screen retained the project; closing and reopening 看图 rendered the real photo again"
+  ],
+  "evidence": "Native Chrome accessibility states and screenshots emitted in the conversation; no local screenshot file was produced by this tool",
+  "limits": [
+    "user forgot the original failing building; PICC is the real similar case reproduced earlier, not a claimed identification of that original building",
+    "production deployed commit was not independently identified",
+    "network status, signed URL contents and served-byte SHA were not inspected in this UI run",
+    "download and actual account/session changes were not exercised"
+  ],
+  "productionWrites": false,
+  "status": "real preview, single-click large view and repeat-after-rerender path passed"
+}
