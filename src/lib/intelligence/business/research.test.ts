@@ -1,3 +1,4 @@
+import {assertStackingModelObservation} from '../../../../scripts/verification/stacking-model-disclosure.mjs';
 import {randomUUID} from 'node:crypto';
 import {describe,it,expect} from 'vitest';
 import * as XLSX from 'xlsx';
@@ -7,6 +8,7 @@ import {resultViewSchema} from '../query/presentation';
 import {resultBuildingRows} from '../query/buildingCards';
 import {runResultPresentationTool} from '../agent/resultTools';
 import {readBuildingContext} from '../query/buildingContext';
+import {AuthorizedResultWorkset} from '../agent/resultWorkset';
 import {prepareExportResult} from '../agent/exportTableTool';
 import {buildResultArtifact} from '../query/artifacts';
 import type {SupabaseClient} from '@supabase/supabase-js';
@@ -70,7 +72,7 @@ describe('controlled business research',()=>{
   expect(r.table.rows[0].cells.catalogArea).toMatchObject({value:{numeric:50000}});expect(r.table.rows[0].cells.submittedArea).toMatchObject({value:{numeric:49000}});
   s.records[0].data=[evidence('buildings',{building:'合成A座'}),evidence('stacking_plan_spaces',{unit:'1001',status:'vacant',verification:'source_unverified',unitArea:'600'}),evidence('stacking_plan_sources',{sourceDate:null,dateKind:'unknown',review:'pending_source_date'})];
   const stack=buildBusinessResult(s,businessPlanSchema.parse({tool:'query_stacking_plan',buildingIds:[id]}));expect(stack.table.rows[0].cells.sourceDate.kind).toBe('unknown');
-  expect(stack.table.rows[0].cells.verification).toMatchObject({value:'来源未核验'});expect(JSON.stringify(businessModelObservation(stack))).not.toContain('1001');
+  expect(stack.table.rows[0].cells.verification).toMatchObject({value:'来源未核验'});assertStackingModelObservation(businessModelObservation(stack));
   expect(resultBuildingRows(resultViewSchema.parse(stack))).toMatchObject([{id,name:'合成A座'}]);
   const selected=prepareExportResult([stack],{resultIds:[stack.resultId],format:'xlsx',fields:['unit','unitArea']});
   expect(resultBuildingRows(resultViewSchema.parse(selected))).toHaveLength(0);
@@ -106,4 +108,32 @@ describe('controlled business research',()=>{
   await recheckBusinessResults(client,identity,new AbortController().signal,[queryOnly]);
   await expect(recheckBusinessResults(client,identity,new AbortController().signal,[queryOnly],true)).rejects.toThrow('QUERY_DENIED');
  });
+});
+
+
+describe('Stacking model disclosure contract assertions',()=>{
+ const stackingResult=()=>{
+  const s=snap();s.records[0].data=[evidence('buildings',{building:'合成A座'}),evidence('stacking_plan_spaces',{unit:'1001',status:'vacant',verification:'source_unverified',unitArea:'600'})];
+  const result=buildBusinessResult(s,businessPlanSchema.parse({tool:'query_stacking_plan',buildingIds:[id]}));
+  return {...result,resultId:'60010010-0000-4000-8000-000000000600'};
+ };
+ const observation=()=>businessModelObservation(stackingResult());
+ it('accepts an actual safe observation whose result identifier contains private fixture digits',()=>{
+  expect(()=>assertStackingModelObservation(observation())).not.toThrow();
+ });
+ it('accepts count and workset identity metadata without treating it as unit contents',()=>{
+  const owner={requestId:'60010010-0000-4000-8000-000000000600',actorId:id,effectiveUserId:id,sessionId:id,permissionRevision:hash,policyVersion:'test'};
+  const result={...stackingResult(),createdAt:'2026-11-23T18:00:00.600Z'};
+  const safe={...businessModelObservation(result),rowCount:600,workset:new AuthorizedResultWorkset(owner).register(result,owner)};
+  expect(()=>assertStackingModelObservation(safe)).not.toThrow();
+  expect(()=>assertStackingModelObservation({...safe,workset:{...safe.workset,rows:[{unit:'2002'}]}})).toThrow();
+ });
+ it.each(['preview','rows','table','cells'])('rejects private row data through %s',key=>{
+  const safe={...observation(),resultId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'};
+  expect(()=>assertStackingModelObservation({...safe,[key]:[{unit:'1001',unitArea:600}]})).toThrow();
+ });
+});
+
+it('rejects Stacking rows even when the leaked record differs from the seeded private values',()=>{
+ expect(()=>assertStackingModelObservation({status:'ready',resultId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',dataDomain:'business-research/1',rowCount:1,columns:[],limitations:[],note:'管理员表格',preview:[{unit:'2002',unitArea:700}]})).toThrow();
 });

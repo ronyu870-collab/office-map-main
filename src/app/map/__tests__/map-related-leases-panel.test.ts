@@ -47,8 +47,8 @@ describe('map related deals presentation contract', () => {
 
   it('uses restrained typography and neutral text tokens', () => {
     expect(source).toContain('text-[14px]');
-    expect(source).toContain('text-[12px]');
-    expect(source).toContain('text-[11px]');
+    expect(source).not.toContain('text-[12px]');
+    expect(source).not.toContain('text-[11px]');
     expect(source).not.toContain('text-[10px]');
     expect(source).not.toContain('text-amber-');
   });

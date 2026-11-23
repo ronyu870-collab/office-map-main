@@ -1,3 +1,4 @@
+import {assertStackingModelObservation} from './stacking-model-disclosure.mjs';
 // Synthetic records only. Real Auth, PostgREST, encrypted audit, production-built recovery/file/map HTTP.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -26,9 +27,9 @@ export async function verifyAi5Business({db,app,service,keys,output,check,person
    const step=scenario.round++;
    if(step===0)return scenario.textOnly?complete([tool('select_answer_results',{primaryResultId:scenario.reuseResultId,task:'list',status:'answered'})]):complete([tool(scenario.name,scenario.args)]);
    const observations=messages.filter(m=>m.role==='tool').map(m=>JSON.parse(m.content));
+   if(scenario.name==='query_stacking_plan')for(const message of observations)for(const observation of message.results??[message])if(observation.dataDomain==='business-research/1')assertStackingModelObservation(observation);
    const resultId=observations.find(o=>o.resultId)?.resultId;
    if(step===1){
-    if(scenario.name==='query_stacking_plan'){assert.equal(JSON.stringify(observations[0]).includes('1001'),false);assert.equal(JSON.stringify(observations[0]).includes('600'),false);}
     await scenario.beforeFollowup?.();
     if(scenario.followup)return complete([tool(scenario.followup,{...scenario.followupArgs,...(scenario.followup==='export_table'?{resultIds:[resultId],format:'xlsx'}:scenario.followup==='list_buildings'?{}:{resultId})})]);
    }
