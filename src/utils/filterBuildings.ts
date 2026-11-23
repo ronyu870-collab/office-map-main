@@ -1,3 +1,4 @@
+import { leedFilterValue } from '@/src/lib/leed-display';
 import type { SidebarFilterState } from '@/src/components/SidebarFilter';
 import type { BuildingWithMetrics, BuildingMetric } from '@/src/types';
 import { matchesMapConditions } from './mapFilterConditions';
@@ -40,7 +41,7 @@ export function filterBuildings(
     }
 
     if (filterState.leeds?.length > 0) {
-      const bLeed = !b.leed_certification || b.leed_certification === '' ? 'NULL' : b.leed_certification;
+      const bLeed = leedFilterValue(b.leed_certification);
       if (!filterState.leeds.includes(bLeed)) return false;
     }
 

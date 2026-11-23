@@ -1,3 +1,4 @@
+import { hasLeedCertification, leedFilterLabel } from '@/src/lib/leed-display';
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 import { matchesMapConditions } from '@/src/utils/mapFilterConditions';
@@ -9,7 +10,7 @@ import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 export const MAP_SUBMARKETS: string[] = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'];
 export const MAP_SUBMARKETS_SECONDARY: string[] = ['上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'];
 export const MAP_DISTRICTS: string[] = ['朝阳区', '海淀区', '西城区', '东城区', '丰台区', '石景山区', '大兴区', '通州区', '昌平区'];
-export const MAP_LEEDS: string[] = ['Platinum', 'Gold', 'Silver', 'NULL'];
+export const MAP_LEEDS: string[] = ['Platinum', 'Gold', 'Silver', 'N', 'NULL'];
 export const MAP_SUBWAYS: string[] = [
   '地铁1号线',
   '地铁2号线',
@@ -264,8 +265,7 @@ export function buildDistrictLeedStats(buildings: Array<Record<string, any>>): M
     const current = districtMap.get(district) ?? { totalCount: 0, leedCount: 0 };
     current.totalCount += 1;
 
-    const leed = (building.leed_certification || '').trim().toUpperCase();
-    if (leed && leed !== 'NULL') current.leedCount += 1;
+    if (hasLeedCertification(building.leed_certification)) current.leedCount += 1;
 
     districtMap.set(district, current);
   }
@@ -366,7 +366,7 @@ export function buildActiveFilterChips(filterState: SidebarFilterState | null): 
   if (filterState.leeds.length < MAP_LEEDS.length) {
     chips.push({
       id: 'leeds',
-      label: `LEED：${compactListLabel(filterState.leeds.map(value => value === 'NULL' ? '未提供认证' : value), MAP_LEEDS.length, '未选择')}`,
+      label: `LEED：${compactListLabel(filterState.leeds.map(leedFilterLabel), MAP_LEEDS.length, '未选择')}`,
       patch: { leeds: [...MAP_LEEDS] },
     });
   }

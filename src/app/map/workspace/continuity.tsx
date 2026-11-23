@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { restoreLeedFilterCatalog } from '@/src/lib/leed-display';
 import { mapBuildingHref } from '@/src/lib/broker/links';
 import { z } from 'zod';
 import { mapFilterCriteria } from '../model/mapFilterPreference';
@@ -24,7 +25,7 @@ const readingSchema = z.object({
   buildings: z.record(z.string().max(110), z.object({ tab: z.string().max(20).refine(value => ['overview', 'market', 'materials'].includes(value)), scrollTop: scrollPosition, scrolls: z.record(z.string().max(20), scrollPosition).optional(), trendOpen: z.boolean().optional(), photo: z.object({ open: z.boolean(), index: z.number().int().min(0).max(10000) }).optional() })).optional(),
 });
 const snapshot = z.object({
-  savedAt: z.number(), focus: z.boolean().optional(), selected: z.string().max(100).nullable(),
+  leedCatalogVersion: z.literal(2).optional(), savedAt: z.number(), focus: z.boolean().optional(), selected: z.string().max(100).nullable(),
   camera: z.object({ center: z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]), zoom: z.number().min(3).max(22) }).nullable(),
   mode: z.enum(['default', 'rent', 'vacancy', 'leed']), input: z.string().max(200), filters: mapFilterCriteria.nullable(),
   right: view.nullable(), history: z.array(view).max(20), leftOpen: z.boolean(), widths: z.record(z.string(), z.number().min(280).max(600)),
@@ -50,14 +51,18 @@ export function readMapReturn(scope: string, token: string, now = Date.now()): M
     const raw = sessionStorage.getItem(PREFIX + scope + ':' + token);
     if (!raw || raw.length > 200000) return null;
     const result = snapshot.safeParse(JSON.parse(raw));
-    return result.success && now - result.data.savedAt <= MAX_AGE && now >= result.data.savedAt ? result.data : null;
+    if (!result.success || now - result.data.savedAt > MAX_AGE || now < result.data.savedAt) return null;
+    const value = result.data;
+    value.filters = restoreLeedFilterCatalog(value.filters, value.leedCatalogVersion);
+    if (value.research) value.research.filters = restoreLeedFilterCatalog(value.research.filters, value.leedCatalogVersion)!;
+    return value;
   } catch { return null; }
 }
 export function saveMapReturn(scope: string, token: string, value: MapReturnSnapshot) {
   if (!scope || !TOKEN.test(token)) return;
   try {
     const key = PREFIX + scope + ':' + token;
-    const parsed = snapshot.safeParse({ ...value, history: value.history.slice(-20) });
+    const parsed = snapshot.safeParse({ ...value, leedCatalogVersion: 2, history: value.history.slice(-20) });
     const encoded = parsed.success ? JSON.stringify(parsed.data) : '';
     if (!encoded || encoded.length > 200000) { sessionStorage.removeItem(key); return; }
     // Retain a bounded number of UI-only snapshots; no business records or credentials are cached.

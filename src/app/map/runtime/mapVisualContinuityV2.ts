@@ -1,5 +1,5 @@
 'use client';
-import { leedFallbackBadge } from '@/src/lib/leed-display';
+import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
@@ -250,7 +250,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
       const m = latestMetric(b); const area = Number(m?.total_area); const vacant = Number(m?.vacant_area); const rent = Number(m?.net_effective_rent);
       if (Number.isFinite(area) && area > 0) { agg.area += area; if (Number.isFinite(vacant)) agg.vacant += vacant; }
       if (Number.isFinite(area) && area > 0 && Number.isFinite(rent) && rent > 0) { agg.rentSum += rent * area; agg.rentArea += area; }
-      const leed = String(b?.leed_certification ?? '').trim().toUpperCase(); if (leed && leed !== 'NULL' && leed !== '无' && leed !== '-') agg.leed += 1;
+      if (hasLeedCertification(b?.leed_certification)) agg.leed += 1;
     }
 
     const submarkets: any[] = [];

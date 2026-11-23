@@ -1,3 +1,4 @@
+import { verifyLeedFilters } from './workspace-leed-filters.mjs';
 import { verifyListReading } from './workspace-list-reading.mjs';
 import { verifyProjectTrendReading } from './workspace-project-trend.mjs';
 import { verifySubmarketReading } from './workspace-submarket-reading.mjs';
@@ -620,6 +621,9 @@ try {
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
       if ([1536,390,320,844].includes(width)) {
+        const leedPage=await context.newPage();
+        try { observations.push(await verifyLeedFilters(leedPage,{width,base})); }
+        finally { await leedPage.close(); }
         const listReadingPage=await context.newPage();
         try { observations.push(await verifyListReading(listReadingPage,{width,base})); }
         finally { await listReadingPage.close(); }

@@ -1,0 +1,58 @@
+{
+  "status": "pass",
+  "environment": "real AMap SDK and tiles; production app with isolated authorized business fixtures",
+  "observations": [
+    {
+      "width": 1536,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6,
+      "realSDKCertifiedAggregate": "1/6 = 17%",
+      "network": {
+        "sdkOK": 3,
+        "tileOK": 86
+      }
+    },
+    {
+      "width": 390,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6,
+      "realSDKCertifiedAggregate": "1/6 = 17%",
+      "network": {
+        "sdkOK": 3,
+        "tileOK": 30
+      }
+    },
+    {
+      "width": 320,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6,
+      "realSDKCertifiedAggregate": "1/6 = 17%",
+      "network": {
+        "sdkOK": 3,
+        "tileOK": 30
+      }
+    },
+    {
+      "width": 844,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6,
+      "realSDKCertifiedAggregate": "1/6 = 17%",
+      "network": {
+        "sdkOK": 3,
+        "tileOK": 30
+      }
+    }
+  ]
+}

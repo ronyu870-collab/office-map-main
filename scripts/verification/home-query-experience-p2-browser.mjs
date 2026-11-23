@@ -1,3 +1,4 @@
+import { checkKeyboardLayoutContinuity } from './query-focus-layout-checks.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -532,6 +533,7 @@ try {
     const trendDetails = page.getByRole('region', { name: '查询结果', exact: true }).last().locator('summary').filter({ hasText: '查看数据明细' });
     if (await trendDetails.count()) await trendDetails.click();
     await checkLongResultFocus(session);
+    if(variant==='after')session.interactionChecks.keyboardLayoutContinuity=await checkKeyboardLayoutContinuity(page);
     await page.getByRole('region', { name: '对话记录', exact: true }).evaluate(node => { node.scrollTop = node.scrollHeight; });
     await capture(session, 'expanded-complex-bottom');
     await page.getByRole('region', { name: '对话记录', exact: true }).evaluate(node => { const current = node.querySelector('[aria-label="本次问答"]'); node.scrollTop = current ? current.offsetTop : 0; });

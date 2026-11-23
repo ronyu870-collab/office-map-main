@@ -3,7 +3,7 @@
  */
 
 "use client";
-import { leedFallbackBadge } from '@/src/lib/leed-display';
+import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { coordinateIssue, fitMapExtent } from '@/src/app/map/runtime/mapExtent';
 
@@ -2237,8 +2237,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         distData.totalCount += 1;
 
         // 检查是否有 LEED 认证
-        const leed = (b.leed_certification || "").trim().toUpperCase();
-        if (leed && leed !== "NULL" && leed !== "") {
+        if (hasLeedCertification(b.leed_certification)) {
           distData.leedCount += 1;
         }
       }
@@ -2322,7 +2321,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         let leedCount = 0;
 
         for (const b of buildingsInSubmarket) {
-          if (b.leed_certification && b.leed_certification !== '无' && b.leed_certification !== '-') {
+          if (hasLeedCertification(b.leed_certification)) {
             leedCount++;
           }
           totalCount++;
