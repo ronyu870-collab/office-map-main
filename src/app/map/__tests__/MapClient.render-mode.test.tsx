@@ -15,6 +15,7 @@ vi.mock('@/src/app/map/MapQuerySelection', () => ({
 
 const controller = vi.hoisted(() => ({
   setWorkspaceDetailHandler: vi.fn(),
+  setBaseMapPointsVisible: vi.fn(),
   fetchMapData: vi.fn(),
   fetchFutureSupplies: vi.fn(),
   getDisplayOverridesCache: vi.fn(() => new Map()),

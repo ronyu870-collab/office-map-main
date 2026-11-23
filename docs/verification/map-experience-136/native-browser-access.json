@@ -1,0 +1,13 @@
+{
+  "tool": "cua.getState",
+  "availableSurfaces": [
+    "empty in-app browser",
+    "empty MCP Apps browser"
+  ],
+  "nativeAccess": "Mac reported locked; automatic unlock unavailable",
+  "scope": "Current production account UI cannot be rechecked through native tools; this does not revoke earlier observed PICC image result",
+  "doesNotProve": "No claim about currently attached physical phones from this failed inventory",
+  "minimumForProductionUI": "Unlocked Mac and logged-in administrator website window",
+  "independentWork": "Continue local fixture/browser and real public AMap SDK checks",
+  "recordedAt": "2026-11-23T19:33:18Z"
+}

@@ -86,6 +86,8 @@ type MapWorkbenchViewProps = {
   keyword: string;
   filterState: SidebarFilterState | null;
   renderMode: RenderMode;
+  baseMapPointsVisible?: boolean;
+  onBaseMapPointsChange?: (visible: boolean) => void;
   compareGroups: CompareGroup[];
   isFilterPanelOpen: boolean;
   isSupplyOpen: boolean;
@@ -185,7 +187,7 @@ type LegendItem = {
   style?: React.CSSProperties;
 };
 
-function MapLegend({ mode, compareGroups, active, futureVisible }: { mode: RenderMode; compareGroups: CompareGroup[]; active: boolean; futureVisible: boolean }) {
+function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, onPointsChange, mapReady }: { mode: RenderMode; compareGroups: CompareGroup[]; active: boolean; futureVisible: boolean; pointsVisible: boolean; onPointsChange?: (visible: boolean) => void; mapReady: boolean }) {
   const [aggregate, setAggregate] = React.useState(false);
   React.useEffect(() => {
     if (!active) return;
@@ -268,6 +270,10 @@ function MapLegend({ mode, compareGroups, active, futureVisible }: { mode: Rende
           </div>
         ))}
       </div>
+      <label className="map-legend-places">
+        <input type="checkbox" checked={pointsVisible} disabled={!mapReady || !onPointsChange} onChange={event => onPointsChange?.(event.target.checked)} />
+        底图地点标注
+      </label>
       <div className="map-legend-states">
         <span><i className="map-legend-selected" aria-hidden="true" />当前项目</span>
         {futureVisible ? <><span><img src={futureSupplyImage({}, 'default')} width="24" height="24" alt="" />未来供应</span><span><img src={futureSupplyImage({ status: 'pending' }, 'default')} width="24" height="24" alt="" />待核实项目</span></> : null}
@@ -392,6 +398,7 @@ export function MapWorkbenchView({
   keyword,
   filterState,
   renderMode,
+  baseMapPointsVisible = false, onBaseMapPointsChange,
   compareGroups,
   isFilterPanelOpen,
   isSupplyOpen,
@@ -784,7 +791,7 @@ export function MapWorkbenchView({
           </div>
 
             <select className="map-mode-select" aria-label="地图显示模式" value={renderMode} onChange={event => onRenderModeChange(event.currentTarget.value as RenderMode)}>{MODE_OPTIONS.map(option => <option key={option.mode} value={option.mode}>{option.label}</option>)}</select>
-            <MapLegend mode={renderMode} compareGroups={compareGroups} active={!isFullListVisible} futureVisible={filterState?.showFutureSupply ?? true} />
+            <MapLegend mode={renderMode} compareGroups={compareGroups} active={!isFullListVisible} futureVisible={filterState?.showFutureSupply ?? true} pointsVisible={baseMapPointsVisible} onPointsChange={onBaseMapPointsChange} mapReady={mapReady} />
           </div>
           <div className="map-toolbar-actions">
             <IconButton label="未来供应" text="供应" active={isSupplyOpen} onClick={toggleSupplyPanel}>

@@ -1,0 +1,81 @@
+{
+  "status": "pass",
+  "observations": [
+    {
+      "width": 1536,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "integerRentSameAcrossThreeLists": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 33755,
+        "restored": 33755,
+        "regionRestored": 33755
+      },
+      "regionalProjectCount": 64,
+      "outsideRegionExcluded": true,
+      "fullFutureAreaNamed": true
+    },
+    {
+      "width": 390,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "integerRentSameAcrossThreeLists": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 34789,
+        "restored": 34789,
+        "regionRestored": 34789
+      },
+      "regionalProjectCount": 64,
+      "outsideRegionExcluded": true,
+      "fullFutureAreaNamed": true
+    },
+    {
+      "width": 320,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "integerRentSameAcrossThreeLists": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 34806,
+        "restored": 34806,
+        "regionRestored": 34806
+      },
+      "regionalProjectCount": 64,
+      "outsideRegionExcluded": true,
+      "fullFutureAreaNamed": true
+    },
+    {
+      "width": 844,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "integerRentSameAcrossThreeLists": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 32363,
+        "restored": 32363,
+        "regionRestored": 32363
+      },
+      "regionalProjectCount": 64,
+      "outsideRegionExcluded": true,
+      "fullFutureAreaNamed": true
+    }
+  ]
+}

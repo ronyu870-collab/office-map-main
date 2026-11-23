@@ -345,6 +345,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private AMap: any | null = null;
   private map: any | null = null;
   private initialTilesReady = false;
+  private baseMapPointsVisible = false;
   private infoWindow: any | null = null;
   private workspaceDetailHandler: ((detail: WorkspaceBuildingDetail) => void) | null = null;
   private workspaceBuilding: WorkspaceBuilding | null = null;
@@ -374,6 +375,15 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     if (!image || !this.workspaceSelectedBuilding) return;
     const next = this.workspaceSelectionImage(this.workspaceSelectedBuilding);
     if (image.getAttribute('src') !== next) image.src = next;
+  }
+
+  /** Public base-layer features only; project overlays and camera are independent. */
+  setBaseMapPointsVisible(visible: boolean): void {
+    this.baseMapPointsVisible = visible;
+    this.map?.setFeatures?.(this.baseMapFeatures());
+  }
+  private baseMapFeatures(): string[] {
+    return this.baseMapPointsVisible ? ['bg', 'road', 'building', 'point'] : ['bg', 'road', 'building'];
   }
 
   setWorkspaceSubmarket(name: string | null): void { this.workspaceSubmarket = name; }
@@ -745,6 +755,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         center: [resolvedCenter.lng, resolvedCenter.lat],
         viewMode: options?.viewMode ?? "2D",
         mapStyle: options?.mapStyle ?? "amap://styles/whitesmoke",
+        features: this.baseMapFeatures(),
       });
       const initialMap = this.map;
       // A warm map can complete before the runtime resumes after awaiting initMap.

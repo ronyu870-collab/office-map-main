@@ -1,0 +1,42 @@
+{
+  "pr": 291,
+  "oldHead": "00f84885e13abe81cf6ce725bc42e359707279df",
+  "oldRun": "45250844191",
+  "engineering": {
+    "failedFiles": 4,
+    "failedTests": 58,
+    "passedTests": 2875,
+    "confirmedMapFixtureFailures": 57,
+    "cause": "Three controller test doubles did not implement the newly required setBaseMapPointsVisible method. Production controller implements it.",
+    "otherFailure": {
+      "file": "src/components/home/__tests__/home-query-workspace.test.tsx",
+      "case": "closes side panels before a narrow drawer could cover a composing draft and does not reopen them on widening",
+      "assertion": "find research complementary panel timed out at line750",
+      "isolatedRerun": "pass",
+      "rootCause": "not established"
+    }
+  },
+  "search": {
+    "confirmedSameMockFailure": true,
+    "failedTests": 42,
+    "file": "FullBuildingList.integration.test.tsx"
+  },
+  "localReproduction": {
+    "MapClientBefore": {
+      "failed": 13,
+      "errors": 13
+    },
+    "homeSingleCase": "pass"
+  },
+  "repair": "Implement the existing production method in all three mocks; no production logic or thresholds changed.",
+  "validation": {
+    "files": 4,
+    "passed": 98,
+    "typecheck": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 4
+    }
+  },
+  "newExactHeadCI": "required before merge"
+}

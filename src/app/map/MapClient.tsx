@@ -81,6 +81,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     return state && (!buildingFocus || state.selected === buildingFocus.id) ? state : null;
   });
   const [readingStore] = React.useState(() => returnState?.reading ?? {});
+  const [baseMapPointsVisible, setBaseMapPointsVisible] = React.useState(readingStore.baseMapPointsVisible === true);
   const restoreCamera = React.useRef<Camera | null>(returnState?.camera ?? null);
   const restoredReturn = React.useRef(false);
   const canvasCoordinator = React.useRef<ReturnType<typeof observeMapCanvas> | null>(null);
@@ -368,6 +369,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       setEditingBuilding({ id: buildingId, name: buildingName });
     },
     onReady: async (controller, isCancelled) => {
+      controller.setBaseMapPointsVisible(readingStore.baseMapPointsVisible === true);
       controller.setWorkspaceDetailHandler(detail => {
         if (isCancelled()) return;
         cancelPendingBuildingNavigation();
@@ -502,6 +504,9 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   
   // 新增：地图标记渲染模式状态
   const [renderMode, setRenderMode] = React.useState<RenderMode>(returnState?.mode ?? 'default');
+  React.useEffect(() => {
+    if (mapReady) controllerRef.current?.setBaseMapPointsVisible(baseMapPointsVisible);
+  }, [baseMapPointsVisible, controllerRef, mapReady]);
   const showAreaPlaceholders = !keyword && activeCompareGroups.length === 0
     && !initialIntelligenceHandoff && !queryContext && (filterState === null || isDefaultStockFilterState(filterState));
 
@@ -973,6 +978,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         keyword={searchInput}
         filterState={filterState}
         renderMode={renderMode}
+        baseMapPointsVisible={baseMapPointsVisible}
+        onBaseMapPointsChange={visible => { readingStore.baseMapPointsVisible = visible; setBaseMapPointsVisible(visible); }}
         compareGroups={activeCompareGroups}
         isFilterPanelOpen={isFilterPanelOpen}
         isSupplyOpen={isSupplyOpen}

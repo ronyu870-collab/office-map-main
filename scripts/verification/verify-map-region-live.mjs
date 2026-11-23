@@ -1,3 +1,4 @@
+import { verifyBaseMapPlaces } from './workspace-base-places.mjs';
 import { verifyRegionCamera } from './workspace-region-camera.mjs';
 import { clickWorkspaceAction } from './workspace-actions.mjs';
 import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
@@ -179,11 +180,17 @@ try {
         await material.getByRole('button',{name:'关闭销控',exact:true}).click(); await material.waitFor({state:'detached'});
         await page.waitForTimeout(500);
         const camera=()=>page.evaluate(()=>{const m=window.__workspaceMap,c=m.getCenter();return [m.getZoom(),c.lng,c.lat];});
+        scenes.push(await verifyBaseMapPlaces(page,{width,evidencePrefix:'map-base-places-live',leaveVisible:true}));
         const beforeStack=await camera();
         await detail.getByRole('link',{name:'Stacking Plan',exact:true}).click();
         await page.getByRole('button',{name:/A 座 60层 连续性租户599/}).waitFor();
         await page.getByRole('link',{name:'返回项目详情',exact:true}).click(); await detail.waitFor(); await page.waitForTimeout(900);
         const afterStack=await camera();
+        assert.equal(await page.evaluate(()=>window.__workspaceMap.getFeatures().includes('point')),true,'Stacking return restores base POI preference');
+        const legend=page.locator('.map-workspace-legend'),trigger=legend.locator('summary');
+        const popup=page.locator(`[id=${JSON.stringify(await trigger.getAttribute('aria-controls'))}]`);await trigger.click();
+        const places=popup.getByRole('checkbox',{name:'底图地点标注',exact:true});assert.equal(await places.isChecked(),true);
+        await places.uncheck();await page.keyboard.press('Escape');await popup.waitFor({state:'detached'});
         assert.ok(afterStack.every((value,index)=>Math.abs(value-beforeStack[index])<.00001),'real SDK return restores the actual saved camera without a delayed region takeover');
         assert.equal(await detail.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true');
         await page.screenshot({path:'/tmp/map-task-chain-real-return.png'});
@@ -195,6 +202,7 @@ try {
       }
       scenes.push(await verifyRegionCamera(page,{width}));
       scenes.push(await verifySupplyMarkers(page,{width,openRegion:open,supplies:regionFuture,evidencePrefix:'map-marker-real',live:true}));
+      scenes.push(await verifyBaseMapPlaces(page,{width,evidencePrefix:'map-base-places-live'}));
       await page.screenshot({path:`/tmp/map-region-live-${width}.png`});
       results.viewports.push({width,height,network,scenes,emptyAndClose:'pass'});
       console.log('passed real region',width);

@@ -5,20 +5,25 @@ export async function verifyListReading(page,{width,base}) {
   const id='10000000-1111-4111-8111-111111111111';
   const stock=Array.from({length:62},(_,index)=>({id:index ? `list-${index}` : id,name:index ? `批量项目${String(index).padStart(2,'0')}` : '存量同ID · 北京国际商务总部与城市更新示范中心',grade:'A',submarket:'CBD',district:'朝阳区',completion_year:2009,leed_certification:null,owner:'北京国际商务资产与城市更新投资管理集团有限公司',property_management:'InternationalCommercialPropertyManagementAndBuildingServicesCompanyLimited',location_lng:116.46+index*.0001,location_lat:39.91,building_metrics:[{id:`list-metric-${index}`,building_id:index ? `list-${index}` : id,record_year:2026,record_quarter:3,net_effective_rent:index===0?100:146.16,vacancy_rate:.211,total_area:80000}]}));
   const future=[{id,name:'规划同ID · International Commercial Business Headquarters Tower',grade:'A',type:'办公',submarket:'CBD',district:'朝阳区',launch_year:2027,launch_quarter:'Q2',total_area:50000,location_lng:116.47,location_lat:39.92},{id:'pending-list',name:'待核实列表项目',status:'pending',type:'办公',submarket:'CBD',district:'朝阳区',location_lng:116.48,location_lat:39.93}];
+  const outside={...stock[1],id:'outside-region',name:'区域外项目',submarket:'中关村',location_lng:116.32,location_lat:39.98};
   await page.route('**/api/map/data?*',route=>{
     const url=new URL(route.request().url());
     if(url.searchParams.get('mode')==='future')return route.fulfill({json:{future_supplies:future}});
-    if(url.searchParams.get('mode')==='map')return route.fulfill({json:{buildings:stock,display_overrides:[]}});
+    if(url.searchParams.get('mode')==='map')return route.fulfill({json:{buildings:[...stock,outside],display_overrides:[]}});
     return route.fallback();
   });
   await page.goto(new URL('/map',base).href);
   await page.waitForFunction(()=>window.__workspaceMap?.getCenter());
   await page.getByRole('button',{name:'筛选',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent==='64');
+  await page.waitForFunction(()=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent==='65');
   await page.getByRole('button',{name:'筛选',exact:true}).click();
   console.log('list reading',width,'data ready');
-  await page.getByRole('button',{name:'项目列表',exact:true}).click();
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name:'CBD'}})));
+  await page.getByRole('region',{name:'CBD',exact:true}).waitFor();
+  await page.getByRole('button',{name:'查看全部项目',exact:true}).click();
   const list=page.getByRole('region',{name:'项目列表',exact:true});await list.waitFor();
+  await page.waitForFunction(()=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent==='64');
+  assert.equal(await list.getByText(outside.name,{exact:true}).count(),0,'all projects keeps the current regional scope');
   await list.locator('.workspace-list-name').filter({hasText:'存量同ID'}).waitFor();
   assert.equal(await list.locator('.workspace-list-row').filter({hasText:stock[0].name}).locator('dd').first().textContent(),'100.0');
   const expanded=width<640||width===844;
@@ -71,7 +76,10 @@ export async function verifyListReading(page,{width,base}) {
   assert.equal(await list.locator('.workspace-basic-card[aria-current="true"]').count(),1);
   assert.match(await list.locator('.workspace-basic-card[aria-current="true"]').innerText(),/规划同ID/);
   const scroller=list.locator('.workspace-scroll');
-  await scroller.hover();await page.mouse.wheel(0,50000);
+  await page.waitForFunction(()=>!document.querySelector('.map-workspace-layout [data-exiting]'));
+  const scrollBox=await scroller.boundingBox();assert.ok(scrollBox);
+  await scroller.hover({position:{x:Math.min(100,scrollBox.width/2),y:Math.min(40,scrollBox.height/2)}});
+  await page.mouse.wheel(0,1000);
   await page.waitForFunction(()=>document.querySelector('[aria-label="项目列表"] .workspace-scroll')?.scrollTop>500);
   const selected=list.locator('.workspace-basic-card[aria-current="true"]');await selected.scrollIntoViewIfNeeded();
   await page.waitForTimeout(100);
@@ -81,6 +89,12 @@ export async function verifyListReading(page,{width,base}) {
   await list.waitFor();await page.waitForTimeout(250);
   const restored=await scroller.evaluate(el=>el.scrollTop);
   assert.ok(saved>500 && Math.abs(saved-restored)<3,`list scroll is retained rather than overridden by current identity: ${saved}/${restored}`);
+  assert.equal(await list.getByText(outside.name,{exact:true}).count(),0);
+  await page.getByRole('button',{name:'返回子市场研究',exact:true}).click();
+  await page.getByRole('region',{name:'CBD',exact:true}).waitFor();
+  await page.getByRole('button',{name:'查看全部项目',exact:true}).click();await list.waitFor();
+  const regionRestored=await scroller.evaluate(el=>el.scrollTop);
+  assert.ok(Math.abs(saved-regionRestored)<3,`returning through regional research retains list reading: ${saved}/${regionRestored}`);
   if(await page.locator('.map-workspace-layout[data-expanded]').count())await clickWorkspaceAction(page,'返回地图分屏');
   console.log('list reading',width,'restored scroll',saved,restored);
   const fullButton=page.getByRole('button',{name:'完整列表',exact:true});
@@ -95,5 +109,5 @@ export async function verifyListReading(page,{width,base}) {
   assert.equal(await full.getByText('净有效租金',{exact:true}).count(),0);
   assert.match(await full.innerText(),/50,000\s*㎡/);
   await capture('full-future');
-  return {width,planningCardOwnValues:true,stockRentOneDecimal:true,integerRentSameAcrossThreeLists:true,leedExplicitState:true,keyboardComparisonScope:true,removedOnlyOutsideSelection:true,selectionSurvivesListQuery:true,sameIdCurrentTypeUnique:true,retainedListScroll:{saved,restored},fullFutureAreaNamed:true};
+  return {width,planningCardOwnValues:true,stockRentOneDecimal:true,integerRentSameAcrossThreeLists:true,leedExplicitState:true,keyboardComparisonScope:true,removedOnlyOutsideSelection:true,selectionSurvivesListQuery:true,sameIdCurrentTypeUnique:true,retainedListScroll:{saved,restored,regionRestored},regionalProjectCount:64,outsideRegionExcluded:true,fullFutureAreaNamed:true};
 }

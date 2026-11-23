@@ -29,6 +29,7 @@ vi.mock('@/src/services/MapController', () => ({ MapController: class {
   fetchFutureSupplies = async () => [];
   getDisplayOverridesCache = () => new Map();
   setWorkspaceDetailHandler = vi.fn();
+  setBaseMapPointsVisible = vi.fn();
   setAdminMode = vi.fn(); clearCompetitorElements = vi.fn(); clearDistrictBoundaries = vi.fn(); clearSubwayElements = vi.fn(); clearFutureMarkers = vi.fn(); renderMarkers = vi.fn(); renderFutureMarkers = vi.fn();
   destroy = sdk.destroy;
 } }));

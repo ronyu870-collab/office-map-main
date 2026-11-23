@@ -12,6 +12,7 @@ const view = z.object({ kind: z.enum(['building', 'submarket', 'list', 'supply',
 const scrollPosition = z.number().finite().min(0).max(10000000);
 const sort = z.enum(['default', 'name', 'area', 'rent', 'rent-desc', 'vacancy', 'vacancy-desc']);
 const readingSchema = z.object({
+  baseMapPointsVisible: z.boolean().optional(),
   listQuery: z.string().max(200).optional(), listSort: sort.optional(), fullSort: sort.optional(),
   listCount: z.number().int().min(1).max(100000).optional(), listViewMode: z.enum(['cards', 'compact']).optional(),
   listScroll: scrollPosition.optional(), fullScroll: scrollPosition.optional(),
