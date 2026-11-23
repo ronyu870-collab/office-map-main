@@ -1,0 +1,1138 @@
+{
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [
+    {
+      "width": 1536,
+      "height": 900,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 190
+      },
+      "scenes": [
+        {
+          "name": "real drag then delayed future response",
+          "before": [
+            15.92,
+            116.47,
+            39.915
+          ],
+          "dragged": [
+            15.92,
+            116.459527,
+            39.917684
+          ],
+          "after": [
+            15.92,
+            116.459527,
+            39.917684
+          ]
+        },
+        {
+          "name": "CBD",
+          "width": 1136,
+          "height": 742,
+          "zoom": 13.92,
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 182.8600609023124,
+              "y": 658,
+              "edge": 84
+            },
+            {
+              "id": "cbd-b",
+              "x": 402.9400261011906,
+              "y": 514.5314400922507,
+              "edge": 227.4685599077493
+            },
+            {
+              "id": "future-cbd",
+              "x": 953.1399390981533,
+              "y": 83.99999999953434,
+              "edge": 83.99999999953434
+            },
+            {
+              "id": "pending-map-project",
+              "x": 623.0199913005345,
+              "y": 299.2893099547364,
+              "edge": 299.2893099547364
+            }
+          ],
+          "cameraCalls": 3
+        },
+        {
+          "name": "CBD wide pane",
+          "width": 1016,
+          "height": 742,
+          "zoom": 13.92,
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 122.8600609023124,
+              "y": 658,
+              "edge": 84
+            },
+            {
+              "id": "cbd-b",
+              "x": 342.9400261011906,
+              "y": 514.5314400922507,
+              "edge": 227.4685599077493
+            },
+            {
+              "id": "future-cbd",
+              "x": 893.1399390981533,
+              "y": 83.99999999953434,
+              "edge": 83.99999999953434
+            },
+            {
+              "id": "pending-map-project",
+              "x": 563.0199913005345,
+              "y": 299.2893099547364,
+              "edge": 299.2893099547364
+            }
+          ],
+          "cameraCalls": 4
+        },
+        {
+          "name": "望京",
+          "width": 1016,
+          "height": 742,
+          "zoom": 12.29,
+          "center": [
+            116.46,
+            40.0125
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 115.99999999976723,
+              "y": 382.63212191243656,
+              "edge": 115.99999999976723
+            },
+            {
+              "id": "long-east",
+              "x": 900,
+              "y": 359.3678780873306,
+              "edge": 116
+            }
+          ],
+          "cameraCalls": 5
+        },
+        {
+          "name": "丽泽",
+          "width": 1016,
+          "height": 742,
+          "zoom": 16,
+          "center": [
+            116.35,
+            39.87
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 507.99999999813735,
+              "y": 371,
+              "edge": 371
+            },
+            {
+              "id": "same",
+              "x": 507.99999999813735,
+              "y": 371,
+              "edge": 371
+            }
+          ],
+          "cameraCalls": 6
+        },
+        {
+          "name": "locate current project after real pointer drag",
+          "id": "single",
+          "moved": [
+            116.337767,
+            39.873297
+          ],
+          "recentered": [
+            116.35,
+            39.87
+          ],
+          "nativeTouch": false
+        },
+        {
+          "name": "current marker recenter after real pointer drag",
+          "width": 1536,
+          "id": "single",
+          "moved": [
+            116.347231,
+            39.870752
+          ],
+          "keyboardMoved": [
+            116.347231,
+            39.870752
+          ],
+          "recentered": [
+            116.35,
+            39.87
+          ],
+          "sharedCoordinateIdentityRetained": true,
+          "readingTabRetained": "概览",
+          "keyboardAction": true,
+          "nativeTouch": false
+        },
+        {
+          "name": "independent list selection for same-coordinate buildings",
+          "selections": [
+            {
+              "id": "single",
+              "center": [
+                116.35,
+                39.87
+              ]
+            },
+            {
+              "id": "same",
+              "center": [
+                116.35,
+                39.87
+              ]
+            }
+          ]
+        },
+        {
+          "name": "rapid A B C",
+          "width": 1016,
+          "height": 742,
+          "zoom": 16,
+          "center": [
+            116.32,
+            39.98
+          ],
+          "points": [
+            {
+              "id": "other",
+              "x": 508,
+              "y": 371,
+              "edge": 371
+            }
+          ],
+          "cameraCalls": 19
+        },
+        {
+          "name": "base places via keyboard legend control",
+          "width": 1536,
+          "quietDefault": true,
+          "roadsAndBuildingsRemain": true,
+          "enabledFeatures": [
+            "bg",
+            "building",
+            "point",
+            "road"
+          ],
+          "cameraAndProjectContextUnchanged": true,
+          "mapInstanceRetained": true,
+          "leaveVisible": true
+        },
+        {
+          "name": "complete photo, material and Stacking round trip",
+          "beforeStack": [
+            14,
+            116.46,
+            39.91
+          ],
+          "afterStack": [
+            14,
+            116.46,
+            39.91
+          ],
+          "regionPreserved": true,
+          "selectedModes": 4
+        },
+        {
+          "width": 1536,
+          "observationMs": 800,
+          "regionCameraHasNoDuplicateTarget": true,
+          "commands": [
+            {
+              "at": 22.600000023841858,
+              "zoom": 13.917593292514066,
+              "center": [
+                116.49499999999995,
+                39.93000292175058
+              ],
+              "immediately": false,
+              "duration": 240,
+              "width": 1016,
+              "height": 742
+            }
+          ],
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "zoom": 13.92
+        },
+        {
+          "name": "distinct supply identity in all four modes",
+          "results": [
+            {
+              "id": "future-cbd",
+              "mode": "default",
+              "glyph": "F",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "future-cbd",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "future-cbd",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "future-cbd",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 1536,
+              "id": "future-cbd",
+              "moved": [
+                116.518924,
+                39.953006
+              ],
+              "keyboardMoved": [
+                116.518924,
+                39.953006
+              ],
+              "recentered": [
+                116.53,
+                39.95
+              ],
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "default",
+              "glyph": "?",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 1536,
+              "id": "pending-map-project",
+              "moved": [
+                116.488924,
+                39.938006
+              ],
+              "keyboardMoved": [
+                116.488924,
+                39.938006
+              ],
+              "recentered": [
+                116.5,
+                39.935
+              ],
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            }
+          ],
+          "legendMatches": true
+        },
+        {
+          "name": "base places via keyboard legend control",
+          "width": 1536,
+          "quietDefault": true,
+          "roadsAndBuildingsRemain": true,
+          "enabledFeatures": [
+            "bg",
+            "building",
+            "point",
+            "road"
+          ],
+          "cameraAndProjectContextUnchanged": true,
+          "mapInstanceRetained": true,
+          "leaveVisible": false
+        }
+      ],
+      "emptyAndClose": "pass"
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 106
+      },
+      "scenes": [
+        {
+          "name": "CBD",
+          "width": 390,
+          "height": 264,
+          "zoom": 11.92,
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 98.8089517960325,
+              "y": 203.6799999999348,
+              "edge": 60.32000000006519
+            },
+            {
+              "id": "cbd-b",
+              "x": 153.77526505547576,
+              "y": 167.84785235463642,
+              "edge": 96.15214764536358
+            },
+            {
+              "id": "future-cbd",
+              "x": 291.1910482040839,
+              "y": 60.31999999983236,
+              "edge": 60.31999999983236
+            },
+            {
+              "id": "pending-map-project",
+              "x": 208.74157831503544,
+              "y": 114.08981790090911,
+              "edge": 114.08981790090911
+            }
+          ],
+          "cameraCalls": 1
+        },
+        {
+          "name": "望京",
+          "width": 390,
+          "height": 264,
+          "zoom": 10.57,
+          "center": [
+            116.46,
+            40.0125
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 75.99999999994179,
+              "y": 135.53117986628786,
+              "edge": 75.99999999994179
+            },
+            {
+              "id": "long-east",
+              "x": 314.0000000000582,
+              "y": 128.46882013368304,
+              "edge": 75.99999999994179
+            }
+          ],
+          "cameraCalls": 3
+        },
+        {
+          "name": "丽泽",
+          "width": 390,
+          "height": 264,
+          "zoom": 16,
+          "center": [
+            116.35,
+            39.87
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 194.99999999813735,
+              "y": 132,
+              "edge": 132
+            },
+            {
+              "id": "same",
+              "x": 194.99999999813735,
+              "y": 132,
+              "edge": 132
+            }
+          ],
+          "cameraCalls": 5
+        },
+        {
+          "name": "locate current project after real pointer drag",
+          "id": "single",
+          "moved": [
+            116.346016,
+            39.871455
+          ],
+          "recentered": [
+            116.35,
+            39.87
+          ],
+          "nativeTouch": false
+        },
+        {
+          "name": "current marker recenter after real pointer drag",
+          "width": 390,
+          "id": "single",
+          "moved": [
+            116.349092,
+            39.870365
+          ],
+          "keyboardMoved": [
+            116.349063,
+            39.870376
+          ],
+          "recentered": [
+            116.35,
+            39.87
+          ],
+          "sharedCoordinateIdentityRetained": true,
+          "readingTabRetained": "概览",
+          "keyboardAction": true,
+          "nativeTouch": false
+        },
+        {
+          "name": "independent list selection for same-coordinate buildings",
+          "selections": [
+            {
+              "id": "single",
+              "center": [
+                116.35,
+                39.87
+              ]
+            },
+            {
+              "id": "same",
+              "center": [
+                116.35,
+                39.87
+              ]
+            }
+          ]
+        },
+        {
+          "name": "rapid A B C",
+          "width": 390,
+          "height": 264,
+          "zoom": 16,
+          "center": [
+            116.32,
+            39.98
+          ],
+          "points": [
+            {
+              "id": "other",
+              "x": 195,
+              "y": 132,
+              "edge": 132
+            }
+          ],
+          "cameraCalls": 20
+        },
+        {
+          "width": 390,
+          "observationMs": 800,
+          "regionCameraHasNoDuplicateTarget": true,
+          "commands": [
+            {
+              "at": 12.700000047683716,
+              "zoom": 16,
+              "center": [
+                116.32,
+                39.98
+              ],
+              "immediately": true,
+              "duration": 0,
+              "width": 390,
+              "height": 248.40625
+            },
+            {
+              "at": 39.300000071525574,
+              "zoom": 11.8120849098118,
+              "center": [
+                116.49499999999995,
+                39.93000292175058
+              ],
+              "immediately": false,
+              "duration": 240,
+              "width": 390,
+              "height": 248.40625
+            },
+            {
+              "at": 66.20000004768372,
+              "zoom": 11.916185098121257,
+              "center": [
+                116.49499999999995,
+                39.93000292175058
+              ],
+              "immediately": true,
+              "duration": 0,
+              "width": 390,
+              "height": 264
+            }
+          ],
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "zoom": 11.81
+        },
+        {
+          "name": "distinct supply identity in all four modes",
+          "results": [
+            {
+              "id": "future-cbd",
+              "mode": "default",
+              "glyph": "F",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 390,
+              "id": "future-cbd",
+              "moved": [
+                116.526187,
+                39.951593
+              ],
+              "keyboardMoved": [
+                116.526367,
+                39.951524
+              ],
+              "recentered": [
+                116.53,
+                39.95
+              ],
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "default",
+              "glyph": "?",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 390,
+              "id": "pending-map-project",
+              "moved": [
+                116.49631,
+                39.936546
+              ],
+              "keyboardMoved": [
+                116.496187,
+                39.936593
+              ],
+              "recentered": [
+                116.5,
+                39.935
+              ],
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            }
+          ],
+          "legendMatches": true
+        },
+        {
+          "name": "base places via keyboard legend control",
+          "width": 390,
+          "quietDefault": true,
+          "roadsAndBuildingsRemain": true,
+          "enabledFeatures": [
+            "bg",
+            "building",
+            "point",
+            "road"
+          ],
+          "cameraAndProjectContextUnchanged": true,
+          "mapInstanceRetained": true,
+          "leaveVisible": false
+        }
+      ],
+      "emptyAndClose": "pass"
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 85
+      },
+      "scenes": [
+        {
+          "name": "CBD",
+          "width": 444,
+          "height": 210,
+          "zoom": 11.52,
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 148.99786520237103,
+              "y": 159.39999999996508,
+              "edge": 50.600000000034925
+            },
+            {
+              "id": "cbd-b",
+              "x": 190.71337080106605,
+              "y": 132.20595937635517,
+              "edge": 77.79404062364483
+            },
+            {
+              "id": "future-cbd",
+              "x": 295.0021347977454,
+              "y": 50.599999999918516,
+              "edge": 50.599999999918516
+            },
+            {
+              "id": "pending-map-project",
+              "x": 232.42887639976107,
+              "y": 91.40745108551346,
+              "edge": 91.40745108551346
+            }
+          ],
+          "cameraCalls": 1
+        },
+        {
+          "name": "望京",
+          "width": 444,
+          "height": 210,
+          "zoom": 10.78,
+          "center": [
+            116.46,
+            40.0125
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 84.63999999995576,
+              "y": 109.07599047420081,
+              "edge": 84.63999999995576
+            },
+            {
+              "id": "long-east",
+              "x": 359.36000000004424,
+              "y": 100.92400952574097,
+              "edge": 84.63999999995576
+            }
+          ],
+          "cameraCalls": 2
+        },
+        {
+          "name": "丽泽",
+          "width": 444,
+          "height": 210,
+          "zoom": 16,
+          "center": [
+            116.35,
+            39.87
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 221.99999999813735,
+              "y": 105,
+              "edge": 105
+            },
+            {
+              "id": "same",
+              "x": 221.99999999813735,
+              "y": 105,
+              "edge": 105
+            }
+          ],
+          "cameraCalls": 3
+        },
+        {
+          "name": "locate current project after real pointer drag",
+          "id": "single",
+          "moved": [
+            116.345271,
+            39.870899
+          ],
+          "recentered": [
+            116.35,
+            39.87
+          ],
+          "nativeTouch": false
+        },
+        {
+          "name": "current marker recenter after real pointer drag",
+          "width": 844,
+          "id": "single",
+          "moved": [
+            116.348871,
+            39.870196
+          ],
+          "keyboardMoved": [
+            116.34889,
+            39.870193
+          ],
+          "recentered": [
+            116.35,
+            39.87
+          ],
+          "sharedCoordinateIdentityRetained": true,
+          "readingTabRetained": "概览",
+          "keyboardAction": true,
+          "nativeTouch": false
+        },
+        {
+          "name": "independent list selection for same-coordinate buildings",
+          "selections": [
+            {
+              "id": "single",
+              "center": [
+                116.35,
+                39.87
+              ]
+            },
+            {
+              "id": "same",
+              "center": [
+                116.35,
+                39.87
+              ]
+            }
+          ]
+        },
+        {
+          "name": "rapid A B C",
+          "width": 444,
+          "height": 210,
+          "zoom": 16,
+          "center": [
+            116.32,
+            39.98
+          ],
+          "points": [
+            {
+              "id": "other",
+              "x": 222,
+              "y": 105,
+              "edge": 105
+            }
+          ],
+          "cameraCalls": 16
+        },
+        {
+          "width": 844,
+          "observationMs": 800,
+          "regionCameraHasNoDuplicateTarget": true,
+          "commands": [
+            {
+              "at": 12.5,
+              "zoom": 16,
+              "center": [
+                116.32,
+                39.98
+              ],
+              "immediately": true,
+              "duration": 0,
+              "width": 444,
+              "height": 210
+            },
+            {
+              "at": 42.10000002384186,
+              "zoom": 11.518221112201356,
+              "center": [
+                116.49499999999995,
+                39.93000292175058
+              ],
+              "immediately": false,
+              "duration": 240,
+              "width": 444,
+              "height": 210
+            }
+          ],
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "zoom": 11.52
+        },
+        {
+          "name": "distinct supply identity in all four modes",
+          "results": [
+            {
+              "id": "future-cbd",
+              "mode": "default",
+              "glyph": "F",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 844,
+              "id": "future-cbd",
+              "moved": [
+                116.525486,
+                39.950784
+              ],
+              "keyboardMoved": [
+                116.52556,
+                39.950773
+              ],
+              "recentered": [
+                116.53,
+                39.95
+              ],
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "default",
+              "glyph": "?",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 844,
+              "id": "pending-map-project",
+              "moved": [
+                116.495561,
+                39.935773
+              ],
+              "keyboardMoved": [
+                116.495485,
+                39.935785
+              ],
+              "recentered": [
+                116.5,
+                39.935
+              ],
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            }
+          ],
+          "legendMatches": true
+        },
+        {
+          "name": "base places via keyboard legend control",
+          "width": 844,
+          "quietDefault": true,
+          "roadsAndBuildingsRemain": true,
+          "enabledFeatures": [
+            "bg",
+            "building",
+            "point",
+            "road"
+          ],
+          "cameraAndProjectContextUnchanged": true,
+          "mapInstanceRetained": true,
+          "leaveVisible": false
+        }
+      ],
+      "emptyAndClose": "pass"
+    }
+  ],
+  "status": "pass"
+}

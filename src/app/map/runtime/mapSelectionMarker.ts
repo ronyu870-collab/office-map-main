@@ -33,16 +33,23 @@ export function futureSupplyImage(supply: { status?: unknown; leed_certification
   return badgeImage(visual, isPendingFutureSupply(supply) ? 'pending' : 'future', mode === 'default');
 }
 
-export function createSelectionMarker(image: string, future = false): HTMLDivElement {
+export function createSelectionMarker(image: string, future = false, action?: { name: string; onLocate: () => void }): HTMLDivElement {
   const content = document.createElement('div');
   content.className = `map-selected-marker${future ? ' map-selected-marker--future' : ''}`;
-  content.setAttribute('aria-hidden', 'true');
+  if (!action) content.setAttribute('aria-hidden', 'true');
   const badge = document.createElement('img');
   badge.className = 'map-selected-marker__badge';
   badge.alt = '';
   badge.width = 34;
   badge.height = 34;
   badge.src = image;
-  content.append(badge);
+  if (action) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'map-selected-marker__locate';
+    button.setAttribute('aria-label', `定位当前项目：${action.name}`);
+    button.title = `定位当前项目：${action.name}`;
+    button.onclick = event => { event.stopPropagation(); action.onLocate(); };
+    button.append(badge); content.append(button);
+  } else content.append(badge);
   return content;
 }

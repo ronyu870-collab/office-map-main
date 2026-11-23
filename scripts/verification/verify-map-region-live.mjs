@@ -1,3 +1,4 @@
+import { verifySelectedRecenter } from './workspace-selected-recenter.mjs';
 import { verifyBaseMapPlaces } from './workspace-base-places.mjs';
 import { verifyRegionCamera } from './workspace-region-camera.mjs';
 import { clickWorkspaceAction } from './workspace-actions.mjs';
@@ -140,6 +141,7 @@ try {
           assert.equal(await selected.getAttribute('data-building-id'),id);
           assert.equal(await page.locator('.map-selected-marker').count(),1);
           scenes.push({name:'locate current project after real pointer drag',id,moved,recentered:[116.35,39.87],nativeTouch:false});
+          scenes.push(await verifySelectedRecenter(page,{width,id,name:id,lng:116.35,lat:39.87}));
         }
         await page.getByRole('button',{name:'返回项目列表',exact:true}).click();await overlapList.waitFor();
       }

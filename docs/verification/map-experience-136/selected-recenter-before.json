@@ -1,0 +1,6 @@
+{
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [],
+  "status": "fail",
+  "error": "TimeoutError: page.waitForFunction: Timeout 4000ms exceeded."
+}
