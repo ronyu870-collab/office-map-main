@@ -1,5 +1,6 @@
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { matchesMapConditions } from '@/src/utils/mapFilterConditions';
 import { normalizeMapSearchText } from './mapSearchText';
 import { observedVacantArea } from './vacancyMetrics';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
@@ -141,6 +142,8 @@ export function filterFutureSupplies(
       return false;
     }
 
+    if (!matchesMapConditions(filterState.numericFilters, field => supply[field])) return false;
+
     const grade = String(supply?.grade ?? '').trim().toUpperCase();
     if (filterState.futureSupplyGrades.length === 0) return false;
     const gradeMatches = pending ? filterState.futureSupplyGrades.includes('pending')
@@ -170,7 +173,7 @@ const NUMERIC_FILTER_LABELS: Record<string, string> = {
   net_effective_rent: '净有效租金',
   vacancy_rate: '空置率',
   vacant_area: '空置面积',
-  total_area: '统计面积',
+  total_area: '面积',
   management_fee: '物业费',
   owner: '项目业主',
   property_management: '物业公司',

@@ -80,7 +80,7 @@ const NUMERIC_FIELDS = [
   { value: 'net_effective_rent', label: '净有效租金' },
   { value: 'vacancy_rate', label: '空置率 (%)' },
   { value: 'vacant_area', label: '空置面积' },
-  { value: 'total_area', label: '统计面积' },
+  { value: 'total_area', label: '面积' },
   { value: 'management_fee', label: '物业费' },
   { value: 'owner', label: '项目业主' },
   { value: 'property_management', label: '物业公司' },
@@ -598,6 +598,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
             
             {openSections.numeric && (
               <div id={panelId('numeric')} className="mt-1 mb-2 px-1">
+                <p className="mb-2 text-text-secondary">统一筛选存量与未来供应；缺少对应字段时不匹配。面积按存量统计面积、未来规划总体量匹配。</p>
                 <div className="flex flex-col gap-2 mb-2">
                   {state.numericFilters && state.numericFilters.map((filter, index) => {
                     const isText = TEXT_FIELDS.has(filter.field);
