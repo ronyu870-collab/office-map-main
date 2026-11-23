@@ -1,0 +1,25 @@
+{
+  "scope": "MapSalesMaterialsBridge: isolated identity and reader fixtures, actual SalesMaterialsPanel in two cases",
+  "old": {
+    "identityCases": 6,
+    "failed": 6,
+    "log": "/tmp/map-136-material-identity-before-unit.log"
+  },
+  "after": {
+    "files": 5,
+    "tests": 17,
+    "passed": 17,
+    "typecheck": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 1
+    },
+    "productionBuild": "pass",
+    "browser": "material-identity-browser.json"
+  },
+  "limits": [
+    "No production account switch",
+    "No new production PDF or native-device check",
+    "No long-duration resource growth measurement"
+  ]
+}
