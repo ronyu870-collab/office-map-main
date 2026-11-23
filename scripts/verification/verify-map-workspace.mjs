@@ -15,6 +15,7 @@ import { verifyProfileDraftNavigation } from './workspace-profile-draft-navigati
 import { verifyMetricsDraftNavigation } from './workspace-metrics-draft-navigation.mjs';
 import { verifyDragReading } from './workspace-drag-reading.mjs';
 import { verifyTrendLoadingLayout } from './workspace-trend-loading-layout.mjs';
+import { verifyTrendRecovery } from './workspace-trend-recovery.mjs';
 import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
 import { verifyFutureConditions } from './workspace-future-filters.mjs';
 import { verifyWorkspaceFilters } from './workspace-filters.mjs';
@@ -691,6 +692,9 @@ try {
         const trendLoadingPage=await context.newPage();
         try { observations.push(await verifyTrendLoadingLayout(trendLoadingPage,{base,width})); }
         finally { await trendLoadingPage.close(); }
+        const trendRecoveryPage=await context.newPage();
+        try { observations.push(await verifyTrendRecovery(trendRecoveryPage,{base,width})); }
+        finally { await trendRecoveryPage.close(); }
         if(width===1536){
           const dragReadingPage=await context.newPage();
           try { observations.push(await verifyDragReading(dragReadingPage,{base})); }

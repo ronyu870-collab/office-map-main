@@ -600,7 +600,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         }
       };
 
-      (window as any).__colliers_toggleTrend = (buildingId: string, reading?: TrendChartReadingOptions) => {
+      const toggleTrend = (window as any).__colliers_toggleTrend = (buildingId: string, reading?: TrendChartReadingOptions) => {
         const panel = document.getElementById("info-chart-panel");
         if (!panel) return;
         const trend = (window as any).__colliers_trend;
@@ -609,6 +609,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         // 切换面板显示
         panel.style.display = showing ? "block" : "none";
         if (!showing) {
+          trend.readRequest = null;
           // 隐藏时销毁图表
           if (trend?.chart) {
             trend.chart.dispose();
@@ -626,6 +627,38 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           "info-chart-container",
         ) as HTMLElement;
         if (!chartDom) return;
+        const readRequest = Symbol('trend-read');
+        trend.readRequest = readRequest;
+        const isCurrentRead = () => !this._destroyed && trend.readRequest === readRequest &&
+          trend.buildingId === buildingId && panel.isConnected && panel.style.display !== 'none';
+        const showStatus = (state: 'loading' | 'empty' | 'error', message: string) => {
+          const hadFocus = chartDom.contains(document.activeElement);
+          panel.dataset.trendState = state;
+          chartDom.hidden = false;
+          const status = document.createElement('div');
+          status.className = 'workspace-trend-status';
+          const text = document.createElement('span');
+          text.setAttribute('role', 'status');
+          text.textContent = message;
+          status.append(text);
+          if (state === 'error') {
+            const retry = document.createElement('button');
+            retry.type = 'button';
+            retry.className = 'workspace-business-action';
+            retry.textContent = '重试读取历史数据';
+            retry.addEventListener('click', () => {
+              if (!isCurrentRead()) return;
+              panel.style.display = 'none';
+              toggleTrend(buildingId, reading);
+            });
+            status.append(retry);
+          }
+          chartDom.replaceChildren(status);
+          if (hadFocus) {
+            status.tabIndex = -1;
+            (status.querySelector('button') ?? status).focus({ preventScroll: true });
+          }
+        };
         // 重置状态
         trend.buildingId = buildingId;
         trend.data = null;
@@ -634,8 +667,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           trend.chart = null;
         }
         // 显示加载状态
-        chartDom.innerHTML =
-          '<div role="status" class="workspace-trend-status">加载中...</div>';
+        showStatus('loading', '加载中...');
         // 用户已明确打开 Trend：让图表运行时和历史数据请求并行，消除串行 waterfall。
         // 仍然保持在 Trend 点击之后才加载，因此不会进入 Map 首屏 bundle。
         const trendRuntimePromise = import("./map/trendChartRuntime");
@@ -644,10 +676,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         fetchBuildingTrendPayload(buildingId)
           .then((data) => {
             // 竞态保护：如果用户已切换到其他楼宇，跳过渲染
-            if (trend.buildingId !== buildingId || !panel.isConnected) return;
+            if (!isCurrentRead()) return;
             if (!data?.length) {
-              chartDom.innerHTML =
-                '<div role="status" class="workspace-trend-status">暂无历史数据</div>';
+              showStatus('empty', '暂无历史数据');
               reading?.onReady?.();
               return;
             }
@@ -683,48 +714,40 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             // 动态模块加载期间用户可能关闭面板或切换楼宇，因此渲染前后都做竞态保护。
             void trendRuntimePromise
               .then(({ initTrendChart }) => {
-                if (
-                  trend.buildingId !== buildingId || !panel.isConnected ||
-                  panel.style.display === "none"
-                ) {
+                if (!isCurrentRead()) {
                   return;
                 }
 
                 requestAnimationFrame(() => {
-                  if (
-                    trend.buildingId !== buildingId || !panel.isConnected ||
-                    panel.style.display === "none"
-                  ) {
+                  if (!isCurrentRead()) {
                     return;
                   }
 
+                  const restoreFocus = chartDom.contains(document.activeElement);
+                  panel.dataset.trendState = 'ready';
                   chartDom.innerHTML = "";
                   const building = this.workspaceBuilding?.id === buildingId ? this.workspaceBuilding : this._allBuildingsCache.find(item => item.id === buildingId);
                   const chart = initTrendChart(chartDom, chartData, metric => {
                     auditBuildingReading('VIEW_BUILDING_TREND', { id: buildingId, name: building?.name }, { metric }, this._isDemo);
                   }, reading);
                   if (chart) trend.chart = chart;
+                  if (restoreFocus) panel.querySelector<HTMLElement>('.workspace-trend-switch [aria-pressed="true"]')?.focus({ preventScroll: true });
                   reading?.onReady?.();
                 });
               })
               .catch((error) => {
-                if (
-                  trend.buildingId !== buildingId || !panel.isConnected ||
-                  panel.style.display === "none"
-                ) {
+                if (!isCurrentRead()) {
                   return;
                 }
                 console.error("[MapController] 趋势图运行时加载失败:", error);
-                chartDom.innerHTML =
-                  '<div role="status" class="workspace-trend-status">趋势图加载失败，请稍后重试</div>';
+                showStatus('error', '趋势图加载失败，请稍后重试');
                 reading?.onReady?.();
               });
           })
           .catch((error) => {
-            if (trend.buildingId !== buildingId || !panel.isConnected || panel.style.display === "none") return;
+            if (!isCurrentRead()) return;
             console.error("[MapController] 历史趋势读取失败:", error);
-            chartDom.innerHTML =
-              '<div role="status" class="workspace-trend-status">历史数据读取失败，请稍后重试</div>';
+            showStatus('error', '历史数据读取失败，请稍后重试');
             reading?.onReady?.();
           });
       };
