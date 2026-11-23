@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MapSalesMaterialsBridge } from '../MapSalesMaterialsBridge';
+vi.mock('@/src/components/SessionProvider',()=>({useAppSession:()=>({status:'authenticated',session:{user:{id:'reader'},role:'admin',sessionId:'one'}})}));
+vi.mock('@/src/contexts/ImpersonationContext',()=>({useImpersonation:()=>({targetUserId:null,targetRole:null})}));
 vi.mock('next/dynamic', () => ({ default: () => function MockPanel({ buildingId, buildingName, onClose }: { buildingId: string; buildingName: string; onClose: () => void }) { return <div role="dialog" aria-label={buildingName} data-id={buildingId}><button onClick={onClose}>关闭销控</button></div>; } }));
 afterEach(() => { document.body.innerHTML = ''; });
 describe('sales materials map entry', () => {
