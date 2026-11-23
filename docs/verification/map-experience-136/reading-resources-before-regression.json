@@ -1,0 +1,6 @@
+{
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [],
+  "status": "fail",
+  "error": "AssertionError [ERR_ASSERTION]: repeated input must not accumulate document visibility listeners\n\n30 !== 10\n"
+}

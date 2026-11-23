@@ -95,5 +95,14 @@
     "beforeCommit": "3e4880f5",
     "afterCommitBeforeEvidenceUpdate": "4bcd8008bac8d041e246afc75697d8cd28447c34",
     "completeTreeUnchanged": true
+  },
+  "resolution": {
+    "pr": 292,
+    "head": "79859c917f2614d0bbe10395c489fa6969235ff7",
+    "verifyRun": "45257348135",
+    "necessaryCI": "all pass including engineering, search and both real Auth jobs",
+    "mergedAt": "2026-11-23T20:41:01Z",
+    "main": "231baa9a95f8d4342285f3022b8c79917b86f756",
+    "mainTreeMatchesTestedHead": "94e44f9d432b6932be6b3de3a5f76be562ba691f"
   }
 }
