@@ -1,3 +1,4 @@
+import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
 import { verifyWorkspaceFilters } from './workspace-filters.mjs';
 import { clickWorkspaceAction } from './workspace-actions.mjs';
 import assert from 'node:assert/strict';
@@ -604,6 +605,18 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no document overflow');
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
+      if ([1536,390,320].includes(width)) {
+        // Keep marker selection isolated from the main page's saved region and SDK-failure checks.
+        const markerPage=await context.newPage();
+        try {
+          await markerPage.goto(new URL('/map',base).href);
+          await markerPage.waitForFunction(()=>window.__workspaceMap?.getCenter());
+          observations.push(await verifySupplyMarkers(markerPage,{width,supplies:future,evidencePrefix:'map-marker-fixture',openRegion:async name=>{
+            await markerPage.evaluate(name=>window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name}})),name);
+            await markerPage.getByRole('region',{name,exact:true}).waitFor();
+          }}));
+        } finally {await markerPage.close();}
+      }
       if (width === 1536) {
         failSDK = true;
         await page.reload();

@@ -311,3 +311,13 @@ it('returns focus to the visible filter control when the final focused condition
   view.update({ activeFilterChips: [] });
   expect(screen.getByRole('button', { name: '筛选' })).toHaveFocus();
 });
+
+
+it('shows one accurate future identity and one pending identity in the project legend', async () => {
+  renderWorkbench();
+  fireEvent.click(screen.getByText('图例'));
+  const pending = await screen.findByText('待核实项目', {exact: true});
+  const popup = pending.closest('.map-disclosure-content')!;
+  expect(within(popup as HTMLElement).getAllByText('未来供应', {exact: true})).toHaveLength(1);
+  expect(pending).toBeVisible();
+});

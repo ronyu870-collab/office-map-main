@@ -129,9 +129,9 @@ body:has(#map-container) #map-container [data-building-id][style*="width: 10px"]
   transform: scale(1.35) !important;
 }
 
-/* Future supply markers are circular; stock marker density rules must not reshape them. */
+/* The same SVG identity is used by native, legacy and selected supply markers. */
 body:has(#map-container) #map-container .amap-marker .map-future-supply-marker {
-  border-radius: 50% !important;
+  width: 34px; height: 34px;
 }
 
 /* Competitor and target points remain round even when stock marker density styles are active. */
@@ -526,11 +526,11 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
   .map-filter-summary > button { max-width: min(180px, 50vw); }
 }
 
-.map-legend-states { display: flex; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #d9e0e8; color: #596779; }
+.map-legend-states { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #d9e0e8; color: #596779; }
 .map-legend-states > span { display: inline-flex; gap: 8px; align-items: center; }
 .map-legend-states i { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; font-style: normal; color: #245b78; }
 .map-legend-selected { background: #245b78; border: 3px solid white; box-shadow: 0 0 0 1px #b9c7d1; }
-.map-legend-future { border: 1px dashed #245b78; }
+.map-legend-states img { flex-shrink: 0; }
 
 .workspace-submarket-source { margin-top: 16px; padding-top: 12px; border-top: 1px solid #d9e0e8; }
 

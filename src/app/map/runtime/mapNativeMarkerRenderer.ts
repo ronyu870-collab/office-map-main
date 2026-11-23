@@ -1078,7 +1078,7 @@ export function installNativeMarkerRenderer(
     ) => {
       const supplies = Array.isArray(input) ? input : [];
       const signature =
-        `${mode}:` + supplies.map(supply => String(supply?.id ?? '')).join('|');
+        JSON.stringify([mode, supplies]);
       if (signature === futureSignature) return;
       futureSignature = signature;
       originalFutureRender(supplies, mode);
