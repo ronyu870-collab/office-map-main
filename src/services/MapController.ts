@@ -2171,7 +2171,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
     const submarketMap = new Map<string, any>();
     const visibleSubmarkets = new Set(items.map(b => normalizeMapSubmarket(b.submarket)));
-    const fullSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? (this._allBuildingsCache.length ? this._allBuildingsCache : items));
+    const scopedSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? items);
     for (const b of overviewBuildings ?? items) {
       const sub = normalizeMapSubmarket(b.submarket);
       if (!visibleSubmarkets.has(sub)) continue;
@@ -2250,7 +2250,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const centerLat = agg.latSum / agg.coordCount;
 
       // 计算用于数值比较的纯数字
-      const fullSummary = fullSubmarketSummaries.get(agg.name);
+      const fullSummary = scopedSubmarketSummaries.get(agg.name);
       const avgRentNum = fullSummary?.rent ?? 0;
       const vacRateNum = fullSummary?.vacancyPct ?? Number.NaN;
 

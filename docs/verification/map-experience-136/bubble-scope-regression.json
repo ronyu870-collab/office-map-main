@@ -1,0 +1,65 @@
+{
+  "base": "66bc6a3420b54ffbd56c3fdd4a2fc4eb15c50842",
+  "applicationDiffSha256": "4b6391c752c09122efd76a34b364ad5c43ea3daeadb5f9061c200a4f8f20c4b5",
+  "before": {
+    "command": "vitest run map-native-renderer.test.ts -t \"supplied result scope|summarizes the filtered observations\"",
+    "failed": 3,
+    "passed": 1,
+    "skipped": 27,
+    "observation": "Filtered A100 was shown as cache-wide two observations, rent200 and vacancy20; same failure in V3, native and base controller. V2 already used current rows."
+  },
+  "after": {
+    "files": 4,
+    "tests": 46,
+    "typecheck": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 211
+    },
+    "productionBuild": "pass",
+    "fullWorkspace": {
+      "status": "pass",
+      "widths": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "recordCount": 44,
+      "retainedListScroll": [
+        {
+          "saved": 33709,
+          "restored": 33709
+        },
+        {
+          "saved": 34771,
+          "restored": 34771
+        },
+        {
+          "saved": 34786,
+          "restored": 34786
+        },
+        {
+          "saved": 32373,
+          "restored": 32373
+        }
+      ]
+    }
+  },
+  "preserved": [
+    "Explicit overviewBuildings scope",
+    "Existing grade and quarter formulas",
+    "LEED denominator",
+    "No production business writes"
+  ],
+  "limits": [
+    "Synthetic HTTP and administrator identity, real SDK/tiles separately identified",
+    "Keyword A/B/empty/clear and LEED combinations do not exhaust all subway/comparison combinations",
+    "No native mobile claim",
+    "No new CPU sampling"
+  ],
+  "testAdaptation": [
+    "Synthetic SDK had no zoomend event and defaulted to point zoom; harness emits zoomend and selects overview zoom through the public SDK method.",
+    "Editing global search opens the candidate layer; checks explicitly reopen the project list. These fixture/flow mismatches are not counted as product failures."
+  ]
+}
