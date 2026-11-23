@@ -16,7 +16,7 @@ function Harness({ update = 0, transitioning = false }: { update?: number; trans
     <button onClick={scroll.revealNextAnswer}>准备显示正式结果</button>
     <button onClick={scroll.preserveBeforePrepend}>准备加载更早问答</button>
     <div ref={scroller} data-testid="scroller" onScroll={scroll.onScroll}><div>
-      <article data-query-turn="first">第一轮</article><article data-query-turn="second" aria-label="本次问答">第二轮</article>
+      <article data-query-turn="first">第一轮<button>查看第一轮来源</button></article><article data-query-turn="second" aria-label="本次问答">第二轮</article>
     </div></div>
     {scroll.unseen && <span>有新回答</span>}
   </>;
@@ -120,4 +120,16 @@ describe('conversation scroll after asynchronous rendering', () => {
     fireEvent.click(screen.getByRole('button', { name: '继续跟随' }));
     view.resize(1100); notifyLayout(); expect(view.node.scrollTop).toBe(900);
   });
+});
+
+it.each(['focusin','keydown'] as const)('releases result following on %s before a delayed native scroll event',event=>{
+  render(<Harness />);const view=geometry(1200);
+  fireEvent.click(screen.getByRole('button',{name:'最新消息'}));
+  // Focus revelation writes the reading position before the browser emits scroll.
+  // A lazy chart can resize in that interval; it must not reclaim the tail.
+  const control=screen.getByRole('button',{name:'查看第一轮来源'});
+  if(event==='focusin')fireEvent.focusIn(control);else fireEvent.keyDown(control,{key:'Tab'});
+  view.node.scrollTop=100;
+  view.resize(1700);notifyLayout();
+  expect(view.node.scrollTop).toBe(100);
 });

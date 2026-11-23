@@ -255,14 +255,20 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(client.submit).toHaveBeenCalledOnce();
   });
 
-  it('reveals a clipped keyboard target within its scrollport when native focus does not scroll', async () => {
+  it.each([false, true])('reveals a clipped keyboard target while keeping hidden layout ancestors fixed (native scrolling: %s)', async nativeScrolling => {
     client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
     const { input } = await open(); await expand(); send(input, 'CBD净有效租金');
     const rendered = await screen.findByRole('region', { name: '查询结果' });
     const target = within(rendered).getByRole('button', { name: '数据依据' });
     const transcript = screen.getByRole('region', { name: '对话记录' });
     const surface = screen.getByRole('dialog', { name: 'Colliers AI 工作空间' });
-    // jsdom focus changes activeElement without browser scroll assistance.
+    // Model native focus scrolling an overflow-hidden layout ancestor as well
+    // as the intended reader. The workspace must reveal through its reader only.
+    const layout = transcript.parentElement!; layout.style.overflowY = 'hidden';
+    const focus = target.focus.bind(target);
+    vi.spyOn(target, 'focus').mockImplementation(options => {
+      focus(options); if (nativeScrolling && !options?.preventScroll) layout.scrollTop = 200;
+    });
     transcript.style.overflowY = 'auto';
     Object.defineProperties(transcript, { clientHeight: { configurable: true, value: 300 }, scrollHeight: { configurable: true, value: 1200 } });
     vi.spyOn(transcript, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 60, 768, 300));
@@ -275,6 +281,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(target).toHaveFocus();
     expect(target.getBoundingClientRect().bottom).toBeLessThanOrEqual(360);
     expect(transcript.scrollTop).toBe(312);
+    expect(layout.scrollTop).toBe(0);
     expect(document.documentElement.scrollTop).toBe(47);
     fireEvent.keyDown(target, { key: 'Tab' });
     expect(target).not.toHaveFocus();
