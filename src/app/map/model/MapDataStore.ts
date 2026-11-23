@@ -1,3 +1,4 @@
+import { leedFilterValue } from '@/src/lib/leed-display';
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import type { BuildingWithMetrics } from '@/src/types';
 import { getConfiguredCompareGroups, STOCK_PROJECT_TYPES } from './mapDomain';
@@ -40,8 +41,7 @@ function normalizedString(value: unknown): string {
 }
 
 function normalizedLeed(value: unknown): string {
-  const text = String(value ?? '').trim();
-  return text || 'NULL';
+  return leedFilterValue(value);
 }
 
 function buildingProjectTypes(grade: unknown): string[] {

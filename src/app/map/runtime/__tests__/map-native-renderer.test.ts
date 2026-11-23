@@ -727,3 +727,16 @@ it.each(['v3','v2','native'] as const)('%s keeps future list hover separate from
     }
   } finally {cleanup?.();}
 });
+
+it.each(['v3','v2','native'] as const)('%s excludes explicit negatives and missing LEED values from certified aggregate',async version=>{
+  const harness=createNativeHarness();
+  const controller:any={AMap:harness.AMap,map:harness.map,markers:[],dotMarkers:[],submarketMarkers:[],renderMarkers:vi.fn(),clearMarkers:vi.fn(),updateVisibilityByZoom:vi.fn(),renderFutureMarkers:vi.fn(),clearFutureMarkers:vi.fn()};
+  const cleanup=version==='v3'?installMapInteractionHardening(controller,'map-container'):version==='v2'?installMapVisualContinuityV2(controller,document.getElementById('map-container')!):installNativeMarkerRenderer(controller,document.getElementById('map-container')!);
+  try {
+    controller.renderMarkers(['Gold','N','未认证','','  ','UNKNOWN'].map((leed_certification,index)=>({...building(String(index),'CBD',116.46+index*.001,39.91,146,.15),leed_certification})),'leed');
+    await flushFrames();
+    const bubble=harness.markerInstances.map(m=>m.options.content).find(el=>el instanceof HTMLElement&&el.querySelector('.map-submarket-bubble__name')?.textContent==='CBD') as HTMLElement;
+    expect(bubble).toBeTruthy();
+    expect(bubble.textContent).toMatch(/LEED\s*17%|17%\s*LEED/);
+  } finally {cleanup?.();}
+});

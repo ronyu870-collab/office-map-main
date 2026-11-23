@@ -1,5 +1,5 @@
 'use client';
-import { leedFallbackBadge } from '@/src/lib/leed-display';
+import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { futureSupplyImage } from './mapSelectionMarker';
@@ -635,8 +635,7 @@ export function installNativeMarkerRenderer(
         item.rentWeightAreaSum += area;
         item.rentWeightSum += rent * area;
       }
-      const leed = String(building?.leed_certification ?? '').trim().toUpperCase();
-      if (leed && leed !== 'NULL' && leed !== '无' && leed !== '-') {
+      if (hasLeedCertification(building?.leed_certification)) {
         item.leedCount += 1;
       }
     }

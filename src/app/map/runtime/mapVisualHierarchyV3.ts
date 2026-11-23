@@ -1,5 +1,5 @@
 'use client';
-import { leedFallbackBadge } from '@/src/lib/leed-display';
+import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
@@ -445,8 +445,7 @@ export function installMapVisualHierarchyV3(
         aggregate.rentSum += rent * area;
         aggregate.rentArea += area;
       }
-      const leed = String(building?.leed_certification ?? '').trim().toUpperCase();
-      if (leed && leed !== 'NULL' && leed !== '无' && leed !== '-') aggregate.leed += 1;
+      if (hasLeedCertification(building?.leed_certification)) aggregate.leed += 1;
     }
 
     const submarkets: any[] = [];
