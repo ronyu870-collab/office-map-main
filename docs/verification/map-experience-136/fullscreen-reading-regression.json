@@ -48,14 +48,14 @@
     "workspace": {
       "scenarioAssertions": "pass",
       "records": 77,
-      "runnerExitCode": null,
-      "note": "JSON emitted; runner still awaiting exit at evidence creation."
+      "runnerExitCode": 0,
+      "note": "Completed normally after scenario JSON; no forced termination or process.exit."
     },
     "continuity": {
       "scenarioAssertions": "pass",
       "conditions": 3,
-      "runnerExitCode": null,
-      "note": "JSON emitted; runner still awaiting exit at evidence creation."
+      "runnerExitCode": 0,
+      "note": "Completed normally after scenario JSON; no forced termination or process.exit."
     },
     "capture": {
       "exitCode": 0,
@@ -224,7 +224,12 @@
   "limits": [
     "Functional suites may run concurrently; timings and long-task fields are not performance evidence.",
     "Business, identity, SDK transport and images are isolated fixtures; no new real SDK or production account claim.",
-    "Both expanded runners remain under observation until exit, rather than being force-terminated or declared exited.",
     "Exact PR head necessary CI and main merge pending."
-  ]
+  ],
+  "pr": {
+    "url": "https://github.com/ronyu870-collab/office-map-main/pull/296",
+    "initialProductHead": "25de939fc3f504832aa7db53f8ed205e903d25e6",
+    "rebaseTreeUnchanged": "18df87c183f94841250b5d121310da3f11b013f4",
+    "necessaryCi": "pending on final evidence head; main merge pending"
+  }
 }
