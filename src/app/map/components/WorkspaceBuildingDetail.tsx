@@ -1,4 +1,5 @@
 'use client';
+import { coordinateNotice } from '@/src/lib/map-coordinates';
 import * as React from 'react';
 import Link from 'next/link';
 import { LocateFixed } from 'lucide-react';
@@ -82,7 +83,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
     <WorkspacePanelHeader title={name} subtitle={future ? futureSupplyDisplayLabel(building) : [overrides.grade?.display_value ?? displayListGrade(building.grade), overrides.submarket?.display_value ?? building.submarket].filter(Boolean).join(' · ')} onClose={onClose} closeLabel="关闭楼宇详情" actions={hasBuildingLocation(building) ? <button type="button" className="workspace-icon" aria-label="定位当前项目" title="定位当前项目" onClick={() => onAction('locate')}><LocateFixed size={17} aria-hidden="true" /></button> : null} />
     <div ref={scroll} className="workspace-building-scroll workspace-scroll" onScroll={event => report({ tab, scrollTop: event.currentTarget.scrollTop })}>
       {outsideResults ? <p role="status" className="workspace-note">当前项目不在筛选结果中，已保留详情供继续查阅。</p> : null}
-      {!hasBuildingLocation(building) ? <p role="status">此项目未提供有效坐标，可继续查看资料。</p> : null}
+      {!hasBuildingLocation(building) ? <p role="status">{coordinateNotice(building)}</p> : null}
       <section className="workspace-metric-summary" aria-label="核心经营指标" data-workspace-summary>
         <p className="workspace-period">{future ? '未来供应 · 非当前存量指标' : metric ? `${metric.record_year}Q${metric.record_quarter} 指标` : '暂无季度指标'}</p>
         <dl className="workspace-building-metrics">

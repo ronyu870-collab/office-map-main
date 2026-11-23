@@ -1,18 +1,12 @@
 import type { FullListBuilding } from '../model/fullBuildingList';
+import { coordinateIssue } from '@/src/lib/map-coordinates';
+export { coordinateIssue } from '@/src/lib/map-coordinates';
 
 type Rect = { left: number; top: number; right: number; bottom: number; width: number; height: number };
 export const mercatorPoint = (lng: number, lat: number) => [
   (lng + 180) / 360,
   (1 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / Math.PI) / 2,
 ] as const;
-export function coordinateIssue(building: FullListBuilding) {
-  const lng = building.location_lng, lat = building.location_lat;
-  if (lng == null || lat == null) return 'missing';
-  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return 'non-finite';
-  if (Math.abs(lng) > 180 || Math.abs(lat) > 85.05112878) return 'out-of-range';
-  if (lng === 0 && lat === 0) return 'zero-origin';
-  return null;
-}
 /** A geographic envelope, never an administrative or submarket boundary. */
 export function fitMapExtent(buildings: FullListBuilding[], canvas: Rect, visible: Rect = canvas) {
   const located = buildings.filter(building => coordinateIssue(building) === null);

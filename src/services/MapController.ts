@@ -3,6 +3,7 @@
  */
 
 "use client";
+import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { coordinateIssue, fitMapExtent } from '@/src/app/map/runtime/mapExtent';
 
 import { WORKSPACE_MOTION } from '@/src/app/map/runtime/workspaceMotion';
@@ -379,7 +380,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     this.workspaceSelectionMarker = null;
     this.workspaceSelectionContent = null;
     this.workspaceSelectedBuilding = building;
-    if (!this.map || !building || !Number.isFinite(building.location_lng) || !Number.isFinite(building.location_lat) || !this.AMap?.Marker) return;
+    if (!this.map || !building || !hasMapCoordinates(building) || !this.AMap?.Marker) return;
     const content = createSelectionMarker(this.workspaceSelectionImage(building), building._dataType === 'future');
     this.workspaceSelectionContent = content;
     this.workspaceSelectionMarker = new this.AMap.Marker({ position: [building.location_lng, building.location_lat], content, anchor: 'center', zIndex: 999999, bubble: true });
@@ -401,7 +402,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   runWorkspaceBuildingAction(action: 'nearby' | 'contact' | 'trend' | 'edit', building: WorkspaceBuilding): void {
     if (action === 'edit') { if (this._isAdmin && !this._isDemo) this._onEditBuildingMetrics?.(building.id, building.name ?? ''); }
-    if (action === 'nearby' && Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat)) {
+    if (action === 'nearby' && hasMapCoordinates(building)) {
       (window as any).__colliers_analyzeCompetitors?.(building.id, building.location_lng, building.location_lat, Number(pickLatestMetric(building.metrics ?? [])?.net_effective_rent ?? 0));
     }
     if (action === 'contact') (window as any).__colliers_showContactModal?.(this._isDemo ? '***' : building.name, this._isDemo ? '***' : building.contact_phone || '', building.id);
@@ -932,7 +933,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     lat: number,
     currentRent: number,
   ) {
-    if (!this.map || !this.AMap || !this._allBuildingsCache.length) return;
+    if (!this.map || !this.AMap || !this._allBuildingsCache.length || !hasMapCoordinates({ location_lng: lng, location_lat: lat })) return;
 
     this._isClearingCompetitor = true;
     this.infoWindow?.close?.();
@@ -977,7 +978,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const competitors = this._allBuildingsCache.filter((b) => {
       if (this.workspaceSubmarket && normalizeMapSubmarket(b.submarket) !== this.workspaceSubmarket) return false;
       if (b.id === buildingId) return false;
-      if (b.location_lng == null || b.location_lat == null) return false;
+      if (!hasMapCoordinates(b)) return false;
       const dist = this.calculateDistance(
         [b.location_lng, b.location_lat],
         centerPoint,
@@ -1106,7 +1107,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     for (const building of buildings) {
       const lng = building.location_lng;
       const lat = building.location_lat;
-      if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+      if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
 
       const dist = this._compDistances.get(building.id);
       const isCenter = building.id === this._compBuildingId;
@@ -1943,7 +1944,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     for (const supply of supplies) {
       const lng = toNullableFiniteNumber(supply.location_lng);
       const lat = toNullableFiniteNumber(supply.location_lat);
-      if (lng === null || lat === null) continue;
+      if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
 
       const style = getMarkerStyle(supply, null, renderMode, true);
       const borderStyle = renderMode === "default" ? "dashed" : "solid";
@@ -2015,7 +2016,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     if (!this.map || !this.AMap) return;
     const lng = toNullableFiniteNumber(supply.location_lng);
     const lat = toNullableFiniteNumber(supply.location_lat);
-    if (lng === null || lat === null) return;
+    if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) return;
 
     if (this.buildingPopupBinding) {
       this.infoWindow?.close?.();
@@ -2114,7 +2115,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     for (const building of items) {
       const lng = building.location_lng;
       const lat = building.location_lat;
-      if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+      if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
 
       const latestMetric = pickLatestMetric(building.metrics);
       const groupColor = comparisonGroups
@@ -2192,7 +2193,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       }
       const agg = submarketMap.get(sub);
       if (officeGrade(b.grade) === 'a' || officeGrade(b.grade) === 'b') agg.count += 1;
-      if (Number.isFinite(b.location_lng) && Number.isFinite(b.location_lat)) {
+      if (hasMapCoordinates(b)) {
         agg.lngSum += b.location_lng;
         agg.latSum += b.location_lat;
         agg.coordCount += 1;
@@ -2386,7 +2387,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     for (const building of items) {
       const lng = building.location_lng;
       const lat = building.location_lat;
-      if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+      if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
 
       const latestMetric = pickLatestMetric(building.metrics);
       const groupColor = comparisonGroups
@@ -2800,7 +2801,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const lng = building.location_lng;
     const lat = building.location_lat;
 
-    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) {
       console.warn(
         "[MapController] Invalid building coordinates:",
         building.name,

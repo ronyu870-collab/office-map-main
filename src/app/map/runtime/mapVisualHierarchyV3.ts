@@ -1,4 +1,5 @@
 'use client';
+import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
 import { mapBuildingLabel } from './mapMarkerLabel';
@@ -65,9 +66,6 @@ function smoothStep(start: number, end: number, value: number): number {
   return t * t * (3 - 2 * t);
 }
 
-function finite(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -346,7 +344,7 @@ export function installMapVisualHierarchyV3(
   const showSelection = (building: any) => {
     clearSelection();
     if (c.isWorkspaceActive?.()) return;
-    if (!building || !finite(building.location_lng) || !finite(building.location_lat)) return;
+    if (!building || !hasMapCoordinates(building)) return;
     const element = createSelectionMarker(detailImage(visualFor(building, lastMode, lastGroups)));
     selectedMarker = new Marker({
       position: [building.location_lng, building.location_lat],
@@ -381,7 +379,7 @@ export function installMapVisualHierarchyV3(
     for (const [index, supply] of futureArgs.supplies.entries()) {
       const lng = supply?.location_lng == null ? Number.NaN : Number(supply.location_lng);
       const lat = supply?.location_lat == null ? Number.NaN : Number(supply.location_lat);
-      if (!finite(lng) || !finite(lat)) continue;
+      if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
       const marker = new LabelMarker({
         name: `future:${String(supply?.id ?? supply?.building_id ?? index)}:${index}`,
         position: [lng, lat],
@@ -426,7 +424,7 @@ export function installMapVisualHierarchyV3(
         aggregates.set(name, aggregate);
       }
       aggregate.count += 1;
-      if (finite(building.location_lng) && finite(building.location_lat)) {
+      if (hasMapCoordinates(building)) {
         aggregate.lng += building.location_lng;
         aggregate.lat += building.location_lat;
         aggregate.coords += 1;
@@ -526,7 +524,7 @@ export function installMapVisualHierarchyV3(
     const styleIndices = new Map<string, number>();
     const massData: any[] = [];
     for (const building of buildings) {
-      if (!finite(building?.location_lng) || !finite(building?.location_lat)) continue;
+      if (!hasMapCoordinates(building)) continue;
       const visual = visualFor(building, mode, groups);
       const key = `${visual.background}|${visual.border}`;
       let styleIndex = styleIndices.get(key);
@@ -598,7 +596,7 @@ export function installMapVisualHierarchyV3(
     const detailItems: any[] = [];
     const nameItems: any[] = [];
     for (const building of buildings) {
-      if (!finite(building?.location_lng) || !finite(building?.location_lat)) continue;
+      if (!hasMapCoordinates(building)) continue;
       const visual = visualFor(building, mode, groups);
       const metric = latestMetric(building);
       const area = Number(metric?.total_area);

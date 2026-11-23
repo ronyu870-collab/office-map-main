@@ -1,4 +1,5 @@
 import type { BuildingMetric } from '@/src/types';
+import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 export type FullListBuilding = {
   id: string;
@@ -30,7 +31,7 @@ export function displayListGrade(grade: string | null | undefined): string {
   return upper.includes('P') ? value.replace(/P/gi, 'A') : value;
 }
 export function hasBuildingLocation(building: FullListBuilding) {
-  return Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat);
+  return hasMapCoordinates(building);
 }
 export function finiteMetric(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;

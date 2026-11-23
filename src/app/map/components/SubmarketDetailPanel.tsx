@@ -1,4 +1,5 @@
 'use client';
+import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { useMapObjectReadingState } from '../workspace/continuity';
 import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
 
@@ -239,7 +240,7 @@ export function SubmarketDetailPanel({
   const projects = React.useMemo(() => buildings
     .filter(building => normalizeMapSubmarket(building.submarket) === name
       && ['a', 'b'].includes(officeGrade(building.grade))
-      && Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat))
+      && hasMapCoordinates(building))
     .sort((left, right) => {
       const area = (building: MarketBuilding) => Number(mostRecentMarketMetric(building.metrics)?.total_area ?? 0);
       return area(right) - area(left) || String(left.name ?? '').localeCompare(String(right.name ?? ''), 'zh-CN');

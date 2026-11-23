@@ -19,6 +19,7 @@ const stock = [
   { id: 'cbd-b', name: 'CBD乙楼', submarket: 'CBD', location_lng: 116.48, location_lat: 39.92 },
   { id: 'other', name: '中关村楼·' + '超长项目名称及楼座信息'.repeat(6), submarket: '中关村', location_lng: 116.32, location_lat: 39.98 },
   { id: 'missing', name: '未定位楼', submarket: 'CBD', location_lng: null, location_lat: null },
+  { id: 'invalid', name: '坐标越界楼', submarket: 'CBD', location_lng: 40, location_lat: 116 },
 ].map(building => ({ ...building, grade: 'A', district: '朝阳区', building_metrics: [{ id: `m-${building.id}`, building_id: building.id, record_year: 2026, record_quarter: 3, total_area: 9019486, net_effective_rent: 146.1, vacancy_rate: .211 }] }));
 stock[0].photos = [
   {id:'20000000-1111-4111-8111-111111111111',caption:'横向外观'},
@@ -328,9 +329,20 @@ try {
         await page.waitForTimeout(300);
         assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 380, 'return restores list width without using the building width');
       }
+      if (width === 1536) {
+        await list.getByRole('button', { name: /^坐标越界楼/ }).click();
+        const invalid = page.getByRole('region', { name: '坐标越界楼楼宇详情' });
+        await invalid.getByText('此项目坐标超出地图范围，暂不能定位；可继续查看资料。', { exact: true }).waitFor();
+        assert.equal(await invalid.getByRole('button', { name: '定位当前项目' }).count(), 0);
+        assert.equal(await page.locator('.map-selected-marker').count(), 0, 'invalid record cannot inherit a previous selection');
+        await page.screenshot({ path: '/tmp/map-coordinate-invalid-1536.png' });
+        await invalid.getByRole('tab', { name: '成交与资料', exact: true }).click();
+        assert.equal(await invalid.getByRole('button', { name: '楼书与资料', exact: true }).getAttribute('data-building-id'), 'invalid');
+        await page.getByRole('button', { name: '返回项目列表', exact: true }).click();
+      }
       await list.getByRole('button', { name: /^未定位楼/ }).click();
       await page.getByRole('region', { name: '未定位楼楼宇详情' }).waitFor();
-      await page.getByText('此项目未提供有效坐标，可继续查看资料。').waitFor();
+      await page.getByRole('region', { name: '未定位楼楼宇详情' }).getByText('此项目未提供有效坐标，可继续查看资料。', { exact: true }).waitFor();
       assert.equal(await page.locator('.map-selected-marker').count(), 0);
       await page.getByRole('button', { name: '关闭楼宇详情' }).click();
       // Trigger the exact event emitted by SDK area bubbles; the production reducer,

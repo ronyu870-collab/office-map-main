@@ -1,4 +1,5 @@
 'use client';
+import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
 import { mapBuildingLabel } from './mapMarkerLabel';
@@ -50,9 +51,6 @@ function escapeHtml(value: unknown): string {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function finite(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
 
 function latestMetric(building: any): any | null {
   let latest: any | null = null;
@@ -225,7 +223,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   const showSelection = (building: any) => {
     clearSelection();
     if (c.isWorkspaceActive?.()) return;
-    if (!building || !finite(building.location_lng) || !finite(building.location_lat)) return;
+    if (!building || !hasMapCoordinates(building)) return;
     const el = createSelectionMarker(detailImage(visualFor(building, lastMode, lastGroups)));
     selectedMarker = new Marker({ position: [building.location_lng, building.location_lat], content: el, anchor: 'center', zIndex: 999999, bubble: true });
     map.add?.(selectedMarker);
@@ -247,7 +245,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
       let agg = submarketMap.get(sub);
       if (!agg) { agg = { name: sub, count: 0, lng: 0, lat: 0, coords: 0, area: 0, vacant: 0, rentSum: 0, rentArea: 0, leed: 0 }; submarketMap.set(sub, agg); }
       agg.count += 1;
-      if (finite(b.location_lng) && finite(b.location_lat)) { agg.lng += b.location_lng; agg.lat += b.location_lat; agg.coords += 1; }
+      if (hasMapCoordinates(b)) { agg.lng += b.location_lng; agg.lat += b.location_lat; agg.coords += 1; }
       const m = latestMetric(b); const area = Number(m?.total_area); const vacant = Number(m?.vacant_area); const rent = Number(m?.net_effective_rent);
       if (Number.isFinite(area) && area > 0) { agg.area += area; if (Number.isFinite(vacant)) agg.vacant += vacant; }
       if (Number.isFinite(area) && area > 0 && Number.isFinite(rent) && rent > 0) { agg.rentSum += rent * area; agg.rentArea += area; }
@@ -283,7 +281,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
 
     const styles: any[] = []; const styleIndex = new Map<string, number>(); const massData: any[] = [];
     for (const b of buildings) {
-      if (!finite(b?.location_lng) || !finite(b?.location_lat)) continue;
+      if (!hasMapCoordinates(b)) continue;
       const v = visualFor(b, mode, groups); const key = `${v.background}|${v.border}`;
       let idx = styleIndex.get(key); if (idx === undefined) { idx = styles.length; styleIndex.set(key, idx); styles.push({ url: dotImage(v.background, v.border), size: new Size(14, 14), anchor: new Pixel(7, 7), zIndex: idx + 1 }); }
       massData.push({ lnglat: [b.location_lng, b.location_lat], style: idx, id: b.id, __building: b });
@@ -299,7 +297,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     const names = new LabelsLayer({ zooms: [13.55, 20], zIndex: 113, collision: true, allowCollision: false, animation: false, visible: true, opacity: 0 });
     const detailItems: any[] = []; const nameItems: any[] = [];
     for (const b of buildings) {
-      if (!finite(b?.location_lng) || !finite(b?.location_lat)) continue;
+      if (!hasMapCoordinates(b)) continue;
       const v = visualFor(b, mode, groups); const m = latestMetric(b); const area = Number(m?.total_area); const grade = String(b?.grade ?? '').toUpperCase();
       const rank = (grade.includes('A') || grade.includes('P') ? 2000 : grade.includes('BP') ? 1200 : 700) + (Number.isFinite(area) ? Math.min(999, Math.round(area / 1000)) : 0);
       const icon = new LabelMarker({ name: String(b.id ?? ''), position: [b.location_lng, b.location_lat], zooms: [12.2, 20], opacity: 1, rank, zIndex: rank, anchor: 'center', extData: { id: b.id }, icon: { type: 'image', image: detailImage(v), size: [36, 36], anchor: 'center' } });

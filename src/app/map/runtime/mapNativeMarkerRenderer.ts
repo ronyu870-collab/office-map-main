@@ -1,4 +1,5 @@
 'use client';
+import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { futureSupplyImage } from './mapSelectionMarker';
 import { mapBuildingLabel } from './mapMarkerLabel';
@@ -141,10 +142,6 @@ function escapeHtml(input: unknown): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-function isFiniteCoordinate(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
 }
 
 function clamp(value: number, min = 0, max = 1): number {
@@ -614,10 +611,7 @@ export function installNativeMarkerRenderer(
       }
 
       item.count += 1;
-      if (
-        isFiniteCoordinate(building?.location_lng) &&
-        isFiniteCoordinate(building?.location_lat)
-      ) {
+      if (hasMapCoordinates(building)) {
         item.lngSum += building.location_lng;
         item.latSum += building.location_lat;
         item.coordCount += 1;
@@ -717,8 +711,7 @@ export function installNativeMarkerRenderer(
     if (controller.isWorkspaceActive?.()) { controller.openBuildingInfoWindow?.(building?.id); return; }
     if (
       !building ||
-      !isFiniteCoordinate(building.location_lng) ||
-      !isFiniteCoordinate(building.location_lat)
+      !hasMapCoordinates(building)
     ) return;
 
     const center: [number, number] = [
@@ -759,10 +752,7 @@ export function installNativeMarkerRenderer(
     const data: Array<Record<string, unknown>> = [];
 
     for (const building of buildings) {
-      if (
-        !isFiniteCoordinate(building?.location_lng) ||
-        !isFiniteCoordinate(building?.location_lat)
-      ) continue;
+      if (!hasMapCoordinates(building)) continue;
 
       const visual = buildingVisual(
         building,
@@ -859,10 +849,7 @@ export function installNativeMarkerRenderer(
     const nameItems: LabelMarkerLike[] = [];
 
     for (const building of buildings) {
-      if (
-        !isFiniteCoordinate(building?.location_lng) ||
-        !isFiniteCoordinate(building?.location_lat)
-      ) continue;
+      if (!hasMapCoordinates(building)) continue;
 
       const metric = latestMetric(building, metricCache);
       const visual = buildingVisual(building, mode, metric, groups);

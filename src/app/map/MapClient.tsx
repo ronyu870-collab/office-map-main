@@ -1,4 +1,5 @@
 'use client';
+import { coordinateIssue } from '@/src/lib/map-coordinates';
 import { serializableMapFilters } from './model/mapFilterPreference';
 import {type ReadingEntry} from '@/src/utils/readingAuditContext';
 import { authorizeCriticalExport } from '@/src/utils/criticalExport';
@@ -166,6 +167,13 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     const futureWithType = filteredFutureSupplies.map(f => ({ ...f, _dataType: 'future' }));
     return [...existingWithType, ...futureWithType];
   }, [filteredBuildings, filteredFutureSupplies, competitorBuildings]);
+  const coordinateDiagnosticKey = React.useMemo(() => JSON.stringify(combinedBuildingList.flatMap(building => {
+    const issue = coordinateIssue(building);
+    return issue && issue !== 'missing' ? [{ id: building.id, issue }] : [];
+  })), [combinedBuildingList]);
+  React.useEffect(() => {
+    if (coordinateDiagnosticKey !== '[]') console.warn('[Map] coordinate diagnostics; records remain readable in the list', JSON.parse(coordinateDiagnosticKey));
+  }, [coordinateDiagnosticKey]);
   // Keep the synchronous event ref aligned with the committed React state.
   React.useEffect(() => {
     competitorModeRef.current = competitorBuildings !== null;
@@ -532,8 +540,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       calculateDistance: (buildingPoint, stationPoint) => ctrl.calculateDistance(buildingPoint, stationPoint),
     })).filter(building => activeFilterState.submarkets.length !== 1 || activeFilterState.submarkets.includes(normalizeMapSubmarket(building.submarket)))
       .filter(building => !queryContext || queryIds.has(building.id)
-      && Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat)
-      && Math.abs(building.location_lng) <= 180 && Math.abs(building.location_lat) <= 90);
+      && hasBuildingLocation(building));
 
     if (!mapReady) {
       // Business data remains usable while the SDK/tiles are loading or unavailable.

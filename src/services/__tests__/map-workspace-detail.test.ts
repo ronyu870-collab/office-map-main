@@ -23,6 +23,16 @@ function fixture() {
 }
 afterEach(() => vi.restoreAllMocks());
 describe('real MapController workspace adapter', () => {
+  it.each([[0, 0], [40, 116], [181, 39], [116, 86]])('reads invalid-coordinate records without rendering a selection at %s/%s', (lng, lat) => {
+    const { controller, detail, markers } = fixture();
+    const invalid = { id: 'invalid', name: '坐标待核查楼', location_lng: lng, location_lat: lat, metrics: [] };
+    (controller as any)._allBuildingsCache.push(invalid);
+    controller.openBuildingInfoWindow('a');
+    controller.openBuildingInfoWindow('invalid');
+    expect(detail.mock.lastCall?.[0].building.id).toBe('invalid');
+    expect(markers).toHaveLength(1);
+    expect((controller as any).map.remove).toHaveBeenCalledTimes(1);
+  });
   it('publishes each selection immediately, replaces its marker and never constructs a native popup', () => {
     const { controller, detail, markers, nativePopup } = fixture();
     controller.openBuildingInfoWindow('a');
