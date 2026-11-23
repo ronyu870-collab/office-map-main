@@ -40,7 +40,7 @@
   "limits": [
     "Isolated role/data/SDK; desktop Chrome at four viewports, no VoiceOver/TalkBack or production write claim.",
     "Other module icon/disabled-state audit remains item109 partial.",
-    "Exact-head CI/main pending; parentPR297 necessaryCI running."
+    "Exact-head CI/main pending; parentPR297 merged."
   ],
   "finalCombinedFollowup": {
     "buildExit": 0,
@@ -53,5 +53,10 @@
     ],
     "record": "reading-layout-combined-browser.json",
     "scope": "Final build includes metric labels, actual drag paths and delayed trend entry space. Previous focused normal/reduced drag records retain their original build scope."
+  },
+  "rebase": {
+    "ontoMain": "9ca5dd8f786fbd6843f3fdf3b07c4d676206280f",
+    "parentTestedAndMainTreeEqual": "62457659dac673d3402521330a1459f3613034eb",
+    "beforeAndAfterTree": "b8f352f960e402154e21defe802f0b9eb0abf2e5"
   }
 }

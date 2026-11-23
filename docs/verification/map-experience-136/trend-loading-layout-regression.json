@@ -38,6 +38,11 @@
   "limits": [
     "Only delayed first trend read and collapsed period entry are covered; other asynchronous images/materials remain item78 partial.",
     "Functional isolated-data/SDK suites may run concurrently; no cumulative CLS or performance claim.",
-    "Exact-head CI/main pending; parentPR297 CI still running."
-  ]
+    "Exact-head CI/main pending; parentPR297 merged."
+  ],
+  "rebase": {
+    "ontoMain": "9ca5dd8f786fbd6843f3fdf3b07c4d676206280f",
+    "parentTestedAndMainTreeEqual": "62457659dac673d3402521330a1459f3613034eb",
+    "beforeAndAfterTree": "b8f352f960e402154e21defe802f0b9eb0abf2e5"
+  }
 }
