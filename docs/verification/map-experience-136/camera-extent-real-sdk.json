@@ -1,0 +1,874 @@
+{
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [
+    {
+      "width": 1536,
+      "height": 900,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 188
+      },
+      "scenes": [
+        {
+          "name": "real drag then delayed future response",
+          "before": [
+            15.92,
+            116.47,
+            39.915
+          ],
+          "dragged": [
+            15.92,
+            116.459548,
+            39.917572
+          ],
+          "after": [
+            15.92,
+            116.459548,
+            39.917572
+          ]
+        },
+        {
+          "name": "CBD",
+          "width": 1136,
+          "height": 744,
+          "zoom": 13.92,
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 181.51810989528894,
+              "y": 659.9999999995343,
+              "edge": 84.00000000046566
+            },
+            {
+              "id": "cbd-b",
+              "x": 402.36490424117073,
+              "y": 516.0315496395342,
+              "edge": 227.9684503604658
+            },
+            {
+              "id": "future-cbd",
+              "x": 954.481890106108,
+              "y": 83.99999999906868,
+              "edge": 83.99999999906868
+            },
+            {
+              "id": "pending-map-project",
+              "x": 623.2116985875182,
+              "y": 300.03944692295045,
+              "edge": 300.03944692295045
+            }
+          ],
+          "cameraCalls": 2
+        },
+        {
+          "name": "CBD wide pane",
+          "width": 1016,
+          "height": 744,
+          "zoom": 13.92,
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 121.51810989528894,
+              "y": 659.9999999995343,
+              "edge": 84.00000000046566
+            },
+            {
+              "id": "cbd-b",
+              "x": 342.36490424117073,
+              "y": 516.0315496395342,
+              "edge": 227.9684503604658
+            },
+            {
+              "id": "future-cbd",
+              "x": 894.481890106108,
+              "y": 83.99999999906868,
+              "edge": 83.99999999906868
+            },
+            {
+              "id": "pending-map-project",
+              "x": 563.2116985875182,
+              "y": 300.03944692295045,
+              "edge": 300.03944692295045
+            }
+          ],
+          "cameraCalls": 3
+        },
+        {
+          "name": "望京",
+          "width": 1016,
+          "height": 744,
+          "zoom": 12.29,
+          "center": [
+            116.46,
+            40.0125
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 115.99999999976723,
+              "y": 383.63212191243656,
+              "edge": 115.99999999976723
+            },
+            {
+              "id": "long-east",
+              "x": 900,
+              "y": 360.3678780873306,
+              "edge": 116
+            }
+          ],
+          "cameraCalls": 4
+        },
+        {
+          "name": "丽泽",
+          "width": 1016,
+          "height": 744,
+          "zoom": 16,
+          "center": [
+            116.35,
+            39.87
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 507.99999999813735,
+              "y": 372,
+              "edge": 372
+            },
+            {
+              "id": "same",
+              "x": 507.99999999813735,
+              "y": 372,
+              "edge": 372
+            }
+          ],
+          "cameraCalls": 5
+        },
+        {
+          "name": "locate current project after real pointer drag",
+          "id": "single",
+          "moved": [
+            116.338154,
+            39.873192
+          ],
+          "recentered": [
+            116.35,
+            39.87
+          ],
+          "nativeTouch": false
+        },
+        {
+          "name": "independent list selection for same-coordinate buildings",
+          "selections": [
+            {
+              "id": "single",
+              "center": [
+                116.35,
+                39.87
+              ]
+            },
+            {
+              "id": "same",
+              "center": [
+                116.35,
+                39.87
+              ]
+            }
+          ]
+        },
+        {
+          "name": "rapid A B C",
+          "width": 1016,
+          "height": 744,
+          "zoom": 16,
+          "center": [
+            116.32,
+            39.98
+          ],
+          "points": [
+            {
+              "id": "other",
+              "x": 508,
+              "y": 372,
+              "edge": 372
+            }
+          ],
+          "cameraCalls": 15
+        },
+        {
+          "name": "complete photo, material and Stacking round trip",
+          "beforeStack": [
+            14,
+            116.46,
+            39.91
+          ],
+          "afterStack": [
+            14,
+            116.46,
+            39.91
+          ],
+          "regionPreserved": true,
+          "selectedModes": 4
+        },
+        {
+          "width": 1536,
+          "regionCameraHasNoDuplicateTarget": true,
+          "commands": [
+            {
+              "at": 25.5,
+              "zoom": 13.922611367280691,
+              "center": [
+                116.49499999999995,
+                39.93000292175058
+              ],
+              "immediately": false,
+              "duration": 240,
+              "width": 1016,
+              "height": 744
+            }
+          ],
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "zoom": 13.92
+        },
+        {
+          "name": "distinct supply identity in all four modes",
+          "results": [
+            {
+              "id": "future-cbd",
+              "mode": "default",
+              "glyph": "F",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "future-cbd",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "future-cbd",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "future-cbd",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "default",
+              "glyph": "?",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            }
+          ],
+          "legendMatches": true
+        }
+      ],
+      "emptyAndClose": "pass"
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 98
+      },
+      "scenes": [
+        {
+          "name": "CBD",
+          "width": 390,
+          "height": 233.296875,
+          "zoom": 11.7,
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 111.993620442925,
+              "y": 178.35499999998137,
+              "edge": 54.94187500001863
+            },
+            {
+              "id": "cbd-b",
+              "x": 159.42583733273204,
+              "y": 147.43427605193574,
+              "edge": 85.86259894806426
+            },
+            {
+              "id": "future-cbd",
+              "x": 278.0063795573078,
+              "y": 54.64499999990221,
+              "edge": 54.64499999990221
+            },
+            {
+              "id": "pending-map-project",
+              "x": 206.85805422265548,
+              "y": 101.04472218558658,
+              "edge": 101.04472218558658
+            }
+          ],
+          "cameraCalls": 1
+        },
+        {
+          "name": "望京",
+          "width": 390,
+          "height": 233.296875,
+          "zoom": 10.57,
+          "center": [
+            116.46,
+            40.0125
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 75.99999999994179,
+              "y": 120.03117986628787,
+              "edge": 75.99999999994179
+            },
+            {
+              "id": "long-east",
+              "x": 314.0000000000582,
+              "y": 112.96882013368304,
+              "edge": 75.99999999994179
+            }
+          ],
+          "cameraCalls": 2
+        },
+        {
+          "name": "丽泽",
+          "width": 390,
+          "height": 233.296875,
+          "zoom": 16,
+          "center": [
+            116.35,
+            39.87
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 194.99999999813735,
+              "y": 116.5,
+              "edge": 116.5
+            },
+            {
+              "id": "same",
+              "x": 194.99999999813735,
+              "y": 116.5,
+              "edge": 116.5
+            }
+          ],
+          "cameraCalls": 3
+        },
+        {
+          "name": "locate current project after real pointer drag",
+          "id": "single",
+          "moved": [
+            116.346017,
+            39.871292
+          ],
+          "recentered": [
+            116.35,
+            39.87
+          ],
+          "nativeTouch": false
+        },
+        {
+          "name": "independent list selection for same-coordinate buildings",
+          "selections": [
+            {
+              "id": "single",
+              "center": [
+                116.35,
+                39.87
+              ]
+            },
+            {
+              "id": "same",
+              "center": [
+                116.35,
+                39.87
+              ]
+            }
+          ]
+        },
+        {
+          "name": "rapid A B C",
+          "width": 390,
+          "height": 233.296875,
+          "zoom": 16,
+          "center": [
+            116.32,
+            39.98
+          ],
+          "points": [
+            {
+              "id": "other",
+              "x": 195,
+              "y": 116.5,
+              "edge": 116.5
+            }
+          ],
+          "cameraCalls": 14
+        },
+        {
+          "width": 390,
+          "regionCameraHasNoDuplicateTarget": true,
+          "commands": [
+            {
+              "at": 5.700000047683716,
+              "zoom": 16,
+              "center": [
+                116.32,
+                39.98
+              ],
+              "immediately": true,
+              "duration": 0,
+              "width": 390,
+              "height": 233.296875
+            },
+            {
+              "at": 48.10000002384186,
+              "zoom": 11.703504679753559,
+              "center": [
+                116.49499999999995,
+                39.93000292175058
+              ],
+              "immediately": false,
+              "duration": 240,
+              "width": 390,
+              "height": 233.296875
+            }
+          ],
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "zoom": 11.7
+        },
+        {
+          "name": "distinct supply identity in all four modes",
+          "results": [
+            {
+              "id": "future-cbd",
+              "mode": "default",
+              "glyph": "F",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "default",
+              "glyph": "?",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            }
+          ],
+          "legendMatches": true
+        }
+      ],
+      "emptyAndClose": "pass"
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 84
+      },
+      "scenes": [
+        {
+          "name": "CBD",
+          "width": 444,
+          "height": 212,
+          "zoom": 11.54,
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 148.1390165577177,
+              "y": 161.03999999992084,
+              "edge": 50.96000000007916
+            },
+            {
+              "id": "cbd-b",
+              "x": 190.34529281046707,
+              "y": 133.5260294866166,
+              "edge": 78.47397051338339
+            },
+            {
+              "id": "future-cbd",
+              "x": 295.8609834423987,
+              "y": 50.95999999990453,
+              "edge": 50.95999999990453
+            },
+            {
+              "id": "pending-map-project",
+              "x": 232.55156906333286,
+              "y": 92.24753874534508,
+              "edge": 92.24753874534508
+            }
+          ],
+          "cameraCalls": 1
+        },
+        {
+          "name": "望京",
+          "width": 444,
+          "height": 212,
+          "zoom": 10.78,
+          "center": [
+            116.46,
+            40.0125
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 84.63999999995576,
+              "y": 110.07599047420081,
+              "edge": 84.63999999995576
+            },
+            {
+              "id": "long-east",
+              "x": 359.36000000004424,
+              "y": 101.92400952574097,
+              "edge": 84.63999999995576
+            }
+          ],
+          "cameraCalls": 2
+        },
+        {
+          "name": "丽泽",
+          "width": 444,
+          "height": 212,
+          "zoom": 16,
+          "center": [
+            116.35,
+            39.87
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 221.99999999813735,
+              "y": 106,
+              "edge": 106
+            },
+            {
+              "id": "same",
+              "x": 221.99999999813735,
+              "y": 106,
+              "edge": 106
+            }
+          ],
+          "cameraCalls": 3
+        },
+        {
+          "name": "locate current project after real pointer drag",
+          "id": "single",
+          "moved": [
+            116.345271,
+            39.870899
+          ],
+          "recentered": [
+            116.35,
+            39.87
+          ],
+          "nativeTouch": false
+        },
+        {
+          "name": "independent list selection for same-coordinate buildings",
+          "selections": [
+            {
+              "id": "single",
+              "center": [
+                116.35,
+                39.87
+              ]
+            },
+            {
+              "id": "same",
+              "center": [
+                116.35,
+                39.87
+              ]
+            }
+          ]
+        },
+        {
+          "name": "rapid A B C",
+          "width": 444,
+          "height": 212,
+          "zoom": 16,
+          "center": [
+            116.32,
+            39.98
+          ],
+          "points": [
+            {
+              "id": "other",
+              "x": 222,
+              "y": 106,
+              "edge": 106
+            }
+          ],
+          "cameraCalls": 12
+        },
+        {
+          "width": 844,
+          "regionCameraHasNoDuplicateTarget": true,
+          "commands": [
+            {
+              "at": 5.899999976158142,
+              "zoom": 16,
+              "center": [
+                116.32,
+                39.98
+              ],
+              "immediately": true,
+              "duration": 0,
+              "width": 444,
+              "height": 212
+            },
+            {
+              "at": 39.800000071525574,
+              "zoom": 11.535094930765752,
+              "center": [
+                116.49499999999995,
+                39.93000292175058
+              ],
+              "immediately": false,
+              "duration": 240,
+              "width": 444,
+              "height": 212
+            }
+          ],
+          "center": [
+            116.495,
+            39.930003
+          ],
+          "zoom": 11.54
+        },
+        {
+          "name": "distinct supply identity in all four modes",
+          "results": [
+            {
+              "id": "future-cbd",
+              "mode": "default",
+              "glyph": "F",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "default",
+              "glyph": "?",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            }
+          ],
+          "legendMatches": true
+        }
+      ],
+      "emptyAndClose": "pass"
+    }
+  ],
+  "status": "pass"
+}

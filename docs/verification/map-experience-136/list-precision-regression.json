@@ -1,0 +1,33 @@
+{
+  "before": {
+    "testsFailed": 3,
+    "scope": "Actual rendered card, compact row and full list; integer100 showed100 instead of100.0"
+  },
+  "after": {
+    "files": 5,
+    "testsPassed": 55,
+    "cases": [
+      "integer100.0",
+      "real zero0.0",
+      "missing em dash",
+      "fraction146.16 rounds146.2",
+      "area80000 stays80,000"
+    ],
+    "typecheck": "pass after build; initial concurrent build/typecheck lost generated .next/types files (TS6053), not a source type failure",
+    "lint": {
+      "errors": 0,
+      "warnings": 17
+    },
+    "productionBuild": "pass",
+    "browserWidths": [
+      1536,
+      390,
+      320,
+      844
+    ]
+  },
+  "limits": [
+    "Fixture identity/business and synthetic SDK; no new live SDK or CPU claim",
+    "Production data distribution not inspected record by record"
+  ]
+}

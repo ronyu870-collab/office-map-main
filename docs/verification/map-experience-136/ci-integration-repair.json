@@ -1,0 +1,57 @@
+{
+  "ci": {
+    "run": 45237213405,
+    "head": "ccdf3141bfc6fc42ea5f6fa473aae68c2a7fc098",
+    "result": "failure",
+    "engineering": {
+      "testFiles": {
+        "failed": 2,
+        "passed": 382
+      },
+      "failedCases": 4,
+      "causes": [
+        "Three FloatingBuildingList.materials cases omitted authenticated session after bridge began enforcing session scope",
+        "Related-leases source check still required obsolete 12px/11px typography"
+      ]
+    },
+    "auth": {
+      "job": 137912246823,
+      "scenario": "Admin Stacking query + read_result_page",
+      "actualHttp": 503,
+      "expectedHttp": 200,
+      "internalErrorCaptured": false
+    }
+  },
+  "guardRegression": {
+    "old": {
+      "tests": 17,
+      "failed": 3,
+      "passed": 14,
+      "failureModes": [
+        "Safe actual observation with identifier containing 1001/600 was rejected",
+        "Actual AuthorizedResultWorkset.register metadata with fixture digits was rejected",
+        "A private preview with different unit values was not rejected"
+      ]
+    },
+    "fixed": {
+      "validation": "Strict observation and actual workset metadata keys; private fixture values checked only in model-readable columns/limitations/note; no table/preview/rows/cells allowed",
+      "modelRounds": "Initial query and nested result observations after read_result_page",
+      "tests": {
+        "files": 6,
+        "passed": 38
+      },
+      "typecheck": "pass",
+      "changedLint": {
+        "errors": 0,
+        "warnings": 0
+      },
+      "scriptSyntax": "pass"
+    }
+  },
+  "limits": [
+    "Original CI internal exception was not retained; the guard defect is deterministically reproduced, not asserted to be the only cause of that CI 503",
+    "Production authorization and AI payload implementation unchanged",
+    "Local Docker daemon unavailable; new real Auth CI still required",
+    "Camera application build and actual-browser/real-SDK evidence are retained from camera-extent batch; these later changes affect tests only"
+  ]
+}

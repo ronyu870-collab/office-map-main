@@ -103,3 +103,13 @@ it('never opens a stock quarterly-metrics editor with a future-supply identity',
   controller.runWorkspaceBuildingAction('edit',future);
   expect(edit).not.toHaveBeenCalled();
 });
+
+it('bridges trend reading with its project identity without reinterpreting it as business data', () => {
+  const {controller}=fixture();const toggle=vi.fn();
+  Object.assign(window,{__colliers_toggleTrend:toggle});
+  try {
+    const reading={value:{metric:'vac' as const,tableOpen:true},onChange:vi.fn()};
+    controller.runWorkspaceBuildingAction('trend',{id:'a',_dataType:'existing'},reading);
+    expect(toggle).toHaveBeenCalledExactlyOnceWith('a',reading);
+  } finally { delete (window as any).__colliers_toggleTrend; }
+});

@@ -3,6 +3,8 @@
  */
 
 "use client";
+import { mountBuildingContactDialog } from "./map/buildingContactDialog";
+import type { TrendChartReadingOptions } from "./map/trendChartReading";
 import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { coordinateIssue, fitMapExtent } from '@/src/app/map/runtime/mapExtent';
@@ -401,13 +403,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       overrides: Object.fromEntries(this._displayOverridesCache.get(building.id) ?? []) };
   }
 
-  runWorkspaceBuildingAction(action: 'nearby' | 'contact' | 'trend' | 'edit', building: WorkspaceBuilding): void {
+  runWorkspaceBuildingAction(action: 'nearby' | 'contact' | 'trend' | 'edit', building: WorkspaceBuilding, trendReading?: TrendChartReadingOptions): void {
     if (action === 'edit') { if (this._isAdmin && !this._isDemo && building._dataType !== 'future') this._onEditBuildingMetrics?.(building.id, building.name ?? ''); }
     if (action === 'nearby' && hasMapCoordinates(building)) {
       (window as any).__colliers_analyzeCompetitors?.(building.id, building.location_lng, building.location_lat, Number(pickLatestMetric(building.metrics ?? [])?.net_effective_rent ?? 0));
     }
     if (action === 'contact') (window as any).__colliers_showContactModal?.(this._isDemo ? '***' : building.name, this._isDemo ? '***' : building.contact_phone || '', building.id);
-    if (action === 'trend') (window as any).__colliers_toggleTrend?.(building.id);
+    if (action === 'trend') (window as any).__colliers_toggleTrend?.(building.id, trendReading);
   }
 
   disposeWorkspaceTrend(): void { this.clearBuildingPopupTrend(); }
@@ -427,6 +429,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   private markers: any[] = [];
   private dotMarkers: any[] = []; // Level 3: 小圆点标记
+  private closeContactDialog?: () => void;
   private futureMarkers: any[] = [];
   private futureMarkersById = new Map<string, any>();
   private _cachedFutureSuppliesPromise: Promise<any[]> | null = null;
@@ -553,160 +556,16 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         buildingId?: string,
       ) => {
         try {
-          // 创建遮罩层
-          const overlay = document.createElement("div");
-          overlay.id = "__colliers_contact_modal_overlay";
-          overlay.style.cssText = `
-            position: fixed;
-            inset: 0;
-            z-index: 99999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-          `;
-
-          // 创建弹窗内容
-          const hasPhone = contactPhone && contactPhone.trim() !== "";
-          const modalContent = `
-            <div style="
-              position: relative;
-              width: 90%;
-              max-width: 420px;
-              background: #ffffff;
-              border-radius: 12px;
-              border: 1px solid #e2e8f0;
-              box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-              padding: 24px;
-              font-family: ui-sans-serif, system-ui, -apple-system;
-            ">
-              <!-- 关闭按钮 -->
-              <button 
-                onclick="document.getElementById('__colliers_contact_modal_overlay').remove()"
-                style="
-                  position: absolute;
-                  top: 16px;
-                  right: 16px;
-                  width: 32px;
-                  height: 32px;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  border-radius: 50%;
-                  border: none;
-                  background: transparent;
-                  color: #94a3b8;
-                  cursor: pointer;
-                  transition: all 0.2s;
-                "
-                onmouseover="this.style.background='#f1f5f9'; this.style.color='#475569';"
-                onmouseout="this.style.background='transparent'; this.style.color='#94a3b8';"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-              
-              <!-- 标题 -->
-              <div style="margin-bottom: 20px;">
-                <h3 style="font-size: 18px; font-weight: 900; color: #0f172a; margin: 0 0 4px 0;">${escapeHtml(buildingName)}</h3>
-                <p style="font-size: 14px; color: #64748b; margin: 0;">联系方式</p>
-              </div>
-              
-              <!-- 内容区域 -->
-              <div style="
-                border-radius: 8px;
-                border: 1px solid #e2e8f0;
-                background: #f8fafc;
-                padding: 20px;
-              ">
-                ${
-                  hasPhone
-                    ? `
-                  <div style="display: flex; align-items: center; gap: 16px;">
-                    <div style="
-                      flex-shrink: 0;
-                      width: 48px;
-                      height: 48px;
-                      display: flex;
-                      align-items: center;
-                      justify-content: center;
-                      border-radius: 50%;
-                      background: #dbeafe;
-                    ">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                      </svg>
-                    </div>
-                    <div style="flex: 1; min-width: 0;">
-                      <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">联系电话</div>
-                      <div style="font-size: 20px; font-weight: 900; color: #0f172a;">${escapeHtml(contactPhone)}</div>
-                    </div>
-                    <a 
-                      href="tel:${escapeHtml(contactPhone)}"
-                      style="
-                        flex-shrink: 0;
-                        background: #3b82f6;
-                        color: #ffffff;
-                        border: none;
-                        border-radius: 8px;
-                        padding: 10px 20px;
-                        font-size: 14px;
-                        font-weight: 700;
-                        text-decoration: none;
-                        cursor: pointer;
-                        transition: all 0.2s;
-                      "
-                      onmouseover="this.style.background='#2563eb';"
-                      onmouseout="this.style.background='#3b82f6';"
-                    >
-                      拨打
-                    </a>
-                  </div>
-                `
-                    : `
-                  <div style="
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 32px 16px;
-                    text-align: center;
-                  ">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="8" x2="12" y2="12"></line>
-                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <p style="font-size: 15px; font-weight: 700; color: #475569; margin: 0 0 8px 0;">暂无联系方式数据</p>
-                    <p style="font-size: 13px; color: #94a3b8; margin: 0;">该楼宇尚未录入联系电话</p>
-                  </div>
-                `
-                }
-              </div>
-            </div>
-          `;
-
-          overlay.innerHTML = modalContent;
-
-          // 点击遮罩层关闭弹窗
-          overlay.addEventListener("click", (e) => {
-            if (e.target === overlay) {
-              overlay.remove();
-            }
+          this.closeContactDialog = mountBuildingContactDialog(buildingName, contactPhone, () => {
+            if (buildingId && !this._destroyed) auditBuildingReading('VIEW_BUILDING_CONTACT', { id: buildingId, name: buildingName }, undefined, this._isDemo);
           });
-
-          document.body.appendChild(overlay);
-          if (buildingId) auditBuildingReading('VIEW_BUILDING_CONTACT', { id: buildingId, name: buildingName }, undefined, this._isDemo);
         } catch (error) {
           console.error("[Action Module] Failed to show contact modal", error);
           alert("联系方式弹窗加载失败，请稍后再试。");
         }
       };
 
-      (window as any).__colliers_toggleTrend = (buildingId: string) => {
+      (window as any).__colliers_toggleTrend = (buildingId: string, reading?: TrendChartReadingOptions) => {
         const panel = document.getElementById("info-chart-panel");
         if (!panel) return;
         const trend = (window as any).__colliers_trend;
@@ -754,6 +613,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             if (!data?.length) {
               chartDom.innerHTML =
                 '<div role="status" class="workspace-trend-status">暂无历史数据</div>';
+              reading?.onReady?.();
               return;
             }
 
@@ -807,8 +667,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                   const building = this.workspaceBuilding?.id === buildingId ? this.workspaceBuilding : this._allBuildingsCache.find(item => item.id === buildingId);
                   const chart = initTrendChart(chartDom, chartData, metric => {
                     auditBuildingReading('VIEW_BUILDING_TREND', { id: buildingId, name: building?.name }, { metric }, this._isDemo);
-                  });
+                  }, reading);
                   if (chart) trend.chart = chart;
+                  reading?.onReady?.();
                 });
               })
               .catch((error) => {
@@ -821,6 +682,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                 console.error("[MapController] 趋势图运行时加载失败:", error);
                 chartDom.innerHTML =
                   '<div role="status" class="workspace-trend-status">趋势图加载失败，请稍后重试</div>';
+                reading?.onReady?.();
               });
           })
           .catch((error) => {
@@ -828,6 +690,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             console.error("[MapController] 历史趋势读取失败:", error);
             chartDom.innerHTML =
               '<div role="status" class="workspace-trend-status">历史数据读取失败，请稍后重试</div>';
+            reading?.onReady?.();
           });
       };
     }
@@ -2171,7 +2034,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
     const submarketMap = new Map<string, any>();
     const visibleSubmarkets = new Set(items.map(b => normalizeMapSubmarket(b.submarket)));
-    const fullSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? (this._allBuildingsCache.length ? this._allBuildingsCache : items));
+    const scopedSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? items);
     for (const b of overviewBuildings ?? items) {
       const sub = normalizeMapSubmarket(b.submarket);
       if (!visibleSubmarkets.has(sub)) continue;
@@ -2250,7 +2113,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const centerLat = agg.latSum / agg.coordCount;
 
       // 计算用于数值比较的纯数字
-      const fullSummary = fullSubmarketSummaries.get(agg.name);
+      const fullSummary = scopedSubmarketSummaries.get(agg.name);
       const avgRentNum = fullSummary?.rent ?? 0;
       const vacRateNum = fullSummary?.vacancyPct ?? Number.NaN;
 
@@ -2929,6 +2792,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   destroy(): void {
     this._destroyed = true;
+    this.closeContactDialog?.();
+    this.closeContactDialog = undefined;
     this.initialTilesReady = false;
     this.releaseBuildingPopup();
     this.releaseFuturePhotoGallery();

@@ -1,3 +1,10 @@
+import { verifyRegionCamera } from './workspace-region-camera.mjs';
+import { verifySurfaceContinuity } from './workspace-surface-continuity.mjs';
+import { verifyRelatedReading } from './workspace-related-reading.mjs';
+import { verifyContactReading } from './workspace-contact-reading.mjs';
+import { verifyMaterialReading } from './workspace-material-reading.mjs';
+import { verifyProjectTrendReturn } from './workspace-project-trend-return.mjs';
+import { verifyBubbleScope } from './workspace-bubble-scope.mjs';
 import { verifyLeedFilters } from './workspace-leed-filters.mjs';
 import { verifyListReading } from './workspace-list-reading.mjs';
 import { verifyProjectTrendReading } from './workspace-project-trend.mjs';
@@ -46,6 +53,7 @@ function instrumentMap() {
   window.AMap.Map = class extends BaseMap {
     constructor(id, options) { super(id, options); stats.created++; window.__workspaceMap = this; this.host = document.getElementById(id); }
     getContainer() { return this.host; }
+    setZoomAndCenter(zoom,center) { super.setZoomAndCenter(zoom,center); this.emit('zoomend'); }
     setCenter(center) { this.center = Array.isArray(center) ? center : [center.getLng?.() ?? center.lng, center.getLat?.() ?? center.lat]; stats.centers.push(this.center); }
     setBounds(bounds) { this.center = bounds.southwest.map((value, index) => (value + bounds.northeast[index]) / 2); }
     resize() { stats.resized++; }
@@ -361,10 +369,11 @@ try {
         if (width < 640) await clickWorkspaceAction(page,'收起为摘要');
       }
       await page.getByRole('button', { name: '联系方式', exact: true }).click();
-      await page.locator('#__colliers_contact_modal_overlay').waitFor();
+      await page.getByRole('dialog', { name: 'CBD甲楼', exact: true }).waitFor();
       await page.keyboard.press('Escape');
       assert.equal(await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).count(), 1, 'Escape in a business modal must not close its workspace');
-      await page.locator('#__colliers_contact_modal_overlay button').first().click();
+      await page.getByRole('dialog', { name: 'CBD甲楼', exact: true }).waitFor({state:'detached'});
+      assert.equal(await page.getByRole('button',{name:'联系方式',exact:true}).evaluate(node=>node===document.activeElement),true,'closing contacts restores its visible trigger');
       await page.getByRole('button', { name: '楼书与资料', exact: true }).click();
       const materials = page.getByRole('dialog');
       await materials.getByRole('button', { name: '查看原件', exact: true }).click();
@@ -620,6 +629,27 @@ try {
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
       if ([1536,390,320,844].includes(width)) {
+        const regionCameraPage=await context.newPage();
+        try { observations.push(await verifyRegionCamera(regionCameraPage,{width,base})); }
+        finally { await regionCameraPage.close(); }
+        const surfacePage=await context.newPage();
+        try { observations.push(await verifySurfaceContinuity(surfacePage,{width,base})); }
+        finally { await surfacePage.close(); }
+        const contactPage=await context.newPage();
+        try { observations.push(await verifyContactReading(contactPage,{width,base})); }
+        finally { await contactPage.close(); }
+        const materialReadingPage=await context.newPage();
+        try { observations.push(await verifyMaterialReading(materialReadingPage,{width,base})); }
+        finally { await materialReadingPage.close(); }
+        const relatedPage=await context.newPage();
+        try { observations.push(await verifyRelatedReading(relatedPage,{width,base})); }
+        finally { await relatedPage.close(); }
+        const trendReturnPage=await context.newPage();
+        try { observations.push(await verifyProjectTrendReturn(trendReturnPage,{width,base})); }
+        finally { await trendReturnPage.close(); }
+        const bubbleScopePage=await context.newPage();
+        try { observations.push(await verifyBubbleScope(bubbleScopePage,{width,base})); }
+        finally { await bubbleScopePage.close(); }
         const leedPage=await context.newPage();
         try { observations.push(await verifyLeedFilters(leedPage,{width,base})); }
         finally { await leedPage.close(); }

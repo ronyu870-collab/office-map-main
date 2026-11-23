@@ -46,7 +46,7 @@ describe('map return context', () => {
       ...saved().reading, previousSheetModes: { building: 'reading' }, filterScroll: 120,
       submarkets: { CBD: { section: 'trend', grade: 'a', scrollTop: 180 } },
       supplyExpanded: { '2027': true }, supplyScroll: 90,
-      buildings: { 'existing:a': { tab: 'market', scrollTop: 80, scrolls: { overview: 150, market: 80 }, trendOpen: true, photo: { open: true, index: 1 } } },
+      buildings: { 'existing:a': { tab: 'market', scrollTop: 80, scrolls: { overview: 150, market: 80 }, trendOpen: true, trendHeight: 640, trend: { metric: 'vac', tableOpen: true }, photo: { open: true, index: 1 } } },
     } } as unknown as MapReturnSnapshot;
     saveMapReturn('scope', token, value);
     expect(readMapReturn('scope', token)).toEqual(value);

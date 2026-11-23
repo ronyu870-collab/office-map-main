@@ -1,6 +1,7 @@
 'use client';
 
 import { dealHistoryHref } from '@/src/lib/broker/links';
+import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { canAccessModule } from '@/src/utils/accessControl';
 import * as React from 'react';
@@ -21,6 +22,7 @@ type BuildingContext = {
   buildingId: string;
   buildingName?: string;
   backHref?: string;
+  scope: string;
 };
 
 type LeaseRow = {
@@ -95,16 +97,17 @@ function DetailItem({
 }) {
   return (
     <div className={span === 2 ? 'col-span-2 min-w-0' : 'min-w-0'}>
-      <div className="text-[11px] font-medium leading-4 text-[var(--cd-color-text-muted)]">{label}</div>
-      <div className={`mt-1 text-[12px] leading-5 ${subdued ? 'text-[var(--cd-color-text-secondary)]' : 'text-[var(--cd-color-text-primary)]'}`}>
+      <div className="text-sm font-normal leading-5 text-[var(--cd-color-text-muted)]">{label}</div>
+      <div className={`mt-1 break-words text-sm leading-5 ${subdued ? 'text-[var(--cd-color-text-secondary)]' : 'text-[var(--cd-color-text-primary)]'}`}>
         {value}
       </div>
     </div>
   );
 }
 
-async function loadBuildingLeases(buildingId: string, page: number): Promise<LeasePayload> {
+async function loadBuildingLeases(buildingId: string, page: number, signal: AbortSignal): Promise<LeasePayload> {
   const session = await getSessionFast();
+  if (signal.aborted) throw new DOMException('Read cancelled', 'AbortError');
   const token = session?.session?.access_token;
   if (!token) throw new Error('登录状态异常，请重新登录');
   const headers = withImpersonationHeaders({ Authorization: `Bearer ${token}` });
@@ -123,7 +126,7 @@ async function loadBuildingLeases(buildingId: string, page: number): Promise<Lea
   });
   if (reusedCount !== null) params.set('include_count', '0');
   const response = await fetch(`/api/lease-transactions/read?${params.toString()}`, {
-    headers,
+    headers, signal,
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || '关联成交读取失败');
@@ -132,40 +135,65 @@ async function loadBuildingLeases(buildingId: string, page: number): Promise<Lea
     count: typeof body.count === 'number' ? body.count : (reusedCount ?? 0),
     records: (body.records ?? []) as LeaseRow[],
   };
+  if (signal.aborted) throw new DOMException('Read cancelled', 'AbortError');
   cache.set(cacheKey, { payload, cachedAt: Date.now() });
   return payload;
 }
 
 export function MapLeaseTransactionsBridge() {
-  const { session } = useAppSession();
+  const { session, status } = useAppSession();
+  const { targetUserId, targetRole } = useImpersonation();
+  const sessionScope = JSON.stringify([status, session?.user.id, session?.role, session?.sessionId, targetUserId, targetRole]);
+  const origin = React.useRef<HTMLElement | null>(null);
+  const panel = React.useRef<HTMLElement | null>(null);
   const [context, setContext] = React.useState<BuildingContext | null>(null);
   const [page, setPage] = React.useState(0);
-  const [payload, setPayload] = React.useState<LeasePayload | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [resource, setResource] = React.useState<{ key: string; payload: LeasePayload | null; error: string | null } | null>(null);
   const [expandedReadId, setExpandedReadId] = React.useState<string | null>(null);
+
+  const activeContext = context?.scope === sessionScope && status === 'authenticated' ? context : null;
+  const readKey = activeContext ? JSON.stringify([activeContext.scope, activeContext.buildingId, page]) : '';
+  const payload = resource?.key === readKey ? resource.payload : null;
+  const error = resource?.key === readKey ? resource.error : null;
+  const loading = Boolean(activeContext) && resource?.key !== readKey;
+  const dismiss = React.useCallback(() => {
+    setContext(null);
+    if (origin.current?.isConnected && !origin.current.closest('[inert], [aria-hidden="true"]')) origin.current.focus({ preventScroll: true });
+  }, []);
+  React.useEffect(() => {
+    cache.clear();
+    setContext(null);
+    setResource(null);
+    return () => { cache.clear(); };
+  }, [sessionScope]);
+  const activeBuildingId = activeContext?.buildingId;
+  React.useLayoutEffect(() => {
+    if (activeBuildingId) panel.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+  }, [activeBuildingId, sessionScope]);
 
   React.useEffect(() => {
     const handleClick = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       const button = target?.closest<HTMLButtonElement>(`button[data-map-action="${RELATED_ACTION_ID}"]`);
-      if (!button) return;
+      if (!button || status !== 'authenticated') return;
 
       const nextContext = readBuildingPopupContext(button);
       if (!nextContext) return;
       event.preventDefault();
       event.stopPropagation();
 
+      origin.current = button;
       setPage(0);
       setExpandedReadId(null);
-      setContext({ ...nextContext, backHref: currentMapReturnHref(nextContext.buildingId) });
+      setContext({ ...nextContext, scope: sessionScope, backHref: currentMapReturnHref(nextContext.buildingId) });
     };
 
     const onSection = (event: Event) => {
       const { id, name, section } = (event as CustomEvent).detail;
-      if (section !== 'deals') return;
+      if (section !== 'deals' || status !== 'authenticated') return;
+      origin.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setPage(0);
-      setContext({ buildingId: id, buildingName: name, backHref: currentMapReturnHref(id) });
+      setContext({ buildingId: id, buildingName: name, scope: sessionScope, backHref: currentMapReturnHref(id) });
     };
     document.addEventListener('click', handleClick, true);
     window.addEventListener('broker:building-section', onSection);
@@ -173,50 +201,41 @@ export function MapLeaseTransactionsBridge() {
       document.removeEventListener('click', handleClick, true);
       window.removeEventListener('broker:building-section', onSection);
     };
-  }, []);
+  }, [sessionScope, status]);
 
   React.useEffect(() => {
-    if (!context) {
-      setPayload(null);
-      setError(null);
+    if (!activeContext) {
+      setResource(null);
       setExpandedReadId(null);
       return;
     }
-
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    const controller = new AbortController();
+    setResource(null);
     setExpandedReadId(null);
-
-    void loadBuildingLeases(context.buildingId, page)
+    void loadBuildingLeases(activeContext.buildingId, page, controller.signal)
       .then(nextPayload => {
-        if (!cancelled) setPayload(nextPayload);
+        if (!cancelled) setResource({ key: readKey, payload: nextPayload, error: null });
       })
       .catch(loadError => {
-        if (!cancelled) {
-          setPayload(null);
-          setError(loadError instanceof Error ? loadError.message : '关联成交读取失败');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setResource({ key: readKey, payload: null, error: loadError instanceof Error ? loadError.message : '关联成交读取失败' });
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [context, page]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [activeContext, page, readKey]);
 
   React.useEffect(() => {
-    if (!context) return;
+    if (!activeContext) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setContext(null);
+      if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('dialog[open], [aria-modal="true"]')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      dismiss();
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [context]);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [activeContext, dismiss]);
 
-  if (!context) return null;
+  if (!activeContext) return null;
 
   const count = payload?.count ?? 0;
   const records = payload?.records ?? [];
@@ -224,38 +243,40 @@ export function MapLeaseTransactionsBridge() {
 
   return (
     <aside
+      ref={panel}
+      data-map-related-leases
       role="dialog"
       aria-modal="false"
-      aria-label={`${context.buildingName || '当前楼宇'}关联成交`}
-      className="fixed bottom-4 right-4 top-[70px] z-[560] flex w-[420px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-xl border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-drawer)]"
+      aria-label={`${activeContext.buildingName || '当前楼宇'}关联成交`}
+      className="fixed bottom-4 right-4 top-[70px] z-[560] flex w-[420px] break-words [overflow-wrap:anywhere] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-xl border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-drawer)]"
     >
       <header className="flex items-center justify-between gap-4 border-b border-[var(--cd-color-border)]/70 px-4 py-3.5">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
-            <h2 className="text-[14px] font-semibold leading-5 text-[var(--cd-color-text-primary)]">关联成交</h2>
+            <h2 className="text-base font-semibold leading-6 text-[var(--cd-color-text-primary)]">关联成交</h2>
           </div>
-          <div className="mt-1 truncate pl-6 text-[12px] leading-5 text-[var(--cd-color-text-secondary)]">
-            {context.buildingName || '当前楼宇'}
+          <div className="mt-1 break-words pl-6 text-sm leading-5 text-[var(--cd-color-text-secondary)]">
+            {activeContext.buildingName || '当前楼宇'}
           </div>
         </div>
         <button
           type="button"
-          onClick={() => setContext(null)}
+          onClick={dismiss}
           aria-label="关闭关联成交"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </header>
 
       <div className="flex min-h-10 items-center justify-between gap-3 border-b border-[var(--cd-color-border)]/60 bg-[var(--cd-color-surface-alt)]/35 px-4">
-        <span className="text-[12px] leading-5 text-[var(--cd-color-text-secondary)]">
+        <span className="text-sm leading-5 text-[var(--cd-color-text-secondary)]">
           <strong className="font-semibold tabular-nums text-[var(--cd-color-text-primary)]">{count.toLocaleString('zh-CN')}</strong> 条成交
         </span>
         {canAccessModule('lease-submission', session?.role) && <a className="inline-flex min-h-11 items-center text-sm text-[var(--cd-color-brand)] underline" href={dealHistoryHref(
-          { id: context.buildingId, name: context.buildingName || '当前楼宇' },
-          context.backHref,
+          { id: activeContext.buildingId, name: activeContext.buildingName || '当前楼宇' },
+          activeContext.backHref,
         )}>在成交库查看</a>}
       </div>
 
@@ -272,15 +293,15 @@ export function MapLeaseTransactionsBridge() {
           </div>
         ) : error ? (
           <div className="flex h-full min-h-48 flex-col items-center justify-center px-8 text-center">
-            <div className="text-[13px] font-medium leading-5 text-[var(--cd-color-text-primary)]">关联成交暂时无法读取</div>
-            <div className="mt-1.5 text-[11px] leading-5 text-[var(--cd-color-text-muted)]">{error}</div>
+            <div className="text-sm font-normal leading-5 text-[var(--cd-color-text-primary)]">关联成交暂时无法读取</div>
+            <div className="mt-1.5 text-sm leading-5 text-[var(--cd-color-text-muted)]">{error}</div>
             <button
               type="button"
               onClick={() => {
                 cache.clear();
-                setContext({ ...context });
+                setContext({ ...activeContext });
               }}
-              className="mt-4 text-[12px] font-medium leading-5 text-[var(--cd-color-brand)] hover:underline"
+              className="mt-4 text-sm font-normal leading-5 text-[var(--cd-color-brand)] hover:underline"
             >
               重新加载
             </button>
@@ -288,8 +309,8 @@ export function MapLeaseTransactionsBridge() {
         ) : records.length === 0 ? (
           <div className="flex h-full min-h-48 flex-col items-center justify-center px-8 text-center">
             <Database className="h-7 w-7 text-[var(--cd-color-text-muted)]" aria-hidden="true" />
-            <div className="mt-3 text-[13px] font-medium leading-5 text-[var(--cd-color-text-primary)]">暂无已关联成交</div>
-            <div className="mt-1 text-[11px] leading-5 text-[var(--cd-color-text-muted)]">仅展示已经通过楼宇身份治理确认的成交记录。</div>
+            <div className="mt-3 text-sm font-normal leading-5 text-[var(--cd-color-text-primary)]">暂无已关联成交</div>
+            <div className="mt-1 break-words text-sm leading-5 text-[var(--cd-color-text-muted)]">仅展示已经通过楼宇身份治理确认的成交记录。</div>
           </div>
         ) : (
           <div>
@@ -315,14 +336,14 @@ export function MapLeaseTransactionsBridge() {
                   >
                     <div className="flex items-start gap-3">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0 truncate text-[14px] font-semibold leading-5 text-[var(--cd-color-text-primary)]" title={row.company || '未标注公司'}>
+                        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                          <div className="min-w-0 basis-full break-words text-[14px] font-semibold leading-5 text-[var(--cd-color-text-primary)]" title={row.company || '未标注公司'}>
                             {row.company || '未标注公司'}
                           </div>
-                          <div className="shrink-0 text-[12px] leading-5 tabular-nums text-[var(--cd-color-text-secondary)]">{periodLabel(row)}</div>
+                          <div className="shrink-0 text-sm leading-5 tabular-nums text-[var(--cd-color-text-secondary)]">{periodLabel(row)}</div>
                         </div>
 
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-medium leading-5 text-[var(--cd-color-text-primary)]">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-normal leading-5 text-[var(--cd-color-text-primary)]">
                           {metrics.length > 0 ? metrics.map(metric => (
                             <span key={metric} className="tabular-nums">{metric}</span>
                           )) : (
@@ -331,7 +352,7 @@ export function MapLeaseTransactionsBridge() {
                         </div>
 
                         {(descriptors.length > 0 || row.building_match_scope === 'project') ? (
-                          <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-5 text-[var(--cd-color-text-muted)]">
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm leading-5 text-[var(--cd-color-text-muted)]">
                             {descriptors.map((descriptor, index) => (
                               <React.Fragment key={`${descriptor}-${index}`}>
                                 {index > 0 ? <span aria-hidden="true">·</span> : null}
@@ -341,7 +362,7 @@ export function MapLeaseTransactionsBridge() {
                             {row.building_match_scope === 'project' ? (
                               <>
                                 {descriptors.length > 0 ? <span aria-hidden="true">·</span> : null}
-                                <span className="rounded-md border border-[var(--cd-color-border)]/80 px-1.5 py-0.5 font-medium leading-4 text-[var(--cd-color-text-secondary)]">项目级</span>
+                                <span className="rounded-md border border-[var(--cd-color-border)]/80 px-1.5 py-0.5 font-normal leading-4 text-[var(--cd-color-text-secondary)]">项目级</span>
                               </>
                             ) : null}
                           </div>
@@ -349,14 +370,14 @@ export function MapLeaseTransactionsBridge() {
                       </div>
 
                       <ChevronDown
-                        className={`mt-0.5 h-4 w-4 shrink-0 text-[var(--cd-color-text-muted)] transition-transform duration-200 ease-out ${isExpanded ? 'rotate-180' : ''}`}
+                        className={`mt-0.5 h-4 w-4 shrink-0 text-[var(--cd-color-text-muted)] transition-transform duration-200 ease-out motion-reduce:transition-none ${isExpanded ? 'rotate-180' : ''}`}
                         aria-hidden="true"
                       />
                     </div>
                   </button>
 
                   <div
-                    className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+                    className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
                     aria-hidden={!isExpanded}
                   >
                     <div className="overflow-hidden">
@@ -383,7 +404,7 @@ export function MapLeaseTransactionsBridge() {
                           {row.remarks ? <DetailItem label="备注" value={<span className="whitespace-pre-wrap break-words">{row.remarks}</span>} span={2} /> : null}
                         </div>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--cd-color-border)]/30 pt-2.5 text-[11px] leading-4 text-[var(--cd-color-text-muted)]">
+                        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--cd-color-border)]/30 pt-2.5 text-sm leading-5 text-[var(--cd-color-text-muted)]">
                           <span>来源：{sourceLabel(row)}</span>
                           {row.building_match_scope === 'project' ? (
                             <>
@@ -409,11 +430,11 @@ export function MapLeaseTransactionsBridge() {
             aria-label="上一页关联成交"
             disabled={loading || page <= 0}
             onClick={() => setPage(current => Math.max(0, current - 1))}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
-          <span className="min-w-12 text-center text-[11px] leading-5 tabular-nums text-[var(--cd-color-text-secondary)]">
+          <span className="min-w-12 text-center text-sm leading-5 tabular-nums text-[var(--cd-color-text-secondary)]">
             {page + 1} / {totalPages}
           </span>
           <button
@@ -421,7 +442,7 @@ export function MapLeaseTransactionsBridge() {
             aria-label="下一页关联成交"
             disabled={loading || page + 1 >= totalPages}
             onClick={() => setPage(current => Math.min(totalPages - 1, current + 1))}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
           >
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </button>

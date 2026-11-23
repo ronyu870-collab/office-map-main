@@ -1,0 +1,54 @@
+{
+  "environment": "synthetic SDK; production app and isolated administrator/business HTTP",
+  "viewports": [
+    {
+      "width": 1536,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6,
+      "network": {
+        "sdkOK": 3,
+        "tileOK": 0
+      }
+    },
+    {
+      "width": 390,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6,
+      "network": {
+        "sdkOK": 3,
+        "tileOK": 0
+      }
+    },
+    {
+      "width": 320,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6,
+      "network": {
+        "sdkOK": 3,
+        "tileOK": 0
+      }
+    },
+    {
+      "width": 844,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6,
+      "network": {
+        "sdkOK": 3,
+        "tileOK": 0
+      }
+    }
+  ],
+  "status": "pass"
+}

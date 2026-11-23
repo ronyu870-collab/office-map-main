@@ -69,3 +69,38 @@ describe('map camera/layout coordination', () => {
     expect(map.setZoomAndCenter).toHaveBeenCalledExactlyOnceWith(10, [116.4, 39.9], true, 0); coordinator();
   });
 });
+
+it('does not restart the same region extent when refreshed records have identical coordinates', () => {
+  const host = document.createElement('div');
+  vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 600 } as DOMRect);
+  const coordinator = observeMapCanvas(host, { resize: vi.fn() });
+  const initial = vi.fn(), duplicate = vi.fn();
+  coordinator.focus({ fit: () => {} }, 'CBD');
+  coordinator.update('CBD', { fit: initial, extentKey: 'same coordinates' }); flush();
+  coordinator.update('CBD', { fit: duplicate, extentKey: 'same coordinates' }); flush();
+  expect(initial).toHaveBeenCalledOnce();
+  expect(duplicate).not.toHaveBeenCalled();
+  coordinator();
+});
+
+it('still fits changed data, changed canvas size and explicit region reselection', () => {
+  const host = document.createElement('div');
+  let width = 800;
+  vi.spyOn(host, 'getBoundingClientRect').mockImplementation(() => ({ width, height: 600 }) as DOMRect);
+  const coordinator = observeMapCanvas(host, { resize: vi.fn() });
+  const initial = vi.fn(), changed = vi.fn(), repeated = vi.fn();
+  coordinator.focus({ fit: () => {} }, 'CBD');
+  coordinator.update('CBD', { fit: initial, extentKey: 'stock' }); flush();
+  coordinator.update('CBD', { fit: changed, extentKey: 'stock and delayed future' }); flush();
+  expect(changed).toHaveBeenCalledOnce();
+  width = 640; resize(); flush();
+  expect(changed).toHaveBeenLastCalledWith(true);
+  expect(changed).toHaveBeenCalledTimes(2);
+  host.dispatchEvent(new Event('pointerdown'));
+  coordinator.update('CBD', { fit: repeated, extentKey: 'stock and delayed future' }); flush();
+  expect(repeated).not.toHaveBeenCalled();
+  coordinator.focus({ fit: () => {} }, 'CBD');
+  coordinator.update('CBD', { fit: repeated, extentKey: 'stock and delayed future' }); flush();
+  expect(repeated).toHaveBeenCalledOnce();
+  coordinator();
+});

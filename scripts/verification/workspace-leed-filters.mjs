@@ -6,7 +6,15 @@ export async function verifyLeedFilters(page,{width,base}) {
     const mode=new URL(route.request().url()).searchParams.get('mode');
     return mode==='future'?route.fulfill({json:{future_supplies:[]}}):mode==='map'?route.fulfill({json:{buildings:rows,display_overrides:[]}}):route.fallback();
   });
-  const count=expected=>page.waitForFunction(value=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent===String(value),expected);
+  const enterMap=async()=>{
+    await page.goto(new URL('/map',base).href);
+    await page.waitForFunction(()=>window.__workspaceMap);
+    await page.evaluate(()=>{const map=window.__workspaceMap,c=map.getCenter();map.setZoomAndCenter(11,[c.lng,c.lat]);});
+  };
+  const count=async expected=>{
+    await page.waitForFunction(value=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent===String(value),expected);
+    await page.waitForFunction(value=>document.querySelector('#map-container')?.textContent?.includes(`甲乙级 ${value} 个`),expected);
+  };
   const open=async()=>{
     const toggle=page.getByRole('button',{name:'筛选',exact:true});
     if(await toggle.getAttribute('aria-pressed')!=='true')await toggle.click();
@@ -20,7 +28,7 @@ export async function verifyLeedFilters(page,{width,base}) {
     if(await group.getAttribute('aria-expanded')!=='true')await group.click();
     return page.locator(`[id="${await group.getAttribute('aria-controls')}"]`);
   };
-  await page.goto(new URL('/map',base).href);
+  await enterMap();
   let options=await open();await count(6);
   await options.getByRole('checkbox',{name:'全选',exact:true}).uncheck();
   const negative=options.getByRole('checkbox',{name:'未认证（N）',exact:true});
@@ -39,7 +47,7 @@ export async function verifyLeedFilters(page,{width,base}) {
   await options.getByRole('checkbox',{name:'全选',exact:true}).check();await count(6);
   await options.getByRole('checkbox',{name:'未认证（N）',exact:true}).uncheck();await count(4);
   // New-version explicit exclusion must survive a fresh map entry.
-  await page.goto(new URL('/map',base).href);options=await open();await count(4);
+  await enterMap();options=await open();await count(4);
   assert.equal(await options.getByRole('checkbox',{name:'未认证（N）',exact:true}).isChecked(),false);
   await page.evaluate(()=>{
     const key=Object.keys(sessionStorage).find(key=>key.startsWith('broker-map:v1:'));
@@ -50,7 +58,7 @@ export async function verifyLeedFilters(page,{width,base}) {
     sessionStorage.setItem(key,JSON.stringify(saved));
   });
   // The same four values in an old unversioned full catalog meant all options.
-  await page.goto(new URL('/map',base).href);options=await open();await count(6);
+  await enterMap();options=await open();await count(6);
   assert.equal(await options.getByRole('checkbox',{name:'未认证（N）',exact:true}).isChecked(),true);
   await page.waitForFunction(()=>!document.querySelector('.map-workspace-layout [data-exiting]'));
   await page.screenshot({animations:'disabled',path:`/tmp/map-leed-restored-${width}.png`});

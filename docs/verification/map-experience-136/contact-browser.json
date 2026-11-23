@@ -1,0 +1,42 @@
+{
+  "environment": "Production app with synthetic SDK, authorized business and identity fixtures",
+  "viewports": [
+    {
+      "width": 1536,
+      "namedModal": true,
+      "immediateEscape": true,
+      "longNameAndPhoneReadable": true,
+      "tabLoop": true,
+      "escapeClosesOnlyContact": true,
+      "focusReturnsToContact": true
+    },
+    {
+      "width": 390,
+      "namedModal": true,
+      "immediateEscape": true,
+      "longNameAndPhoneReadable": true,
+      "tabLoop": true,
+      "escapeClosesOnlyContact": true,
+      "focusReturnsToContact": true
+    },
+    {
+      "width": 320,
+      "namedModal": true,
+      "immediateEscape": true,
+      "longNameAndPhoneReadable": true,
+      "tabLoop": true,
+      "escapeClosesOnlyContact": true,
+      "focusReturnsToContact": true
+    },
+    {
+      "width": 844,
+      "namedModal": true,
+      "immediateEscape": true,
+      "longNameAndPhoneReadable": true,
+      "tabLoop": true,
+      "escapeClosesOnlyContact": true,
+      "focusReturnsToContact": true
+    }
+  ],
+  "status": "pass"
+}

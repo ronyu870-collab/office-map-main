@@ -1,0 +1,45 @@
+{
+  "scope": "project trend reading and route continuity",
+  "environment": "local production build; isolated SDK/business/administrator fixtures",
+  "before": {
+    "runtimeAndSnapshot": "2 failed, 15 passed before implementation",
+    "browser": "vacancy selection reset to rent and expanded period table collapsed after Stacking Plan return",
+    "scrollEvidenceBoundary": "Initial 532->0 included automation revealing a non-sticky tab; not attributed wholly to routing. With sticky tabs, first-frame observation still showed 0->209->532; intermediate reserve candidate showed 524->532 due collapsed margin."
+  },
+  "after": {
+    "tests": {
+      "files": 5,
+      "passed": 45
+    },
+    "typecheck": "pass",
+    "eslint": {
+      "errors": 0,
+      "warnings": 111
+    },
+    "productionBuild": "pass",
+    "browser": "four viewports pass; >=8 pending frames through rendered chart retain original position",
+    "fullWorkspace": {
+      "status": "pass",
+      "viewports": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "observations": 48
+    }
+  },
+  "guards": [
+    "same building identity",
+    "same login-scoped snapshot",
+    "optional fields retain older snapshots",
+    "ECharts runtime remains lazy",
+    "current metric audit preserved",
+    "disclosure listener removed on disposal",
+    "loading reserve released on data/runtime failure"
+  ],
+  "limits": [
+    "No new live AMap or CPU sampling; no camera implementation changed.",
+    "Desktop viewport simulation does not prove native phone keyboard, system gestures or screen readers."
+  ]
+}
