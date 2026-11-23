@@ -1,3 +1,4 @@
+import { clickWorkspaceAction } from './workspace-actions.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -16,7 +17,7 @@ const token = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: user.id, 
 const session = { user, expires_at, expires_in: 3600, token_type: 'bearer', refresh_token: 'synthetic', access_token: token };
 const stock = [
   { id: '10000000-1111-4111-8111-111111111111', name: 'CBD甲楼', submarket: 'CBD', location_lng: 116.46, location_lat: 39.91 },
-  { id: 'cbd-b', name: 'CBD乙楼', submarket: 'CBD', location_lng: 116.48, location_lat: 39.92 },
+  { id: 'cbd-b', name: 'CBD乙楼 · International Financial Centre and Metropolitan Business Headquarters Tower B', submarket: 'CBD', location_lng: 116.48, location_lat: 39.92 },
   { id: 'other', name: '中关村楼·' + '超长项目名称及楼座信息'.repeat(6), submarket: '中关村', location_lng: 116.32, location_lat: 39.98 },
   { id: 'missing', name: '未定位楼', submarket: 'CBD', location_lng: null, location_lat: null },
   { id: 'invalid', name: '坐标越界楼', submarket: 'CBD', location_lng: 40, location_lat: 116 },
@@ -24,6 +25,8 @@ const stock = [
 // Unknown financial fields and an older period exercise reading/export semantics.
 Object.assign(stock[1].building_metrics[0], { total_area: null, net_effective_rent: null, face_rent: null,
   management_fee: null, record_year: 2025, record_quarter: 4 });
+stock[0].owner = '北京国际商务中心资产管理与城市更新投资集团有限公司';
+stock[0].property_management = 'InternationalCommercialPropertyManagementAndBuildingServicesCompanyLimited';
 stock[0].photos = [
   {id:'20000000-1111-4111-8111-111111111111',caption:'横向外观'},
   {id:'20000000-2222-4222-8222-222222222222',caption:'竖向大堂'},
@@ -53,12 +56,13 @@ try {
     const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 640 || width === 844, hasTouch: width < 640 || width === 844, serviceWorkers: 'block' });
     const errors = [];
     let stockReads = 0, failSDK = false, photoReads = 0;
+    let dataRows = stock, dataGate = null, releaseData = () => {};
     const auditEvents = new Map();
     let auditFailures = 0;
     let page;
     try {
       await context.routeWebSocket(/.*/, socket => socket.close());
-      await context.route('**/*', route => {
+      await context.route('**/*', async route => {
         const url = new URL(route.request().url());
         if (url.origin === base.origin) {
           if (url.pathname === '/api/intelligence/query/capabilities') return route.fulfill({json:{enabled:width===1024,examples:[]}});
@@ -83,7 +87,8 @@ try {
             if (url.searchParams.get('mode') === 'trend') return route.fulfill({ json: { metrics: [2026, 2025].map(year => ({ record_year: year, record_quarter: year === 2026 ? 3 : 4, net_effective_rent: 200, vacancy_rate: .12 })) } });
             if (url.searchParams.get('mode') === 'future') return route.fulfill({ json: { future_supplies: future } });
             stockReads++;
-            return route.fulfill({ json: { buildings: stock, display_overrides: [] } });
+            if (dataGate) await dataGate;
+            return route.fulfill({ json: { buildings: dataRows, display_overrides: [] } });
           }
           if (url.pathname === '/api/map/submarket') return route.fulfill({ json: {
             submarket: 'CBD', stockCount: 3, profileAvailable: true, profilePublished: true,
@@ -194,7 +199,7 @@ try {
         await list.getByRole('button', { name: '选择项目', exact: true }).click();
         await list.getByRole('checkbox', { name: '选择CBD甲楼', exact: true }).check();
         if (width === 1536) {
-          await list.getByRole('checkbox', { name: '选择CBD乙楼', exact: true }).check();
+          await list.getByRole('checkbox', { name: '选择' + stock[1].name, exact: true }).check();
           await list.getByRole('checkbox', { name: '选择' + stock[2].name, exact: true }).check();
         }
         const exportTrigger = list.getByRole('button', { name: '导出对比图 PNG', exact: true });
@@ -234,10 +239,10 @@ try {
         assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 380, 'list width survives resize and focus mode');
       }
       if (width === 390) {
-        await list.getByRole('button', { name: '阅读', exact: true }).click();
+        await clickWorkspaceAction(page, '展开到阅读高度');
         await page.waitForTimeout(200);
         const readingHeight = (await page.locator('.map-workspace-right').boundingBox()).height;
-        await list.getByRole('button', { name: '全屏阅读工作区', exact: true }).click();
+        await clickWorkspaceAction(page, '全屏阅读工作区');
         await page.keyboard.press('Escape');
         await page.waitForTimeout(200);
         assert.ok(Math.abs((await page.locator('.map-workspace-right').boundingBox()).height - readingHeight) <= 1, 'fullscreen Escape restores prior reading height');
@@ -249,6 +254,15 @@ try {
       if (width === 1536) assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 376, 'building has a distinct default width');
       assert.match(await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).locator('.workspace-rent-metric dd').innerText(), /146\.1\s*元\/㎡\/月/);
       await page.screenshot({ path: `/tmp/map-layout-building-${width}.png` });
+      if ([1536, 390, 320].includes(width)) {
+        const facts = page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).locator('.workspace-building-facts');
+        if (width < 900) await clickWorkspaceAction(page, '展开到阅读高度');
+        await facts.last().scrollIntoViewIfNeeded();
+        assert.ok(await facts.evaluateAll(groups => groups.every(group => group.scrollWidth <= group.clientWidth + 1)), 'long owner and unbroken English company remain within the value column');
+        await page.screenshot({ path: `/tmp/map-reading-long-facts-${width}.png` });
+        await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).locator('.workspace-scroll').evaluate(el => { el.scrollTop = 0; });
+        if (width < 900) await clickWorkspaceAction(page, '收起为摘要');
+      }
       if (width === 1536) {
         await page.getByRole('button', { name: 'LEED', exact: true }).click();
         await page.waitForFunction(() => decodeURIComponent(document.querySelector('.map-selected-marker__badge')?.getAttribute('src') ?? '').includes('>–</text>'));
@@ -265,8 +279,8 @@ try {
         await photo.click();await detail.getByText('当前身份无权查看此图片',{exact:true}).waitFor();
         await detail.getByRole('button',{name:'重试',exact:true}).click();
         await detail.locator('[data-building-photo]:visible').waitFor();
-        await page.getByRole('button',{name:'全屏阅读工作区',exact:true}).click();
-        await page.getByRole('button',{name:'返回地图分屏',exact:true}).click();
+        await clickWorkspaceAction(page, '全屏阅读工作区');
+        await clickWorkspaceAction(page, '返回地图分屏');
         await photo.click();assert.equal(await photo.getAttribute('aria-expanded'),'false');
         await photo.click();assert.equal(await photo.getAttribute('aria-expanded'),'true');
         await detail.getByRole('button',{name:'查看大图',exact:true}).click();
@@ -383,9 +397,18 @@ try {
       assert.equal(await page.locator('#map-container [data-building-id="other"]').count(), 0);
       assert.equal(await list.getByRole('button', { name: /^中关村楼/ }).count(), 0);
       await list.getByRole('button', { name: /^CBD乙楼/ }).click();
-      await page.getByRole('region', { name: 'CBD乙楼楼宇详情' }).waitFor();
+      await page.getByRole('region', { name: stock[1].name + '楼宇详情' }).waitFor();
+      if ([1536,390,320].includes(width)) {
+        const english = page.getByRole('region', { name: stock[1].name + '楼宇详情' });
+        await english.getByTitle('展开完整名称', { exact: true }).click();
+        await page.waitForTimeout(300);
+        assert.ok((await english.locator('.workspace-scroll').boundingBox()).height >= 80, 'expanded English titles keep a usable detail reading area');
+        await page.screenshot({ path: `/tmp/map-reading-long-english-${width}.png` });
+        assert.equal(await english.getByRole('heading').innerText(), stock[1].name);
+        await english.getByTitle('收起完整名称', { exact: true }).click();
+      }
       if (width === 1536) {
-        const unknown = page.getByRole('region', { name: 'CBD乙楼楼宇详情' });
+        const unknown = page.getByRole('region', { name: stock[1].name + '楼宇详情' });
         assert.match(await unknown.locator('.workspace-rent-metric dd').innerText(), /^—/);
         await unknown.getByRole('tab', { name: '行情', exact: true }).click();
         assert.ok((await unknown.locator('.workspace-market-facts dd').allInnerTexts()).every(value => value.trim().startsWith('—')), 'missing fees cannot read as a real zero');
@@ -442,9 +465,9 @@ try {
       await page.getByRole('tab', { name: '成交与资料' }).click();
       assert.equal(await page.getByRole('button', { name: '销控与佣金' }).getAttribute('data-building-id'), 'master-cbd');
       if (width === 390) {
-        await page.getByRole('button', { name: '全屏阅读工作区' }).click();
+        await clickWorkspaceAction(page, '全屏阅读工作区');
         assert.equal(await page.locator('.map-workspace-layout').getAttribute('data-expanded'), 'true');
-        await page.getByRole('button', { name: '返回地图分屏' }).click();
+        await clickWorkspaceAction(page, '返回地图分屏');
       }
       await page.getByRole('button', { name: '关闭楼宇详情' }).click();
       const search = page.getByRole('searchbox', { name: '搜索楼宇、子市场、业主或物业' });
@@ -482,7 +505,7 @@ try {
         await search.fill('不存在的项目');
         const choices = page.getByRole('region', { name: '项目搜索候选' });
         await choices.getByRole('button', { name: '清空关键词', exact: true }).waitFor();
-        await choices.getByRole('button', { name: '全屏阅读工作区' }).click();
+        await clickWorkspaceAction(page, '全屏阅读工作区');
         await choices.getByRole('button', { name: '清空关键词', exact: true }).click();
         await liveStats.getByText('项目', { exact: true }).waitFor();
         assert.equal(await search.inputValue(), '');
@@ -502,6 +525,7 @@ try {
         assert.ok((await longDetail.locator('.workspace-scroll').boundingBox()).height >= 80, 'a long title cannot consume the detail reading area');
         assert.equal(await longDetail.getByRole('heading').innerText(), stock[2].name, 'the complete project name remains readable');
         const nameToggle = longDetail.getByTitle('展开完整名称', { exact: true });
+        assert.ok((await longDetail.getByRole('heading').boundingBox()).width >= 140, 'navigation controls leave enough room to identify the long project');
         assert.ok((await longDetail.locator('.workspace-panel-header').boundingBox()).height < 100, 'long name and reading controls must not monopolize the short sheet');
         await nameToggle.click();
         assert.equal(await longDetail.getByTitle('收起完整名称', { exact: true }).getAttribute('aria-expanded'), 'true');
@@ -562,6 +586,40 @@ try {
         await detail.getByRole('tab',{name:'概览',exact:true}).click();
       }
 
+      if ([1536,320].includes(width)) {
+        failSDK = false;
+        const variants = [
+          ['three-digits', Array.from({length:128},(_,index)=>({...stock[0],id:`scale-${index}`,name:`规模项目${index}`})), '128'],
+          ['zero', [], '0'],
+          ['missing', [{...stock[0],building_metrics:[]}], '1'],
+        ];
+        for (const [label,rows,count] of variants) {
+          dataRows = rows;
+          dataGate = new Promise(resolve => { releaseData = resolve; });
+          await page.evaluate(()=>sessionStorage.clear());
+          await page.goto(new URL('/map',base).href);
+          await liveStats.getByText('更新中',{exact:true}).waitFor();
+          assert.equal(await liveStats.getAttribute('aria-busy'),'true');
+          const updatingBox=await liveStats.getByText('更新中',{exact:true}).boundingBox();
+          const statsBox=await liveStats.boundingBox();
+          assert.ok(updatingBox.y+updatingBox.height<=statsBox.y+statsBox.height,'loading feedback stays inside the metrics rather than covering the search row');
+          await page.screenshot({path:`/tmp/map-metric-loading-${width}.png`});
+          releaseData(); dataGate = null;
+          await page.waitForFunction(count=>document.querySelector('.map-live-stats')?.getAttribute('aria-busy')==='false' && document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent===count,count);
+          const values=await liveStats.locator('.map-metric-number').allTextContents();
+          assert.equal(values[2],count);
+          if (label==='three-digits') assert.equal(values[3],'1,154,494,208');
+          else assert.deepEqual([values[0],values[1],values[3]],['—','—','—']);
+          assert.ok(await liveStats.evaluate(element=>element.scrollWidth<=element.clientWidth+1),'metric edge content fits its frame');
+          const gaps=await liveStats.locator('dd').evaluateAll(elements=>elements.map(element=>{
+            const number=element.querySelector('b').getBoundingClientRect(),unit=element.querySelector('span').getBoundingClientRect();return unit.left-number.right;
+          }));
+          assert.ok(gaps.every(gap=>gap>=0 && gap<=5),'units stay grouped with the real number width');
+          await page.screenshot({path:`/tmp/map-metric-${label}-${width}.png`});
+          observations.push({width,metricVariant:label,values,numberUnitGaps:gaps});
+        }
+      }
+
     } catch (error) {
       await page?.screenshot({ path: `/tmp/map-workspace-failure-${width}.png` }).catch(() => {});
       console.error('workspace failure state', width, await page?.evaluate(() => ({
@@ -571,7 +629,7 @@ try {
         sdk: window.__workspaceSDK,
       })));
       throw error;
-    } finally { await context.close(); }
+    } finally { releaseData(); await context.close(); }
   }
   console.log(JSON.stringify({ status: 'pass', environment: 'production app, isolated SDK and authorized data fixtures', observations }));
 } finally { await browser.close(); }

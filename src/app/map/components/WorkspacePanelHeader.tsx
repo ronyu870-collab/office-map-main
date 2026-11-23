@@ -1,6 +1,7 @@
 'use client';
 import * as React from 'react';
-import { ArrowLeft, ChevronDown, Maximize2, Minimize2, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Maximize2, Minimize2, MoreHorizontal, X } from 'lucide-react';
+import { MapDisclosure } from './MapDisclosure';
 import type { SheetMode } from '../workspace/workspaceState';
 
 export const WorkspacePanelContext = React.createContext<{
@@ -30,17 +31,20 @@ export function WorkspacePanelHeader({ title, subtitle, onClose, closeLabel, act
           <span className={titleExpanded ? 'workspace-title-expanded' : 'workspace-title-clamped'}>{title}</span><ChevronDown size={14} aria-hidden="true" />
         </button> : inlineSubtitle ? <span className="workspace-heading-inline"><span>{title}</span><span className="workspace-heading-meta">{subtitle}</span></span> : title}
       </h2>
-      {context?.compact ? <div className="workspace-sheet-states" role="group" aria-label="工作区阅读高度">
-        <button type="button" aria-pressed={context.mode === 'reading'}
-          title={context.mode === 'reading' ? '收起为紧凑高度' : '展开到阅读高度'}
-          onClick={() => context.setMode(context.mode === 'reading' ? 'compact' : 'reading')}>阅读</button>
-        <button type="button" className="workspace-icon" aria-label={fullscreen ? '返回地图分屏' : '全屏阅读工作区'}
-          title={fullscreen ? '返回地图分屏' : '全屏阅读工作区'} onClick={() => fullscreen ? restore() : context.setMode('full')}>
-          {fullscreen ? <Minimize2 size={17} aria-hidden="true" /> : <Maximize2 size={17} aria-hidden="true" />}
-        </button>
-      </div> : null}
+      {context?.compact ? <MapDisclosure width={264} actionMenu className="workspace-mobile-tools" label={<><MoreHorizontal size={18} aria-hidden="true" /><span className="sr-only">工作区操作</span></>}>
+        <div className="workspace-mobile-tool-options">
+          <button type="button" aria-pressed={context.mode === 'reading'}
+            onClick={() => context.setMode(context.mode === 'reading' ? 'compact' : 'reading')}>{context.mode === 'reading' ? '收起为摘要' : '展开到阅读高度'}</button>
+          <button type="button" onClick={() => fullscreen ? restore() : context.setMode('full')}>{fullscreen ? '返回地图分屏' : '全屏阅读工作区'}</button>
+          {React.Children.map(actions, child => {
+            if (!React.isValidElement<{ children?: React.ReactNode; 'aria-label'?: string }>(child)) return child;
+            const label = child.props['aria-label'];
+            return label ? React.cloneElement(child, {}, <>{child.props.children}<span aria-hidden="true">{label}</span></>) : child;
+          })}
+        </div>
+      </MapDisclosure> : null}
       <div className="workspace-panel-actions">
-        {actions}
+        {!context?.compact ? actions : null}
         {context && !context.compact ? <button type="button" className="workspace-icon"
           aria-label={context.mode === 'full' ? '返回地图分屏' : '全屏阅读工作区'} title={context.mode === 'full' ? '返回地图分屏' : '展开阅读'}
           onClick={() => {

@@ -39,3 +39,16 @@ it('handles immediate Escape after switching disclosures before native toggle ev
   await waitFor(() => expect(container.querySelectorAll('details[open]')).toHaveLength(0));
   expect(screen.queryByText('统计')).not.toBeInTheDocument();
 });
+
+it('focuses compact action choices and returns to the opener after choosing a command', async () => {
+  const command = vi.fn();
+  const { container } = render(<MapDisclosure label="工作区操作" actionMenu><button onClick={command}>定位当前项目</button></MapDisclosure>);
+  const trigger = screen.getByText('工作区操作');
+  fireEvent.click(trigger);
+  const choice = await screen.findByRole('button', { name: '定位当前项目' });
+  await waitFor(() => expect(choice).toHaveFocus());
+  fireEvent.click(choice);
+  expect(command).toHaveBeenCalledOnce();
+  expect(container.querySelector('details')).not.toHaveAttribute('open');
+  expect(trigger).toHaveFocus();
+});
