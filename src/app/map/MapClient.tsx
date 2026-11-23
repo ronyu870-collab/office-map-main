@@ -746,7 +746,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     const name = view.name;
     if (filterState?.submarkets.length !== 1 || normalizeMapSubmarket(filterState.submarkets[0]) !== name) return;
     const matches = combinedBuildingList.filter(building => normalizeMapSubmarket(building.submarket) === name && hasBuildingLocation(building));
-    canvasCoordinator.current?.update(`submarket:${name}`, { fit: immediately => controllerRef.current?.fitToBuildings(matches, true, immediately) });
+    const extentKey = JSON.stringify([...new Set(matches.map(building => `${building.location_lng},${building.location_lat}`))].sort());
+    canvasCoordinator.current?.update(`submarket:${name}`, { extentKey, fit: immediately => controllerRef.current?.fitToBuildings(matches, true, immediately) });
   }, [workspace.right, workspace.focus, fullListBusy, combinedBuildingList, filterState, controllerRef, mapReady]);
   const handleFullListBuildingClick = React.useCallback((building: FullListBuilding) => {
     if (workspaceViewRef.current !== 'list' || fullListBusy) return;

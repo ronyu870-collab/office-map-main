@@ -1,3 +1,5 @@
+import { verifyRegionCamera } from './workspace-region-camera.mjs';
+import { clickWorkspaceAction } from './workspace-actions.mjs';
 import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -125,6 +127,19 @@ try {
         const center=await page.evaluate(()=>{const c=window.__workspaceMap.getCenter();return[c.lng,c.lat];});
         assert.ok(Math.abs(center[0]-116.35)<.00001&&Math.abs(center[1]-39.87)<.00001,'the selected same-coordinate project has its own correct camera');
         overlapSelections.push({id,center});
+        if(id==='single') {
+          const canvas=await page.locator('#map-container').boundingBox();
+          await page.mouse.move(canvas.x+canvas.width*.5,canvas.y+canvas.height*.5);
+          await page.mouse.down();await page.mouse.move(canvas.x+canvas.width*.72,canvas.y+canvas.height*.62,{steps:10});await page.mouse.up();
+          await page.waitForTimeout(600);
+          const moved=await page.evaluate(()=>{const c=window.__workspaceMap.getCenter();return[c.lng,c.lat];});
+          assert.ok(Math.abs(moved[0]-116.35)>.0001,'real pointer drag moves away from the selected project');
+          await clickWorkspaceAction(page,'定位当前项目');
+          await page.waitForFunction(()=>{const c=window.__workspaceMap.getCenter();return Math.abs(c.lng-116.35)<.00001&&Math.abs(c.lat-39.87)<.00001;});
+          assert.equal(await selected.getAttribute('data-building-id'),id);
+          assert.equal(await page.locator('.map-selected-marker').count(),1);
+          scenes.push({name:'locate current project after real pointer drag',id,moved,recentered:[116.35,39.87],nativeTouch:false});
+        }
         await page.getByRole('button',{name:'返回项目列表',exact:true}).click();await overlapList.waitFor();
       }
       scenes.push({name:'independent list selection for same-coordinate buildings',selections:overlapSelections});
@@ -178,6 +193,7 @@ try {
         assert.equal(await list.getByRole('button',{name:/^中关村楼/}).count(),0);
         scenes.push({name:'complete photo, material and Stacking round trip',beforeStack,afterStack,regionPreserved:true,selectedModes:4});
       }
+      scenes.push(await verifyRegionCamera(page,{width}));
       scenes.push(await verifySupplyMarkers(page,{width,openRegion:open,supplies:regionFuture,evidencePrefix:'map-marker-real',live:true}));
       await page.screenshot({path:`/tmp/map-region-live-${width}.png`});
       results.viewports.push({width,height,network,scenes,emptyAndClose:'pass'});

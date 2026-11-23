@@ -1,3 +1,4 @@
+import { verifyRegionCamera } from './workspace-region-camera.mjs';
 import { verifySurfaceContinuity } from './workspace-surface-continuity.mjs';
 import { verifyRelatedReading } from './workspace-related-reading.mjs';
 import { verifyContactReading } from './workspace-contact-reading.mjs';
@@ -628,6 +629,9 @@ try {
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
       if ([1536,390,320,844].includes(width)) {
+        const regionCameraPage=await context.newPage();
+        try { observations.push(await verifyRegionCamera(regionCameraPage,{width,base})); }
+        finally { await regionCameraPage.close(); }
         const surfacePage=await context.newPage();
         try { observations.push(await verifySurfaceContinuity(surfacePage,{width,base})); }
         finally { await surfacePage.close(); }

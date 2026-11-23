@@ -1,0 +1,219 @@
+{
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "phase": "before extent deduplication; production build with public AMap and isolated business/identity",
+  "viewports": [
+    {
+      "width": 1536,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 50
+      },
+      "commands": [
+        {
+          "name": "resize",
+          "at": 16.300000071525574,
+          "width": 1136,
+          "height": 744,
+          "args": [],
+          "stack": "Error\n    at map.<computed> [as resize] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16226"
+        },
+        {
+          "name": "setZoomAndCenter",
+          "at": 30.40000009536743,
+          "width": 1136,
+          "height": 744,
+          "args": [
+            13.922611367280691,
+            [
+              116.49499999999995,
+              39.93000292175058
+            ],
+            false,
+            240
+          ],
+          "stack": "Error\n    at map.<computed> [as setZoomAndCenter] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at U.fitToBuildings (http://127.0.0.1:3250/_next/static/chunks/1443.0aea9c544f414e50.js:142:3146)\n    at Object.fit (http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:25027)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16427"
+        },
+        {
+          "name": "setZoomAndCenter",
+          "at": 57.200000047683716,
+          "width": 1136,
+          "height": 744,
+          "args": [
+            13.922611367280691,
+            [
+              116.49499999999995,
+              39.93000292175058
+            ],
+            false,
+            240
+          ],
+          "stack": "Error\n    at map.<computed> [as setZoomAndCenter] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at U.fitToBuildings (http://127.0.0.1:3250/_next/static/chunks/1443.0aea9c544f414e50.js:142:3146)\n    at Object.fit (http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:25027)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16427"
+        },
+        {
+          "name": "resize",
+          "at": 821,
+          "width": 1536,
+          "height": 744,
+          "args": [],
+          "stack": "Error\n    at map.<computed> [as resize] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16226"
+        },
+        {
+          "name": "setCenter",
+          "at": 821,
+          "width": 1536,
+          "height": 744,
+          "args": [
+            {
+              "lng": 116.495,
+              "lat": 39.930003
+            },
+            true
+          ],
+          "stack": "Error\n    at map.<computed> [as setCenter] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16258"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 10
+      },
+      "commands": [
+        {
+          "name": "resize",
+          "at": 7.900000095367432,
+          "width": 390,
+          "height": 318.4375,
+          "args": [],
+          "stack": "Error\n    at map.<computed> [as resize] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16226"
+        },
+        {
+          "name": "resize",
+          "at": 25.100000023841858,
+          "width": 390,
+          "height": 267.4375,
+          "args": [],
+          "stack": "Error\n    at map.<computed> [as resize] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16226"
+        },
+        {
+          "name": "resize",
+          "at": 36.700000047683716,
+          "width": 390,
+          "height": 233.296875,
+          "args": [],
+          "stack": "Error\n    at map.<computed> [as resize] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16226"
+        },
+        {
+          "name": "setZoomAndCenter",
+          "at": 37.200000047683716,
+          "width": 390,
+          "height": 233.296875,
+          "args": [
+            11.703504679753559,
+            [
+              116.49499999999995,
+              39.93000292175058
+            ],
+            false,
+            240
+          ],
+          "stack": "Error\n    at map.<computed> [as setZoomAndCenter] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at U.fitToBuildings (http://127.0.0.1:3250/_next/static/chunks/1443.0aea9c544f414e50.js:142:3146)\n    at Object.fit (http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:25027)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16427"
+        },
+        {
+          "name": "setZoomAndCenter",
+          "at": 51.700000047683716,
+          "width": 390,
+          "height": 233.296875,
+          "args": [
+            11.703504679753559,
+            [
+              116.49499999999995,
+              39.93000292175058
+            ],
+            false,
+            240
+          ],
+          "stack": "Error\n    at map.<computed> [as setZoomAndCenter] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at U.fitToBuildings (http://127.0.0.1:3250/_next/static/chunks/1443.0aea9c544f414e50.js:142:3146)\n    at Object.fit (http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:25027)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16427"
+        },
+        {
+          "name": "resize",
+          "at": 833.8000000715256,
+          "width": 390,
+          "height": 518.4375,
+          "args": [],
+          "stack": "Error\n    at map.<computed> [as resize] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16226"
+        },
+        {
+          "name": "setCenter",
+          "at": 833.9000000953674,
+          "width": 390,
+          "height": 518.4375,
+          "args": [
+            {
+              "lng": 116.495,
+              "lat": 39.930003
+            },
+            true
+          ],
+          "stack": "Error\n    at map.<computed> [as setCenter] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16258"
+        }
+      ]
+    },
+    {
+      "width": 844,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 10
+      },
+      "commands": [
+        {
+          "name": "resize",
+          "at": 14,
+          "width": 444,
+          "height": 212,
+          "args": [],
+          "stack": "Error\n    at map.<computed> [as resize] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16226"
+        },
+        {
+          "name": "setZoomAndCenter",
+          "at": 36.10000002384186,
+          "width": 444,
+          "height": 212,
+          "args": [
+            11.535094930765752,
+            [
+              116.49499999999995,
+              39.93000292175058
+            ],
+            false,
+            240
+          ],
+          "stack": "Error\n    at map.<computed> [as setZoomAndCenter] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at U.fitToBuildings (http://127.0.0.1:3250/_next/static/chunks/1443.0aea9c544f414e50.js:142:3146)\n    at Object.fit (http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:25027)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16427"
+        },
+        {
+          "name": "resize",
+          "at": 828.1999999284744,
+          "width": 844,
+          "height": 212,
+          "args": [],
+          "stack": "Error\n    at map.<computed> [as resize] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16226"
+        },
+        {
+          "name": "setCenter",
+          "at": 828.2999999523163,
+          "width": 844,
+          "height": 212,
+          "args": [
+            {
+              "lng": 116.495,
+              "lat": 39.930003
+            },
+            true
+          ],
+          "stack": "Error\n    at map.<computed> [as setCenter] (eval at evaluate (:290:30), <anonymous>:6:268)\n    at http://127.0.0.1:3250/_next/static/chunks/6751.db94db5af17657a3.js:15:16258"
+        }
+      ]
+    }
+  ]
+}
