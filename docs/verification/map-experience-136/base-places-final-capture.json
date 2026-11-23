@@ -1,0 +1,52 @@
+{
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [
+    {
+      "width": 1536,
+      "height": 900,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 42
+      },
+      "checked": {
+        "name": "base places via keyboard legend control",
+        "width": 1536,
+        "quietDefault": true,
+        "roadsAndBuildingsRemain": true,
+        "enabledFeatures": [
+          "bg",
+          "building",
+          "point",
+          "road"
+        ],
+        "cameraAndProjectContextUnchanged": true,
+        "mapInstanceRetained": true,
+        "leaveVisible": false
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 16
+      },
+      "checked": {
+        "name": "base places via keyboard legend control",
+        "width": 390,
+        "quietDefault": true,
+        "roadsAndBuildingsRemain": true,
+        "enabledFeatures": [
+          "bg",
+          "building",
+          "point",
+          "road"
+        ],
+        "cameraAndProjectContextUnchanged": true,
+        "mapInstanceRetained": true,
+        "leaveVisible": false
+      }
+    }
+  ],
+  "status": "pass"
+}

@@ -1,0 +1,76 @@
+{
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [
+    {
+      "width": 1536,
+      "height": 900,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 46
+      },
+      "original": {
+        "features": [
+          "bg",
+          "point",
+          "road",
+          "building"
+        ],
+        "camera": [
+          13.92,
+          116.495,
+          39.930003
+        ],
+        "created": 1
+      },
+      "reduced": {
+        "features": [
+          "bg",
+          "building",
+          "road"
+        ],
+        "camera": [
+          13.92,
+          116.495,
+          39.930003
+        ],
+        "created": 1
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 16
+      },
+      "original": {
+        "features": [
+          "bg",
+          "point",
+          "road",
+          "building"
+        ],
+        "camera": [
+          11.92,
+          116.495,
+          39.930003
+        ],
+        "created": 1
+      },
+      "reduced": {
+        "features": [
+          "bg",
+          "building",
+          "road"
+        ],
+        "camera": [
+          11.92,
+          116.495,
+          39.930003
+        ],
+        "created": 1
+      }
+    }
+  ],
+  "status": "pass"
+}

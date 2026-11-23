@@ -33,5 +33,16 @@
     "Viewport touch sizing is not native mobile keyboard or gesture verification",
     "No new CPU sampling or long-session resource growth conclusion",
     "A temporary hover assertion initially sampled the beginning of its color transition; it now waits for the actual final computed color, without changing the application transition"
-  ]
+  ],
+  "resolution": {
+    "pr": 290,
+    "head": "521d25f66787324938d90380af1b947cdef3791a",
+    "verifyRun": "45245473300",
+    "necessaryChecks": "all pass; quick UI correctly skipped",
+    "mergedAt": "2026-11-23T19:29:45Z",
+    "main": "a17f78cd4e6389dc6beaa8bb75559307bb8cfb14",
+    "fullTreeMatchesTestedHead": true,
+    "tree": "2539cc8156d22adee671d1716e0b1a67f44f7571",
+    "productionVerification": "not claimed"
+  }
 }

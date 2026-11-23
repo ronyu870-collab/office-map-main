@@ -667,3 +667,6 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 @media (max-width: 767px) {
   button[aria-label="关闭联系方式"] { min-width: 44px; min-height: 44px; }
 }
+
+.map-legend-places { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 8px; }
+.map-legend-places input { width: 16px; height: 16px; accent-color: #003e7e; }

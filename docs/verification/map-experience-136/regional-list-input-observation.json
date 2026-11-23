@@ -1,0 +1,33 @@
+{
+  "productCodeChanged": false,
+  "environment": "production build; synthetic SDK and isolated business/identity; desktop viewport emulation",
+  "initialLandscapeFailure": {
+    "width": 844,
+    "eventReceivedInsideScroller": true,
+    "programmaticScrollTopWrites": 0,
+    "scrollEvents": 0,
+    "scrollTop": 0,
+    "defaultPrevented": false,
+    "originalWheelDeltaY": 50000,
+    "settledRetryAlsoFailed": true,
+    "contentPointDelta1000AlsoFailed": true,
+    "touchSynthesis": "CDP returned position out of bounds although visual viewport was 844x390",
+    "rootCause": "not established"
+  },
+  "passingInput": {
+    "nativeWheelDeltaY": 1000,
+    "localScrollerPosition": "x=min(100,width/2), y=min(40,height/2)",
+    "programmaticScrollTopUsedForTakeover": false,
+    "fourWidths": [
+      1536,
+      390,
+      320,
+      844
+    ]
+  },
+  "scope": "64 CBD projects plus one outside-region sentinel; user wheel then selected card detail/back and regional research/back; final list positions identical",
+  "limitations": [
+    "No native phone gesture or keyboard claim",
+    "Location-dependent synthetic wheel failure remains recorded; do not identify product restoration as its cause"
+  ]
+}

@@ -22,8 +22,9 @@ export function installSyntheticMap() {
     setzIndex() {}
   }
   class MapFixture extends Events {
-    constructor(id) {
+    constructor(id, options = {}) {
       super();
+      this.features = options.features ?? ['bg', 'point', 'road', 'building'];
       this.root = document.createElement('div');
       this.root.className = 'amap-maps';
       this.root.style.cssText = 'position:absolute;inset:0';
@@ -33,6 +34,8 @@ export function installSyntheticMap() {
       document.getElementById(id).append(this.root);
       setTimeout(() => { this.layer.classList.add('fixture-tile-ready'); this.emit('complete'); }, 40);
     }
+    getFeatures() { return [...this.features]; }
+    setFeatures(features) { this.features = [...features]; }
     getZoom() { return this.zoom ?? 15; }
     getCenter() {
       const [lng, lat] = this.center ?? [116.46, 39.9];

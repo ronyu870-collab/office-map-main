@@ -1,3 +1,4 @@
+import { verifyBaseMapPlaces } from './workspace-base-places.mjs';
 import { verifyRegionCamera } from './workspace-region-camera.mjs';
 import { verifySurfaceContinuity } from './workspace-surface-continuity.mjs';
 import { verifyRelatedReading } from './workspace-related-reading.mjs';
@@ -687,6 +688,7 @@ try {
             await markerPage.evaluate(name=>window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name}})),name);
             await markerPage.getByRole('region',{name,exact:true}).waitFor();
           }}));
+          observations.push(await verifyBaseMapPlaces(markerPage,{width,evidencePrefix:'map-base-places-fixture'}));
         } finally {await markerPage.close();}
       }
       if (width === 1536) {
