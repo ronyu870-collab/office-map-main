@@ -1,15 +1,23 @@
 'use client';
 import * as React from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import { animateWorkspace, useSurfacePresence } from '../runtime/workspaceMotion';
 
 /** Nonmodal, viewport-bounded disclosure shared by map statistics, legends and list options. */
-export function MapDisclosure({ label, children, className = '', active = true, width: preferredWidth = 264, actionMenu = false }: { label: React.ReactNode; children: React.ReactNode; className?: string; active?: boolean; width?: number; actionMenu?: boolean }) {
+export function MapDisclosure({ label, children, className = '', active = true, width: preferredWidth = 264, actionMenu = false, heading, dismissLabel = '关闭' }: { label: React.ReactNode; children: React.ReactNode; className?: string; active?: boolean; width?: number; actionMenu?: boolean; heading?: string; dismissLabel?: string }) {
   const root = React.useRef<HTMLDetailsElement>(null);
   const content = React.useRef<HTMLDivElement>(null);
+  const lastFocused = React.useRef<HTMLElement | null>(null);
   const [open, setOpen] = React.useState(false);
   const presence = useSurfacePresence(open, children);
+  React.useLayoutEffect(() => {
+    if (!open) { lastFocused.current = null; return; }
+    const previous = lastFocused.current;
+    if (previous && !previous.isConnected && document.activeElement === document.body) {
+      content.current?.querySelector<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled])')?.focus({ preventScroll: true });
+    }
+  }, [open, children]);
   const interrupted = React.useRef<Keyframe | null>(null);
   React.useLayoutEffect(() => {
     const element = content.current;
@@ -77,8 +85,8 @@ export function MapDisclosure({ label, children, className = '', active = true, 
       if (next) document.querySelectorAll<HTMLDetailsElement>('.map-disclosure[open]').forEach(el => { if (el !== root.current) el.open = false; });
       setOpen(next);
     }}>{label}<ChevronDown size={14} aria-hidden="true" /></summary>
-    {presence.present ? createPortal(<div ref={content} id={id} className="map-disclosure-content" onClick={actionMenu ? event => {
+    {presence.present ? createPortal(<div ref={content} id={id} className="map-disclosure-content" onFocusCapture={event => { if (event.target instanceof HTMLElement) lastFocused.current = event.target; }} onClick={actionMenu ? event => {
       if ((event.target as HTMLElement).closest('button:not([disabled]), a[href]')) closeActionMenu();
-    } : undefined} inert={!open || undefined} aria-hidden={!open || undefined}>{presence.children}</div>, document.body) : null}
+    } : undefined} inert={!open || undefined} aria-hidden={!open || undefined}>{heading ? <div className="map-disclosure-heading"><h2>{heading}</h2><button type="button" className="workspace-icon" aria-label={dismissLabel} title={dismissLabel} onClick={closeActionMenu}><X size={16} aria-hidden="true" /></button></div> : null}{presence.children}</div>, document.body) : null}
   </details>;
 }

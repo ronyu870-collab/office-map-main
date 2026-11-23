@@ -490,6 +490,23 @@ export function MapWorkbenchView({
 
   const previouslyFullList = React.useRef(false);
   const mapWorkspaceRef = React.useRef<HTMLDivElement>(null);
+  const removedFilterFocus = React.useRef<HTMLElement | null>(null);
+  const removeFilterChip = (patch: Partial<SidebarFilterState>) => {
+    removedFilterFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    onRemoveFilterChip(patch);
+  };
+  const resetFilters = () => {
+    removedFilterFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    onResetFilters();
+  };
+  React.useLayoutEffect(() => {
+    const previous = removedFilterFocus.current;
+    removedFilterFocus.current = null;
+    if (previous && !previous.isConnected && document.activeElement === document.body) {
+      mapWorkspaceRef.current?.querySelector<HTMLButtonElement>('button[aria-label="筛选"]')?.focus({ preventScroll: true });
+    }
+  }, [activeFilterChips, keyword, compareGroups]);
+
   const viewportRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     const viewport = window.visualViewport;
@@ -674,7 +691,7 @@ export function MapWorkbenchView({
       {listVisited ? <FloatingBuildingList active={(effectiveKind === 'list' || effectiveKind === 'compare') && !searchChoicesVisible} buildings={combinedBuildingList} displayOverrides={displayOverrides}
         onClose={closeRight} onBuildingClick={onBuildingClick} targetBuildingId={targetBuildingId}
         onBuildingHover={onBuildingHover} selectedComparisonBuildings={selectedComparisonBuildings}
-        onComparisonSelectionChange={handleComparisonSelectionChange} /> : null}
+        onComparisonSelectionChange={handleComparisonSelectionChange} onAdjustFilters={() => onFilterPanelOpenChange(true)} /> : null}
     </div>
   </div></>;
 
@@ -806,7 +823,7 @@ export function MapWorkbenchView({
                   <button
                     key={chip.id}
                     type="button"
-                    onClick={() => onRemoveFilterChip(chip.patch)}
+                    onClick={() => removeFilterChip(chip.patch)}
                     className="group flex max-w-[230px] shrink-0 items-center gap-1 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-2 py-1 text-[14px] text-[var(--cd-color-text-secondary)] transition-colors hover:border-[var(--cd-color-border-strong)] hover:bg-white hover:text-[var(--cd-color-brand)]"
                     title={`移除条件：${chip.label}`}
                   >
@@ -814,8 +831,8 @@ export function MapWorkbenchView({
                     <span aria-hidden="true">×</span>
                   </button>
                 ))}
-                {activeFilterChips.length > 2 || activeFilterChips.some(chip => chip.label.length > 18) ? <MapDisclosure width={304} active={!isFullListVisible} label={`全部 ${activeFilterChips.length} 项条件`}>
-                  <h2>生效条件 · 点选移除</h2><div className="workspace-filter-overflow">{activeFilterChips.map(chip => <button type="button" key={chip.id} onClick={() => onRemoveFilterChip(chip.patch)} aria-label={`移除条件：${chip.label}`}>{chip.label}<span aria-hidden="true"> ×</span></button>)}</div>
+                {activeFilterChips.length > 2 || activeFilterChips.some(chip => chip.label.length > 18) ? <MapDisclosure width={304} active={!isFullListVisible} label={`全部 ${activeFilterChips.length} 项条件`} heading="生效条件 · 点选移除" dismissLabel="关闭条件列表">
+                  <div className="workspace-filter-overflow">{activeFilterChips.map(chip => <button type="button" key={chip.id} onClick={() => removeFilterChip(chip.patch)} aria-label={`移除条件：${chip.label}`}>{chip.label}<span aria-hidden="true"> ×</span></button>)}</div>
                 </MapDisclosure> : null}
                 {compareGroups.length > 0 ? (
                   <span className="flex max-w-[230px] shrink-0 items-center gap-1.5 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-2 py-1 text-[14px] text-[var(--cd-color-text-secondary)]">
@@ -826,7 +843,7 @@ export function MapWorkbenchView({
                   </span>
                 ) : null}
                 {hasActiveFilters ? (
-                  <button type="button" onClick={onResetFilters} className="shrink-0 px-1.5 text-[14px] font-normal text-slate-600 transition hover:text-[#003e7e]">清空</button>
+                  <button type="button" onClick={resetFilters} className="shrink-0 px-1.5 text-[14px] font-normal text-slate-600 transition hover:text-[#003e7e]">清空</button>
                 ) : null}
               </div>
             ) : null}

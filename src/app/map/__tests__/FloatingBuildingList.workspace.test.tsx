@@ -46,3 +46,15 @@ it('claims Escape once so the parent does not repeat an unsaved-edit confirmatio
   expect(close).toHaveBeenCalledOnce();
   expect(escape.defaultPrevented).toBe(true);
 });
+
+it('offers a direct filter adjustment for an empty map result and keeps list-search clearing scoped', async () => {
+  const adjust=vi.fn(), close=vi.fn();
+  const view=render(<FloatingBuildingList buildings={[]} onClose={close} onAdjustFilters={adjust} />);
+  fireEvent.click(screen.getByRole('button',{name:'调整地图筛选'}));expect(adjust).toHaveBeenCalledOnce();
+  expect(close).not.toHaveBeenCalled();
+  view.rerender(<FloatingBuildingList buildings={buildings} onClose={close} onAdjustFilters={adjust} />);
+  fireEvent.change(screen.getByRole('searchbox',{name:'搜索当前项目列表'}),{target:{value:'不存在'}});
+  fireEvent.click(screen.getByRole('button',{name:'清除列表搜索'}));
+  expect(screen.getByRole('button',{name:/项目甲楼 CBD/})).toBeVisible();
+  expect(adjust).toHaveBeenCalledOnce();
+});

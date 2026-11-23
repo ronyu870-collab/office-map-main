@@ -170,7 +170,7 @@ const NUMERIC_FILTER_LABELS: Record<string, string> = {
   net_effective_rent: '净有效租金',
   vacancy_rate: '空置率',
   vacant_area: '空置面积',
-  total_area: '总面积',
+  total_area: '统计面积',
   management_fee: '物业费',
   owner: '项目业主',
   property_management: '物业公司',
@@ -385,7 +385,7 @@ export function buildActiveFilterChips(filterState: SidebarFilterState | null): 
     .forEach(filter => {
       chips.push({
         id: `numeric-${filter.id}`,
-        label: `${NUMERIC_FILTER_LABELS[filter.field] ?? filter.field} ${filter.operator} ${filter.value}`,
+        label: `${NUMERIC_FILTER_LABELS[filter.field] ?? filter.field} ${filter.field === 'owner' || filter.field === 'property_management' ? '含' : filter.operator} ${filter.value}`,
         patch: { numericFilters: filterState.numericFilters.filter(item => item.id !== filter.id) },
       });
     });
