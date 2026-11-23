@@ -1,0 +1,106 @@
+{
+  "environment": "synthetic SDK; production app and isolated administrator/business HTTP",
+  "viewports": [
+    {
+      "width": 1536,
+      "default": {
+        "count": 2,
+        "rent": 200,
+        "vacancy": 20
+      },
+      "filteredA": {
+        "count": 1,
+        "rent": 100,
+        "vacancy": 10
+      },
+      "filteredB": {
+        "count": 1,
+        "rent": 300,
+        "vacancy": 30
+      },
+      "emptyRemovedBubble": true,
+      "clearRestoredOverview": true,
+      "mapListTopAgree": true,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 0
+      }
+    },
+    {
+      "width": 390,
+      "default": {
+        "count": 2,
+        "rent": 200,
+        "vacancy": 20
+      },
+      "filteredA": {
+        "count": 1,
+        "rent": 100,
+        "vacancy": 10
+      },
+      "filteredB": {
+        "count": 1,
+        "rent": 300,
+        "vacancy": 30
+      },
+      "emptyRemovedBubble": true,
+      "clearRestoredOverview": true,
+      "mapListTopAgree": true,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 0
+      }
+    },
+    {
+      "width": 320,
+      "default": {
+        "count": 2,
+        "rent": 200,
+        "vacancy": 20
+      },
+      "filteredA": {
+        "count": 1,
+        "rent": 100,
+        "vacancy": 10
+      },
+      "filteredB": {
+        "count": 1,
+        "rent": 300,
+        "vacancy": 30
+      },
+      "emptyRemovedBubble": true,
+      "clearRestoredOverview": true,
+      "mapListTopAgree": true,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 0
+      }
+    },
+    {
+      "width": 844,
+      "default": {
+        "count": 2,
+        "rent": 200,
+        "vacancy": 20
+      },
+      "filteredA": {
+        "count": 1,
+        "rent": 100,
+        "vacancy": 10
+      },
+      "filteredB": {
+        "count": 1,
+        "rent": 300,
+        "vacancy": 30
+      },
+      "emptyRemovedBubble": true,
+      "clearRestoredOverview": true,
+      "mapListTopAgree": true,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 0
+      }
+    }
+  ],
+  "status": "pass"
+}

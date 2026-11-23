@@ -1,3 +1,4 @@
+import { verifyBubbleScope } from './workspace-bubble-scope.mjs';
 import { verifyLeedFilters } from './workspace-leed-filters.mjs';
 import { verifyListReading } from './workspace-list-reading.mjs';
 import { verifyProjectTrendReading } from './workspace-project-trend.mjs';
@@ -46,6 +47,7 @@ function instrumentMap() {
   window.AMap.Map = class extends BaseMap {
     constructor(id, options) { super(id, options); stats.created++; window.__workspaceMap = this; this.host = document.getElementById(id); }
     getContainer() { return this.host; }
+    setZoomAndCenter(zoom,center) { super.setZoomAndCenter(zoom,center); this.emit('zoomend'); }
     setCenter(center) { this.center = Array.isArray(center) ? center : [center.getLng?.() ?? center.lng, center.getLat?.() ?? center.lat]; stats.centers.push(this.center); }
     setBounds(bounds) { this.center = bounds.southwest.map((value, index) => (value + bounds.northeast[index]) / 2); }
     resize() { stats.resized++; }
@@ -620,6 +622,9 @@ try {
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
       if ([1536,390,320,844].includes(width)) {
+        const bubbleScopePage=await context.newPage();
+        try { observations.push(await verifyBubbleScope(bubbleScopePage,{width,base})); }
+        finally { await bubbleScopePage.close(); }
         const leedPage=await context.newPage();
         try { observations.push(await verifyLeedFilters(leedPage,{width,base})); }
         finally { await leedPage.close(); }
