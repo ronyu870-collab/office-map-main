@@ -1,0 +1,324 @@
+{
+  "failedCI": {
+    "run": 45227202872,
+    "head": "b978553d6f7c43d2e4db59348b49aac1b94a2d53",
+    "width": 1536,
+    "direction": "Tab",
+    "step": 30,
+    "target": "复制结论",
+    "targetTop": 1309.75,
+    "scrollport": [
+      61,
+      798
+    ],
+    "scrollTop": 967
+  },
+  "naturalLocal": {
+    "original1536": "pass",
+    "diagnosticFiveWidths": "pass",
+    "exactCiTrigger": "not reproduced locally; not asserted as known"
+  },
+  "controlledBefore": {
+    "unit": {
+      "failed": 2,
+      "passed": 3
+    },
+    "browser": "1536 old compiled hook fails delayed insertion while reading an earlier answer, with later content present",
+    "priorTailFixture": "pass via existing tail following; retained as a different reading position",
+    "build": {
+      "server": "127.0.0.1:3247",
+      "buildId": "MCYrrcRY7PcpgY57PGQs1",
+      "homepageHookBlob": "78a9cb5f40546e07370967d9ec0f01f33702eb0b",
+      "homepageHookMatchesFailedCi": true,
+      "note": "Server is the prior related-reading production build. Source files were edited after it started; generic sourceRoot metadata does not identify the already compiled browser bundle."
+    }
+  },
+  "implementation": "Only the current keyboard target stays visible across DOM text/child changes and measured size changes; wheel/pointer/touch/non-Tab key releases ownership; observers/listeners dispose with the workspace. No polling or refocus.",
+  "after": {
+    "unit": {
+      "files": 4,
+      "passed": 67
+    },
+    "typecheck": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 5
+    },
+    "build": "pass",
+    "buildId": "cEOgi5L9tLUc5lCXmbkSX",
+    "browser": "145.0.7632.6",
+    "records": 113,
+    "viewports": {
+      "1280": {
+        "tab": {
+          "passed": true,
+          "belowFoldControls": 20,
+          "revealedBelowFold": 15,
+          "backgroundStayedFixed": true,
+          "issues": []
+        },
+        "layout": {
+          "before": {
+            "top": 757.5625,
+            "bottom": 797.5625,
+            "viewportTop": 61,
+            "viewportBottom": 798,
+            "scrollTop": 1687,
+            "background": 0,
+            "focused": true,
+            "visible": true
+          },
+          "inserted": {
+            "top": 757.5625,
+            "bottom": 797.5625,
+            "viewportTop": 61,
+            "viewportBottom": 798,
+            "scrollTop": 2295,
+            "background": 0,
+            "focused": true,
+            "visible": true
+          },
+          "resized": {
+            "top": 757.5625,
+            "bottom": 797.5625,
+            "viewportTop": 61,
+            "viewportBottom": 798,
+            "scrollTop": 2895,
+            "background": 0,
+            "focused": true,
+            "visible": true
+          },
+          "takeover": {
+            "top": 4252.5625,
+            "bottom": 4292.5625,
+            "viewportTop": 61,
+            "viewportBottom": 798,
+            "scrollTop": 0,
+            "background": 0,
+            "focused": true,
+            "visible": false
+          },
+          "backgroundStayedFixed": true
+        }
+      },
+      "1536": {
+        "tab": {
+          "passed": true,
+          "belowFoldControls": 20,
+          "revealedBelowFold": 9,
+          "backgroundStayedFixed": true,
+          "issues": []
+        },
+        "layout": {
+          "before": {
+            "top": 757.5625,
+            "bottom": 797.5625,
+            "viewportTop": 61,
+            "viewportBottom": 798,
+            "scrollTop": 1687,
+            "background": 25,
+            "focused": true,
+            "visible": true
+          },
+          "inserted": {
+            "top": 757.5625,
+            "bottom": 797.5625,
+            "viewportTop": 61,
+            "viewportBottom": 798,
+            "scrollTop": 2295,
+            "background": 25,
+            "focused": true,
+            "visible": true
+          },
+          "resized": {
+            "top": 757.5625,
+            "bottom": 797.5625,
+            "viewportTop": 61,
+            "viewportBottom": 798,
+            "scrollTop": 2895,
+            "background": 25,
+            "focused": true,
+            "visible": true
+          },
+          "takeover": {
+            "top": 4252.5625,
+            "bottom": 4292.5625,
+            "viewportTop": 61,
+            "viewportBottom": 798,
+            "scrollTop": 0,
+            "background": 25,
+            "focused": true,
+            "visible": false
+          },
+          "backgroundStayedFixed": true
+        }
+      },
+      "768": {
+        "tab": {
+          "passed": true,
+          "belowFoldControls": 19,
+          "revealedBelowFold": 8,
+          "backgroundStayedFixed": true,
+          "issues": []
+        },
+        "layout": {
+          "before": {
+            "top": 882.46875,
+            "bottom": 922.46875,
+            "viewportTop": 61,
+            "viewportBottom": 922,
+            "scrollTop": 1786,
+            "background": 0,
+            "focused": true,
+            "visible": true
+          },
+          "inserted": {
+            "top": 882.46875,
+            "bottom": 922.46875,
+            "viewportTop": 61,
+            "viewportBottom": 922,
+            "scrollTop": 2394,
+            "background": 0,
+            "focused": true,
+            "visible": true
+          },
+          "resized": {
+            "top": 882.46875,
+            "bottom": 922.46875,
+            "viewportTop": 61,
+            "viewportBottom": 922,
+            "scrollTop": 2994,
+            "background": 0,
+            "focused": true,
+            "visible": true
+          },
+          "takeover": {
+            "top": 4476.46875,
+            "bottom": 4516.46875,
+            "viewportTop": 61,
+            "viewportBottom": 922,
+            "scrollTop": 0,
+            "background": 0,
+            "focused": true,
+            "visible": false
+          },
+          "backgroundStayedFixed": true
+        }
+      },
+      "390": {
+        "tab": {
+          "passed": true,
+          "belowFoldControls": 21,
+          "revealedBelowFold": 17,
+          "backgroundStayedFixed": true,
+          "issues": []
+        },
+        "layout": {
+          "before": {
+            "top": 713.859375,
+            "bottom": 757.859375,
+            "viewportTop": 56,
+            "viewportBottom": 758,
+            "scrollTop": 2117,
+            "background": 0,
+            "focused": true,
+            "visible": true
+          },
+          "inserted": {
+            "top": 713.859375,
+            "bottom": 757.859375,
+            "viewportTop": 56,
+            "viewportBottom": 758,
+            "scrollTop": 2725,
+            "background": 0,
+            "focused": true,
+            "visible": true
+          },
+          "resized": {
+            "top": 713.859375,
+            "bottom": 757.859375,
+            "viewportTop": 56,
+            "viewportBottom": 758,
+            "scrollTop": 3325,
+            "background": 0,
+            "focused": true,
+            "visible": true
+          },
+          "takeover": {
+            "top": 4638.859375,
+            "bottom": 4682.859375,
+            "viewportTop": 56,
+            "viewportBottom": 758,
+            "scrollTop": 0,
+            "background": 0,
+            "focused": true,
+            "visible": false
+          },
+          "backgroundStayedFixed": true
+        }
+      },
+      "320": {
+        "tab": {
+          "passed": true,
+          "belowFoldControls": 21,
+          "revealedBelowFold": 10,
+          "backgroundStayedFixed": true,
+          "issues": []
+        },
+        "layout": {
+          "before": {
+            "top": 714.4375,
+            "bottom": 758.4375,
+            "viewportTop": 77,
+            "viewportBottom": 758,
+            "scrollTop": 2244,
+            "background": 41,
+            "focused": true,
+            "visible": true
+          },
+          "inserted": {
+            "top": 714.4375,
+            "bottom": 758.4375,
+            "viewportTop": 77,
+            "viewportBottom": 758,
+            "scrollTop": 2852,
+            "background": 41,
+            "focused": true,
+            "visible": true
+          },
+          "resized": {
+            "top": 714.4375,
+            "bottom": 758.4375,
+            "viewportTop": 77,
+            "viewportBottom": 758,
+            "scrollTop": 3452,
+            "background": 41,
+            "focused": true,
+            "visible": true
+          },
+          "takeover": {
+            "top": 4766.4375,
+            "bottom": 4810.4375,
+            "viewportTop": 77,
+            "viewportBottom": 758,
+            "scrollTop": 0,
+            "background": 41,
+            "focused": true,
+            "visible": false
+          },
+          "backgroundStayedFixed": true
+        }
+      }
+    },
+    "sourceSha256": {
+      "src/components/home/useQueryWorkspace.ts": "c4024714a276a8687749a83369f5c8740d46dea5d15ca38f9ca4955b235daecb",
+      "scripts/verification/query-focus-layout-checks.mjs": "1dfa5c91c331cbac011e06c8f71b7d99ee3b3bf509b0c72eab431515cee83898",
+      "scripts/verification/home-query-experience-p2-browser.mjs": "ac68dac46c17ea88b1bce1bbacaa473f9d8d6ff5be046e0f0f86a769e4350050"
+    }
+  },
+  "limits": [
+    "The controlled insertion/resize is an isolated DOM layout fixture, not proof of the exact CI trigger.",
+    "Business/auth fixtures and desktop browser viewports; no production account, native phone or CPU conclusion.",
+    "Exact-head CI remains required."
+  ]
+}

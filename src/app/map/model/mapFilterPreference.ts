@@ -1,3 +1,4 @@
+import { restoreLeedFilterCatalog } from '@/src/lib/leed-display';
 import { z } from 'zod';
 
 const strings = z.array(z.string().max(100)).max(100);
@@ -16,13 +17,13 @@ export const mapFilterCriteria = z.object({
   })).max(25),
   showFutureSupply: z.boolean(), futureSupplyGrades: strings, futureSupplyYears: strings,
 });
-const preference = z.object({ input: z.string().max(200), filters: mapFilterCriteria.nullable() });
+const preference = z.object({ leedCatalogVersion: z.literal(2).optional(), input: z.string().max(200), filters: mapFilterCriteria.nullable() });
 
 export function readMapFilterPreference(key: string) {
   if (typeof window === 'undefined') return null;
   try {
     const parsed = preference.safeParse(JSON.parse(window.sessionStorage.getItem(key) ?? 'null'));
-    return parsed.success ? parsed.data : null;
+    return parsed.success ? { ...parsed.data, filters: restoreLeedFilterCatalog(parsed.data.filters, parsed.data.leedCatalogVersion) } : null;
   } catch { return null; }
 }
 

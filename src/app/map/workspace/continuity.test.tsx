@@ -5,7 +5,7 @@ import { createDefaultFilterState } from '../model/mapDomain';
 import { MapReadingContext, useMapReadingScroll, useMapReadingState, readMapReturn, saveMapReturn, restoreWorkspace, mapReturnToken, rememberMapEntry, type MapReturnSnapshot } from './continuity';
 
 const token = 'continuity-test-token';
-const saved = (): MapReturnSnapshot => ({ savedAt: Date.now(), selected: 'a', camera: { center: [116.46, 39.91], zoom: 15 }, mode: 'rent', input: 'CBD', filters: null,
+const saved = (): MapReturnSnapshot => ({ leedCatalogVersion: 2, savedAt: Date.now(), selected: 'a', camera: { center: [116.46, 39.91], zoom: 15 }, mode: 'rent', input: 'CBD', filters: null,
   right: { kind: 'building', id: 'a' }, history: [{ kind: 'list' }, { kind: 'building', id: 'removed' }], leftOpen: false, widths: { building: 400, list: 320 },
   reading: { listQuery: 'CBD', listSort: 'rent', listScroll: 550, fullPaging: { queryKey: 'q', page: 3 }, sheetModes: { building: 'reading' }, buildings: { a: { tab: 'materials', scrollTop: 140 } } },
   comparison: [], competitors: ['a'], target: 'a', groups: [], research: null });
@@ -105,4 +105,15 @@ it('replaces stale project URL parameters while retaining unrelated navigation c
   expect(window.history.state.preserved).toBe(true);
   rememberMapEntry(token, null);
   expect(new URL(location.href).searchParams.has('future')).toBe(false);
+});
+
+it('upgrades the legacy full LEED catalog in return filters and research, preserving current exclusions',()=>{
+  const filters={...createDefaultFilterState(),leeds:['Platinum','Gold','Silver','NULL']};
+  const value={...saved(),leedCatalogVersion:undefined,filters,research:{filters,input:'CBD',retained:true}};
+  const key='map-workspace-return:v1:scope:'+token;
+  sessionStorage.setItem(key,JSON.stringify(value));
+  expect(readMapReturn('scope',token)?.filters?.leeds).toContain('N');
+  expect(readMapReturn('scope',token)?.research?.filters.leeds).toContain('N');
+  saveMapReturn('scope',token,value);
+  expect(readMapReturn('scope',token)?.filters?.leeds).not.toContain('N');
 });
