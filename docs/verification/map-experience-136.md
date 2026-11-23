@@ -91,36 +91,36 @@ LEED批[PR #281](https://github.com/ronyu870-collab/office-map-main/pull/281) �
 
 区域气泡续批：真实页面曾出现顶部与列表2而气泡6；V3、native及基础控制器默认汇总全量缓存。已改为默认汇总当前传入结果，保留显式overviewBuildings接口，不改变原等级、季度或LEED分母。旧实现3条范围回归失败，修后4文件46项、类型、Lint（0错误/211警告）、生产构建通过。四档1536/390/320/844实际页面和真实SDK/瓦片均通过A→B→无结果→清除条件：甲楼1/100.0/10.0%，乙楼1/300.0/30.0%，空结果无气泡，恢复2/200.0/20.0%；列表身份及顶部一致。LEED四档新旧偏好路径也检查气泡6/2/3/4/6，与顶部一致。证据见[bubble-scope-regression](map-experience-136/bubble-scope-regression.json)、[实际页面](map-experience-136/bubble-scope-browser.json)、[真实SDK](map-experience-136/bubble-scope-real-sdk.json)及[LEED真实SDK](map-experience-136/bubble-leed-real-sdk.json)。完整四档工作区回归亦通过，列表返回位置分别33709/34771/34786/32373不变；合成SDK补zoomend与显式概览缩放，搜索候选层切换按实际流程重开列表，两处测试适配不记作产品缺陷。未冒称地铁/比较组全组合已覆盖，无新CPU采样。
 
-区域气泡批[PR #282](https://github.com/ronyu870-collab/office-map-main/pull/282) head `295608d19df873c0aca0d5af0a369e966a16422a` 已提交推送，暂基于LEED批；待前序接main和必要CI，不将依赖PR创建视为合并。
+地图阅读整合[PR #282](https://github.com/ronyu870-collab/office-map-main/pull/282) 已快进纳入气泡、列表精度、趋势返回、联系方式/资料、关联成交、资料身份及退出层修复，各批原提交与证据保留。当前应用head `08a8948ce2a1cf6286f3ebd0a82d45e39e22067e`，完整四档64条通过。待PR281必要CI通过并合入后接main，再运行本PR精确head完整必要CI，尚未进入main。
 
 整数租金续批：实际桌面截图发现列表100而顶部100.0，三类实际渲染回归在旧实现均失败。卡片、紧凑与完整列表现固定一位小数，真实0为0.0，缺失保留—，面积仍为整数。5文件55项、类型、改动Lint（0错误/17警告）和生产构建通过；1536/390/320/844完整列表阅读链检查100.0，比较/未来供应及返回保留，实际截图已查看。类型检查首次与build并行时因构建清除生成类型出现TS6053；构建后顺序重跑通过。证据见[list-precision-regression](map-experience-136/list-precision-regression.json)及[实际页面](map-experience-136/list-precision-browser.json)。本批只改显示精度，无新真实SDK或CPU采样。
 
-列表精度批[PR #283](https://github.com/ronyu870-collab/office-map-main/pull/283) 最新head `5c7b697bfa766a1629f9fd51690183a2ebcc4ea3`，暂基于区域气泡批；重接前后完整代码树一致，等待顺序接main和必要CI。
+原列表精度[PR #283](https://github.com/ronyu870-collab/office-map-main/pull/283) head `5c7b697bfa766a1629f9fd51690183a2ebcc4ea3` 已完整进入整合PR282分支。GitHub因此将其自动标为merged，未据此声称已进入main；最终交付由PR282及其必要CI负责。
 
 趋势阅读返回续批：已实际复现空置率→展开期间表→资料→Stacking Plan→返回后，指标重置为租金且表格收起。新增可序列化阅读状态并通过工作区/控制器显式传入动态运行时，保留项目身份、资格与审计；销毁解除期间表监听。页签在阅读时保持可达，各页签位置在新布局提交后恢复。初次“532→0”包含自动化揭示顶部页签造成的滚动，未全部归因于路由；后续逐帧实际发现0→209→532，补入趋势加载高度预留及防止标题外边距折叠，失败/无数据后释放预留。
 
 [回归记录](map-experience-136/trend-return-regression.json)：旧2项失败，修后5文件45项、类型、改动Lint（0错误/111警告）、生产构建通过。[四档严格浏览器](map-experience-136/trend-return-browser.json)检查1536/390/320/844，返回响应等待至少8帧，首个行情帧至画布出现始终保持532/771/765/978，指标与期间表保持；不是只等终态恢复。新增同一路径接入工作区CI，[最终完整工作区](map-experience-136/trend-return-workspace.json)四档48条汇总记录通过，含严格首帧检查、筛选/气泡/LEED/列表/资料及图形；列表返回滚动仍精确保持。已看最终[320期间表](map-experience-136/trend-return-320.png)和[桌面](map-experience-136/trend-return-1536.png)，截图来自独立专项（桌面1536×900），位置532；完整工作区桌面1000高位置432，两种证据分开。正常动效完成首帧检查后，截图另用减少动态效果并等待画布像素稳定，避免截到未完成的ECharts绘制。未做新真实SDK、CPU或原生手机采样。
 
-趋势阅读批[PR #285](https://github.com/ronyu870-collab/office-map-main/pull/285) head `842969a427f1aacceaf951fe69fdd4067f1bc628` 已提交推送，暂基于PR #283，待顺序接main并通过精确head必要CI。
+原趋势阅读[PR #285](https://github.com/ronyu870-collab/office-map-main/pull/285) 已关闭，内容和原head `842969a427f1aacceaf951fe69fdd4067f1bc628` 完整保留于整合PR282，尚待其必要CI及main合并。
 
 联系方式与资料阅读续批：320px长项目标题覆盖关闭图标，电话被装饰图标和拨打按钮挤成碎行；旧弹层没有具名dialog，Escape不关闭。改为通过适配层使用既有共享Dialog，标题/联系电话/拨打按一条主轴成组，保留原电话、项目身份、Demo脱敏和审计。Tab在当前层循环，Escape和关闭只关闭联系任务并返回触发入口；替换与控制器销毁卸载React根并释放滚动锁。旧实际页面具名对话框查找失败；完整回归随后复现手机立即Escape未关闭：共享Dialog延迟到下一帧才转移焦点。新增冻结动画帧的旧失败测试，改为布局提交时移入焦点，显示即接收键盘；8文件36项及共享滚动/工作区2文件20项、审计覆盖、类型、Lint（0错误/74警告）及构建通过。[四档联系页面](map-experience-136/contact-browser.json)通过，已看[320长名称/电话](map-experience-136/contact-320.png)。
 
 [资料四档](map-experience-136/material-reading-browser.json)核查既有房源、佣金与项目资料结构：长单元/交付、逐行日期和来源、0与缺失报价、过期政策与待确认条件分别保留；只将桌面标题20px统一到现有16px标题档。实际PDF.js绘制本地生成的两页PDF字节，覆盖传输失败重试、翻页、下载失败重试；翻页等待已加强为无加载状态且画面稳定200ms，并确认第二页位图不同于第一页，避免把先更新的页码标签当成绘制完成。刷新访问403后移除旧画布，恢复访问后回到同一项目；不把已存在的功能写成本轮修复。已看[320房源及日期依据](map-experience-136/material-availability-320.png)、[桌面佣金来源](map-experience-136/material-commission-1536.png)、[原件](map-experience-136/material-pdf-320.png)。新增路径接入现有工作区CI，[最终完整四档回归](map-experience-136/material-contact-workspace.json)已通过，56条汇总记录，含立即Escape、严格PDF翻页和既有趋势首帧/列表滚动检查。首次集成等待旧空根节点可见而超时，改为等待实际portal中的具名Dialog；资料来源断言按真实“依据：”前缀适配，两处不记作产品缺陷。业务、身份与SDK为隔离夹具，PDF是生成原件，不是生产业主资料；未新增真实账号切换、原生手机或CPU结论。
 
-联系方式与资料批[PR #286](https://github.com/ronyu870-collab/office-map-main/pull/286) head `fceb1ba897caf015a61d7aa7b2aae12de4c2c1e0` 已提交推送，暂基于PR #285，待顺序接main运行精确head必要CI。
+原联系方式与资料[PR #286](https://github.com/ronyu870-collab/office-map-main/pull/286) 已关闭，内容和原head `fceb1ba897caf015a61d7aa7b2aae12de4c2c1e0` 完整保留于整合PR282，尚待其必要CI及main合并。
 
 关联成交续批：桌面按Escape连同底下项目一起关闭，320全屏却只退出底层全屏、成交层仍在。另有4条旧失败证明账号、角色、会话或代看对象变化后仍保留旧成交，共6失败/1通过。现成交层声明当前任务，Escape只关当前层，子模态优先；关闭返回可见入口并保留原阅读高度。资源以身份/项目/页码绑定，身份变化先隐藏并清除旧内容，切换/关闭中止请求，晚到响应不重新显示。保留源记录、0与缺失、历史/项目级关联、服务端授权及短缓存分页。
 
 [执行记录](map-experience-136/related-reading-regression.json)：相关3文件29项、类型、Lint（0错误/14警告）及构建通过。[四档页面](map-experience-136/related-reading-browser.json)覆盖50条与最后第51条、第二页复用计数、原页缓存、键盘展开、历史来源/项目级说明、0与缺失以及关闭/焦点/全屏保持。已看[桌面](map-experience-136/related-reading-1536.png)与[320长名称及详情](map-experience-136/related-reading-320.png)，使用16/14两档和400/600字重，不按字段角色另设字号。[最终完整工作区](map-experience-136/related-reading-workspace.json)四档60条记录通过，包括既有联系方式/PDF/趋势首帧/列表返回路径。夹具初次在加载状态直接数article得到0，改为先等实际响应内容；不记为产品故障。未新增生产成交、真实账号切换、原生手机或CPU结论。
 
-关联成交批[PR #287](https://github.com/ronyu870-collab/office-map-main/pull/287) 最新head `98d49d4e690049d592a7847caf8565cb04cecf28` 已继承首页后续布局修复，暂基于PR #286，待顺序接main与必要CI。重接前后只有8个首页修复/证据文件变化，其余地图应用文件一致；CHANGELOG冲突保留了双方条目。
+原关联成交[PR #287](https://github.com/ronyu870-collab/office-map-main/pull/287) 已关闭，内容和原head `98d49d4e690049d592a7847caf8565cb04cecf28` 完整保留于整合PR282；此前重接只增加8个首页修复/证据文件，其余地图应用一致、CHANGELOG双方条目保留。尚待整合PR必要CI及main合并。
 
 资料身份续批：资料桥位于地图路由身份边界之外，旧实现账号、角色、会话、代看或登出后仍可留下旧资料，未登录委托入口也可挂载阅读器；6条边界回归均旧失败。现按完整身份范围绑定上下文，身份改变立即隐藏并清理，恢复原范围不会自动重开，委托入口要求已登录；保留动态加载、服务端授权、项目归属及原审计。真实SalesMaterialsPanel补测已加载私有字段随角色变化卸载，以及代看变化中止在途目录、晚到响应不显示或进入下一层访问；不是只用模拟面板证明内容清理。
 
 [执行记录](map-experience-136/material-identity-regression.json)：5文件17项、类型、改动Lint（0错误/1条effect警告）及构建通过。[四档资料阅读](map-experience-136/material-identity-browser.json)在1536/390/320/844通过实际PDF字节绘制、稳定不同页位图、传输/下载重试和刷新403旧画布移除及恢复原项目。浏览器使用隔离管理员/SDK/业务夹具及生成PDF；身份变化由组件执行回归覆盖，不冒称四档浏览器已做真实账号切换或生产资料检查。临时运行器不入库，既有正式资料阅读脚本已接工作区CI；新增身份回归按Vitest配置进入CI。其他独立桥、原生设备和长期资源增长仍待验证。
 
 
-资料身份批[PR #288](https://github.com/ronyu870-collab/office-map-main/pull/288) head `72eb0fc4` 已提交推送，暂基于PR #287，等待顺序接main及必要CI。
+原资料身份[PR #288](https://github.com/ronyu870-collab/office-map-main/pull/288) 已关闭，内容及原head `72eb0fc440bd85aea8c6724cdaae8260de0ba52c` 完整保留于整合PR282，尚待其必要CI及main合并。
 
 退出层连续性续批：真实生产构建使用隔离SDK/业务/身份，桌面关闭列表时退出层左边界从1216跳到1536，横屏从524跳到844；面板不在原位淡出。其绝对定位仍继承第3网格列，而该列随关闭收为0，导致定位参照落到画布右侧。退出层清除grid-area，使位置按整个工作区计算；不改相机、数据、权限或既有动画时长。
 
