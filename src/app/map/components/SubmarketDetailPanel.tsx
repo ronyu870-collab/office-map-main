@@ -1,5 +1,6 @@
 'use client';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
+import { useUnsavedNavigation } from '@/src/lib/broker/useUnsavedNavigation';
 import { useMapObjectReadingState } from '../workspace/continuity';
 import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
 
@@ -74,6 +75,8 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
   onSave: (value: SubmarketProfileDraft, publish: boolean) => void;
 }) {
   const [draft, setDraft] = React.useState(value);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(value);
+  useUnsavedNavigation(dirty);
   const setText = (field: 'headline' | 'overview' | 'industries' | 'transport', text: string) =>
     setDraft(previous => ({ ...previous, [field]: text }));
   const change = (kind: 'demographics' | 'policies' | 'insights', index: number, key: string, next: string) => {
@@ -169,7 +172,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
       {error ? <p role="alert" className="text-[14px] text-[#c9362b]">{error}</p> : null}
       <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#e7ebf0] bg-white py-3">
         <button type="button" className={quietButton} disabled={saving} onClick={() => {
-          if (JSON.stringify(draft) === JSON.stringify(value) || window.confirm('有未保存的修改，确定放弃吗？')) onCancel();
+          if (!dirty || window.confirm('有未保存的修改，确定放弃吗？')) onCancel();
         }}>取消</button>
         <button type="submit" disabled={saving} className={quietButton + ' disabled:opacity-50'}>
           <Save size={15}/>{saving ? '保存中…' : '保存草稿'}

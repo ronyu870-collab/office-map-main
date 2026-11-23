@@ -8,6 +8,7 @@ import { logAction } from '@/src/utils/audit';
 import { getSession } from '@/src/services/Auth';
 import { AuditService } from '@/src/services/auditService';
 import { Button, Dialog, LoadingState } from '@/src/components/ui';
+import { useUnsavedNavigation } from '@/src/lib/broker/useUnsavedNavigation';
 
 // ─── 类型定义 ─────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ function ConfirmDialog({
   return (
     <Dialog
       open={isOpen}
+      layer="map"
       onOpenChange={(open) => { if (!open && !isLoading) onCancel(); }}
       title={title}
       description={message}
@@ -169,6 +171,7 @@ export function BuildingMetricsEditModal({
       return formData[key as keyof MetricFormData] !== originalData[key as keyof MetricFormData];
     });
   }, [formData, originalData]);
+  useUnsavedNavigation(isOpen && isDirty);
 
   const isFormDisabled = isLoadingData || saving;
 

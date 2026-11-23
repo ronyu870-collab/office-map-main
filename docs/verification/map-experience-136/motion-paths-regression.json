@@ -21,5 +21,14 @@
     "scripts/verification/workspace-surface-continuity.mjs": "6cac668246a609c9a651f6eed761c0bc6df227e612b6c971e59aff04ef8f044a",
     "scripts/verification/verify-map-workspace.mjs": "d9518e68e744e6625f30fcb5dfd9d6847103aa441b87be18e5dd4976eb326768"
   },
-  "merge": "Exact-head CI and main merge pending."
+  "merge": "Required checks succeeded; merged in PR296.",
+  "resolution": {
+    "pr": 296,
+    "testedHead": "62951b9580ea7c19f4c5793085aaca3dcd435422",
+    "verifyRun": "45278568424",
+    "necessaryChecks": "success: search, engineering, both real Auth and summary",
+    "mergedAtUtc": "2026-11-23T22:42:47Z",
+    "main": "15a1406132c9659d59e4601098125da0b994e1bc",
+    "testedAndMainTree": "614d1e5f0d30ed5bc81dd8fb74359ceae4a6e2bb"
+  }
 }

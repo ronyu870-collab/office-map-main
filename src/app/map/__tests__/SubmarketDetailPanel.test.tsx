@@ -319,3 +319,41 @@ it('restores submarket section, grade and reading position independently after r
   expect(screen.getByRole('tabpanel').scrollTop).toBe(215);
   expect(screen.getByRole('tab', { name: '行情趋势' })).toHaveAttribute('aria-selected', 'true');
 });
+
+it('protects a changed research form on browser unload, then clears the guard on revert and unmount', async () => {
+  vi.stubGlobal('navigation', new EventTarget());
+  const view = render(<SubmarketDetailPanel {...props} />);
+  const unload = () => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; };
+  try {
+    fireEvent.click(await screen.findByRole('button', { name: '维护资料' }));
+    const input = screen.getByLabelText('一句话定位');
+    expect(unload()).toBe(false);
+    fireEvent.change(input, { target: { value: '未保存的刷新保护回归' } });
+    expect(unload()).toBe(true);
+    expect(input).toHaveValue('未保存的刷新保护回归');
+    fireEvent.change(input, { target: { value: profile.headline } });
+    expect(unload()).toBe(false);
+    fireEvent.change(input, { target: { value: '另一份未保存的编辑' } });
+    view.unmount();
+    expect(unload()).toBe(false);
+    expect(api.save).not.toHaveBeenCalled();
+  } finally { view.unmount(); vi.unstubAllGlobals(); }
+});
+
+it('cancels real research-form route and history events without saving or losing its draft', async () => {
+  const navigation = new EventTarget(); vi.stubGlobal('navigation', navigation);
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const view = render(<><a href="/home" onClick={event => event.preventDefault()}>返回首页回归</a><SubmarketDetailPanel {...props} /></>);
+  try {
+    fireEvent.click(await screen.findByRole('button', { name: '维护资料' }));
+    fireEvent.change(screen.getByLabelText('一句话定位'), { target: { value: '导航取消后仍需保留的草稿' } });
+    fireEvent.click(screen.getByRole('link', { name: '返回首页回归' }));
+    expect(confirm).toHaveBeenCalledOnce();
+    const event = new Event('navigate', { cancelable: true }); Object.assign(event, { navigationType: 'traverse' });
+    navigation.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(screen.getByLabelText('一句话定位')).toHaveValue('导航取消后仍需保留的草稿');
+    expect(api.save).not.toHaveBeenCalled();
+  } finally { view.unmount(); vi.unstubAllGlobals(); }
+});
