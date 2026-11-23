@@ -452,7 +452,7 @@ describe('native map visual hierarchy', () => {
     const checkBadge = (image: string) => {
       const svg = new DOMParser().parseFromString(decodeURIComponent(image.split(',')[1]), 'image/svg+xml');
       const foreground = luminance(svg.querySelector('text')!.getAttribute('fill')!);
-      const background = luminance(svg.querySelectorAll('circle')[1]?.getAttribute('fill') ?? svg.querySelector('circle')!.getAttribute('fill')!);
+      const background = luminance(svg.querySelectorAll('circle')[1]?.getAttribute('fill') ?? svg.querySelector('circle, polygon')!.getAttribute('fill')!);
       expect((Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05)).toBeGreaterThanOrEqual(4.5);
     };
     for (const version of ['v3', 'v2', 'fallback'] as const) {
@@ -691,4 +691,18 @@ it('remounts replacement DOM markers after filtering within the same zoom tier',
   await flushFrames();
   expect(add).toHaveBeenLastCalledWith([second]);
   cleanup();
+});
+
+it.each(['v2', 'fallback'] as const)('refreshes same-id supply status in %s instead of reusing the previous identity', version => {
+  const harness=createNativeHarness();
+  const render=vi.fn();
+  const controller:any={AMap:harness.AMap,map:harness.map,markers:[],dotMarkers:[],submarketMarkers:[],renderMarkers:vi.fn(),clearMarkers:vi.fn(),updateVisibilityByZoom:vi.fn(),renderFutureMarkers:render,clearFutureMarkers:vi.fn()};
+  const cleanup=version==='v2'?installMapVisualContinuityV2(controller,document.getElementById('map-container')!):installNativeMarkerRenderer(controller,document.getElementById('map-container')!);
+  try {
+    const supply={id:'same-supply',location_lng:116.46,location_lat:39.91,status:'pending'};
+    controller.renderFutureMarkers([supply],'default');
+    const verified={...supply,status:null};controller.renderFutureMarkers([verified],'default');
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(render).toHaveBeenLastCalledWith([verified],'default');
+  } finally {cleanup?.();}
 });

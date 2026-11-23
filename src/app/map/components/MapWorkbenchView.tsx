@@ -14,6 +14,7 @@ import type { WorkspaceView } from '../workspace/workspaceState';
 import { MapWorkspaceLayout } from './MapWorkspaceLayout';
 import { WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { MapDisclosure } from './MapDisclosure';
+import { futureSupplyImage } from '../runtime/mapSelectionMarker';
 import { animateWorkspace, WORKSPACE_MOTION } from '../runtime/workspaceMotion';
 import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
 import { contentPanelWidth, type PanelWidths, type WorkspaceKind } from '../workspace/workspaceState';
@@ -199,7 +200,6 @@ function MapLegend({ mode, compareGroups, active, futureVisible }: { mode: Rende
         { label: '甲级写字楼', className: 'bg-[#245b78]' },
         { label: '乙级写字楼', className: 'bg-[#4f7968]' },
         { label: '产业园', className: 'bg-[#9b6948]' },
-        { label: '未来供应', className: 'border-2 border-dashed border-white bg-[#4f7968]' },
         { label: '其他 / 未提供', className: 'bg-[#8794a4]' },
       ],
     },
@@ -266,7 +266,7 @@ function MapLegend({ mode, compareGroups, active, futureVisible }: { mode: Rende
       </div>
       <div className="map-legend-states">
         <span><i className="map-legend-selected" aria-hidden="true" />当前项目</span>
-        {futureVisible ? <span><i className="map-legend-future" aria-hidden="true">F</i>未来供应</span> : null}
+        {futureVisible ? <><span><img src={futureSupplyImage({}, 'default')} width="24" height="24" alt="" />未来供应</span><span><img src={futureSupplyImage({ status: 'pending' }, 'default')} width="24" height="24" alt="" />待核实项目</span></> : null}
       </div>
     </MapDisclosure>
   );

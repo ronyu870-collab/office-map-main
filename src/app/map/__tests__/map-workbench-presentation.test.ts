@@ -23,12 +23,12 @@ describe('Map 2.0 presentation seam', () => {
     expect(css).toContain('[data-building-id]');
     expect(css).toContain('body:has(#map-container) .map-workspace-left');
   });
-  it('keeps future F markers scoped and circular without changing stock marker styles', () => {
+  it('keeps future image wrappers scoped without forcing their distinct silhouettes into circles', () => {
     const css = read('src/app/map/map-workbench.css');
     const controller = read('src/services/MapController.ts');
-    expect(controller).toContain('<div class="map-future-supply-marker" style="');
+    expect(controller).toContain('<div class="map-future-supply-marker" role="img"');
     expect(css).toContain('.amap-marker .map-future-supply-marker {');
-    expect(css).toMatch(/\.map-future-supply-marker\s*\{\s*border-radius:\s*50%\s*!important;/);
+    expect(css).not.toMatch(/\.map-future-supply-marker\s*\{[^}]*border-radius:\s*50%/);
     expect(css).not.toContain('.amap-marker > div[style*="width:26px;height:26px"]:not([data-building-id])');
     expect(css).toContain('[data-building-id][style*="width:26px"]');
   });

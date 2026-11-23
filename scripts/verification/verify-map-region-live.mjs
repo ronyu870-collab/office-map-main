@@ -1,3 +1,4 @@
+import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -20,10 +21,12 @@ const chainPhoto = {id:'b04ed43e-bf3a-4d63-919e-c44d60d4fe75',caption:'任务链
 const buildings = [...stock.map(row=>row.id===project?{...row,photos:[chainPhoto]}:row), ...extra];
 // Put visible future supply outside the stock envelope, so forgetting it cannot
 // accidentally pass the real SDK pixel assertions.
-const regionFuture = future.map(row => ({...row,grade:'A',location_lng:116.53,location_lat:39.95}));
+const regionFuture = [...future.map(row => ({...row,grade:'A',location_lng:116.53,location_lat:39.95})), {id:'pending-map-project',name:'待核实标记项目',status:'pending',district:'朝阳区',submarket:'CBD',location_lng:116.50,location_lat:39.935}];
+const selectedWidths = process.env.MAP_LIVE_WIDTHS?.split(',').map(Number);
+assert.ok(!selectedWidths || selectedWidths.every(width => [1536,390,844].includes(width)), 'supported live widths');
 const results = { environment: 'real AMap SDK/tiles; isolated business and administrator identity', viewports: [] };
 try {
-  for (const [width,height] of [[1536,900],[390,844],[844,390]]) {
+  for (const [width,height] of [[1536,900],[390,844],[844,390]].filter(([width]) => !selectedWidths || selectedWidths.includes(width))) {
     const context = await browser.newContext({ viewport: {width,height}, serviceWorkers:'block' });
     const network = { sdkOK:0, tileOK:0 };
     let releaseFuture;
@@ -64,9 +67,15 @@ try {
       page.setDefaultTimeout(15000);
       page.on('response', response => { const u=new URL(response.url()); if(response.ok()&&provider(u.hostname)){if(u.pathname==='/maps')network.sdkOK++;if(/\/tile\/|\/get_tile$/.test(u.pathname))network.tileOK++;} });
       await page.goto(new URL('/map',base).href);
-      await page.waitForFunction(() => window.__workspaceMap?.getCenter());
+      try { await page.waitForFunction(() => window.__workspaceMap?.getCenter()); }
+      catch (error) {
+        await page.screenshot({path:`/tmp/map-sdk-init-failure-${width}.png`});
+        results.initializationFailure = {width,network,visibleText:(await page.locator('body').innerText()).slice(0,2000)};
+        throw error;
+      }
       await waitForLiveAmapTiles(page,network);
       const open = async name => {
+        console.log(`real ${width}: opening ${name}`);
         await page.evaluate(name => window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name}})),name);
         await page.getByRole('region',{name,exact:true}).waitFor();
       };
@@ -169,6 +178,7 @@ try {
         assert.equal(await list.getByRole('button',{name:/^中关村楼/}).count(),0);
         scenes.push({name:'complete photo, material and Stacking round trip',beforeStack,afterStack,regionPreserved:true,selectedModes:4});
       }
+      scenes.push(await verifySupplyMarkers(page,{width,openRegion:open,supplies:regionFuture,evidencePrefix:'map-marker-real',live:true}));
       await page.screenshot({path:`/tmp/map-region-live-${width}.png`});
       results.viewports.push({width,height,network,scenes,emptyAndClose:'pass'});
       console.log('passed real region',width);

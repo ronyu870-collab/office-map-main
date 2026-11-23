@@ -23,7 +23,7 @@ import { recordMapStartup } from "@/src/utils/mapStartupProbe";
 import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
 import { readMapVisibleArea, visibleMapRect } from "@/src/app/map/runtime/mapFocusViewport";
 import { mapOptionalNumber, observedVacantArea } from "@/src/app/map/model/vacancyMetrics";
-import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
+import { futureSupplyDate, isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
 import { clearMapReadCache } from "./mapReadCache";
 import { bindBuildingPopup } from "./map/buildingPopup";
@@ -1479,21 +1479,17 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const area = supply.total_area
       ? `${Number(supply.total_area).toLocaleString()} ㎡`
       : "-";
-    const time =
-      supply.launch_year && supply.launch_quarter
-        ? `${supply.launch_year} ${supply.launch_quarter}`
-        : supply.launch_year
-          ? `${supply.launch_year}年`
-          : "待定";
+    const pending = isPendingFutureSupply(supply);
+    const time = futureSupplyDate(supply);
 
     tooltip.innerHTML = `
       <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 6px; line-height: 1.3;">
-        <span style="background:#d1fae5; color:#047857; font-size:9px; padding:1px 4px; border-radius:3px; font-weight:bold; margin-right:4px;">未来</span>
+        <span style="background:#d1fae5; color:#047857; font-size:9px; padding:1px 4px; border-radius:3px; font-weight:bold; margin-right:4px;">${futureSupplyDisplayLabel(supply)}</span>
         ${this._mask(name)}
       </div>
       <div style="display: flex; gap: 16px;">
         <div>
-          <div style="font-size: 10px; color: #94a3b8; margin-bottom: 2px;">预计入市</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-bottom: 2px;">${pending ? '时间状态' : '预计入市'}</div>
           <div style="font-size: 13px; font-weight: 700; color: #10b981;">${time}</div>
         </div>
         <div style="border-left: 1px solid #e2e8f0; padding-left: 12px;">
@@ -1947,26 +1943,12 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const lat = toNullableFiniteNumber(supply.location_lat);
       if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
 
-      const style = getMarkerStyle(supply, null, renderMode, true);
-      const borderStyle = renderMode === "default" ? "dashed" : "solid";
-
-      const markerEl = `
-        <div class="map-future-supply-marker" style="
-          width:26px;height:26px;border-radius:50%;
-          background:${style.bgColor};border:2px ${borderStyle} ${style.borderColor};
-          box-shadow:0 6px 14px rgba(0,0,0,0.18);
-          display:flex;align-items:center;justify-content:center;
-          color:${style.textColor};font-weight:800;font-size:${style.fontSize};
-          transition: transform 0.2s, background-color 0.3s;
-        " onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
-          ${style.text}
-        </div>
-      `;
+      const markerEl = `<div class="map-future-supply-marker" role="img" aria-label="${futureSupplyDisplayLabel(supply)}"><img src="${futureSupplyImage(supply, renderMode)}" width="34" height="34" alt="" /></div>`;
 
       const marker = new AMap.Marker({
         position: [lng, lat],
         content: markerEl,
-        offset: new AMap.Pixel(-13, -13),
+        offset: new AMap.Pixel(-17, -17),
         zooms: [MAP_BUILDING_TIER_MIN_ZOOM, 20],
         zIndex: 110,
       });

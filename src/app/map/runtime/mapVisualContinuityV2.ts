@@ -370,7 +370,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   c.stopBounceMarker = ((id: string) => { const label = current?.labels.get(id); if (!label) return originalStop?.(id); label.setOpacity?.(1); const rank = current?.baseRanks.get(id); if (rank !== undefined) label.setzIndex?.(rank); }) as ControllerInternals['stopBounceMarker'];
 
   if (originalRefresh) c.refreshBuildingData = (async (id: string) => { await originalRefresh(id); const fresh = new Map((c._allBuildingsCache ?? []).map(b => [String(b?.id), b])); lastSignature = ''; c.renderMarkers(lastBuildings.map(b => fresh.get(String(b?.id)) ?? b), lastMode, undefined, lastGroups); }) as ControllerInternals['refreshBuildingData'];
-  if (originalFutureRender) c.renderFutureMarkers = ((input: any[], mode: RenderMode = 'default') => { const supplies = Array.isArray(input) ? input : []; const sig = `${mode}:${supplies.map(s => String(s?.id ?? '')).join('|')}`; if (sig === futureSignature) return; futureSignature = sig; originalFutureRender(supplies, mode); }) as ControllerInternals['renderFutureMarkers'];
+  if (originalFutureRender) c.renderFutureMarkers = ((input: any[], mode: RenderMode = 'default') => { const supplies = Array.isArray(input) ? input : []; const sig = JSON.stringify([mode, supplies]); if (sig === futureSignature) return; futureSignature = sig; originalFutureRender(supplies, mode); }) as ControllerInternals['renderFutureMarkers'];
   if (originalFutureClear) c.clearFutureMarkers = (() => { futureSignature = ''; originalFutureClear(); }) as ControllerInternals['clearFutureMarkers'];
 
   const onZoomStart = () => container.classList.add('map-is-zooming');
