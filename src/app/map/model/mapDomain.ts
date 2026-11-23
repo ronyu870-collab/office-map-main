@@ -2,6 +2,7 @@ import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarF
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 import { normalizeMapSearchText } from './mapSearchText';
 import { observedVacantArea } from './vacancyMetrics';
+import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 
 export const MAP_SUBMARKETS: string[] = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'];
@@ -213,7 +214,7 @@ export function computeStatsFromBuildings(buildingsData: unknown[]): MapStatsSta
   let rentWeightAreaSum = 0;
 
   for (const building of items as Array<Record<string, any>>) {
-    if (Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat)) {
+    if (hasMapCoordinates(building)) {
       visibleProjectCount += 1;
     }
 

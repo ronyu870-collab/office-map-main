@@ -43,3 +43,15 @@ describe('map vacancy observations', () => {
     expect(computeStatsFromBuildings([row('all-unknown', null, null)]).overallVacancyPct).toBe('—');
   });
 });
+
+
+it('counts only filtered projects with valid map coordinates without dropping unlocated rows from the list or area', () => {
+  const positions = [[116.46,39.91],[121.47,31.23],[null,null],[Number.NaN,39.9],[40,116],[181,39],[116,86],[0,0],['116.46','39.91']];
+  const rows = positions.map(([lng,lat],index) => ({id:String(index),location_lng:lng,location_lat:lat,metrics:[{record_year:2026,record_quarter:3,total_area:1000,net_effective_rent:200,vacancy_rate:.1}]}));
+  const stats = computeStatsFromBuildings(rows);
+  expect(stats.projectCount).toBe('9');
+  expect(stats.visibleProjectCount).toBe('2');
+  expect(stats.totalArea).toBe('9,000');
+  expect(stats.avgRent).toBe('200.0');
+  expect(stats.overallVacancyPct).toBe('10.0');
+});

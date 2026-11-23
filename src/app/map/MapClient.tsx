@@ -482,6 +482,11 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   }, []);
 
   const [stats, setStats] = React.useState<MapStatsState>({ totalArea: '…', avgRent: '…', overallVacancyPct: '…', projectCount: '…', visibleProjectCount: '…' });
+  // Project count follows the same displayed stock/future/competitor scope as the list.
+  // Financial aggregates retain their existing stock-quarter calculation.
+  const displayedStats = React.useMemo(() => stats.visibleProjectCount === '…' ? stats : ({
+    ...stats, visibleProjectCount: combinedBuildingList.filter(hasBuildingLocation).length.toString(),
+  }), [stats, combinedBuildingList]);
   
   const districtLeedStats = React.useMemo(() => buildDistrictLeedStats(allBuildings), [allBuildings]);
   
@@ -957,7 +962,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           const controller = controllerRef.current; if (!controller || !refreshFailure) return;
           try { await controller.refreshBuildingData(refreshFailure); if (await loadMapData(controller, () => false, true)) setRefreshFailure(null); } catch { /* Keep the saved/refresh warning available for retry. */ }
         }}
-        stats={stats}
+        stats={displayedStats}
         futureSupplyCalendar={futureSupplyCalendar}
         futureSuppliesCount={scopedFutureSupplies.filter(supply => !isPendingFutureSupply(supply)).length}
         futureSupplies={scopedFutureSupplies}
