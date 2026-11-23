@@ -652,7 +652,7 @@ try {
         try { observations.push(await verifyRegionCamera(regionCameraPage,{width,base})); }
         finally { await regionCameraPage.close(); }
         const surfacePage=await context.newPage();
-        try { observations.push(await verifySurfaceContinuity(surfacePage,{width,base})); }
+        try { observations.push(await verifySurfaceContinuity(surfacePage,{width,base,readingPaths:true})); }
         finally { await surfacePage.close(); }
         const contactPage=await context.newPage();
         try { observations.push(await verifyContactReading(contactPage,{width,base})); }
