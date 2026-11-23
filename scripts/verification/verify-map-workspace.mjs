@@ -1,3 +1,4 @@
+import { verifyProjectTrendReading } from './workspace-project-trend.mjs';
 import { verifySubmarketReading } from './workspace-submarket-reading.mjs';
 import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
 import { verifyFutureConditions } from './workspace-future-filters.mjs';
@@ -88,7 +89,10 @@ try {
           }
           if (url.pathname === '/api/map/data') {
             assert.equal(route.request().headers().authorization, `Bearer ${token}`);
-            if (url.searchParams.get('mode') === 'trend') return route.fulfill({ json: { metrics: [2026, 2025].map(year => ({ record_year: year, record_quarter: year === 2026 ? 3 : 4, net_effective_rent: 200, vacancy_rate: .12 })) } });
+            if (url.searchParams.get('mode') === 'trend') return route.fulfill({ json: { metrics: [
+              [2026,3,200,.12],[2025,4,160,.1],[2025,3,999,.99],
+              [2024,4,null,null],[2023,4,0,0],[2022,4,null,null],[2021,4,180,.11],
+            ].map(([record_year,record_quarter,net_effective_rent,vacancy_rate])=>({record_year,record_quarter,net_effective_rent,vacancy_rate})) } });
             if (url.searchParams.get('mode') === 'future') return route.fulfill({ json: { future_supplies: futureRows } });
             stockReads++;
             if (dataGate) await dataGate;
@@ -331,8 +335,11 @@ try {
       await page.getByRole('button', { name: '季度趋势', exact: true }).click();
       await page.locator('#info-chart-container canvas').waitFor();
       await page.locator('#chart-btn-vac').click();
+      assert.equal(await page.locator('#chart-btn-vac').getAttribute('aria-pressed'),'true');
       await page.locator('#chart-btn-vac').click();
       await page.locator('#chart-btn-rent').click();
+      assert.equal(await page.locator('#chart-btn-rent').getAttribute('aria-pressed'),'true');
+      observations.push(await verifyProjectTrendReading(page,width));
       if (width === 1536) {
         await page.getByRole('separator', { name: '调整业务工作区宽度' }).press('End');
         await page.waitForTimeout(450);

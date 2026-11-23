@@ -740,7 +740,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         }
         // 显示加载状态
         chartDom.innerHTML =
-          '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:12px;">加载中...</div>';
+          '<div role="status" class="workspace-trend-status">加载中...</div>';
         // 用户已明确打开 Trend：让图表运行时和历史数据请求并行，消除串行 waterfall。
         // 仍然保持在 Trend 点击之后才加载，因此不会进入 Map 首屏 bundle。
         const trendRuntimePromise = import("./map/trendChartRuntime");
@@ -752,7 +752,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             if (trend.buildingId !== buildingId || !panel.isConnected) return;
             if (!data?.length) {
               chartDom.innerHTML =
-                '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:12px;">暂无历史数据</div>';
+                '<div role="status" class="workspace-trend-status">暂无历史数据</div>';
               return;
             }
 
@@ -773,6 +773,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             // 转换为图表数据，X轴标签：最新显示"年份+季度"，其他只显示"年份"
             const chartData = result.map(r => ({
               year: r.record_year,
+              period: `${r.record_year}Q${r.record_quarter}`,
               quarter: r.record_year === latestYear && r.record_quarter === latestQuarter
                 ? `Q${r.record_quarter}`  // 最新季度显示季度
                 : '',                       // 其他只显示年份
@@ -818,14 +819,14 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                 }
                 console.error("[MapController] 趋势图运行时加载失败:", error);
                 chartDom.innerHTML =
-                  '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:12px;">趋势图加载失败，请稍后重试</div>';
+                  '<div role="status" class="workspace-trend-status">趋势图加载失败，请稍后重试</div>';
               });
           })
           .catch((error) => {
             if (trend.buildingId !== buildingId || !panel.isConnected || panel.style.display === "none") return;
             console.error("[MapController] 历史趋势读取失败:", error);
             chartDom.innerHTML =
-              '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:12px;">历史数据读取失败，请稍后重试</div>';
+              '<div role="status" class="workspace-trend-status">历史数据读取失败，请稍后重试</div>';
           });
       };
     }

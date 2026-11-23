@@ -144,7 +144,14 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
         </div> : null}
       </div>
       <div data-map-proposal-slot hidden />
-      {!future ? <div hidden={tab !== 'market'}><div id="info-chart-panel" style={{ display: 'none' }}><div className="workspace-chart-heading"><h3>近五年趋势追踪</h3>{workspace ? <button type="button" className="workspace-business-action" onClick={() => workspace.setMode('full')}>展开图表</button> : null}</div><div className="workspace-business-actions"><button type="button" id="chart-btn-rent" data-chart="rent">租金</button><button type="button" id="chart-btn-vac" data-chart="vac">空置率</button></div><div id="info-chart-container" style={{ height: 280 }} /></div></div> : null}
+      {!future ? <div hidden={tab !== 'market'}><section id="info-chart-panel" aria-label="项目历史趋势" style={{ display: 'none' }}>
+        <div className="workspace-chart-heading"><h3>租金与空置率趋势</h3>{workspace ? <button type="button" className="workspace-business-action" onClick={() => workspace.setMode('full')}>展开图表</button> : null}</div>
+        <p className="workspace-note">最新季度与此前五年年末；缺失数据不补零。</p>
+        <div className="workspace-trend-switch" role="group" aria-label="趋势指标"><button type="button" id="chart-btn-rent" aria-pressed="true" data-chart="rent">净有效租金</button><button type="button" id="chart-btn-vac" aria-pressed="false" data-chart="vac">空置率</button></div>
+        <div id="info-chart-container" style={{ height: 280 }} />
+        <div data-building-trend-data />
+        <p className="workspace-note">来源：本项目正式季度记录。各期间独立展示，不代表连续季度变化。</p>
+      </section></div> : null}
     </div>
   </section>;
 }
