@@ -74,7 +74,13 @@ listSnapshot.rows = Array.from({ length: 32 }, (_, index) => {
 listSnapshot.expectedCount = listSnapshot.rows.length;
 const tableResult = stableResult(buildListResult(listSnapshot, ['height', 'netEffectiveRent']), '44444444-4444-4444-8444-444444444444');
 const ranking = stableResult(buildRankResult(listSnapshot, 'height', 5, 'desc'), '55555555-5555-4555-8555-555555555555');
-const distribution = stableResult(buildDistributionResult(fixture(), 'rent'), '99999999-9999-4999-8999-999999999999');
+const distributionSnapshot = fixture();
+for (const [index, value] of [[0, 100], [1, 101], [3, 200]]) {
+  const row = distributionSnapshot.rows[index];
+  row.facts.netEffectiveRent = resolveNumericFact('netEffectiveRent', row.id,
+    row.facts.netEffectiveRent.sources.map(source => ({ ...source, rawValue: value })), distributionSnapshot.period);
+}
+const distribution = stableResult(buildDistributionResult(distributionSnapshot, 'rent'), '99999999-9999-4999-8999-999999999999');
 const entitySnapshot = fixture();
 entitySnapshot.rows = [entitySnapshot.rows[2]];
 entitySnapshot.expectedCount = entitySnapshot.rows.length;
@@ -588,6 +594,10 @@ try {
       await send(session, '查看合成租金分布', 'distribution');
       await activeAnswer.getByText('图表设置', { exact: true }).click();
       await activeAnswer.getByRole('button', { name: '查看直方图', exact: true }).click();
+      const zeroBar = activeAnswer.getByRole('img', { name: /直方图/ }).locator('rect[height="0"]');
+      assert.equal(await zeroBar.count(), 1, 'synthetic distribution retains its zero-count interval');
+      assert.equal(await zeroBar.getAttribute('tabindex'), null, 'zero-height bars cannot become invisible keyboard stops');
+      await activeAnswer.getByRole('table', { name: '分箱边界与数量', exact: true }).getByRole('button', { name: '0 栋', exact: true }).waitFor();
       const histogramGeometry = await activeAnswer.getByRole('img', { name: /直方图/ }).locator('g').filter({ has: page.locator('rect[role="button"]') }).evaluateAll(groups => groups.map(group => {
         const bar = group.querySelector('rect').getBBox(), value = group.querySelector('text').getBBox();
         return { barCenter: bar.x + bar.width / 2, valueCenter: value.x + value.width / 2 };

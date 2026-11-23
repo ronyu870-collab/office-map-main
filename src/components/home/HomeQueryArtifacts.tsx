@@ -218,7 +218,7 @@ function DistributionPlot({chart,onSource}:{chart:ResultChart;onSource:Props['on
         <ChartGrid left={50} right={620} top={20} bottom={260} />
         <path d="M50 20 V260 H620" fill="none" stroke="var(--cd-color-border-strong)"/>
         {chart.points.map((p,i)=>{const width=560/chart.points.length,left=55+i*width,height=(p.y??0)/maxCount*210;return <g key={p.yCell.entityId}><rect
-          tabIndex={0} role="button" aria-label={`${p.label}：${p.yText} 栋`} aria-pressed={selected === i}
+          tabIndex={height > 0 ? 0 : undefined} role={height > 0 ? 'button' : undefined} aria-label={`${p.label}：${p.yText} 栋`} aria-pressed={height > 0 ? selected === i : undefined}
           onClick={() => setSelected(i)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(i); } }}
           x={left} y={260-height} width={Math.max(1,width-2)} height={height} fill="var(--cd-color-ai-chart-fill, #bacfe5)"
           stroke={selected === i ? 'var(--cd-color-brand)' : 'none'} strokeWidth="2"><title>{p.label}：{p.yText}栋</title></rect><text x={left+width/2} y={250-height} textAnchor="middle">{p.yText}</text><text x={left+width/2} y="284" textAnchor="middle">{i+1}</text></g>;})}
