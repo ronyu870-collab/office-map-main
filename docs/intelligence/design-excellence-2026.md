@@ -109,10 +109,13 @@ Impeccable CLI 的 context/detect 因本机缺少 engine 且缓存目录不可�
 | D4 分布图键盘读数缺失 | 3 | 4 | 3 | 4 | 2 | `HomeQueryArtifacts.tsx`；分箱和来源；旧失败单测、零区间和来源往返 |
 | D5 KPI 边界争抢地图空间 | 4 | 3 | 5 | 4 | 2 | `map-workbench.css`；地图和短屏摘要；九档工作区及 320×560 |
 | D6 重复覆盖与字体角色漂移 | 3 | 4 | 5 | 5 | 2 | `HomeQuery*.module.css`；结果、历史、研究、导出和工作区；六档实际字体、焦点与布局 |
+| D7 目录跳转带动输入框 | 4 | 4 | 3 | 4 | 2 | `HomeQueryMarkdown.tsx`；长回答目录；旧失败回归、六档输入框位置／背景滚动保持 |
 
 D6 的再次渲染发现：紧凑欢迎标题因选择器优先级仍为 20px；通用 Button 的 500 字重穿透到 AI；历史和研究说明另设 12／13px。修正所属 AI 局部样式，正文、按钮、说明复用 14px，标题复用 16px，普通按钮 400、标题／选择强调 600。代码块使用等宽字体；手机输入保留 16px 防止输入缩放。未改共享 Button 或全站 Token，以免扩大到其他模块。
 
-新增实际文件为 `HomeQueryHistory`、`HomeQueryResearchPanel`、`HomeQueryResultActions`、`HomeQueryAssistantActions`、`HomeQueryMarkdown`、`HomeQueryChartWorkspace`、`HomeQueryWorkspace` 的模块 CSS。所有调整复用现有组件；新增代码只扩充既有浏览器回归。
+新增实际文件为 `HomeQueryHistory`、`HomeQueryResearchPanel`、`HomeQueryResultActions`、`HomeQueryAssistantActions`、`HomeQueryMarkdown`、`HomeQueryChartWorkspace`、`HomeQueryWorkspace` 的模块 CSS。所有调整复用现有组件；同时修复目录跳转的局部滚动，新增代码限定在现有 Markdown 组件及既有回归入口。
+
+最终截图复核发现 D7：390px 下点击回答目录后，输入框由 y=779 移到 y=297；原生 `scrollIntoView` 会滚动 `overflow:hidden` 的工作区祖先。改为仅在最近的可滚动阅读区内定位标题，保留标题焦点和滚动留白；独立页面无阅读容器时沿用页面导航。新增单测在旧实现失败，浏览器记录目录前后的输入框位置及背景滚动，并要求保持不变。没有取消焦点或隐藏长回答来规避问题。
 
 ### 需求与证据映射
 

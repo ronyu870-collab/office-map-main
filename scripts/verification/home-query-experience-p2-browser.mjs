@@ -699,7 +699,14 @@ try {
 
       await send(session, '阅读含长标题、表格和未闭合代码的研究回答', 'long-markdown');
       await activeAnswer.getByText('回答目录', { exact: true }).click();
+      await settledPaint(page);
+      const directoryBefore = await page.locator('#home-query').boundingBox();
+      const backgroundBeforeDirectory = await page.evaluate(() => document.querySelector('main > div')?.scrollTop || 0);
       await activeAnswer.getByRole('button', { name: '后续核实', exact: true }).click();
+      await settledPaint(page);
+      const directoryAfter = await page.locator('#home-query').boundingBox();
+      assert.ok(Math.abs(directoryBefore.y - directoryAfter.y) <= 2, `answer directory keeps the composer fixed: ${directoryBefore.y} -> ${directoryAfter.y}`);
+      assert.equal(await page.evaluate(() => document.querySelector('main > div')?.scrollTop || 0), backgroundBeforeDirectory, 'directory does not move the page behind the workspace');
       await activeAnswer.getByRole('heading', { name: '后续核实', exact: true }).waitFor();
       assert.equal(await activeAnswer.getByRole('heading', { name: '后续核实', exact: true }).evaluate(node => node === document.activeElement), true);
       assert.match(await activeAnswer.locator('pre').innerText(), /尚未闭合/);
