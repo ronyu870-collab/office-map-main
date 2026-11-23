@@ -26,7 +26,7 @@ describe('Map 2.0 presentation seam', () => {
   it('keeps future image wrappers scoped without forcing their distinct silhouettes into circles', () => {
     const css = read('src/app/map/map-workbench.css');
     const controller = read('src/services/MapController.ts');
-    expect(controller).toContain('<div class="map-future-supply-marker" role="img"');
+    expect(controller).toMatch(/<div class="map-future-supply-marker"[^>]*role="img"/);
     expect(css).toContain('.amap-marker .map-future-supply-marker {');
     expect(css).not.toMatch(/\.map-future-supply-marker\s*\{[^}]*border-radius:\s*50%/);
     expect(css).not.toContain('.amap-marker > div[style*="width:26px;height:26px"]:not([data-building-id])');

@@ -290,7 +290,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const [stockLoaded, setStockLoaded] = React.useState(false);
   const filterFrameSchedulerRef = React.useRef<LatestFrameScheduler | null>(null);
   const futureSupplyRequestTokenRef = React.useRef(0);
-  const hoveredBuildingIdRef = React.useRef<string | null>(null);
+  const hoveredBuildingIdRef = React.useRef<{ id: string; type: 'existing' | 'future' } | null>(null);
   const listNavigationTokenRef = React.useRef(0);
   const pendingNavigationTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingNavigationFrameRef = React.useRef<number | null>(null);
@@ -713,16 +713,15 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   }, [filterState, keyword, cancelPendingBuildingNavigation]);
 
   // 🌟 CL-013: 悬停联动 — 卡片悬停时地图 marker 弹跳
-  const handleBuildingHover = React.useCallback((buildingId: string | null) => {
-    if (!controllerRef.current) return;
+  const handleBuildingHover = React.useCallback((buildingId: string | null, type: 'existing' | 'future' = 'existing') => {
     const ctrl = controllerRef.current;
-    const previousId = hoveredBuildingIdRef.current;
-    if (previousId && previousId !== buildingId) ctrl.stopBounceMarker(previousId);
+    if (!ctrl) return;
+    const previous = hoveredBuildingIdRef.current;
+    if (previous && (previous.id !== buildingId || previous.type !== type)) ctrl.stopBounceMarker(previous.id, previous.type);
     if (buildingId) {
-      ctrl.bounceMarker(buildingId);
-      hoveredBuildingIdRef.current = buildingId;
+      ctrl.bounceMarker(buildingId, type);
+      hoveredBuildingIdRef.current = { id: buildingId, type };
     } else {
-      if (previousId) ctrl.stopBounceMarker(previousId);
       hoveredBuildingIdRef.current = null;
     }
   }, []);
@@ -990,6 +989,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         combinedBuildingList={combinedBuildingList}
         displayOverrides={displayOverrides}
         targetBuildingId={workspace.right?.kind === 'building' ? workspace.right.building.id : competitorBuildings ? targetBuildingId : buildingDetail?.building.id ?? null}
+        targetBuildingType={workspace.right?.kind === 'building' ? workspace.right.building._dataType === 'future' ? 'future' : 'existing' : competitorBuildings ? 'existing' : buildingDetail?.building._dataType === 'future' ? 'future' : 'existing'}
         brokerContext={buildingFocus ? {
           back: buildingFocus.back,
           filtered: workspace.right?.kind === 'building' && workspace.right.building.id === buildingFocus.id && !combinedBuildingList.some(item => item.id === buildingFocus.id),
