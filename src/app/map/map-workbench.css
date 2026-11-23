@@ -279,15 +279,17 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 }
 .workspace-note { color: #596779; margin: 8px 0; line-height: 1.6; overflow-wrap: anywhere; }
 .workspace-empty { color: #596779; padding: 16px; line-height: 1.6; }
-/* The side columns occupy real width. Auto-yielding never changes the stored open state. */
-.map-workspace-layout { position: relative; display: grid; grid-template-columns: var(--workspace-left) minmax(0,1fr) var(--workspace-right); grid-template-rows: minmax(0,1fr); flex: 1 1 0%; min-height: 0; overflow: hidden; }
+/* Panels own their layout; the map keeps one stable canvas underneath them. */
+.map-workspace-layout { --workspace-attribution-height: 24px; position: relative; display: grid; grid-template-columns: var(--workspace-left) minmax(0,1fr) var(--workspace-right); grid-template-rows: minmax(0,1fr); flex: 1 1 0%; min-height: 0; overflow: hidden; padding-bottom: var(--workspace-attribution-height); }
 .map-workspace-layout[data-dragging] { transition: none; user-select: none; }
-.map-workspace-layout > main.map-workspace-canvas { grid-column: 2; grid-row: 1; width: auto; min-width: 0; height: 100% !important; min-height: 0 !important; }
-.map-workspace-left, .map-workspace-right { min-width: 0; min-height: 0; overflow: hidden; position: relative; background: #f8fafc; }
+.map-workspace-layout > main.map-workspace-canvas { position: absolute; inset: 0; z-index: 0; grid-column: auto; grid-row: auto; width: auto; min-width: 0; height: 100% !important; min-height: 0 !important; }
+.map-workspace-layout > .map-workspace-canvas > .map-workspace-feedback { left: var(--workspace-map-left); right: var(--workspace-map-right); bottom: var(--workspace-map-bottom); }
+.map-workspace-feedback > * { pointer-events: auto; }
+.map-workspace-left, .map-workspace-right { min-width: 0; min-height: 0; overflow: hidden; position: relative; z-index: 1; background: #f8fafc; }
 .map-workspace-left { grid-column: 1; grid-row: 1; border-right: 1px solid #d9e0e8; }
 .map-workspace-right { grid-column: 3; grid-row: 1; border-left: 1px solid #d9e0e8; display: flex; flex-direction: column; container-type: inline-size; }
 .map-workspace-left:not([data-open]), .map-workspace-right:not([data-open]) { visibility: hidden; border: 0; }
-.map-workspace-layout > aside[data-exiting] { grid-area: auto; position: absolute; top: 0; bottom: 0; right: 0; width: var(--workspace-exit-right); max-width: 100%; visibility: visible; pointer-events: none; z-index: 380; }
+.map-workspace-layout > aside[data-exiting] { grid-area: auto; position: absolute; top: 0; bottom: var(--workspace-attribution-height); right: 0; width: var(--workspace-exit-right); max-width: 100%; visibility: visible; pointer-events: none; z-index: 380; }
 .map-workspace-layout > .map-workspace-left[data-exiting] { left: 0; right: auto; width: var(--workspace-exit-left); }
 .map-workspace-filter-shell, .map-workspace-filter, .map-workspace-supply, .map-workspace-search { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .map-workspace-view { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
@@ -299,13 +301,13 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .map-workspace-resize:focus-visible { outline: 2px solid #003e7e; outline-offset: -2px; }
 .workspace-restore-filter { position: absolute; z-index: 350; bottom: 44px; left: calc(var(--workspace-left) + 12px); min-height: 36px; padding: 4px 12px; border: 1px solid #c3ccd8; border-radius: 6px; background: #f8fafc; color: #003e7e; }
 .map-workspace-layout[data-compact] { grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr) auto; }
-.map-workspace-layout[data-compact] > main { grid-column: 1; grid-row: 1; }
+.map-workspace-layout[data-compact] > main { grid-column: auto; grid-row: auto; }
 .map-workspace-layout[data-compact] > aside { grid-column: 1; grid-row: 2; border: 0; border-top: 1px solid #d9e0e8; }
 .map-workspace-layout[data-compact] > aside[data-open] { height: var(--workspace-sheet-height); padding-bottom: env(safe-area-inset-bottom); }
 .map-workspace-layout[data-compact] > aside:not([data-open]) { display: none; height: 0; }
-.map-workspace-layout[data-compact] > aside[data-exiting] { display: flex; top: auto; bottom: 0; width: 100%; height: var(--workspace-exit-height); }
+.map-workspace-layout[data-compact] > aside[data-exiting] { display: flex; top: auto; bottom: var(--workspace-attribution-height); width: 100%; height: var(--workspace-exit-height); }
 .map-workspace-layout[data-compact] .map-workspace-resize { display: none; }
-.map-workspace-layout[data-compact] .workspace-restore-filter { bottom: calc(var(--workspace-sheet-height) + 12px); left: 12px; }
+.map-workspace-layout[data-compact] .workspace-restore-filter { bottom: calc(var(--workspace-sheet-height) + var(--workspace-attribution-height) + 12px); left: 12px; }
 .map-workspace-layout[data-expanded] > aside[data-open] { position: absolute; inset: 0; grid-row: 1 / -1; grid-column: 1 / -1; z-index: 390; height: 100%; }
 .map-workspace-layout[data-expanded] > main { visibility: hidden; }
 .map-workspace-layout[data-expanded] .map-workspace-resize { display: none; }

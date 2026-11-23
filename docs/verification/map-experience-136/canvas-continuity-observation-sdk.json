@@ -1,0 +1,4713 @@
+{
+  "artificialCpuRate": 1,
+  "frameStallMs": 0,
+  "reducedMotion": false,
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [
+    {
+      "width": 1536,
+      "height": 900,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 229
+      },
+      "scenes": [
+        {
+          "name": "real drag then delayed future response",
+          "before": [
+            15.92,
+            116.474497,
+            39.915
+          ],
+          "dragged": [
+            15.92,
+            116.46078,
+            39.917608
+          ],
+          "after": [
+            15.92,
+            116.46078,
+            39.917608
+          ]
+        },
+        {
+          "name": "CBD",
+          "width": 1536,
+          "height": 742,
+          "zoom": 13.92,
+          "center": [
+            116.512993,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 184.86006090277817,
+              "y": 658,
+              "edge": 84
+            },
+            {
+              "id": "cbd-b",
+              "x": 404.94002610165626,
+              "y": 514.5314400922507,
+              "edge": 227.4685599077493
+            },
+            {
+              "id": "future-cbd",
+              "x": 955.1399390986189,
+              "y": 83.99999999953434,
+              "edge": 83.99999999953434
+            },
+            {
+              "id": "pending-map-project",
+              "x": 625.0199913010001,
+              "y": 299.2893099547364,
+              "edge": 299.2893099547364
+            }
+          ],
+          "cameraCalls": 2,
+          "visible": {
+            "left": 0,
+            "right": 1136,
+            "top": 158,
+            "bottom": 900,
+            "width": 1136,
+            "height": 742
+          }
+        },
+        {
+          "name": "CBD wide pane",
+          "width": 1536,
+          "height": 742,
+          "zoom": 13.92,
+          "center": [
+            116.518446,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 124.8600609023124,
+              "y": 658,
+              "edge": 84
+            },
+            {
+              "id": "cbd-b",
+              "x": 344.9400261011906,
+              "y": 514.5314400922507,
+              "edge": 227.4685599077493
+            },
+            {
+              "id": "future-cbd",
+              "x": 895.1399390981533,
+              "y": 83.99999999953434,
+              "edge": 83.99999999953434
+            },
+            {
+              "id": "pending-map-project",
+              "x": 565.0199913005345,
+              "y": 299.2893099547364,
+              "edge": 299.2893099547364
+            }
+          ],
+          "cameraCalls": 3,
+          "visible": {
+            "left": 0,
+            "right": 1136,
+            "top": 158,
+            "bottom": 900,
+            "width": 1136,
+            "height": 742
+          }
+        },
+        {
+          "name": "望京",
+          "width": 1536,
+          "height": 742,
+          "zoom": 12.3,
+          "center": [
+            116.53203,
+            40.0125
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 115.99999999953434,
+              "y": 382.6914694731823,
+              "edge": 115.99999999953434
+            },
+            {
+              "id": "long-east",
+              "x": 903.9999999997672,
+              "y": 359.30853052658495,
+              "edge": 112.00000000023283
+            }
+          ],
+          "cameraCalls": 4,
+          "visible": {
+            "left": 0,
+            "right": 1016,
+            "top": 158,
+            "bottom": 900,
+            "width": 1016,
+            "height": 742
+          }
+        },
+        {
+          "name": "丽泽",
+          "width": 1536,
+          "height": 742,
+          "zoom": 16,
+          "center": [
+            116.355536,
+            39.87
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 509.9999999962747,
+              "y": 371,
+              "edge": 371
+            },
+            {
+              "id": "same",
+              "x": 509.9999999962747,
+              "y": 371,
+              "edge": 371
+            }
+          ],
+          "cameraCalls": 5,
+          "visible": {
+            "left": 0,
+            "right": 1016,
+            "top": 158,
+            "bottom": 900,
+            "width": 1016,
+            "height": 742
+          }
+        },
+        {
+          "name": "locate current project after real pointer drag",
+          "id": "single",
+          "moved": [
+            116.341957,
+            39.873243
+          ],
+          "target": [
+            116.35,
+            39.87
+          ],
+          "projection": {
+            "point": [
+              581.9999999981374,
+              529
+            ],
+            "canvas": {
+              "left": 0,
+              "top": 158,
+              "width": 1536,
+              "height": 742
+            },
+            "visible": {
+              "left": 0,
+              "right": 1160,
+              "top": 158,
+              "bottom": 900,
+              "width": 1160,
+              "height": 742
+            },
+            "center": [
+              580,
+              529
+            ],
+            "centered": true
+          },
+          "nativeTouch": false
+        },
+        {
+          "name": "current marker recenter after real pointer drag",
+          "width": 1536,
+          "id": "single",
+          "moved": [
+            116.351267,
+            39.870741
+          ],
+          "keyboardMoved": [
+            116.351267,
+            39.870741
+          ],
+          "target": [
+            116.35,
+            39.87
+          ],
+          "recentered": [
+            116.353991,
+            39.87
+          ],
+          "projection": {
+            "point": [
+              581.9999999981374,
+              529
+            ],
+            "canvas": {
+              "left": 0,
+              "top": 158,
+              "width": 1536,
+              "height": 742
+            },
+            "visible": {
+              "left": 0,
+              "right": 1160,
+              "top": 158,
+              "bottom": 900,
+              "width": 1160,
+              "height": 742
+            },
+            "center": [
+              580,
+              529
+            ],
+            "centered": true
+          },
+          "sharedCoordinateIdentityRetained": true,
+          "readingTabRetained": "概览",
+          "keyboardAction": true,
+          "nativeTouch": false
+        },
+        {
+          "name": "independent list selection for same-coordinate buildings",
+          "selections": [
+            {
+              "id": "single",
+              "center": [
+                116.353991,
+                39.87
+              ],
+              "projection": {
+                "point": [
+                  581.9999999981374,
+                  529
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 158,
+                  "width": 1536,
+                  "height": 742
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 1160,
+                  "top": 158,
+                  "bottom": 900,
+                  "width": 1160,
+                  "height": 742
+                },
+                "center": [
+                  580,
+                  529
+                ],
+                "centered": true
+              }
+            },
+            {
+              "id": "same",
+              "center": [
+                116.353991,
+                39.87
+              ],
+              "projection": {
+                "point": [
+                  581.9999999981374,
+                  529
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 158,
+                  "width": 1536,
+                  "height": 742
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 1160,
+                  "top": 158,
+                  "bottom": 900,
+                  "width": 1160,
+                  "height": 742
+                },
+                "center": [
+                  580,
+                  529
+                ],
+                "centered": true
+              }
+            }
+          ]
+        },
+        {
+          "name": "rapid A B C",
+          "width": 1536,
+          "height": 742,
+          "zoom": 16,
+          "center": [
+            116.325536,
+            39.98
+          ],
+          "points": [
+            {
+              "id": "other",
+              "x": 509.99999999813735,
+              "y": 371,
+              "edge": 371
+            }
+          ],
+          "cameraCalls": 13,
+          "visible": {
+            "left": 0,
+            "right": 1016,
+            "top": 158,
+            "bottom": 900,
+            "width": 1016,
+            "height": 742
+          }
+        },
+        {
+          "name": "base places via keyboard legend control",
+          "width": 1536,
+          "quietDefault": true,
+          "roadsAndBuildingsRemain": true,
+          "enabledFeatures": [
+            "bg",
+            "building",
+            "point",
+            "road"
+          ],
+          "cameraAndProjectContextUnchanged": true,
+          "mapInstanceRetained": true,
+          "leaveVisible": true
+        },
+        {
+          "name": "complete photo, material and Stacking round trip",
+          "beforeStack": [
+            14,
+            116.475965,
+            39.91
+          ],
+          "afterStack": [
+            14,
+            116.475965,
+            39.91
+          ],
+          "regionPreserved": true,
+          "selectedModes": 4
+        },
+        {
+          "width": 1536,
+          "observationMs": 800,
+          "regionCameraHasNoDuplicateTarget": true,
+          "commands": [
+            {
+              "layoutReady": "true",
+              "sheet": "209px",
+              "pane": {
+                "height": 718,
+                "top": 0
+              },
+              "at": 17.5,
+              "zoom": 13.917593292514066,
+              "center": [
+                116.51844602333671,
+                39.93000292175058
+              ],
+              "immediately": false,
+              "duration": 240,
+              "width": 1536,
+              "height": 742
+            }
+          ],
+          "center": [
+            116.518446,
+            39.930003
+          ],
+          "zoom": 13.92
+        },
+        {
+          "name": "distinct supply identity in all four modes",
+          "results": [
+            {
+              "id": "future-cbd",
+              "mode": "default",
+              "glyph": "F",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "future-cbd",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "future-cbd",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "future-cbd",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 1536,
+              "id": "future-cbd",
+              "moved": [
+                116.534889,
+                39.953006
+              ],
+              "keyboardMoved": [
+                116.534889,
+                39.953006
+              ],
+              "target": [
+                116.53,
+                39.95
+              ],
+              "recentered": [
+                116.545965,
+                39.95
+              ],
+              "projection": {
+                "point": [
+                  582.0000000004657,
+                  529
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 158,
+                  "width": 1536,
+                  "height": 742
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 1160,
+                  "top": 158,
+                  "bottom": 900,
+                  "width": 1160,
+                  "height": 742
+                },
+                "center": [
+                  580,
+                  529
+                ],
+                "centered": true
+              },
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "default",
+              "glyph": "?",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": true
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 1536,
+              "id": "pending-map-project",
+              "moved": [
+                116.505068,
+                39.937961
+              ],
+              "keyboardMoved": [
+                116.505068,
+                39.937961
+              ],
+              "target": [
+                116.5,
+                39.935
+              ],
+              "recentered": [
+                116.515965,
+                39.935
+              ],
+              "projection": {
+                "point": [
+                  582.0000000004657,
+                  529
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 158,
+                  "width": 1536,
+                  "height": 742
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 1160,
+                  "top": 158,
+                  "bottom": 900,
+                  "width": 1160,
+                  "height": 742
+                },
+                "center": [
+                  580,
+                  529
+                ],
+                "centered": true
+              },
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            }
+          ],
+          "legendMatches": true
+        },
+        {
+          "name": "base places via keyboard legend control",
+          "width": 1536,
+          "quietDefault": true,
+          "roadsAndBuildingsRemain": true,
+          "enabledFeatures": [
+            "bg",
+            "building",
+            "point",
+            "road"
+          ],
+          "cameraAndProjectContextUnchanged": true,
+          "mapInstanceRetained": true,
+          "leaveVisible": false
+        },
+        {
+          "width": 1536,
+          "surfaceCloseAndReverse": true,
+          "frameStallMs": 0,
+          "frameGaps": [
+            16.599999999998545,
+            16.69999999999709,
+            16.60000000000582,
+            16.69999999999709,
+            16.69999999999709,
+            16.60000000000582,
+            16.69999999999709,
+            16.69999999999709,
+            16.60000000000582,
+            16.799999999995634,
+            16.599999999998545,
+            16.700000000004366,
+            16.599999999998545,
+            16.599999999998545,
+            16.80000000000291,
+            16.599999999998545,
+            16.69999999999709,
+            16.700000000004366,
+            16.599999999998545,
+            16.69999999999709,
+            16.60000000000582,
+            16.69999999999709,
+            16.599999999998545,
+            16.80000000000291,
+            16.599999999998545
+          ],
+          "traces": [
+            {
+              "action": "close",
+              "time": -1,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 26.13200009537104,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 1,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 42.80000009536889,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1223.441650390625,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.627917,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 59.40000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1228.3287353515625,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.383561,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 76.10000009536452,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1231.3212890625,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.233933,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 92.80000009536889,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1233.12939453125,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.143531,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 109.50000009536598,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1234.2412109375,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.0879368,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 126.10000009536452,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1234.9326171875,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.0533721,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 142.8000000953689,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1235.3702392578125,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.0314902,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 159.50000009536598,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1235.6434326171875,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.0178301,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 176.10000009536452,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1235.8095703125,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.00952012,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 192.8000000953689,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1235.907958984375,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.0046051,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 209.40000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1235.96142578125,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.00192582,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 226.10000009536452,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1235.9876708984375,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.000615096,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 242.8000000953689,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1235.997802734375,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.000111388,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 259.500000095366,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0.00000235242,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 276.1000000953645,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 292.70000009537034,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 309.40000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 326.1000000953645,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 342.8000000953689,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 359.40000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 376.1000000953645,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 392.8000000953689,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 409.40000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 426.1000000953645,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": -1,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1556,
+              "y": 158,
+              "width": 0,
+              "height": 718,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 13.300000095368887,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1228.546630859375,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.686335,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 29.90000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1223.6639404296875,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.808402,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 46.60000009536452,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1220.67431640625,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.883143,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 63.20000009537034,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1220.67431640625,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.883143,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 79.90000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1220.67431640625,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.883143,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 96.60000009536452,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1226.3778076171875,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.554476,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 113.20000009537034,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1226.3778076171875,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.554476,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 129.90000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1226.3778076171875,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.554476,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 146.60000009536452,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1222.5152587890625,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.720297,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 163.20000009537034,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1219.9798583984375,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.829145,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 180.00000009536598,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1218.420166015625,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.896101,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 196.60000009536452,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1217.4892578125,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.936065,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 213.3000000953689,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216.9124755859375,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.960829,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 229.90000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216.5538330078125,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.976226,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 246.50000009536598,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216.3277587890625,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.985927,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 263.3000000953689,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216.1849365234375,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.992058,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 279.90000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216.0987548828125,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.99576,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 296.6000000953645,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216.0477294921875,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.997949,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 313.3000000953689,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216.0198974609375,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.999147,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 329.90000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216.00634765625,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.999726,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 346.6000000953645,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216.0010986328125,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.99995,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 363.20000009537034,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 0.999999,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 379.90000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 396.500000095366,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 413.3000000953689,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 429.90000009536743,
+              "anchor": [
+                124.8600609023124,
+                658
+              ],
+              "x": 1216,
+              "y": 158,
+              "width": 320,
+              "height": 718,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 1536,
+              "canvasHeight": 742,
+              "clip": "none"
+            }
+          ]
+        }
+      ],
+      "emptyAndClose": "pass"
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 122
+      },
+      "scenes": [
+        {
+          "name": "CBD",
+          "width": 390,
+          "height": 552,
+          "zoom": 11.79,
+          "center": [
+            116.495,
+            39.883188
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 106.96801392058842,
+              "y": 188.09999999997672,
+              "edge": 52.90000000002328
+            },
+            {
+              "id": "cbd-b",
+              "x": 157.27200596604962,
+              "y": 155.3071863068035,
+              "edge": 85.69281369319651
+            },
+            {
+              "id": "future-cbd",
+              "x": 283.0319860796444,
+              "y": 56.899999999906896,
+              "edge": 56.89999999990687
+            },
+            {
+              "id": "pending-map-project",
+              "x": 207.57599801162723,
+              "y": 106.1089851326542,
+              "edge": 106.1089851326542
+            }
+          ],
+          "cameraCalls": 1,
+          "visible": {
+            "left": 0,
+            "right": 390,
+            "top": 292,
+            "bottom": 533,
+            "width": 390,
+            "height": 241
+          }
+        },
+        {
+          "name": "望京",
+          "width": 390,
+          "height": 552,
+          "zoom": 10.57,
+          "center": [
+            116.46,
+            39.903739
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 75.99999999994179,
+              "y": 126.03117986628786,
+              "edge": 75.99999999994179
+            },
+            {
+              "id": "long-east",
+              "x": 314.0000000000582,
+              "y": 118.96882013368304,
+              "edge": 75.99999999994179
+            }
+          ],
+          "cameraCalls": 2,
+          "visible": {
+            "left": 0,
+            "right": 390,
+            "top": 292,
+            "bottom": 533,
+            "width": 390,
+            "height": 241
+          }
+        },
+        {
+          "name": "丽泽",
+          "width": 390,
+          "height": 552,
+          "zoom": 16,
+          "center": [
+            116.35,
+            39.867472
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 194.99999999813735,
+              "y": 122.5,
+              "edge": 118.5
+            },
+            {
+              "id": "same",
+              "x": 194.99999999813735,
+              "y": 122.5,
+              "edge": 118.5
+            }
+          ],
+          "cameraCalls": 3,
+          "visible": {
+            "left": 0,
+            "right": 390,
+            "top": 292,
+            "bottom": 533,
+            "width": 390,
+            "height": 241
+          }
+        },
+        {
+          "name": "locate current project after real pointer drag",
+          "id": "single",
+          "moved": [
+            116.346016,
+            39.869504
+          ],
+          "target": [
+            116.35,
+            39.87
+          ],
+          "projection": {
+            "point": [
+              199.79641963727772,
+              454.70569312758744
+            ],
+            "canvas": {
+              "left": 0,
+              "top": 292,
+              "width": 390,
+              "height": 552
+            },
+            "visible": {
+              "left": 0,
+              "right": 390,
+              "top": 292,
+              "bottom": 609,
+              "width": 390,
+              "height": 317
+            },
+            "center": [
+              195,
+              450.5
+            ],
+            "centered": true
+          },
+          "nativeTouch": false
+        },
+        {
+          "name": "current marker recenter after real pointer drag",
+          "width": 390,
+          "id": "single",
+          "moved": [
+            116.349063,
+            39.868441
+          ],
+          "keyboardMoved": [
+            116.349054,
+            39.868444
+          ],
+          "target": [
+            116.35,
+            39.87
+          ],
+          "recentered": [
+            116.35,
+            39.868098
+          ],
+          "projection": {
+            "point": [
+              199.20661505684257,
+              454.5055856835097
+            ],
+            "canvas": {
+              "left": 0,
+              "top": 292,
+              "width": 390,
+              "height": 552
+            },
+            "visible": {
+              "left": 0,
+              "right": 390,
+              "top": 292,
+              "bottom": 609,
+              "width": 390,
+              "height": 317
+            },
+            "center": [
+              195,
+              450.5
+            ],
+            "centered": true
+          },
+          "sharedCoordinateIdentityRetained": true,
+          "readingTabRetained": "概览",
+          "keyboardAction": true,
+          "nativeTouch": false
+        },
+        {
+          "name": "independent list selection for same-coordinate buildings",
+          "selections": [
+            {
+              "id": "single",
+              "center": [
+                116.35,
+                39.868098
+              ],
+              "projection": {
+                "point": [
+                  194.99999999813735,
+                  452.49999999813735
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 292,
+                  "width": 390,
+                  "height": 552
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 390,
+                  "top": 292,
+                  "bottom": 609,
+                  "width": 390,
+                  "height": 317
+                },
+                "center": [
+                  195,
+                  450.5
+                ],
+                "centered": true
+              }
+            },
+            {
+              "id": "same",
+              "center": [
+                116.35,
+                39.868098
+              ],
+              "projection": {
+                "point": [
+                  194.99999999813735,
+                  452.49999999813735
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 292,
+                  "width": 390,
+                  "height": 552
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 390,
+                  "top": 292,
+                  "bottom": 609,
+                  "width": 390,
+                  "height": 317
+                },
+                "center": [
+                  195,
+                  450.5
+                ],
+                "centered": true
+              }
+            }
+          ]
+        },
+        {
+          "name": "rapid A B C",
+          "width": 390,
+          "height": 552,
+          "zoom": 16,
+          "center": [
+            116.32,
+            39.977476
+          ],
+          "points": [
+            {
+              "id": "other",
+              "x": 195,
+              "y": 122.5,
+              "edge": 118.5
+            }
+          ],
+          "cameraCalls": 12,
+          "visible": {
+            "left": 0,
+            "right": 390,
+            "top": 292,
+            "bottom": 533,
+            "width": 390,
+            "height": 241
+          }
+        },
+        {
+          "width": 390,
+          "observationMs": 800,
+          "regionCameraHasNoDuplicateTarget": true,
+          "commands": [
+            {
+              "layoutReady": "true",
+              "sheet": "287px",
+              "pane": {
+                "height": 287,
+                "top": 241
+              },
+              "at": 48.700000047683716,
+              "zoom": 11.7883102755691,
+              "center": [
+                116.49499999999995,
+                39.8831881450356
+              ],
+              "immediately": false,
+              "duration": 240,
+              "width": 390,
+              "height": 552
+            }
+          ],
+          "center": [
+            116.495,
+            39.883188
+          ],
+          "zoom": 11.79
+        },
+        {
+          "name": "distinct supply identity in all four modes",
+          "results": [
+            {
+              "id": "future-cbd",
+              "mode": "default",
+              "glyph": "F",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 390,
+              "id": "future-cbd",
+              "moved": [
+                116.526251,
+                39.946201
+              ],
+              "keyboardMoved": [
+                116.52609,
+                39.946288
+              ],
+              "target": [
+                116.53,
+                39.95
+              ],
+              "recentered": [
+                116.53,
+                39.944242
+              ],
+              "projection": {
+                "point": [
+                  199.3466873364523,
+                  483.4661444108933
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 292,
+                  "width": 390,
+                  "height": 552
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 390,
+                  "top": 292,
+                  "bottom": 665,
+                  "width": 390,
+                  "height": 373
+                },
+                "center": [
+                  195,
+                  478.5
+                ],
+                "centered": true
+              },
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "default",
+              "glyph": "?",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 390,
+              "id": "pending-map-project",
+              "moved": [
+                116.496251,
+                39.9312
+              ],
+              "keyboardMoved": [
+                116.496213,
+                39.931217
+              ],
+              "target": [
+                116.5,
+                39.935
+              ],
+              "recentered": [
+                116.5,
+                39.929241
+              ],
+              "projection": {
+                "point": [
+                  199.20995011320338,
+                  483.36439523939043
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 292,
+                  "width": 390,
+                  "height": 552
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 390,
+                  "top": 292,
+                  "bottom": 665,
+                  "width": 390,
+                  "height": 373
+                },
+                "center": [
+                  195,
+                  478.5
+                ],
+                "centered": true
+              },
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            }
+          ],
+          "legendMatches": true
+        },
+        {
+          "name": "base places via keyboard legend control",
+          "width": 390,
+          "quietDefault": true,
+          "roadsAndBuildingsRemain": true,
+          "enabledFeatures": [
+            "bg",
+            "building",
+            "point",
+            "road"
+          ],
+          "cameraAndProjectContextUnchanged": true,
+          "mapInstanceRetained": true,
+          "leaveVisible": false
+        },
+        {
+          "width": 390,
+          "surfaceCloseAndReverse": true,
+          "frameStallMs": 0,
+          "frameGaps": [
+            16.700000000000728,
+            16.700000000000728,
+            16.700000000000728,
+            16.599999999998545,
+            16.700000000000728,
+            16.700000000000728,
+            16.700000000000728,
+            16.599999999998545,
+            16.599999999998545,
+            16.700000000000728,
+            16.600000000002183,
+            16.799999999999272,
+            16.700000000000728,
+            16.599999999998545,
+            16.599999999998545,
+            16.80000000000291,
+            16.599999999998545,
+            16.700000000000728,
+            16.599999999998545,
+            16.700000000000728,
+            16.700000000000728,
+            16.700000000000728,
+            16.599999999998545,
+            16.599999999998545,
+            16.700000000000728
+          ],
+          "traces": [
+            {
+              "action": "close",
+              "time": -1,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607,
+              "width": 390,
+              "height": 213,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 10.766000095369236,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607,
+              "width": 390,
+              "height": 213,
+              "opacity": 1,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 27.40000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 614.4291381835938,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.628543,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 44.10000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 619.3438720703125,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.382807,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 60.80000009536889,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 622.3304443359375,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.23348,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 77.40000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 624.1265258789062,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.143673,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 94.10000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 625.239501953125,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.0880253,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 110.7000000953667,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 625.9314575195312,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.0534278,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 127.40000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 626.3695068359375,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.0315252,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 144.10000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 626.6429443359375,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.0178517,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 160.8000000953689,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 626.81005859375,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.00949487,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 177.40000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 626.90771484375,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.00461251,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 194.10000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 626.961669921875,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.00191836,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 210.7000000953667,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 626.9876708984375,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.00061678,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 227.40000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 626.997802734375,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.000111896,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 244.00000009536598,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0.00000249954,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 260.7000000953667,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 277.40000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 294.000000095366,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 310.7000000953667,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 327.40000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 344.10000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 360.7000000953667,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 377.40000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 394.10000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 410.7000000953667,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 427.40000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": -1,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 13.500000095365976,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 619.5833740234375,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.685416,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 30.200000095366704,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 614.6639404296875,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.808402,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 46.90000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 611.6742553710938,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.883143,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 63.60000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 611.6742553710938,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.883143,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 80.2000000953667,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 617.3662719726562,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.555142,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 96.90000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 621.1326904296875,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.338104,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 113.60000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 621.1326904296875,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.338104,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 130.3000000953689,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 615.8572998046875,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.585174,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 146.90000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 612.4102783203125,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.746614,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 163.50000009536598,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 610.3095092773438,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.845001,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 180.2000000953667,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 609.030517578125,
+              "width": 390,
+              "height": 213.00006103515625,
+              "opacity": 0.9049,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 196.8000000953689,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 608.247802734375,
+              "width": 390,
+              "height": 212.99993896484375,
+              "opacity": 0.941562,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 213.60000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607.7528076171875,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.964744,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 230.3000000953689,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607.444091796875,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.979201,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 246.90000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607.2523193359375,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.988184,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 263.500000095366,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607.134765625,
+              "width": 390,
+              "height": 212.99993896484375,
+              "opacity": 0.99369,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 280.3000000953689,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607.0648803710938,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.996961,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 296.90000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607.027099609375,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.99873,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 313.60000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607.0086669921875,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.999595,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 330.2000000953667,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607.0015869140625,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.999926,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 346.90000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607,
+              "width": 390,
+              "height": 213.00006103515625,
+              "opacity": 0.999998,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 363.60000009536816,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607,
+              "width": 390,
+              "height": 213,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 380.3000000953689,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607,
+              "width": 390,
+              "height": 213,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 396.90000009536743,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607,
+              "width": 390,
+              "height": 213,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 413.500000095366,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607,
+              "width": 390,
+              "height": 213,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 430.2000000953667,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607,
+              "width": 390,
+              "height": 213,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            }
+          ]
+        }
+      ],
+      "emptyAndClose": "pass"
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 93
+      },
+      "scenes": [
+        {
+          "name": "CBD",
+          "width": 844,
+          "height": 210,
+          "zoom": 11.52,
+          "center": [
+            116.589929,
+            39.930003
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 151.53372084884904,
+              "y": 159.29243425256573,
+              "edge": 50.70756574743427
+            },
+            {
+              "id": "cbd-b",
+              "x": 193.16674189723562,
+              "y": 132.15216471912572,
+              "edge": 77.84783528087428
+            },
+            {
+              "id": "future-cbd",
+              "x": 297.2492945182603,
+              "y": 50.70756574725964,
+              "edge": 50.70756574725965
+            },
+            {
+              "id": "pending-map-project",
+              "x": 234.79976294573865,
+              "y": 91.43432778923307,
+              "edge": 91.43432778923307
+            }
+          ],
+          "cameraCalls": 1,
+          "visible": {
+            "left": 0,
+            "right": 444,
+            "top": 180,
+            "bottom": 390,
+            "width": 444,
+            "height": 210
+          }
+        },
+        {
+          "name": "望京",
+          "width": 844,
+          "height": 210,
+          "zoom": 10.79,
+          "center": [
+            116.617007,
+            40.0125
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 85.27999999985332,
+              "y": 109.11634681554278,
+              "edge": 85.27999999985332
+            },
+            {
+              "id": "long-east",
+              "x": 362.71999999997206,
+              "y": 100.88365318439901,
+              "edge": 81.28000000002794
+            }
+          ],
+          "cameraCalls": 2,
+          "visible": {
+            "left": 0,
+            "right": 444,
+            "top": 180,
+            "bottom": 390,
+            "width": 444,
+            "height": 210
+          }
+        },
+        {
+          "name": "丽泽",
+          "width": 844,
+          "height": 210,
+          "zoom": 16,
+          "center": [
+            116.354249,
+            39.87
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 223.99999999813735,
+              "y": 104.99999999999999,
+              "edge": 105
+            },
+            {
+              "id": "same",
+              "x": 223.99999999813735,
+              "y": 104.99999999999999,
+              "edge": 105
+            }
+          ],
+          "cameraCalls": 3,
+          "visible": {
+            "left": 0,
+            "right": 444,
+            "top": 180,
+            "bottom": 390,
+            "width": 444,
+            "height": 210
+          }
+        },
+        {
+          "name": "locate current project after real pointer drag",
+          "id": "single",
+          "moved": [
+            116.349262,
+            39.870899
+          ],
+          "target": [
+            116.35,
+            39.87
+          ],
+          "projection": {
+            "point": [
+              235.99999999813735,
+              285
+            ],
+            "canvas": {
+              "left": 0,
+              "top": 180,
+              "width": 844,
+              "height": 210
+            },
+            "visible": {
+              "left": 0,
+              "right": 468,
+              "top": 180,
+              "bottom": 390,
+              "width": 468,
+              "height": 210
+            },
+            "center": [
+              234,
+              285
+            ],
+            "centered": true
+          },
+          "nativeTouch": false
+        },
+        {
+          "name": "current marker recenter after real pointer drag",
+          "width": 844,
+          "id": "single",
+          "moved": [
+            116.352862,
+            39.870196
+          ],
+          "keyboardMoved": [
+            116.352863,
+            39.870196
+          ],
+          "target": [
+            116.35,
+            39.87
+          ],
+          "recentered": [
+            116.353991,
+            39.87
+          ],
+          "projection": {
+            "point": [
+              237.35817534103987,
+              285.30745037831366
+            ],
+            "canvas": {
+              "left": 0,
+              "top": 180,
+              "width": 844,
+              "height": 210
+            },
+            "visible": {
+              "left": 0,
+              "right": 468,
+              "top": 180,
+              "bottom": 390,
+              "width": 468,
+              "height": 210
+            },
+            "center": [
+              234,
+              285
+            ],
+            "centered": true
+          },
+          "sharedCoordinateIdentityRetained": true,
+          "readingTabRetained": "概览",
+          "keyboardAction": true,
+          "nativeTouch": false
+        },
+        {
+          "name": "independent list selection for same-coordinate buildings",
+          "selections": [
+            {
+              "id": "single",
+              "center": [
+                116.353991,
+                39.87
+              ],
+              "projection": {
+                "point": [
+                  235.99999999813735,
+                  285
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 180,
+                  "width": 844,
+                  "height": 210
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 468,
+                  "top": 180,
+                  "bottom": 390,
+                  "width": 468,
+                  "height": 210
+                },
+                "center": [
+                  234,
+                  285
+                ],
+                "centered": true
+              }
+            },
+            {
+              "id": "same",
+              "center": [
+                116.353991,
+                39.87
+              ],
+              "projection": {
+                "point": [
+                  235.99999999813735,
+                  285
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 180,
+                  "width": 844,
+                  "height": 210
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 468,
+                  "top": 180,
+                  "bottom": 390,
+                  "width": 468,
+                  "height": 210
+                },
+                "center": [
+                  234,
+                  285
+                ],
+                "centered": true
+              }
+            }
+          ]
+        },
+        {
+          "name": "rapid A B C",
+          "width": 844,
+          "height": 210,
+          "zoom": 16,
+          "center": [
+            116.324249,
+            39.98
+          ],
+          "points": [
+            {
+              "id": "other",
+              "x": 223.99999999813735,
+              "y": 104.99999999999999,
+              "edge": 105
+            }
+          ],
+          "cameraCalls": 12,
+          "visible": {
+            "left": 0,
+            "right": 444,
+            "top": 180,
+            "bottom": 390,
+            "width": 444,
+            "height": 210
+          }
+        },
+        {
+          "width": 844,
+          "observationMs": 800,
+          "regionCameraHasNoDuplicateTarget": true,
+          "commands": [
+            {
+              "layoutReady": "true",
+              "sheet": "142.8px",
+              "pane": {
+                "height": 186,
+                "top": 0
+              },
+              "at": 23.199999928474426,
+              "zoom": 11.518221112201356,
+              "center": [
+                116.58992873077204,
+                39.93000292175058
+              ],
+              "immediately": false,
+              "duration": 240,
+              "width": 844,
+              "height": 210
+            }
+          ],
+          "center": [
+            116.589929,
+            39.930003
+          ],
+          "zoom": 11.52
+        },
+        {
+          "name": "distinct supply identity in all four modes",
+          "results": [
+            {
+              "id": "future-cbd",
+              "mode": "default",
+              "glyph": "F",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 844,
+              "id": "future-cbd",
+              "moved": [
+                116.54137,
+                39.950797
+              ],
+              "keyboardMoved": [
+                116.54145,
+                39.950784
+              ],
+              "target": [
+                116.53,
+                39.95
+              ],
+              "recentered": [
+                116.545965,
+                39.95
+              ],
+              "projection": {
+                "point": [
+                  237.35877730371428,
+                  285.3078096844256
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 180,
+                  "width": 844,
+                  "height": 210
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 468,
+                  "top": 180,
+                  "bottom": 390,
+                  "width": 468,
+                  "height": 210
+                },
+                "center": [
+                  234,
+                  285
+                ],
+                "centered": true
+              },
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "default",
+              "glyph": "?",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 844,
+              "id": "pending-map-project",
+              "moved": [
+                116.511449,
+                39.935785
+              ],
+              "keyboardMoved": [
+                116.511525,
+                39.935773
+              ],
+              "target": [
+                116.5,
+                39.935
+              ],
+              "recentered": [
+                116.515965,
+                39.935
+              ],
+              "projection": {
+                "point": [
+                  237.3362037925981,
+                  285.3034243998118
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 180,
+                  "width": 844,
+                  "height": 210
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 468,
+                  "top": 180,
+                  "bottom": 390,
+                  "width": 468,
+                  "height": 210
+                },
+                "center": [
+                  234,
+                  285
+                ],
+                "centered": true
+              },
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            }
+          ],
+          "legendMatches": true
+        },
+        {
+          "name": "base places via keyboard legend control",
+          "width": 844,
+          "quietDefault": true,
+          "roadsAndBuildingsRemain": true,
+          "enabledFeatures": [
+            "bg",
+            "building",
+            "point",
+            "road"
+          ],
+          "cameraAndProjectContextUnchanged": true,
+          "mapInstanceRetained": true,
+          "leaveVisible": false
+        },
+        {
+          "width": 844,
+          "surfaceCloseAndReverse": true,
+          "frameStallMs": 0,
+          "frameGaps": [
+            16.700000000000728,
+            16.69999999999709,
+            16.700000000000728,
+            16.600000000002183,
+            16.69999999999709,
+            16.600000000002183,
+            16.700000000000728,
+            16.599999999998545,
+            16.799999999999272,
+            16.600000000002183,
+            16.599999999998545,
+            16.700000000000728,
+            16.700000000000728,
+            16.599999999998545,
+            16.799999999999272,
+            16.600000000002183,
+            16.599999999998545,
+            16.700000000000728,
+            16.700000000000728,
+            16.599999999998545,
+            16.700000000000728,
+            16.700000000000728,
+            16.69999999999709,
+            16.700000000000728,
+            16.600000000002183
+          ],
+          "traces": [
+            {
+              "action": "close",
+              "time": -1,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 9.599999928475881,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 1,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 26.199999928474426,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 531.4166259765625,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.629168,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 42.9999999284737,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 536.35888671875,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.382055,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 59.699999928474426,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 539.3394775390625,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.233027,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 76.29999992847297,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 541.132080078125,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.143397,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 92.9999999284737,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 542.242919921875,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.0878535,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 109.59999992847588,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 542.93359375,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.0533197,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 126.19999992847443,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 543.3687744140625,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.0315602,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 142.89999992847515,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 543.6425170898438,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.0178734,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 159.59999992847588,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 543.809814453125,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.00950787,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 176.29999992847297,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 543.9080200195312,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.00459814,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 192.89999992847515,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 543.9615478515625,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.0019222,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 209.59999992847588,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 543.9877319335938,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.000613514,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 226.19999992847443,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 543.9977416992188,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.000112405,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 242.89999992847515,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 543.9999389648438,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.00000242632,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 259.5999999284759,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 276.29999992847297,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 292.89999992847515,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 309.5999999284759,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 326.29999992847297,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 342.89999992847515,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 359.5999999284759,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 376.29999992847297,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 392.89999992847515,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 409.5999999284759,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 426.1999999284744,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": -1,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 864,
+              "y": 180,
+              "width": 0,
+              "height": 186,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 14.09999997615887,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 536.5465698242188,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.686335,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 30.799999976159597,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 531.64111328125,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.808972,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 47.49999997615669,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 528.6605224609375,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.883486,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 64.19999997615741,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 528.6605224609375,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.883486,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 80.7999999761596,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 534.3677978515625,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.554772,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 97.49999997615669,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 538.1337280273438,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.337872,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 114.09999997615887,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 538.1337280273438,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.337872,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 130.7999999761596,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 532.87451171875,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.584251,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 147.39999997615814,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 529.4209594726562,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.746041,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 164.19999997615741,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 527.2965698242188,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.845565,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 180.7999999761596,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 526.028564453125,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.904967,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 197.39999997615814,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 525.2465209960938,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.941604,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 214.09999997615887,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524.7543334960938,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.964662,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 230.7999999761596,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524.445068359375,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.97915,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 247.39999997615814,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524.2528686523438,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.988152,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 264.1999999761574,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524.134033203125,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.993722,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 280.7999999761596,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524.0650634765625,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.996951,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 297.39999997615814,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524.0272216796875,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.998725,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 314.09999997615887,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524.0086669921875,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.999593,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 330.7999999761596,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524.0015869140625,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.999926,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 347.39999997615814,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524.0000610351562,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 0.999998,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 364.09999997615887,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 380.7999999761596,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 397.4999999761567,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 414.1999999761574,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "none"
+            },
+            {
+              "action": "reverse",
+              "time": 430.7999999761596,
+              "anchor": [
+                150.99786520248745,
+                159.3999999999651
+              ],
+              "x": 524,
+              "y": 180,
+              "width": 320,
+              "height": 186,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 844,
+              "canvasHeight": 210,
+              "clip": "none"
+            }
+          ]
+        }
+      ],
+      "emptyAndClose": "pass"
+    }
+  ],
+  "status": "pass"
+}

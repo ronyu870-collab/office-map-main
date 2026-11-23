@@ -1,0 +1,180 @@
+{
+  "baseHead": "7dc2e64562360b82b836242c596fc4298cc37a50",
+  "productFilesSha256": {
+    "src/app/map/MapClient.tsx": "98bf7f0c5b1ee6e3d9025a30a6677dc818af2143139251ca8a67f5e5875be415",
+    "src/app/map/components/MapWorkbenchView.tsx": "8150fdd2eab7f0ba21a78bff229dd5d7d6546608c66effcd997e68f1d28cf093",
+    "src/app/map/components/MapWorkspaceLayout.tsx": "8bfd91f5424c8baef01f4958a949eb10e2ef5f4e9a5c40e94446acabb6824bc9",
+    "src/app/map/map-workbench.css": "c1aea5cf974f9e0a9b3711ca6470626b1a4d17c6ef7c89a7214a992404359b9e",
+    "src/app/map/runtime/mapFocusViewport.ts": "ebc3c2b181a5a51f16fef94c878fd496aa568f2e115441b30449bdd03f95ef05",
+    "src/app/map/runtime/observeMapCanvas.ts": "d2576c3c05410c22d30166c94d46f1cc55cada945406a94979af893d9a1a4e1b",
+    "src/services/MapController.ts": "833b307d43522ee7cca13ebff5c10c4e9a3d46c1457aed4cb359e65e9ca7c1a8"
+  },
+  "implementation": [
+    "Stable full workspace canvas under owned side/bottom panels; SDK attribution has a 24px visible strip",
+    "Only settled measured reading geometry permits a camera; skip lazy empty shells and pending filter notice; consecutive non-animated layout measurements must agree",
+    "Explicit pending camera ownership rather than no-op running animation; empty geographic extent reports no move",
+    "One public camera target accounts for actual unoccluded region; user gesture ownership and exact saved camera remain protected",
+    "Owned layout/pane observers disconnect on teardown; no private SDK DOM or undocumented API"
+  ],
+  "before": {
+    "canvasClose": "all four original viewport traces fail stable-canvas assertion",
+    "mobileRegionCamera": {
+      "390": 2,
+      "320": 3
+    },
+    "initialUnitFailures": 3,
+    "pendingUnitFailures": 2,
+    "emptyExtentUnitFailures": 1,
+    "intermediateFailures": "canvas-continuity-candidate-failures.json"
+  },
+  "after": {
+    "unit": {
+      "files": 9,
+      "passed": 58
+    },
+    "typecheck": "pass",
+    "productionBuild": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 112
+    },
+    "workspace": {
+      "widths": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "records": 74,
+      "status": "pass",
+      "exitCode": 0
+    },
+    "focused": {
+      "widths": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "regionCameraCommands": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "stableCanvas": true,
+      "stableWorldAnchor": true,
+      "closeAndReverse": true,
+      "exitCode": 0
+    },
+    "realSDK": {
+      "widths": [
+        1536,
+        390,
+        844
+      ],
+      "status": "pass",
+      "sdkResponses": [
+        1,
+        1,
+        1
+      ],
+      "tileResponses": [
+        214,
+        115,
+        94
+      ],
+      "singleRegionTarget": true,
+      "allVisibleRegionProjectsAtLeast24pxInside": true,
+      "closeAnchorMaxPixelDelta": 0,
+      "exitCode": 0
+    },
+    "roundTrip": {
+      "widths": [
+        1536,
+        390,
+        390
+      ],
+      "reduced": [
+        false,
+        false,
+        true
+      ],
+      "status": "pass",
+      "exitCode": 0,
+      "scope": "Behavioral only; concurrent functional runners invalidate performance interpretation of timing fields"
+    },
+    "artificialCPU6": {
+      "width": 390,
+      "status": "pass",
+      "tileResponses": 102,
+      "scope": "6x Chrome public CDP CPU test; not a physical device or guaranteed low-frame condition",
+      "exitCode": 0
+    },
+    "artificialSlowFrames": {
+      "width": 390,
+      "status": "pass",
+      "frameStallMs": 80,
+      "maximumObservedFrameGapMs": 83.4,
+      "scope": "Explicit bounded main-thread test load only during surface close/reversal; canceled in finally",
+      "exitCode": 0
+    },
+    "reducedMotion": {
+      "width": 390,
+      "status": "pass",
+      "tileResponses": 54,
+      "exitCode": 0
+    },
+    "serialReading": {
+      "cycles": 12,
+      "width": 1536,
+      "sdkResponses": 1,
+      "tileResponses": 66,
+      "listenersEveryCycle": 638,
+      "nodesCycles3to12": 892,
+      "blobCreated": 12,
+      "blobRevoked": 12,
+      "postCloseApiInFlight": 0,
+      "mapInstancesAndRoots": 1,
+      "postCloseMarkersChartsModalsImages": 0,
+      "heapMiB": {
+        "cycle1": 39.08,
+        "cycle12": 42.48
+      },
+      "longTasksOver50ms": 0,
+      "exitCode": 0
+    },
+    "finalObservationRunner": {
+      "status": "pass",
+      "widths": [
+        1536,
+        390,
+        844
+      ],
+      "sdkResponses": [
+        1,
+        1,
+        1
+      ],
+      "tileResponses": [
+        229,
+        122,
+        93
+      ],
+      "scope": "Normal paths replayed after adding public target revisions for artificial CPU observations; includes desktop widening and Stacking return",
+      "exitCode": 0
+    }
+  },
+  "observationCorrections": [
+    "Artificial-CPU first check used a fixed 800ms window; retained early failure",
+    "Next attempt could match the previous region camera; public command revisions now require a new target from the current action before waiting for actual center/zoom",
+    "Surface recording begins only when current layout is measured and entry animation is settled; original 24px motion and 24px map margins remain unchanged"
+  ],
+  "limits": [
+    "Real AMap SDK and tiles, isolated administrator/business/photo/material transport",
+    "Viewport/CPU/busy-frame conditions are not native keyboard, device rotation, address bar or assistive-technology tests",
+    "12 reading cycles cover the SPA photo/chart/material loop and full-screen every third cycle; Stacking/history round trips are separately verified, not part of this CPU sample",
+    "Forced GC and profiler are diagnostic; heap still grows during warmup, no multi-hour leak-free or unprofiled performance claim",
+    "Necessary exact-head CI is still required before this batch merges; no production deployment or production account verification claim"
+  ]
+}

@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 
+export function assertSingleRegionCamera(result,width){
+  assert.equal(result.commands.length,1,`settled region opening must use one camera target at ${width}: ${JSON.stringify(result.commands)}`);
+}
+
 // Observe public camera commands without replacing SDK behavior. Data and
 // identity remain supplied by the caller's isolated workspace fixture.
 export async function verifyRegionCamera(page, { width, base }) {
@@ -14,7 +18,8 @@ export async function verifyRegionCamera(page, { width, base }) {
     const start = performance.now();
     map.setZoomAndCenter = function (...args) {
       const box = map.getContainer().getBoundingClientRect();
-      commands.push({ at: performance.now() - start, zoom: args[0], center: [...args[1]], immediately: args[2], duration: args[3], width: box.width, height: box.height });
+      const layout=map.getContainer().closest('.map-workspace-layout'),pane=layout.querySelector(':scope > aside[data-open]:not([inert])');
+      commands.push({ layoutReady:layout.dataset.mapLayoutReady,sheet:layout.style.getPropertyValue('--workspace-sheet-height'),pane:pane?{height:pane.offsetHeight,top:pane.offsetTop}:null, at: performance.now() - start, zoom: args[0], center: [...args[1]], immediately: args[2], duration: args[3], width: box.width, height: box.height });
       return original.apply(this, args);
     };
     try {
@@ -34,5 +39,6 @@ export async function verifyRegionCamera(page, { width, base }) {
     Math.round(command.width), Math.round(command.height),
   ]));
   assert.equal(new Set(keys).size, keys.length, `restarted identical region camera at ${width}: ${JSON.stringify(result.commands)}`);
+  assertSingleRegionCamera(result,width);
   return { width, observationMs: 800, regionCameraHasNoDuplicateTarget: true, ...result };
 }

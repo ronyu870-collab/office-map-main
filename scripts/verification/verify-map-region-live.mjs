@@ -1,13 +1,15 @@
+import { verifySurfaceContinuity } from './workspace-surface-continuity.mjs';
 import { verifySelectedRecenter } from './workspace-selected-recenter.mjs';
 import { verifyBaseMapPlaces } from './workspace-base-places.mjs';
 import { verifyRegionCamera } from './workspace-region-camera.mjs';
 import { clickWorkspaceAction } from './workspace-actions.mjs';
 import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
+import { waitForVisibleProject, visibleProjectProjection } from './workspace-visible-map.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { user, session, stock, future, project, stacking } from '../performance/fixtures/workspace-data.mjs';
-import { installLiveAmapProbe, waitForLiveAmapTiles } from '../performance/fixtures/live-amap-probe.mjs';
+import { installLiveAmapProbe, waitForLiveAmapTiles, waitForLiveCamera } from '../performance/fixtures/live-amap-probe.mjs';
 
 // Real public SDK, camera projection and tiles; isolated business/auth records.
 const base = new URL(process.argv[2]);
@@ -28,10 +30,15 @@ const buildings = [...stock.map(row=>row.id===project?{...row,photos:[chainPhoto
 const regionFuture = [...future.map(row => ({...row,grade:'A',location_lng:116.53,location_lat:39.95})), {id:'pending-map-project',name:'待核实标记项目',status:'pending',district:'朝阳区',submarket:'CBD',location_lng:116.50,location_lat:39.935}];
 const selectedWidths = process.env.MAP_LIVE_WIDTHS?.split(',').map(Number);
 assert.ok(!selectedWidths || selectedWidths.every(width => [1536,390,844].includes(width)), 'supported live widths');
-const results = { environment: 'real AMap SDK/tiles; isolated business and administrator identity', viewports: [] };
+const cpuRate=Number(process.env.MAP_LIVE_CPU_RATE??1);
+assert.ok(Number.isFinite(cpuRate)&&cpuRate>=1&&cpuRate<=6,'CPU test rate must be between 1 and 6');
+const reducedMotion=process.env.MAP_LIVE_REDUCED_MOTION==='1';
+const frameStallMs=Number(process.env.MAP_LIVE_FRAME_STALL_MS??0);
+assert.ok(Number.isFinite(frameStallMs)&&frameStallMs>=0&&frameStallMs<=100,'bounded artificial frame stall');
+const results = { artificialCpuRate:cpuRate,frameStallMs,reducedMotion,environment: 'real AMap SDK/tiles; isolated business and administrator identity', viewports: [] };
 try {
   for (const [width,height] of [[1536,900],[390,844],[844,390]].filter(([width]) => !selectedWidths || selectedWidths.includes(width))) {
-    const context = await browser.newContext({ viewport: {width,height}, serviceWorkers:'block' });
+    const context = await browser.newContext({ viewport: {width,height}, reducedMotion:reducedMotion?'reduce':'no-preference',serviceWorkers:'block' });
     const network = { sdkOK:0, tileOK:0 };
     let releaseFuture;
     let futureRequests = 0;
@@ -68,6 +75,7 @@ try {
       await context.addInitScript(({origin,session}) => { if(location.origin===origin){localStorage.setItem('colliers_trusted_device_until',String(Date.now()+86400000));localStorage.setItem('sb-example-auth-token',JSON.stringify(session));} },{origin:base.origin,session});
       await context.addInitScript(installLiveAmapProbe);
       const page = await context.newPage();
+      if(cpuRate!==1)await (await context.newCDPSession(page)).send('Emulation.setCPUThrottlingRate',{rate:cpuRate});
       page.setDefaultTimeout(15000);
       page.on('response', response => { const u=new URL(response.url()); if(response.ok()&&provider(u.hostname)){if(u.pathname==='/maps')network.sdkOK++;if(/\/tile\/|\/get_tile$/.test(u.pathname))network.tileOK++;} });
       await page.goto(new URL('/map',base).href);
@@ -78,19 +86,23 @@ try {
         throw error;
       }
       await waitForLiveAmapTiles(page,network);
+      let regionCameraRevision=0;
       const open = async name => {
         console.log(`real ${width}: opening ${name}`);
-        await page.evaluate(name => window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name}})),name);
+        regionCameraRevision=await page.evaluate(name => {const revision=window.__liveAmapProbe.lastCamera?.revision??0;window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name}}));return revision;},name);
         await page.getByRole('region',{name,exact:true}).waitFor();
       };
       const inspect = async (name, data, label=name) => {
         // Wait for layout/camera to settle, then check actual public SDK projection.
-        await page.waitForTimeout(800);
+        await waitForLiveCamera(page,regionCameraRevision);
         const result = await page.evaluate(rows => {
           const map=window.__workspaceMap, host=map.getContainer(), rect=host.getBoundingClientRect();
           const points=rows.map(row => { const p=map.lngLatToContainer([row.location_lng,row.location_lat]);return {id:row.id,x:p.getX(),y:p.getY(),edge:Math.min(p.getX(),rect.width-p.getX(),p.getY(),rect.height-p.getY())}; });
           const center=map.getCenter();return {width:rect.width,height:rect.height,zoom:map.getZoom(),center:[center.lng,center.lat],points,cameraCalls:window.__liveAmapProbe.calls.filter(x=>['setZoomAndCenter','setBounds','setCenter'].includes(x.name)).length};
         },data.filter(row => row.location_lng != null && row.location_lat != null));
+        const {visible,canvas}=await page.evaluate(visibleProjectProjection,{coords:[116.46,39.91]});
+        result.visible=visible;
+        for(const point of result.points)point.edge=Math.min(canvas.left+point.x-visible.left,visible.right-canvas.left-point.x,canvas.top+point.y-visible.top,visible.bottom-canvas.top-point.y);
         assert.ok(result.points.every(p=>p.edge>=24),`${label} ${width} cropped: ${JSON.stringify(result)}`);
         await page.waitForTimeout(400);
         const after=await page.evaluate(()=>{const m=window.__workspaceMap,c=m.getCenter();return {zoom:m.getZoom(),center:[c.lng,c.lat]};});
@@ -114,7 +126,7 @@ try {
         scenes.push({name:'real drag then delayed future response',before,dragged,after});
       }
       await open('CBD'); scenes.push(await inspect('CBD',[...buildings,...regionFuture].filter(x=>x.submarket==='CBD')));
-      if(width===1536){await page.getByRole('separator',{name:'调整业务工作区宽度'}).press('End');scenes.push(await inspect('CBD',[...buildings,...regionFuture].filter(x=>x.submarket==='CBD'),'CBD wide pane'));}
+      if(width===1536){regionCameraRevision=await page.evaluate(()=>window.__liveAmapProbe.lastCamera?.revision??0);await page.getByRole('separator',{name:'调整业务工作区宽度'}).press('End');scenes.push(await inspect('CBD',[...buildings,...regionFuture].filter(x=>x.submarket==='CBD'),'CBD wide pane'));}
       await open('望京'); scenes.push(await inspect('望京',extra.filter(x=>x.submarket==='望京')));
       await open('丽泽'); const identical=await inspect('丽泽',extra.filter(x=>x.submarket==='丽泽'));assert.ok(identical.zoom<=16);scenes.push(identical);
       await page.getByRole('button',{name:'查看全部项目',exact:true}).click();
@@ -127,27 +139,27 @@ try {
         await page.waitForTimeout(600);
         assert.equal(await page.locator('.map-selected-marker').count(),1,'one selected marker remains for the current project');
         const center=await page.evaluate(()=>{const c=window.__workspaceMap.getCenter();return[c.lng,c.lat];});
-        assert.ok(Math.abs(center[0]-116.35)<.00001&&Math.abs(center[1]-39.87)<.00001,'the selected same-coordinate project has its own correct camera');
-        overlapSelections.push({id,center});
+        const projection=await waitForVisibleProject(page,[116.35,39.87]);
+        overlapSelections.push({id,center,projection});
         if(id==='single') {
-          const canvas=await page.locator('#map-container').boundingBox();
-          await page.mouse.move(canvas.x+canvas.width*.5,canvas.y+canvas.height*.5);
-          await page.mouse.down();await page.mouse.move(canvas.x+canvas.width*.72,canvas.y+canvas.height*.62,{steps:10});await page.mouse.up();
+          const area=projection.visible;
+          await page.mouse.move(area.left+area.width*.5,area.top+area.height*.5);
+          await page.mouse.down();await page.mouse.move(area.left+area.width*.72,area.top+area.height*.62,{steps:10});await page.mouse.up();
           await page.waitForTimeout(600);
           const moved=await page.evaluate(()=>{const c=window.__workspaceMap.getCenter();return[c.lng,c.lat];});
-          assert.ok(Math.abs(moved[0]-116.35)>.0001,'real pointer drag moves away from the selected project');
+          assert.ok(Math.abs(moved[0]-center[0])>.0001,'real pointer drag moves away from the selected project');
           await clickWorkspaceAction(page,'定位当前项目');
-          await page.waitForFunction(()=>{const c=window.__workspaceMap.getCenter();return Math.abs(c.lng-116.35)<.00001&&Math.abs(c.lat-39.87)<.00001;});
+          const recentered=await waitForVisibleProject(page,[116.35,39.87]);
           assert.equal(await selected.getAttribute('data-building-id'),id);
           assert.equal(await page.locator('.map-selected-marker').count(),1);
-          scenes.push({name:'locate current project after real pointer drag',id,moved,recentered:[116.35,39.87],nativeTouch:false});
+          scenes.push({name:'locate current project after real pointer drag',id,moved,target:[116.35,39.87],projection:recentered,nativeTouch:false});
           scenes.push(await verifySelectedRecenter(page,{width,id,name:id,lng:116.35,lat:39.87}));
         }
         await page.getByRole('button',{name:'返回项目列表',exact:true}).click();await overlapList.waitFor();
       }
       scenes.push({name:'independent list selection for same-coordinate buildings',selections:overlapSelections});
 
-      await page.evaluate(()=>{for(const name of ['CBD','望京','中关村'])window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name}}));});
+      regionCameraRevision=await page.evaluate(()=>{const revision=window.__liveAmapProbe.lastCamera?.revision??0;for(const name of ['CBD','望京','中关村'])window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name}}));return revision;});
       await page.getByRole('region',{name:'中关村',exact:true}).waitFor();scenes.push(await inspect('中关村',stock.filter(x=>x.submarket==='中关村'),'rapid A B C'));
       await page.getByRole('button',{name:'关闭子市场介绍'}).click();
       await page.getByRole('button',{name:'项目列表',exact:true}).click();
@@ -205,6 +217,7 @@ try {
       scenes.push(await verifyRegionCamera(page,{width}));
       scenes.push(await verifySupplyMarkers(page,{width,openRegion:open,supplies:regionFuture,evidencePrefix:'map-marker-real',live:true}));
       scenes.push(await verifyBaseMapPlaces(page,{width,evidencePrefix:'map-base-places-live'}));
+      scenes.push(await verifySurfaceContinuity(page,{width,frameStallMs}));
       await page.screenshot({path:`/tmp/map-region-live-${width}.png`});
       results.viewports.push({width,height,network,scenes,emptyAndClose:'pass'});
       console.log('passed real region',width);

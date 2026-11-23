@@ -1,5 +1,6 @@
 import { verifySelectedRecenter } from './workspace-selected-recenter.mjs';
 import assert from 'node:assert/strict';
+import { waitForVisibleProject } from './workspace-visible-map.mjs';
 
 export async function verifySupplyMarkers(page, { width, openRegion, supplies, evidencePrefix, live = false }) {
   await openRegion('CBD');
@@ -20,10 +21,7 @@ export async function verifySupplyMarkers(page, { width, openRegion, supplies, e
     await row.click();
     const detail=page.getByRole('region', {name:supply.name+'楼宇详情',exact:true});await detail.waitFor();
     assert.equal(await detail.getAttribute('data-building-id'),supply.building_id??'', 'material identity stays bound to the associated master building');
-    await page.waitForFunction(coords=>{
-      const center=window.__workspaceMap?.getCenter();
-      return center && Math.abs(center.lng-coords[0])<.00001 && Math.abs(center.lat-coords[1])<.00001;
-    },[supply.location_lng,supply.location_lat],{timeout:10000});
+    await waitForVisibleProject(page,[supply.location_lng,supply.location_lat]);
     if(live) await page.waitForFunction(()=>{
       const box=document.querySelector('.map-selected-marker')?.getBoundingClientRect();
       const map=document.querySelector('#map-container')?.getBoundingClientRect();
@@ -45,7 +43,7 @@ export async function verifySupplyMarkers(page, { width, openRegion, supplies, e
       const hit=await currentAction.boundingBox();assert.ok(hit?.width>=44&&hit.height>=44,'current marker has a full touch target');
       const originalTab=await detail.getByRole('tab',{selected:true}).textContent();
       await currentAction.focus();await page.keyboard.press('Enter');
-      await page.waitForFunction(coords=>{const c=window.__workspaceMap.getCenter();return Math.abs(c.lng-coords[0])<.00001&&Math.abs(c.lat-coords[1])<.00001;},[supply.location_lng,supply.location_lat]);
+      await waitForVisibleProject(page,[supply.location_lng,supply.location_lat]);
       assert.equal(await detail.getByRole('tab',{selected:true}).textContent(),originalTab);
       assert.equal(await detail.getAttribute('data-building-id'),supply.building_id??'');
       if(live) await page.waitForTimeout(350); // Let the SDK commit its normal LabelsLayer canvas too.
