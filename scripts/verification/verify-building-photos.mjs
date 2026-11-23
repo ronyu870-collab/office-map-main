@@ -161,13 +161,9 @@ try {
     const enlarge = page.getByRole('button', { name: '查看大图' });
     const previewHeight = (await images.nth(0).boundingBox()).height;
     const viewer = page.getByRole('dialog', { name: '用于验证窄屏的超长楼宇名称与真实图片来源说明' });
-    if (!mobile) {
-      await enlarge.click();
-      assert.equal(await viewer.isVisible(), false, 'A single mouse click must leave the photo inline');
-    }
     assert.equal(await enlarge.locator('svg').count(), 0, 'The inline photo must have no enlarge icon');
     if (mobile) await enlarge.tap();
-    else await enlarge.dblclick();
+    else await enlarge.click();
     const assertCentered = async () => {
       const box = await viewer.boundingBox();
       assert.ok(Math.abs(box.x + box.width / 2 - width / 2) <= 2, 'Dialog must center horizontally with the app margin reset');
@@ -287,7 +283,7 @@ try {
     await page.goto(`http://127.0.0.1:${server.address().port}/?pilot`);
     await trigger.click();
     if (mobile) await enlarge.tap();
-    else await enlarge.dblclick();
+    else await enlarge.click();
     await viewer.waitFor({ state: 'visible' });
     assert.equal(await viewer.getByRole('navigation').count(), 0);
     await verifyDownload(downloadButton, '试点室内照片.svg', svg);

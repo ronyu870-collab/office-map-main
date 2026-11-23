@@ -40,9 +40,9 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
     if (rightOpen && (!previous.rightOpen || previous.kind !== kind)) setLeftPriority(false);
     navigation.current = { leftOpen, rightOpen, kind };
   }, [leftOpen, rightOpen, kind]);
-  const desired = workspaceColumns(available.width, leftOpen && !focus, rightOpen && !focus, width, kind);
+  const desired = workspaceColumns(available.width, leftOpen && !focus, rightOpen && !focus, width, kind, available.height);
   const showLeftFirst = leftOpen && !focus && (!rightOpen || leftPriority);
-  const columns = leftPriority && desired.leftCollapsed ? workspaceColumns(available.width, leftOpen && !focus, false, width, kind) : desired;
+  const columns = leftPriority && desired.leftCollapsed ? workspaceColumns(available.width, leftOpen && !focus, false, width, kind, available.height) : desired;
   const leftVisible = leftOpen && !focus && (columns.compact ? showLeftFirst : columns.left > 0);
   const rightVisible = rightOpen && !focus && (!columns.compact || !showLeftFirst) && !(leftPriority && desired.leftCollapsed);
   const modeKey = leftVisible && (columns.compact || !rightVisible) ? 'filters' : kind;

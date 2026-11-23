@@ -222,6 +222,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   }, [competitorBuildings, filteredBuildings, filteredFutureSupplies]);
   const fullListQueryKey = React.useMemo(() => JSON.stringify([fullListFilterKey, competitorBuildings?.map(building => building.id) ?? null]), [fullListFilterKey, competitorBuildings]);
   const [searchSubmitRevision, setSearchSubmitRevision] = React.useState(0);
+  const searchCameraRevision = React.useRef(0);
   const previousSearchSubmitRef = React.useRef(0);
   const hadActiveFiltersRef = React.useRef(false);
   
@@ -387,7 +388,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     if (!mapReady || !controller || !container) return;
     const coordinator = observeMapCanvas(container, controller.map);
     canvasCoordinator.current = coordinator;
-    return () => { coordinator(); canvasCoordinator.current = null; };
+    controller.setWorkspaceCameraHandler?.((fit: (immediately?: boolean) => void) => coordinator.focus({ fit }));
+    return () => { controller.setWorkspaceCameraHandler?.(null); coordinator(); canvasCoordinator.current = null; };
   }, [controllerRef, mapReady]);
 
   const lastCameraTarget = React.useRef('');
@@ -408,30 +410,26 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       canvasCoordinator.current.focus({ center: [view.building.location_lng!, view.building.location_lat!], camera: restoreCamera.current });
       restoreCamera.current = null;
     } else if (view.kind === 'submarket') {
-      const matches = allBuildings.filter(building => normalizeMapSubmarket(building.submarket) === view.name && hasBuildingLocation(building));
-      if (matches.length) canvasCoordinator.current.focus({ fit: () => controller.fitToBuildings(matches) });
+      // Establish ownership immediately; the settled rendering collection below
+      // supplies the extent. Never fit the previous region or an unfiltered set.
+      if (restoreCamera.current) {
+        const camera = restoreCamera.current; restoreCamera.current = null;
+        canvasCoordinator.current.focus({ center: camera.center, camera, exact: true });
+      } else canvasCoordinator.current.focus({ fit: () => {} }, key);
     }
-  }, [workspace.right, workspace.focus, allBuildings, controllerRef, mapReady]);
+  }, [workspace.right, workspace.focus, controllerRef, mapReady]);
 
   const researchExitGuard = React.useRef<(() => boolean) | null>(null);
   const registerResearchExitGuard = React.useCallback((guard: (() => boolean) | null) => { researchExitGuard.current = guard; }, []);
   const closeWorkspace = React.useCallback(() => {
     if (researchExitGuard.current && !researchExitGuard.current()) return;
-    const snapshot = workspaceRef.current.research;
-    if (snapshot && !snapshot.retained) {
-      restoringResearchRef.current = true;
-      setSearchInput(snapshot.input);
-      setFilterState(snapshot.filters);
-      issueFilterCommand('patch', snapshot.filters);
-      const map = controllerRef.current?.map;
-      if (snapshot.center && snapshot.zoom !== undefined) map?.setZoomAndCenter?.(snapshot.zoom, snapshot.center, true);
-    }
+    canvasCoordinator.current?.cancel();
     controllerRef.current?.closeWorkspaceBuilding?.();
     dispatchWorkspace({ type: 'close' });
     dispatchWorkspace({ type: 'end-research' });
     window.dispatchEvent(new CustomEvent('map-workspace-selection', { detail: null }));
     controllerRef.current?.disposeWorkspaceTrend?.();
-  }, [controllerRef, issueFilterCommand]);
+  }, [controllerRef]);
   const setIsListVisible = React.useCallback((open: boolean) => {
     if (open) { if (window.innerWidth < 1000) dispatchWorkspace({ type: 'left', open: false }); dispatchWorkspace({ type: 'open', view: { kind: 'list' } }); }
     else if (workspaceRef.current.right?.kind === 'list' || workspaceRef.current.right?.kind === 'compare') closeWorkspace();
@@ -591,7 +589,9 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     const fitSubmittedSearch = (matches: FullListBuilding[]) => {
       if (!shouldFitSearch || competitorModeRef.current || workspaceViewRef.current !== 'map') return;
       const targets = searchViewportTargets(matches, keyword);
-      if (targets.length > 0) ctrl.fitToBuildings(targets as Parameters<typeof ctrl.fitToBuildings>[0]);
+      if (targets.length > 0) canvasCoordinator.current?.update(`search:${searchSubmitRevision}`, {
+        fit: immediately => ctrl.fitToBuildings(targets as Parameters<typeof ctrl.fitToBuildings>[0], true, immediately),
+      });
     };
     if (!loadFuture) setSettledFullListFilterKey(fullListFilterKey);
     if (initialIntelligenceHandoff && !intelligenceCandidatesResolved) {
@@ -726,6 +726,14 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   }, [stockLoaded, cancelPendingBuildingNavigation, workspaceViewRef]);
 
   const fullListBusy = mapDataLoading || !stockLoaded || settledFullListFilterKey !== fullListFilterKey;
+  React.useEffect(() => {
+    const view = workspace.right;
+    if (view?.kind !== 'submarket' || workspace.focus || fullListBusy || !mapReady) return;
+    const name = view.name;
+    if (filterState?.submarkets.length !== 1 || normalizeMapSubmarket(filterState.submarkets[0]) !== name) return;
+    const matches = combinedBuildingList.filter(building => normalizeMapSubmarket(building.submarket) === name && hasBuildingLocation(building));
+    canvasCoordinator.current?.update(`submarket:${name}`, { fit: immediately => controllerRef.current?.fitToBuildings(matches, true, immediately) });
+  }, [workspace.right, workspace.focus, fullListBusy, combinedBuildingList, filterState, controllerRef, mapReady]);
   const handleFullListBuildingClick = React.useCallback((building: FullListBuilding) => {
     if (workspaceViewRef.current !== 'list' || fullListBusy) return;
     cancelPendingBuildingNavigation();
@@ -807,7 +815,11 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const handleSearchSubmit = (val: string) => {
     cancelPendingBuildingNavigation();
     handleSearch(val);
-    if (val.trim()) setSearchSubmitRevision(previous => previous + 1);
+    if (val.trim()) {
+      const revision = ++searchCameraRevision.current;
+      canvasCoordinator.current?.focus({ fit: () => {} }, `search:${revision}`);
+      setSearchSubmitRevision(revision);
+    }
   };
 
   const handleRenderModeChange = React.useCallback((mode: RenderMode) => {
@@ -927,10 +939,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           onAction={action => { if (action === 'locate' && hasBuildingLocation(buildingDetail.building)) canvasCoordinator.current?.focus({ center: [buildingDetail.building.location_lng!, buildingDetail.building.location_lat!] }); else if (action !== 'locate') controllerRef.current?.runWorkspaceBuildingAction(action, buildingDetail.building); }} /> : null}
         submarketDetailPanel={selectedSubmarket && selectedSummary ? <SubmarketDetailPanel key={selectedSubmarket}
           name={selectedSubmarket} summary={selectedSummary} buildings={allBuildings} futureCount={selectedFutureCount}
+          mapLocationNotice={fullListBusy ? '正在更新当前筛选的地图项目…' : !combinedBuildingList.some(item => normalizeMapSubmarket(item.submarket) === selectedSubmarket && hasBuildingLocation(item)) ? '当前筛选下暂无可定位项目，地图未移动。可调整或清除筛选。' : undefined}
           canEdit={userRole === 'admin' && !getImpersonationTargetUserId()} suspended={workspace.right?.kind !== 'submarket' || workspace.focus}
           onExitGuardChange={registerResearchExitGuard}
           onClose={closeWorkspace} onShowAll={showSubmarketBuildings}
-          retained={workspace.research?.retained ?? false} onRetain={() => dispatchWorkspace({ type: 'retain' })}
           onOpenBuilding={id => { const building = allBuildings.find(item => item.id === id); if (building) handleBuildingClick(building,'submarket'); }} /> : null}
         queryPanel={<MapQuerySelection context={queryContext} onChange={setQuerySelection} />}
         dataNotice={refreshFailure ? '指标已保存，当前地图尚未刷新。请重新读取，避免重复保存。' : null}

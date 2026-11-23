@@ -1,0 +1,56 @@
+{
+  "environment": "production React + real controller + isolated SDK/data transport",
+  "observations": [
+    {
+      "width": 1536,
+      "reduced": false,
+      "roundTrip": true,
+      "readingScroll": 0,
+      "sameProjectRefocus": true,
+      "refreshRetainsContent": true,
+      "dirtyCancel": true,
+      "resizeCalls": 1,
+      "dense600ReadyMs": 866,
+      "dense600FilterMs": 47,
+      "motion": {
+        "frameP95Ms": 16.700000000000728,
+        "longTasks": []
+      },
+      "errors": []
+    },
+    {
+      "width": 390,
+      "reduced": false,
+      "roundTrip": true,
+      "readingScroll": 204,
+      "sameProjectRefocus": true,
+      "refreshRetainsContent": true,
+      "dirtyCancel": true,
+      "resizeCalls": 1,
+      "dense600ReadyMs": 146,
+      "dense600FilterMs": 59,
+      "motion": {
+        "frameP95Ms": 16.700000000000728,
+        "longTasks": []
+      },
+      "errors": []
+    },
+    {
+      "width": 390,
+      "reduced": true,
+      "roundTrip": true,
+      "readingScroll": 204,
+      "sameProjectRefocus": true,
+      "refreshRetainsContent": true,
+      "dirtyCancel": true,
+      "resizeCalls": 1,
+      "dense600ReadyMs": 160,
+      "dense600FilterMs": 62,
+      "motion": {
+        "frameP95Ms": 16.799999999999272,
+        "longTasks": []
+      },
+      "errors": []
+    }
+  ]
+}

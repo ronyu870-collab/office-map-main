@@ -22,3 +22,20 @@ it('restores the open photo and ordinal, persists navigation, and clamps a remov
   expect(root.querySelector('[data-building-photo-caption]')).toHaveTextContent('外立面');
   cleanup?.();
 });
+it('opens the loaded photo with an ordinary single mouse click and restores its focus on close', () => {
+  const photos = [{id:'one',caption:'外立面'}];
+  const root = document.createElement('div');document.body.append(root);
+  root.innerHTML = buildPhotoTrigger('gallery') + buildPhotoGallery('gallery','项目',photos);
+  const viewer = root.querySelector<HTMLDialogElement>('dialog')!;
+  viewer.showModal = () => viewer.setAttribute('open','');
+  viewer.close = () => viewer.removeAttribute('open');
+  const dispose = bindBuildingPhotoGallery(root,'project',photos);
+  (root.querySelector('[data-building-photo-trigger]') as HTMLButtonElement).click();
+  root.querySelector('img')!.dispatchEvent(new Event('load'));
+  const enlarge = root.querySelector<HTMLButtonElement>('[data-building-photo-enlarge]')!;
+  enlarge.dispatchEvent(new MouseEvent('click',{bubbles:true,detail:1}));
+  expect(viewer.open).toBe(true);
+  root.querySelector('[data-building-photo-viewer-close]')!.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+  expect(viewer.open).toBe(false);expect(enlarge).toHaveFocus();
+  dispose?.();
+});

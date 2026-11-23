@@ -76,9 +76,12 @@ export function mapCanvasMinimum(width: number, both = false) {
   return Math.max(Math.min(560, Math.max(420, width - 344)), width * (both ? .5 : .56));
 }
 /** Reserve a real map column. Narrow layouts use vertical drawers instead. */
-export function workspaceColumns(width: number, left: boolean, right: boolean, preferred: number, kind: WorkspaceKind = 'list') {
+export function workspaceColumns(width: number, left: boolean, right: boolean, preferred: number, kind: WorkspaceKind = 'list', height = Infinity) {
   const range = PANEL_SIZES[kind];
-  const mapMinimum = mapCanvasMinimum(width);
+  // A landscape sheet can leave only a few pixels of map below the toolbar.
+  // Keep the two work surfaces beside each other when each has usable width.
+  const landscape = width >= 760 && height > 0 && height < 360;
+  const mapMinimum = landscape ? Math.min(mapCanvasMinimum(width), Math.max(360, width * .5)) : mapCanvasMinimum(width);
   if (width < 760 || (right && width - range.min < mapMinimum) || (!right && left && width - 248 < mapMinimum)) {
     return { left: 0, right: 0, compact: true, leftCollapsed: false };
   }
@@ -86,7 +89,7 @@ export function workspaceColumns(width: number, left: boolean, right: boolean, p
   let leftWidth = 0;
   if (left) {
     // Budget both panels before temporarily yielding the filter. Never mutate the user's open intent.
-    const room = width - rightWidth - mapCanvasMinimum(width, right);
+    const room = width - rightWidth - (landscape ? mapMinimum : mapCanvasMinimum(width, right));
     if (room >= 248) leftWidth = Math.min(280, room);
   }
   if (right && !leftWidth) rightWidth = Math.min(rightWidth, width - mapMinimum);
@@ -96,7 +99,10 @@ export function workspaceColumns(width: number, left: boolean, right: boolean, p
 export type SheetMode = 'compact' | 'reading' | 'full';
 export function workspaceSheetHeight(available: number, summary: number, mode: SheetMode) {
   if (mode === 'full') return available;
-  const limit = Math.max(0, available - Math.min(240, available * .4));
-  const compactRatio = available < 360 ? .6 : .55;
+  // In a short phone viewport, keep the summary readable while retaining a
+  // visible map strip. Reading/full remain explicit user choices.
+  const reserveRatio = available < 320 ? .32 : .4;
+  const limit = Math.max(0, available - Math.min(240, available * reserveRatio));
+  const compactRatio = available < 320 ? .68 : available < 360 ? .6 : .55;
   return Math.max(0, Math.min(limit, mode === 'reading' ? available * .65 : Math.min(available * compactRatio, Math.max(128, summary))));
 }

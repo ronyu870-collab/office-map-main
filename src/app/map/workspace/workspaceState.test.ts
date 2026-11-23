@@ -82,7 +82,8 @@ describe('map workspace navigation and physical canvas budget', () => {
     expect(workspaceSheetHeight(700, 900, 'compact')).toBeCloseTo(385);
     expect(workspaceSheetHeight(700, 160, 'reading')).toBeCloseTo(455);
     expect(workspaceSheetHeight(700, 160, 'full')).toBe(700);
-    expect(workspaceSheetHeight(200, 900, 'compact')).toBeLessThanOrEqual(120);
+    expect(workspaceSheetHeight(240, 160, 'compact')).toBe(160);
+    expect(workspaceSheetHeight(200, 900, 'compact')).toBeLessThanOrEqual(136);
   });
 });
 
@@ -94,4 +95,11 @@ it('uses compact content widths before a user preference exists and avoids unnec
   let state = initialWorkspaceState;
   for (let i = 0; i < 40; i++) state = workspaceReducer(state, { type: 'open', view: { kind: i % 2 ? 'list' : 'supply' } });
   expect(state.history).toHaveLength(20);
+});
+
+it('uses a readable side pane in low-height landscape while keeping half the map', () => {
+  const result = workspaceColumns(844, false, true, 400, 'submarket', 212);
+  expect(result.compact).toBe(false);
+  expect(result.right).toBeGreaterThanOrEqual(360);
+  expect(844 - result.right).toBeGreaterThanOrEqual(422);
 });

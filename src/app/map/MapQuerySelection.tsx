@@ -60,7 +60,7 @@ export function MapQuerySelection({ context, onChange }: { context: QueryMapCont
       const building = readBuildingPopupContext(button);
       if (!building) return;
       event.preventDefault(); event.stopPropagation();
-      try { router.push(buildingAnalysisHref([building.buildingId])); } catch { /* Invalid DOM identity is never a query. */ }
+      try { window.dispatchEvent(new Event('map-workspace-save-return')); router.push(buildingAnalysisHref([building.buildingId])); } catch { /* Invalid DOM identity is never a query. */ }
     };
     document.addEventListener('click', click, true);
     return () => { observer.disconnect(); document.removeEventListener('click', click, true); };
