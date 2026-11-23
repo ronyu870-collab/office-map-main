@@ -283,7 +283,7 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .map-workspace-left { grid-column: 1; grid-row: 1; border-right: 1px solid #d9e0e8; }
 .map-workspace-right { grid-column: 3; grid-row: 1; border-left: 1px solid #d9e0e8; display: flex; flex-direction: column; container-type: inline-size; }
 .map-workspace-left:not([data-open]), .map-workspace-right:not([data-open]) { visibility: hidden; border: 0; }
-.map-workspace-layout > aside[data-exiting] { position: absolute; top: 0; bottom: 0; right: 0; width: var(--workspace-exit-right); max-width: 100%; visibility: visible; pointer-events: none; z-index: 380; }
+.map-workspace-layout > aside[data-exiting] { grid-area: auto; position: absolute; top: 0; bottom: 0; right: 0; width: var(--workspace-exit-right); max-width: 100%; visibility: visible; pointer-events: none; z-index: 380; }
 .map-workspace-layout > .map-workspace-left[data-exiting] { left: 0; right: auto; width: var(--workspace-exit-left); }
 .map-workspace-filter-shell, .map-workspace-filter, .map-workspace-supply, .map-workspace-search { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .map-workspace-view { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
