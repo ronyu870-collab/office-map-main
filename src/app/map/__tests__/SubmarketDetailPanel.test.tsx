@@ -1,3 +1,5 @@
+import * as React from 'react';
+import { MapReadingContext } from '../workspace/continuity';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -281,4 +283,18 @@ it('observes displayed research sections and suppresses hidden retained views',a
  fireEvent.click(screen.getByRole('tab',{name:'行情趋势'}));
  expect(api.audit).toHaveBeenLastCalledWith(undefined,'VIEW_SUBMARKET',expect.objectContaining({section:'trend'}));
  api.audit.mockClear();view.rerender(<SubmarketDetailPanel {...props} suspended/>);expect(api.audit).not.toHaveBeenCalled();
+});
+
+it('restores submarket section, grade and reading position independently after remount', async () => {
+  const store = { submarkets: { CBD: { section: 'trend', grade: 'a', scrollTop: 120 } } };
+  const first = render(<MapReadingContext.Provider value={store}><SubmarketDetailPanel {...props} /></MapReadingContext.Provider>);
+  await waitFor(() => expect(api.read).toHaveBeenCalledWith('CBD'));
+  expect(screen.getByRole('tab', { name: '行情趋势' })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('button', { name: /^甲级$/ })).toHaveAttribute('aria-pressed', 'true');
+  const scroll = screen.getByRole('tabpanel');
+  scroll.scrollTop = 215; fireEvent.scroll(scroll);
+  first.unmount();
+  render(<MapReadingContext.Provider value={store}><SubmarketDetailPanel {...props} /></MapReadingContext.Provider>);
+  expect(screen.getByRole('tabpanel').scrollTop).toBe(215);
+  expect(screen.getByRole('tab', { name: '行情趋势' })).toHaveAttribute('aria-selected', 'true');
 });

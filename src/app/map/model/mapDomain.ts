@@ -238,11 +238,11 @@ export function computeStatsFromBuildings(buildingsData: unknown[]): MapStatsSta
     }
   }
 
-  const avgRent = rentWeightAreaSum > 0 ? (rentWeightSum / rentWeightAreaSum).toFixed(1) : '-';
-  const overallVacancyPct = vacancyObservedArea > 0 ? ((vacantArea / vacancyObservedArea) * 100).toFixed(1) : '-';
+  const avgRent = rentWeightAreaSum > 0 ? (rentWeightSum / rentWeightAreaSum).toFixed(1) : '—';
+  const overallVacancyPct = vacancyObservedArea > 0 ? ((vacantArea / vacancyObservedArea) * 100).toFixed(1) : '—';
 
   return {
-    totalArea: totalArea > 0 ? Math.round(totalArea).toLocaleString('zh-CN') : '-',
+    totalArea: totalArea > 0 ? Math.round(totalArea).toLocaleString('zh-CN') : '—',
     avgRent,
     overallVacancyPct,
     projectCount: projectCount.toString(),

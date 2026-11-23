@@ -28,9 +28,10 @@ describe('map camera/layout coordination', () => {
     expect(map.setZoomAndCenter).toHaveBeenCalledExactlyOnceWith(14, [116.2, 39.9], false, 240);
     resize(); flush(); expect(map.resize).toHaveBeenCalledTimes(1);
     coordinator.focus({ center: [116.3, 39.9] }); host.dispatchEvent(new Event('pointerdown')); flush();
-    expect(map.setZoomAndCenter).toHaveBeenCalledTimes(1);
+    expect(map.setZoomAndCenter).toHaveBeenLastCalledWith(10, [116, 40], true, 0);
+    expect(map.setZoomAndCenter).toHaveBeenCalledTimes(2);
     coordinator.focus({ center: [116.4, 39.9] }); coordinator(); flush();
-    expect(map.setZoomAndCenter).toHaveBeenCalledTimes(1);
+    expect(map.setZoomAndCenter).toHaveBeenCalledTimes(2);
   });
   it('restores overview camera exactly and honors reduced motion without an animation callback', () => {
     vi.stubGlobal('matchMedia', () => ({ matches: true }));

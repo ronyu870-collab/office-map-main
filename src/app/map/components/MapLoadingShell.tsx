@@ -8,7 +8,7 @@ export function MapLoadingShell() {
       header={<AppHeader title="北京办公楼市场地图" homeHref="/" />}
     >
       <div className="flex h-full items-center justify-center px-6">
-        <LoadingState label="正在加载北京办公楼市场地图" rows={0} className="w-full max-w-sm" />
+        <LoadingState label="正在验证地图访问权限" rows={0} className="w-full max-w-sm" />
       </div>
     </WorkspaceShell>
   );

@@ -14,6 +14,8 @@ const contextProfile = profileMode === 'timeline';
 if (contextProfile && !profileCPU) throw new Error('Timeline CPU capture requires PERF_PROFILE_CPU=1');
 const rounds = Number(process.env.PERF_ACTION_ROUNDS ?? 3);
 assert.ok(Number.isInteger(rounds) && rounds >= 1 && rounds <= 20, 'PERF_ACTION_ROUNDS must be an integer from 1 to 20');
+const screenshotDirectory = process.env.PERF_SCREENSHOT_DIR;
+if (screenshotDirectory) fs.mkdirSync(screenshotDirectory, { recursive: true, mode: 0o700 });
 const profileDirectory = process.env.PERF_PROFILE_DIR;
 if (profileDirectory && !profileCPU) throw new Error('PERF_PROFILE_DIR requires PERF_PROFILE_CPU=1');
 if (profileDirectory) fs.mkdirSync(profileDirectory, { recursive: true, mode: 0o700 });
@@ -200,6 +202,17 @@ try {
           await list.getByRole('button', { name: /^CBD甲楼/ }).click(); await detail.waitFor(); await focus();
         });
         await focus(); assert.equal(await page.locator('.map-selected-marker').count(),1);
+      }
+      if (screenshotDirectory && width === 1536) {
+        for (const mode of ['租金', '空置', 'LEED', '项目']) {
+          await measure(`display-mode-${mode}`, async () => {
+            await page.getByRole('button', { name: mode, exact: true }).click();
+            await focus();
+            assert.equal(await page.locator('.map-selected-marker').count(), 1);
+            await page.waitForFunction(() => document.querySelector('.map-selected-marker img')?.naturalWidth > 0);
+          });
+          await page.screenshot({ path: path.join(screenshotDirectory, `selected-${mode}.png`) });
+        }
       }
       results.scenarios.push({width,height,reduced,name:'startup-and-network',startup,network,errors,readingScroll:top});
       assert.deepEqual(errors, []);

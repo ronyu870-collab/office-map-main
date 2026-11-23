@@ -71,7 +71,7 @@ it('restores the building reading tab and reports further reading state without 
   const scroll = container.querySelector('.workspace-scroll') as HTMLElement;
   expect(scroll.scrollTop).toBe(90);
   fireEvent.click(screen.getByRole('tab', { name: '行情' }));
-  expect(change).toHaveBeenLastCalledWith({ tab: 'market', scrollTop: 0 });
+  expect(change).toHaveBeenLastCalledWith({ tab: 'market', scrollTop: 0, scrolls: { materials: 90 } });
 });
 
 it('does not pull a changed tab back to the previous restored scroll when content resizes', () => {
@@ -114,4 +114,36 @@ it('lets the reader reveal the complete long project name and resets expansion f
   const next = title + '第二项目';
   rerender(<WorkspaceBuildingDetail detail={{ ...base, building: { ...base.building, name: next } }} {...callbacks} />);
   expect(screen.getByRole('button', { name: next })).toHaveAttribute('aria-expanded', 'false');
+});
+
+it('restores each detail tab scroll independently and reopens a saved trend once', () => {
+  const callbacks = actions();
+  const change = vi.fn();
+  const { container } = render(<WorkspaceBuildingDetail detail={base} {...callbacks} readingState={{ tab: 'market', scrollTop: 80, scrolls: { market: 80, overview: 140 }, trendOpen: true }} onReadingChange={change} />);
+  expect(callbacks.onAction).toHaveBeenCalledExactlyOnceWith('trend');
+  const scroll = container.querySelector('.workspace-scroll') as HTMLElement;
+  expect(scroll.scrollTop).toBe(80);
+  fireEvent.click(screen.getByRole('tab', { name: '概览' }));
+  expect(scroll.scrollTop).toBe(140);
+  scroll.scrollTop = 190; fireEvent.scroll(scroll);
+  fireEvent.click(screen.getByRole('tab', { name: '行情' }));
+  expect(scroll.scrollTop).toBe(80);
+  expect(callbacks.onAction).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole('tab', { name: '概览' }));
+  expect(scroll.scrollTop).toBe(190);
+});
+
+it('does not replay a manually opened trend when a pane resize refreshes reading props', () => {
+  const callbacks = actions(); const reading = { tab: 'market', scrollTop: 0, trendOpen: false };
+  const view = render(<WorkspaceBuildingDetail detail={base} {...callbacks} readingState={reading} />);
+  fireEvent.click(screen.getByRole('button', { name: '季度趋势' }));
+  view.rerender(<WorkspaceBuildingDetail detail={base} {...callbacks} readingState={{ ...reading, trendOpen: true }} onAction={callbacks.onAction} />);
+  expect(callbacks.onAction).toHaveBeenCalledExactlyOnceWith('trend');
+});
+
+
+it('keeps an excluded project readable while identifying its relation to the filter', () => {
+  render(<WorkspaceBuildingDetail detail={base} {...actions()} outsideResults />);
+  expect(screen.getByRole('region', { name: '甲楼楼宇详情' })).toBeVisible();
+  expect(screen.getByText('当前项目不在筛选结果中，已保留详情供继续查阅。')).toHaveAttribute('role', 'status');
 });

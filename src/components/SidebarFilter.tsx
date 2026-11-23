@@ -44,6 +44,7 @@ export interface SidebarFilterCommand {
 export interface SidebarFilterProps {
   districts: string[]; submarkets?: string[]; submarketsSecondary?: string[]; leeds?: string[];
   grades?: any[]; areaRanges?: any[]; // 保留可选参数防止父组件报错
+  expandedSections?: Record<string, boolean>; onExpandedSectionsChange?: (sections: Record<string, boolean>) => void;
   subwayLines: string[]; availableStations: any[]; initialState?: Partial<SidebarFilterState>;
   onFilterChange: (state: SidebarFilterState) => void; title?: string;
   onCompareGroupsChange?: (groups: CompareGroup[]) => void;
@@ -107,7 +108,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
 
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
   const [openSections, setOpenSections] = React.useState<Record<string, boolean>>({
-    projectTypes: false, districts: false, submarkets: false, leeds: false, subway: false, numeric: false
+    projectTypes: false, districts: false, submarkets: false, leeds: false, subway: false, numeric: false, ...props.expandedSections
   });
 
   // ── 全局筛选折叠状态 ──
@@ -118,7 +119,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
   const [openCompareGroups, setOpenCompareGroups] = React.useState<Record<string, boolean>>({});
   const [compareSectionOpen, setCompareSectionOpen] = React.useState(false);
 
-  const toggleSection = (key: string) => { setOpenSections(prev => ({ ...prev, [key]: !prev[key] })); };
+  const toggleSection = (key: string) => { const next = { ...openSections, [key]: !openSections[key] }; setOpenSections(next); props.onExpandedSectionsChange?.(next); };
 
   const [state, setState] = React.useState<SidebarFilterState>(() => ({
     districts: uniqStrings(props.initialState?.districts ?? districts),

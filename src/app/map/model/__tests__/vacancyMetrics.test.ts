@@ -40,6 +40,6 @@ describe('map vacancy observations', () => {
     expect(stats.totalArea).toBe('3,000');
     expect(stats.overallVacancyPct).toBe('10.0');
     expect(stats.avgRent).toBe('200.0');
-    expect(computeStatsFromBuildings([row('all-unknown', null, null)]).overallVacancyPct).toBe('-');
+    expect(computeStatsFromBuildings([row('all-unknown', null, null)]).overallVacancyPct).toBe('—');
   });
 });

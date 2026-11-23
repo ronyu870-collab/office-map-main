@@ -54,7 +54,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       // A → B replaces the current building, while list/research → building has a return path.
       const replace = action.replace || state.right?.kind === action.view.kind;
       return { ...state, focus: false, right: action.view, width: panelWidth(action.view.kind, state.widths),
-        history: replace || !state.right ? state.history : [...state.history, state.right] };
+        history: replace || !state.right ? state.history : [...state.history, state.right].slice(-20) };
     }
     case 'back': return { ...state, right: state.history.at(-1) ?? null, history: state.history.slice(0, -1),
       width: panelWidth(state.history.at(-1)?.kind ?? 'list', state.widths) };
@@ -65,10 +65,20 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
   }
 }
 
+/** Content drives the initial width; explicit user widths always win. */
+export function contentPanelWidth(kind: WorkspaceKind, count: number, title = '') {
+  const range = PANEL_SIZES[kind];
+  const compact = ['search', 'list', 'supply'].includes(kind) && count <= 3;
+  const longIdentity = kind === 'building' && title.length > 28;
+  return Math.max(range.min, Math.min(range.max, compact ? range.min : range.initial + (longIdentity ? 24 : 0)));
+}
+export function mapCanvasMinimum(width: number, both = false) {
+  return Math.max(Math.min(560, Math.max(420, width - 344)), width * (both ? .5 : .56));
+}
 /** Reserve a real map column. Narrow layouts use vertical drawers instead. */
 export function workspaceColumns(width: number, left: boolean, right: boolean, preferred: number, kind: WorkspaceKind = 'list') {
   const range = PANEL_SIZES[kind];
-  const mapMinimum = Math.max(560, width * .6);
+  const mapMinimum = mapCanvasMinimum(width);
   if (width < 760 || (right && width - range.min < mapMinimum) || (!right && left && width - 248 < mapMinimum)) {
     return { left: 0, right: 0, compact: true, leftCollapsed: false };
   }
@@ -76,7 +86,7 @@ export function workspaceColumns(width: number, left: boolean, right: boolean, p
   let leftWidth = 0;
   if (left) {
     // Budget both panels before temporarily yielding the filter. Never mutate the user's open intent.
-    const room = width - rightWidth - Math.max(560, width * (right ? .52 : .6));
+    const room = width - rightWidth - mapCanvasMinimum(width, right);
     if (room >= 248) leftWidth = Math.min(280, room);
   }
   if (right && !leftWidth) rightWidth = Math.min(rightWidth, width - mapMinimum);

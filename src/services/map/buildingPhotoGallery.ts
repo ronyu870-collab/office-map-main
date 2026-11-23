@@ -59,7 +59,7 @@ export function buildPhotoGallery(galleryId: string, name: string, photos: reado
   </div>`;
 }
 
-export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, photos: readonly GalleryPhoto[]): (() => void) | null {
+export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, photos: readonly GalleryPhoto[], reading?: { initial?: { open: boolean; index: number }; onChange: (state: { open: boolean; index: number }) => void }): (() => void) | null {
   const trigger = root.querySelector<HTMLButtonElement>('[data-building-photo-trigger]');
   const gallery = root.querySelector<HTMLElement>('[data-building-photo-gallery]');
   const figure = gallery?.querySelector<HTMLElement>('figure');
@@ -119,7 +119,8 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
       else license.removeAttribute('href');
     }
   };
-  let index = 0;
+  let index = Math.max(0, Math.min(images.length - 1, reading?.initial?.index ?? 0));
+  const remember = () => reading?.onChange({ open: !gallery.hidden, index });
   const showViewerAction = () => {
     const ready = loaded.has(index);
     const externalUrl = externalPhotos.get(index);
@@ -248,6 +249,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   const close = () => {
     closeViewer(false);
     gallery.hidden = true;
+    remember();
     trigger.setAttribute('aria-expanded', 'false');
     cancel();
   };
@@ -257,12 +259,14 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     cancel();
     cancelDownload();
     index = target;
+    remember();
     show();
   };
   trigger.addEventListener('click', event => {
     event.stopPropagation();
     if (gallery.hidden) {
       gallery.hidden = false;
+      remember();
       trigger.setAttribute('aria-expanded', 'true');
       const summary = gallery.closest('.building-popup__summary');
       if (summary) summary.scrollTop = 0;
@@ -362,6 +366,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
       trigger.focus();
     } else move(event.key === 'ArrowLeft' ? -1 : 1);
   }, eventOptions);
+  if (reading?.initial?.open) { gallery.hidden = false; trigger.setAttribute('aria-expanded', 'true'); show(); }
   return () => {
     closeViewer(false);
     listeners.abort();

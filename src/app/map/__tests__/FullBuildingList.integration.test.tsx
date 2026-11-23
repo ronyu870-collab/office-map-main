@@ -3,10 +3,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const runtime = vi.hoisted(() => ({ mounts: 0, cleanups: 0, role: 'viewer', fail: null as ((message: string) => void) | null }));
+const runtime = vi.hoisted(() => ({ mounts: 0, cleanups: 0, role: 'viewer', edit: null as ((id: string, name: string) => void) | null, fail: null as ((message: string) => void) | null }));
 const controller = vi.hoisted(() => ({
   setWorkspaceDetailHandler: vi.fn(),
-  fetchMapData: vi.fn(), fetchFutureSupplies: vi.fn(), getDisplayOverridesCache: vi.fn(() => new Map()),
+  refreshBuildingData: vi.fn(), fetchMapData: vi.fn(), fetchFutureSupplies: vi.fn(), getDisplayOverridesCache: vi.fn(() => new Map()),
   clearCompetitorElements: vi.fn(), clearDistrictBoundaries: vi.fn(), clearSubwayElements: vi.fn(),
   clearFutureMarkers: vi.fn(), renderMarkers: vi.fn(), renderFutureMarkers: vi.fn(),
   calculateDistance: vi.fn(), fitToBuildings: vi.fn(), resetToDefaultView: vi.fn(),
@@ -17,15 +17,15 @@ const controller = vi.hoisted(() => ({
 const controllerRef = vi.hoisted(() => ({ current: controller }));
 vi.mock('next/link', () => ({ default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a href={href} {...props}>{children}</a> }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock('next/dynamic', () => ({ default: () => function DeferredUnrelatedComponent() { return null; } }));
+vi.mock('next/dynamic', () => ({ default: () => function DeferredUnrelatedComponent(props: { isOpen?: boolean; onSave?: () => Promise<void> }) { return props.isOpen && props.onSave ? <button onClick={() => void props.onSave?.()}>已保存，刷新地图</button> : null; } }));
 vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => ({ status: 'authenticated', session: { role: runtime.role, user: { id: 'synthetic-user', email: 'test@example.com' } } }) }));
 vi.mock('@/src/services/Auth', () => ({ getSession: vi.fn(), getSessionFast: vi.fn() }));
 vi.mock('@/src/utils/audit', () => ({ logAction: vi.fn() }));
-vi.mock('@/src/app/map/runtime/useMapRuntime', () => ({ useMapRuntime: (options: { onReady: (ctrl: unknown, cancelled: () => boolean) => void; onError: (message: string) => void }) => {
+vi.mock('@/src/app/map/runtime/useMapRuntime', () => ({ useMapRuntime: (options: { onReady: (ctrl: unknown, cancelled: () => boolean) => void; onError: (message: string) => void; onEditBuildingMetrics: (id: string, name: string) => void }) => {
   const [onReady] = React.useState(() => options.onReady);
   const { onError } = options;
   React.useEffect(() => {
-    runtime.fail = onError;
+    runtime.fail = onError; runtime.edit = options.onEditBuildingMetrics;
     runtime.mounts += 1;
     let cancelled = false;
     void onReady(controller, () => cancelled);
@@ -60,6 +60,7 @@ beforeEach(() => {
     window.sessionStorage.clear();
   vi.clearAllMocks(); runtime.mounts = 0; runtime.cleanups = 0; runtime.role = 'viewer';
   controllerRef.current = controller;
+  controller.refreshBuildingData.mockResolvedValue(undefined);
   controller.fetchMapData.mockResolvedValue(BUILDINGS);
   controller.fetchFutureSupplies.mockResolvedValue([]);
   controller.getDisplayOverridesCache.mockReturnValue(new Map());
@@ -185,9 +186,11 @@ describe('complete list with the existing map workbench', () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     const map = document.getElementById('map-container');
     const list = await openList();
-    expect(window.location.search).toBe('?source=existing&view=list');
+    expect(new URLSearchParams(window.location.search).get('source')).toBe('existing');
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('list');
+    expect(new URLSearchParams(window.location.search).get('resume')).toBeTruthy();
     expect(window.location.hash).toBe('#context');
-    expect(window.history.state).toEqual({ __NA: true, tree: 'next-tree' });
+    expect(window.history.state).toMatchObject({ __NA: true, tree: 'next-tree', mapWorkspaceReturn: expect.any(String) });
     fireEvent.change(within(list).getByRole('combobox', { name: '楼宇排序' }), { target: { value: 'rent' } });
     const nextPage = within(list).getByRole('button', { name: '下一页' });
     nextPage.focus();
@@ -744,4 +747,20 @@ it('restores temporary research filters when the future supply toolbar closes it
   fireEvent.click(screen.getByRole('button', { name: '未来供应' }));
   await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(44));
   expect(screen.getByLabelText('地图业务工作区')).toHaveAttribute('aria-hidden', 'true');
+});
+
+
+it('distinguishes a saved metric from a failed map refresh and retries reading without saving again', async () => {
+  runtime.role = 'admin';
+  render(<MapClient initialIntelligenceHandoff={null} />);
+  const list = await openList();
+  controller.refreshBuildingData.mockRejectedValueOnce(new Error('isolated refresh failure'));
+  act(() => runtime.edit?.('b-1', '项目01'));
+  fireEvent.click(screen.getByRole('button', { name: '已保存，刷新地图' }));
+  const notice = await within(list).findByText('指标已保存，当前地图尚未刷新。请重新读取，避免重复保存。');
+  expect(within(list).getByRole('button', { name: '项目01' })).toBeEnabled();
+  fireEvent.click(within(notice.parentElement as HTMLElement).getByRole('button', { name: '重新读取' }));
+  await waitFor(() => expect(notice).not.toBeInTheDocument());
+  expect(controller.refreshBuildingData).toHaveBeenCalledTimes(2);
+  expect(controller.fetchMapData).toHaveBeenCalledTimes(2);
 });

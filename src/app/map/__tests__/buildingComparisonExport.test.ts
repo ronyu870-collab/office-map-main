@@ -35,7 +35,7 @@ describe('map project comparison PNG source', () => {
     const missing = building('empty', '无经营数据');
     missing.metrics = [];
     const svg = buildComparisonSvg([future, missing], 'rows').svg;
-    expect(svg).toContain('预计 2028Q1');
+    expect(svg).toContain('2028年 Q1');
     expect(svg).toContain('未投入运营');
     expect(svg).toContain('30,000');
     expect(svg).toContain('—');

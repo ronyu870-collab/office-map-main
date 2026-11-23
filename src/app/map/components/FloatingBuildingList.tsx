@@ -11,7 +11,7 @@ import { getLatestMetric } from '@/src/utils/filterBuildings';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { MaskedText, useIsDemo } from '@/src/components/demo';
 import { logAction } from '@/src/utils/audit';
-import { finiteMetric, sortFullList, type FullListSort } from '../model/fullBuildingList';
+import { finiteMetric, sortFullList, displayListGrade, type FullListSort } from '../model/fullBuildingList';
 import type { ComparisonLayout } from './buildingComparisonExport';
 
 interface DisplayOverride {
@@ -54,6 +54,8 @@ export default function FloatingBuildingList({ buildings, active = true, display
   const [exportError, setExportError] = React.useState<string | null>(null);
   const comparisonKey = (building: any) => (building._dataType === 'future' ? 'future:' : 'existing:') + building.id;
   const selectedKeys = new Set(selectedComparisonBuildings.map(comparisonKey));
+  const resultKeys = new Set(results.map(comparisonKey));
+  const hiddenSelection = selectedComparisonBuildings.filter(building => !resultKeys.has(comparisonKey(building)));
 
   React.useEffect(() => {
     if (!exportOpen || !active) return;
@@ -179,7 +181,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
         className={`workspace-list-row ${isTarget ? 'workspace-list-row-selected' : ''}`}
       >
         <div className="workspace-list-name">{building.name || '未命名项目'}</div>
-        <div className="workspace-list-meta">{[building.submarket, building.grade].filter(Boolean).join(' · ') || '—'}{isFuture ? ' · ' + (isPendingFutureSupply(building) ? '待核实供应' : '未来供应') : ''}</div>
+        <div className="workspace-list-meta">{[displayOverrides?.get(building.id)?.get('submarket')?.display_value ?? building.submarket, displayOverrides?.get(building.id)?.get('grade')?.display_value ?? displayListGrade(building.grade)].filter(Boolean).join(' · ') || '—'}{isFuture ? ' · ' + (isPendingFutureSupply(building) ? '待核实供应' : '未来供应') : ''}</div>
         <dl className="workspace-list-metrics">
           <div><dt>净租金 · <span className="whitespace-nowrap">元/㎡/月</span></dt><dd>{rent}</dd></div>
           <div><dt>空置率</dt><dd>{vacancy}</dd></div>
@@ -205,7 +207,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
         </div>
         <div className="workspace-list-options">
           {onComparisonSelectionChange ? <button type="button" aria-pressed={selectionMode} onClick={() => setSelectionMode(current => !current)}>{selectionMode ? '完成选择' : '选择项目' + (selectedComparisonBuildings.length ? '（' + selectedComparisonBuildings.length + '）' : '')}</button> : <span>当前地图范围</span>}
-          <MapDisclosure label="更多" active={active}>
+          <MapDisclosure width={264} label="更多" active={active}>
             <p className="workspace-note">现有 {existingCount} · 未来供应 {futureCount}</p>
             <div role="group" aria-label="项目列表查看方式" className="workspace-view-options">
               <button type="button" aria-pressed={viewMode === 'compact'} onClick={() => setViewMode('compact')}>列表</button>
@@ -227,6 +229,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
                 onClick={() => onComparisonSelectionChange(selectedComparisonBuildings, false)}>清空</button>
             </div>
           </div>
+          {hiddenSelection.length ? <div className="workspace-note">其中 {hiddenSelection.length} 栋不在当前结果中。<button type="button" className="workspace-business-action" onClick={() => onComparisonSelectionChange(hiddenSelection, false)}>移除结果外已选项目</button></div> : null}
           <button type="button" className="min-h-9 w-full rounded-[6px] bg-[#003e7e] px-3 text-[14px] font-normal text-white disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!selectedComparisonBuildings.length || isDemo}
             onClick={() => { setExportError(null); setExportOpen(true); }}>

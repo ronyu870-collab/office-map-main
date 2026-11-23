@@ -1,6 +1,6 @@
 'use client';
 import * as React from 'react';
-import { PANEL_SIZES, workspaceColumns, workspaceSheetHeight, type SheetMode, type WorkspaceKind } from '../workspace/workspaceState';
+import { PANEL_SIZES, mapCanvasMinimum, workspaceColumns, workspaceSheetHeight, type SheetMode, type WorkspaceKind } from '../workspace/workspaceState';
 import { WorkspacePanelContext } from './WorkspacePanelHeader';
 import { useMapReadingState } from '../workspace/continuity';
 import { useSurfaceMotion, useSurfacePresence } from '../runtime/workspaceMotion';
@@ -17,7 +17,7 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   const [available, setAvailable] = React.useState({ width: 0, height: 0 });
   const [summary, setSummary] = React.useState(200);
   const [modes, setModes] = useMapReadingState<Partial<Record<WorkspaceKind | 'filters', SheetMode>>>('sheetModes', {});
-  const previousModes = React.useRef<Partial<Record<WorkspaceKind | 'filters', SheetMode>>>({});
+  const [previousModes, setPreviousModes] = useMapReadingState<Partial<Record<WorkspaceKind | 'filters', SheetMode>>>('previousSheetModes', {});
   const [leftPriority, setLeftPriority] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
   const dragRef = React.useRef<{ start: number; width: number } | null>(null);
@@ -47,11 +47,11 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   const rightVisible = rightOpen && !focus && (!columns.compact || !showLeftFirst) && !(leftPriority && desired.leftCollapsed);
   const modeKey = leftVisible && (columns.compact || !rightVisible) ? 'filters' : kind;
   const mode = modes[modeKey] ?? 'compact';
-  const setMode = React.useCallback((next: SheetMode) => setModes(previous => {
-    if (next === 'full' && previous[modeKey] !== 'full') previousModes.current[modeKey] = previous[modeKey] ?? 'compact';
-    return { ...previous, [modeKey]: next };
-  }), [modeKey]);
-  const restoreMode = () => setMode(previousModes.current[modeKey] ?? 'compact');
+  const setMode = React.useCallback((next: SheetMode) => {
+    if (next === 'full' && mode !== 'full') setPreviousModes(old => ({ ...old, [modeKey]: mode }));
+    setModes(previous => ({ ...previous, [modeKey]: next }));
+  }, [mode, modeKey, setModes, setPreviousModes]);
+  const restoreMode = () => setMode(previousModes[modeKey] ?? 'compact');
 
   React.useLayoutEffect(() => {
     const aside = leftVisible ? leftRef.current : rightRef.current;
@@ -88,7 +88,7 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   const displayWidth = columns.right;
   // A wider right pane may temporarily yield the left pane; the user's width
   // should not be permanently capped by a filter that can be restored later.
-  const maxWidth = Math.min(range.max, Math.floor(available.width - Math.max(560, available.width * .6)));
+  const maxWidth = Math.min(range.max, Math.floor(available.width - mapCanvasMinimum(available.width)));
   const expanded = mode === 'full' && (rightVisible || leftVisible);
   const accessibleLeft = leftVisible && (!expanded || modeKey === 'filters');
   const accessibleRight = rightVisible && (!expanded || modeKey !== 'filters');
@@ -104,11 +104,11 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
     if (!expanded) return;
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('.map-disclosure[open], dialog[open], [aria-modal="true"], [data-building-metrics-edit], #__colliers_contact_modal_overlay')) return;
-      event.preventDefault(); event.stopPropagation(); setMode(previousModes.current[modeKey] ?? 'compact');
+      event.preventDefault(); event.stopPropagation(); setMode(previousModes[modeKey] ?? 'compact');
     };
     window.addEventListener('keydown', escape, true);
     return () => window.removeEventListener('keydown', escape, true);
-  }, [expanded, modeKey, setMode]);
+  }, [expanded, modeKey, setMode, previousModes]);
   const focusState = React.useRef({ left: false, right: false, leftOrigin: null as HTMLElement | null, rightOrigin: null as HTMLElement | null });
   const panelFocused = React.useRef({ left: false, right: false });
   React.useLayoutEffect(() => {

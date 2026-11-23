@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import * as React from 'react';
-import { MapReadingContext, useMapReadingScroll, useMapReadingState, readMapReturn, saveMapReturn, restoreWorkspace, mapReturnToken, type MapReturnSnapshot } from './continuity';
+import { createDefaultFilterState } from '../model/mapDomain';
+import { MapReadingContext, useMapReadingScroll, useMapReadingState, readMapReturn, saveMapReturn, restoreWorkspace, mapReturnToken, rememberMapEntry, type MapReturnSnapshot } from './continuity';
 
 const token = 'continuity-test-token';
 const saved = (): MapReturnSnapshot => ({ savedAt: Date.now(), selected: 'a', camera: { center: [116.46, 39.91], zoom: 15 }, mode: 'rent', input: 'CBD', filters: null,
@@ -40,6 +41,23 @@ describe('map return context', () => {
     saveMapReturn('scope', token, raw as MapReturnSnapshot);
     expect(readMapReturn('scope', token)?.reading).not.toHaveProperty('businessRecords');
   });
+  it('retains station criteria and independent object reading state without SDK objects', () => {
+    const value = { ...saved(), focus: true, filters: { ...createDefaultFilterState(), subwayLine: '1号线', subwayStation: { id: 'station-a', name: '国贸', center: [116.46, 39.91] } }, reading: {
+      ...saved().reading, previousSheetModes: { building: 'reading' }, filterScroll: 120,
+      submarkets: { CBD: { section: 'trend', grade: 'a', scrollTop: 180 } },
+      supplyExpanded: { '2027': true }, supplyScroll: 90,
+      buildings: { 'existing:a': { tab: 'market', scrollTop: 80, scrolls: { overview: 150, market: 80 }, trendOpen: true, photo: { open: true, index: 1 } } },
+    } } as unknown as MapReturnSnapshot;
+    saveMapReturn('scope', token, value);
+    expect(readMapReturn('scope', token)).toEqual(value);
+    expect(restoreWorkspace(value, [{ id: 'a' }], []).focus).toBe(true);
+  });
+  it('bounds old navigation history without dropping the rest of the return snapshot', () => {
+    const value = { ...saved(), history: Array.from({ length: 25 }, () => ({ kind: 'list' as const })) };
+    saveMapReturn('scope', token, value);
+    expect(readMapReturn('scope', token)?.history).toHaveLength(20);
+    expect(readMapReturn('scope', token)?.selected).toBe('a');
+  });
 });
 
 it('restores list query and scroll after remount and late content, then yields to user scrolling', () => {
@@ -62,4 +80,29 @@ it('restores list query and scroll after remount and late content, then yields t
   fireEvent.wheel(scroller); scroller.scrollTop = 180; fireEvent.scroll(scroller);
   act(() => resize()); expect(scroller.scrollTop).toBe(180); expect(reading.listScroll).toBe(180);
   second.unmount(); vi.unstubAllGlobals();
+});
+
+it('keeps reading state isolated when the same component changes its object key', () => {
+  const store = { first: 'A', second: 'B' };
+  function Reader({ id }: { id: string }) { const [value, setValue] = useMapReadingState(id, ''); return <input aria-label="对象阅读" value={value} onChange={event => setValue(event.target.value)} />; }
+  const view = render(<MapReadingContext.Provider value={store}><Reader id="first" /></MapReadingContext.Provider>);
+  fireEvent.change(screen.getByLabelText('对象阅读'), { target: { value: 'A2' } });
+  view.rerender(<MapReadingContext.Provider value={store}><Reader id="second" /></MapReadingContext.Provider>);
+  expect(screen.getByLabelText('对象阅读')).toHaveValue('B');
+  fireEvent.change(screen.getByLabelText('对象阅读'), { target: { value: 'B2' } });
+  view.rerender(<MapReadingContext.Provider value={store}><Reader id="first" /></MapReadingContext.Provider>);
+  expect(screen.getByLabelText('对象阅读')).toHaveValue('A2');
+});
+
+
+it('replaces stale project URL parameters while retaining unrelated navigation context', () => {
+  window.history.replaceState({ preserved: true }, '', '/map?building=old&section=deals&source=test');
+  rememberMapEntry(token, { id: 'next', future: true });
+  expect(new URL(location.href).searchParams.get('future')).toBe('next');
+  expect(new URL(location.href).searchParams.has('building')).toBe(false);
+  expect(new URL(location.href).searchParams.has('section')).toBe(false);
+  expect(new URL(location.href).searchParams.get('source')).toBe('test');
+  expect(window.history.state.preserved).toBe(true);
+  rememberMapEntry(token, null);
+  expect(new URL(location.href).searchParams.has('future')).toBe(false);
 });
