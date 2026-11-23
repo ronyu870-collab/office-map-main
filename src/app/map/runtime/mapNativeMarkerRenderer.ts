@@ -85,8 +85,8 @@ export type ControllerInternals = {
   setWorkspaceSelectionRenderer?: (renderer: ((building: any) => string) | null) => void;
   refreshWorkspaceSelection?: () => void;
   openBuildingInfoWindow?: (buildingId: string) => void;
-  bounceMarker?: (buildingId: string) => void;
-  stopBounceMarker?: (buildingId: string) => void;
+  bounceMarker?: (buildingId: string, type?: 'existing' | 'future') => void;
+  stopBounceMarker?: (buildingId: string, type?: 'existing' | 'future') => void;
   refreshBuildingData?: (buildingId: string) => Promise<void>;
   showHoverTooltip?: (building: any, x: number, y: number) => void;
   showFutureSupplyHoverTooltip?: (supply: any, x: number, y: number) => void;
@@ -1037,7 +1037,8 @@ export function installNativeMarkerRenderer(
     applyLayerOpacity();
   }) as ControllerInternals['updateVisibilityByZoom'];
 
-  controller.bounceMarker = ((buildingId: string) => {
+  controller.bounceMarker = ((buildingId: string, type: 'existing' | 'future' = 'existing') => {
+    if (type === 'future') return originalBounce?.(buildingId, type);
     const label = labels.get(buildingId);
     if (!label) return originalBounce?.(buildingId);
     label.setOpacity?.(0.62);
@@ -1045,7 +1046,8 @@ export function installNativeMarkerRenderer(
     requestAnimationFrame(() => label.setOpacity?.(1));
   }) as ControllerInternals['bounceMarker'];
 
-  controller.stopBounceMarker = ((buildingId: string) => {
+  controller.stopBounceMarker = ((buildingId: string, type: 'existing' | 'future' = 'existing') => {
+    if (type === 'future') return originalStopBounce?.(buildingId, type);
     const label = labels.get(buildingId);
     if (!label) return originalStopBounce?.(buildingId);
     label.setOpacity?.(1);

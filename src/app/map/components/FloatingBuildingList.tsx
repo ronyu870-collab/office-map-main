@@ -8,11 +8,10 @@ import { WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { MapDisclosure } from './MapDisclosure';
 import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
 import { BuildingBasicCard } from './BuildingBasicCard';
-import { getLatestMetric } from '@/src/utils/filterBuildings';
-import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
+import { futureSupplyDate, isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { MaskedText, useIsDemo } from '@/src/components/demo';
 import { logAction } from '@/src/utils/audit';
-import { finiteMetric, sortFullList, displayListGrade, type FullListSort } from '../model/fullBuildingList';
+import { listBuildingValues, listVacancyPercent, sortFullList, displayListGrade, type FullListSort } from '../model/fullBuildingList';
 import type { ComparisonLayout } from './buildingComparisonExport';
 
 interface DisplayOverride {
@@ -28,7 +27,8 @@ interface FloatingBuildingListProps {
   onAdjustFilters?: () => void;
   onBuildingClick?: (building: any) => void;
   targetBuildingId?: string | null;
-  onBuildingHover?: (buildingId: string | null) => void;
+  targetBuildingType?: 'existing' | 'future';
+  onBuildingHover?: (buildingId: string | null, type?: 'existing' | 'future') => void;
   selectedComparisonBuildings?: any[];
   onComparisonSelectionChange?: (buildings: any[], selected: boolean) => void;
 }
@@ -36,7 +36,7 @@ interface FloatingBuildingListProps {
 const INITIAL_LOAD_COUNT = 50;
 const LOAD_MORE_COUNT = 50;
 
-export default function FloatingBuildingList({ buildings, active = true, displayOverrides, onClose, onAdjustFilters, onBuildingClick, targetBuildingId, onBuildingHover, selectedComparisonBuildings = [], onComparisonSelectionChange }: FloatingBuildingListProps) {
+export default function FloatingBuildingList({ buildings, active = true, displayOverrides, onClose, onAdjustFilters, onBuildingClick, targetBuildingId, targetBuildingType = 'existing', onBuildingHover, selectedComparisonBuildings = [], onComparisonSelectionChange }: FloatingBuildingListProps) {
   const reading = React.useContext(MapReadingContext);
   const [query, setQuery] = useMapReadingState('listQuery', '');
   const [sort, setSort] = useMapReadingState<FullListSort>('listSort', 'default');
@@ -55,9 +55,15 @@ export default function FloatingBuildingList({ buildings, active = true, display
   const [exportBusy, setExportBusy] = React.useState(false);
   const [exportError, setExportError] = React.useState<string | null>(null);
   const comparisonKey = (building: any) => (building._dataType === 'future' ? 'future:' : 'existing:') + building.id;
+  const isCurrent = (building: any) => targetBuildingId === building.id && (building._dataType === 'future' ? 'future' : 'existing') === targetBuildingType;
   const selectedKeys = new Set(selectedComparisonBuildings.map(comparisonKey));
   const resultKeys = new Set(results.map(comparisonKey));
   const hiddenSelection = selectedComparisonBuildings.filter(building => !resultKeys.has(comparisonKey(building)));
+
+  React.useEffect(() => {
+    if (!active) onBuildingHover?.(null);
+    return () => onBuildingHover?.(null);
+  }, [active, onBuildingHover]);
 
   React.useEffect(() => {
     if (!exportOpen || !active) return;
@@ -132,12 +138,12 @@ export default function FloatingBuildingList({ buildings, active = true, display
 
   React.useEffect(() => {
     if (!active || !targetBuildingId) return;
-    const index = results.findIndex(building => building.id === targetBuildingId);
+    const index = results.findIndex(building => building.id === targetBuildingId && (building._dataType === 'future' ? 'future' : 'existing') === targetBuildingType);
     if (index >= visibleCount) setVisibleCount(index + 1);
     if (typeof reading?.listScroll === 'number') return;
     const frame = requestAnimationFrame(() => listContainerRef.current?.querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView?.({ block: 'nearest' }));
     return () => cancelAnimationFrame(frame);
-  }, [active, targetBuildingId, results, visibleCount, reading]);
+  }, [active, targetBuildingId, targetBuildingType, results, visibleCount, reading]);
   const visibleBuildings = results.slice(0, visibleCount);
   const hasMore = visibleCount < results.length;
 
@@ -153,15 +159,13 @@ export default function FloatingBuildingList({ buildings, active = true, display
   };
 
   const renderCompactRow = (building: any) => {
-    const metric = getLatestMetric(building.metrics ?? []);
-    const rentValue = finiteMetric(metric?.net_effective_rent);
-    const vacancyValue = finiteMetric(metric?.vacancy_rate);
-    const areaValue = finiteMetric(building._dataType === 'future' ? building.total_area : metric?.total_area);
-    const rent = rentValue === null ? '—' : rentValue.toLocaleString('zh-CN', { maximumFractionDigits: 1 });
-    const vacancy = vacancyValue === null ? '—' : `${(vacancyValue <= 1 ? vacancyValue * 100 : vacancyValue).toFixed(1)}%`;
-    const area = areaValue === null ? '—' : areaValue.toLocaleString('zh-CN', { maximumFractionDigits: 0 });
+    const values = listBuildingValues(building);
+    const rent = values.rent === null ? '—' : values.rent.toLocaleString('zh-CN', { maximumFractionDigits: 1 });
+    const vacancyValue = listVacancyPercent(values.vacancy);
+    const vacancy = vacancyValue === null ? '—' : `${vacancyValue.toFixed(1)}%`;
+    const area = values.area === null ? '—' : values.area.toLocaleString('zh-CN', { maximumFractionDigits: 0 });
     const isFuture = building._dataType === 'future';
-    const isTarget = targetBuildingId === building.id;
+    const isTarget = isCurrent(building);
 
     return (
       <div key={comparisonKey(building)}>
@@ -178,17 +182,19 @@ export default function FloatingBuildingList({ buildings, active = true, display
             onBuildingClick?.(building);
           }
         }}
-        onMouseEnter={() => onBuildingHover?.(building.id)}
+        onMouseEnter={() => onBuildingHover?.(building.id, building._dataType === 'future' ? 'future' : 'existing')}
         onMouseLeave={() => onBuildingHover?.(null)}
         className={`workspace-list-row ${isTarget ? 'workspace-list-row-selected' : ''}`}
       >
         <div className="workspace-list-name">{building.name || '未命名项目'}</div>
         <div className="workspace-list-meta">{[displayOverrides?.get(building.id)?.get('submarket')?.display_value ?? building.submarket, displayOverrides?.get(building.id)?.get('grade')?.display_value ?? displayListGrade(building.grade)].filter(Boolean).join(' · ') || '—'}{isFuture ? ' · ' + (isPendingFutureSupply(building) ? '待核实供应' : '未来供应') : ''}</div>
         {coordinateNotice(building) ? <p className="workspace-list-meta">{coordinateNotice(building)}</p> : null}
-        <dl className="workspace-list-metrics">
-          <div><dt>净租金 · <span className="whitespace-nowrap">元/㎡/月</span></dt><dd>{rent}</dd></div>
+        <dl className={`workspace-list-metrics ${isFuture ? 'workspace-list-metrics-future' : ''}`}>
+          {isFuture ? <div><dt>预计时间</dt><dd>{futureSupplyDate(building)}</dd></div> : <>
+          <div><dt>净有效租金 · <span className="whitespace-nowrap">元/㎡/月</span></dt><dd>{rent}</dd></div>
           <div><dt>空置率</dt><dd>{vacancy}</dd></div>
-          <div><dt>面积 · ㎡</dt><dd>{area}</dd></div>
+          </>}
+          <div><dt>{isFuture ? '规划总体量' : '统计面积'} · ㎡</dt><dd>{area}</dd></div>
         </dl>
       </div>
       </div>
@@ -222,24 +228,21 @@ export default function FloatingBuildingList({ buildings, active = true, display
       </div>
 
       {selectionMode && onComparisonSelectionChange ? (
-        <div className="shrink-0 space-y-2 border-b border-[#d9e0e8] bg-[#f8fafc] px-3 py-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[14px] font-normal text-[#172033]">已选 {selectedComparisonBuildings.length} 栋</span>
-            <div className="flex items-center gap-2">
-              <button type="button" className="min-h-8 text-[14px] text-[#003e7e]" disabled={!results.length}
-                onClick={() => onComparisonSelectionChange(results, true)}>全选当前结果</button>
-              <button type="button" className="min-h-8 text-[14px] text-[#667085]" disabled={!selectedComparisonBuildings.length}
-                onClick={() => onComparisonSelectionChange(selectedComparisonBuildings, false)}>清空</button>
-            </div>
+        <section className="workspace-comparison-tools" aria-label="比较项目选择">
+          <div className="workspace-comparison-scope">
+            <span aria-live="polite">已选 {selectedComparisonBuildings.length} 栋</span>
+            <button type="button" aria-label="清空比较选择" disabled={!selectedComparisonBuildings.length}
+              onClick={() => onComparisonSelectionChange(selectedComparisonBuildings, false)}>清空</button>
           </div>
-          {hiddenSelection.length ? <div className="workspace-note">其中 {hiddenSelection.length} 栋不在当前结果中。<button type="button" className="workspace-business-action" onClick={() => onComparisonSelectionChange(hiddenSelection, false)}>移除结果外已选项目</button></div> : null}
-          <button type="button" className="min-h-9 w-full rounded-[6px] bg-[#003e7e] px-3 text-[14px] font-normal text-white disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!selectedComparisonBuildings.length || isDemo}
-            onClick={() => { setExportError(null); setExportOpen(true); }}>
-            导出对比图 PNG
-          </button>
-          {isDemo ? <p className="text-[14px] text-[#667085]">演示账号不提供未脱敏数据导出。</p> : null}
-        </div>
+          <div className="workspace-comparison-actions">
+            <button type="button" className="workspace-business-action" disabled={!results.length}
+              onClick={() => onComparisonSelectionChange(results, true)}>全选当前结果</button>
+            <button type="button" className="workspace-business-action" disabled={!selectedComparisonBuildings.length || isDemo}
+              onClick={() => { setExportError(null); setExportOpen(true); }}>导出对比图 PNG</button>
+          </div>
+          {hiddenSelection.length ? <div className="workspace-comparison-outside"><p className="workspace-note">其中 {hiddenSelection.length} 栋不在当前结果中。</p><button type="button" className="workspace-business-action" onClick={() => onComparisonSelectionChange(hiddenSelection, false)}>移除结果外已选项目</button></div> : null}
+          {isDemo ? <p className="workspace-note">演示账号不提供未脱敏数据导出。</p> : null}
+        </section>
       ) : null}
 
         {results.length === 0 ? (
@@ -252,11 +255,11 @@ export default function FloatingBuildingList({ buildings, active = true, display
         ) : viewMode === 'cards' ? (
           <div className="space-y-2 p-2.5">
             {visibleBuildings.map(building => (
-              <div key={comparisonKey(building)} className={targetBuildingId === building.id ? 'outline outline-2 outline-[#003e7e]/25' : ''} onMouseEnter={() => onBuildingHover?.(building.id)} onMouseLeave={() => onBuildingHover?.(null)}>
+              <div key={comparisonKey(building)} className={isCurrent(building) ? 'outline outline-2 outline-[#003e7e]/25' : ''} onMouseEnter={() => onBuildingHover?.(building.id, building._dataType === 'future' ? 'future' : 'existing')} onMouseLeave={() => onBuildingHover?.(null)}>
                 <div className={selectionMode ? 'flex items-start gap-1' : ''}>
                   {selectionMode ? selectionCheckbox(building) : null}
                   <div className="min-w-0 flex-1">
-                    <BuildingBasicCard building={building} displayOverrides={displayOverrides} onClick={() => onBuildingClick?.(building)} />
+                    <BuildingBasicCard building={building} current={isCurrent(building)} displayOverrides={displayOverrides} onClick={() => onBuildingClick?.(building)} />
                     {coordinateNotice(building) ? <p className="workspace-list-meta">{coordinateNotice(building)}</p> : null}
                     {materialAction(building)}
                   </div>

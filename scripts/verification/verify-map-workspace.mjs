@@ -1,3 +1,4 @@
+import { verifyListReading } from './workspace-list-reading.mjs';
 import { verifyProjectTrendReading } from './workspace-project-trend.mjs';
 import { verifySubmarketReading } from './workspace-submarket-reading.mjs';
 import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
@@ -619,6 +620,9 @@ try {
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
       if ([1536,390,320,844].includes(width)) {
+        const listReadingPage=await context.newPage();
+        try { observations.push(await verifyListReading(listReadingPage,{width,base})); }
+        finally { await listReadingPage.close(); }
         const researchPage=await context.newPage();
         try { observations.push(await verifySubmarketReading(researchPage,{width,base})); }
         finally { await researchPage.close(); }

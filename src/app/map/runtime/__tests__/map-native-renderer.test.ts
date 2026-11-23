@@ -706,3 +706,24 @@ it.each(['v2', 'fallback'] as const)('refreshes same-id supply status in %s inst
     expect(render).toHaveBeenLastCalledWith([verified],'default');
   } finally {cleanup?.();}
 });
+
+it.each(['v3','v2','native'] as const)('%s keeps future list hover separate from a stock label with the same ID',async version=>{
+  const harness=createNativeHarness();harness.setZoom(14.4);
+  const bounce=vi.fn(),stop=vi.fn();
+  const controller:any={AMap:harness.AMap,map:harness.map,markers:[],dotMarkers:[],submarketMarkers:[],renderMarkers:vi.fn(),clearMarkers:vi.fn(),updateVisibilityByZoom:vi.fn(),renderFutureMarkers:vi.fn(),clearFutureMarkers:vi.fn(),bounceMarker:bounce,stopBounceMarker:stop};
+  const cleanup=version==='v3'?installMapInteractionHardening(controller,'map-container'):version==='v2'?installMapVisualContinuityV2(controller,document.getElementById('map-container')!):installNativeMarkerRenderer(controller,document.getElementById('map-container')!);
+  try {
+    controller.renderMarkers([building('same','CBD',116.46,39.91,146,.1)],'default');
+    controller.renderFutureMarkers([{id:'same',location_lng:116.47,location_lat:39.92}],'default');await flushFrames();
+    const stock=harness.labelMarkerInstances.find(marker=>marker.options.name==='same');
+    stock.setzIndex.mockClear();
+    controller.bounceMarker('same','future');controller.stopBounceMarker('same','future');
+    expect(stock.setzIndex).not.toHaveBeenCalled();
+    if(version==='v3'){
+      const future=harness.labelMarkerInstances.find(marker=>marker.options.name.startsWith('future:same:'));
+      expect(future.setzIndex).toHaveBeenCalledWith(999999);expect(future.setzIndex).toHaveBeenLastCalledWith(3100);
+    } else {
+      expect(bounce).toHaveBeenCalledWith('same','future');expect(stop).toHaveBeenCalledWith('same','future');
+    }
+  } finally {cleanup?.();}
+});

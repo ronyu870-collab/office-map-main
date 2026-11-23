@@ -7,7 +7,16 @@ export async function verifySupplyMarkers(page, { width, openRegion, supplies, e
   const results=[];
   for (const supply of supplies) {
     console.log(`supply identity ${evidencePrefix} ${width}: ${supply.name}`);
-    await list.getByRole('button', { name: new RegExp('^' + supply.name) }).click();
+    const row=list.getByRole('button', { name: new RegExp('^' + supply.name) });
+    if(live&&width===1536){
+      await page.evaluate(()=>window.__liveAmapProbe.markerCalls.length=0);
+      await row.hover();
+      await page.waitForFunction(id=>window.__liveAmapProbe.markerCalls.some(call=>call.name?.startsWith('future:'+id+':')&&call.method==='setzIndex'&&call.values[0]===999999),supply.id);
+      assert.equal(await page.evaluate(()=>window.__liveAmapProbe.markerCalls.some(call=>!call.name?.startsWith('future:')&&call.method==='setzIndex'&&call.values[0]===999999)),false,'future list hover does not highlight a stock label');
+      await page.mouse.move(2,2);
+      await page.waitForFunction(id=>window.__liveAmapProbe.markerCalls.some(call=>call.name?.startsWith('future:'+id+':')&&call.method==='setzIndex'&&call.values[0]===3100),supply.id);
+    }
+    await row.click();
     const detail=page.getByRole('region', {name:supply.name+'楼宇详情',exact:true});await detail.waitFor();
     assert.equal(await detail.getAttribute('data-building-id'),supply.building_id??'', 'material identity stays bound to the associated master building');
     await page.waitForFunction(coords=>{
@@ -32,7 +41,7 @@ export async function verifySupplyMarkers(page, { width, openRegion, supplies, e
       },{glyph,pending:supply.status==='pending'},{timeout:10000});
       assert.equal(await page.locator('.map-selected-marker').count(),1);
       if(live) await page.waitForTimeout(350); // Let the SDK commit its normal LabelsLayer canvas too.
-      results.push({id:supply.id,mode,glyph,shape:supply.status==='pending'?'diamond':'hexagon',browserDecoded:true,selectedCenterVerified:true,selectedWithinCanvas:live});
+      results.push({id:supply.id,mode,glyph,shape:supply.status==='pending'?'diamond':'hexagon',browserDecoded:true,selectedCenterVerified:true,selectedWithinCanvas:live,listHoverPublicSDKVerified:live&&width===1536});
       if(mode==='default'||(width===1536&&mode==='leed')) await page.screenshot({path:`/tmp/${evidencePrefix}-${supply.status==='pending'?'pending':'future'}-${mode}-${width}.png`});
     }
     const modes=page.getByRole('combobox',{name:'地图显示模式',exact:true});

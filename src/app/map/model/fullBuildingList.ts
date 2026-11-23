@@ -34,7 +34,7 @@ export function hasBuildingLocation(building: FullListBuilding) {
   return hasMapCoordinates(building);
 }
 export function finiteMetric(value: unknown): number | null {
-  if (value === null || value === undefined || value === '') return null;
+  if (value === null || value === undefined || (typeof value === 'string' && !value.trim())) return null;
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
 }

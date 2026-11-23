@@ -25,6 +25,7 @@ type LayerSet = {
   labels: Map<string, any>;
   ranks: Map<string, number>;
   future: any[];
+  futureLabels: Map<string, any>;
   futureSignature: string;
 };
 
@@ -373,6 +374,7 @@ export function installMapVisualHierarchyV3(
     if (set.futureSignature === nextSignature) return;
     if (set.future.length) set.detail.remove?.(set.future);
     set.future = [];
+    set.futureLabels.clear();
     set.futureSignature = nextSignature;
     if (nextSignature === 'hidden' || !futureArgs) return;
 
@@ -405,6 +407,7 @@ export function installMapVisualHierarchyV3(
         c.openFutureSupplyInfoWindow?.(supply);
       });
       markers.push(marker);
+      set.futureLabels.set(String(supply.id), marker);
     }
     if (markers.length) set.detail.add?.(markers);
     set.future = markers;
@@ -677,7 +680,7 @@ export function installMapVisualHierarchyV3(
 
     detail.add?.(detailItems);
     names.add?.(nameItems);
-    const set: LayerSet = { submarkets, mass, detail, names, labels, ranks, future: [], futureSignature: '' };
+    const set: LayerSet = { submarkets, mass, detail, names, labels, ranks, future: [], futureLabels: new Map(), futureSignature: '' };
     syncFutureLayer(set, mode, tierForZoom(map.getZoom?.() ?? 11) === 'building');
     map.add?.(detail);
     map.add?.(names);
@@ -768,19 +771,19 @@ export function installMapVisualHierarchyV3(
 
   c.updateVisibilityByZoom = (() => apply()) as ControllerInternals['updateVisibilityByZoom'];
 
-  c.bounceMarker = ((id: string) => {
-    const label = current?.labels.get(id);
-    if (!label || currentTier !== 'building') return originalBounce?.(id);
+  c.bounceMarker = ((id: string, type: 'existing' | 'future' = 'existing') => {
+    const label = type === 'future' ? current?.futureLabels.get(id) : current?.labels.get(id);
+    if (!label || currentTier !== 'building') return originalBounce?.(id, type);
     label.setOpacity?.(0.72);
     label.setzIndex?.(999999);
     requestAnimationFrame(() => label.setOpacity?.(1));
   }) as ControllerInternals['bounceMarker'];
 
-  c.stopBounceMarker = ((id: string) => {
-    const label = current?.labels.get(id);
-    if (!label) return originalStop?.(id);
+  c.stopBounceMarker = ((id: string, type: 'existing' | 'future' = 'existing') => {
+    const label = type === 'future' ? current?.futureLabels.get(id) : current?.labels.get(id);
+    if (!label) return originalStop?.(id, type);
     label.setOpacity?.(1);
-    const rank = current?.ranks.get(id);
+    const rank = type === 'future' ? 3100 : current?.ranks.get(id);
     if (rank !== undefined) label.setzIndex?.(rank);
   }) as ControllerInternals['stopBounceMarker'];
 
