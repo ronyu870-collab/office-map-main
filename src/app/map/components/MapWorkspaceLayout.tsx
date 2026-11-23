@@ -103,7 +103,7 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   React.useEffect(() => {
     if (!expanded) return;
     const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('.map-disclosure[open], dialog[open], [aria-modal="true"], [data-building-metrics-edit], #__colliers_contact_modal_overlay')) return;
+      if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('.map-disclosure[open], dialog[open], [aria-modal="true"], [data-map-related-leases], [data-building-metrics-edit], #__colliers_contact_modal_overlay')) return;
       event.preventDefault(); event.stopPropagation(); setMode(previousModes[modeKey] ?? 'compact');
     };
     window.addEventListener('keydown', escape, true);

@@ -1,0 +1,46 @@
+{
+  "scope": "associated transaction reading",
+  "before": {
+    "tests": {
+      "failed": 6,
+      "passed": 1
+    },
+    "desktop": "Escape also closed the underlying building workspace",
+    "phone320": "Escape exited the parent fullscreen while leaving transactions open",
+    "identity": "user, role, session and impersonation scope changes retained old transactions"
+  },
+  "implementation": [
+    "Current read task owns Escape; child modal remains in control; close restores the visible entry and parent reading mode.",
+    "Current identity/project/page key guards displayed resources; scope change clears old state/cache; closed or superseded fetches abort, late responses do not reopen.",
+    "Existing 16/14 and 400/600 type system; complete long names, grouped metrics/details/source, 44px close/paging, reduced motion retained."
+  ],
+  "verification": {
+    "unit": {
+      "files": 3,
+      "passed": 29
+    },
+    "typecheck": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 14
+    },
+    "build": "pass",
+    "browser": "four widths pass, 50 rows plus final record; original zero/missing, historic source/project scope, keyboard expansion and page count reuse",
+    "workspace": {
+      "status": "pass",
+      "widths": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "observations": 60,
+      "evidence": "related-reading-workspace.json"
+    }
+  },
+  "limits": [
+    "Business, identity and SDK are isolated fixtures; no newly verified production transaction records or real account switches.",
+    "Other reading bridges have not yet received this identity regression.",
+    "No new native device or CPU measurement."
+  ]
+}
