@@ -10,7 +10,7 @@ export async function waitForLiveAmapTiles(page, network) {
 }
 
 export function installLiveAmapProbe() {
-  const probe = window.__liveAmapProbe = { created: 0, events: [], calls: [], stages: [], initialCameras: [] };
+  const probe = window.__liveAmapProbe = { created: 0, events: [], calls: [], stages: [], initialCameras: [], markerCalls: [] };
   window.__colliersNavigationProbe = {
     recordMapStage(stage) { probe.stages.push({ stage, at: performance.now() }); },
   };
@@ -37,6 +37,26 @@ export function installLiveAmapProbe() {
         }
         return map;
       },
+    });
+    const wrapLabel = Constructor => typeof Constructor !== 'function' ? Constructor : new Proxy(Constructor, {
+      construct(target, args, newTarget) {
+        const marker = Reflect.construct(target, args, newTarget);
+        for (const methodName of ['setzIndex', 'setOpacity']) {
+          const method = marker[methodName];
+          if (typeof method !== 'function') continue;
+          marker[methodName] = function (...values) {
+            probe.markerCalls.push({ name: args[0]?.name, method: methodName, values, at: performance.now() });
+            return Reflect.apply(method, this, values);
+          };
+        }
+        return marker;
+      },
+    });
+    let labelConstructor = wrapLabel(namespace.LabelMarker);
+    Object.defineProperty(namespace, 'LabelMarker', {
+      configurable: true,
+      get() { return labelConstructor; },
+      set(value) { labelConstructor = wrapLabel(value); },
     });
     let constructor = wrap(namespace.Map);
     Object.defineProperty(namespace, 'Map', {

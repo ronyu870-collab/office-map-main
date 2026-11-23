@@ -103,6 +103,7 @@ type MapWorkbenchViewProps = {
   combinedBuildingList: any[];
   displayOverrides: Map<string, Map<string, DisplayOverride>>;
   targetBuildingId: string | null;
+  targetBuildingType?: 'existing' | 'future';
   brokerContext?: { back?: string; unavailable: boolean; filtered?: boolean } | null;
   intelligenceContext?: {
     candidateCount: number | null;
@@ -124,7 +125,7 @@ type MapWorkbenchViewProps = {
   onExportMapData: () => void | Promise<void>;
   onBuildingClick: (building: any) => void;
   onSearchBuildingClick?: (building: FullListBuilding) => void;
-  onBuildingHover: (buildingId: string | null) => void;
+  onBuildingHover: (buildingId: string | null, type?: 'existing' | 'future') => void;
   searchContextKey?: string;
   isFullListVisible?: boolean;
   hasVisitedFullList?: boolean;
@@ -402,6 +403,7 @@ export function MapWorkbenchView({
   combinedBuildingList,
   displayOverrides,
   targetBuildingId,
+  targetBuildingType,
   brokerContext,
   intelligenceContext = null,
   onFilterPanelOpenChange,
@@ -689,7 +691,7 @@ export function MapWorkbenchView({
     </div>
     <div hidden={effectiveKind !== 'list' && effectiveKind !== 'compare'} className={effectiveKind === 'list' || effectiveKind === 'compare' ? 'map-workspace-view' : 'hidden'}>
       {listVisited ? <FloatingBuildingList active={(effectiveKind === 'list' || effectiveKind === 'compare') && !searchChoicesVisible} buildings={combinedBuildingList} displayOverrides={displayOverrides}
-        onClose={closeRight} onBuildingClick={onBuildingClick} targetBuildingId={targetBuildingId}
+        onClose={closeRight} onBuildingClick={onBuildingClick} targetBuildingId={targetBuildingId} targetBuildingType={targetBuildingType}
         onBuildingHover={onBuildingHover} selectedComparisonBuildings={selectedComparisonBuildings}
         onComparisonSelectionChange={handleComparisonSelectionChange} onAdjustFilters={() => onFilterPanelOpenChange(true)} /> : null}
     </div>
@@ -899,7 +901,7 @@ export function MapWorkbenchView({
             activeFilterChips={activeFilterChips} compareGroupCount={compareGroups.length} requirementContext={Boolean(intelligenceContext)} competitorContext={competitorContext} filterState={filterState} onPatchFilters={onRemoveFilterChip}
             keyword={keyword} loading={fullListBusy} error={listError === undefined ? mapError : listError} warning={[fullListWarning, dataNotice].filter(Boolean).join(' ') || null}
             filtersOpen={listMoreOpen} moreFiltersTriggerId={moreFiltersTriggerId} filtersPanelId={filtersPanelId}
-            displayOverrides={displayOverrides} targetBuildingId={targetBuildingId}
+            displayOverrides={displayOverrides} targetBuildingId={targetBuildingId} targetBuildingType={targetBuildingType}
             onBack={() => onCloseFullList?.()} onToggleFilters={() => {
               if (listMoreOpen) closeListMore();
               else setListMoreContext({ key: searchContextKey });

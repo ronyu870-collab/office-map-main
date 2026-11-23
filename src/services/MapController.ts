@@ -428,6 +428,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private markers: any[] = [];
   private dotMarkers: any[] = []; // Level 3: 小圆点标记
   private futureMarkers: any[] = [];
+  private futureMarkersById = new Map<string, any>();
   private _cachedFutureSuppliesPromise: Promise<any[]> | null = null;
   private submarketMarkers: any[] = [];
   private currentRenderMode: "submarket" | "dot" | "building" | null = null;
@@ -1432,8 +1433,15 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   // 🌟 CL-013: marker 弹跳动画
-  public bounceMarker(buildingId: string) {
+  public bounceMarker(buildingId: string, type: 'existing' | 'future' = 'existing') {
     if (!this.map) return;
+    if (type === 'future') {
+      const marker = this.futureMarkersById.get(buildingId);
+      if (!marker) return;
+      marker.setOpacity?.(0.72); marker.setzIndex?.(999999);
+      requestAnimationFrame(() => { if (this.futureMarkersById.get(buildingId) === marker) marker.setOpacity?.(1); });
+      return;
+    }
     const el = this.map
       .getContainer()
       ?.querySelector(
@@ -1452,8 +1460,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     el.style.animation = "markerBounce 0.22s ease-out";
   }
 
-  public stopBounceMarker(buildingId: string) {
+  public stopBounceMarker(buildingId: string, type: 'existing' | 'future' = 'existing') {
     if (!this.map) return;
+    if (type === 'future') {
+      const marker = this.futureMarkersById.get(buildingId);
+      marker?.setOpacity?.(1); marker?.setzIndex?.(110);
+      return;
+    }
     const el = this.map
       .getContainer()
       ?.querySelector(
@@ -1944,7 +1957,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const lat = toNullableFiniteNumber(supply.location_lat);
       if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
 
-      const markerEl = `<div class="map-future-supply-marker" role="img" aria-label="${futureSupplyDisplayLabel(supply)}"><img src="${futureSupplyImage(supply, renderMode)}" width="34" height="34" alt="" /></div>`;
+      const markerEl = `<div class="map-future-supply-marker" data-future-supply-id="${escapeHtml(supply.id)}" role="img" aria-label="${futureSupplyDisplayLabel(supply)}"><img src="${futureSupplyImage(supply, renderMode)}" width="34" height="34" alt="" /></div>`;
 
       const marker = new AMap.Marker({
         position: [lng, lat],
@@ -1974,6 +1987,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       });
 
       this.futureMarkers.push(marker);
+      this.futureMarkersById.set(String(supply.id), marker);
     }
 
     this.map.add(this.futureMarkers);
@@ -1984,7 +1998,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   private removeFutureMarkerOverlays(): void {
-    if (!this.map) return;
+    this.futureMarkersById.clear();
+    if (!this.map) { this.futureMarkers = []; return; }
     if (this.futureMarkers.length > 0) {
       try {
         this.map.remove(this.futureMarkers);
