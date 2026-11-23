@@ -146,6 +146,18 @@ try {
       const metricBounds = await liveStats.boundingBox();
       assert.ok(metricBounds.x >= 0 && metricBounds.x + metricBounds.width <= width, 'metrics fit the viewport');
       if (width > 1100) assert.ok(metricBounds.width <= 520, `content-sized metrics width ${metricBounds.width}`);
+      const modeGroup = await page.locator('.map-toolbar-mode-group').boundingBox();
+      const toolbarActions = await page.locator('.map-toolbar-actions').boundingBox();
+      assert.ok(modeGroup.x + modeGroup.width + 6 <= toolbarActions.x, 'mode/legend and project actions remain separate without overlapping');
+      assert.ok((await page.locator('.map-toolbar-search').boundingBox()).width >= 200, 'project search retains useful reading width');
+      for (const name of ['未来供应','项目列表']) {
+        const action=page.getByRole('button',{name,exact:true});
+        assert.ok((await action.innerText()).trim().length>0,'supply and list have visible action labels');
+        if(width<640||width===844){const box=await action.boundingBox();assert.ok(box.height>=44 && box.width>=44,'mobile project actions retain touch targets');}
+      }
+      if(width<640||width===844)for(const mode of await page.locator('.map-workspace-modes button:visible').all()){
+        const box=await mode.boundingBox();assert.ok(box.width>=44 && box.height>=44,'mobile mode options retain touch targets');
+      }
       const statsBeforeMove = await liveStats.locator('dl').innerText();
       await page.evaluate(() => { window.__workspaceMap.emit('moveend'); });
       assert.equal(await liveStats.locator('dl').innerText(), statsBeforeMove);
