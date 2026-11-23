@@ -1,3 +1,4 @@
+import { verifyRelatedReading } from './workspace-related-reading.mjs';
 import { verifyContactReading } from './workspace-contact-reading.mjs';
 import { verifyMaterialReading } from './workspace-material-reading.mjs';
 import { verifyProjectTrendReturn } from './workspace-project-trend-return.mjs';
@@ -632,6 +633,9 @@ try {
         const materialReadingPage=await context.newPage();
         try { observations.push(await verifyMaterialReading(materialReadingPage,{width,base})); }
         finally { await materialReadingPage.close(); }
+        const relatedPage=await context.newPage();
+        try { observations.push(await verifyRelatedReading(relatedPage,{width,base})); }
+        finally { await relatedPage.close(); }
         const trendReturnPage=await context.newPage();
         try { observations.push(await verifyProjectTrendReturn(trendReturnPage,{width,base})); }
         finally { await trendReturnPage.close(); }

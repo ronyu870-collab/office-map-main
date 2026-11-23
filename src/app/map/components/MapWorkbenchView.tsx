@@ -539,7 +539,7 @@ export function MapWorkbenchView({
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
-      if (document.querySelector('dialog[open], [aria-modal="true"], [data-building-metrics-edit], #__colliers_contact_modal_overlay')) return;
+      if (document.querySelector('dialog[open], [aria-modal="true"], [data-map-related-leases], [data-building-metrics-edit], #__colliers_contact_modal_overlay')) return;
       if (searchChoicesVisible) {
         event.preventDefault();
         setSearchChoicesOpen(false);
