@@ -397,12 +397,12 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const future = building._dataType === 'future';
     return { building, metric: future ? null : pickLatestMetric(building.metrics ?? []),
       photos: this.getPhotoSet(future ? building.building_id ?? undefined : building.id, building.photos)?.photos ?? [],
-      isDemo: this._isDemo, canEdit: this._isAdmin && !this._isDemo,
+      isDemo: this._isDemo, canEdit: this._isAdmin && !this._isDemo && !future,
       overrides: Object.fromEntries(this._displayOverridesCache.get(building.id) ?? []) };
   }
 
   runWorkspaceBuildingAction(action: 'nearby' | 'contact' | 'trend' | 'edit', building: WorkspaceBuilding): void {
-    if (action === 'edit') { if (this._isAdmin && !this._isDemo) this._onEditBuildingMetrics?.(building.id, building.name ?? ''); }
+    if (action === 'edit') { if (this._isAdmin && !this._isDemo && building._dataType !== 'future') this._onEditBuildingMetrics?.(building.id, building.name ?? ''); }
     if (action === 'nearby' && hasMapCoordinates(building)) {
       (window as any).__colliers_analyzeCompetitors?.(building.id, building.location_lng, building.location_lat, Number(pickLatestMetric(building.metrics ?? [])?.net_effective_rent ?? 0));
     }
