@@ -92,8 +92,9 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
     buildingDetailPanel, rightKind, backLabel, onWorkspaceBack,
     onRenderModeChange,
     onSearch, onOpenList,
-    onFilterChange,
+    onFilterChange, stats,
   }: {
+    stats: {visibleProjectCount:string; totalArea:string};
     queryPanel?: React.ReactNode;
     submarketDetailPanel?: React.ReactNode;
     buildingDetailPanel?: React.ReactNode; rightKind?: string; backLabel?: string; onWorkspaceBack?: () => void;
@@ -103,6 +104,8 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
   }) => (
     <>
       {queryPanel}
+      <output aria-label="current-map-projects">{stats.visibleProjectCount}</output>
+      <output aria-label="current-market-area">{stats.totalArea}</output>
       {submarketDetailPanel}
       {rightKind === 'building' ? buildingDetailPanel : null}
       {backLabel ? <button type="button" onClick={onWorkspaceBack}>返回{backLabel}</button> : null}
@@ -262,6 +265,22 @@ describe('MapClient render mode synchronization', () => {
     });
   });
 
+
+  it('counts valid displayed stock and future projects and follows hidden layers and competitor scope', async () => {
+    const bad = {...BUILDINGS[0],id:'bad',location_lat:116};
+    controller.fetchMapData.mockResolvedValue([...BUILDINGS,bad]);
+    controller.fetchFutureSupplies.mockResolvedValue([{id:'future',name:'未来楼',grade:'A',type:'办公',district:'朝阳区',submarket:'CBD',launch_year:2027,location_lng:116.47,location_lat:39.92}]);
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(()=>expect(controller.renderFutureMarkers).toHaveBeenCalled());
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^2$/));
+    expect(screen.getByLabelText('current-market-area')).toHaveTextContent('200,000');
+    fireEvent(window,new CustomEvent('competitors-found',{detail:{buildings:BUILDINGS,targetBuildingId:BUILDINGS[0].id}}));
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^1$/));
+    fireEvent(window,new Event('competitors-cleared'));
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^2$/));
+    fireEvent.click(screen.getByRole('button',{name:'close-layer-with-district-filter'}));
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^0$/));
+  });
 
   it('excludes hidden commercial projects from search when future supply is off', async () => {
     const supply = { id: 'supply-640', name: '玉渊潭640地块商业项目', type: '商业', grade: null, submarket: null,

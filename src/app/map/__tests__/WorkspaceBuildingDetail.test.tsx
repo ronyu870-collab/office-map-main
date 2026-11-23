@@ -46,7 +46,7 @@ it('retains stock business bridge identities, admin editing and the dedicated St
 });
 it('uses the linked master building for future materials and excludes stock-only actions', () => {
   render(<WorkspaceBuildingDetail detail={{ ...base, building: { ...base.building, id: 'future-row', _dataType: 'future', building_id: 'master' } }} {...actions()} />);
-  fireEvent.click(screen.getByRole('tab', { name: '成交与资料' }));
+  fireEvent.click(screen.getByRole('tab', { name: '项目资料' }));
   expect(screen.getByRole('button', { name: '销控与佣金' })).toHaveAttribute('data-building-id', 'master');
   expect(screen.queryByRole('button', { name: '关联成交' })).not.toBeInTheDocument();
 });
@@ -157,4 +157,21 @@ it('keeps an excluded project readable while identifying its relation to the fil
   render(<WorkspaceBuildingDetail detail={base} {...actions()} outsideResults />);
   expect(screen.getByRole('region', { name: '甲楼楼宇详情' })).toBeVisible();
   expect(screen.getByText('当前项目不在筛选结果中，已保留详情供继续查阅。')).toHaveAttribute('role', 'status');
+});
+
+it('keeps future planning separate from stock market metrics and explains unavailable materials', () => {
+  const future: Detail = {...base,building:{...base.building,id:'pending-row',_dataType:'future',status:'pending',total_area:80000},canEdit:true};
+  render(<WorkspaceBuildingDetail detail={future} {...actions()} readingState={{tab:'market',scrollTop:300}} />);
+  expect(screen.queryByRole('tab',{name:'行情'})).not.toBeInTheDocument();
+  expect(screen.getByRole('tab',{name:'概览'})).toHaveAttribute('aria-selected','true');
+  expect(screen.queryByText('净有效租金')).not.toBeInTheDocument();
+  expect(screen.getByText('预计总体量')).toBeVisible();
+  fireEvent.keyDown(screen.getByRole('tab',{name:'概览'}),{key:'ArrowLeft'});
+  expect(screen.getByRole('tab',{name:'项目资料'})).toHaveFocus();
+  expect(screen.getByRole('tab',{name:'项目资料'})).toHaveAttribute('aria-selected','true');
+  expect(screen.queryByRole('button',{name:'编辑指标'})).not.toBeInTheDocument();
+  expect(screen.getByText('待核实项目暂无关联原件')).toBeVisible();
+  fireEvent.keyDown(screen.getByRole('tab',{name:'项目资料'}),{key:'ArrowRight'});
+  expect(screen.getByRole('tab',{name:'概览'})).toHaveFocus();
+  expect(screen.getByRole('tab',{name:'概览'})).toHaveAttribute('aria-selected','true');
 });

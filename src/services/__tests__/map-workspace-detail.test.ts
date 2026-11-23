@@ -94,3 +94,12 @@ describe('real MapController workspace adapter', () => {
     expect(edit).toHaveBeenCalledTimes(1);
   });
 });
+
+it('never opens a stock quarterly-metrics editor with a future-supply identity', () => {
+  const { controller } = fixture(); const edit = vi.fn();
+  Object.assign(controller,{_isAdmin:true,_onEditBuildingMetrics:edit});
+  const future = {id:'future-row',building_id:'master',name:'未来楼',_dataType:'future' as const};
+  expect(controller.getWorkspaceBuildingDetail(future).canEdit).toBe(false);
+  controller.runWorkspaceBuildingAction('edit',future);
+  expect(edit).not.toHaveBeenCalled();
+});

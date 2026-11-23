@@ -150,7 +150,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
                       onBuildingClick(building);
                     }}><MaskedText>{building.name || '未命名项目'}</MaskedText></button>
                     <div className={styles.meta}>
-                      {future ? <span>{futureSupplyDate(building)}</span> : year ? <span>{year}年</span> : null}
+                      {future ? <span>{futureSupplyDate(building)}</span> : year ? <span>入市 {year}年</span> : null}
                       {future ? <span>{futureSupplyDisplayLabel(building)}</span> : null}
                       {targetBuildingId === building.id ? <span>目标楼宇</span> : null}
                     </div>

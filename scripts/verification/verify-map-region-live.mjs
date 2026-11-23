@@ -104,6 +104,22 @@ try {
       if(width===1536){await page.getByRole('separator',{name:'调整业务工作区宽度'}).press('End');scenes.push(await inspect('CBD',[...buildings,...regionFuture].filter(x=>x.submarket==='CBD'),'CBD wide pane'));}
       await open('望京'); scenes.push(await inspect('望京',extra.filter(x=>x.submarket==='望京')));
       await open('丽泽'); const identical=await inspect('丽泽',extra.filter(x=>x.submarket==='丽泽'));assert.ok(identical.zoom<=16);scenes.push(identical);
+      await page.getByRole('button',{name:'查看全部项目',exact:true}).click();
+      const overlapList=page.getByRole('region',{name:'项目列表',exact:true});
+      const overlapSelections=[];
+      for(const id of ['single','same']) {
+        await overlapList.getByRole('button',{name:new RegExp('^'+id+'(?:\\s|$)')}).click();
+        const selected=page.getByRole('region',{name:id+'楼宇详情',exact:true});await selected.waitFor();
+        assert.equal(await selected.getAttribute('data-building-id'),id,'same-coordinate list selections keep independent identities');
+        await page.waitForTimeout(600);
+        assert.equal(await page.locator('.map-selected-marker').count(),1,'one selected marker remains for the current project');
+        const center=await page.evaluate(()=>{const c=window.__workspaceMap.getCenter();return[c.lng,c.lat];});
+        assert.ok(Math.abs(center[0]-116.35)<.00001&&Math.abs(center[1]-39.87)<.00001,'the selected same-coordinate project has its own correct camera');
+        overlapSelections.push({id,center});
+        await page.getByRole('button',{name:'返回项目列表',exact:true}).click();await overlapList.waitFor();
+      }
+      scenes.push({name:'independent list selection for same-coordinate buildings',selections:overlapSelections});
+
       await page.evaluate(()=>{for(const name of ['CBD','望京','中关村'])window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name}}));});
       await page.getByRole('region',{name:'中关村',exact:true}).waitFor();scenes.push(await inspect('中关村',stock.filter(x=>x.submarket==='中关村'),'rapid A B C'));
       await page.getByRole('button',{name:'关闭子市场介绍'}).click();

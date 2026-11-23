@@ -31,7 +31,7 @@ stock[0].photos = [
   {id:'20000000-1111-4111-8111-111111111111',caption:'横向外观'},
   {id:'20000000-2222-4222-8222-222222222222',caption:'竖向大堂'},
 ];
-const future = [{ id: 'future-cbd', building_id: 'master-cbd', name: 'CBD未来楼', type: '办公', district: '朝阳区', submarket: 'CBD', launch_year: 2027, launch_quarter: 'Q2', total_area: 80000, location_lng: 116.47, location_lat: 39.92 }];
+const future = [{ id: 'future-cbd', building_id: 'master-cbd', name: 'CBD未来楼', grade:'A', type: '办公', district: '朝阳区', submarket: 'CBD', launch_year: 2027, launch_quarter: 'Q2', total_area: 80000, location_lng: 116.47, location_lat: 39.92 }, { id: 'future-pending', name: '待核实未来楼', status: 'pending', district:'朝阳区', type: '办公', submarket: 'CBD', total_area: 50000, location_lng: 116.465, location_lat: 39.915 }];
 function instrumentMap() {
   const BaseMap = window.AMap.Map;
   const stats = window.__workspaceSDK = { created: 0, resized: 0, centers: [], nativeOpens: 0 };
@@ -56,7 +56,7 @@ try {
     const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 640 || width === 844, hasTouch: width < 640 || width === 844, serviceWorkers: 'block' });
     const errors = [];
     let stockReads = 0, failSDK = false, photoReads = 0;
-    let dataRows = stock, dataGate = null, releaseData = () => {};
+    let dataRows = stock, futureRows = future, dataGate = null, releaseData = () => {};
     const auditEvents = new Map();
     let auditFailures = 0;
     let page;
@@ -85,7 +85,7 @@ try {
           if (url.pathname === '/api/map/data') {
             assert.equal(route.request().headers().authorization, `Bearer ${token}`);
             if (url.searchParams.get('mode') === 'trend') return route.fulfill({ json: { metrics: [2026, 2025].map(year => ({ record_year: year, record_quarter: year === 2026 ? 3 : 4, net_effective_rent: 200, vacancy_rate: .12 })) } });
-            if (url.searchParams.get('mode') === 'future') return route.fulfill({ json: { future_supplies: future } });
+            if (url.searchParams.get('mode') === 'future') return route.fulfill({ json: { future_supplies: futureRows } });
             stockReads++;
             if (dataGate) await dataGate;
             return route.fulfill({ json: { buildings: dataRows, display_overrides: [] } });
@@ -142,6 +142,15 @@ try {
       await menu.waitFor({ state: 'detached' });
       assert.ok(await legend.evaluate(el => el === document.activeElement), 'disclosure returns focus');
       await page.getByRole('button', { name: '筛选', exact: true }).click();
+      await page.waitForFunction(()=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent==='5');
+      await page.locator('.map-workspace-filter').getByText('项目类型',{exact:true}).click();
+      const futureLayer = page.getByRole('checkbox',{name:'显示未来新增供应',exact:true});
+      await futureLayer.uncheck();
+      await page.waitForFunction(()=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent==='3');
+      await futureLayer.check();
+      await page.waitForFunction(()=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent==='5');
+      await page.locator('.map-workspace-filter').getByText('项目类型',{exact:true}).click();
+      observations.push({width,validDisplayedProjects:5,stockOnlyProjects:3,invalidOrMissingStockReadable:2,futureLayerCountFollowsVisibility:true});
       await page.getByRole('button', { name: '项目列表', exact: true }).click();
       const list = page.getByRole('region', { name: '项目列表', exact: true });
       await list.waitFor();
@@ -328,6 +337,12 @@ try {
       await page.getByRole('button', { name: '季度趋势', exact: true }).click();
       assert.equal(await page.locator('#info-chart-container canvas').count(), 0);
       await page.getByRole('tab', { name: '成交与资料', exact: true }).click();
+      if ([1536,390,320].includes(width)) {
+        if (width < 640) await clickWorkspaceAction(page,'展开到阅读高度');
+        await page.waitForTimeout(250);
+        await page.screenshot({path:`/tmp/map-material-groups-${width}.png`});
+        if (width < 640) await clickWorkspaceAction(page,'收起为摘要');
+      }
       await page.getByRole('button', { name: '联系方式', exact: true }).click();
       await page.locator('#__colliers_contact_modal_overlay').waitFor();
       await page.keyboard.press('Escape');
@@ -461,13 +476,42 @@ try {
       const futureBadge = page.locator('.map-selected-marker__badge');
       await futureBadge.waitFor();
       await page.waitForFunction(() => document.querySelector('.map-selected-marker__badge')?.naturalWidth > 0);
-      assert.ok(decodeURIComponent(await futureBadge.getAttribute('src')).includes('>F</text>'), 'selected future remains visible even without its map layer');
-      await page.getByRole('tab', { name: '成交与资料' }).click();
+      assert.ok(decodeURIComponent(await futureBadge.getAttribute('src')).includes('>F</text>'), 'selected future has a visible identity badge');
+      assert.equal(await page.getByRole('tab',{name:'行情',exact:true}).count(),0);
+      assert.equal(await page.getByText('净有效租金',{exact:true}).count(),1,'only the global market metric remains, not a future project rent');
+      assert.match(await page.getByRole('region',{name:'规划指标'}).locator('dd').innerText(),/^80,000\s*㎡$/);
+      await page.getByRole('tab', { name: '概览',exact:true }).press('ArrowLeft');
+      assert.equal(await page.getByRole('tab', { name: '项目资料' }).getAttribute('aria-selected'),'true');
+      await page.getByRole('tab', { name: '项目资料' }).press('ArrowRight');
+      assert.equal(await page.getByRole('tab', { name: '概览',exact:true }).getAttribute('aria-selected'),'true');
+      await page.getByRole('tab', { name: '项目资料' }).click();
       assert.equal(await page.getByRole('button', { name: '销控与佣金' }).getAttribute('data-building-id'), 'master-cbd');
+      assert.equal(await page.getByRole('button',{name:'编辑指标',exact:true}).count(),0);
+      if ([1536,390,320].includes(width)) {
+        if (width < 640) await clickWorkspaceAction(page,'展开到阅读高度');
+        await page.waitForTimeout(250);
+        await page.screenshot({path:`/tmp/map-future-materials-${width}.png`});
+        if (width < 640) await clickWorkspaceAction(page,'收起为摘要');
+      }
       if (width === 390) {
         await clickWorkspaceAction(page, '全屏阅读工作区');
         assert.equal(await page.locator('.map-workspace-layout').getAttribute('data-expanded'), 'true');
         await clickWorkspaceAction(page, '返回地图分屏');
+      }
+      await page.getByRole('button', { name: '关闭楼宇详情' }).click();
+      await page.getByRole('button', { name: '未来供应', exact: true }).click();
+      await page.getByText('待核实项目（1）',{exact:true}).click();
+      await page.getByRole('button',{name:'待核实未来楼',exact:true}).click();
+      await page.getByRole('region',{name:'待核实未来楼楼宇详情'}).waitFor();
+      assert.equal(await page.getByRole('tab',{name:'行情',exact:true}).count(),0);
+      await page.getByRole('tab',{name:'项目资料',exact:true}).click();
+      await page.getByText('待核实项目暂无关联原件',{exact:true}).waitFor();
+      assert.equal(await page.getByRole('button',{name:'销控与佣金',exact:true}).count(),0);
+      if ([1536,390,320].includes(width)) {
+        if (width < 640) await clickWorkspaceAction(page,'展开到阅读高度');
+        await page.waitForTimeout(250);
+        await page.screenshot({path:`/tmp/map-pending-materials-${width}.png`});
+        if (width < 640) await clickWorkspaceAction(page,'收起为摘要');
       }
       await page.getByRole('button', { name: '关闭楼宇详情' }).click();
       const search = page.getByRole('searchbox', { name: '搜索楼宇、子市场、业主或物业' });
@@ -587,7 +631,7 @@ try {
       }
 
       if ([1536,320].includes(width)) {
-        failSDK = false;
+        failSDK = false; futureRows = [];
         const variants = [
           ['three-digits', Array.from({length:128},(_,index)=>({...stock[0],id:`scale-${index}`,name:`规模项目${index}`})), '128'],
           ['zero', [], '0'],

@@ -263,12 +263,12 @@ try {
     await page.getByRole('button',{name:'未来供应',exact:true}).click();
     await page.getByRole('button',{name:'CBD未来楼',exact:true}).click();
     await page.getByRole('region',{name:'CBD未来楼楼宇详情'}).waitFor();
-    await page.getByRole('tab',{name:'成交与资料'}).click();
+    await page.getByRole('tab',{name:'项目资料'}).click();
     await page.evaluate(()=>window.dispatchEvent(new Event('map-workspace-save-return')));
     emptyStock=true;
     await page.reload();
     await page.getByRole('region',{name:'CBD未来楼楼宇详情'}).waitFor();
-    assert.equal(await page.getByRole('tab',{name:'成交与资料'}).getAttribute('aria-selected'),'true','future-only return retains the reading tab');
+    assert.equal(await page.getByRole('tab',{name:'项目资料'}).getAttribute('aria-selected'),'true','future-only return retains the reading tab');
     assert.equal(await page.getByText('地图加载失败',{exact:true}).count(),0,'valid empty stock is not a data failure');
   }
   await context.close();

@@ -12,7 +12,7 @@ const CORE: Field[] = [
   { key: 'district', label: '行政区', width: 125 },
   { key: 'submarket', label: '子市场', width: 150 },
   { key: 'grade', label: '等级', width: 105 },
-  { key: 'year', label: '建成／预计年份', width: 160 },
+  { key: 'year', label: '入市／预计时间', width: 160 },
   { key: 'area', label: '面积（㎡）', width: 160 },
   { key: 'rent', label: '净有效租金（元/㎡/月）', width: 205 },
   { key: 'vacancy', label: '空置率', width: 120 },
