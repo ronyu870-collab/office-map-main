@@ -24,7 +24,7 @@ interface BuildingBasicCardProps {
 }
 const format = (value: unknown, digits=1) => {
   const number=finiteMetric(value);
-  return number===null ? '—' : number.toLocaleString('zh-CN',{maximumFractionDigits:digits});
+  return number===null ? '—' : number.toLocaleString('zh-CN',{minimumFractionDigits:digits,maximumFractionDigits:digits});
 };
 
 export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building, displayOverrides, current, onClick }) => {

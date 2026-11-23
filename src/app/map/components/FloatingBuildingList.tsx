@@ -160,7 +160,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
 
   const renderCompactRow = (building: any) => {
     const values = listBuildingValues(building);
-    const rent = values.rent === null ? '—' : values.rent.toLocaleString('zh-CN', { maximumFractionDigits: 1 });
+    const rent = values.rent === null ? '—' : values.rent.toLocaleString('zh-CN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
     const vacancyValue = listVacancyPercent(values.vacancy);
     const vacancy = vacancyValue === null ? '—' : `${vacancyValue.toFixed(1)}%`;
     const area = values.area === null ? '—' : values.area.toLocaleString('zh-CN', { maximumFractionDigits: 0 });
