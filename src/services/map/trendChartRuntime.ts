@@ -1,5 +1,6 @@
 "use client";
 
+import type { TrendChartReadingOptions } from "./trendChartReading";
 import * as echarts from "echarts/core";
 import { LineChart } from "echarts/charts";
 import { GridComponent, TooltipComponent } from "echarts/components";
@@ -27,6 +28,7 @@ export function initTrendChart(
   chartDom: HTMLElement,
   histData: TrendChartDatum[],
   onMetricView?: (metric: "rent" | "vac") => void,
+  reading?: TrendChartReadingOptions,
 ): echarts.ECharts | null {
   if (!chartDom || !histData?.length) return null;
 
@@ -50,8 +52,12 @@ export function initTrendChart(
   metricStatus.className = 'workspace-note';
   metricStatus.setAttribute('role', 'status');
   metricStatus.textContent = '当前指标暂无有效历史数值，可展开期间数据查看。';
+  let details: HTMLDetailsElement | undefined;
+  let currentMetric: "rent" | "vac" = reading?.value?.metric ?? "rent";
+  const reportReading = () => reading?.onChange?.({ metric: currentMetric, tableOpen: details?.open ?? false });
   if (dataHost) {
-    const details = document.createElement('details');
+    details = document.createElement('details');
+    details.open = reading?.value?.tableOpen ?? false;
     details.className = 'workspace-trend-data';
     const summary = document.createElement('summary');
     summary.textContent = '查看期间数据';
@@ -71,6 +77,7 @@ export function initTrendChart(
       for (const value of [rentData[index], vacancyData[index]]) tr.insertCell().textContent = value == null ? '—' : value.toFixed(1);
     });
     details.append(summary, table); dataHost.replaceChildren(metricStatus, details);
+    details.addEventListener('toggle', reportReading);
   }
 
   const calculateAxisRange = (data: (number | null)[]) => {
@@ -146,7 +153,6 @@ export function initTrendChart(
     };
   };
 
-  let currentMetric: "rent" | "vac" = "rent";
   const rentButton = document.getElementById("chart-btn-rent");
   const vacancyButton = document.getElementById("chart-btn-vac");
   const syncButtons = () => {
@@ -160,13 +166,14 @@ export function initTrendChart(
   };
   chart.setOption(buildOption(currentMetric));
   syncButtons();
-  onMetricView?.("rent");
+  onMetricView?.(currentMetric);
 
   const setActive = (metric: "rent" | "vac") => {
     if (metric === currentMetric) return;
     currentMetric = metric;
     chart.setOption(buildOption(metric), true);
     syncButtons();
+    reportReading();
     onMetricView?.(metric);
   };
   const syncMotion = () => chart.setOption(buildOption(currentMetric), true);
@@ -189,6 +196,7 @@ export function initTrendChart(
     active = false;
     observer?.disconnect();
     motion?.removeEventListener('change', syncMotion);
+    details?.removeEventListener('toggle', reportReading);
     dataHost?.replaceChildren();
     chartDom.hidden = false;
     rentButton?.removeEventListener("click", showRent);
