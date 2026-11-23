@@ -310,7 +310,27 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
       if (item.reserveGutter) item.node.style.scrollbarGutter = 'stable';
       item.node.style.setProperty('overflow', 'hidden');
     });
+    // Keyboard reading remains attached to its focused control across delayed
+    // Markdown/chart layout. A later reader gesture releases that ownership.
+    let keyboardControl: HTMLElement | null = null;
+    const releaseKeyboardControl = () => { keyboardControl = null; };
+    const revealKeyboardControl = () => {
+      if (!keyboardControl?.isConnected || keyboardControl !== document.activeElement || !node.contains(keyboardControl)) return;
+      revealControl(keyboardControl, node);
+    };
+    const mutations = typeof MutationObserver === 'undefined' ? null : new MutationObserver(revealKeyboardControl);
+    mutations?.observe(node, { childList: true, characterData: true, subtree: true });
+    const sizes = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(revealKeyboardControl);
+    sizes?.observe(node);
+    if (scroller.current) {
+      sizes?.observe(scroller.current);
+      if (scroller.current.firstElementChild) sizes?.observe(scroller.current.firstElementChild);
+    }
+    node.addEventListener('pointerdown', releaseKeyboardControl, true);
+    node.addEventListener('wheel', releaseKeyboardControl, true);
+    node.addEventListener('touchstart', releaseKeyboardControl, true);
     const keydown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') releaseKeyboardControl();
       const activeComposition = surfaceComposition.current;
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || composingRef.current
         || (activeComposition?.isConnected && node.contains(activeComposition))) return;
@@ -336,14 +356,20 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
       // Reveal only workspace scrollports after transferring focus. Native focus
       // scrolling can also move overflow-hidden layout ancestors.
       next.focus({ preventScroll: true });
+      keyboardControl = next;
       revealControl(next, node);
     };
     const focusin = (event: FocusEvent) => {
+      if (event.target !== keyboardControl) releaseKeyboardControl();
       if (event.target instanceof Node && !node.contains(event.target)) toggle.current?.focus({ preventScroll: true });
     };
     document.addEventListener('keydown', keydown); document.addEventListener('focusin', focusin);
     return () => {
       document.removeEventListener('keydown', keydown); document.removeEventListener('focusin', focusin);
+      mutations?.disconnect(); sizes?.disconnect();
+      node.removeEventListener('pointerdown', releaseKeyboardControl, true);
+      node.removeEventListener('wheel', releaseKeyboardControl, true);
+      node.removeEventListener('touchstart', releaseKeyboardControl, true);
       outside.forEach(item => { item.node.inert = item.inert; });
       scrollContainers.forEach(item => {
         item.node.style.overflow = item.overflow;

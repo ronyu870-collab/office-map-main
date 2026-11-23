@@ -11,3 +11,5 @@ CI 45207623216 在 Chromium 145.0.7632.6、768px 下，Tab 第30步“复制结�
 原浏览器命令：`PLAYWRIGHT_BROWSERS_PATH=/private/tmp/colliers-playwright-145 PERF_BROWSER_CHANNEL=chromium PERF_PLAYWRIGHT_MODULE=/private/tmp/map-workspace-browser-tools/node_modules/playwright-core HOME_QUERY_P2_BUILD_MODE=production HOME_QUERY_P2_EVIDENCE_DIR=/tmp/map-136-home-focus-contained-browser node scripts/verification/home-query-experience-p2-browser.mjs after http://127.0.0.1:3238`。
 
 1280/1536/768/390/320五档共113条记录通过；各档Tab/Shift+Tab各60步，下折叠区控件分别9/9/8/10/17次正确显示，背景位置不变。实际浏览器145.0.7632.6，Next16.2.12生产构建、隔离身份和业务HTTP；非原生手机或生产身份验证。原错误、候选失败及最终结果摘要保留在[JSON](home-focus-ci.json)。本次通过不能证明永久无时序问题；提交后仍以精确head必要CI判定合并。
+
+后续PR281再次捕获不同宽度的离屏焦点，后续布局专项及当前限制见[续查](home-focus-layout.md)。
