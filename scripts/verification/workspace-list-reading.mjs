@@ -3,7 +3,7 @@ import { clickWorkspaceAction } from './workspace-actions.mjs';
 
 export async function verifyListReading(page,{width,base}) {
   const id='10000000-1111-4111-8111-111111111111';
-  const stock=Array.from({length:62},(_,index)=>({id:index ? `list-${index}` : id,name:index ? `批量项目${String(index).padStart(2,'0')}` : '存量同ID · 北京国际商务总部与城市更新示范中心',grade:'A',submarket:'CBD',district:'朝阳区',completion_year:2009,leed_certification:null,owner:'北京国际商务资产与城市更新投资管理集团有限公司',property_management:'InternationalCommercialPropertyManagementAndBuildingServicesCompanyLimited',location_lng:116.46+index*.0001,location_lat:39.91,building_metrics:[{id:`list-metric-${index}`,building_id:index ? `list-${index}` : id,record_year:2026,record_quarter:3,net_effective_rent:146.16,vacancy_rate:.211,total_area:80000}]}));
+  const stock=Array.from({length:width===1536?600:62},(_,index)=>({id:index ? `list-${index}` : id,name:index ? `批量项目${String(index).padStart(2,'0')}` : '存量同ID · 北京国际商务总部与城市更新示范中心',grade:'A',submarket:'CBD',district:'朝阳区',completion_year:2009,leed_certification:null,owner:'北京国际商务资产与城市更新投资管理集团有限公司',property_management:'InternationalCommercialPropertyManagementAndBuildingServicesCompanyLimited',location_lng:116.46+index*.0001,location_lat:39.91,building_metrics:[{id:`list-metric-${index}`,building_id:index ? `list-${index}` : id,record_year:2026,record_quarter:3,net_effective_rent:146.16,vacancy_rate:.211,total_area:80000}]}));
   const future=[{id,name:'规划同ID · International Commercial Business Headquarters Tower',grade:'A',type:'办公',submarket:'CBD',district:'朝阳区',launch_year:2027,launch_quarter:'Q2',total_area:50000,location_lng:116.47,location_lat:39.92},{id:'pending-list',name:'待核实列表项目',status:'pending',type:'办公',submarket:'CBD',district:'朝阳区',location_lng:116.48,location_lat:39.93}];
   await page.route('**/api/map/data?*',route=>{
     const url=new URL(route.request().url());
@@ -14,7 +14,7 @@ export async function verifyListReading(page,{width,base}) {
   await page.goto(new URL('/map',base).href);
   await page.waitForFunction(()=>window.__workspaceMap?.getCenter());
   await page.getByRole('button',{name:'筛选',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent==='64');
+  await page.waitForFunction(count=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent===String(count),stock.length+future.length);
   await page.getByRole('button',{name:'筛选',exact:true}).click();
   console.log('list reading',width,'data ready');
   await page.getByRole('button',{name:'项目列表',exact:true}).click();
@@ -92,5 +92,5 @@ export async function verifyListReading(page,{width,base}) {
   assert.equal(await full.getByText('净有效租金',{exact:true}).count(),0);
   assert.match(await full.innerText(),/50,000\s*㎡/);
   await capture('full-future');
-  return {width,planningCardOwnValues:true,stockRentOneDecimal:true,leedExplicitState:true,keyboardComparisonScope:true,removedOnlyOutsideSelection:true,selectionSurvivesListQuery:true,sameIdCurrentTypeUnique:true,retainedListScroll:{saved,restored},fullFutureAreaNamed:true};
+  return {width,fixtureBuildings:stock.length+future.length,planningCardOwnValues:true,stockRentOneDecimal:true,leedExplicitState:true,keyboardComparisonScope:true,removedOnlyOutsideSelection:true,selectionSurvivesListQuery:true,sameIdCurrentTypeUnique:true,retainedListScroll:{saved,restored},fullFutureAreaNamed:true};
 }

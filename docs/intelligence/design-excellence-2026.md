@@ -1,6 +1,6 @@
 # AI 与地图设计精修 · 2026-11-24
 
-初始基线：`171cc5cc98e8dd913c4b57cdf82ee2c5df188062`（开始前和首批提交前均获取 `origin/main`）。PR 创建后 main 新增 #279，已集成 `52c4fe841bc64d398666568ca262566b1912872e` 的项目趋势与首页焦点修复，保留双方改动。本轮修改现有呈现组件，不增加平行页面、产品依赖或生产数据写入。
+初始基线：`171cc5cc98e8dd913c4b57cdf82ee2c5df188062`（开始前和首批提交前均获取 `origin/main`）。PR 创建后 main 新增 #279，已集成 `52c4fe841bc64d398666568ca262566b1912872e` 的项目趋势与首页焦点修复，保留双方改动。再次集成 main `161851e4a32dd9d8fab930251497367a13730b21` 的列表身份、规划数据和比较阅读修复，保留未来项目自身的规划总体量、隐藏不适用行情及存量／供应身份区分。本轮修改现有呈现组件，不增加平行页面、产品依赖或生产数据写入。
 
 ## A. 诊断与取舍
 
@@ -91,3 +91,98 @@ Impeccable CLI 的 context/detect 因本机缺少 engine 且缓存目录不可�
 | 全局设计一致性 | 结果 CSS 重复覆盖收敛，颜色、间距和字号沿用项目 Token |
 | 响应式质量 | 六档和 320×560 短屏行为有执行覆盖；不等同真机验证 |
 | 性能与稳定性 | 无新依赖和全局监听；本地大夹具和 reduced-motion 回归通过，生产性能保留边界 |
+
+
+## 再次复核：优先级、覆盖与停止依据
+
+附件逐字相同，继续在同一 PR 迭代。本次先解决最新 main 与完整列表分组的冲突，再复核验收遗漏。没有重开页面或重新设计稳定业务流程。
+
+### 问题优先级
+
+下表为相对设计判断：视觉影响 V、信息清晰 C、频率 F、一致性 S、实施风险 R 各 1—5；5 表示影响／频率／风险最高，不是产品质量分数。各问题的原因、建议和效果见 A／B；源码位置和保护方式如下。
+
+| ID／问题 | V | C | F | S | R | 源码／受影响功能／验证 |
+|---|---:|---:|---:|---:|---:|---|
+| D1 单楼宇限制缺席 | 3 | 5 | 4 | 4 | 2 | `HomeQueryResult.tsx`；直接结果与来源；旧失败单测、entity-boundary |
+| D2 指标缺就近范围期间 | 3 | 5 | 5 | 4 | 1 | 同上；单值与真实 0；旧失败单测、data-summary |
+| D3 楼宇列表逐字段小卡片 | 4 | 4 | 5 | 4 | 2 | `FullBuildingList.tsx`／CSS；身份、经营及规划字段；完整列表、身份与规划回归 |
+| D4 分布图键盘读数缺失 | 3 | 4 | 3 | 4 | 2 | `HomeQueryArtifacts.tsx`；分箱和来源；旧失败单测、零区间和来源往返 |
+| D5 KPI 边界争抢地图空间 | 4 | 3 | 5 | 4 | 2 | `map-workbench.css`；地图和短屏摘要；九档工作区及 320×560 |
+| D6 重复覆盖与字体角色漂移 | 3 | 4 | 5 | 5 | 2 | `HomeQuery*.module.css`；结果、历史、研究、导出和工作区；六档实际字体、焦点与布局 |
+
+D6 的再次渲染发现：紧凑欢迎标题因选择器优先级仍为 20px；通用 Button 的 500 字重穿透到 AI；历史和研究说明另设 12／13px。修正所属 AI 局部样式，正文、按钮、说明复用 14px，标题复用 16px，普通按钮 400、标题／选择强调 600。代码块使用等宽字体；手机输入保留 16px 防止输入缩放。未改共享 Button 或全站 Token，以免扩大到其他模块。
+
+新增实际文件为 `HomeQueryHistory`、`HomeQueryResearchPanel`、`HomeQueryResultActions`、`HomeQueryAssistantActions`、`HomeQueryMarkdown`、`HomeQueryChartWorkspace`、`HomeQueryWorkspace` 的模块 CSS。所有调整复用现有组件；新增代码只扩充既有浏览器回归。
+
+### 需求与证据映射
+
+AI 浏览器入口为 `scripts/verification/home-query-experience-p2-browser.mjs`，下表直接使用其捕获状态名；组件测试位于 `src/components/home/__tests__/`。浏览器使用真实页面与本地合成 HTTP，单测补充精确数值、来源和中断边界。两种证据的用途不同，不能把单测写成真机或生产证明。
+
+| AI §15.1 | 验收证据 |
+|---|---|
+| 1 普通聊天 | short-answer；home-query-markdown |
+| 2 单一租金 | data-summary；home-query-premium |
+| 3 单一空置率 | vacancy-metric；home-query-multimetric |
+| 4 CBD 清单 | interactive-table；home-query-data-table |
+| 5 Top 10 | default-ranking，合法快照生成前十榜单 |
+| 6 跨季度趋势 | expanded-chart；home-query-analysis-p1，缺期断线 |
+| 7 多区域比较 | regional-comparison，CBD／金融街分组 |
+| 8 指标关系 | relationship-reading，键盘散点／来源返回 |
+| 9 长篇研究 | long-markdown；research-open；home-query-research |
+| 10 完整表格 | interactive-table，32 行快照、分页、搜索、排序、选择与展开 |
+| 11 Excel／PDF | file-delivery、pdf-delivery，实际 XLSX／PDF 生成与下载；home-query-export／pdf |
+| 12 历史恢复 | history-open；home-query-history，保存快照恢复与隔离 |
+| 13 多轮追问 | expanded-multiturn；home-query-workspace |
+| 14 零值 | distribution-reading 的 0 区间；home-query-premium 的真实 0 指标 |
+| 15 未知值 | entity-boundary、unavailable-lease；home-query-multimetric |
+| 16 部分结果 | lease-alternative；home-query-answer-selection |
+| 17 权限不足 | permission-unavailable、role-*；home-query-data-eligibility |
+| 18 缺少来源 | long-markdown 明示无来源，不生成结构化图表；home-query-answer-selection／scope-limit |
+| 19 长中文标题 | long-markdown，多次重复标题短语，目录导航仍可聚焦 |
+| 20 超长英文／URL | long-markdown，连续长路径自然换行、整页无横溢 |
+| 21 多个结果块 | lease-alternative，主／辅助结果展开与返回；home-query-answer-selection |
+| 22 流式未闭合 Markdown | long-markdown 未闭合代码真实渲染；home-query-markdown 计时执行流式增量、批处理及完成刷新 |
+| 23 图表与来源联动 | expanded-chart、distribution-reading、relationship-reading；精确源 ID 单测 |
+| 24 窄屏复杂结果 | 上述各场景在 320／390；长结果 Tab、图表局部横滚与数据工作区 |
+
+地图浏览器入口为 `scripts/verification/verify-map-workspace.mjs`，复用 `workspace-filters`、`workspace-list-reading`、`workspace-full-list-reading`、`workspace-project-trend`、`workspace-submarket-reading`、`workspace-supply-markers` 等执行辅助文件；组件测试位于 `src/app/map/__tests__/`，原地图算法测试位于 runtime／services 的对应目录。
+
+| 地图 §15.2 | 验收证据 |
+|---|---|
+| 1 默认加载 | SDK 创建、地图可见、首屏工作区与初始化数据 |
+| 2 左筛选 | workspace-filters，开关与条件汇总 |
+| 3 右列表 | 项目列表及完整列表，字段和阅读主轴 |
+| 4 双面板 | 桌面左右同时展开，地图可视空间与控制位置 |
+| 5 选择楼宇 | 工作区详情、有效坐标、来源与返回 |
+| 6 列表定位 | 列表→楼宇详情→返回，选中／阅读位置保留 |
+| 7 搜索楼宇 | 搜索候选、精确定位与结果状态 |
+| 8 连续搜索 | 必验连续输入／光标；完整列表 C→CBD；SearchBar.context |
+| 9 打开子市场 | workspace-submarket-reading，摘要、有效样本和期间明细 |
+| 10 切换子市场 | 区域切换和区域级资料读取，SubmarketDetailPanel |
+| 11 返回地图 | 完整列表／详情／全屏工作区返回与相机保持 |
+| 12 缩放 | SDK zoomend／moveend 与单实例复用 |
+| 13 默认标记 | 原生标记／选中标记与列表身份一致 |
+| 14 租金模式 | 业务图层模式与 map-native-renderer／视觉连续性回归 |
+| 15 空置率模式 | 同上；真实 0 与未知状态区分 |
+| 16 等级分类 | 筛选组合、等级契约与标记逻辑 |
+| 17 未来供应 | workspace-future-filters／supply-markers；规划面积与日期不借存量行情 |
+| 18 多楼比较 | workspace-list-reading 的键盘选择、结果外移除和同 ID 类型区分 |
+| 19 无结果 | 条件组合、清空／恢复，未来项目缺失值排除 |
+| 20 加载 | 延迟数据请求、指标内更新反馈不覆盖搜索 |
+| 21 失败 | SDK 故障仍能阅读项目、重试／恢复；网络单测 |
+| 22 宽度调整 | 拖拽侧栏、宽度保留、趋势画布 resize |
+| 23 窄屏切换 | 手机摘要／阅读／全屏和返回；320×560 短屏 |
+| 24 导出 | 比较 PNG 下载、弹窗不受侧栏裁切、关闭焦点返回；buildingComparisonExport |
+| 25 大量楼宇 | 1536 档使用 600 存量 + 2 供应的合成数据，完整搜索／比较／详情往返／滚动恢复；不据此承诺生产性能 |
+
+P0 的 12 种基线对应欢迎、展开、普通／复杂／图表／来源、地图默认／筛选／列表／详情／区域／搜索及各尺寸捕获。P1—P8 逐项通过上述工作区、答案、图表、表格、来源、地图、角色与响应式场景核对；稳定实现保留复用。P9 无新依赖、监听或动画；大数据夹具与现有连续性检查约束基础交互。P10 保留结果快照、导出、数据来源、角色和真实 Auth／HTTP 工程门槛。P12 执行结构、组件、一致性、精修、回归五轮取舍；P13 无付费模型调用；P14 使用当前独立分支、现有组件和局部更改，未合并 main。
+
+### 本次工程结果
+
+集成 `161851e4` 后，本地 `npm run check` 通过：378 文件／2880 项，类型与审计通过；Lint 0 错误、951 警告。最终构建、浏览器及精确 head 的 CI 状态在 PR 和交付回复中列明，不能用历史版本通过结果替代。
+
+### 停止依据与剩余边界
+
+本次追加的明确收益集中在字体角色收敛、main 集成后的规划／身份保护，以及原验收矩阵缺少的实际页面场景。六档 AI、九档地图与必要工程检查完成后，继续整体重写图表引擎、地图相机或统一所有媒介布局，会显著增加数据、导出和空间交互回归风险，未发现足以抵消风险的本轮证据，故保留稳定实现。
+
+剩余边界包括真实设备输入与保存行为、生产网络和真实高德的性能；本次没有把它们列为已验证。固定宽度复杂 SVG 保持清晰文字和有名称的局部滚动，完整原表与精确导出可达。现有 Lint 警告与工具 CLI 不可用仍如 D 所述，不混入本轮设计清理。
