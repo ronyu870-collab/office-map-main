@@ -1275,5 +1275,17 @@
     "Desktop1536 Chrome normal/reduced; compact layouts hide width dragging and retain previous mobile functional coverage.",
     "Business/SDK transport are isolated; no new real SDK, production, touch gesture or performance claim. Prior real AMap1536 final drag/bounds evidence is separate.",
     "Exact-head CI and main merge pending."
-  ]
+  ],
+  "finalCombinedFollowup": {
+    "buildExit": 0,
+    "buildId": "uLzCN_fazZ1zXDRkw2zU7",
+    "completeWorkspaceExit": 0,
+    "records": 48,
+    "widths": [
+      1536,
+      390
+    ],
+    "record": "reading-layout-combined-browser.json",
+    "scope": "Final build includes metric labels, actual drag paths and delayed trend entry space. Previous focused normal/reduced drag records retain their original build scope."
+  }
 }
