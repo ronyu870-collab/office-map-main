@@ -1,4 +1,5 @@
 'use client';
+import { coordinateNotice } from '@/src/lib/map-coordinates';
 import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import * as React from 'react';
@@ -182,6 +183,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
       >
         <div className="workspace-list-name">{building.name || '未命名项目'}</div>
         <div className="workspace-list-meta">{[displayOverrides?.get(building.id)?.get('submarket')?.display_value ?? building.submarket, displayOverrides?.get(building.id)?.get('grade')?.display_value ?? displayListGrade(building.grade)].filter(Boolean).join(' · ') || '—'}{isFuture ? ' · ' + (isPendingFutureSupply(building) ? '待核实供应' : '未来供应') : ''}</div>
+        {coordinateNotice(building) ? <p className="workspace-list-meta">{coordinateNotice(building)}</p> : null}
         <dl className="workspace-list-metrics">
           <div><dt>净租金 · <span className="whitespace-nowrap">元/㎡/月</span></dt><dd>{rent}</dd></div>
           <div><dt>空置率</dt><dd>{vacancy}</dd></div>
@@ -253,6 +255,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
                   {selectionMode ? selectionCheckbox(building) : null}
                   <div className="min-w-0 flex-1">
                     <BuildingBasicCard building={building} displayOverrides={displayOverrides} onClick={() => onBuildingClick?.(building)} />
+                    {coordinateNotice(building) ? <p className="workspace-list-meta">{coordinateNotice(building)}</p> : null}
                     {materialAction(building)}
                   </div>
                 </div>

@@ -530,7 +530,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                     {leeds.map(l => (
                       <label key={l} className="flex min-w-0 items-center gap-2 rounded-md border border-transparent px-2 py-1 hover:border-zinc-200 hover:bg-zinc-50 cursor-pointer">
                         <input type="checkbox" checked={currentLeeds.includes(l)} onChange={() => toggleLeed(l)} className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-200" />
-                        <span className="truncate text-[11px] text-zinc-700">{l === 'NULL' ? '无认证' : l}</span>
+                        <span className="truncate text-[11px] text-zinc-700">{l === 'NULL' ? '未提供认证' : l}</span>
                       </label>
                     ))}
                   </div>

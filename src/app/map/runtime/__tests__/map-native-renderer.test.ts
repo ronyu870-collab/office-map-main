@@ -128,6 +128,48 @@ async function flushFrames(count = 3) {
   }
 }
 
+it.each(['v3', 'v2', 'native'] as const)('%s excludes invalid coordinates from point layers while retaining legal distant projects', async version => {
+  const harness = createNativeHarness(); harness.setZoom(14.4);
+  const controller: any = { AMap: harness.AMap, map: harness.map, markers: [], dotMarkers: [], submarketMarkers: [],
+    renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(),
+    renderFutureMarkers: vi.fn(), clearFutureMarkers: vi.fn(), setWorkspaceSelectionRenderer: vi.fn(), refreshWorkspaceSelection: vi.fn() };
+  const cleanup = version === 'v3' ? installMapInteractionHardening(controller, 'map-container')
+    : version === 'v2' ? installMapVisualContinuityV2(controller, document.getElementById('map-container')!)
+    : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
+  try {
+    const items = [[116.4,39.9],[121.4,31.2],[0,0],[40,116],[181,39],[116,86]].map(([lng,lat],i) => building(String(i),'CBD',lng,lat,146,.15));
+    controller.renderMarkers(items, 'default'); await flushFrames();
+    const names = harness.labelMarkerInstances.filter(marker => marker.options.icon).map(marker => marker.options.name);
+    expect(names.sort()).toEqual(['0','1']);
+    const positions = harness.massMarksInstances.flatMap(layer => layer.data.map((point: any) => point.lnglat));
+    expect(positions).not.toContainEqual([0,0]); expect(positions).not.toContainEqual([40,116]);
+    if (version === 'v3') {
+      controller.renderFutureMarkers(items.map(item => ({ ...item, id: `future-${item.id}` })), 'default'); await flushFrames();
+      const future = harness.labelMarkerInstances.filter(marker => marker.options.name?.startsWith('future:'));
+      expect(future.map(marker => marker.options.position)).toEqual([[116.4,39.9],[121.4,31.2]]);
+    }
+  } finally { cleanup?.(); }
+});
+
+it.each(['v3', 'v2', 'native'] as const)('%s does not label a missing LEED observation as explicitly uncertified', async version => {
+  const harness = createNativeHarness(); harness.setZoom(14.4);
+  const controller: any = { AMap: harness.AMap, map: harness.map, markers: [], dotMarkers: [], submarketMarkers: [],
+    renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(),
+    renderFutureMarkers: vi.fn(), clearFutureMarkers: vi.fn(), setWorkspaceSelectionRenderer: vi.fn(), refreshWorkspaceSelection: vi.fn() };
+  const cleanup = version === 'v3' ? installMapInteractionHardening(controller, 'map-container')
+    : version === 'v2' ? installMapVisualContinuityV2(controller, document.getElementById('map-container')!)
+    : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
+  try {
+    controller.renderMarkers([
+      { ...building('missing','CBD',116.4,39.9,146,.15), leed_certification: '' },
+      { ...building('negative','CBD',116.41,39.9,146,.15), leed_certification: '未认证' },
+    ], 'leed'); await flushFrames();
+    const icons = harness.labelMarkerInstances.filter(marker => marker.options.icon);
+    const text = (id: string) => new DOMParser().parseFromString(decodeURIComponent(icons.find(marker => marker.options.name === id).options.icon.image.split(',')[1]),'image/svg+xml').querySelector('text')?.textContent;
+    expect(text('missing')).toBe('–'); expect(text('negative')).toBe('N');
+  } finally { cleanup?.(); }
+});
+
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 1) as unknown as number);
   vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id));
@@ -184,7 +226,7 @@ describe('native map visual hierarchy', () => {
       controller.renderMarkers([], 'default', undefined, undefined, true);
       await flushFrames();
       expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.textContent)).toEqual(['玉渊潭¥150*', '四季青¥140*']);
-    } finally { cleanup(); }
+    } finally { cleanup?.(); }
   });
 
   it('keeps A/B indicators where observed and names-only markers for unobserved areas', async () => {
@@ -208,7 +250,7 @@ describe('native map visual hierarchy', () => {
         expect(sijiqing?.textContent).toBe('四季青');
         expect(sijiqing?.querySelector('.map-submarket-bubble__metrics')).toBeNull();
       }
-    } finally { cleanup(); }
+    } finally { cleanup?.(); }
   });
 
 
@@ -356,7 +398,7 @@ describe('native map visual hierarchy', () => {
       harness.setZoom(14);
       harness.emitMap('zoomend');
       expect(getF()).toHaveLength(0);
-    } finally { cleanup(); }
+    } finally { cleanup?.(); }
   });
 
   it('ranks BP below A/P and above B at the same location in V3 and fallback renderers', async () => {
@@ -444,7 +486,7 @@ describe('native map visual hierarchy', () => {
           const selectionImage = controller.setWorkspaceSelectionRenderer.mock.lastCall[0];
           const pinnedFuture = selectionImage({ _dataType: 'future' });
           checkBadge(pinnedFuture);
-          expect(decodeURIComponent(pinnedFuture)).toContain(mode === 'default' ? '>F</text>' : mode === 'leed' ? '>N</text>' : '>–</text>');
+          expect(decodeURIComponent(pinnedFuture)).toContain(mode === 'default' ? '>F</text>' : '>–</text>');
           expect(controller.refreshWorkspaceSelection).toHaveBeenCalled();
           for (const { options } of harness.markerInstances) {
             const element = options.content as HTMLElement;
@@ -524,7 +566,7 @@ describe('native map visual hierarchy', () => {
       name.handlers.emit('mouseover', { originEvent: { clientX: 60, clientY: 70 } });
       harness.emitMap('zoomstart');
       expect(controller.hideHoverTooltip).toHaveBeenCalledTimes(2);
-    } finally { cleanup(); }
+    } finally { cleanup?.(); }
   });
 
   it('forgets future supply after clear and never resurrects it on zoom (V3/fallback)', async () => {

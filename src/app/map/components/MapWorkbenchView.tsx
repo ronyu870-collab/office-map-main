@@ -226,7 +226,8 @@ function MapLegend({ mode, compareGroups, active, futureVisible }: { mode: Rende
     leed: {
       title: 'LEED 认证',
       items: [
-        { label: '未认证', className: 'border border-[#bdc6ce] bg-[#eef1f4]' },
+        { label: '未认证（N）', className: 'border border-[#bdc6ce] bg-[#eef1f4]' },
+        { label: '未提供（–）', className: 'border border-[#bdc6ce] bg-[#eef1f4]' },
         { label: '白银', className: 'border border-[#9ca8b3] bg-[#e7ebef]' },
         { label: '黄金', className: 'border border-[#b69a52] bg-[#eadfbd]' },
         { label: '铂金', className: 'border border-[#68aebf] bg-[#d9edf3]' },

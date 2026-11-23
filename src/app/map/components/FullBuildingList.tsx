@@ -1,4 +1,5 @@
 'use client';
+import { coordinateNotice, coordinateIssue } from '@/src/lib/map-coordinates';
 import { futureSupplyDate } from '@/src/lib/future-supply-status';
 import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
 
@@ -161,7 +162,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
                     <div><dt>净有效租金</dt><dd>{format(values.rent, 1, '元/㎡/月')}</dd></div>
                     <div><dt>空置率</dt><dd>{vacancy === null ? '—' : `${vacancy.toFixed(1)}%`}</dd></div>
                   </dl>
-                  {!locationAvailable ? <p className={styles.locationNote}>位置待完善，可查看项目资料</p> : null}
+                  {!locationAvailable ? <p className={styles.locationNote}>{coordinateIssue(building) === 'missing' ? '位置待完善，可查看项目资料' : coordinateNotice(building)}</p> : null}
                 </article>;
               })}
               {!loading && !buildings.length ? <div className={styles.status}><h2>未找到符合条件的楼宇</h2><p>减少筛选条件或换一个关键词继续查找。</p><Button variant="secondary" onClick={onResetFilters}>清空条件</Button></div> : null}

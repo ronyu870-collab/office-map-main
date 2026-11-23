@@ -362,7 +362,7 @@ export function buildActiveFilterChips(filterState: SidebarFilterState | null): 
   if (filterState.leeds.length < MAP_LEEDS.length) {
     chips.push({
       id: 'leeds',
-      label: `LEED：${compactListLabel(filterState.leeds, MAP_LEEDS.length, '未选择')}`,
+      label: `LEED：${compactListLabel(filterState.leeds.map(value => value === 'NULL' ? '未提供认证' : value), MAP_LEEDS.length, '未选择')}`,
       patch: { leeds: [...MAP_LEEDS] },
     });
   }
