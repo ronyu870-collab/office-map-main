@@ -24,6 +24,12 @@ export async function verifyMetricsDraftNavigation(page, { width, base, userId, 
     const input = page.locator('[data-building-metrics-edit] input').first();
     await input.waitFor();
     await page.waitForFunction(() => document.querySelector('[data-building-metrics-edit] input')?.value === '8', undefined, { timeout: 10000 });
+    const editor = page.locator('[data-building-metrics-edit]');
+    for (const label of ['报价租金', '物业费', '表面租金', '免租期（月）', '空置面积', '年份', '季度']) {
+      assert.equal(await editor.getByLabel(label, { exact: true }).count(), 1, `${label} has an associated control`);
+    }
+    await editor.getByText('报价租金', { exact: true }).click();
+    assert.ok(await input.evaluate(element => document.activeElement === element), 'native label click focuses the editable field');
     return input;
   };
   try {
@@ -38,7 +44,7 @@ export async function verifyMetricsDraftNavigation(page, { width, base, userId, 
     assert.equal(page.url(), address);
     assert.equal(await input.inputValue(), '9', 'cancel refresh retains the actual metric draft');
     console.log('metrics draft', width, 'refresh cancelled');
-    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: '关闭指标编辑', exact: true }).click();
     const warning = page.getByRole('dialog', { name: '未保存的更改', exact: true });
     await warning.getByRole('button', { name: '继续编辑', exact: true }).click();
     console.log('metrics draft', width, 'continued editing');
@@ -56,6 +62,6 @@ export async function verifyMetricsDraftNavigation(page, { width, base, userId, 
     assert.deepEqual(dialogs, ['beforeunload'], 'reverting the value removes the native guard');
     console.log('metrics draft', width, 'revert cleared guard');
     assert.equal(writes, 0);
-    return { width, metricsDraftNavigation: { refreshCancelled: true, draftRetained: true, keepEditingRetainsDraft: true, discardAndRevertReleaseGuard: true, writes, dialogs } };
+    return { width, metricsDraftNavigation: { refreshCancelled: true, draftRetained: true, keepEditingRetainsDraft: true, discardAndRevertReleaseGuard: true, namedControls: 7, nativeLabelFocus: true, namedCloseAction: true, writes, dialogs } };
   } finally { page.off('dialog', handleDialog); }
 }

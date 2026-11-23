@@ -1,0 +1,70 @@
+{
+  "status": "pass",
+  "environment": "production app; isolated SDK/data/administrator",
+  "observations": [
+    {
+      "width": 1536,
+      "metricsDraftNavigation": {
+        "refreshCancelled": true,
+        "draftRetained": true,
+        "keepEditingRetainsDraft": true,
+        "discardAndRevertReleaseGuard": true,
+        "namedControls": 7,
+        "nativeLabelFocus": true,
+        "namedCloseAction": true,
+        "writes": 0,
+        "dialogs": [
+          "beforeunload"
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "metricsDraftNavigation": {
+        "refreshCancelled": true,
+        "draftRetained": true,
+        "keepEditingRetainsDraft": true,
+        "discardAndRevertReleaseGuard": true,
+        "namedControls": 7,
+        "nativeLabelFocus": true,
+        "namedCloseAction": true,
+        "writes": 0,
+        "dialogs": [
+          "beforeunload"
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "metricsDraftNavigation": {
+        "refreshCancelled": true,
+        "draftRetained": true,
+        "keepEditingRetainsDraft": true,
+        "discardAndRevertReleaseGuard": true,
+        "namedControls": 7,
+        "nativeLabelFocus": true,
+        "namedCloseAction": true,
+        "writes": 0,
+        "dialogs": [
+          "beforeunload"
+        ]
+      }
+    },
+    {
+      "width": 844,
+      "metricsDraftNavigation": {
+        "refreshCancelled": true,
+        "draftRetained": true,
+        "keepEditingRetainsDraft": true,
+        "discardAndRevertReleaseGuard": true,
+        "namedControls": 7,
+        "nativeLabelFocus": true,
+        "namedCloseAction": true,
+        "writes": 0,
+        "dialogs": [
+          "beforeunload"
+        ]
+      }
+    }
+  ]
+}
