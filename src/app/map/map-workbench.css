@@ -396,11 +396,35 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .map-submarket-workspace-panel > footer { padding: 8px 16px; flex-wrap: wrap; background: #f8fafc; }
 .map-submarket-workspace-panel section { border-radius: 0; border: 0; border-bottom: 1px solid #d9e0e8; background: transparent; padding: 12px 0; }
 .map-submarket-workspace-panel .grid:not([aria-label="市场核心指标"]) { grid-template-columns: minmax(0,1fr); }
-.map-submarket-workspace-panel [aria-label="市场核心指标"] > div { padding: 4px 0; border: 0; background: transparent; border-radius: 0; }
-.map-submarket-workspace-panel [aria-label="市场核心指标"] p:last-child { margin-top: 8px; }
-.map-submarket-primary-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 16px; border-bottom: 1px solid #d9e0e8; }
-.map-submarket-primary-actions button { min-height: 36px; padding: 6px 10px; border: 1px solid #d9e0e8; border-radius: 6px; color: #003e7e; }
-.map-submarket-primary-actions button:first-child { background: #edf4fb; }
+.workspace-panel-primary-action { flex-shrink: 0; min-height: 44px; padding: 6px 8px; border-radius: 6px; color: #003e7e; font-size: 14px; }
+.workspace-panel-primary-action:hover { background: #edf4fb; }
+.workspace-panel-primary-action:focus-visible { outline: 2px solid #003e7e; outline-offset: 1px; }
+.submarket-trend-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 16px; }
+.submarket-core-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 16px; }
+.submarket-metric { min-width: 0; padding: 4px 0; }
+.submarket-metric-label, .submarket-metric-note { margin: 0; color: #667085; font-size: 14px; font-weight: 400; line-height: 20px; }
+.submarket-metric-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin-top: 4px; font-size: 14px; line-height: 20px; }
+.submarket-metric-value strong { color: #172033; font-weight: 600; font-variant-numeric: tabular-nums; }
+.submarket-metric-value span { color: #667085; }
+.submarket-metric-note { margin-top: 4px; }
+.submarket-core-metrics > .submarket-metric:first-child { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0,1fr) auto; column-gap: 12px; align-items: baseline; }
+.submarket-core-metrics > .submarket-metric:first-child .submarket-metric-value { margin: 0; }
+.submarket-core-metrics > .submarket-metric:first-child .submarket-metric-note { grid-column: 2; text-align: right; }
+.submarket-quarter-data { margin-top: 8px; font-size: 14px; line-height: 20px; }
+.submarket-quarter-data summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; color: #003e7e; }
+.submarket-quarter-data summary::before { content: '›'; margin-right: 8px; }
+.submarket-quarter-data[open] summary::before { transform: rotate(90deg); }
+.submarket-quarter-data table { width: 100%; table-layout: fixed; border-collapse: collapse; color: #334155; }
+.submarket-quarter-data :is(th,td) { padding: 8px 4px; border-bottom: 1px solid #d9e0e8; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.submarket-quarter-data th { font-weight: 600; }
+.submarket-quarter-data th:first-child { width: 26%; }
+.submarket-quarter-data td span { display: block; color: #667085; }
+@container (min-width: 480px) {
+  .submarket-core-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .submarket-core-metrics > .submarket-metric:first-child { grid-column: auto; display: block; }
+  .submarket-core-metrics > .submarket-metric:first-child .submarket-metric-value { margin-top: 4px; }
+  .submarket-core-metrics > .submarket-metric:first-child .submarket-metric-note { text-align: left; }
+}
 .map-submarket-workspace-panel nav { padding: 0 8px; background: #f8fafc; }
 .map-submarket-workspace-panel nav button { min-height: 36px; padding-inline: 8px; }
 .map-full-list-filters { position: absolute; left: 12px; top: 118px; bottom: 12px; width: min(336px,calc(100% - 24px)); z-index: 380; background: #f8fafc; border: 1px solid #d9e0e8; border-radius: 8px; }
@@ -408,6 +432,9 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .map-workspace-filter :is(.font-bold,.font-semibold) { font-weight: 600; }
 .map-workspace-filter .font-medium { font-weight: 400; }
 .map-workspace-filter input[type="checkbox"] { width: 16px !important; height: 16px !important; }
+@container (min-width: 640px) {
+  .submarket-trend-summary { grid-template-columns: repeat(4,minmax(0,1fr)); }
+}
 @container (min-width: 600px) {
   .workspace-building-facts { max-width: 72ch; }
   .map-submarket-workspace-panel .grid:not([aria-label="市场核心指标"]) { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -575,3 +602,10 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 @media (max-width: 639px) {
   .map-workspace-filter .sidebar-filter-condition { grid-template-columns: 48px minmax(0, 1fr) 44px; }
 }
+
+/* Short-stage summary prioritizes three market values; reading mode restores samples and tabs. */
+.map-workspace-layout[data-short-stage] [data-submarket-compact] > nav { display: none; }
+.map-workspace-layout[data-short-stage] [data-submarket-compact] .submarket-core-metrics { display: block; }
+.map-workspace-layout[data-short-stage] [data-submarket-compact] .submarket-core-metrics > .submarket-metric { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: baseline; gap: 4px 8px; padding: 2px 0; }
+.map-workspace-layout[data-short-stage] [data-submarket-compact] .submarket-core-metrics .submarket-metric-value { margin: 0; }
+.map-workspace-layout[data-short-stage] [data-submarket-compact] .submarket-core-metrics .submarket-metric-note { display: none; }

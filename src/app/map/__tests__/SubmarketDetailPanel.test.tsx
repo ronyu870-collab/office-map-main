@@ -103,6 +103,27 @@ afterEach(() => {
 });
 
 describe('submarket research workspace', () => {
+  it('keeps the overview all-grade trend after visiting a grade with no observations', async () => {
+    const point={period:'2026Q3',year:2026,quarter:3,rent:180,vacancyPct:10,rentSamples:1,vacancySamples:1,rentArea:100,vacancyArea:100};
+    api.read.mockResolvedValueOnce({...payload,trends:{all:[point],a:[point],b:[]}});
+    render(<SubmarketDetailPanel {...props} />);
+    await screen.findByTestId('trend-chart');
+    fireEvent.click(screen.getByRole('tab',{name:'行情趋势'}));
+    fireEvent.click(screen.getByRole('button',{name:'乙级'}));
+    expect(screen.queryByTestId('trend-chart')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab',{name:'市场概览'}));
+    expect(screen.getByTestId('trend-chart')).toBeInTheDocument();
+  });
+
+  it('falls back to building composition when a published profile has only introduction copy', async () => {
+    api.read.mockResolvedValueOnce({...payload,profile:{...profile,industries:'',transport:''}});
+    render(<SubmarketDetailPanel {...props} />);
+    await screen.findByText(profile.headline);
+    expect(screen.getByRole('region',{name:'楼宇结构'})).toHaveTextContent('甲级写字楼');
+    expect(screen.queryByRole('region',{name:'区域特点'})).not.toBeInTheDocument();
+    expect(screen.getByRole('tab',{name:'区域画像'})).toBeInTheDocument();
+  });
+
   it('opens a nonmodal workspace with top project action and preserves market metrics and editorial chapters', async () => {
     const { unmount } = render(<SubmarketDetailPanel {...props} />);
     const dialog = screen.getByRole('region', { name: 'CBD' });

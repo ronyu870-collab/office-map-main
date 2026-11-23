@@ -17,10 +17,14 @@ import { mostRecentMarketMetric, officeGrade, type MarketBuilding, type Submarke
 import { emptySubmarketProfile, readSubmarketProfileRow, submarketProfileSchema, type SubmarketProfileDraft } from '../model/submarketProfile';
 import { summarizeSubmarketTrend } from '../model/submarketTrendDigest';
 
-const TrendChart = dynamic(
+const LazyTrendChart = dynamic(
   () => import('./SubmarketTrendChart').then(module => module.SubmarketTrendChart),
-  { ssr: false, loading: () => <div className="flex h-[304px] sm:h-[352px] xl:h-[380px] items-center justify-center text-sm text-[#667085]">正在准备趋势图…</div> },
+  { ssr: false, loading: () => <div className="flex h-[188px] sm:h-[208px] items-center justify-center text-sm text-[#667085]">正在准备趋势图…</div> },
 );
+
+function TrendChart({data,compact=false}:{data:SubmarketDetailPayload['trends']['all'];compact?:boolean}) {
+  return <div className={compact ? 'min-h-[240px] sm:min-h-[260px]' : 'min-h-[292px] sm:min-h-[352px]'}><LazyTrendChart data={data} compact={compact} /></div>;
+}
 
 type Props = {
   name: string;
@@ -265,17 +269,15 @@ export function SubmarketDetailPanel({
   };
 
   const metric = (label: string, value: string, unit: string, note: string) => (
-    <div className="min-w-0 rounded-[8px] border border-[#e3e9f0] bg-white px-3 py-3 sm:px-5 sm:py-4">
-      <p className="m-0 text-[14px] font-normal text-[#667085] text-[14px]">{label}</p>
-      <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5">
-        <strong className="text-[14px] font-semibold leading-tight tabular-nums tracking-tight text-[#003e7e] text-[14px]">{value}</strong>
-        <span className="text-[14px] text-[#667085] text-[14px]">{unit}</span>
-      </div>
-      <p className="mb-0 mt-2 text-[14px] leading-4 text-[#667085] text-[14px]">{note}</p>
+    <div className="submarket-metric">
+      <p className="submarket-metric-label">{label}</p>
+      <div className="submarket-metric-value"><strong>{value}</strong>{unit ? <span>{unit}</span> : null}</div>
+      <p className="submarket-metric-note">{note}</p>
     </div>
   );
 
   const profileReady = Boolean(profile && (profile.headline || profile.overview || profile.industries || profile.transport));
+  const hasProfileFeatures = Boolean(profile?.industries || profile?.transport);
   const visibleTabs = sectionNames.filter(([id]) => id !== 'profile' || profileReady);
   const currentSection = visibleTabs.some(([id]) => id === section) ? section : 'overview';
   const lastReading=React.useRef('');
@@ -286,21 +288,20 @@ export function SubmarketDetailPanel({
     observeBusinessReading('VIEW_SUBMARKET','map',{target_table:'submarket_profiles',target_id:name,submarket:name,section:currentSection,grade,observation:'view_displayed'},'submarket');
   },[name,currentSection,grade,suspended,loading,loadError]);
   const trendReady = !detail?.trendError && hasTrend;
+  const overviewTrendReady = !detail?.trendError && summarizeSubmarketTrend(detail?.trends.all ?? []).hasTrend;
   const gradeNames = [['all', '甲乙级'], ['a', '甲级'], ['b', '乙级']] as const;
 
   // Keep the map mounted, but let the client brief own its interaction layer.
   if (typeof document === 'undefined') return null;
   return (
     <div aria-hidden={suspended || undefined} className={suspended ? 'map-submarket-workspace hidden' : 'map-submarket-workspace'}>
-      <section ref={dialogRef} data-map-submarket-panel role="region"
+      <section ref={dialogRef} data-map-submarket-panel data-submarket-compact={workspace?.compact && workspace.mode === 'compact' || undefined} role="region"
         aria-labelledby="submarket-dialog-heading" className="map-submarket-workspace-panel">
         <WorkspacePanelHeader title={name} titleId="submarket-dialog-heading" titleRef={headingRef}
+          primaryAction={!editing ? <button type="button" className="workspace-panel-primary-action" aria-label="查看全部项目" onClick={onShowAll}>全部项目</button> : null}
           onClose={closePanel} closeLabel="关闭子市场介绍" actions={canEdit && detail?.profileAvailable && !editing ? <button type="button" aria-label="维护资料" title="维护资料" className="workspace-icon"
             onClick={() => { setEditing(true); setSaveError(null); }}><Pencil size={16} aria-hidden="true" /></button> : null} />
 
-        {!editing ? <div className="map-submarket-primary-actions">
-          <button type="button" onClick={onShowAll}>查看全部项目</button>
-        </div> : null}
         {mapLocationNotice ? <p role="status" className="workspace-note">{mapLocationNotice}</p> : null}
         {!editing ? (
           <nav role="tablist" aria-label="子市场研究内容"
@@ -358,8 +359,14 @@ export function SubmarketDetailPanel({
             <div className="mx-auto max-w-[1050px]">
               {currentSection === 'overview' ? (
                 <div className="space-y-4 sm:space-y-5">
+                  <section data-workspace-summary aria-label="市场核心指标" className="submarket-core-metrics">
+                    {metric('平均净有效租金', number(summary.rent), '元/㎡/月', '有效样本 ' + summary.rentSampleCount + ' 个')}
+                    {metric('平均空置率', number(summary.vacancyPct), '%', '有效样本 ' + summary.vacancySampleCount + ' 个')}
+                    {metric('甲乙级项目', summary.officeCount.toLocaleString('zh-CN'), '个', '甲级 ' + summary.gradeACount + ' · 乙级 ' + summary.gradeBCount)}
+                  </section>
+
                   <section aria-label="区域定位" className="rounded-[9px] border border-[#e0e6ed] bg-white px-4 py-4 sm:px-6 sm:py-5">
-                    <h3 className="m-0 text-[14px] font-semibold leading-7 text-[#172033] text-[14px]">
+                    <h3 className="m-0 text-[14px] font-semibold leading-6 text-[#172033]">
                       {profile?.headline || name + '办公市场概览'}
                     </h3>
                     {profile?.overview ? (
@@ -373,12 +380,6 @@ export function SubmarketDetailPanel({
                     )}
                   </section>
 
-                  <section data-workspace-summary aria-label="市场核心指标" className="grid grid-cols-3 gap-2 sm:gap-3">
-                    {metric('平均净有效租金', number(summary.rent), '元/㎡/月', '有效样本 ' + summary.rentSampleCount + ' 个')}
-                    {metric('平均空置率', number(summary.vacancyPct), '%', '有效样本 ' + summary.vacancySampleCount + ' 个')}
-                    {metric('甲乙级项目', summary.officeCount.toLocaleString('zh-CN'), '个', '甲级 ' + summary.gradeACount + ' · 乙级 ' + summary.gradeBCount)}
-                  </section>
-
                   <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.85fr)]">
                     <section aria-label="市场走势速览" className="min-w-0 rounded-[9px] border border-[#e0e6ed] bg-white px-4 py-3 sm:px-5">
                       <div className="flex items-center justify-between gap-3">
@@ -387,26 +388,26 @@ export function SubmarketDetailPanel({
                           onClick={() => setSection('trend')}>查看趋势 <ChevronRight size={14} aria-hidden="true" /></button>
                       </div>
                       {loading ? (
-                        <div className="flex h-[188px] items-center justify-center text-[14px] text-[#64748b]">正在读取行情…</div>
+                        <div className="flex h-[240px] sm:h-[260px] items-center justify-center text-[14px] text-[#64748b]">正在读取行情…</div>
                       ) : detail?.trendError || loadError ? (
-                        <div className="flex h-[188px] flex-col items-center justify-center gap-2 text-[14px] text-[#64748b]">
+                        <div className="flex min-h-20 flex-col items-start justify-center gap-2 py-3 text-[14px] text-[#64748b]">
                           <span>历史行情暂不可用</span>
                           <button type="button" className={quietButton} onClick={() => setReload(x => x + 1)}>
                             <RefreshCw size={14} aria-hidden="true" /> 重新加载
                           </button>
                         </div>
-                      ) : trendReady ? (
+                      ) : overviewTrendReady ? (
                         <TrendChart data={detail?.trends.all ?? []} compact />
                       ) : (
-                        <div className="flex h-[188px] flex-col items-center justify-center gap-2 text-[14px] text-[#64748b]">
+                        <div className="flex min-h-20 flex-col items-start justify-center gap-2 py-3 text-[14px] text-[#64748b]">
                           <BarChart3 size={23} aria-hidden="true" />
                           <span>近期暂无足够的同季度可比数据</span>
                         </div>
                       )}
                     </section>
-                    <section aria-label={profileReady ? '区域特点' : '楼宇结构'} className="min-w-0 rounded-[9px] border border-[#e0e6ed] bg-white px-4 py-4 sm:px-5">
-                      <h3 className="m-0 text-[14px] font-semibold">{profileReady ? '区域特点' : '楼宇构成'}</h3>
-                      {profileReady ? (
+                    <section aria-label={hasProfileFeatures ? '区域特点' : '楼宇结构'} className="min-w-0 rounded-[9px] border border-[#e0e6ed] bg-white px-4 py-4 sm:px-5">
+                      <h3 className="m-0 text-[14px] font-semibold">{hasProfileFeatures ? '区域特点' : '楼宇构成'}</h3>
+                      {hasProfileFeatures ? (
                         <div className="mt-4 space-y-3">
                           {profile?.industries ? <div>
                             <p className="m-0 text-[14px] text-[#64748b]">产业及办公需求</p>
@@ -476,21 +477,21 @@ export function SubmarketDetailPanel({
                       </div>
                     </div>
                     {loading ? (
-                      <div className="flex h-[260px] items-center justify-center text-[14px] text-[#64748b]">正在读取季度数据…</div>
+                      <div className="flex h-[292px] sm:h-[352px] items-center justify-center text-[14px] text-[#64748b]">正在读取季度数据…</div>
                     ) : detail?.trendError || loadError ? (
-                      <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 text-[14px] text-[#64748b]">
+                      <div className="flex min-h-24 flex-col items-start justify-center gap-3 py-4 text-[14px] text-[#64748b]">
                         <span>历史行情暂不可用</span>
                         <button type="button" className={quietButton} onClick={() => setReload(x => x + 1)}>
                           <RefreshCw size={14} aria-hidden="true" /> 重新加载
                         </button>
                       </div>
                     ) : trendReady ? <TrendChart data={series} /> : (
-                      <div className="flex min-h-[220px] items-center justify-center text-[14px] text-[#64748b]">
+                      <div className="flex min-h-24 items-center py-4 text-[14px] text-[#64748b]">
                         当前等级暂无有效季度走势
                       </div>
                     )}
                   </section>
-                  {!detail?.trendError && !loadError ? <section aria-label="行情摘要" className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+                  {!detail?.trendError && !loadError ? <section aria-label="行情摘要" className="submarket-trend-summary">
                     {metric('最新有效季度', latest?.period ?? '—', '', '非连续季度不补齐')}
                     {metric('租金季度变化', rentChange == null ? '—' : (rentChange > 0 ? '+' : '') + number(rentChange), '元/㎡/月', rentChange == null ? '暂无相邻可比季度' : '与相邻季度比较')}
                     {metric('空置率季度变化', vacancyChange == null ? '—' : (vacancyChange > 0 ? '+' : '') + number(vacancyChange), '百分点', vacancyChange == null ? '暂无相邻可比季度' : '与相邻季度比较')}

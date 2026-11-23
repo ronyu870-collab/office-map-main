@@ -10,9 +10,9 @@ export const WorkspacePanelContext = React.createContext<{
 } | null>(null);
 
 /** Shared navigation belongs in the content title group, never in another toolbar above it. */
-export function WorkspacePanelHeader({ title, subtitle, onClose, closeLabel, actions, titleId, titleRef }: {
+export function WorkspacePanelHeader({ title, subtitle, onClose, closeLabel, actions, primaryAction, titleId, titleRef }: {
   title: React.ReactNode; subtitle?: React.ReactNode; onClose: () => void; closeLabel: string;
-  actions?: React.ReactNode; titleId?: string; titleRef?: React.Ref<HTMLHeadingElement>;
+  actions?: React.ReactNode; primaryAction?: React.ReactNode; titleId?: string; titleRef?: React.Ref<HTMLHeadingElement>;
 }) {
   const context = React.useContext(WorkspacePanelContext);
   const [expandedTitle, setExpandedTitle] = React.useState<string | null>(null);
@@ -31,6 +31,7 @@ export function WorkspacePanelHeader({ title, subtitle, onClose, closeLabel, act
           <span className={titleExpanded ? 'workspace-title-expanded' : 'workspace-title-clamped'}>{title}</span><ChevronDown size={14} aria-hidden="true" />
         </button> : inlineSubtitle ? <span className="workspace-heading-inline"><span>{title}</span><span className="workspace-heading-meta">{subtitle}</span></span> : title}
       </h2>
+      {primaryAction}
       {context?.compact ? <MapDisclosure width={264} actionMenu className="workspace-mobile-tools" label={<><MoreHorizontal size={18} aria-hidden="true" /><span className="sr-only">工作区操作</span></>}>
         <div className="workspace-mobile-tool-options">
           <button type="button" aria-pressed={context.mode === 'reading'}

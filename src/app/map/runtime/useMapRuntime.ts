@@ -116,8 +116,10 @@ function readVisualSnapshot(controller: MapController, containerId: string): Map
 }
 
 function snapshotLooksHealthy(snapshot: MapVisualSnapshot): boolean {
-  return snapshot.width >= 100 &&
-    snapshot.height >= 100 &&
+  // Layout owns the usable map size. A rendered short-stage surface can be
+  // under 100px high; health checks must still reject zero size or missing layers.
+  return snapshot.width > 0 &&
+    snapshot.height > 0 &&
     snapshot.amapRootPresent &&
     snapshot.amapRootVisible &&
     snapshot.renderNodeCount > 0 &&
@@ -136,14 +138,31 @@ function formatVisualSnapshot(snapshot: MapVisualSnapshot): string {
   ].join('；');
 }
 
+/** A full reading surface intentionally makes the canvas inert/hidden. */
+async function waitForMapSurfaceVisibility(containerId: string, signal: AbortSignal): Promise<void> {
+  const hidden = () => document.getElementById(containerId)?.closest('[inert], [aria-hidden="true"], [hidden]');
+  if (signal.aborted || !hidden()) return;
+  await new Promise<void>(resolve => {
+    const finish = () => { observer.disconnect(); signal.removeEventListener('abort', finish); resolve(); };
+    const check = () => { if (signal.aborted || !hidden()) finish(); };
+    const observer = new MutationObserver(check);
+    observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['inert', 'aria-hidden', 'hidden'] });
+    signal.addEventListener('abort', finish, { once: true });
+    check();
+  });
+}
+
 async function repairAndVerifyMapVisuals(
   controller: MapController,
   containerId: string,
   isCancelled: () => boolean,
+  signal: AbortSignal,
 ): Promise<void> {
   const map = getControllerMap(controller);
   if (!map) return;
 
+  await waitForMapSurfaceVisibility(containerId, signal);
+  if (isCancelled()) return;
   await nextPaint();
   if (isCancelled()) return;
 
@@ -161,6 +180,7 @@ async function repairAndVerifyMapVisuals(
   if (snapshotLooksHealthy(snapshot)) return;
 
   await wait(250);
+  await waitForMapSurfaceVisibility(containerId, signal);
   if (isCancelled()) return;
 
   snapshot = readVisualSnapshot(controller, containerId);
@@ -189,6 +209,8 @@ async function repairAndVerifyMapVisuals(
   }
 
   await wait(1200);
+  await waitForMapSurfaceVisibility(containerId, signal);
+  if (isCancelled()) return;
   await nextPaint();
   if (isCancelled()) return;
 
@@ -291,6 +313,7 @@ export function useMapRuntime({
     }
 
     let cancelled = false;
+    const visibilityAbort = new AbortController();
     let ownedController: MapController | null = null;
     let hardeningCleanup: (() => void) | null = null;
     let startupOptimizationCleanup: (() => void) | null = null;
@@ -305,6 +328,8 @@ export function useMapRuntime({
         recordMapStartup('controller_ready');
         ownedController = controller;
         controllerRef.current = controller;
+        // Authorized business actions do not depend on SDK visibility/readiness.
+        applyAdminMode(controller);
         errorRef.current(null);
         setMapReady(false); setMapStage('sdk');
         startupOptimizationCleanup = installMapStartupOptimization(controller);
@@ -334,7 +359,7 @@ export function useMapRuntime({
         await waitForInitialMapTiles(controller, () => cancelled);
         if (cancelled) return;
 
-        await repairAndVerifyMapVisuals(controller, containerId, () => cancelled);
+        await repairAndVerifyMapVisuals(controller, containerId, () => cancelled, visibilityAbort.signal);
         if (cancelled) return;
         recordMapStartup('visual_ready');
 
@@ -354,6 +379,7 @@ export function useMapRuntime({
 
     return () => {
       cancelled = true;
+      visibilityAbort.abort();
       setMapReady(false);
       hardeningCleanup?.();
       hardeningCleanup = null;
@@ -365,7 +391,7 @@ export function useMapRuntime({
   }, [applyAdminMode, containerId, enabled]);
 
   React.useEffect(() => {
-    if (!mapReady || !controllerRef.current) return;
+    if (!controllerRef.current) return;
     applyAdminMode(controllerRef.current as MapController);
   }, [applyAdminMode, currentUserId, mapReady, userRole]);
 
