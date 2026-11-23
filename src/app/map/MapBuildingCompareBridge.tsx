@@ -17,6 +17,7 @@ export function MapBuildingCompareBridge() {
 
   useEffect(() => {
     router.prefetch('/compare');
+    let navigationTimer: number | undefined;
 
     const handleDelegatedClick = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;
@@ -42,13 +43,15 @@ export function MapBuildingCompareBridge() {
       if (detail.buildingName) params.set('name', detail.buildingName);
       navigatingRef.current = true;
       router.push(`/compare?${params.toString()}`);
-      window.setTimeout(() => { navigatingRef.current = false; }, 1000);
+      navigationTimer = window.setTimeout(() => { navigatingRef.current = false; navigationTimer = undefined; }, 1000);
     };
 
     document.addEventListener('click', handleDelegatedClick, true);
     window.addEventListener(REQUEST_EVENT, handleRequest);
 
     return () => {
+      window.clearTimeout(navigationTimer);
+      navigatingRef.current = false;
       document.removeEventListener('click', handleDelegatedClick, true);
       window.removeEventListener(REQUEST_EVENT, handleRequest);
     };

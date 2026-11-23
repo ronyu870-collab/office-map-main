@@ -117,3 +117,47 @@ it('upgrades the legacy full LEED catalog in return filters and research, preser
   saveMapReturn('scope',token,value);
   expect(readMapReturn('scope',token)?.filters?.leeds).not.toContain('N');
 });
+
+it.each(['resize-first', 'scroll-first'])('preserves user reading across a fullscreen range clamp (%s)', order => {
+  let resized!: () => void;
+  vi.stubGlobal('ResizeObserver', class { constructor(callback: () => void) { resized = callback; } observe() {} disconnect() {} });
+  let height = 157, total = 457, position = 0;
+  const store: Record<string, unknown> = {};
+  function Reader() {
+    const ref = React.useRef<HTMLDivElement>(null);
+    useMapReadingScroll(ref, 'materialScroll');
+    return <div ref={element => {
+      ref.current = element;
+      if (element) Object.defineProperties(element, {
+        clientHeight: { configurable: true, get: () => height },
+        scrollHeight: { configurable: true, get: () => total },
+        scrollTop: { configurable: true, get: () => position, set: value => { position = Math.max(0, Math.min(Number(value), total - height)); } },
+      });
+    }} data-testid="material-reading"><div>项目资料</div></div>;
+  }
+  const view = render(<MapReadingContext.Provider value={store}><Reader /></MapReadingContext.Provider>);
+  try {
+    const element = screen.getByTestId('material-reading');
+    fireEvent.wheel(element); element.scrollTop = 300; fireEvent.scroll(element);
+    expect(store.materialScroll).toBe(300);
+    height = 526; total = 526; position = 0; // Browser clamps when all content fits.
+    if (order === 'scroll-first') fireEvent.scroll(element);
+    act(() => resized()); fireEvent.scroll(element);
+    height = 157; total = 457;
+    act(() => resized());
+    expect(element.scrollTop).toBe(300);
+    expect(store.materialScroll).toBe(300);
+    // A deliberate full-screen user gesture supersedes the earlier position.
+    height = 526; total = 526; position = 0; act(() => resized());
+    fireEvent.wheel(element); fireEvent.scroll(element);
+    height = 157; total = 457; act(() => resized());
+    expect(element.scrollTop).toBe(0);
+    expect(store.materialScroll).toBe(0);
+    // A late content resize in the same turn must not undo a fresh wheel.
+    fireEvent.wheel(element); element.scrollTop = 100; fireEvent.scroll(element);
+    fireEvent.wheel(element); total = 800; element.scrollTop = 220;
+    fireEvent.scroll(element); act(() => resized());
+    expect(element.scrollTop).toBe(220);
+    expect(store.materialScroll).toBe(220);
+  } finally { view.unmount(); vi.unstubAllGlobals(); }
+});

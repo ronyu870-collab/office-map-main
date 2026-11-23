@@ -1,0 +1,32 @@
+{
+  "capturedAt": "2026-11-23T21:48:25.052923+00:00",
+  "baseHead": "e8fd9ae13c7759dbe1909f199ef16b45b079b673",
+  "scope": "Actual React bridges, WorkspaceBuildingDetail and proposalDraft storage; isolated SessionProvider/router, no production account or SDK claim",
+  "before": "\n> office-map-main@0.1.0 test\n> vitest --run src/app/map/__tests__/MapProposalBridge.identity.test.tsx src/app/map/__tests__/MapBuildingCompareBridge.test.tsx\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.6 /private/tmp/colliers-map-workspace-v2\n\n ❯ src/app/map/__tests__/MapBuildingCompareBridge.test.tsx (3 tests | 1 failed) 93ms\n   × removes the in-flight navigation timer and delegated events when leaving the map 8ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  src/app/map/__tests__/MapBuildingCompareBridge.test.tsx > removes the in-flight navigation timer and delegated events when leaving the map\nAssertionError: expected 1 to be +0 // Object.is equality\n\n- Expected\n+ Received\n\n- 0\n+ 1\n\n ❯ src/app/map/__tests__/MapBuildingCompareBridge.test.tsx:30:30\n     28|   expect(vi.getTimerCount()).toBe(1);\n     29|   view.unmount();\n     30|   expect(vi.getTimerCount()).toBe(0);\n       |                              ^\n     31|   window.dispatchEvent(new CustomEvent('map-building-compare-request',…\n     32|   expect(router.push).toHaveBeenCalledOnce();\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 1 passed (2)\n      Tests  1 failed | 11 passed (12)\n   Start at  05:43:20\n   Duration  1.38s (transform 223ms, setup 124ms, import 446ms, tests 339ms, environment 1.23s)\n\n",
+  "after": {
+    "unit": "\n> office-map-main@0.1.0 test\n> vitest --run src/app/map/__tests__/MapProposalBridge.identity.test.tsx src/app/map/__tests__/MapBuildingCompareBridge.test.tsx src/app/map/__tests__/MapLeaseTransactionsBridge.test.tsx src/app/map/__tests__/MapSalesMaterialsBridge.identity.test.tsx src/app/map/__tests__/MapRouteGate.test.tsx src/app/map/__tests__/WorkspaceBuildingDetail.test.tsx\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.6 /private/tmp/colliers-map-workspace-v2\n\n\n Test Files  6 passed (6)\n      Tests  50 passed (50)\n   Start at  05:43:57\n   Duration  2.35s (transform 1.22s, setup 577ms, import 2.60s, tests 1.70s, environment 5.62s)\n\n",
+    "type": "\n> office-map-main@0.1.0 typecheck\n> tsc --noEmit\n\n",
+    "lint": "\n/private/tmp/colliers-map-workspace-v2/src/app/map/MapBuildingCompareBridge.tsx\n  9:7  warning  'BUILDING_COMPARE_ID' is assigned a value but never used  @typescript-eslint/no-unused-vars\n\n✖ 1 problem (0 errors, 1 warning)\n\n"
+  },
+  "observations": [
+    "Proposal existing behavior passes 9 execution cases: current A/C identity, effective/real user, role, session, loading/logout changes, draft capacity events and observer/event disposal. No proposal product change.",
+    "Compare navigation timer remains after unmount on old code (1 vs expected 0); cleanup fixes it, retains current identity, return href and repeat-click suppression.",
+    "Related final suite: 6 files, 50 tests; typecheck passes, changed-file lint has 0 errors and 1 existing warning."
+  ],
+  "sourceSha256": {
+    "src/app/map/MapBuildingCompareBridge.tsx": "faf3bcddbdb7c97254abc1dc53d86cedfae49d9064b700fdc8241db31e46998c",
+    "src/app/map/__tests__/MapBuildingCompareBridge.test.tsx": "801f40a1d3fba96939a40c1c4528a4c88fbb4958f7f091b7db8c3b7c61d89779",
+    "src/app/map/__tests__/MapProposalBridge.identity.test.tsx": "f7f1e618a3fa99535e2b321233f644eb50f063e4885823a4e9b29200c14a757b"
+  },
+  "limits": [
+    "No fresh production account switching or real SDK measurement.",
+    "No new local production build: effect timer cleanup is exercised by the actual component regression; full build/browser gates remain required in exact-head CI.",
+    "PR and main merge pending."
+  ],
+  "followupVerification": {
+    "combinedFinalBuild": "Includes compare timer cleanup and shared reading fix; production build exit0",
+    "combinedActualComponentSuite": "10files110tests pass, process exit0; type pass, changed lint0errors8warnings",
+    "details": "fullscreen-reading-regression.json",
+    "exactHeadCi": "pending"
+  }
+}

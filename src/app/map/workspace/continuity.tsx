@@ -150,14 +150,48 @@ export function useMapReadingScroll(ref: React.RefObject<HTMLDivElement | null>,
     if (!element || !active) return;
     let desired = typeof store?.[key] === 'number' ? Math.max(0, store[key] as number) : initial;
     let restoring = true;
-    const restore = () => { if (restoring) element.scrollTop = desired; };
-    const takeOver = () => { restoring = false; };
-    const save = () => { if (!restoring && store) store[key] = element.scrollTop; };
+    const measure = () => ({ height: element.clientHeight, total: element.scrollHeight });
+    let geometry = measure();
+    const changed = (next: typeof geometry) => next.height !== geometry.height || next.total !== geometry.total;
+    const hidden = (next: typeof geometry) => next.height === 0 && geometry.height > 0;
+    const clamp = (position: number, range: typeof geometry) => range.height > 0 ? Math.min(position, Math.max(0, range.total - range.height)) : position;
+    const restore = () => {
+      const next = measure();
+      if (hidden(next)) return;
+      const resized = changed(next);
+      if (resized && !restoring && Math.abs(element.scrollTop - clamp(desired, geometry)) >= 1 && Math.abs(element.scrollTop - clamp(desired, next)) >= 1) {
+        // A fresh user scroll can arrive in the same turn as late content.
+        // Only a position explained by either range is a layout clamp.
+        desired = element.scrollTop;
+        if (store) store[key] = desired;
+      }
+      geometry = next;
+      // Expanding a sheet can make its content fit and clamp scrollTop to 0.
+      // Keep the user's last position until the range returns or they take over.
+      if (restoring || resized) element.scrollTop = desired;
+    };
+    const takeOver = () => {
+      restoring = false; desired = element.scrollTop; geometry = measure();
+      if (store) store[key] = desired;
+    };
+    const save = () => {
+      const next = measure();
+      if (hidden(next)) return;
+      // Browser scroll events may precede ResizeObserver delivery. A range
+      // change is a layout clamp, not a new user reading position.
+      if (changed(next)) { restore(); return; }
+      if (restoring) return;
+      const clamped = clamp(desired, next);
+      if (Math.abs(element.scrollTop - clamped) < 1) return;
+      desired = element.scrollTop;
+      if (store) store[key] = desired;
+    };
     reset.current = position => {
       desired = Math.max(0, position); if (store) store[key] = desired; restoring = true; restore();
     };
     restore();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(restore);
+    observer?.observe(element);
     for (const child of element.children) observer?.observe(child);
     element.addEventListener('wheel', takeOver, { passive: true }); element.addEventListener('pointerdown', takeOver);
     element.addEventListener('keydown', takeOver); element.addEventListener('scroll', save);

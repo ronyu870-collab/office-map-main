@@ -1,0 +1,25 @@
+{
+  "capturedAt": "2026-11-23T21:58:33.019609+00:00",
+  "environment": "Existing final PR295 production build on port3266, isolated SDK/business/identity. Timer cleanup separately executed in actual React tests; this build does not contain it.",
+  "checks": {
+    "workspace390": "PASS, process exit0",
+    "focused": "PASS, process exit0; widths1536/390/320/844 and390 reduced motion; 3 research/project/fullscreen reversal paths each",
+    "unit": "\n> office-map-main@0.1.0 test\n> vitest --run src/app/map/runtime/workspaceMotion.test.tsx src/app/map/__tests__/MapWorkspaceLayout.test.tsx\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.6 /private/tmp/colliers-map-workspace-v2\n\n\n Test Files  2 passed (2)\n      Tests  7 passed (7)\n   Start at  05:55:33\n   Duration  1.31s (transform 151ms, setup 153ms, import 358ms, tests 137ms, environment 1.46s)\n\n",
+    "lint": ""
+  },
+  "scope": [
+    "No new animation product change: existing public Web Animations continuation plus prior grid/crop fixes pass representative paths.",
+    "Visible frames retain stable canvas; research/project positions within24px; positive clipped area; final intent open/opaque/uncropped/interactive with correct project identity.",
+    "Existing realSDK helper defaults remain unchanged; extended synthetic project paths require readingPaths:true in workspace CI. No new SDK or performance claim."
+  ],
+  "initialHarnessError": "Mobile actions render in Portal: first test searched only pane children. Corrected by opening actual summary then following aria-controls; not a product failure.",
+  "nativeCheck": {
+    "result": "CUA inventory: apps empty, native Mac locked and automatic unlock failed; IAB/MCPApps have no tabs. No production switching, native zoom, keyboard or gesture claim. No repeat unlock request.",
+    "checkedAfterUtc": "2026-11-23T21:53:32Z"
+  },
+  "sourceSha256": {
+    "scripts/verification/workspace-surface-continuity.mjs": "6cac668246a609c9a651f6eed761c0bc6df227e612b6c971e59aff04ef8f044a",
+    "scripts/verification/verify-map-workspace.mjs": "d9518e68e744e6625f30fcb5dfd9d6847103aa441b87be18e5dd4976eb326768"
+  },
+  "merge": "Exact-head CI and main merge pending."
+}
