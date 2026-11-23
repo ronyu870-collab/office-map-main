@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -78,18 +78,17 @@ export function Dialog({
     };
   }, [open, presentation]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!mounted || !open || inactive) return;
 
     const previousFocus = returnFocusTo ?? document.activeElement as HTMLElement | null;
 
-    const frame = window.requestAnimationFrame(() => {
-      const firstFocusable = panelRef.current?.querySelector<HTMLElement>(focusableSelector);
-      (firstFocusable ?? panelRef.current)?.focus();
-    });
+    // The visible modal must own the keyboard before its first paint. Deferring
+    // to a frame leaves Escape on the underlying trigger during fast actions.
+    const firstFocusable = panelRef.current?.querySelector<HTMLElement>(focusableSelector);
+    (firstFocusable ?? panelRef.current)?.focus({ preventScroll: true });
 
     return () => {
-      window.cancelAnimationFrame(frame);
       if (drawer) previousFocus?.focus({ preventScroll: true });
       else previousFocus?.focus();
     };
