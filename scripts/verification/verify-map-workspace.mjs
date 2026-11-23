@@ -1,3 +1,4 @@
+import { verifyPerformanceListeners } from './workspace-performance-listeners.mjs';
 import { verifyBaseMapPlaces } from './workspace-base-places.mjs';
 import { verifyRegionCamera } from './workspace-region-camera.mjs';
 import { verifySurfaceContinuity } from './workspace-surface-continuity.mjs';
@@ -689,6 +690,7 @@ try {
             await markerPage.getByRole('region',{name,exact:true}).waitFor();
           }}));
           observations.push(await verifyBaseMapPlaces(markerPage,{width,evidencePrefix:'map-base-places-fixture'}));
+          observations.push(await verifyPerformanceListeners(markerPage,width));
         } finally {await markerPage.close();}
       }
       if (width === 1536) {
