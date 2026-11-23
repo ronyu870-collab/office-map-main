@@ -1,0 +1,31 @@
+{
+  "attempts": [
+    {
+      "scope": "first final candidate: 390 multiple targets",
+      "status": "fail",
+      "completedWidths": [
+        1536
+      ],
+      "error": "AssertionError [ERR_ASSERTION]: settled region opening must use one camera target at 390: [{\"at\":11.099999904632568,\"zoom\":16,\"center\":[116.32,39.977336],\"immediately\":true,\"duration\":0,\"width\":390,\"height\":552},{\"at\":44.799999952316284,\"zoom\":11.663419027741291,\"center\":[116.49499999999995,39.87612535440778],\"immediately\":false,\"duration\":240,\"width\":390,\"height\":552},{\"at\":56.09999990463257,\"zoom\":11.781255518035149,\"center\":[116.49499999999995,39.8828052903741],\"immediately\":true,\"duration\":0,\"width\":390,\"height\":552}]\n\n3 !== 1\n"
+    },
+    {
+      "scope": "same candidate with pending notice and sheet measurements",
+      "status": "fail",
+      "completedWidths": [],
+      "error": "AssertionError [ERR_ASSERTION]: settled region opening must use one camera target at 390: [{\"layoutReady\":\"false\",\"sheet\":\"303.6px\",\"pane\":{\"height\":304,\"top\":224,\"text\":\"CBD\\n全部项目\\n工作区操作\\n\\n正在更新当前筛选的地图项目…\\n\\n市场概览\\n行情趋势\\n代表项目\\n\\n平均净有效租金\\n\\n146.1\\n元/㎡/月\\n\\n有效样本 3 个\\n\\n平均空置率\\n\\n21.1\\n%\\n\\n有效样本 3 个\\n\\n甲乙级项目\\n\\n3\\n个\\n\\n甲级 3 · 乙级 0\\n\\n\"},\"at\":13.200000047683716,\"zoom\":16,\"center\":[116.32,39.977336],\"immediately\":true,\"duration\":0,\"width\":390,\"height\":552},{\"layoutReady\":\"true\",\"sheet\":\"303.6px\",\"pane\":{\"height\":304,\"top\":224,\"text\":\"CBD\\n全部项目\\n工作区操作\\n市场概览\\n行情趋势\\n代表项目\\n\\n平均净有效租金\\n\\n146.1\\n元/㎡/月\\n\\n有效样本 3 个\\n\\n平均空置率\\n\\n21.1\\n%\\n\\n有效样本 3 个\\n\\n甲乙级项目\\n\\n3\\n个\\n\\n甲级 3 · 乙级 0\\n\\nCBD办公市场概览\\n\\n聚焦已收录甲\"},\"at\":33.40000009536743,\"zoom\":11.663419027741291,\"center\":[116.49499999999995,39.87612535440778],\"immediately\":false,\"duration\":240,\"width\":390,\"height\":552},{\"layoutReady\":\"true\",\"sheet\":\"288px\",\"pane\":{\"height\":288,\"top\":240,\"text\":\"CBD\\n全部项目\\n工作区操作\\n市场概览\\n行情趋势\\n代表项目\\n\\n平均净有效租金\\n\\n146.1\\n元/㎡/月\\n\\n有效样本 3 个\\n\\n平均空置率\\n\\n21.1\\n%\\n\\n有效样本 3 个\\n\\n甲乙级项目\\n\\n3\\n个\\n\\n甲级 3 · 乙级 0\\n\\nCBD办公市场概览\\n\\n聚焦已收录甲\"},\"at\":47,\"zoom\":11.781255518035149,\"center\":[116.49499999999995,39.8828052903741],\"immediately\":true,\"duration\":0,\"width\":390,\"height\":552}]\n\n3 !== 1\n"
+    },
+    {
+      "scope": "pending notice fixed; no-op empty-range stop remained",
+      "status": "fail",
+      "completedWidths": [],
+      "error": "AssertionError [ERR_ASSERTION]: settled region opening must use one camera target at 390: [{\"layoutReady\":\"false\",\"sheet\":\"303.6px\",\"pane\":{\"height\":304,\"top\":224},\"at\":8.299999952316284,\"zoom\":16,\"center\":[116.32,39.977468],\"immediately\":true,\"duration\":0,\"width\":390,\"height\":552},{\"layoutReady\":\"true\",\"sheet\":\"288px\",\"pane\":{\"height\":288,\"top\":240},\"at\":36.10000002384186,\"zoom\":11.781255518035149,\"center\":[116.49499999999995,39.8828052903741],\"immediately\":false,\"duration\":240,\"width\":390,\"height\":552}]\n\n2 !== 1\n"
+    },
+    {
+      "scope": "empty-range result fixed; surface observation began before settled list layout",
+      "status": "fail",
+      "completedWidths": [],
+      "error": "AssertionError [ERR_ASSERTION]: surface jumped from (0,533) to (0,568.4801025390625) in reverse at 390"
+    }
+  ],
+  "note": "Failed intermediate candidates are retained. No failed candidate is submitted or counted as final pass. Animated-rectangle measurement, lazy placeholders, pending notice removal and empty extents were separately investigated; final regression remains strict."
+}

@@ -129,5 +129,14 @@
     "Heap warms from 38.78 MiB at cycle1 to 42.93 MiB at cycle36; late six cycles increase 0.03 MiB. This is not a claim of zero allocation or permanent freedom from leaks",
     "No >50ms long task reproduced in this sample; no permanent elimination or unsampled CPU attribution",
     "Exact-head necessary CI and main merge pending"
-  ]
+  ],
+  "resolution": {
+    "pr": 293,
+    "head": "7dc2e64562360b82b836242c596fc4298cc37a50",
+    "verifyRun": "45262191884",
+    "necessaryCI": "all pass including engineering, search and both real Auth jobs",
+    "mergedAt": "2026-11-23T21:07:18Z",
+    "main": "69050dc19b26496cd7161f0d243c74ddd3063790",
+    "mainTreeMatchesTestedHead": "991d664287f37d18d97ce8c2a00c86042db8c910"
+  }
 }

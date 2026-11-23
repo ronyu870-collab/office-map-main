@@ -1,0 +1,18 @@
+{
+  "artificialCpuRate": 6,
+  "reducedMotion": false,
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [],
+  "status": "fail",
+  "error": "AssertionError [ERR_ASSERTION]: CBD 390 cropped: {\"width\":390,\"height\":552,\"zoom\":11.28,\"center\":[116.482941,39.891045],\"points\":[{\"id\":\"9ee3e3ff-4845-41a1-a78f-390c11b1917a\",\"x\":154.4245599269634,\"y\":232.29732967779273,\"edge\":8.702670322207268},{\"id\":\"cbd-b\",\"x\":189.79903038195334,\"y\":209.23696464602835,\"edge\":31.763035353971645},{\"id\":\"future-cbd\",\"x\":278.23520651925355,\"y\":140.03565550496566,\"edge\":100.96434449503434},{\"id\":\"pending-map-project\",\"x\":225.17350083682686,\"y\":174.640101790661,\"edge\":66.35989820933901}],\"cameraCalls\":1,\"visible\":{\"left\":0,\"right\":390,\"top\":292,\"bottom\":533,\"width\":390,\"height\":241}}",
+  "observationCorrection": "Initial artificial-CPU run checked after a fixed 800ms window. Retained failure; final run waits for actual public SDK camera to reach its recorded public target before checking projected margins.",
+  "followupAttempt": {
+    "artificialCpuRate": 6,
+    "reducedMotion": false,
+    "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+    "viewports": [],
+    "status": "fail",
+    "error": "AssertionError [ERR_ASSERTION]: 望京 390 cropped: {\"width\":390,\"height\":552,\"zoom\":11.53,\"center\":[116.494307,39.883595],\"points\":[{\"id\":\"long-west\",\"x\":-109.22166814561933,\"y\":-71.59624876402086,\"edge\":-109.22166814561933},{\"id\":\"long-east\",\"x\":354.57129130035173,\"y\":-85.35873918863945,\"edge\":-85.35873918863945}],\"cameraCalls\":2,\"visible\":{\"left\":0,\"right\":390,\"top\":292,\"bottom\":533,\"width\":390,\"height\":241}}"
+  },
+  "followupCorrection": "Waiting for the prior region target was insufficient; track the public camera command revision from before each new region/resize action, then wait for a newer target to settle."
+}

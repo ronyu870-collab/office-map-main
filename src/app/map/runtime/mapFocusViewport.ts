@@ -1,7 +1,9 @@
 'use client';
+import { mercatorPoint } from './mapExtent';
 
 /** Workbench-space rather than full-canvas-space centering for selected projects. */
-type Bounds = Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom' | 'width' | 'height'>;
+export type MapBounds = Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom' | 'width' | 'height'>;
+type Bounds = MapBounds;
 type Reserved = { top?: Bounds | null; right?: Bounds | null; left?: Bounds | null; bottom?: Bounds | null };
 type PannableMap = { getContainer?: () => HTMLElement | null; panBy?: (x: number, y: number, duration?: number) => void };
 
@@ -19,7 +21,7 @@ export function visibleMapRect(viewport: Bounds, reserved: Reserved = {}) {
   if (reserved.bottom && reserved.bottom.bottom > viewport.top && reserved.bottom.top < viewport.bottom && reserved.bottom.left <= horizontalMid && reserved.bottom.right >= horizontalMid) {
     bottom = Math.min(bottom, Math.max(viewport.top, reserved.bottom.top - 16));
   }
-  if (bottom - top < 150) {
+  if (bottom - top < 150 && !reserved.bottom) {
     top = viewport.top + margin;
     bottom = viewport.bottom - margin;
   }
@@ -48,19 +50,38 @@ export function computeVisibleMapFocusOffset(viewport: Bounds, reserved: Reserve
   };
 }
 
+/** One public camera target, with the project centered in the unobstructed area. */
+export function visibleProjectCenter(target: [number, number], zoom: number, canvas: Bounds, visible: Bounds): [number, number] {
+  const [tx, ty] = mercatorPoint(...target), scale = 256 * 2 ** zoom;
+  const offsetX = (visible.left + visible.right - canvas.left - canvas.right) / 2;
+  const offsetY = (visible.top + visible.bottom - canvas.top - canvas.bottom) / 2;
+  if (!offsetX && !offsetY) return target;
+  const x = tx - offsetX / scale;
+  const y = ty - offsetY / scale;
+  return [x * 360 - 180, Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI];
+}
+
 /** Read actual overlap; desktop grid columns already removed from the canvas
  * must not be deducted a second time. */
 export function readMapVisibleArea(container: HTMLElement) {
   const main = container.parentElement;
-  const workbench = main?.closest('[data-map-focus-root]') ?? main;
+  const layout = container.closest<HTMLElement>('.map-workspace-layout');
+  const workbench = layout ?? main?.closest('[data-map-focus-root]') ?? main;
   const rect = container.getBoundingClientRect();
   const blocker = (side: keyof Reserved) => {
-    const el = workbench?.querySelector<HTMLElement>(`[data-map-focus-${side}]`);
-    if (!el || el.closest('[inert]')) return null;
-    const style = window.getComputedStyle(el);
-    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return null;
-    const bounds = el.getBoundingClientRect();
-    return bounds.width > 0 && bounds.height > 0 ? bounds : null;
+    const candidates = workbench?.querySelectorAll<HTMLElement>(`${layout ? ':scope > aside' : ''}[data-map-focus-${side}]`) ?? [];
+    for (const el of candidates) {
+      if (el.closest('[inert]')) continue;
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || (!layout && Number(style.opacity || '1') === 0)) continue;
+      // Reserve the owned panel's final layout box during entry motion. Its
+      // temporary transform/opacity must not cause a second camera correction.
+      const bounds = layout && el.offsetWidth && el.offsetHeight
+        ? new DOMRect(layout.getBoundingClientRect().left + el.offsetLeft, layout.getBoundingClientRect().top + el.offsetTop, el.offsetWidth, el.offsetHeight)
+        : el.getBoundingClientRect();
+      if (bounds.width > 0 && bounds.height > 0) return bounds;
+    }
+    return null;
   };
   return { rect, reserved: { top: blocker('top'), right: blocker('right'), left: blocker('left'), bottom: blocker('bottom') } };
 }

@@ -426,7 +426,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       if (restoreCamera.current) {
         const camera = restoreCamera.current; restoreCamera.current = null;
         canvasCoordinator.current.focus({ center: camera.center, camera, exact: true });
-      } else canvasCoordinator.current.focus({ fit: () => {} }, key);
+      } else canvasCoordinator.current.claim(key);
     }
   }, [workspace.right, workspace.focus, controllerRef, mapReady]);
 
@@ -837,7 +837,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     handleSearch(val);
     if (val.trim()) {
       const revision = ++searchCameraRevision.current;
-      canvasCoordinator.current?.focus({ fit: () => {} }, `search:${revision}`);
+      canvasCoordinator.current?.claim(`search:${revision}`);
       setSearchSubmitRevision(revision);
     }
   };

@@ -863,15 +863,16 @@ export function MapWorkbenchView({
 
 
       {dataNotice ? <div role="alert" className="workspace-data-notice"><span>{dataNotice}</span><button type="button" className="workspace-business-action" onClick={() => { void onRetryNotice?.(); }}>重新读取</button></div> : null}
-      <MapWorkspaceLayout left={isFullListVisible ? null : filters} right={rightContent}
+      <MapWorkspaceLayout contentPending={rightKind === 'submarket' && fullListBusy} left={isFullListVisible ? null : filters} right={rightContent}
         leftOpen={isFilterPanelOpen} rightOpen={rightOpen} focus={focusMode} width={preferredWidth} kind={panelKind}
+        contentKey={rightView?.kind === 'building' ? `building:${rightView.building.id}` : rightView?.kind === 'submarket' ? `submarket:${rightView.name}` : panelKind}
         backLabel={!searchChoicesVisible || rightKind === 'search' ? backLabel : null} onBack={onWorkspaceBack}
         onWidthChange={value => onWorkspaceWidth?.(value, panelKind)}>
       <main className="relative min-h-0 flex-1 overflow-hidden map-workspace-canvas">
         <div id="map-container" className="absolute inset-0 bg-[#f3f6f8]" aria-label="北京办公楼地理分布" />
 
         {mapError ? (
-          <div className="absolute inset-0 z-[240] flex items-center justify-center bg-slate-50/80 p-4">
+          <div className="map-workspace-feedback absolute inset-0 z-[240] flex items-center justify-center bg-slate-50/80 p-4">
             <div className="w-full max-w-[460px] rounded-[var(--cd-radius-lg)] border border-[color:rgb(201_54_43_/_0.15)] bg-[var(--cd-color-surface)] p-5 shadow-[var(--cd-shadow-panel)]">
               <div className="text-sm font-semibold text-[var(--cd-color-danger)]">地图加载失败</div>
               <div className="mt-2 break-all text-sm leading-relaxed text-[var(--cd-color-text-secondary)]">{mapError}</div>
@@ -881,7 +882,7 @@ export function MapWorkbenchView({
         ) : null}
 
         {!mapReady && !mapError ? (
-          <div className="absolute inset-0 z-[230] flex items-center justify-center bg-[#eef3f7]">
+          <div className="map-workspace-feedback absolute inset-0 z-[230] flex items-center justify-center bg-[#eef3f7]">
             <div className="flex items-center gap-2 text-[14px] font-normal text-slate-500">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" />
               {mapStage === 'tiles' ? '正在加载地图底图…' : '正在加载地图组件…'}
@@ -890,7 +891,7 @@ export function MapWorkbenchView({
         ) : null}
 
         {mapReady && mapDataLoading && !hasBuildings && !mapError ? (
-          <div className="absolute inset-0 z-[225] flex items-center justify-center bg-white/70">
+          <div className="map-workspace-feedback absolute inset-0 z-[225] flex items-center justify-center bg-white/70">
             <div className="flex items-center gap-2 text-[14px] text-slate-500">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" />
               正在读取楼宇数据…
@@ -898,7 +899,7 @@ export function MapWorkbenchView({
           </div>
         ) : null}
 
-        {intelligenceContext && mapReady && !mapError && !isFilterPanelOpen && !isSupplyOpen && !isListVisible ? <ProposalDraftBasket /> : null}
+        {intelligenceContext && mapReady && !mapError && !isFilterPanelOpen && !isSupplyOpen && !isListVisible ? <div className="map-workspace-feedback absolute inset-0 pointer-events-none"><ProposalDraftBasket /></div> : null}
 
 
       </main>

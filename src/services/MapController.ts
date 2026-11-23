@@ -23,7 +23,7 @@ import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
 import { recordMapStartup } from "@/src/utils/mapStartupProbe";
 import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
-import { readMapVisibleArea, visibleMapRect } from "@/src/app/map/runtime/mapFocusViewport";
+import { readMapVisibleArea, visibleMapRect, visibleProjectCenter } from "@/src/app/map/runtime/mapFocusViewport";
 import { mapOptionalNumber, observedVacantArea } from "@/src/app/map/model/vacancyMetrics";
 import { futureSupplyDate, isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
@@ -411,8 +411,15 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       if (!current() || !this.map) return;
       const zoom = Number(this.map.getZoom?.());
       const reduced = immediately || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
-      this.map.setZoomAndCenter(Math.max(14, Math.min(18, Number.isFinite(zoom) ? zoom : 14)),
-        [building.location_lng, building.location_lat], reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
+      const targetZoom = Math.max(14, Math.min(18, Number.isFinite(zoom) ? zoom : 14));
+      let center: [number, number] = [building.location_lng!, building.location_lat!];
+      const container = this.map.getContainer?.() ?? document.getElementById('map-container');
+      if (container) {
+        const { rect, reserved } = readMapVisibleArea(container), visible = visibleMapRect(rect, reserved);
+        if (visible.width < 16 || visible.height < 16) return;
+        center = visibleProjectCenter(center, targetZoom, rect, visible);
+      }
+      this.map.setZoomAndCenter(targetZoom, center, reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
     };
     if (this.workspaceCameraHandler) this.workspaceCameraHandler(move);
     else move();
@@ -1536,15 +1543,15 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private workspaceCameraHandler: ((move: (immediately?: boolean) => void) => void) | null = null;
   setWorkspaceCameraHandler(handler: ((move: (immediately?: boolean) => void) => void) | null) { this.workspaceCameraHandler = handler; }
 
-  fitToBuildings(buildingsData: BuildingWithMetrics[], coordinated = false, immediately = false) {
+  fitToBuildings(buildingsData: BuildingWithMetrics[], coordinated = false, immediately = false): boolean {
     if (!coordinated && this.workspaceCameraHandler) {
       this.workspaceCameraHandler(immediate => this.fitToBuildings(buildingsData, true, immediate));
-      return;
+      return false;
     }
-    if (!this.map || !this.AMap || buildingsData.length === 0) return;
+    if (!this.map || !this.AMap || buildingsData.length === 0) return false;
 
     const container = this.map.getContainer?.() ?? document.getElementById('map-container');
-    if (!container) return;
+    if (!container) return false;
     const { rect, reserved } = readMapVisibleArea(container);
     const camera = fitMapExtent(buildingsData, rect, visibleMapRect(rect, reserved));
     // Diagnose invalid coordinates without correcting production records or
@@ -1554,9 +1561,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       return issue && issue !== 'missing' ? [{ id: building.id, issue }] : [];
     });
     if (invalid.length) console.warn('[MapController] Unlocatable project coordinates', invalid);
-    if (!camera) return;
+    if (!camera) return false;
     const reduced = immediately || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
     this.map.setZoomAndCenter(camera.zoom, camera.center, reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
+    return true;
   }
 
   /** 恢复地图工作台的初始总览视野（大气泡层级）。 */

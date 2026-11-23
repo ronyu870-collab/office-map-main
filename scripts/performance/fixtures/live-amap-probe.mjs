@@ -29,6 +29,7 @@ export function installLiveAmapProbe() {
           if (typeof method !== 'function') continue;
           map[name] = function (...values) {
             probe.calls.push({ name, at: performance.now() });
+            if(name==='setZoomAndCenter' && Array.isArray(values[1]))probe.lastCamera={revision:(probe.lastCamera?.revision??0)+1,zoom:Number(values[0]),center:[...values[1]]};
             return Reflect.apply(method, this, values);
           };
         }
@@ -107,4 +108,16 @@ export function finishLiveAmapSample() {
     resizeCalls: calls.filter(x=>x.name==='resize').length, newMapInstances: p.created-s.created,
     cameraEndMs: end ? end.at-s.start : null,
     cameraAfterLastCommandMs: end && command && end.at >= command.at ? end.at-command.at : null };
+}
+
+
+// An artificial CPU limit can outlast a nominal animation observation window.
+// Wait for the actual public SDK values to reach its last public target.
+export async function waitForLiveCamera(page, afterRevision=0) {
+  await page.waitForFunction(after=>{
+    const map=window.__workspaceMap,target=window.__liveAmapProbe?.lastCamera;
+    if(!map||!target||target.revision<=after)return false;
+    const center=map.getCenter();
+    return Math.abs(map.getZoom()-target.zoom)<.01 && Math.abs(center.lng-target.center[0])<.000001 && Math.abs(center.lat-target.center[1])<.000001;
+  },afterRevision,{timeout:15000});
 }

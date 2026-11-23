@@ -14,7 +14,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe('map camera/layout coordination', () => {
   it('stops an active extent animation when the user takes over', () => {
     const host = document.createElement('div');
-    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 600 } as DOMRect);
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 600));
     const map = { getCenter: () => [116, 40], getZoom: () => 12, setZoomAndCenter: vi.fn() };
     const coordinator = observeMapCanvas(host, map);
     const fit = vi.fn(); coordinator.focus({ fit }); flush();
@@ -46,7 +46,7 @@ describe('map camera/layout coordination', () => {
   });
   it('coalesces resize and rapid selection into one latest camera update', () => {
     const host = document.createElement('div');
-    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 600 } as DOMRect);
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 600));
     const map = { resize: vi.fn(), setZoomAndCenter: vi.fn(), getZoom: () => 10, getCenter: () => [116, 40], setCenter: vi.fn() };
     const coordinator = observeMapCanvas(host, map);
     coordinator.focus({ center: [116.1, 39.9] }); coordinator.focus({ center: [116.2, 39.9] }); resize(); resize(); flush();
@@ -62,7 +62,7 @@ describe('map camera/layout coordination', () => {
   it('restores overview camera exactly and honors reduced motion without an animation callback', () => {
     vi.stubGlobal('matchMedia', () => ({ matches: true }));
     const host = document.createElement('div');
-    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 600 } as DOMRect);
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 600));
     const map = { setZoomAndCenter: vi.fn() };
     const coordinator = observeMapCanvas(host, map);
     coordinator.focus({ center: [116.4, 39.9], camera: { center: [116.4, 39.9], zoom: 10 }, exact: true }); flush();
@@ -72,7 +72,7 @@ describe('map camera/layout coordination', () => {
 
 it('does not restart the same region extent when refreshed records have identical coordinates', () => {
   const host = document.createElement('div');
-  vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 600 } as DOMRect);
+  vi.spyOn(host, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 600));
   const coordinator = observeMapCanvas(host, { resize: vi.fn() });
   const initial = vi.fn(), duplicate = vi.fn();
   coordinator.focus({ fit: () => {} }, 'CBD');
@@ -86,7 +86,7 @@ it('does not restart the same region extent when refreshed records have identica
 it('still fits changed data, changed canvas size and explicit region reselection', () => {
   const host = document.createElement('div');
   let width = 800;
-  vi.spyOn(host, 'getBoundingClientRect').mockImplementation(() => ({ width, height: 600 }) as DOMRect);
+  vi.spyOn(host, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, 0, width, 600));
   const coordinator = observeMapCanvas(host, { resize: vi.fn() });
   const initial = vi.fn(), changed = vi.fn(), repeated = vi.fn();
   coordinator.focus({ fit: () => {} }, 'CBD');

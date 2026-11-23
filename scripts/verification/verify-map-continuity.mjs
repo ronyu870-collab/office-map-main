@@ -1,3 +1,4 @@
+import { waitForVisibleProject } from './workspace-visible-map.mjs';
 import { clickWorkspaceAction } from './workspace-actions.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -185,11 +186,11 @@ try {
   await page.getByRole('button',{name:'项目列表',exact:true}).click(); await list.waitFor();
   await page.evaluate(()=>window.__workspaceMap.setCenter([116.2,40.1]));
   await list.getByRole('button',{name:/^CBD甲楼/}).click(); await detail.waitFor(); await page.waitForTimeout(280);
-  assert.deepEqual(await page.evaluate(()=>window.__workspaceMap.center),[116.46,39.91],'same project refocuses after a list and manual pan');
+  await waitForVisibleProject(page,[116.46,39.91]);
   // Repeated selection while the same detail remains open must also refocus.
   await page.evaluate(()=>window.__workspaceMap.setCenter([116.2,40.1]));
   await clickWorkspaceAction(page, '定位当前项目');
-  await page.waitForFunction(()=>JSON.stringify(window.__workspaceMap.center)===JSON.stringify([116.46,39.91]));
+  await waitForVisibleProject(page,[116.46,39.91]);
   await page.getByRole('button',{name:'项目列表',exact:true}).click(); await list.waitFor();
   // Rapid reversals must settle on the final project without queued camera callbacks.
   await list.getByRole('button',{name:/^CBD乙楼/}).click();

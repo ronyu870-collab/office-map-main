@@ -1,0 +1,63 @@
+{
+  "note": "Behavioral assertions only; timing and long-task fields were captured with other browser regressions running and are not used as performance evidence.",
+  "environment": "production React + real controller + isolated SDK/data transport",
+  "observations": [
+    {
+      "width": 1536,
+      "reduced": false,
+      "roundTrip": true,
+      "keyboardTaskChain": true,
+      "regionPreservedAfterChain": true,
+      "readingScroll": 0,
+      "sameProjectRefocus": true,
+      "refreshRetainsContent": true,
+      "dirtyCancel": true,
+      "resizeCalls": 0,
+      "dense600ReadyMs": 871,
+      "dense600FilterMs": 43,
+      "motion": {
+        "frameP95Ms": 16.80000000000109,
+        "longTasks": []
+      },
+      "errors": []
+    },
+    {
+      "width": 390,
+      "reduced": false,
+      "roundTrip": true,
+      "keyboardTaskChain": true,
+      "regionPreservedAfterChain": true,
+      "readingScroll": 416,
+      "sameProjectRefocus": true,
+      "refreshRetainsContent": true,
+      "dirtyCancel": true,
+      "resizeCalls": 0,
+      "dense600ReadyMs": 150,
+      "dense600FilterMs": 41,
+      "motion": {
+        "frameP95Ms": 16.80000000000109,
+        "longTasks": []
+      },
+      "errors": []
+    },
+    {
+      "width": 390,
+      "reduced": true,
+      "roundTrip": true,
+      "keyboardTaskChain": true,
+      "regionPreservedAfterChain": true,
+      "readingScroll": 416,
+      "sameProjectRefocus": true,
+      "refreshRetainsContent": true,
+      "dirtyCancel": true,
+      "resizeCalls": 0,
+      "dense600ReadyMs": 131,
+      "dense600FilterMs": 43,
+      "motion": {
+        "frameP95Ms": 16.80000000000109,
+        "longTasks": []
+      },
+      "errors": []
+    }
+  ]
+}
