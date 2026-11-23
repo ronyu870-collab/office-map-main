@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const runtime = vi.hoisted(() => ({ mounts: 0, cleanups: 0, role: 'viewer', edit: null as ((id: string, name: string) => void) | null, fail: null as ((message: string) => void) | null }));
 const controller = vi.hoisted(() => ({
   setWorkspaceDetailHandler: vi.fn(),
+  setBaseMapPointsVisible: vi.fn(),
   refreshBuildingData: vi.fn(), fetchMapData: vi.fn(), fetchFutureSupplies: vi.fn(), getDisplayOverridesCache: vi.fn(() => new Map()),
   clearCompetitorElements: vi.fn(), clearDistrictBoundaries: vi.fn(), clearSubwayElements: vi.fn(),
   clearFutureMarkers: vi.fn(), renderMarkers: vi.fn(), renderFutureMarkers: vi.fn(),
