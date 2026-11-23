@@ -13,6 +13,7 @@ import { verifyProjectTrendReading } from './workspace-project-trend.mjs';
 import { verifySubmarketReading } from './workspace-submarket-reading.mjs';
 import { verifyProfileDraftNavigation } from './workspace-profile-draft-navigation.mjs';
 import { verifyMetricsDraftNavigation } from './workspace-metrics-draft-navigation.mjs';
+import { verifyDragReading } from './workspace-drag-reading.mjs';
 import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
 import { verifyFutureConditions } from './workspace-future-filters.mjs';
 import { verifyWorkspaceFilters } from './workspace-filters.mjs';
@@ -686,6 +687,11 @@ try {
         const metricsDraftPage=await context.newPage();
         try { observations.push(await verifyMetricsDraftNavigation(metricsDraftPage,{width,base,userId:user.id,projectId:stock[0].id})); }
         finally { await metricsDraftPage.close(); }
+        if(width===1536){
+          const dragReadingPage=await context.newPage();
+          try { observations.push(await verifyDragReading(dragReadingPage,{base})); }
+          finally { await dragReadingPage.close(); }
+        }
         if(width===320){
           const shortPage=await context.newPage();
           try { await shortPage.setViewportSize({width:320,height:560});observations.push(await verifySubmarketReading(shortPage,{width,base,evidencePrefix:'map-submarket-short'})); }
