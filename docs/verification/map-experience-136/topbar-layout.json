@@ -1,0 +1,372 @@
+{
+  "environment": "Production builds; isolated business, identity and synthetic SDK",
+  "before": [
+    {
+      "width": 1536,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 1536,
+        "height": 58,
+        "top": 0,
+        "right": 1536,
+        "bottom": 58,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 0,
+        "y": 59,
+        "width": 1536,
+        "height": 53,
+        "top": 59,
+        "right": 1536,
+        "bottom": 112,
+        "left": 0
+      },
+      "map": {
+        "x": 0,
+        "y": 112,
+        "width": 1536,
+        "height": 888,
+        "top": 112,
+        "right": 1536,
+        "bottom": 1000,
+        "left": 0
+      }
+    },
+    {
+      "width": 390,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 155.5625,
+        "top": 0,
+        "right": 390,
+        "bottom": 155.5625,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 0,
+        "y": 156.5625,
+        "width": 390,
+        "height": 117,
+        "top": 156.5625,
+        "right": 390,
+        "bottom": 273.5625,
+        "left": 0
+      },
+      "map": {
+        "x": 0,
+        "y": 273.5625,
+        "width": 390,
+        "height": 570.4375,
+        "top": 273.5625,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      }
+    },
+    {
+      "width": 320,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 151.5625,
+        "top": 0,
+        "right": 320,
+        "bottom": 151.5625,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 0,
+        "y": 152.5625,
+        "width": 320,
+        "height": 115,
+        "top": 152.5625,
+        "right": 320,
+        "bottom": 267.5625,
+        "left": 0
+      },
+      "map": {
+        "x": 0,
+        "y": 267.5625,
+        "width": 320,
+        "height": 576.4375,
+        "top": 267.5625,
+        "right": 320,
+        "bottom": 844,
+        "left": 0
+      }
+    },
+    {
+      "width": 844,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 844,
+        "height": 48,
+        "top": 0,
+        "right": 844,
+        "bottom": 48,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 0,
+        "y": 49,
+        "width": 844,
+        "height": 55,
+        "top": 49,
+        "right": 844,
+        "bottom": 104,
+        "left": 0
+      },
+      "map": {
+        "x": 0,
+        "y": 104,
+        "width": 844,
+        "height": 286,
+        "top": 104,
+        "right": 844,
+        "bottom": 390,
+        "left": 0
+      }
+    }
+  ],
+  "after": [
+    {
+      "groups": [
+        {
+          "x": 460,
+          "y": 67,
+          "width": 292.578125,
+          "height": 38,
+          "top": 67,
+          "right": 752.578125,
+          "bottom": 105,
+          "left": 460
+        },
+        {
+          "x": 1384,
+          "y": 68,
+          "width": 140,
+          "height": 36,
+          "top": 68,
+          "right": 1524,
+          "bottom": 104,
+          "left": 1384
+        }
+      ],
+      "width": 1536,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 1536,
+        "height": 58,
+        "top": 0,
+        "right": 1536,
+        "bottom": 58,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 0,
+        "y": 59,
+        "width": 1536,
+        "height": 55,
+        "top": 59,
+        "right": 1536,
+        "bottom": 114,
+        "left": 0
+      },
+      "map": {
+        "x": 0,
+        "y": 114,
+        "width": 1536,
+        "height": 886,
+        "top": 114,
+        "right": 1536,
+        "bottom": 1000,
+        "left": 0
+      }
+    },
+    {
+      "groups": [
+        {
+          "x": 12,
+          "y": 185,
+          "width": 223.578125,
+          "height": 46,
+          "top": 185,
+          "right": 235.578125,
+          "bottom": 231,
+          "left": 12
+        },
+        {
+          "x": 246,
+          "y": 186,
+          "width": 132,
+          "height": 44,
+          "top": 186,
+          "right": 378,
+          "bottom": 230,
+          "left": 246
+        }
+      ],
+      "width": 390,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 122,
+        "top": 0,
+        "right": 390,
+        "bottom": 122,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 0,
+        "y": 123,
+        "width": 390,
+        "height": 117,
+        "top": 123,
+        "right": 390,
+        "bottom": 240,
+        "left": 0
+      },
+      "map": {
+        "x": 0,
+        "y": 240,
+        "width": 390,
+        "height": 604,
+        "top": 240,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      }
+    },
+    {
+      "groups": [
+        {
+          "x": 12,
+          "y": 181,
+          "width": 138,
+          "height": 46,
+          "top": 181,
+          "right": 150,
+          "bottom": 227,
+          "left": 12
+        },
+        {
+          "x": 176,
+          "y": 182,
+          "width": 132,
+          "height": 44,
+          "top": 182,
+          "right": 308,
+          "bottom": 226,
+          "left": 176
+        }
+      ],
+      "width": 320,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 118,
+        "top": 0,
+        "right": 320,
+        "bottom": 118,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 0,
+        "y": 119,
+        "width": 320,
+        "height": 117,
+        "top": 119,
+        "right": 320,
+        "bottom": 236,
+        "left": 0
+      },
+      "map": {
+        "x": 0,
+        "y": 236,
+        "width": 320,
+        "height": 608,
+        "top": 236,
+        "right": 320,
+        "bottom": 844,
+        "left": 0
+      }
+    },
+    {
+      "groups": [
+        {
+          "x": 468.421875,
+          "y": 53,
+          "width": 223.578125,
+          "height": 46,
+          "top": 53,
+          "right": 692,
+          "bottom": 99,
+          "left": 468.421875
+        },
+        {
+          "x": 700,
+          "y": 54,
+          "width": 132,
+          "height": 44,
+          "top": 54,
+          "right": 832,
+          "bottom": 98,
+          "left": 700
+        }
+      ],
+      "width": 844,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 844,
+        "height": 48,
+        "top": 0,
+        "right": 844,
+        "bottom": 48,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 0,
+        "y": 49,
+        "width": 844,
+        "height": 55,
+        "top": 49,
+        "right": 844,
+        "bottom": 104,
+        "left": 0
+      },
+      "map": {
+        "x": 0,
+        "y": 104,
+        "width": 844,
+        "height": 286,
+        "top": 104,
+        "right": 844,
+        "bottom": 390,
+        "left": 0
+      }
+    }
+  ],
+  "checks": {
+    "finalFourViewports": "pass",
+    "modeAndLegendSeparatedFromActions": true,
+    "phoneAndLandscapeModeHitTargetsAtLeast44": true,
+    "desktopHoverSettledColorAndTabFocus": true,
+    "fontSizes": "14px body / 16px title and mobile inputs"
+  },
+  "mapHeightGainPixels": {
+    "1536": -2,
+    "390": 33.56,
+    "320": 31.56,
+    "844": 0
+  }
+}

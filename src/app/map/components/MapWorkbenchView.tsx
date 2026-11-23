@@ -149,11 +149,13 @@ const MODE_OPTIONS: Array<{ mode: RenderMode; label: string }> = [
 
 function IconButton({
   label,
+  text,
   active = false,
   onClick,
   children,
 }: {
   label: string;
+  text?: string;
   active?: boolean;
   onClick: () => void;
   children: React.ReactNode;
@@ -165,13 +167,14 @@ function IconButton({
       aria-pressed={active}
       onClick={onClick}
       title={label}
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] border text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
+      className={`flex h-9 ${text ? 'w-auto gap-1.5 px-2' : 'w-9'} shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] border text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
         active
           ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand)] text-white'
           : 'border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] text-[var(--cd-color-text-secondary)] hover:border-[var(--cd-color-border-strong)] hover:text-[var(--cd-color-brand)]'
       }`}
     >
       {children}
+      {text ? <span aria-hidden="true">{text}</span> : null}
     </button>
   );
 }
@@ -784,7 +787,7 @@ export function MapWorkbenchView({
             <MapLegend mode={renderMode} compareGroups={compareGroups} active={!isFullListVisible} futureVisible={filterState?.showFutureSupply ?? true} />
           </div>
           <div className="map-toolbar-actions">
-            <IconButton label="未来供应" active={isSupplyOpen} onClick={toggleSupplyPanel}>
+            <IconButton label="未来供应" text="供应" active={isSupplyOpen} onClick={toggleSupplyPanel}>
               <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
             </IconButton>
             <button
@@ -795,7 +798,7 @@ export function MapWorkbenchView({
               aria-label="项目列表" title="查看项目列表"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
-              <span className="sr-only">项目列表</span>
+              <span aria-hidden="true">列表</span>
             </button>
           </div>
             {showFilterSummary ? (

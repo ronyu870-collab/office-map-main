@@ -57,5 +57,6 @@ export async function verifySupplyMarkers(page, { width, openRegion, supplies, e
   assert.equal(await legend.evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);
   await page.screenshot({path:`/tmp/${evidencePrefix}-legend-${width}.png`});
   await page.keyboard.press('Escape');
+  await legend.waitFor({state:'detached'});
   return {name:'distinct supply identity in all four modes',results,legendMatches:true};
 }

@@ -53,5 +53,13 @@
     "Production authorization and AI payload implementation unchanged",
     "Local Docker daemon unavailable; new real Auth CI still required",
     "Camera application build and actual-browser/real-SDK evidence are retained from camera-extent batch; these later changes affect tests only"
-  ]
+  ],
+  "resolution": {
+    "head": "0cfe15f9ca028588b2e7507fdaa4b1526d9af7db",
+    "run": 45240811931,
+    "necessaryChecks": "all pass",
+    "main": "fbb22249f3e504af2e640e73da2df7b464c42a5b",
+    "mergedAt": "2026-11-23T19:04:08Z",
+    "mergedTreeEqualsTestedHead": true
+  }
 }
