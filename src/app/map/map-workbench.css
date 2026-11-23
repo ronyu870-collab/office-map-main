@@ -346,7 +346,8 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .workspace-building dt, .workspace-period { color: #596779; overflow-wrap: anywhere; }
 .workspace-building dd { margin: 4px 0 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .workspace-period { margin: 8px 0 0; }
-.workspace-building-tabs { display: flex; gap: 8px; border-bottom: 1px solid #d9e0e8; margin-top: 12px; }
+.workspace-project-trend-host:not([hidden]) { display: flow-root; }
+.workspace-building-tabs { position: sticky; top: 0; z-index: 2; background: #f8fafc; display: flex; gap: 8px; border-bottom: 1px solid #d9e0e8; margin-top: 12px; }
 .workspace-building-tabs button { min-height: 36px; padding: 4px 8px; }
 .workspace-building-tabs [aria-selected="true"] { color: #003e7e; border-bottom: 2px solid #003e7e; }
 .workspace-building-facts { margin: 0; }

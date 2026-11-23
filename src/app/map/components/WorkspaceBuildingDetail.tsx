@@ -14,8 +14,10 @@ import { useMapReadingScroll } from '../workspace/continuity';
 import type { WorkspaceBuildingDetail as Detail } from '../workspace/buildingDetail';
 import { auditBuildingReading } from '@/src/utils/buildingReadingAudit';
 
+import type { TrendChartReading, TrendChartReadingOptions } from '@/src/services/map/trendChartReading';
+
 type Action = 'locate' | 'nearby' | 'contact' | 'trend' | 'edit';
-export type BuildingReadingState = { tab: string; scrollTop: number; scrolls?: Record<string, number>; trendOpen?: boolean; photo?: { open: boolean; index: number } };
+export type BuildingReadingState = { tab: string; scrollTop: number; scrolls?: Record<string, number>; trendOpen?: boolean; trend?: TrendChartReading; trendHeight?: number; photo?: { open: boolean; index: number } };
 function Photos({ detail, reading, onChange }: { detail: Detail; reading?: BuildingReadingState['photo']; onChange: (photo: NonNullable<BuildingReadingState['photo']>) => void }) {
   const root = React.useRef<HTMLDivElement>(null);
   const id = detail.building._dataType === 'future' ? detail.building.building_id : detail.building.id;
@@ -38,7 +40,7 @@ const number = (value: unknown, suffix = '') => {
   return numeric === null ? '—' : numeric.toLocaleString('zh-CN', { maximumFractionDigits: 1 }) + suffix;
 };
 export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTrend, readingState, onReadingChange, stackingBack, outsideResults = false }: {
-  detail: Detail; onClose: () => void; onAction: (action: Action) => void; onDisposeTrend: () => void;
+  detail: Detail; onClose: () => void; onAction: (action: Action, trendReading?: TrendChartReadingOptions) => void; onDisposeTrend: () => void;
   readingState?: BuildingReadingState; onReadingChange?: (state: BuildingReadingState) => void;
   stackingBack?: string; outsideResults?: boolean;
 }) {
@@ -54,21 +56,27 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
   const report = (patch: Partial<BuildingReadingState>) => { state.current = { ...state.current, ...patch }; onReadingChange?.(state.current); };
   const [initialScroll] = React.useState(validInitialTab ? readingState?.scrollTop ?? 0 : 0);
   const resetScroll = useMapReadingScroll(scroll, `detail:${detail.building._dataType}:${detail.building.id}`, true, initialScroll);
+  const tabPosition = React.useRef(initialScroll);
+  React.useLayoutEffect(() => { resetScroll(tabPosition.current); }, [tab, resetScroll]);
+  const trendHost = React.useRef<HTMLDivElement>(null);
   const panel = React.useRef<HTMLDivElement>(null);
   React.useLayoutEffect(() => { const animation = animateWorkspace(panel.current, [{ opacity: .7 }, { opacity: 1 }], 120); return () => animation?.cancel(); }, [tab, building.id]);
   const setTab = (next: string) => {
     if (next === tab) return;
     const scrolls = { ...state.current.scrolls, [tab]: scroll.current?.scrollTop ?? 0 };
     const position = scrolls[next] ?? 0;
-    updateTab(next); resetScroll(position); report({ tab: next, scrollTop: position, scrolls });
+    tabPosition.current = position;
+    const trendHeight = tab === 'market' && trendHost.current ? trendHost.current.getBoundingClientRect().height : state.current.trendHeight;
+    updateTab(next); report({ tab: next, scrollTop: position, scrolls, ...(trendHeight ? { trendHeight } : {}) });
     auditBuildingReading('VIEW_BUILDING_SECTION', building, { section: next }, isDemo);
   };
   const [savedTrendOpen] = React.useState(readingState?.trendOpen ?? false);
   const [trendOpen, setTrendOpen] = React.useState(savedTrendOpen);
+  const [trendPending, setTrendPending] = React.useState(savedTrendOpen);
   const trendRestored = React.useRef(false);
   React.useEffect(() => {
     if (!savedTrendOpen || trendRestored.current || tab !== 'market') return;
-    trendRestored.current = true; onAction('trend');
+    trendRestored.current = true; onAction('trend', { value: state.current.trend, onChange: trend => report({ trend, trendHeight: trendHost.current?.getBoundingClientRect().height || state.current.trendHeight }), onReady: () => setTrendPending(false) });
   }, [tab, savedTrendOpen, onAction]);
   React.useEffect(() => () => onDisposeTrend(), [onDisposeTrend]);
   const materialId = future ? building.building_id : building.id;
@@ -123,7 +131,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
           {!future ? <div className="workspace-business-actions">
             {action('周边项目对比', 'nearby-compare', 'nearby', !hasBuildingLocation(building))}
             {action('楼宇对比', 'building-compare')}
-            <button type="button" className="workspace-business-action" aria-expanded={trendOpen} aria-controls="info-chart-panel" onClick={() => { onAction('trend'); setTrendOpen(current => !current); report({ trendOpen: !trendOpen }); }}>季度趋势</button>
+            <button type="button" className="workspace-business-action" aria-expanded={trendOpen} aria-controls="info-chart-panel" onClick={() => { onAction('trend', { value: state.current.trend, onChange: trend => report({ trend, trendHeight: trendHost.current?.getBoundingClientRect().height || state.current.trendHeight }), onReady: () => setTrendPending(false) }); setTrendOpen(current => !current); report({ trendOpen: !trendOpen }); }}>季度趋势</button>
             <button type="button" data-map-action="building-ai" className="workspace-business-action" hidden>AI 分析</button>
           </div> : null}
           {canEdit && !future ? <div className="workspace-maintenance-actions workspace-business-actions">{action('编辑指标', 'edit-metrics', 'edit')}</div> : null}
@@ -144,7 +152,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
         </div> : null}
       </div>
       <div data-map-proposal-slot hidden />
-      {!future ? <div hidden={tab !== 'market'}><section id="info-chart-panel" aria-label="项目历史趋势" style={{ display: 'none' }}>
+      {!future ? <div ref={trendHost} className="workspace-project-trend-host" hidden={tab !== 'market'} aria-busy={trendPending || undefined} style={{ minHeight: trendPending ? state.current.trendHeight : undefined }}><section id="info-chart-panel" aria-label="项目历史趋势" style={{ display: 'none' }}>
         <div className="workspace-chart-heading"><h3>租金与空置率趋势</h3>{workspace ? <button type="button" className="workspace-business-action" onClick={() => workspace.setMode('full')}>展开图表</button> : null}</div>
         <p className="workspace-note">最新季度与此前五年年末；缺失数据不补零。</p>
         <div className="workspace-trend-switch" role="group" aria-label="趋势指标"><button type="button" id="chart-btn-rent" aria-pressed="true" data-chart="rent">净有效租金</button><button type="button" id="chart-btn-vac" aria-pressed="false" data-chart="vac">空置率</button></div>

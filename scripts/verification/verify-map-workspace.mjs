@@ -1,3 +1,4 @@
+import { verifyProjectTrendReturn } from './workspace-project-trend-return.mjs';
 import { verifyBubbleScope } from './workspace-bubble-scope.mjs';
 import { verifyLeedFilters } from './workspace-leed-filters.mjs';
 import { verifyListReading } from './workspace-list-reading.mjs';
@@ -622,6 +623,9 @@ try {
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
       if ([1536,390,320,844].includes(width)) {
+        const trendReturnPage=await context.newPage();
+        try { observations.push(await verifyProjectTrendReturn(trendReturnPage,{width,base})); }
+        finally { await trendReturnPage.close(); }
         const bubbleScopePage=await context.newPage();
         try { observations.push(await verifyBubbleScope(bubbleScopePage,{width,base})); }
         finally { await bubbleScopePage.close(); }

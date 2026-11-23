@@ -3,6 +3,7 @@
  */
 
 "use client";
+import type { TrendChartReadingOptions } from "./map/trendChartReading";
 import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { coordinateIssue, fitMapExtent } from '@/src/app/map/runtime/mapExtent';
@@ -401,13 +402,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       overrides: Object.fromEntries(this._displayOverridesCache.get(building.id) ?? []) };
   }
 
-  runWorkspaceBuildingAction(action: 'nearby' | 'contact' | 'trend' | 'edit', building: WorkspaceBuilding): void {
+  runWorkspaceBuildingAction(action: 'nearby' | 'contact' | 'trend' | 'edit', building: WorkspaceBuilding, trendReading?: TrendChartReadingOptions): void {
     if (action === 'edit') { if (this._isAdmin && !this._isDemo && building._dataType !== 'future') this._onEditBuildingMetrics?.(building.id, building.name ?? ''); }
     if (action === 'nearby' && hasMapCoordinates(building)) {
       (window as any).__colliers_analyzeCompetitors?.(building.id, building.location_lng, building.location_lat, Number(pickLatestMetric(building.metrics ?? [])?.net_effective_rent ?? 0));
     }
     if (action === 'contact') (window as any).__colliers_showContactModal?.(this._isDemo ? '***' : building.name, this._isDemo ? '***' : building.contact_phone || '', building.id);
-    if (action === 'trend') (window as any).__colliers_toggleTrend?.(building.id);
+    if (action === 'trend') (window as any).__colliers_toggleTrend?.(building.id, trendReading);
   }
 
   disposeWorkspaceTrend(): void { this.clearBuildingPopupTrend(); }
@@ -706,7 +707,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         }
       };
 
-      (window as any).__colliers_toggleTrend = (buildingId: string) => {
+      (window as any).__colliers_toggleTrend = (buildingId: string, reading?: TrendChartReadingOptions) => {
         const panel = document.getElementById("info-chart-panel");
         if (!panel) return;
         const trend = (window as any).__colliers_trend;
@@ -754,6 +755,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             if (!data?.length) {
               chartDom.innerHTML =
                 '<div role="status" class="workspace-trend-status">暂无历史数据</div>';
+              reading?.onReady?.();
               return;
             }
 
@@ -807,8 +809,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                   const building = this.workspaceBuilding?.id === buildingId ? this.workspaceBuilding : this._allBuildingsCache.find(item => item.id === buildingId);
                   const chart = initTrendChart(chartDom, chartData, metric => {
                     auditBuildingReading('VIEW_BUILDING_TREND', { id: buildingId, name: building?.name }, { metric }, this._isDemo);
-                  });
+                  }, reading);
                   if (chart) trend.chart = chart;
+                  reading?.onReady?.();
                 });
               })
               .catch((error) => {
@@ -821,6 +824,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                 console.error("[MapController] 趋势图运行时加载失败:", error);
                 chartDom.innerHTML =
                   '<div role="status" class="workspace-trend-status">趋势图加载失败，请稍后重试</div>';
+                reading?.onReady?.();
               });
           })
           .catch((error) => {
@@ -828,6 +832,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             console.error("[MapController] 历史趋势读取失败:", error);
             chartDom.innerHTML =
               '<div role="status" class="workspace-trend-status">历史数据读取失败，请稍后重试</div>';
+            reading?.onReady?.();
           });
       };
     }
