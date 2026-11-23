@@ -68,7 +68,7 @@ describe('real MapController workspace adapter', () => {
     controller.setWorkspaceSelectionRenderer(building => futureSupplyImage(building, mode));
     mode = 'leed';
     controller.refreshWorkspaceSelection();
-    expect(decodeURIComponent(image.src)).toContain('>N</text>');
+    expect(decodeURIComponent(image.src)).toContain('>–</text>');
     expect(markers).toHaveLength(1); // A mode update must not replace the marker/camera.
     controller.closeWorkspaceBuilding();
     expect((controller as any).map.remove).toHaveBeenCalledTimes(1);

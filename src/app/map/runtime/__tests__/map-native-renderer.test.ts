@@ -151,6 +151,25 @@ it.each(['v3', 'v2', 'native'] as const)('%s excludes invalid coordinates from p
   } finally { cleanup?.(); }
 });
 
+it.each(['v3', 'v2', 'native'] as const)('%s does not label a missing LEED observation as explicitly uncertified', async version => {
+  const harness = createNativeHarness(); harness.setZoom(14.4);
+  const controller: any = { AMap: harness.AMap, map: harness.map, markers: [], dotMarkers: [], submarketMarkers: [],
+    renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(),
+    renderFutureMarkers: vi.fn(), clearFutureMarkers: vi.fn(), setWorkspaceSelectionRenderer: vi.fn(), refreshWorkspaceSelection: vi.fn() };
+  const cleanup = version === 'v3' ? installMapInteractionHardening(controller, 'map-container')
+    : version === 'v2' ? installMapVisualContinuityV2(controller, document.getElementById('map-container')!)
+    : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
+  try {
+    controller.renderMarkers([
+      { ...building('missing','CBD',116.4,39.9,146,.15), leed_certification: '' },
+      { ...building('negative','CBD',116.41,39.9,146,.15), leed_certification: '未认证' },
+    ], 'leed'); await flushFrames();
+    const icons = harness.labelMarkerInstances.filter(marker => marker.options.icon);
+    const text = (id: string) => new DOMParser().parseFromString(decodeURIComponent(icons.find(marker => marker.options.name === id).options.icon.image.split(',')[1]),'image/svg+xml').querySelector('text')?.textContent;
+    expect(text('missing')).toBe('–'); expect(text('negative')).toBe('N');
+  } finally { cleanup?.(); }
+});
+
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 1) as unknown as number);
   vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id));
@@ -467,7 +486,7 @@ describe('native map visual hierarchy', () => {
           const selectionImage = controller.setWorkspaceSelectionRenderer.mock.lastCall[0];
           const pinnedFuture = selectionImage({ _dataType: 'future' });
           checkBadge(pinnedFuture);
-          expect(decodeURIComponent(pinnedFuture)).toContain(mode === 'default' ? '>F</text>' : mode === 'leed' ? '>N</text>' : '>–</text>');
+          expect(decodeURIComponent(pinnedFuture)).toContain(mode === 'default' ? '>F</text>' : '>–</text>');
           expect(controller.refreshWorkspaceSelection).toHaveBeenCalled();
           for (const { options } of harness.markerInstances) {
             const element = options.content as HTMLElement;

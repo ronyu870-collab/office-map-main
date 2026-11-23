@@ -3,6 +3,7 @@
  */
 
 "use client";
+import { leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { coordinateIssue, fitMapExtent } from '@/src/app/map/runtime/mapExtent';
 
@@ -131,12 +132,12 @@ function transformBuildingRow(r: Record<string, unknown>): BuildingWithMetrics {
     .map((rm: Record<string, unknown>) => ({
       id: String(rm.id ?? ""),
       building_id: String(rm.building_id ?? ""),
-      total_area: toFiniteNumber(rm.total_area),
-      asking_rent: toFiniteNumber(rm.asking_rent),
-      management_fee: toFiniteNumber(rm.management_fee),
-      face_rent: toFiniteNumber(rm.face_rent),
-      rent_free_period: toFiniteNumber(rm.rent_free_period),
-      net_effective_rent: toFiniteNumber(rm.net_effective_rent),
+      total_area: mapOptionalNumber(rm.total_area),
+      asking_rent: mapOptionalNumber(rm.asking_rent),
+      management_fee: mapOptionalNumber(rm.management_fee),
+      face_rent: mapOptionalNumber(rm.face_rent),
+      rent_free_period: mapOptionalNumber(rm.rent_free_period),
+      net_effective_rent: mapOptionalNumber(rm.net_effective_rent),
       vacancy_rate: mapOptionalNumber(rm.vacancy_rate),
       vacant_area: mapOptionalNumber(rm.vacant_area),
       record_year: toFiniteNumber(rm.record_year),
@@ -285,7 +286,7 @@ function getMarkerStyle(
       bgColor = "#eef1f4";
       borderColor = "#bdc6ce";
       textColor = "#6f7c89";
-      text = "N"; // 无认证
+      text = leedFallbackBadge(leed); // 缺失与明确未认证分开
     }
   }
 

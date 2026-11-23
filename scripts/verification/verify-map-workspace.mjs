@@ -21,6 +21,9 @@ const stock = [
   { id: 'missing', name: '未定位楼', submarket: 'CBD', location_lng: null, location_lat: null },
   { id: 'invalid', name: '坐标越界楼', submarket: 'CBD', location_lng: 40, location_lat: 116 },
 ].map(building => ({ ...building, grade: 'A', district: '朝阳区', building_metrics: [{ id: `m-${building.id}`, building_id: building.id, record_year: 2026, record_quarter: 3, total_area: 9019486, net_effective_rent: 146.1, vacancy_rate: .211 }] }));
+// Unknown financial fields and an older period exercise reading/export semantics.
+Object.assign(stock[1].building_metrics[0], { total_area: null, net_effective_rent: null, face_rent: null,
+  management_fee: null, record_year: 2025, record_quarter: 4 });
 stock[0].photos = [
   {id:'20000000-1111-4111-8111-111111111111',caption:'横向外观'},
   {id:'20000000-2222-4222-8222-222222222222',caption:'竖向大堂'},
@@ -190,6 +193,10 @@ try {
       if (width === 1536 || width === 390) {
         await list.getByRole('button', { name: '选择项目', exact: true }).click();
         await list.getByRole('checkbox', { name: '选择CBD甲楼', exact: true }).check();
+        if (width === 1536) {
+          await list.getByRole('checkbox', { name: '选择CBD乙楼', exact: true }).check();
+          await list.getByRole('checkbox', { name: '选择' + stock[2].name, exact: true }).check();
+        }
         const exportTrigger = list.getByRole('button', { name: '导出对比图 PNG', exact: true });
         await exportTrigger.click();
         const dialog = page.getByRole('dialog', { name: '导出楼宇参数对比', exact: true });
@@ -242,6 +249,16 @@ try {
       if (width === 1536) assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 376, 'building has a distinct default width');
       assert.match(await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).locator('.workspace-rent-metric dd').innerText(), /146\.1\s*元\/㎡\/月/);
       await page.screenshot({ path: `/tmp/map-layout-building-${width}.png` });
+      if (width === 1536) {
+        await page.getByRole('button', { name: 'LEED', exact: true }).click();
+        await page.waitForFunction(() => decodeURIComponent(document.querySelector('.map-selected-marker__badge')?.getAttribute('src') ?? '').includes('>–</text>'));
+        await page.locator('.map-workspace-legend > summary').click();
+        await page.getByText('未提供（–）', { exact: true }).waitFor();
+        await page.getByText('未认证（N）', { exact: true }).waitFor();
+        await page.screenshot({ path: '/tmp/map-leed-missing-1536.png' });
+        await page.locator('.map-workspace-legend > summary').click();
+        await page.getByRole('button', { name: '项目', exact: true }).click();
+      }
       if(width===1024) {
         const detail=page.getByRole('region',{name:'CBD甲楼楼宇详情'});
         const photo=detail.getByRole('button',{name:/看图 · 2张/});
@@ -367,6 +384,12 @@ try {
       assert.equal(await list.getByRole('button', { name: /^中关村楼/ }).count(), 0);
       await list.getByRole('button', { name: /^CBD乙楼/ }).click();
       await page.getByRole('region', { name: 'CBD乙楼楼宇详情' }).waitFor();
+      if (width === 1536) {
+        const unknown = page.getByRole('region', { name: 'CBD乙楼楼宇详情' });
+        assert.match(await unknown.locator('.workspace-rent-metric dd').innerText(), /^—/);
+        await unknown.getByRole('tab', { name: '行情', exact: true }).click();
+        assert.ok((await unknown.locator('.workspace-market-facts dd').allInnerTexts()).every(value => value.trim().startsWith('—')), 'missing fees cannot read as a real zero');
+      }
       await page.getByRole('button', { name: '返回项目列表', exact: true }).click();
       await page.getByRole('button', { name: '返回子市场研究', exact: true }).click();
       if (width === 1536) {

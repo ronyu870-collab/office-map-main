@@ -8,8 +8,10 @@ vi.mock('@/src/services/mapDataClient', () => ({
   fetchMapBuildingPayload: mocks.fetchMapBuildingPayload,
 }));
 
-import type { MapController } from '@/src/services/MapController';
+import { MapController } from '@/src/services/MapController';
 import { installMapStartupOptimization } from '@/src/app/map/runtime/mapStartupOptimization';
+import { computeStatsFromBuildings } from '../model/mapDomain';
+import { listBuildingValues } from '../model/fullBuildingList';
 
 const BUILDING_ROW = {
   id: 'building-1',
@@ -41,6 +43,29 @@ const BUILDING_ROW = {
     record_quarter: 2,
   }],
 };
+
+it.each(['optimized', 'full'] as const)('%s map reads preserve missing financial values and real zero without changing aggregate calculations', async path => {
+  const keys = ['total_area','asking_rent','management_fee','face_rent','rent_free_period','net_effective_rent'] as const;
+  const missing = { ...BUILDING_ROW, id: 'missing-financial', building_metrics: [{ ...BUILDING_ROW.building_metrics[0],
+    ...Object.fromEntries(keys.map(key => [key, null])) }] };
+  const zero = { ...BUILDING_ROW, id: 'zero-financial', building_metrics: [{ ...BUILDING_ROW.building_metrics[0],
+    ...Object.fromEntries(keys.map(key => [key, 0])) }] };
+  mocks.fetchMapBuildingPayload.mockResolvedValueOnce({ buildings: [missing, zero, BUILDING_ROW], displayOverrides: [] });
+  const controller = new MapController();
+  const cleanup = path === 'optimized' ? installMapStartupOptimization(controller) : undefined;
+  try {
+    const rows = await controller.fetchMapData();
+    for (const key of keys) {
+      expect(Number.isNaN(rows[0].metrics[0][key]), `${key} must remain unknown`).toBe(true);
+      expect(rows[1].metrics[0][key]).toBe(0);
+    }
+    expect(listBuildingValues(rows[0])).toMatchObject({ area: null, rent: null });
+    expect(listBuildingValues(rows[1])).toMatchObject({ area: 0, rent: 0 });
+    const zeroFilled = rows.map(row => ({ ...row, metrics: row.metrics.map(metric => ({ ...metric,
+      ...Object.fromEntries(keys.map(key => [key, Number.isFinite(metric[key]) ? metric[key] : 0])) })) }));
+    expect(computeStatsFromBuildings(rows)).toEqual(computeStatsFromBuildings(zeroFilled));
+  } finally { cleanup?.(); }
+});
 
 function createController() {
   const legacyFetch = vi.fn().mockResolvedValue([]);

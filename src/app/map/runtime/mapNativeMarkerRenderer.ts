@@ -1,4 +1,5 @@
 'use client';
+import { leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { futureSupplyImage } from './mapSelectionMarker';
@@ -293,7 +294,7 @@ function buildingVisual(
       background = '#eef1f4';
       border = '#bdc6ce';
       textColor = '#6f7c89';
-      text = 'N';
+      text = leedFallbackBadge(leed);
     }
   }
 

@@ -1,6 +1,6 @@
 /**
- * building_metrics stores vacancy_rate as a fraction (0..1). In map memory,
- * NaN represents missing observations while zero remains a real zero.
+ * Optional building_metrics values use NaN for missing observations in map
+ * memory, while zero remains a real zero. vacancy_rate is a fraction (0..1).
  * quarterly_submissions uses percent units and is deliberately not handled here.
  */
 export function mapOptionalNumber(input: unknown): number {

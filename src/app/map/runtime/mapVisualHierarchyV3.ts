@@ -1,4 +1,5 @@
 'use client';
+import { leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
@@ -157,7 +158,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     } else if (leed.includes('SILVER')) {
       background = '#e7ebef'; border = '#9ca8b3'; textColor = '#52606d'; text = 'S';
     } else {
-      background = '#eef1f4'; border = '#bdc6ce'; textColor = '#6f7c89'; text = 'N';
+      background = '#eef1f4'; border = '#bdc6ce'; textColor = '#6f7c89'; text = leedFallbackBadge(leed);
     }
   }
 

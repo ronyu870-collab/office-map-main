@@ -1,4 +1,5 @@
 'use client';
+import { leedDisplayValue } from '@/src/lib/leed-display';
 import { coordinateNotice } from '@/src/lib/map-coordinates';
 import * as React from 'react';
 import Link from 'next/link';
@@ -89,7 +90,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
         <dl className="workspace-building-metrics">
           <div className="workspace-rent-metric"><dt>净有效租金</dt><dd>{number(metric?.net_effective_rent)}<span>元/㎡/月</span></dd></div>
           <div><dt>空置率</dt><dd>{number(listVacancyPercent(finiteMetric(metric?.vacancy_rate)), '%')}</dd></div>
-          <div><dt>{future ? '预计总体量' : '建筑面积'}</dt><dd>{number(future ? building.total_area : metric?.total_area)}<span>㎡</span></dd></div>
+          <div><dt>{future ? '预计总体量' : '统计面积'}</dt><dd>{number(future ? building.total_area : metric?.total_area)}<span>㎡</span></dd></div>
         </dl>
       </section>
       <nav role="tablist" aria-label="楼宇详情分区" className="workspace-building-tabs" onKeyDown={event => {
@@ -107,7 +108,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
         {tab === 'overview' ? <>
           <section className="workspace-detail-group" aria-label="项目属性"><dl className="workspace-building-facts">
             <div><dt>{future ? '预计入市' : '入市时间'}</dt><dd>{future ? futureSupplyDate(building) : String(building.completion_year ?? '').trim() || '未提供'}</dd></div>
-            {!future ? <div><dt>LEED</dt><dd>{String(building.leed_certification ?? '').trim() || '未提供'}</dd></div> : null}
+            {!future ? <div><dt>LEED</dt><dd>{leedDisplayValue(building.leed_certification)}</dd></div> : null}
           </dl></section>
           <section className="workspace-detail-group" aria-label="业主与物业"><dl className="workspace-building-facts">{ownership.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{typeof value === 'string' && !value.trim() ? '未提供' : value}</dd></div>)}</dl></section>
           <Photos detail={detail} reading={state.current.photo} onChange={photo => report({ photo })} />
