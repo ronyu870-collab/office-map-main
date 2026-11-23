@@ -26,6 +26,7 @@ export function filterBuildings(
   filterState: SidebarFilterState,
   options?: FilterOptions,
 ): BuildingWithMetrics[] {
+  if ([filterState.districts, filterState.submarkets, filterState.leeds].some(values => values?.length === 0)) return [];
   return buildings.filter(b => {
     if (filterState.districts?.length > 0 && !filterState.districts.includes(b.district)) return false;
     if (filterState.submarkets?.length > 0 && b.submarket && !filterState.submarkets.includes(b.submarket)) return false;

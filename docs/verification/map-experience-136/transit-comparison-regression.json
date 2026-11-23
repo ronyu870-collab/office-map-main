@@ -1,0 +1,86 @@
+{
+  "baseHead": "dd8cf0faf7e7f867e8f54d24bd0da57641b442fc",
+  "productFilesSha256": {
+    "src/components/SidebarFilter.tsx": "62274cf44baef4f91a3ef35797200a6fb0cca8ea04bb8d5257e989fdcac45fb8",
+    "src/app/map/components/MapWorkbenchView.tsx": "05057a00b44cdf4e1a30c5cb393174c3083aa301edb2f9e5c596b3eaeb612400",
+    "src/app/map/MapClient.tsx": "382e309f39e506c4587c8a9f4dd6875e2c3d9733446b7619672870b1c93a50f0",
+    "src/app/map/model/MapDataStore.ts": "6afc8213da067c019c3dbd9f1761f67217950336ae0afc3e89933e05ed0eb771",
+    "src/utils/filterBuildings.ts": "d2214bc519f8e5c0405bdc0efd43ec1715240c9d7f594cf70bce3e944559e0a5"
+  },
+  "implementation": [
+    "SidebarFilter initializes from saved raw comparison groups, including unfinished groups; active groups retain existing matching semantics.",
+    "An explicitly empty global district, submarket or LEED selection returns no stock results in both executed filter paths; default selections, permissions and quarterly metric formulas remain unchanged."
+  ],
+  "before": {
+    "comparison": {
+      "unit": "1 failed, 2 passed; received empty groups instead of restored group",
+      "browser": "1536 production build: Stacking return lost 项目对比组 1 (0 != 1)",
+      "base": "dd8cf0faf7e7f867e8f54d24bd0da57641b442fc"
+    },
+    "emptyGlobalCategories": {
+      "unit": "3 cases failed, 6 assertions across MapDataStore and filterBuildings; 11 existing cases passed",
+      "browser": "comparison-fixed candidate 3265: uncheck all districts, expected 0; actual 2 located projects and 27,058,458 sqm; stock marker IDs retained",
+      "note": "No production data changed."
+    }
+  },
+  "after": {
+    "unit": {
+      "files": 5,
+      "tests": 41,
+      "exitCode": 0
+    },
+    "typecheck": {
+      "exitCode": 0
+    },
+    "lint": {
+      "errors": 0,
+      "warnings": 50,
+      "exitCode": 0
+    },
+    "productionBuild": {
+      "exitCode": 0
+    },
+    "firstComparisonCandidate": "transit-comparison-first-browser.json; 77 records, four widths; before empty-category fix",
+    "workspace": {
+      "evidence": "transit-comparison-browser.json",
+      "records": 77,
+      "widths": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "exitCode": 0
+    },
+    "continuity": {
+      "evidence": "transit-comparison-continuity.json",
+      "conditions": [
+        "1536 normal",
+        "390 normal",
+        "390 reduced motion"
+      ],
+      "comparisonGroupStackingAndHistoryPreserved": true,
+      "exitCode": 0
+    },
+    "finalNarrowCapture": {
+      "evidence": "transit-comparison-final-capture.json",
+      "records": 42,
+      "widths": [
+        320,
+        390
+      ]
+    }
+  },
+  "observationCorrections": [
+    "First radius expectation omitted the pending supply about 700m from the synthetic station. Corrected 1km result to 2, 5km remains 4. No radius threshold or business logic was weakened.",
+    "Initial condition-removal observation ran before the external filter patch committed. Now waits for the station select to detach.",
+    "One diagnostic runner had an unbounded wait and was terminated after identifying its own PID. Its output is not a pass; the formal transit count wait now fails with actual values after 10s.",
+    "The initial narrow combination screenshot captured panel entry and exit transitions. The formal helper now waits for exit removal and actual Web Animations completion; final 320/390 captures were inspected and revalidated in 42 records."
+  ],
+  "limits": [
+    "Business/auth/SDK transport and long station are isolated fixtures; real production station, native select popup, phone keyboard and native gestures are not claimed.",
+    "Financial statistics continue to use filtered stock quarterly metrics. Future visibility and transit distance are checked separately; comparison grade groups are tested with future layer explicitly hidden.",
+    "Functional browser suites ran concurrently; their timing and long-task fields are not performance evidence.",
+    "Exact PR head necessary CI and main merge remain pending; local product and functional checks passed."
+  ]
+}

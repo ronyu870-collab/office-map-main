@@ -81,6 +81,15 @@ try {
   const detail=page.getByRole('region',{name:'CBD甲楼楼宇详情'});
   await detail.waitFor();await page.waitForTimeout(350);
   assert.ok(await page.evaluate(()=>window.__workspaceMap.getZoom()>=14),'project return must focus at project scale');
+  const filters = page.locator('.map-workspace-filter');
+  if (await filters.getAttribute('aria-hidden') === 'true') await page.getByRole('button', { name: '筛选', exact: true }).click();
+  await filters.getByRole('button', { name: '项目对比筛选', exact: true }).click();
+  await filters.getByRole('button', { name: '添加筛选组', exact: true }).click();
+  const groupToggle = filters.getByRole('button', { name: '组1', exact: true });
+  const groupPanel = page.locator(`[id="${await groupToggle.getAttribute('aria-controls')}"]`);
+  await groupPanel.getByRole('checkbox', { name: 'CBD', exact: true }).check();
+  await page.getByText('项目对比组 1', { exact: true }).waitFor();
+  await filters.getByRole('button', { name: '关闭筛选', exact: true }).click();
   await page.getByRole('button',{name:'租金',exact:true}).click();
   await page.getByRole('button',{name:'项目列表',exact:true}).click();
   const list=page.getByRole('region',{name:'项目列表',exact:true});await list.waitFor();
@@ -148,6 +157,7 @@ try {
   await page.getByRole('link',{name:'返回项目详情',exact:true}).click();
   console.log('return project',width);
   await detail.waitFor();await page.waitForTimeout(400);
+  assert.equal(await page.getByText('项目对比组 1', { exact: true }).count(), 1, 'Stacking return retains the configured map comparison group');
   assert.equal(await page.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true','return restores original detail tab');
   assert.ok(Math.abs(await detail.locator('.workspace-scroll').evaluate(element=>element.scrollTop)-readingScroll)<2,'return restores actual detail scroll on a short phone viewport');
   assert.equal(await page.getByRole('button',{name:'租金',exact:true}).getAttribute('aria-pressed'),'true');
@@ -166,6 +176,7 @@ try {
   await page.getByRole('button',{name:'刷新数据',exact:true}).click();
   for(let round=0;round<2;round++) {
     await page.goBack(); console.log('history back',round,page.url()); await detail.waitFor();
+    await page.getByText('项目对比组 1', { exact: true }).waitFor();
     assert.equal(await page.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true','browser back restores tab');
     await page.waitForFunction(({top,camera})=>{
       const scroller=document.querySelector('.workspace-building-scroll');
