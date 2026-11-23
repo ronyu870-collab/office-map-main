@@ -44,5 +44,6 @@
 - 最终生产构建 `HOME_QUERY_MENU_ONLY=1 HOME_QUERY_P2_BUILD_MODE=production node scripts/verification/home-query-experience-p2-browser.mjs after <localhost>`：320／390／768／1024／1280／1536px 全通过，317 次几何检查。每个菜单覆盖上／中／下位置、首尾命中、点击／Escape／外部关闭、祖先滚动、resize；另有详情、15 条历史、归档恢复、失败下载重试和手动复制。
 - `HOME_QUERY_MENU_ONLY=1 HOME_QUERY_P2_WIDTHS=1280 HOME_QUERY_P2_BROWSER_ZOOM=1.25` 及 `=2`：Chromium 原生每站缩放，断言 innerWidth 与 devicePixelRatio，125%／200% 及 600px 物理高度检查通过。不是 CSS zoom 或 pinch 模拟。
 - CI 在既有真实页面浏览器步骤加入六档菜单与两档原生缩放，失败即阻断；原焦点／权限／数据库／工程检查继续执行。
+- 首轮 CI：380 文件 2,896 项、焦点、真实 Auth、隔离数据库、构建、原 P2 六档及菜单六档通过；缩放前置断言发现默认 headless shell 不读取 Chrome 缩放偏好。用同版 Playwright 1.58.2 在本地复现 width=1280/dpr=1 后，缩放场景明确选完整 Chromium channel，保持原缩放与几何断言不变；同版完整 Chromium 145 的125%／200%及低高度均通过。
 
 未确认仍未修复的本轮功能缺陷。验证使用本地实际组件与合成 HTTP／文件，不代表生产身份、真实数据库、真实模型、物理手机键盘或系统文件保存验收；未写生产数据，也未合并／发布 main。远端 CI 状态以 PR 精确 head 为准。

@@ -298,22 +298,23 @@
     },
     "nativeZoom": {
       "200": {
-        "browser": "158.0.8127.36",
+        "browser": "145.0.7632.6",
         "zoom": 2,
         "records": 6,
         "viewports": [
           [
             640,
-            450
+            300
           ],
           [
             640,
-            300
+            450
           ]
-        ]
+        ],
+        "channel": "chromium (full browser, not headless shell)"
       },
       "125": {
-        "browser": "158.0.8127.36",
+        "browser": "145.0.7632.6",
         "zoom": 1.25,
         "records": 7,
         "viewports": [
@@ -329,7 +330,8 @@
             1024,
             720
           ]
-        ]
+        ],
+        "channel": "chromium (full browser, not headless shell)"
       }
     }
   }

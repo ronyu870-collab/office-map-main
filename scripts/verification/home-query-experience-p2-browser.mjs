@@ -118,7 +118,10 @@ if (zoom !== 1) {
   zoomProfile = await mkdtemp('/tmp/colliers-ai-zoom-');
   await mkdir(`${zoomProfile}/Default`);
   await writeFile(`${zoomProfile}/Default/Preferences`, JSON.stringify({ partition: { per_host_zoom_levels: { x: { [new URL(base).hostname]: { zoom_level: Math.log(zoom) / Math.log(1.2), last_modified: '13400000000000000' } } } } }));
-  zoomContext = await chromium.launchPersistentContext(zoomProfile, { ...launchOptions, viewport: { width: 1280, height: 900 }, serviceWorkers: 'block', locale: 'zh-CN', timezoneId: 'Asia/Shanghai' });
+  // Playwright's default headless shell does not load Chrome's zoom prefs.
+  // The installed full Chromium channel uses native Chrome browser zoom.
+  const zoomBrowser = process.env.PERF_BROWSER_EXECUTABLE ? {} : { channel: process.env.PERF_BROWSER_CHANNEL || 'chromium' };
+  zoomContext = await chromium.launchPersistentContext(zoomProfile, { ...launchOptions, ...zoomBrowser, viewport: { width: 1280, height: 900 }, serviceWorkers: 'block', locale: 'zh-CN', timezoneId: 'Asia/Shanghai' });
 }
 const browser = zoomContext?.browser() ?? await chromium.launch(launchOptions);
 
