@@ -1,3 +1,5 @@
+import { act, waitFor } from '@testing-library/react';
+import { closeBuildingContactDialog } from '../map/buildingContactDialog';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { MapController } from '../MapController';
 import { AuditPolicyGate } from '@/src/utils/auditPolicy';
@@ -17,7 +19,7 @@ function controller(workspace = true) {
   return value;
 }
 beforeEach(() => { observed.events.length = 0; observed.gate = new AuditPolicyGate(); });
-afterEach(() => { document.body.innerHTML = ''; vi.restoreAllMocks(); });
+afterEach(() => { act(()=>closeBuildingContactDialog()); document.body.innerHTML = ''; vi.restoreAllMocks(); });
 
 it('unifies marker, list/search/return and future detail opens without merging different objects', () => {
   const value = controller();
@@ -45,11 +47,13 @@ it('covers legacy popup rendering and skips invalid or destroyed opens', () => {
   expect(observed.events.map(event => event.details.building_id)).toEqual(['stock-a', 'future-a']);
 });
 
-it('records rendered contacts through both presenters, without copying phone or contact contents', () => {
+it('records rendered contacts through both presenters, without copying phone or contact contents', async () => {
   const value = controller();
-  value.runWorkspaceBuildingAction('contact', building);
+  act(()=>value.runWorkspaceBuildingAction('contact', building));
+  await waitFor(()=>expect(document.querySelector('[role=dialog]')).toBeTruthy());
   expect(document.getElementById('__colliers_contact_modal_overlay')).toBeTruthy();
-  (window as any).__colliers_showContactModal(building.name, building.contact_phone, building.id);
+  act(()=>(window as any).__colliers_showContactModal(building.name, building.contact_phone, building.id));
+  await waitFor(()=>expect(document.querySelector('[role=dialog]')).toBeTruthy());
   expect(observed.events).toEqual([{ action: 'VIEW_BUILDING_CONTACT', details: expect.objectContaining({
     module: 'map', target_table: 'buildings', building_id: 'stock-a', building_name: '甲楼', data_type: 'existing',
   }) }]);
@@ -59,7 +63,7 @@ it('records rendered contacts through both presenters, without copying phone or 
 it('does not expose masked demo building identity or contacts in observations', () => {
   const value = controller(); value._isDemo = true;
   value.openBuildingInfoWindow(building.id);
-  value.runWorkspaceBuildingAction('contact', building);
+  act(()=>value.runWorkspaceBuildingAction('contact', building));
   expect(observed.events).toEqual([]);
 });
 

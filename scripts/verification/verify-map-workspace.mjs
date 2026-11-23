@@ -1,3 +1,5 @@
+import { verifyContactReading } from './workspace-contact-reading.mjs';
+import { verifyMaterialReading } from './workspace-material-reading.mjs';
 import { verifyProjectTrendReturn } from './workspace-project-trend-return.mjs';
 import { verifyBubbleScope } from './workspace-bubble-scope.mjs';
 import { verifyLeedFilters } from './workspace-leed-filters.mjs';
@@ -364,10 +366,11 @@ try {
         if (width < 640) await clickWorkspaceAction(page,'收起为摘要');
       }
       await page.getByRole('button', { name: '联系方式', exact: true }).click();
-      await page.locator('#__colliers_contact_modal_overlay').waitFor();
+      await page.getByRole('dialog', { name: 'CBD甲楼', exact: true }).waitFor();
       await page.keyboard.press('Escape');
       assert.equal(await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).count(), 1, 'Escape in a business modal must not close its workspace');
-      await page.locator('#__colliers_contact_modal_overlay button').first().click();
+      await page.getByRole('dialog', { name: 'CBD甲楼', exact: true }).waitFor({state:'detached'});
+      assert.equal(await page.getByRole('button',{name:'联系方式',exact:true}).evaluate(node=>node===document.activeElement),true,'closing contacts restores its visible trigger');
       await page.getByRole('button', { name: '楼书与资料', exact: true }).click();
       const materials = page.getByRole('dialog');
       await materials.getByRole('button', { name: '查看原件', exact: true }).click();
@@ -623,6 +626,12 @@ try {
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
       if ([1536,390,320,844].includes(width)) {
+        const contactPage=await context.newPage();
+        try { observations.push(await verifyContactReading(contactPage,{width,base})); }
+        finally { await contactPage.close(); }
+        const materialReadingPage=await context.newPage();
+        try { observations.push(await verifyMaterialReading(materialReadingPage,{width,base})); }
+        finally { await materialReadingPage.close(); }
         const trendReturnPage=await context.newPage();
         try { observations.push(await verifyProjectTrendReturn(trendReturnPage,{width,base})); }
         finally { await trendReturnPage.close(); }

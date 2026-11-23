@@ -1,0 +1,66 @@
+{
+  "environment": "Production app with synthetic SDK, authorized business and identity fixtures",
+  "viewports": [
+    {
+      "width": 1536,
+      "availabilityZeroAndMissingDistinct": true,
+      "mixedRowDatesTraceable": true,
+      "expiredCommissionAndUnknownApplicabilityVisible": true,
+      "actualPdfBytesRendered": true,
+      "pdfTransportRetry": true,
+      "pdfPageSelection": true,
+      "distinctStablePageBitmaps": true,
+      "downloadRetry": true,
+      "refreshedDenialRemovesCanvas": true,
+      "accessRetryRetainsProject": true,
+      "pdfReads": 3,
+      "downloadReads": 2
+    },
+    {
+      "width": 390,
+      "availabilityZeroAndMissingDistinct": true,
+      "mixedRowDatesTraceable": true,
+      "expiredCommissionAndUnknownApplicabilityVisible": true,
+      "actualPdfBytesRendered": true,
+      "pdfTransportRetry": true,
+      "pdfPageSelection": true,
+      "distinctStablePageBitmaps": true,
+      "downloadRetry": true,
+      "refreshedDenialRemovesCanvas": true,
+      "accessRetryRetainsProject": true,
+      "pdfReads": 3,
+      "downloadReads": 2
+    },
+    {
+      "width": 320,
+      "availabilityZeroAndMissingDistinct": true,
+      "mixedRowDatesTraceable": true,
+      "expiredCommissionAndUnknownApplicabilityVisible": true,
+      "actualPdfBytesRendered": true,
+      "pdfTransportRetry": true,
+      "pdfPageSelection": true,
+      "distinctStablePageBitmaps": true,
+      "downloadRetry": true,
+      "refreshedDenialRemovesCanvas": true,
+      "accessRetryRetainsProject": true,
+      "pdfReads": 3,
+      "downloadReads": 2
+    },
+    {
+      "width": 844,
+      "availabilityZeroAndMissingDistinct": true,
+      "mixedRowDatesTraceable": true,
+      "expiredCommissionAndUnknownApplicabilityVisible": true,
+      "actualPdfBytesRendered": true,
+      "pdfTransportRetry": true,
+      "pdfPageSelection": true,
+      "distinctStablePageBitmaps": true,
+      "downloadRetry": true,
+      "refreshedDenialRemovesCanvas": true,
+      "accessRetryRetainsProject": true,
+      "pdfReads": 3,
+      "downloadReads": 2
+    }
+  ],
+  "status": "pass"
+}

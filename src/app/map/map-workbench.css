@@ -646,3 +646,14 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .map-workspace-layout[data-short-stage] [data-submarket-compact] .submarket-core-metrics .submarket-metric-note { display: none; }
 
 .workspace-list-metrics-future { grid-template-columns: repeat(2,minmax(0,1fr)); }
+
+.workspace-contact-title { display: block; font-size: 16px; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; }
+.workspace-contact-content { display: grid; gap: 16px; font-size: 14px; }
+.workspace-contact-facts { margin: 0; }
+.workspace-contact-facts > div { display: grid; gap: 6px; }
+.workspace-contact-facts dt { color: #596779; }
+.workspace-contact-facts dd { margin: 0; overflow-wrap: anywhere; line-height: 1.6; }
+.workspace-contact-content > a { justify-self: start; min-height: 44px; padding-inline: 16px; }
+@media (max-width: 767px) {
+  button[aria-label="关闭联系方式"] { min-width: 44px; min-height: 44px; }
+}
