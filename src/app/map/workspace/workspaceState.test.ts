@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialWorkspaceState, PANEL_SIZES, workspaceColumns, workspaceReducer, workspaceSheetHeight, type WorkspaceKind } from './workspaceState';
+import { initialWorkspaceState, PANEL_SIZES, mapCanvasMinimum, contentPanelWidth, workspaceColumns, workspaceReducer, workspaceSheetHeight, type WorkspaceKind } from './workspaceState';
 import { createDefaultFilterState } from '../model/mapDomain';
 
 describe('map workspace navigation and physical canvas budget', () => {
@@ -71,7 +71,7 @@ describe('map workspace navigation and physical canvas budget', () => {
         const columns = workspaceColumns(width, left, true, max, kind);
         if (columns.compact) continue;
         const canvas = width - columns.left - columns.right;
-        expect(canvas).toBeGreaterThanOrEqual(Math.max(560, width * (columns.left ? .52 : .6)) - .01);
+        expect(canvas).toBeGreaterThanOrEqual(mapCanvasMinimum(width, columns.left > 0) - .01);
         expect(columns.right).toBeGreaterThanOrEqual(min);
         expect(columns.right).toBeLessThanOrEqual(max);
       }
@@ -84,4 +84,14 @@ describe('map workspace navigation and physical canvas budget', () => {
     expect(workspaceSheetHeight(700, 160, 'full')).toBe(700);
     expect(workspaceSheetHeight(200, 900, 'compact')).toBeLessThanOrEqual(120);
   });
+});
+
+it('uses compact content widths before a user preference exists and avoids unnecessary tablet sheets', () => {
+  expect(contentPanelWidth('search', 1)).toBe(288);
+  expect(contentPanelWidth('list', 2)).toBe(300);
+  expect(contentPanelWidth('list', 20)).toBe(320);
+  expect(workspaceColumns(820, false, true, 344, 'building').compact).toBe(false);
+  let state = initialWorkspaceState;
+  for (let i = 0; i < 40; i++) state = workspaceReducer(state, { type: 'open', view: { kind: i % 2 ? 'list' : 'supply' } });
+  expect(state.history).toHaveLength(20);
 });

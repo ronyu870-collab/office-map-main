@@ -62,3 +62,14 @@ it('does not expose masked demo building identity or contacts in observations', 
   value.runWorkspaceBuildingAction('contact', building);
   expect(observed.events).toEqual([]);
 });
+
+
+it('opens authorized workspace records when the tile SDK is unavailable', () => {
+  const value = controller(); value.map = null; value.AMap = null;
+  value.openBuildingInfoWindow(building.id);
+  value.openFutureSupplyInfoWindow({ ...building, id: 'future-a', building_id: building.id });
+  expect(value.workspaceDetailHandler).toHaveBeenCalledTimes(2);
+  value._destroyed = true;
+  value.openBuildingInfoWindow(building.id);
+  expect(value.workspaceDetailHandler).toHaveBeenCalledTimes(2);
+});

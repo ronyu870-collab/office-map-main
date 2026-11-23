@@ -1,3 +1,4 @@
+import { futureSupplyDate } from '@/src/lib/future-supply-status';
 import { displayListGrade, listBuildingValues, listVacancyPercent, type FullListBuilding } from '../model/fullBuildingList';
 
 export type ComparisonLayout = 'rows' | 'columns';
@@ -55,10 +56,10 @@ function valueFor(building: ComparisonBuilding, key: FieldKey, overrides?: Overr
     case 'submarket': return stringValue(overrides?.get(building.id)?.get('submarket')?.display_value ?? building.submarket);
     case 'grade': return stringValue(overrides?.get(building.id)?.get('grade')?.display_value ?? displayListGrade(building.grade));
     case 'year': return future
-      ? (building.launch_year ? '预计 ' + building.launch_year + (building.launch_quarter || '') : '—')
+      ? futureSupplyDate(building)
       : (building.completion_year ? String(building.completion_year) : '—');
     case 'area': return numberValue(values.area, 0);
-    case 'rent': return numberValue(values.rent, 2);
+    case 'rent': return numberValue(values.rent, 1);
     case 'vacancy': {
       const vacancy = listVacancyPercent(values.vacancy);
       return vacancy === null ? '—' : numberValue(vacancy, 1) + '%';

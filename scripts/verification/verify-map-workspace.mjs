@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { installSyntheticMap } from '../performance/fixtures/map-adapter.mjs';
 
@@ -37,11 +38,11 @@ function instrumentMap() {
 }
 const observations = [];
 try {
-  for (const width of [1536, 1280, 1024, 768, 390, 320]) {
-    const height = width === 1280 ? 720 : width === 768 ? 640 : width < 640 ? 844 : 1000;
-    const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block' });
+  for (const width of [1536, 1280, 1024, 900, 820, 768, 844, 390, 320]) {
+    const height = width === 844 ? 390 : width === 1280 ? 720 : width === 768 ? 640 : width < 640 ? 844 : 1000;
+    const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 640 || width === 844, hasTouch: width < 640 || width === 844, serviceWorkers: 'block' });
     const errors = [];
-    let stockReads = 0;
+    let stockReads = 0, failSDK = false;
     const auditEvents = new Map();
     let auditFailures = 0;
     let page;
@@ -50,6 +51,7 @@ try {
       await context.route('**/*', route => {
         const url = new URL(route.request().url());
         if (url.origin === base.origin) {
+          if (url.pathname === '/api/audit-events/critical') return route.fulfill({ json: { authorized: true } });
           if (url.pathname === '/api/audit-events') {
             if (!auditFailures++) return route.fulfill({status:503,json:{error:'isolated audit outage'}});
             const { events } = route.request().postDataJSON();
@@ -81,6 +83,7 @@ try {
           if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
           return route.fulfill({ headers, json: url.pathname === '/rest/v1/user_roles' ? [{ role: width === 1024 ? 'admin' : 'viewer', session_id: user.id }] : [] });
         }
+        if (url.origin === 'https://webapi.amap.com' && url.pathname === '/maps' && failSDK) return route.abort();
         if (url.origin === 'https://webapi.amap.com' && url.pathname === '/maps') return route.fulfill({ contentType: 'application/javascript', body: `(${installSyntheticMap.toString()})();(${instrumentMap.toString()})();` });
         return route.abort();
       });
@@ -120,7 +123,7 @@ try {
       await list.waitFor();
       await page.waitForTimeout(300);
       const canvas = await page.locator('#map-container').boundingBox();
-      if (width < 1000) assert.ok(canvas.height < 700 && canvas.height >= 180, `compact canvas height ${canvas.height}`);
+      if (width < 1000) assert.ok(canvas.height >= 140, `compact canvas height ${canvas.height}`);
       if (width >= 1000) assert.ok(canvas.width >= 560, `canvas width ${canvas.width} at viewport ${width}`);
       const rightBox = await page.locator('.map-workspace-right').boundingBox();
       const typography = await page.evaluate(() => {
@@ -178,6 +181,18 @@ try {
         const rect = await dialog.boundingBox();
         assert.ok(rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= width && rect.y + rect.height <= height, 'export modal fits the viewport');
         if (width === 1536) assert.ok(rect.width > rightBox.width, 'export modal escapes narrow sidebar containment');
+        if (width === 1536) {
+          const downloading = page.waitForEvent('download');
+          await dialog.getByRole('button', { name: '下载 PNG', exact: true }).click();
+          const download = await downloading;
+          const destination = '/tmp/map-comparison-1536.png';
+          await download.saveAs(destination);
+          const bytes = fs.readFileSync(destination);
+          assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+          assert.ok(bytes.readUInt32BE(16) >= 1000 && bytes.readUInt32BE(20) >= 100, 'comparison downloads an actual readable PNG');
+          await dialog.waitFor({ state: 'detached' });
+          await exportTrigger.click(); await dialog.waitFor();
+        }
         await page.keyboard.press('Escape');
         await dialog.waitFor({ state: 'detached' });
         assert.ok(await exportTrigger.evaluate(el => el === document.activeElement), 'closing export returns focus');
@@ -294,8 +309,9 @@ try {
         await page.getByRole('separator', { name: '调整业务工作区宽度' }).press('End');
         await page.waitForTimeout(300);
         assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 520);
-        assert.equal(await page.locator('.map-workspace-left').getAttribute('aria-hidden'), 'true', 'wide research yields the filter temporarily');
+        assert.ok((await page.locator('#map-container').boundingBox()).width >= width * .5, 'wide research preserves half the viewport for the map');
       }
+      if (width === 320 || width === 390) assert.ok((await page.getByRole('region', { name: 'CBD', exact: true }).locator('.workspace-scroll').boundingBox()).height >= 80, 'compact research retains a usable reading area');
       await page.screenshot({ path: `/tmp/map-layout-research-${width}.png` });
       await page.getByRole('button', { name: '查看全部项目', exact: true }).click();
       await list.waitFor();
@@ -443,6 +459,19 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no document overflow');
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
+      if (width === 1536) {
+        failSDK = true;
+        await page.reload();
+        await page.getByText('地图加载失败', { exact: true }).waitFor();
+        await page.getByRole('button', { name: '项目列表', exact: true }).click();
+        await list.getByRole('button', { name: /^CBD甲楼/ }).click();
+        await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).waitFor();
+        await page.getByRole('tab', { name: '成交与资料' }).click();
+        await page.getByRole('button', { name: '销控与佣金' }).click();
+        await page.getByRole('dialog').waitFor();
+        assert.deepEqual(errors, [], 'SDK failure cannot break project reading');
+      }
+
     } catch (error) {
       await page?.screenshot({ path: `/tmp/map-workspace-failure-${width}.png` }).catch(() => {});
       console.error('workspace failure state', width, await page?.evaluate(() => ({

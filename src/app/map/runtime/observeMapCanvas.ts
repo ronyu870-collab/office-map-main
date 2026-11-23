@@ -1,5 +1,7 @@
+import { WORKSPACE_MOTION } from './workspaceMotion';
 import type { Camera } from '../workspace/continuity';
 type MapCanvas = {
+  on?: (event: string, handler: () => void) => void; off?: (event: string, handler: () => void) => void;
   resize?: () => void; getCenter?: () => any; getZoom?: () => number;
   setCenter?: (center: any, immediately?: boolean, duration?: number) => void;
   setZoomAndCenter?: (zoom: number, center: [number, number], immediately?: boolean, duration?: number) => void;
@@ -21,6 +23,9 @@ export function observeMapCanvas(container: HTMLElement, map: MapCanvas) {
   let size = '';
   let pending: CameraIntent | null = null;
   let disposed = false;
+  let moving = false;
+  const finish = () => { moving = false; };
+  map.on?.('moveend', finish);
   const schedule = () => {
     if (frame !== null || disposed) return;
     frame = requestAnimationFrame(() => {
@@ -39,17 +44,26 @@ export function observeMapCanvas(container: HTMLElement, map: MapCanvas) {
       if ('fit' in intent) { intent.fit(); return; }
       const camera = intent.exact && intent.camera ? intent.camera : projectCamera(intent.center, intent.camera, rect.width, rect.height, map.getZoom?.());
       const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-      if (map.setZoomAndCenter) map.setZoomAndCenter(camera.zoom, camera.center, reduced, reduced ? 0 : 240);
-      else map.setCenter?.(camera.center, reduced, reduced ? 0 : 240);
+      moving = !reduced;
+      if (map.setZoomAndCenter) map.setZoomAndCenter(camera.zoom, camera.center, reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
+      else map.setCenter?.(camera.center, reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
     });
   };
   const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
   observer?.observe(container);
   const cancel = () => { pending = null; };
-  container.addEventListener('pointerdown', cancel, true);
-  container.addEventListener('wheel', cancel, { passive: true });
+  const takeOver = () => {
+    cancel();
+    if (!moving) return;
+    moving = false;
+    const point = map.getCenter?.(); const zoom = map.getZoom?.();
+    const center = point && [point.getLng?.() ?? point.lng ?? point[0], point.getLat?.() ?? point.lat ?? point[1]];
+    if (center?.every(Number.isFinite) && Number.isFinite(zoom)) map.setZoomAndCenter?.(zoom!, center as [number, number], true, 0);
+  };
+  container.addEventListener('pointerdown', takeOver, true);
+  container.addEventListener('wheel', takeOver, { passive: true });
   window.addEventListener('resize', schedule);
-  const cleanup = () => { disposed = true; observer?.disconnect(); if (frame !== null) cancelAnimationFrame(frame);
-    container.removeEventListener('pointerdown', cancel, true); container.removeEventListener('wheel', cancel); window.removeEventListener('resize', schedule); };
+  const cleanup = () => { disposed = true; map.off?.('moveend', finish); observer?.disconnect(); if (frame !== null) cancelAnimationFrame(frame);
+    container.removeEventListener('pointerdown', takeOver, true); container.removeEventListener('wheel', takeOver); window.removeEventListener('resize', schedule); };
   return Object.assign(cleanup, { focus: (intent: CameraIntent) => { pending = intent; schedule(); }, cancel });
 }

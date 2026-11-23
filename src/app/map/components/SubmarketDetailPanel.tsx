@@ -1,4 +1,5 @@
 'use client';
+import { useMapObjectReadingState } from '../workspace/continuity';
 import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
 
 import * as React from 'react';
@@ -187,8 +188,10 @@ export function SubmarketDetailPanel({
   const [detail, setDetail] = React.useState<SubmarketDetailPayload | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [grade, setGrade] = React.useState<'all' | 'a' | 'b'>('all');
-  const [section, setSection] = React.useState<(typeof sectionNames)[number][0]>('overview');
+  const [reading, setReading] = useMapObjectReadingState<{ section: (typeof sectionNames)[number][0]; grade: 'all' | 'a' | 'b'; scrollTop: number }>('submarkets', name, { section: 'overview', grade: 'all', scrollTop: 0 });
+  const { grade, section } = reading;
+  const setGrade = (grade: 'all' | 'a' | 'b') => setReading(old => ({ ...old, grade }));
+  const setSection = (section: (typeof sectionNames)[number][0]) => { setReading(old => ({ ...old, section, scrollTop: 0 })); if (scrollRef.current) scrollRef.current.scrollTop = 0; };
   const [editing, setEditing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -196,6 +199,7 @@ export function SubmarketDetailPanel({
   const dialogRef = React.useRef<HTMLElement>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const headingRef = React.useRef<HTMLHeadingElement>(null);
+  React.useLayoutEffect(() => { if (!suspended && scrollRef.current) scrollRef.current.scrollTop = reading.scrollTop; }, [name, suspended, loading]);
 
   React.useEffect(() => {
     let live = true;
@@ -328,7 +332,7 @@ export function SubmarketDetailPanel({
           </nav>
         ) : null}
 
-        <div ref={scrollRef} tabIndex={0} aria-label={editing ? '编辑子市场资料' : '子市场研究内容'}
+        <div ref={scrollRef} onScroll={event => { const scrollTop = event.currentTarget.scrollTop; setReading(old => ({ ...old, scrollTop })); }} tabIndex={0} aria-label={editing ? '编辑子市场资料' : '子市场研究内容'}
           role={editing ? undefined : 'tabpanel'}
           id={editing ? undefined : 'submarket-active-panel'}
           aria-labelledby={editing ? undefined : 'submarket-tab-' + currentSection}
@@ -590,14 +594,8 @@ export function SubmarketDetailPanel({
               ) : null}
             </div>
           )}
+          {!editing ? <p className="workspace-note workspace-submarket-source">统计基于平台收录的甲乙级存量项目，不代表市场全部库存。</p> : null}
         </div>
-
-        {!editing ? (
-          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e9edf2] bg-white px-4 py-2 text-[14px] text-[#64748b] sm:px-7 text-[14px]">
-            <span>统计基于平台收录的甲乙级存量项目，不代表市场全部库存。</span>
-            <span className="shrink-0">Colliers Intelligence</span>
-          </footer>
-        ) : null}
       </section>
     </div>
   );

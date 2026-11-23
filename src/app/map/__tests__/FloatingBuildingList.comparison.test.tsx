@@ -82,6 +82,10 @@ describe('floating map building list comparison', () => {
     fireEvent.change(search, { target: { value: '项目59' } });
     expect(screen.getByText('已选 60 栋')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: '选择项目59' })).toBeChecked();
+    expect(screen.getByText('其中 59 栋不在当前结果中。')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '移除结果外已选项目' }));
+    expect(screen.getByText('已选 1 栋')).toBeVisible();
+    expect(screen.getByRole('checkbox', { name: '选择项目59' })).toBeChecked();
   });
 
   it('downloads only chosen buildings with the user-selected B layout', async () => {

@@ -190,7 +190,7 @@ describe('MapWorkbenchView', () => {
     expect(screen.getByTestId('floating-building-list')).toBeInTheDocument();
   });
 
-  it('dismisses any open map workspace on Escape', () => {
+  it('dismisses only the current business workspace on Escape', () => {
     const callbacks = renderWorkbench({
       isFilterPanelOpen: true,
       isSupplyOpen: true,
@@ -200,8 +200,8 @@ describe('MapWorkbenchView', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' });
 
-    expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(false);
-    expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onFilterPanelOpenChange).not.toHaveBeenCalled();
+    expect(callbacks.onSupplyOpenChange).not.toHaveBeenCalled();
     expect(callbacks.onCloseList).toHaveBeenCalledTimes(1);
   });
 
@@ -293,4 +293,10 @@ it('explains the visible LEED aggregate colors instead of showing project certif
   expect(screen.getByText('≥60%')).toBeVisible();
   document.getElementById('map-container')!.dataset.markerTier = 'building';
   await waitFor(() => expect(screen.getByText('铂金')).toBeVisible());
+});
+
+it('distinguishes a future supply read failure from an empty supply result', () => {
+  renderWorkbench({ isSupplyOpen: true, rightKind: 'supply', fullListWarning: '未来供应暂时无法读取，当前仅显示存量楼宇。' });
+  expect(screen.getByRole('alert')).toHaveTextContent('未来供应暂时无法读取');
+  expect(screen.queryByText('当前筛选范围内暂无已确认供应，可调整筛选条件。')).not.toBeInTheDocument();
 });

@@ -1,0 +1,24 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger } from '../map/buildingPhotoGallery';
+vi.mock('@/src/utils/businessReadingAudit', () => ({ observeBusinessReading: vi.fn() }));
+vi.mock('@/src/utils/readingAuditContext', () => ({ buildingReadingContext: () => ({}) }));
+vi.mock('../buildingPhotosClient', () => ({ loadStoredBuildingPhoto: vi.fn(() => new Promise(() => {})) }));
+afterEach(() => { document.body.innerHTML = ''; });
+it('restores the open photo and ordinal, persists navigation, and clamps a removed photo', () => {
+  const photos = [{ id: 'one', caption: '外立面' }, { id: 'two', caption: '大堂' }];
+  const root = document.createElement('div'); document.body.append(root);
+  root.innerHTML = buildPhotoTrigger('gallery') + buildPhotoGallery('gallery', '项目', photos);
+  const change = vi.fn();
+  const dispose = bindBuildingPhotoGallery(root, 'project', photos, { initial: { open: true, index: 1 }, onChange: change });
+  expect(root.querySelector('[data-building-photo-gallery]')).not.toHaveAttribute('hidden');
+  expect(root.querySelector('[data-building-photo-caption]')).toHaveTextContent('大堂');
+  (root.querySelector('[data-building-photo-prev]') as HTMLButtonElement).click();
+  expect(change).toHaveBeenLastCalledWith({ open: true, index: 0 });
+  (root.querySelector('[data-building-photo-trigger]') as HTMLButtonElement).click();
+  expect(change).toHaveBeenLastCalledWith({ open: false, index: 0 });
+  dispose?.();
+  root.innerHTML = buildPhotoTrigger('gallery') + buildPhotoGallery('gallery', '项目', photos.slice(0, 1));
+  const cleanup = bindBuildingPhotoGallery(root, 'project', photos.slice(0, 1), { initial: { open: true, index: 5 }, onChange: change });
+  expect(root.querySelector('[data-building-photo-caption]')).toHaveTextContent('外立面');
+  cleanup?.();
+});

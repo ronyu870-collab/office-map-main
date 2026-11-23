@@ -1,4 +1,5 @@
 'use client';
+import { futureSupplyDate } from '@/src/lib/future-supply-status';
 import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
 
 import * as React from 'react';
@@ -131,7 +132,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
               <option value="vacancy-desc">空置率：从高到低</option>
             </select></label>
           </div>
-          {warning ? <p className={styles.warning} role="status">{warning}</p> : null}
+          {warning ? <div className={styles.warning}><p role="status">{warning}</p><Button variant="secondary" onClick={onRetry}>重新读取</Button></div> : null}
           {error ? <div className={styles.status} role="alert"><h2>楼宇数据暂时无法读取</h2><p>{error}</p><Button variant="secondary" onClick={onRetry}>重新读取</Button></div> : (
             <div aria-busy={loading}>
               {visible.map(building => {
@@ -148,7 +149,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
                       onBuildingClick(building);
                     }}><MaskedText>{building.name || '未命名项目'}</MaskedText></button>
                     <div className={styles.meta}>
-                      {year ? <span>{year}年{future ? '预计供应' : ''}</span> : null}
+                      {future ? <span>{futureSupplyDate(building)}</span> : year ? <span>{year}年</span> : null}
                       {future ? <span>{futureSupplyDisplayLabel(building)}</span> : null}
                       {targetBuildingId === building.id ? <span>目标楼宇</span> : null}
                     </div>
@@ -157,7 +158,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
                     <div><dt>区位</dt><dd>{[building.district, submarket].filter(Boolean).join(' · ') || '—'}</dd></div>
                     <div><dt>等级</dt><dd>{grade}</dd></div>
                     <div><dt>统计面积</dt><dd>{format(values.area, 0, '㎡')}</dd></div>
-                    <div><dt>净有效租金</dt><dd>{format(values.rent, 2, '元/㎡/月')}</dd></div>
+                    <div><dt>净有效租金</dt><dd>{format(values.rent, 1, '元/㎡/月')}</dd></div>
                     <div><dt>空置率</dt><dd>{vacancy === null ? '—' : `${vacancy.toFixed(1)}%`}</dd></div>
                   </dl>
                   {!locationAvailable ? <p className={styles.locationNote}>位置待完善，可查看项目资料</p> : null}

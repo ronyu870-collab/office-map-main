@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { animateWorkspace, useSurfacePresence } from '../runtime/workspaceMotion';
 
 /** Nonmodal, viewport-bounded disclosure shared by map statistics, legends and list options. */
-export function MapDisclosure({ label, children, className = '', active = true }: { label: React.ReactNode; children: React.ReactNode; className?: string; active?: boolean }) {
+export function MapDisclosure({ label, children, className = '', active = true, width: preferredWidth = 264 }: { label: React.ReactNode; children: React.ReactNode; className?: string; active?: boolean; width?: number }) {
   const root = React.useRef<HTMLDetailsElement>(null);
   const content = React.useRef<HTMLDivElement>(null);
   const [open, setOpen] = React.useState(false);
@@ -34,14 +34,14 @@ export function MapDisclosure({ label, children, className = '', active = true }
       const viewport = window.visualViewport;
       const left = viewport?.offsetLeft ?? 0; const top = viewport?.offsetTop ?? 0;
       const width = viewport?.width ?? window.innerWidth; const height = viewport?.height ?? window.innerHeight;
-      const panelWidth = Math.min(336, width - 24);
+      const panelWidth = Math.min(preferredWidth, width - 24);
       panel.style.width = `${panelWidth}px`;
       panel.style.left = `${Math.max(left + 12, Math.min(box.left, left + width - panelWidth - 12))}px`;
       panel.style.maxHeight = `${Math.max(80, height - 24)}px`;
       const panelHeight = Math.min(panel.scrollHeight, height - 24);
       panel.style.top = `${Math.max(top + 12, Math.min(box.bottom + 8, top + height - panelHeight - 12))}px`;
     };
-    const close = () => { root.current?.removeAttribute('open'); setOpen(false); };
+    const close = () => { const focused = content.current?.contains(document.activeElement); root.current?.removeAttribute('open'); setOpen(false); if (focused) root.current?.querySelector('summary')?.focus({ preventScroll: true }); };
     const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node) && !content.current?.contains(event.target as Node)) close(); };
     const escape = (event: KeyboardEvent) => {
       if (!root.current?.open || event.key !== 'Escape' || event.defaultPrevented || document.querySelector('dialog[open], [aria-modal="true"], [data-building-metrics-edit], #__colliers_contact_modal_overlay')) return;
@@ -56,7 +56,7 @@ export function MapDisclosure({ label, children, className = '', active = true }
       window.visualViewport?.removeEventListener('resize', place); window.visualViewport?.removeEventListener('scroll', place);
       document.removeEventListener('pointerdown', outside); window.removeEventListener('keydown', escape, true);
     };
-  }, [open, children]);
+  }, [open, children, preferredWidth]);
   return <details ref={root} className={`map-disclosure ${className}`} onToggle={event => {
     const next = event.currentTarget.open; setOpen(next);
     if (next) document.querySelectorAll<HTMLDetailsElement>('.map-disclosure[open]').forEach(el => { if (el !== root.current) el.open = false; });

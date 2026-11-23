@@ -3,6 +3,7 @@
  */
 
 "use client";
+import { WORKSPACE_MOTION } from '@/src/app/map/runtime/workspaceMotion';
 import {beginBuildingReading,type ReadingEntry} from '@/src/utils/readingAuditContext';
 import { createSelectionMarker, markerBadgeImage, futureSupplyImage } from '@/src/app/map/runtime/mapSelectionMarker';
 import { markerTextColor } from '@/src/app/map/runtime/mapMarkerContrast';
@@ -376,7 +377,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     this.workspaceSelectionMarker = null;
     this.workspaceSelectionContent = null;
     this.workspaceSelectedBuilding = building;
-    if (!building || !Number.isFinite(building.location_lng) || !Number.isFinite(building.location_lat) || !this.AMap?.Marker) return;
+    if (!this.map || !building || !Number.isFinite(building.location_lng) || !Number.isFinite(building.location_lat) || !this.AMap?.Marker) return;
     const content = createSelectionMarker(this.workspaceSelectionImage(building), building._dataType === 'future');
     this.workspaceSelectionContent = content;
     this.workspaceSelectionMarker = new this.AMap.Marker({ position: [building.location_lng, building.location_lat], content, anchor: 'center', zIndex: 999999, bubble: true });
@@ -1643,12 +1644,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     // Fitting results must not exit a separate, explicitly selected competitor session.
     const withCoords = buildingsData.filter(b => Number.isFinite(b.location_lng) && Number.isFinite(b.location_lat));
     if (withCoords.length === 0) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
     if (withCoords.length === 1 && withCoords[0]) {
       this.map.setZoomAndCenter(16, [
         withCoords[0].location_lng,
         withCoords[0].location_lat,
-      ]);
+      ], reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
       panMapFocusIntoAvailableArea(this.map);
     } else {
       let minLng = 180,
@@ -1664,17 +1666,18 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const bounds = new this.AMap.Bounds([minLng, minLat], [maxLng, maxLat]);
       // Do not override the fitted extent with a forced minimum zoom: scattered
       // search matches would be pushed out of the viewport after 50ms.
-      this.map.setBounds(bounds);
+      this.map.setBounds(bounds, reduced);
     }
   }
 
   /** 恢复地图工作台的初始总览视野（大气泡层级）。 */
   resetToDefaultView() {
     if (!this.map) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     this.map.setZoomAndCenter(DEFAULT_MAP_ZOOM, [
       DEFAULT_MAP_CENTER.lng,
       DEFAULT_MAP_CENTER.lat,
-    ]);
+    ], reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
   }
 
   /**
@@ -1862,7 +1865,12 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     lngLat1: [number, number],
     lngLat2: [number, number],
   ): number {
-    if (!this.AMap || !this.AMap.GeometryUtil) return 999999;
+    if (!this.AMap?.GeometryUtil) {
+      const rad = Math.PI / 180;
+      const lat = (lngLat2[1] - lngLat1[1]) * rad, lng = (lngLat2[0] - lngLat1[0]) * rad;
+      const arc = Math.sin(lat / 2) ** 2 + Math.cos(lngLat1[1] * rad) * Math.cos(lngLat2[1] * rad) * Math.sin(lng / 2) ** 2;
+      return 6378137 * 2 * Math.asin(Math.sqrt(Math.max(0, Math.min(1, arc))));
+    }
     return this.AMap.GeometryUtil.distance(lngLat1, lngLat2);
   }
 
@@ -2011,9 +2019,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   openFutureSupplyInfoWindow(supply: any, entry:ReadingEntry='map_marker'): void {
-    if (!this.map || !this.AMap || !supply) return;
+    if (!supply || this._destroyed) return;
     beginBuildingReading(supply.id,entry,supply.building_id);
     if (this.publishWorkspaceBuilding({ ...supply, _dataType: 'future' })) return;
+    if (!this.map || !this.AMap) return;
     const lng = toNullableFiniteNumber(supply.location_lng);
     const lat = toNullableFiniteNumber(supply.location_lat);
     if (lng === null || lat === null) return;
@@ -2686,9 +2695,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   private showBuildingPopup(building: BuildingWithMetrics, metric: BuildingMetric | null, entry:ReadingEntry='map_marker') {
-    if (!this.map || !this.AMap || this._destroyed) return;
+    if (this._destroyed) return;
     beginBuildingReading(building.id,entry);
     if (this.publishWorkspaceBuilding({ ...building, _dataType: 'existing' })) return;
+    if (!this.map || !this.AMap) return;
     this.hideHoverTooltip();
     // Replacing the card must not clear an active nearby comparison.
     this._isClearingCompetitor = true;
@@ -2786,7 +2796,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
    * 🌟 打开指定楼宇的信息窗口
    */
   openBuildingInfoWindow(buildingId: string, entry:ReadingEntry='map_list'): void {
-    if (!this.map || !this.AMap || !buildingId) return;
+    if (this._destroyed || !buildingId) return;
 
     // 从缓存中查找楼宇
     const building = this._allBuildingsCache.find((b) => b.id === buildingId);
@@ -2796,6 +2806,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     }
 
     if (this.workspaceDetailHandler) { this.showBuildingPopup(building, pickLatestMetric(building.metrics),entry); return; }
+    if (!this.map || !this.AMap) return;
     const lng = building.location_lng;
     const lat = building.location_lat;
 

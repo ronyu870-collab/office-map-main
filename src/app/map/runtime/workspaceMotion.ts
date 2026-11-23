@@ -13,7 +13,7 @@ export function useSurfacePresence(open: boolean, children: React.ReactNode) {
   React.useLayoutEffect(() => {
     if (open) { setPresent(true); return; }
     if (!HTMLElement.prototype.animate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setPresent(false); return; }
-    const timer = window.setTimeout(() => setPresent(false), WORKSPACE_MOTION.state);
+    const timer = window.setTimeout(() => setPresent(false), WORKSPACE_MOTION.spatial);
     return () => window.clearTimeout(timer);
   }, [open]);
   return { present: open || present, children: open ? children : retained.current, exiting: !open && present };
@@ -44,15 +44,15 @@ export function useSurfaceMotion(ref: React.RefObject<HTMLElement | null>, open:
     interrupted.current = null;
     const startFrame = start ? { ...start.frame, clipPath: continuationClip(start, box), ...(Math.abs(before.box.left - box.left) > .5 || Math.abs(before.box.top - box.top) > .5
       ? { transform: `translate(${start.box.left - box.left}px,${start.box.top - box.top}px)` } : {}) } : null;
-    if (!open) animation = animateWorkspace(element, [{ opacity: 1, transform: 'translate(0,0)', ...startFrame }, { opacity: 0, transform: offset, clipPath: 'inset(0)' }], WORKSPACE_MOTION.state, 'forwards');
-    else if (!before.open) animation = animateWorkspace(element, [{ opacity: .5, transform: offset, ...startFrame }, { opacity: 1, transform: 'translate(0,0)', clipPath: 'inset(0)' }]);
+    if (!open) animation = animateWorkspace(element, [{ opacity: 1, transform: 'translate(0,0)', ...startFrame }, { opacity: 0, transform: offset, clipPath: 'inset(0)' }], WORKSPACE_MOTION.spatial, 'forwards');
+    else if (!before.open) animation = animateWorkspace(element, [{ opacity: .5, transform: offset, ...startFrame }, { opacity: 1, transform: 'translate(0,0)', clipPath: 'inset(0)' }], WORKSPACE_MOTION.spatial);
     else {
       const visible = start?.box ?? before.box;
       const x = visible.left - box.left, y = visible.top - box.top;
       const width = Math.max(0, box.width - visible.width), height = Math.max(0, box.height - visible.height);
       // A content/mode change with identical geometry needs no whole-pane motion.
       if (!start && Math.abs(x) < .5 && Math.abs(y) < .5 && Math.abs(box.width - visible.width) < .5 && Math.abs(box.height - visible.height) < .5) return;
-      animation = animateWorkspace(element, [{ opacity: 1, ...start?.frame, transform: `translate(${x}px,${y}px)`, clipPath: start ? continuationClip(start, box) : `inset(0 ${width}px ${height}px 0)` }, { opacity: 1, transform: 'translate(0,0)', clipPath: 'inset(0)' }]);
+      animation = animateWorkspace(element, [{ opacity: 1, ...start?.frame, transform: `translate(${x}px,${y}px)`, clipPath: start ? continuationClip(start, box) : `inset(0 ${width}px ${height}px 0)` }, { opacity: 1, transform: 'translate(0,0)', clipPath: 'inset(0)' }], WORKSPACE_MOTION.spatial);
     }
     return () => {
       if (animation && (animation.playState === 'running' || animation.pending)) {

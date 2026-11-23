@@ -98,9 +98,11 @@ describe('useMapRuntime', () => {
     await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
     expect(controllerMocks.initMap).toHaveBeenCalledTimes(1);
     expect(result.current.mapReady).toBe(false);
+    expect(result.current.mapStage).toBe('sdk');
 
     resolveInit();
     await waitFor(() => expect(result.current.mapReady).toBe(true), { timeout: 2000 });
+    expect(result.current.mapStage).toBe('ready');
   });
 
   it('initializes once, applies role mode and delegates ready work', async () => {

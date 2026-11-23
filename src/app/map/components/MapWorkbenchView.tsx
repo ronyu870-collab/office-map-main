@@ -8,15 +8,15 @@ import Link from 'next/link';
 import { SearchBar } from '@/src/components/SearchBar';
 import { Button } from '@/src/components/ui';
 import { MaskedText } from '@/src/components/demo';
-import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
+import { futureSupplyDate, isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
 import type { WorkspaceView } from '../workspace/workspaceState';
 import { MapWorkspaceLayout } from './MapWorkspaceLayout';
 import { WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { MapDisclosure } from './MapDisclosure';
 import { animateWorkspace, WORKSPACE_MOTION } from '../runtime/workspaceMotion';
-import { MapReadingContext } from '../workspace/continuity';
-import { panelWidth, type PanelWidths, type WorkspaceKind } from '../workspace/workspaceState';
+import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
+import { contentPanelWidth, type PanelWidths, type WorkspaceKind } from '../workspace/workspaceState';
 import { Maximize2, Minimize2, Info, MoreHorizontal, Home, List } from 'lucide-react';
 import { FullBuildingList } from './FullBuildingList';
 import { type FullListBuilding } from '../model/fullBuildingList';
@@ -61,6 +61,7 @@ type DisplayOverride = {
 };
 
 type MapWorkbenchViewProps = {
+  dataNotice?: string | null; onRetryNotice?: () => void | Promise<void>;
   queryPanel?: React.ReactNode;
   submarketDetailPanel?: React.ReactNode;
   buildingDetailPanel?: React.ReactNode;
@@ -92,7 +93,9 @@ type MapWorkbenchViewProps = {
   currentSubwayStations: any[];
   filterCommand: SidebarFilterCommand | null;
   mapReady: boolean;
+  mapStage?: 'sdk' | 'tiles' | 'ready' | 'error';
   mapError: string | null;
+  listError?: string | null;
   mapDataLoading: boolean;
   hasBuildings: boolean;
   isExporting: boolean;
@@ -177,7 +180,7 @@ type LegendItem = {
   style?: React.CSSProperties;
 };
 
-function MapLegend({ mode, compareGroups, active }: { mode: RenderMode; compareGroups: CompareGroup[]; active: boolean }) {
+function MapLegend({ mode, compareGroups, active, futureVisible }: { mode: RenderMode; compareGroups: CompareGroup[]; active: boolean; futureVisible: boolean }) {
   const [aggregate, setAggregate] = React.useState(false);
   React.useEffect(() => {
     if (!active) return;
@@ -250,7 +253,7 @@ function MapLegend({ mode, compareGroups, active }: { mode: RenderMode; compareG
     : metricConfig[mode];
 
   return (
-    <MapDisclosure active={active} className="map-workspace-legend" label={<><Info size={16} aria-hidden="true" /><span className="map-legend-label">图例</span></>}>
+    <MapDisclosure width={320} active={active} className="map-workspace-legend" label={<><Info size={16} aria-hidden="true" /><span className="map-legend-label">图例</span></>}>
       <h2>{config.title}</h2>
       <div className="flex items-center gap-3">
         {config.items.map(item => (
@@ -260,11 +263,15 @@ function MapLegend({ mode, compareGroups, active }: { mode: RenderMode; compareG
           </div>
         ))}
       </div>
+      <div className="map-legend-states">
+        <span><i className="map-legend-selected" aria-hidden="true" />当前项目</span>
+        {futureVisible ? <span><i className="map-legend-future" aria-hidden="true">F</i>未来供应</span> : null}
+      </div>
     </MapDisclosure>
   );
 }
 
-function MetricStrip({ stats }: { stats: MapStatsState }) {
+function MetricStrip({ stats, busy }: { stats: MapStatsState; busy: boolean }) {
   const metrics = [
     { label: '净有效租金', value: stats.avgRent, unit: '元/㎡/月' },
     { label: '空置率', value: stats.overallVacancyPct, unit: '%' },
@@ -272,20 +279,26 @@ function MetricStrip({ stats }: { stats: MapStatsState }) {
     { label: '总体量', value: stats.totalArea, unit: '㎡' },
   ];
 
-  const host = React.useRef<HTMLElement>(null);
-  const signature = metrics.map(metric => metric.value).join('|');
-  const previous = React.useRef(signature);
-  React.useEffect(() => {
-    if (previous.current === signature) return;
-    previous.current = signature;
-    const animation = animateWorkspace(host.current, [{ opacity: .7 }, { opacity: 1 }], WORKSPACE_MOTION.feedback);
-    return () => animation?.cancel();
-  }, [signature]);
+  const [announcement, setAnnouncement] = React.useState('');
+  const description = metrics.map(metric => `${metric.label} ${metric.value} ${metric.unit}`).join('，');
+  React.useEffect(() => { if (busy) return; const timer = window.setTimeout(() => setAnnouncement(description), 400); return () => window.clearTimeout(timer); }, [busy, description]);
   return (
-    <section ref={host} className="map-live-stats" aria-label="市场实时指标">
-      <dl className="map-workspace-kpis" aria-live="polite" aria-atomic="true">{metrics.map((metric, index) => <div key={metric.label}><dt>{metric.label}</dt><dd><b className="map-metric-number" style={{ minWidth: `${[5, 4, 4, 10][index]}ch` }}>{metric.value}</b><span>{metric.unit}</span></dd></div>)}</dl>
+    <section className="map-live-stats" aria-label="市场实时指标" aria-busy={busy}>
+      {busy ? <span className="map-stats-updating">更新中</span> : null}
+      <dl className="map-workspace-kpis" aria-live="off">{metrics.map((metric, index) => <MetricValue key={metric.label} metric={metric} index={index} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
     </section>
   );
+}
+function MetricValue({ metric, index }: { metric: { label: string; value: string; unit: string }; index: number }) {
+  const number = React.useRef<HTMLElement>(null);
+  const previous = React.useRef(metric.value);
+  React.useEffect(() => {
+    if (previous.current === metric.value) return;
+    previous.current = metric.value;
+    const animation = animateWorkspace(number.current, [{ opacity: .7 }, { opacity: 1 }], WORKSPACE_MOTION.feedback);
+    return () => animation?.cancel();
+  }, [metric.value]);
+  return <div><dt>{metric.label}</dt><dd><b ref={number} className="map-metric-number" style={{ minWidth: `${[5, 4, 4, 10][index]}ch` }}>{metric.value}</b><span>{metric.unit}</span></dd></div>;
 }
 
 function SupplyProjectList({ projects, onSelect }: { projects: FullListBuilding[]; onSelect: (project: FullListBuilding) => void }) {
@@ -296,7 +309,7 @@ function SupplyProjectList({ projects, onSelect }: { projects: FullListBuilding[
           <button type="button" onClick={() => onSelect(project)} className="min-h-11 rounded-sm text-left font-normal text-[var(--cd-color-brand)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--cd-color-brand)]">
             <MaskedText>{project.name || '未命名项目'}</MaskedText>
           </button>
-          {project.launch_year ? <span className="text-[var(--cd-color-text-secondary)]">预计 {project.launch_year}{project.launch_quarter ?? ''}</span> : null}
+          <span className="text-[var(--cd-color-text-secondary)]">{futureSupplyDate(project)}</span>
         </li>
       ))}
     </ul>
@@ -311,7 +324,9 @@ function SupplyPanel({
   pendingProjects,
   onSelect,
   onClose,
+  active, warning,
 }: {
+  active: boolean; warning?: string | null;
   calendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   total: number;
   commercialProjects: FullListBuilding[];
@@ -320,32 +335,38 @@ function SupplyPanel({
   onSelect: (project: FullListBuilding) => void;
   onClose: () => void;
 }) {
+  const [expanded, setExpanded] = useMapReadingState<Record<string, boolean>>('supplyExpanded', {});
+  const scroll = React.useRef<HTMLDivElement>(null);
+  useMapReadingScroll(scroll, 'supplyScroll', active);
+  const disclosure = (key: string, initial = false) => ({ open: expanded[key] ?? initial, onToggle: (event: React.SyntheticEvent<HTMLDetailsElement>) => { const open = event.currentTarget.open; if (open !== (expanded[key] ?? initial)) setExpanded(old => ({ ...old, [key]: open })); } });
   const projects = [...officeProjects, ...commercialProjects];
   const first = SUPPLY_CALENDAR_CATEGORIES.find(category => calendar[category].total > 0);
   const empty = SUPPLY_CALENDAR_CATEGORIES.filter(category => !calendar[category].total);
   return <section className="map-workspace-supply" aria-label="未来供应">
     <WorkspacePanelHeader title="未来供应" subtitle={`已纳入统计 ${total} 个项目`} onClose={onClose} closeLabel="关闭未来供应" />
-    <div className="workspace-scroll workspace-supply-scroll">
+    <div ref={scroll} className="workspace-scroll workspace-supply-scroll">
+      {warning ? <p role="alert" className="workspace-note">{warning}</p> : null}
       {SUPPLY_CALENDAR_CATEGORIES.filter(category => calendar[category].total > 0).map(category => {
         const data = calendar[category];
         const rows = projects.filter(project => categorizeSupply(project) === category);
         const office = rows.filter(project => !isCommercialFutureSupply(project));
         const commercial = rows.filter(isCommercialFutureSupply);
-        return <details key={category} open={category === first} className="workspace-supply-year">
+        return <details key={category} {...disclosure(category, category === first)} className="workspace-supply-year">
           <summary><span>{SUPPLY_CALENDAR_LABELS[category]}</span><span>{data.total} 个项目</span></summary>
           <p className="workspace-note">办公 {data.office} · 园区 {data.park} · 商业 {data.commercial}</p>
-          {office.length ? <details open className="workspace-supply-type"><summary>办公与园区 · {office.length}</summary><SupplyProjectList projects={office} onSelect={onSelect} /></details> : null}
-          {commercial.length ? <details open={!office.length} className="workspace-supply-type"><summary>商业项目 · {commercial.length}</summary><SupplyProjectList projects={commercial} onSelect={onSelect} /></details> : null}
+          {office.length ? <details {...disclosure(`${category}:office`, true)} className="workspace-supply-type"><summary>办公与园区 · {office.length}</summary><SupplyProjectList projects={office} onSelect={onSelect} /></details> : null}
+          {commercial.length ? <details {...disclosure(`${category}:commercial`, !office.length)} className="workspace-supply-type"><summary>商业项目 · {commercial.length}</summary><SupplyProjectList projects={commercial} onSelect={onSelect} /></details> : null}
         </details>;
       })}
-      {!projects.length ? <p role="status" className="workspace-empty">当前筛选范围内暂无已确认供应，可调整筛选条件。</p> : null}
-      {pendingProjects.length ? <details className="workspace-supply-year"><summary>待核实项目（{pendingProjects.length}）</summary><SupplyProjectList projects={pendingProjects} onSelect={onSelect} /></details> : null}
-      {empty.length ? <details className="workspace-supply-year"><summary>查看无项目年份（{empty.length}）</summary>{empty.map(category => <p key={category} className="workspace-note">{SUPPLY_CALENDAR_LABELS[category]} · 暂无项目</p>)}</details> : null}
+      {!warning && !projects.length ? <p role="status" className="workspace-empty">当前筛选范围内暂无已确认供应，可调整筛选条件。</p> : null}
+      {pendingProjects.length ? <details {...disclosure('pending')} className="workspace-supply-year"><summary>待核实项目（{pendingProjects.length}）</summary><SupplyProjectList projects={pendingProjects} onSelect={onSelect} /></details> : null}
+      {empty.length ? <details {...disclosure('empty')} className="workspace-supply-year"><summary>查看无项目年份（{empty.length}）</summary>{empty.map(category => <p key={category} className="workspace-note">{SUPPLY_CALENDAR_LABELS[category]} · 暂无项目</p>)}</details> : null}
     </div>
   </section>;
 }
 
 export function MapWorkbenchView({
+  dataNotice, onRetryNotice,
   queryPanel,
   submarketDetailPanel,
   buildingDetailPanel,
@@ -373,8 +394,8 @@ export function MapWorkbenchView({
   isListVisible,
   currentSubwayStations,
   filterCommand,
-  mapReady,
-  mapError,
+  mapReady, mapStage, canOpenList,
+  mapError, listError,
   mapDataLoading,
   hasBuildings,
   isExporting,
@@ -417,6 +438,9 @@ export function MapWorkbenchView({
 }: MapWorkbenchViewProps) {
 
   const reading = React.useContext(MapReadingContext);
+  const [filterSections, setFilterSections] = useMapReadingState<Record<string, boolean>>('filterSections', {});
+  const filterScroll = React.useRef<HTMLDivElement>(null);
+  useMapReadingScroll(filterScroll, 'filterScroll', !isFullListVisible && isFilterPanelOpen);
   const [listMoreContext, setListMoreContext] = React.useState<{ key: string | undefined } | null>(null);
   const [searchChoicesOpen, setSearchChoicesOpen] = React.useState(false);
   // Explicit business navigation wins over an earlier search result view.
@@ -478,7 +502,7 @@ export function MapWorkbenchView({
     return () => { viewport?.removeEventListener('resize', update); window.removeEventListener('resize', update); };
   }, []);
   React.useEffect(() => {
-    if (!isFullListVisible && previouslyFullList.current) mapWorkspaceRef.current?.querySelector<HTMLButtonElement>('[aria-label="完整列表"]')?.focus({ preventScroll: true });
+    if (!isFullListVisible && previouslyFullList.current) Array.from(mapWorkspaceRef.current?.querySelectorAll<HTMLElement>('[aria-label="完整列表"], .map-header-navigation-mobile summary') ?? []).find(el => el.getClientRects().length > 0)?.focus({ preventScroll: true });
     previouslyFullList.current = isFullListVisible;
   }, [isFullListVisible]);
 
@@ -492,16 +516,6 @@ export function MapWorkbenchView({
     && !competitorContext && mapReady && !mapError;
   const hasActiveFilters = activeFilterChips.length > 0 || Boolean(searchTerm) || compareGroups.length > 0;
   const showFilterSummary = hasActiveFilters || Boolean(intelligenceContext);
-
-  const closeOpenWorkspaces = React.useCallback(() => {
-    setSearchChoicesOpen(false);
-    if (isFilterPanelOpen) onFilterPanelOpenChange(false);
-    if (onWorkspaceClose) onWorkspaceClose();
-    else {
-      if (isSupplyOpen) onSupplyOpenChange(false);
-      if (isListVisible) onCloseList();
-    }
-  }, [isFilterPanelOpen, isSupplyOpen, isListVisible, onFilterPanelOpenChange, onSupplyOpenChange, onCloseList, onWorkspaceClose]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -517,12 +531,14 @@ export function MapWorkbenchView({
         return;
       }
       if (listMoreOpen) closeListMore();
-      else closeOpenWorkspaces();
+      else if (isFilterPanelOpen && event.target instanceof Element && event.target.closest('.map-workspace-left')) onFilterPanelOpenChange(false);
+      else if (rightKind || isListVisible || isSupplyOpen) { if (onWorkspaceClose) onWorkspaceClose(); else if (isListVisible) onCloseList(); else onSupplyOpenChange(false); }
+      else if (isFilterPanelOpen) onFilterPanelOpenChange(false);
       event.preventDefault();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeOpenWorkspaces, closeListMore, listMoreOpen, searchChoicesVisible, rightKind, onWorkspaceClose]);
+  }, [closeListMore, listMoreOpen, searchChoicesVisible, rightKind, onWorkspaceClose, isFilterPanelOpen, onFilterPanelOpenChange, isListVisible, isSupplyOpen, onCloseList, onSupplyOpenChange]);
 
   const toggleFilterPanel = () => {
     setSearchChoicesOpen(false);
@@ -551,10 +567,11 @@ export function MapWorkbenchView({
           className="map-workspace-filter"
         >
           <WorkspacePanelHeader title={isFullListVisible ? '更多筛选' : '市场筛选'} onClose={isFullListVisible ? closeListMore : () => onFilterPanelOpenChange(false)} closeLabel="关闭筛选" />
-          <div className="workspace-scroll min-h-0 flex-1 overflow-y-auto p-3">
+          <div ref={filterScroll} className="workspace-scroll min-h-0 flex-1 overflow-y-auto p-3">
             <SidebarFilter
               embedded
               defaultExpanded
+              expandedSections={filterSections} onExpandedSectionsChange={setFilterSections}
               presentation={isFullListVisible ? 'list-more' : undefined}
               title="全局筛选"
               districts={MAP_DISTRICTS}
@@ -575,7 +592,7 @@ export function MapWorkbenchView({
   );
   const effectiveKind = rightKind ?? (isSupplyOpen ? 'supply' : isListVisible ? 'list' : submarketDetailPanel ? 'submarket' : null);
   const panelKind = (searchChoicesVisible ? 'search' : effectiveKind ?? 'list') as WorkspaceKind;
-  const preferredWidth = rightWidths ? panelWidth(panelKind, rightWidths) : rightWidth;
+  const preferredWidth = rightWidths ? rightWidths[panelKind] ?? contentPanelWidth(panelKind, panelKind === 'search' ? searchChoices.matchedCount : panelKind === 'supply' ? futureSupplies.length : combinedBuildingList.length, rightView?.kind === 'building' ? rightView.building.name ?? '' : '') : rightWidth;
   const rightOpen = Boolean(effectiveKind || searchChoicesVisible);
   const [listVisited, setListVisited] = React.useState(false);
   if (!listVisited && (effectiveKind === 'list' || effectiveKind === 'compare')) setListVisited(true);
@@ -647,7 +664,7 @@ export function MapWorkbenchView({
     <div hidden={effectiveKind !== 'submarket'} className={effectiveKind === 'submarket' ? 'map-workspace-view' : 'hidden'}>{submarketDetailPanel}</div>
     <div hidden={effectiveKind !== 'building'} className={effectiveKind === 'building' ? 'map-workspace-view' : 'hidden'}>{buildingDetailPanel}</div>
     <div hidden={effectiveKind !== 'supply'} className={effectiveKind === 'supply' ? 'map-workspace-view' : 'hidden'}>
-      <SupplyPanel calendar={futureSupplyCalendar} total={futureSuppliesCount}
+      <SupplyPanel active={effectiveKind === 'supply' && !searchChoicesVisible} warning={fullListWarning} calendar={futureSupplyCalendar} total={futureSuppliesCount}
         commercialProjects={futureSupplies.filter(supply => !isPendingFutureSupply(supply) && isCommercialFutureSupply(supply))}
         officeProjects={futureSupplies.filter(supply => !isPendingFutureSupply(supply) && !isCommercialFutureSupply(supply))}
         pendingProjects={futureSupplies.filter(isPendingFutureSupply)}
@@ -669,13 +686,13 @@ export function MapWorkbenchView({
       <header className="relative z-[500] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <div className="map-page-header">
           <BrokerSearchLink /><h1 title="北京办公楼市场地图">北京办公楼市场地图</h1>
-          <MetricStrip stats={stats} />
+          <MetricStrip stats={stats} busy={mapDataLoading || (!mapReady && !mapError)} />
           <div className="map-header-navigation">
             <Link href="/" className="workspace-header-link"><Home size={16} aria-hidden="true" />主页</Link>
             <Button variant="secondary" size="sm" onClick={() => onOpenFullList?.()} aria-label="完整列表">完整列表</Button>
             {process.env.NODE_ENV === 'development' ? <Button variant="secondary" size="sm" onClick={() => { void onExportMapData(); }} disabled={isExporting || !mapReady}>{isExporting ? '导出中…' : '导出地图数据'}</Button> : null}
           </div>
-          <div className="map-header-navigation-mobile"><MapDisclosure active={!isFullListVisible} label={<><MoreHorizontal size={18} aria-hidden="true" /><span className="sr-only">页面导航</span></>}>
+          <div className="map-header-navigation-mobile"><MapDisclosure width={208} active={!isFullListVisible} label={<><MoreHorizontal size={18} aria-hidden="true" /><span className="sr-only">页面导航</span></>}>
             <Link href="/" className="workspace-header-link"><Home size={16} aria-hidden="true" />主页</Link>
             <button type="button" className="workspace-header-link" aria-label="完整列表" onClick={() => onOpenFullList?.()}><List size={16} aria-hidden="true" />完整列表</button>
           </MapDisclosure></div>
@@ -745,7 +762,7 @@ export function MapWorkbenchView({
           </div>
 
             <select className="map-mode-select" aria-label="地图显示模式" value={renderMode} onChange={event => onRenderModeChange(event.currentTarget.value as RenderMode)}>{MODE_OPTIONS.map(option => <option key={option.mode} value={option.mode}>{option.label}</option>)}</select>
-            <MapLegend mode={renderMode} compareGroups={compareGroups} active={!isFullListVisible} />
+            <MapLegend mode={renderMode} compareGroups={compareGroups} active={!isFullListVisible} futureVisible={filterState?.showFutureSupply ?? true} />
           </div>
           <div className="map-toolbar-actions">
             <IconButton label="未来供应" active={isSupplyOpen} onClick={toggleSupplyPanel}>
@@ -754,7 +771,7 @@ export function MapWorkbenchView({
             <button
               type="button"
               onClick={openBuildingList}
-              disabled={!mapReady}
+              disabled={!canOpenList}
               className="flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-[14px] font-normal text-[var(--cd-color-text-secondary)] shadow-[var(--cd-shadow-sm)] transition-colors hover:border-[var(--cd-color-border-strong)] hover:text-[var(--cd-color-brand)] disabled:cursor-not-allowed disabled:opacity-45"
               aria-label="项目列表" title="查看项目列表"
             >
@@ -785,7 +802,7 @@ export function MapWorkbenchView({
                     <span aria-hidden="true">×</span>
                   </button>
                 ) : null}
-                {activeFilterChips.map(chip => (
+                {activeFilterChips.slice(0, 2).map(chip => (
                   <button
                     key={chip.id}
                     type="button"
@@ -797,6 +814,9 @@ export function MapWorkbenchView({
                     <span aria-hidden="true">×</span>
                   </button>
                 ))}
+                {activeFilterChips.length > 2 || activeFilterChips.some(chip => chip.label.length > 18) ? <MapDisclosure width={304} active={!isFullListVisible} label={`全部 ${activeFilterChips.length} 项条件`}>
+                  <h2>生效条件 · 点选移除</h2><div className="workspace-filter-overflow">{activeFilterChips.map(chip => <button type="button" key={chip.id} onClick={() => onRemoveFilterChip(chip.patch)} aria-label={`移除条件：${chip.label}`}>{chip.label}<span aria-hidden="true"> ×</span></button>)}</div>
+                </MapDisclosure> : null}
                 {compareGroups.length > 0 ? (
                   <span className="flex max-w-[230px] shrink-0 items-center gap-1.5 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-2 py-1 text-[14px] text-[var(--cd-color-text-secondary)]">
                     <span className="flex -space-x-1">
@@ -813,12 +833,13 @@ export function MapWorkbenchView({
         </div>
 
 
+      {dataNotice ? <div role="alert" className="workspace-data-notice"><span>{dataNotice}</span><button type="button" className="workspace-business-action" onClick={() => { void onRetryNotice?.(); }}>重新读取</button></div> : null}
       <MapWorkspaceLayout left={isFullListVisible ? null : filters} right={rightContent}
         leftOpen={isFilterPanelOpen} rightOpen={rightOpen} focus={focusMode} width={preferredWidth} kind={panelKind}
         backLabel={!searchChoicesVisible || rightKind === 'search' ? backLabel : null} onBack={onWorkspaceBack}
         onWidthChange={value => onWorkspaceWidth?.(value, panelKind)}>
       <main className="relative min-h-0 flex-1 overflow-hidden map-workspace-canvas">
-        <div id="map-container" className="absolute inset-0 bg-[#f3f6f8]" />
+        <div id="map-container" className="absolute inset-0 bg-[#f3f6f8]" aria-label="北京办公楼地理分布" />
 
         {mapError ? (
           <div className="absolute inset-0 z-[240] flex items-center justify-center bg-slate-50/80 p-4">
@@ -834,7 +855,7 @@ export function MapWorkbenchView({
           <div className="absolute inset-0 z-[230] flex items-center justify-center bg-[#eef3f7]">
             <div className="flex items-center gap-2 text-[14px] font-normal text-slate-500">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" />
-              正在启动地图工作台…
+              {mapStage === 'tiles' ? '正在加载地图底图…' : '正在加载地图组件…'}
             </div>
           </div>
         ) : null}
@@ -859,7 +880,7 @@ export function MapWorkbenchView({
         <div className={isFullListVisible ? 'absolute inset-0' : 'hidden'} inert={!isFullListVisible || undefined} aria-hidden={!isFullListVisible || undefined}>
           <FullBuildingList searchContextKey={searchContextKey} active={isFullListVisible} buildings={fullBuildingList} queryKey={fullListQueryKey}
             activeFilterChips={activeFilterChips} compareGroupCount={compareGroups.length} requirementContext={Boolean(intelligenceContext)} competitorContext={competitorContext} filterState={filterState} onPatchFilters={onRemoveFilterChip}
-            keyword={keyword} loading={fullListBusy} error={mapError} warning={fullListWarning}
+            keyword={keyword} loading={fullListBusy} error={listError === undefined ? mapError : listError} warning={[fullListWarning, dataNotice].filter(Boolean).join(' ') || null}
             filtersOpen={listMoreOpen} moreFiltersTriggerId={moreFiltersTriggerId} filtersPanelId={filtersPanelId}
             displayOverrides={displayOverrides} targetBuildingId={targetBuildingId}
             onBack={() => onCloseFullList?.()} onToggleFilters={() => {
@@ -867,7 +888,7 @@ export function MapWorkbenchView({
               else setListMoreContext({ key: searchContextKey });
             }}
             onKeywordChange={onKeywordChange} onSearch={onFullListSearch ?? onSearch} onResetFilters={onResetFilters}
-            onRetry={onRetryMap} onBuildingClick={building => onFullListBuildingClick?.(building)} />
+            onRetry={dataNotice ? () => { void onRetryNotice?.(); } : onRetryMap} onBuildingClick={building => onFullListBuildingClick?.(building)} />
         </div>
       ) : null}
       {isFullListVisible && listMoreOpen ? <div className="map-full-list-filters">{filters}</div> : null}

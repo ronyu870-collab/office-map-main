@@ -1,26 +1,30 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
+import { LocateFixed } from 'lucide-react';
 import { WorkspacePanelHeader, WorkspacePanelContext } from './WorkspacePanelHeader';
 import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger } from '@/src/services/map/buildingPhotoGallery';
 import { displayListGrade, hasBuildingLocation, listVacancyPercent, finiteMetric } from '../model/fullBuildingList';
-import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
+import { futureSupplyDate, isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { futureSupplyDisplayLabel } from '../model/mapDomain';
 import { animateWorkspace } from '../runtime/workspaceMotion';
 import { useMapReadingScroll } from '../workspace/continuity';
 import type { WorkspaceBuildingDetail as Detail } from '../workspace/buildingDetail';
 import { auditBuildingReading } from '@/src/utils/buildingReadingAudit';
 
-type Action = 'nearby' | 'contact' | 'trend' | 'edit';
-export type BuildingReadingState = { tab: string; scrollTop: number };
-function Photos({ detail }: { detail: Detail }) {
+type Action = 'locate' | 'nearby' | 'contact' | 'trend' | 'edit';
+export type BuildingReadingState = { tab: string; scrollTop: number; scrolls?: Record<string, number>; trendOpen?: boolean; photo?: { open: boolean; index: number } };
+function Photos({ detail, reading, onChange }: { detail: Detail; reading?: BuildingReadingState['photo']; onChange: (photo: NonNullable<BuildingReadingState['photo']>) => void }) {
   const root = React.useRef<HTMLDivElement>(null);
   const id = detail.building._dataType === 'future' ? detail.building.building_id : detail.building.id;
   const galleryId = `workspace-gallery-${id}`;
+  const readingRef = React.useRef(reading);
+  const changeRef = React.useRef(onChange);
+  React.useEffect(() => { readingRef.current = reading; changeRef.current = onChange; }, [reading, onChange]);
   const safeName = (detail.building.name ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
   React.useEffect(() => {
     if (!root.current || !id || !detail.photos.length) return;
-    return bindBuildingPhotoGallery(root.current, id, detail.photos) ?? undefined;
+    return bindBuildingPhotoGallery(root.current, id, detail.photos, { initial: readingRef.current, onChange: photo => changeRef.current(photo) }) ?? undefined;
   }, [id, detail.photos]);
   if (!id || !detail.photos.length || detail.isDemo) return null;
   return <div ref={root} className="workspace-building-photos" dangerouslySetInnerHTML={{ __html:
@@ -28,34 +32,44 @@ function Photos({ detail }: { detail: Detail }) {
 }
 const number = (value: unknown, suffix = '') => {
   const numeric = finiteMetric(value);
-  return numeric === null ? '未提供' : numeric.toLocaleString('zh-CN', { maximumFractionDigits: 1 }) + suffix;
+  return numeric === null ? '—' : numeric.toLocaleString('zh-CN', { maximumFractionDigits: 1 }) + suffix;
 };
-export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTrend, readingState, onReadingChange, stackingBack }: {
+export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTrend, readingState, onReadingChange, stackingBack, outsideResults = false }: {
   detail: Detail; onClose: () => void; onAction: (action: Action) => void; onDisposeTrend: () => void;
   readingState?: BuildingReadingState; onReadingChange?: (state: BuildingReadingState) => void;
-  stackingBack?: string;
+  stackingBack?: string; outsideResults?: boolean;
 }) {
   const { building, metric, isDemo, canEdit, overrides } = detail;
   const workspace = React.useContext(WorkspacePanelContext);
   const [tab, updateTab] = React.useState(readingState?.tab ?? 'overview');
   const scroll = React.useRef<HTMLDivElement>(null);
+  const state = React.useRef<BuildingReadingState>(readingState ?? { tab: 'overview', scrollTop: 0 });
+  const report = (patch: Partial<BuildingReadingState>) => { state.current = { ...state.current, ...patch }; onReadingChange?.(state.current); };
   const [initialScroll] = React.useState(readingState?.scrollTop ?? 0);
   const resetScroll = useMapReadingScroll(scroll, `detail:${detail.building._dataType}:${detail.building.id}`, true, initialScroll);
   const panel = React.useRef<HTMLDivElement>(null);
   React.useLayoutEffect(() => { const animation = animateWorkspace(panel.current, [{ opacity: .7 }, { opacity: 1 }], 120); return () => animation?.cancel(); }, [tab, building.id]);
   const setTab = (next: string) => {
     if (next === tab) return;
-    updateTab(next); resetScroll(); onReadingChange?.({ tab: next, scrollTop: 0 });
+    const scrolls = { ...state.current.scrolls, [tab]: scroll.current?.scrollTop ?? 0 };
+    const position = scrolls[next] ?? 0;
+    updateTab(next); resetScroll(position); report({ tab: next, scrollTop: position, scrolls });
     auditBuildingReading('VIEW_BUILDING_SECTION', building, { section: next }, isDemo);
   };
-  const [trendOpen, setTrendOpen] = React.useState(false);
+  const [savedTrendOpen] = React.useState(readingState?.trendOpen ?? false);
+  const [trendOpen, setTrendOpen] = React.useState(savedTrendOpen);
+  const trendRestored = React.useRef(false);
+  React.useEffect(() => {
+    if (!savedTrendOpen || trendRestored.current || tab !== 'market') return;
+    trendRestored.current = true; onAction('trend');
+  }, [tab, savedTrendOpen, onAction]);
   React.useEffect(() => () => onDisposeTrend(), [onDisposeTrend]);
   const future = building._dataType === 'future';
   const materialId = future ? building.building_id : building.id;
   const name = isDemo ? '***' : building.name || '未命名项目';
   const protectedValue = (value: unknown) => isDemo && value ? '***' : String(value ?? '未提供');
   const rows: Array<[string, React.ReactNode]> = future ? [
-    ['预计入市', building.launch_year ? `${building.launch_year}${building.launch_quarter ?? '年'}` : '待定'],
+    ['预计入市', futureSupplyDate(building)],
     ['业主', protectedValue(building.owner)], ['备注', protectedValue(building.notes)],
   ] : [
     [overrides.grade?.display_label ?? '楼宇等级', overrides.grade?.display_value ?? displayListGrade(building.grade)],
@@ -67,8 +81,9 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
     disabled={disabled} onClick={local ? () => onAction(local) : undefined} className="workspace-business-action">{label}</button>;
   return <section className="workspace-building building-popup" data-building-id={future ? materialId ?? '' : building.id}
     data-building-name={name} aria-label={`${name}楼宇详情`}>
-    <WorkspacePanelHeader title={name} subtitle={future ? futureSupplyDisplayLabel(building) : [displayListGrade(building.grade), building.submarket].filter(Boolean).join(' · ')} onClose={onClose} closeLabel="关闭楼宇详情" />
-    <div ref={scroll} className="workspace-building-scroll workspace-scroll" onScroll={event => onReadingChange?.({ tab, scrollTop: event.currentTarget.scrollTop })}>
+    <WorkspacePanelHeader title={name} subtitle={future ? futureSupplyDisplayLabel(building) : [displayListGrade(building.grade), building.submarket].filter(Boolean).join(' · ')} onClose={onClose} closeLabel="关闭楼宇详情" actions={hasBuildingLocation(building) ? <button type="button" className="workspace-icon" aria-label="定位当前项目" title="定位当前项目" onClick={() => onAction('locate')}><LocateFixed size={17} aria-hidden="true" /></button> : null} />
+    <div ref={scroll} className="workspace-building-scroll workspace-scroll" onScroll={event => report({ tab, scrollTop: event.currentTarget.scrollTop })}>
+      {outsideResults ? <p role="status" className="workspace-note">当前项目不在筛选结果中，已保留详情供继续查阅。</p> : null}
       {!hasBuildingLocation(building) ? <p role="status">此项目未提供有效坐标，可继续查看资料。</p> : null}
       <dl className="workspace-building-metrics">
         <div><dt>净有效租金 · <span className="whitespace-nowrap">元/㎡/月</span></dt><dd>{number(metric?.net_effective_rent)}</dd></div>
@@ -88,13 +103,13 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
             aria-controls={`workspace-building-panel-${id}`} tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
       <div ref={panel} role="tabpanel" id={`workspace-building-panel-${tab}`} aria-labelledby={`workspace-building-tab-${tab}`}>
-        {tab === 'overview' ? <><dl className="workspace-building-facts">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{typeof value === 'string' && !value.trim() ? '未提供' : value}</dd></div>)}</dl><Photos detail={detail} /></> : null}
+        {tab === 'overview' ? <><dl className="workspace-building-facts">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{typeof value === 'string' && !value.trim() ? '未提供' : value}</dd></div>)}</dl><Photos detail={detail} reading={state.current.photo} onChange={photo => report({ photo })} /></> : null}
         {tab === 'market' ? <>
           <dl className="workspace-building-facts"><div><dt>表面租金 · 元/㎡/月</dt><dd>{number(metric?.face_rent)}</dd></div><div><dt>物业费 · 元/㎡/月</dt><dd>{number(metric?.management_fee)}</dd></div></dl>
           {!future ? <div className="workspace-business-actions">
             {action('周边项目对比', 'nearby-compare', 'nearby', !hasBuildingLocation(building))}
             {action('楼宇对比', 'building-compare')}
-            <button type="button" className="workspace-business-action" aria-expanded={trendOpen} aria-controls="info-chart-panel" onClick={() => { onAction('trend'); setTrendOpen(current => !current); }}>季度趋势</button>
+            <button type="button" className="workspace-business-action" aria-expanded={trendOpen} aria-controls="info-chart-panel" onClick={() => { onAction('trend'); setTrendOpen(current => !current); report({ trendOpen: !trendOpen }); }}>季度趋势</button>
             {canEdit ? action('编辑指标', 'edit-metrics', 'edit') : null}
           </div> : null}
         </> : null}

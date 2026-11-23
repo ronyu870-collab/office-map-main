@@ -29,13 +29,13 @@ const observations = [];
 try {
  for (const [width, reduced] of [[1536,false],[390,false],[390,true]]) {
   const context = await browser.newContext({viewport:{width,height:width===390?560:900},reducedMotion:reduced?'reduce':'no-preference',serviceWorkers:'block'});
-  let stackReads=0, failRefresh=false;
+  let stackReads=0, failRefresh=false, emptyStock=false;
   const errors=[];
   await context.routeWebSocket(/.*/, socket=>socket.close());
   await context.route('**/*', async route=>{
    const url=new URL(route.request().url());
    if(url.origin===base.origin){
-    if(url.pathname==='/api/map/data')return route.fulfill({json:url.searchParams.get('mode')==='future'?{future_supplies:future}:{buildings:stock,display_overrides:[]}});
+    if(url.pathname==='/api/map/data')return route.fulfill({json:url.searchParams.get('mode')==='future'?{future_supplies:future}:{buildings:emptyStock?[]:stock,display_overrides:[]}});
     if(url.pathname===`/api/stacking-plan/${project}`){ stackReads++; if(stackReads>1)await new Promise(resolve=>setTimeout(resolve,350)); return route.fulfill({status:failRefresh?503:200,json:failRefresh?{error:'隔离测试暂时不可用'}:stacking}); }
     if(url.pathname.startsWith('/api/'))return route.fulfill({status:204});
     return route.continue();
@@ -74,6 +74,16 @@ try {
   await stackLink.scrollIntoViewIfNeeded(); await page.waitForTimeout(80);
   const readingScroll = await detail.locator('.workspace-scroll').evaluate(element=>element.scrollTop);
   const before={camera:await page.evaluate(()=>({zoom:window.__workspaceMap.getZoom(),center:window.__workspaceMap.center})),box:await page.locator('.map-workspace-right').boundingBox()};
+  if(width===1536){
+    const opened=context.waitForEvent('page');
+    await stackLink.evaluate(anchor=>{ anchor.dispatchEvent(new MouseEvent('auxclick',{bubbles:true,button:1})); window.open(anchor.href,'_blank'); });
+    const other=await opened; other.on('pageerror',error=>errors.push(error.message));
+    await other.getByRole('link',{name:'返回项目详情',exact:true}).waitFor();
+    await other.getByRole('link',{name:'返回项目详情',exact:true}).click();
+    await other.getByRole('region',{name:'CBD甲楼楼宇详情'}).waitFor();
+    assert.equal(await other.getByRole('tab',{name:'成交与资料'}).getAttribute('aria-selected'),'true','auxclick snapshot and new tab carry the return reading context');
+    await other.close();
+  }
   console.log('enter stacking',width);
   const denseStarted=Date.now();
   await page.getByRole('link',{name:'Stacking Plan',exact:true}).click();
@@ -150,6 +160,10 @@ try {
   await page.evaluate(()=>window.__workspaceMap.setCenter([116.2,40.1]));
   await list.getByRole('button',{name:/^CBD甲楼/}).click(); await detail.waitFor(); await page.waitForTimeout(280);
   assert.deepEqual(await page.evaluate(()=>window.__workspaceMap.center),[116.46,39.91],'same project refocuses after a list and manual pan');
+  // Repeated selection while the same detail remains open must also refocus.
+  await page.evaluate(()=>window.__workspaceMap.setCenter([116.2,40.1]));
+  await page.getByRole('button',{name:'定位当前项目',exact:true}).click();
+  await page.waitForFunction(()=>JSON.stringify(window.__workspaceMap.center)===JSON.stringify([116.46,39.91]));
   await page.getByRole('button',{name:'项目列表',exact:true}).click(); await list.waitFor();
   // Rapid reversals must settle on the final project without queued camera callbacks.
   await list.getByRole('button',{name:/^CBD乙楼/}).click();
@@ -172,6 +186,18 @@ try {
   assert.ok(resizes<=2,`one panel transition must not resize SDK each animation frame: ${resizes}`);
   await page.waitForTimeout(100);
   const motion=await page.evaluate(()=>{window.__continuityObserver?.disconnect();const frames=window.__continuityFrames.slice(1).sort((a,b)=>a-b);return {frameP95Ms:frames[Math.floor(frames.length*.95)]??null,longTasks:window.__continuityLongTasks};});
+  if(width===1536){
+    await page.getByRole('button',{name:'未来供应',exact:true}).click();
+    await page.getByRole('button',{name:'CBD未来楼',exact:true}).click();
+    await page.getByRole('region',{name:'CBD未来楼楼宇详情'}).waitFor();
+    await page.getByRole('tab',{name:'成交与资料'}).click();
+    await page.evaluate(()=>window.dispatchEvent(new Event('map-workspace-save-return')));
+    emptyStock=true;
+    await page.reload();
+    await page.getByRole('region',{name:'CBD未来楼楼宇详情'}).waitFor();
+    assert.equal(await page.getByRole('tab',{name:'成交与资料'}).getAttribute('aria-selected'),'true','future-only return retains the reading tab');
+    assert.equal(await page.getByText('地图加载失败',{exact:true}).count(),0,'valid empty stock is not a data failure');
+  }
   await context.close();
   observations.push({width,reduced,roundTrip:true,readingScroll,sameProjectRefocus:true,refreshRetainsContent:true,dirtyCancel:true,resizeCalls:resizes,dense600ReadyMs:denseReadyMs,dense600FilterMs:denseFilterMs,motion,errors});
   assert.deepEqual(errors,[]);

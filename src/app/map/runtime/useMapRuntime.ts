@@ -22,6 +22,7 @@ type MapRuntimeOptions = {
 export type MapRuntimeHandle = {
   controllerRef: React.MutableRefObject<any>;
   mapReady: boolean;
+  mapStage: 'sdk' | 'tiles' | 'ready' | 'error';
 };
 
 type AMapInstanceLike = {
@@ -254,6 +255,7 @@ export function useMapRuntime({
 }: MapRuntimeOptions): MapRuntimeHandle {
   const controllerRef = React.useRef<any>(null);
   const [mapReady, setMapReady] = React.useState(false);
+  const [mapStage, setMapStage] = React.useState<MapRuntimeHandle['mapStage']>('sdk');
 
   const roleRef = React.useRef(userRole);
   const userIdRef = React.useRef(currentUserId);
@@ -304,7 +306,7 @@ export function useMapRuntime({
         ownedController = controller;
         controllerRef.current = controller;
         errorRef.current(null);
-        setMapReady(false);
+        setMapReady(false); setMapStage('sdk');
         startupOptimizationCleanup = installMapStartupOptimization(controller);
 
         // Start Supabase/business-data work as soon as the controller exists.
@@ -328,6 +330,7 @@ export function useMapRuntime({
         if (cancelled) return;
 
         assertMapInstanceCreated(controller);
+        setMapStage('tiles');
         await waitForInitialMapTiles(controller, () => cancelled);
         if (cancelled) return;
 
@@ -338,13 +341,13 @@ export function useMapRuntime({
         hardeningCleanup = installMapInteractionHardening(controller, containerId);
 
         applyAdminMode(controller);
-        setMapReady(true);
+        setMapReady(true); setMapStage('ready');
         await startupWorkPromise;
       } catch (error) {
         if (!cancelled) {
           console.error('[MapRuntime] map initialization failed', error);
           errorRef.current(error instanceof Error ? error.message : '地图初始化失败');
-          setMapReady(false);
+          setMapReady(false); setMapStage('error');
         }
       }
     })();
@@ -366,5 +369,5 @@ export function useMapRuntime({
     applyAdminMode(controllerRef.current as MapController);
   }, [applyAdminMode, currentUserId, mapReady, userRole]);
 
-  return { controllerRef, mapReady };
+  return { controllerRef, mapReady, mapStage };
 }
