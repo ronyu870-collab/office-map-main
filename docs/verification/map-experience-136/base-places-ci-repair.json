@@ -38,5 +38,13 @@
       "warnings": 4
     }
   },
-  "newExactHeadCI": "required before merge"
+  "newExactHeadCI": "required before merge",
+  "resolution": {
+    "head": "4f0a177fb73c70842e48dfc8f5a248df2dab911a",
+    "verifyRun": "45252988615",
+    "necessaryCI": "all pass including engineering, search and both real Auth jobs",
+    "mergedAt": "2026-11-23T20:12:38Z",
+    "main": "e655a84906016825ef2f6c7f91fe404e3c3cc28f",
+    "mainTreeMatchesTestedHead": "f0cda92055cb9bb0b39f2de9949ac2b5c7cb62d5"
+  }
 }

@@ -389,15 +389,33 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   setWorkspaceSubmarket(name: string | null): void { this.workspaceSubmarket = name; }
   isWorkspaceActive(): boolean { return Boolean(this.workspaceDetailHandler); }
   setWorkspaceSelection(building: WorkspaceBuilding | null): void {
+    const previousAction = this.workspaceSelectionContent?.querySelector<HTMLButtonElement>('button');
+    if (previousAction) previousAction.onclick = null;
     if (this.workspaceSelectionMarker) this.map?.remove?.(this.workspaceSelectionMarker);
     this.workspaceSelectionMarker = null;
     this.workspaceSelectionContent = null;
     this.workspaceSelectedBuilding = building;
     if (!this.map || !building || !hasMapCoordinates(building) || !this.AMap?.Marker) return;
-    const content = createSelectionMarker(this.workspaceSelectionImage(building), building._dataType === 'future');
+    const content = createSelectionMarker(this.workspaceSelectionImage(building), building._dataType === 'future', {
+      name: building.name || '未命名项目', onLocate: () => this.locateWorkspaceSelection(building),
+    });
     this.workspaceSelectionContent = content;
     this.workspaceSelectionMarker = new this.AMap.Marker({ position: [building.location_lng, building.location_lat], content, anchor: 'center', zIndex: 999999, bubble: true });
     this.map.add(this.workspaceSelectionMarker);
+  }
+
+  private locateWorkspaceSelection(building: WorkspaceBuilding): void {
+    const current = () => !this._destroyed && this.workspaceSelectedBuilding === building && hasMapCoordinates(building);
+    if (!current()) return;
+    const move = (immediately = false) => {
+      if (!current() || !this.map) return;
+      const zoom = Number(this.map.getZoom?.());
+      const reduced = immediately || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+      this.map.setZoomAndCenter(Math.max(14, Math.min(18, Number.isFinite(zoom) ? zoom : 14)),
+        [building.location_lng, building.location_lat], reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
+    };
+    if (this.workspaceCameraHandler) this.workspaceCameraHandler(move);
+    else move();
   }
 
   /** React owns detail rendering; the controller retains existing authorized data/actions. */

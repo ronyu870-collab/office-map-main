@@ -8,7 +8,7 @@ export async function verifyBaseMapPlaces(page, { width, evidencePrefix = 'map-b
       features: map.getFeatures().slice().sort(), camera: [map.getZoom(), center.lng, center.lat],
       stats: document.querySelector('.map-live-stats')?.textContent,
       selected: document.querySelectorAll('.map-selected-marker').length,
-      identity: document.querySelector('[data-building-id][role="region"]')?.getAttribute('data-building-id') ?? null,
+      identity: document.querySelector('.workspace-building[data-building-id]')?.getAttribute('data-building-id') ?? null,
     };
   });
   const before = await snapshot();

@@ -1,0 +1,34 @@
+{
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [
+    {
+      "width": 1536,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 34
+      },
+      "checked": {
+        "name": "current marker recenter after real pointer drag",
+        "width": 1536,
+        "id": "single",
+        "moved": [
+          116.347276,
+          39.870741
+        ],
+        "keyboardMoved": [
+          116.347276,
+          39.870741
+        ],
+        "recentered": [
+          116.35,
+          39.87
+        ],
+        "sharedCoordinateIdentityRetained": true,
+        "readingTabRetained": "概览",
+        "keyboardAction": true,
+        "nativeTouch": false
+      }
+    }
+  ],
+  "status": "pass"
+}

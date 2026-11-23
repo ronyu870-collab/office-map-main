@@ -1,3 +1,4 @@
+import { within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../supabaseClient', () => ({ supabase: {} }));
 vi.mock('../Auth', () => ({ getSessionFast: vi.fn() }));
@@ -21,7 +22,7 @@ function fixture() {
   controller.setWorkspaceDetailHandler(detail);
   return { controller, detail, markers, nativePopup };
 }
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
 describe('real MapController workspace adapter', () => {
   it.each([[0, 0], [40, 116], [181, 39], [116, 86]])('reads invalid-coordinate records without rendering a selection at %s/%s', (lng, lat) => {
     const { controller, detail, markers } = fixture();
@@ -112,4 +113,38 @@ it('bridges trend reading with its project identity without reinterpreting it as
     controller.runWorkspaceBuildingAction('trend',{id:'a',_dataType:'existing'},reading);
     expect(toggle).toHaveBeenCalledExactlyOnceWith('a',reading);
   } finally { delete (window as any).__colliers_toggleTrend; }
+});
+
+
+it('reselects the current map badge through the camera owner without reopening or resetting detail', () => {
+  const {controller,detail,markers}=fixture();
+  const move=vi.fn(),setZoomAndCenter=vi.fn();
+  Object.assign((controller as any).map,{getZoom:()=>15,setZoomAndCenter});
+  controller.setWorkspaceCameraHandler(move);
+  controller.openBuildingInfoWindow('a');detail.mockClear();
+  const content=(markers[0] as {content:HTMLElement}).content;
+  const button=within(content).getByRole('button',{name:'定位当前项目：甲楼'});
+  button.click();
+  expect(move).toHaveBeenCalledOnce();expect(detail).not.toHaveBeenCalled();
+  expect(setZoomAndCenter).not.toHaveBeenCalled();
+  move.mock.calls[0][0](true);
+  expect(setZoomAndCenter).toHaveBeenCalledExactlyOnceWith(15,[116.4,39.9],true,0);
+  button.click();const delayed=move.mock.calls[1][0];
+  controller.openBuildingInfoWindow('b');
+  delayed(true);button.click();
+  expect(setZoomAndCenter).toHaveBeenCalledOnce();
+  expect(move).toHaveBeenCalledTimes(2);
+});
+
+it('keeps a future badge action and focus while its mode changes, then releases it on close', () => {
+  const {controller,markers}=fixture();const move=vi.fn();
+  controller.setWorkspaceCameraHandler(move);
+  controller.openFutureSupplyInfoWindow({id:'future',building_id:'master',name:'未来楼',location_lng:116.4,location_lat:39.9});
+  const content=(markers[0] as {content:HTMLElement}).content;document.body.append(content);
+  const button=within(content).getByRole('button',{name:'定位当前项目：未来楼'});button.focus();
+  controller.setWorkspaceSelectionRenderer(building=>futureSupplyImage(building,'leed'));
+  expect(document.activeElement).toBe(button);
+  button.click();expect(move).toHaveBeenCalledOnce();
+  controller.closeWorkspaceBuilding();button.click();expect(move).toHaveBeenCalledOnce();
+  content.remove();
 });
