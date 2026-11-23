@@ -48,7 +48,7 @@ type Props = {
 
 const PAGE_SIZE = 20;
 function format(value: number | null, digits: number, unit: string) {
-  return value === null ? '—' : `${value.toLocaleString('zh-CN', { maximumFractionDigits: digits })} ${unit}`;
+  return value === null ? '—' : `${value.toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${unit}`;
 }
 
 export function FullBuildingList({ active, searchContextKey, buildings, queryKey, activeFilterChips, compareGroupCount, requirementContext, competitorContext, filterState, onPatchFilters, keyword, loading, error, warning, filtersOpen, moreFiltersTriggerId, filtersPanelId, displayOverrides, targetBuildingId, targetBuildingType = 'existing', onBack, onToggleFilters, onKeywordChange, onSearch, onResetFilters, onRetry, onBuildingClick }: Props) {

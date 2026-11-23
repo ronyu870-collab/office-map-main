@@ -135,3 +135,23 @@ it('announces a metric with no usable observations without losing the period tab
   expect(document.getElementById('chart')).toBeVisible();
   instance!.dispose();
 });
+
+it('restores the selected metric and expanded table, reports changes and releases disclosure listeners', () => {
+  document.body.innerHTML='<button id="chart-btn-rent"></button><button id="chart-btn-vac"></button><div id="chart"></div><div data-building-trend-data></div>';
+  const chart={setOption:vi.fn(),resize:vi.fn(),dispose:vi.fn()};runtime.init.mockReturnValue(chart);
+  const view=vi.fn(),change=vi.fn();
+  const instance=initTrendChart(document.getElementById('chart')!,[{year:2026,quarter:'Q3',net_effective_rent:200,vacancy_rate:.1}],view,{value:{metric:'vac',tableOpen:true},onChange:change});
+  const details=document.querySelector('details')!;
+  expect(document.getElementById('chart-btn-vac')).toHaveAttribute('aria-pressed','true');
+  expect(details.open).toBe(true);
+  expect(chart.setOption.mock.calls[0][0].series[0].data).toEqual([10]);
+  expect(view.mock.calls).toEqual([['vac']]);
+  document.getElementById('chart-btn-rent')!.click();
+  expect(change).toHaveBeenLastCalledWith({metric:'rent',tableOpen:true});
+  details.open=false;details.dispatchEvent(new Event('toggle'));
+  expect(change).toHaveBeenLastCalledWith({metric:'rent',tableOpen:false});
+  instance!.dispose();change.mockClear();
+  details.open=true;details.dispatchEvent(new Event('toggle'));
+  document.getElementById('chart-btn-vac')!.click();
+  expect(change).not.toHaveBeenCalled();
+});

@@ -6,7 +6,7 @@ type MapCanvas = {
   setCenter?: (center: any, immediately?: boolean, duration?: number) => void;
   setZoomAndCenter?: (zoom: number, center: [number, number], immediately?: boolean, duration?: number) => void;
 };
-export type CameraIntent = { center: [number, number]; camera?: Camera | null; exact?: boolean } | { fit: (immediately?: boolean) => void };
+export type CameraIntent = { center: [number, number]; camera?: Camera | null; exact?: boolean } | { fit: (immediately?: boolean) => void; extentKey?: string };
 export function projectCamera(center: [number, number], saved: Camera | null | undefined, width: number, height: number, currentZoom = 14): Camera {
   if (saved && saved.zoom >= 13.5) {
     const pixels = 256 * 2 ** saved.zoom;
@@ -78,6 +78,10 @@ export function observeMapCanvas(container: HTMLElement, map: MapCanvas) {
     // or an intent belonging to a different project/search/region.
     update: (key: string, intent: CameraIntent) => {
       if (owner !== key || userOwned || disposed) return;
+      // Data/render refreshes can recreate the same coordinate set on a later
+      // frame. Keep its running camera instead of starting the same fit again.
+      // Resize still reprojects retained geometry; explicit focus resets it.
+      if ('fit' in intent && intent.extentKey !== undefined && retained && 'fit' in retained && retained.extentKey === intent.extentKey) return;
       retained = 'fit' in intent ? intent : null; pending = intent; schedule();
     }, cancel,
   });

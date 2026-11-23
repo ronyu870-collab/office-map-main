@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MapController } from '@/src/services/MapController';
 import { installMapVisualContinuityV2 } from '../mapVisualContinuityV2';
 import { installMapInteractionHardening } from '../mapInteractionHardening';
 import { installFallbackMarkerHardening, installNativeMarkerRenderer } from '../mapNativeMarkerRenderer';
@@ -46,6 +47,7 @@ function createNativeHarness() {
     off = this.handlers.off;
     show = vi.fn();
     hide = vi.fn();
+    setExtData = vi.fn();
     setOpacity = vi.fn();
   }
   class Pixel { constructor(public x: number, public y: number) {} }
@@ -127,6 +129,52 @@ async function flushFrames(count = 3) {
     await new Promise<void>(resolve => window.setTimeout(resolve, 4));
   }
 }
+
+it('keeps legacy controller summaries within the supplied result scope', () => {
+  const harness = createNativeHarness();
+  const all = [building('a','CBD',116.46,39.91,100,.1), building('b','CBD',116.47,39.92,300,.3)];
+  const controller: any = { AMap: harness.AMap, map: harness.map, _allBuildingsCache: all,
+    markers: [],dotMarkers: [],submarketMarkers: [],refreshWorkspaceSelection: vi.fn(),
+    clearMarkers: vi.fn(),updateVisibilityByZoom: vi.fn() };
+  const render = (overview?: typeof all) => {
+    controller.submarketMarkers=[];
+    MapController.prototype.renderMarkers.call(controller,[all[0]] as never,'default',undefined,undefined,false,overview as never);
+    return new DOMParser().parseFromString(controller.submarketMarkers[0].options.content,'text/html').body.textContent;
+  };
+  expect(render()).toContain('甲乙级 1 个'); expect(render()).toContain('¥100.0');
+  expect(render(all)).toContain('甲乙级 2 个'); expect(render(all)).toContain('¥200.0');
+});
+
+it.each(['v3', 'v2', 'native'] as const)('%s summarizes the filtered observations without borrowing excluded cache records', async version => {
+  const harness = createNativeHarness();
+  const all = [building('a','CBD',116.46,39.91,100,.1), building('b','CBD',116.47,39.92,300,.3)];
+  const controller: any = { AMap: harness.AMap, map: harness.map, _allBuildingsCache: all,
+    renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn() };
+  const cleanup = version === 'v3' ? installMapInteractionHardening(controller, 'map-container')
+    : version === 'v2' ? installMapVisualContinuityV2(controller, document.getElementById('map-container')!)
+    : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
+  try {
+    const render = async (rows: typeof all, overview?: typeof all) => {
+      const start = harness.markerInstances.length;
+      controller.renderMarkers(rows,'default',undefined,undefined,false,overview); await flushFrames();
+      return harness.markerInstances.slice(start).map(marker => marker.options.content as HTMLElement);
+    };
+    const first = await render([all[0]]);
+    expect(first).toHaveLength(1); expect(first[0].textContent).toContain('¥100');
+    expect(first[0].textContent).toContain('10.0%');
+    if (version !== 'v2') expect(first[0].textContent).toContain('甲乙级 1 个');
+    const second = await render([all[1]]);
+    expect(second).toHaveLength(1); expect(second[0].textContent).toContain('¥300');
+    expect(second[0].textContent).toContain('30.0%');
+    expect(await render([])).toEqual([]);
+    // A caller can still request a separately declared overview scope.
+    if (version !== 'v2') {
+      const explicit = await render([all[0]], all);
+      expect(explicit[0].textContent).toContain('甲乙级 2 个');
+      expect(explicit[0].textContent).toContain('¥200');
+    }
+  } finally { cleanup?.(); }
+});
 
 it.each(['v3', 'v2', 'native'] as const)('%s excludes invalid coordinates from point layers while retaining legal distant projects', async version => {
   const harness = createNativeHarness(); harness.setZoom(14.4);

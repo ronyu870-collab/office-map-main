@@ -1,0 +1,50 @@
+{
+  "scope": "contact task and owner material reading",
+  "before": {
+    "browser": "320px named-dialog lookup failed; screenshot shows title overlaps close icon and phone fragmented by oversized decorative icon and dial action",
+    "existingEscape": "prior full workspace test left overlay open after Escape and manually clicked its close button",
+    "immediateEscape": "Full workspace 390 failed to dismiss; holding requestAnimationFrame produces one stable old unit failure because focus stays on the underlying trigger."
+  },
+  "implementation": {
+    "contact": "shared Dialog through SDK adapter; source phone and project text retained, Demo masked; named close, keyboard loop, Escape, return focus; replaces prior root and disposes on controller destroy",
+    "material": "desktop title uses existing 16px title size; existing room/policy/brochure structures and PDF retry behavior retained",
+    "sharedDialog": "Move focus during layout commit before first visible paint, without a deferred frame."
+  },
+  "verification": {
+    "tests": {
+      "files": 10,
+      "passed": 56
+    },
+    "auditCoverage": "pass",
+    "typecheck": "pass",
+    "eslint": {
+      "errors": 0,
+      "warnings": 74
+    },
+    "productionBuild": "pass",
+    "contactBrowser": "1536,390,320,844 pass",
+    "materialBrowser": "Four widths pass; real PDF.js bytes, no loading status and stable distinct bitmaps for page 1 and 2; download/403 retry",
+    "fullWorkspace": {
+      "status": "pass",
+      "widths": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "observations": 56,
+      "evidence": "material-contact-workspace.json"
+    }
+  },
+  "testAdaptations": [
+    "Shared Dialog renders a portal; wait for the real named dialog rather than visibility of its empty root host.",
+    "Source evidence is prefixed by 依据： in the actual view. Both initial test mismatches were corrected, not counted as product failures.",
+    "PDF labels update before asynchronous drawing. Wait for a stable new bitmap and no loading status before capturing page 2."
+  ],
+  "limits": [
+    "Business/identity and SDK fixtures are isolated; PDF bytes are generated locally, not a production owner document.",
+    "Refreshed HTTP denial is covered; real account switches are not newly verified.",
+    "No new CPU sampling, live AMap or native phone validation.",
+    "Related transactions structure remains for the next batch."
+  ]
+}

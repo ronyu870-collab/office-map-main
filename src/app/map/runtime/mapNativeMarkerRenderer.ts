@@ -587,7 +587,7 @@ export function installNativeMarkerRenderer(
   };
 
   const buildSubmarkets = (buildings: any[], mode: RenderMode, showAreaPlaceholders: boolean, overviewBuildings?: any[]): MarkerLike[] => {
-    const summaries = summarizeSubmarkets(overviewBuildings ?? (controller._allBuildingsCache?.length ? controller._allBuildingsCache : buildings));
+    const summaries = summarizeSubmarkets(overviewBuildings ?? buildings);
     const aggregateMap = new Map<string, SubmarketAggregate>();
 
     for (const building of buildings) {
@@ -980,7 +980,7 @@ export function installNativeMarkerRenderer(
     overviewBuildings?: any[],
   ) => {
     const buildings = Array.isArray(input) ? input : [];
-    const overview = Array.isArray(overviewBuildings) ? overviewBuildings : (controller._allBuildingsCache?.length ? controller._allBuildingsCache : buildings);
+    const overview = Array.isArray(overviewBuildings) ? overviewBuildings : buildings;
     const signature = `${renderSignature(
       buildings,
       mode,
