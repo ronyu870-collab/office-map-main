@@ -300,3 +300,14 @@ it('distinguishes a future supply read failure from an empty supply result', () 
   expect(screen.getByRole('alert')).toHaveTextContent('未来供应暂时无法读取');
   expect(screen.queryByText('当前筛选范围内暂无已确认供应，可调整筛选条件。')).not.toBeInTheDocument();
 });
+
+
+it('returns focus to the visible filter control when the final focused condition disappears', () => {
+  const chip = { id: 'owner', label: '业主 含 北京资产管理集团有限公司及其子公司', patch: { numericFilters: [] } };
+  const view = renderWorkbench({ activeFilterChips: [chip] });
+  const remove = screen.getByTitle(`移除条件：${chip.label}`);
+  remove.focus(); fireEvent.click(remove);
+  expect(view.onRemoveFilterChip).toHaveBeenCalledWith(chip.patch);
+  view.update({ activeFilterChips: [] });
+  expect(screen.getByRole('button', { name: '筛选' })).toHaveFocus();
+});

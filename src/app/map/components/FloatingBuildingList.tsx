@@ -25,6 +25,7 @@ interface FloatingBuildingListProps {
   active?: boolean;
   displayOverrides?: Map<string, Map<string, DisplayOverride>>;
   onClose: () => void;
+  onAdjustFilters?: () => void;
   onBuildingClick?: (building: any) => void;
   targetBuildingId?: string | null;
   onBuildingHover?: (buildingId: string | null) => void;
@@ -35,7 +36,7 @@ interface FloatingBuildingListProps {
 const INITIAL_LOAD_COUNT = 50;
 const LOAD_MORE_COUNT = 50;
 
-export default function FloatingBuildingList({ buildings, active = true, displayOverrides, onClose, onBuildingClick, targetBuildingId, onBuildingHover, selectedComparisonBuildings = [], onComparisonSelectionChange }: FloatingBuildingListProps) {
+export default function FloatingBuildingList({ buildings, active = true, displayOverrides, onClose, onAdjustFilters, onBuildingClick, targetBuildingId, onBuildingHover, selectedComparisonBuildings = [], onComparisonSelectionChange }: FloatingBuildingListProps) {
   const reading = React.useContext(MapReadingContext);
   const [query, setQuery] = useMapReadingState('listQuery', '');
   const [sort, setSort] = useMapReadingState<FullListSort>('listSort', 'default');
@@ -244,8 +245,9 @@ export default function FloatingBuildingList({ buildings, active = true, display
         {results.length === 0 ? (
           <div className="flex h-full min-h-48 flex-col items-center justify-center px-5 text-center">
             <div className="text-[14px] font-semibold text-[#667085]">未找到符合条件的楼宇</div>
-            <div className="mt-1 text-sm text-[#596779]">调整筛选或搜索条件后重试</div>
+            <div className="mt-1 text-sm text-[#596779]">{query ? '列表搜索没有匹配项目，可清除列表搜索。' : '当前地图筛选无匹配项目，可调整筛选条件。'}</div>
             {query ? <button type="button" className="workspace-business-action" onClick={() => setQuery('')}>清除列表搜索</button> : null}
+            {onAdjustFilters ? <button type="button" className="workspace-business-action" onClick={onAdjustFilters}>调整地图筛选</button> : null}
           </div>
         ) : viewMode === 'cards' ? (
           <div className="space-y-2 p-2.5">

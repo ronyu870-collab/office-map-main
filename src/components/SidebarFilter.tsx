@@ -65,7 +65,7 @@ function sameStringList(left: string[], right: string[]): boolean {
 }
 
 const ChevronIcon = ({ isOpen }: { isOpen: boolean }) => ( 
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-600' : 'text-zinc-400'}`}><polyline points="6 9 12 15 18 9"></polyline></svg> 
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-600' : 'text-zinc-400'}`}><polyline points="6 9 12 15 18 9"></polyline></svg>
 );
 
 const TrashIcon = () => (
@@ -80,7 +80,7 @@ const NUMERIC_FIELDS = [
   { value: 'net_effective_rent', label: '净有效租金' },
   { value: 'vacancy_rate', label: '空置率 (%)' },
   { value: 'vacant_area', label: '空置面积' },
-  { value: 'total_area', label: '总面积' },
+  { value: 'total_area', label: '统计面积' },
   { value: 'management_fee', label: '物业费' },
   { value: 'owner', label: '项目业主' },
   { value: 'property_management', label: '物业公司' },
@@ -98,6 +98,12 @@ const NUMERIC_OPERATORS = [
 
 export function SidebarFilter(props: SidebarFilterProps) {
   const title = props.title ?? '全局筛选';
+  const sectionPrefix = React.useId();
+  const panelId = (key: string) => `${sectionPrefix}-${key}`;
+  const addConditionRef = React.useRef<HTMLButtonElement>(null);
+  const restoreConditionFocus = React.useRef(false);
+  const addCompareRef = React.useRef<HTMLButtonElement>(null);
+  const restoreCompareFocus = React.useRef(false);
   const listMore = props.presentation === 'list-more';
   const districts = React.useMemo(() => uniqStrings(props.districts), [props.districts]);
   const submarkets = React.useMemo(() => uniqStrings(props.submarkets ?? []), [props.submarkets]);
@@ -119,6 +125,11 @@ export function SidebarFilter(props: SidebarFilterProps) {
   const [openCompareGroups, setOpenCompareGroups] = React.useState<Record<string, boolean>>({});
   const [compareSectionOpen, setCompareSectionOpen] = React.useState(false);
 
+  React.useLayoutEffect(() => {
+    if (!restoreCompareFocus.current) return;
+    restoreCompareFocus.current = false; addCompareRef.current?.focus();
+  }, [compareGroups]);
+
   const toggleSection = (key: string) => { const next = { ...openSections, [key]: !openSections[key] }; setOpenSections(next); props.onExpandedSectionsChange?.(next); };
 
   const [state, setState] = React.useState<SidebarFilterState>(() => ({
@@ -135,6 +146,11 @@ export function SidebarFilter(props: SidebarFilterProps) {
     futureSupplyGrades: props.initialState?.futureSupplyGrades ?? ['A', 'B', 'BP', 'commercial', 'pending'],
     futureSupplyYears: props.initialState?.futureSupplyYears ?? ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
   }));
+
+  React.useLayoutEffect(() => {
+    if (!restoreConditionFocus.current) return;
+    restoreConditionFocus.current = false; addConditionRef.current?.focus();
+  }, [state.numericFilters]);
 
   // 当 props 的可选项列表变化时，将新增选项补入；首次挂载必须保留 initialState 的部分选择。
   const optionsSyncInitializedRef = React.useRef(false);
@@ -200,6 +216,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
     }));
   }
   function removeNumericFilter(id: string) {
+    restoreConditionFocus.current = true;
     setState(prev => ({
       ...prev,
       numericFilters: (prev.numericFilters || []).filter(f => f.id !== id)
@@ -278,6 +295,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
   }
 
   function removeCompareGroup(id: string) {
+    restoreCompareFocus.current = true;
     setCompareGroups(prev => prev.filter(g => g.id !== id));
     setOpenCompareGroups(prev => { const n = { ...prev }; delete n[id]; return n; });
   }
@@ -322,27 +340,23 @@ export function SidebarFilter(props: SidebarFilterProps) {
 
       <div className={`${props.embedded ? 'block' : isMobileOpen ? 'block' : 'hidden'} sm:block`}>
         <div className={props.embedded ? 'bg-transparent p-0' : 'mt-2 rounded-md border border-zinc-200/60 bg-white p-3 sm:mt-0'}>
-          <div
-            className={`${props.embedded ? 'flex' : 'hidden sm:flex'} items-center justify-between mb-2 pb-2 border-b border-zinc-100 cursor-pointer hover:bg-zinc-50 -mx-1 px-1 py-1 rounded-md transition-colors`}
-            onClick={() => setGlobalFilterOpen(v => !v)}
-          >
-            <div className="text-[13px] font-bold tracking-wide text-zinc-900">{title}</div>
-            <div className="flex items-center gap-2">
-              {!listMore && <button type="button" onClick={e => { e.stopPropagation(); reset(); }} className="rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">重置</button>}
-              <ChevronIcon isOpen={globalFilterOpen} />
-            </div>
+          <div className={`${props.embedded ? 'flex' : 'hidden sm:flex'} items-center gap-2 mb-2 pb-2 border-b border-zinc-100`}>
+            <button type="button" className="sidebar-filter-toggle flex min-w-0 flex-1 items-center justify-between rounded-md px-1 py-1 text-left hover:bg-zinc-50" aria-expanded={globalFilterOpen} aria-controls={panelId('global')} onClick={() => setGlobalFilterOpen(v => !v)}>
+              <span className="text-[13px] font-bold text-zinc-900">{title}</span><ChevronIcon isOpen={globalFilterOpen} />
+            </button>
+            {!listMore && <button type="button" onClick={reset} className="rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">重置</button>}
           </div>
 
           {globalFilterOpen && (
-          <div className="animate-in slide-in-from-top-1 fade-in duration-200">
+          <div id={panelId('global')} className="animate-in slide-in-from-top-1 fade-in duration-200">
           {/* ================= 🌟 项目类型大调整 ================= */}
           <section className="mb-1">
-            <div className="flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" onClick={() => toggleSection('projectTypes')}>
-              <div className="text-[12px] font-semibold text-zinc-800">{listMore ? '未来供应' : '项目类型'}</div>
-              <ChevronIcon isOpen={openSections.projectTypes} />
-            </div>
+            <button type="button" className="sidebar-filter-toggle w-full text-left flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" aria-expanded={Boolean(openSections.projectTypes)} aria-controls={panelId('projectTypes')} onClick={() => toggleSection('projectTypes')}>
+                <span className="text-[12px] font-semibold text-zinc-800">{listMore ? '未来供应' : '项目类型'}</span>
+                <ChevronIcon isOpen={openSections.projectTypes} />
+              </button>
             {openSections.projectTypes && (
-              <div className="mt-1 mb-3 px-1">
+              <div id={panelId('projectTypes')} className="mt-1 mb-3 px-1">
                 
                 {/* 第一部分：现有项目 */}
                 {!listMore && <div className="mb-3">
@@ -355,7 +369,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                       className="h-4 w-4 rounded border-zinc-300 text-primary transition-colors" 
                     /> 全选 (现有项目)
                   </label>
-                  <div className="grid gap-x-0 gap-y-2" style={{ gridTemplateColumns: 'auto auto', justifyContent: 'start' }}>
+                  <div className="grid gap-x-0 gap-y-2" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', justifyContent: 'start' }}>
                     {['甲级写字楼', '乙级写字楼', '产业园区'].map(pt => (
                       <label key={pt} className="flex min-w-0 items-center gap-2 rounded-md border border-transparent px-2 py-1 hover:border-zinc-200 hover:bg-zinc-50 cursor-pointer">
                         <input 
@@ -368,7 +382,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                           })} 
                           className="h-4 w-4 rounded border-zinc-300 text-blue-700" 
                         />
-                        <span className="truncate text-[11px] text-zinc-700">{pt}</span>
+                        <span className="break-words text-[11px] text-zinc-700">{pt}</span>
                       </label>
                     ))}
                   </div>
@@ -392,7 +406,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                   
                   {/* 子分类 A, B, BP */}
                   {state.showFutureSupply && (
-                    <div className="ml-5 mt-1 grid gap-x-0 gap-y-2 border-l-2 border-emerald-100 pl-3" style={{ gridTemplateColumns: 'auto auto', justifyContent: 'start' }}>
+                    <div className="ml-5 mt-1 grid gap-x-0 gap-y-2 border-l-2 border-emerald-100 pl-3" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', justifyContent: 'start' }}>
                       {[
                         { id: 'A', label: '甲级' },
                         { id: 'B', label: '乙级' },
@@ -411,7 +425,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                             })}
                             className="h-3.5 w-3.5 rounded border-zinc-300 text-emerald-500"
                           />
-                          <span className="truncate text-[11px] text-zinc-600">{grade.label}</span>
+                          <span className="break-words text-[11px] text-zinc-600">{grade.label}</span>
                         </label>
                       ))}
                     </div>
@@ -453,12 +467,12 @@ export function SidebarFilter(props: SidebarFilterProps) {
           </section>
 
           {!listMore && <section className="mb-1 border-t border-zinc-100 pt-1">
-            <div className="flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" onClick={() => toggleSection('districts')}>
-              <div className="text-[12px] font-semibold text-zinc-800">行政区划</div>
-              <ChevronIcon isOpen={openSections.districts} />
-            </div>
+            <button type="button" className="sidebar-filter-toggle w-full text-left flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" aria-expanded={Boolean(openSections.districts)} aria-controls={panelId('districts')} onClick={() => toggleSection('districts')}>
+                <span className="text-[12px] font-semibold text-zinc-800">行政区划</span>
+                <ChevronIcon isOpen={openSections.districts} />
+              </button>
             {openSections.districts && (
-              <div className="mt-1 mb-3 px-1">
+              <div id={panelId('districts')} className="mt-1 mb-3 px-1">
                 <label className="flex items-center gap-2 mb-3 mt-1 text-[11px] font-bold text-blue-700 bg-blue-50 p-1.5 rounded-md cursor-pointer border border-blue-100">
                   <input type="checkbox" checked={state.showBoundaries} onChange={e => setState(p => ({ ...p, showBoundaries: e.target.checked }))} className="h-4 w-4 rounded border-blue-300 text-blue-700" /> 
                   开启行政区边界线 (地图高亮)
@@ -466,11 +480,11 @@ export function SidebarFilter(props: SidebarFilterProps) {
                 <label className="flex items-center gap-2 mb-2 text-[11px] font-medium text-zinc-600 cursor-pointer">
                   <input type="checkbox" checked={allDistrictsSelected} ref={el => { if (el) el.indeterminate = partiallyDistrictsSelected; }} onChange={e => toggleAllDistricts(e.target.checked)} className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-200" /> 全选
                 </label>
-                <div className="grid gap-x-0 gap-y-2" style={{ gridTemplateColumns: 'auto auto', justifyContent: 'start' }}>
+                <div className="grid gap-x-0 gap-y-2" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', justifyContent: 'start' }}>
                   {districts.map(d => (
                     <label key={d} className="flex min-w-0 items-center gap-2 rounded-md border border-transparent px-2 py-1 hover:border-zinc-200 hover:bg-zinc-50 cursor-pointer">
                       <input type="checkbox" checked={currentDistricts.includes(d)} onChange={() => toggleDistrict(d)} className="h-4 w-4 rounded border-zinc-300 text-blue-700" />
-                      <span className="truncate text-[11px] text-zinc-700">{d}</span>
+                      <span className="break-words text-[11px] text-zinc-700">{d}</span>
                     </label>
                   ))}
                 </div>
@@ -480,31 +494,31 @@ export function SidebarFilter(props: SidebarFilterProps) {
 
           {!listMore && allSubmarkets.length > 0 && (
             <section className="mb-1 border-t border-zinc-100 pt-1">
-              <div className="flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" onClick={() => toggleSection('submarkets')}>
-                <div className="text-[12px] font-semibold text-zinc-800">子市场</div>
+              <button type="button" className="sidebar-filter-toggle w-full text-left flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" aria-expanded={Boolean(openSections.submarkets)} aria-controls={panelId('submarkets')} onClick={() => toggleSection('submarkets')}>
+                <span className="text-[12px] font-semibold text-zinc-800">子市场</span>
                 <ChevronIcon isOpen={openSections.submarkets} />
-              </div>
+              </button>
               {openSections.submarkets && (
-                <div className="mt-1 mb-3 px-1">
+                <div id={panelId('submarkets')} className="mt-1 mb-3 px-1">
                   <label className="flex items-center gap-2 mb-2 text-[11px] font-medium text-zinc-600 cursor-pointer">
                     <input type="checkbox" checked={allSubmarketsSelected} ref={el => { if (el) el.indeterminate = partiallySubmarketsSelected; }} onChange={e => toggleAllSubmarkets(e.target.checked)} className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-200" /> 全选
                   </label>
-                  <div className="grid gap-x-0 gap-y-2" style={{ gridTemplateColumns: 'auto auto', justifyContent: 'start' }}>
+                  <div className="grid gap-x-0 gap-y-2" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', justifyContent: 'start' }}>
                     {submarkets.map(s => (
                       <label key={s} className="flex min-w-0 items-center gap-2 rounded-md border border-transparent px-2 py-1 hover:border-zinc-200 hover:bg-zinc-50 cursor-pointer">
                         <input type="checkbox" checked={currentSubmarkets.includes(s)} onChange={() => toggleSubmarket(s)} className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-200" />
-                        <span className="truncate text-[11px] text-zinc-700">{s}</span>
+                        <span className="break-words text-[11px] text-zinc-700">{s}</span>
                       </label>
                     ))}
                   </div>
                   {submarketsSecondary.length > 0 && (
                     <>
                       <div className="border-t border-dashed border-zinc-300 my-2" />
-                      <div className="grid gap-x-0 gap-y-2" style={{ gridTemplateColumns: 'auto auto', justifyContent: 'start' }}>
+                      <div className="grid gap-x-0 gap-y-2" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', justifyContent: 'start' }}>
                         {submarketsSecondary.map(s => (
                           <label key={s} className="flex min-w-0 items-center gap-2 rounded-md border border-transparent px-2 py-1 hover:border-zinc-200 hover:bg-zinc-50 cursor-pointer">
                             <input type="checkbox" checked={currentSubmarkets.includes(s)} onChange={() => toggleSubmarket(s)} className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-200" />
-                            <span className="truncate text-[11px] text-zinc-700">{s}</span>
+                            <span className="break-words text-[11px] text-zinc-700">{s}</span>
                           </label>
                         ))}
                       </div>
@@ -517,20 +531,20 @@ export function SidebarFilter(props: SidebarFilterProps) {
 
           {leeds.length > 0 && (
             <section className="mb-1 border-t border-zinc-100 pt-1">
-              <div className="flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" onClick={() => toggleSection('leeds')}>
-                <div className="text-[12px] font-semibold text-zinc-800">LEED 认证</div>
+              <button type="button" className="sidebar-filter-toggle w-full text-left flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" aria-expanded={Boolean(openSections.leeds)} aria-controls={panelId('leeds')} onClick={() => toggleSection('leeds')}>
+                <span className="text-[12px] font-semibold text-zinc-800">LEED 认证</span>
                 <ChevronIcon isOpen={openSections.leeds} />
-              </div>
+              </button>
               {openSections.leeds && (
-                <div className="mt-1 mb-3 px-1">
+                <div id={panelId('leeds')} className="mt-1 mb-3 px-1">
                   <label className="flex items-center gap-2 mb-2 text-[11px] font-medium text-zinc-600 cursor-pointer">
                     <input type="checkbox" checked={allLeedsSelected} ref={el => { if (el) el.indeterminate = partiallyLeedsSelected; }} onChange={e => toggleAllLeeds(e.target.checked)} className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-200" /> 全选
                   </label>
-                  <div className="grid gap-x-0 gap-y-2" style={{ gridTemplateColumns: 'auto auto', justifyContent: 'start' }}>
+                  <div className="grid gap-x-0 gap-y-2" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', justifyContent: 'start' }}>
                     {leeds.map(l => (
                       <label key={l} className="flex min-w-0 items-center gap-2 rounded-md border border-transparent px-2 py-1 hover:border-zinc-200 hover:bg-zinc-50 cursor-pointer">
                         <input type="checkbox" checked={currentLeeds.includes(l)} onChange={() => toggleLeed(l)} className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-200" />
-                        <span className="truncate text-[11px] text-zinc-700">{l === 'NULL' ? '未提供认证' : l}</span>
+                        <span className="break-words text-[11px] text-zinc-700">{l === 'NULL' ? '未提供认证' : l}</span>
                       </label>
                     ))}
                   </div>
@@ -540,21 +554,21 @@ export function SidebarFilter(props: SidebarFilterProps) {
           )}
 
           <section className="mb-1 border-t border-zinc-100 pt-1">
-            <div className="flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" onClick={() => toggleSection('subway')}>
-              <div className="text-[12px] font-semibold text-zinc-800">地铁通勤辐射圈</div>
-              <ChevronIcon isOpen={openSections.subway} />
-            </div>
+            <button type="button" className="sidebar-filter-toggle w-full text-left flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" aria-expanded={Boolean(openSections.subway)} aria-controls={panelId('subway')} onClick={() => toggleSection('subway')}>
+                <span className="text-[12px] font-semibold text-zinc-800">地铁通勤辐射圈</span>
+                <ChevronIcon isOpen={openSections.subway} />
+              </button>
             {openSections.subway && (
-              <div className="mt-1 mb-3 px-1">
+              <div id={panelId('subway')} className="mt-1 mb-3 px-1">
                 <div className="mb-2">
-                  <select className="w-full text-[11px] p-1.5 border border-zinc-200 rounded-md bg-zinc-50 text-zinc-700 outline-none transition-colors focus:border-primary focus:bg-white" value={state.subwayLine || ''} onChange={e => { const val = e.target.value; setState(p => ({ ...p, subwayLine: val || null, subwayStation: null })); }}>
+                  <select aria-label="地铁线路" className="w-full text-[11px] p-1.5 border border-zinc-200 rounded-md bg-zinc-50 text-zinc-700 outline-none transition-colors focus:border-primary focus:bg-white" value={state.subwayLine || ''} onChange={e => { const val = e.target.value; setState(p => ({ ...p, subwayLine: val || null, subwayStation: null })); }}>
                     <option value="">-- 先选择地铁线 --</option>
                     {subwayLines.map(l => <option key={l} value={l}>{l}</option>)}
                   </select>
                 </div>
                 {state.subwayLine && props.availableStations.length > 0 && (
                   <div className="mb-2">
-                    <select className="w-full text-[11px] p-1.5 border border-zinc-200 rounded-md bg-zinc-50 text-zinc-700 outline-none transition-colors focus:border-primary focus:bg-white" value={state.subwayStation?.name || ''} onChange={e => { const s = props.availableStations.find(st => st.name === e.target.value); setState(p => ({ ...p, subwayStation: s || null })); }}>
+                    <select aria-label="地铁站点" className="w-full text-[11px] p-1.5 border border-zinc-200 rounded-md bg-zinc-50 text-zinc-700 outline-none transition-colors focus:border-primary focus:bg-white" value={state.subwayStation?.name || ''} onChange={e => { const s = props.availableStations.find(st => st.name === e.target.value); setState(p => ({ ...p, subwayStation: s || null })); }}>
                       <option value="">-- 再选择沿线站点 --</option>
                       {props.availableStations.map(st => <option key={st.id} value={st.name}>{st.name}</option>)}
                     </select>
@@ -565,7 +579,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                     <div className="text-[10px] font-bold text-zinc-500 mb-2">辐射距离：</div>
                     <div className="flex flex-wrap gap-1">
                       {[500, 1000, 3000, 5000].map(d => (
-                        <button key={d} type="button" onClick={() => setState(p => ({ ...p, subwayDistance: d }))} className={`px-2 py-1 text-[10px] rounded-sm transition-colors ${state.subwayDistance === d ? 'bg-blue-600 text-white font-bold' : 'bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-100'}`}>
+                        <button key={d} type="button" aria-pressed={state.subwayDistance === d} onClick={() => setState(p => ({ ...p, subwayDistance: d }))} className={`px-2 py-1 text-[10px] rounded-sm transition-colors ${state.subwayDistance === d ? 'bg-blue-600 text-white font-bold' : 'bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-100'}`}>
                           {d >= 1000 ? `${d/1000}km` : `${d}m`}
                         </button>
                       ))}
@@ -577,20 +591,21 @@ export function SidebarFilter(props: SidebarFilterProps) {
           </section>
 
           <section className="mb-1 border-t border-zinc-100 pt-1">
-            <div className="flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" onClick={() => toggleSection('numeric')}>
-              <div className="text-[12px] font-semibold text-zinc-800">多重筛选</div>
-              <ChevronIcon isOpen={openSections.numeric} />
-            </div>
+            <button type="button" className="sidebar-filter-toggle w-full text-left flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" aria-expanded={Boolean(openSections.numeric)} aria-controls={panelId('numeric')} onClick={() => toggleSection('numeric')}>
+                <span className="text-[12px] font-semibold text-zinc-800">多重筛选</span>
+                <ChevronIcon isOpen={openSections.numeric} />
+              </button>
             
             {openSections.numeric && (
-              <div className="mt-1 mb-2 px-1">
+              <div id={panelId('numeric')} className="mt-1 mb-2 px-1">
                 <div className="flex flex-col gap-2 mb-2">
-                  {state.numericFilters && state.numericFilters.map((filter) => {
+                  {state.numericFilters && state.numericFilters.map((filter, index) => {
                     const isText = TEXT_FIELDS.has(filter.field);
                     return (
-                      <div key={filter.id} className="flex items-center gap-1.5">
+                      <div key={filter.id} className="sidebar-filter-condition">
                         <select
                           className="flex-1 text-[11px] p-1 border border-zinc-200 rounded bg-zinc-50 text-zinc-700 min-w-[70px] outline-none transition-colors focus:border-primary focus:bg-white"
+                          aria-label={`第${index + 1}项筛选字段`}
                           value={filter.field}
                           onChange={e => updateNumericFilter(filter.id, 'field', e.target.value as any)}
                         >
@@ -602,6 +617,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                         ) : (
                           <select
                             className="text-[11px] p-1 border border-zinc-200 rounded bg-zinc-50 text-zinc-700 w-[42px] outline-none transition-colors focus:border-primary focus:bg-white text-center"
+                            aria-label={`第${index + 1}项比较方式`}
                             value={filter.operator}
                             onChange={e => updateNumericFilter(filter.id, 'operator', e.target.value as any)}
                           >
@@ -612,6 +628,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                         {isText ? (
                           <input
                             type="text"
+                            aria-label={`第${index + 1}项筛选文字`}
                             placeholder="模糊搜索"
                             className="flex-1 text-[11px] p-1 border border-zinc-200 rounded bg-zinc-50 text-zinc-700 min-w-[50px] outline-none transition-colors focus:border-primary focus:bg-white"
                             value={filter.value}
@@ -620,6 +637,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                         ) : (
                           <input
                             type="number"
+                            aria-label={`第${index + 1}项筛选数值`}
                             placeholder="数值"
                             className="flex-1 text-[11px] p-1 border border-zinc-200 rounded bg-zinc-50 text-zinc-700 min-w-[50px] outline-none transition-colors focus:border-primary focus:bg-white"
                             value={filter.value}
@@ -630,7 +648,8 @@ export function SidebarFilter(props: SidebarFilterProps) {
                         <button
                           type="button"
                           onClick={() => removeNumericFilter(filter.id)}
-                          className="p-1.5 flex items-center justify-center hover:bg-red-50 rounded transition-colors shrink-0"
+                          className="sidebar-filter-remove p-1.5 flex items-center justify-center hover:bg-red-50 rounded transition-colors shrink-0"
+                          aria-label={`移除第${index + 1}项筛选条件`}
                           title="删除条件"
                         >
                           <TrashIcon />
@@ -643,6 +662,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                 <button
                   type="button"
                   onClick={addNumericFilter}
+                  ref={addConditionRef}
                   className="w-full flex items-center justify-center py-1.5 border border-dashed border-zinc-300 rounded-md text-[11px] text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-colors font-medium"
                 >
                   <PlusIcon /> 添加条件
@@ -657,41 +677,24 @@ export function SidebarFilter(props: SidebarFilterProps) {
 
       {/* ================= 项目对比筛选（独立区块） ================= */}
       <div className="mt-2 rounded-md border border-zinc-200/60 bg-white p-3">
-        <div
-          className="flex items-center justify-between cursor-pointer py-1 px-1 rounded-md hover:bg-zinc-50 transition-colors"
-          onClick={() => setCompareSectionOpen(v => !v)}
-        >
-          <div className="text-[13px] font-bold tracking-wide text-zinc-900">项目对比筛选</div>
-          <ChevronIcon isOpen={compareSectionOpen} />
-        </div>
+        <button type="button" className="sidebar-filter-toggle flex w-full items-center justify-between rounded-md px-1 py-1 text-left hover:bg-zinc-50" aria-expanded={compareSectionOpen} aria-controls={panelId('compare')} onClick={() => setCompareSectionOpen(v => !v)}>
+          <span className="text-[13px] font-bold text-zinc-900">项目对比筛选</span><ChevronIcon isOpen={compareSectionOpen} />
+        </button>
 
         {compareSectionOpen && (
-          <div className="mt-2">
+          <div id={panelId('compare')} className="mt-2">
             {compareGroups.map(group => (
               <div key={group.id} className="mb-2 rounded-md border border-zinc-100 bg-zinc-50/50">
-                <div
-                  className="flex items-center justify-between cursor-pointer py-2 px-2 hover:bg-zinc-100 rounded-md transition-colors"
-                  onClick={() => setOpenCompareGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: group.color }} />
-                    <span className="text-[12px] font-semibold text-zinc-800">{group.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={e => { e.stopPropagation(); removeCompareGroup(group.id); }}
-                      className="p-1 hover:bg-red-50 rounded transition-colors"
-                      title="删除此组"
-                    >
-                      <TrashIcon />
-                    </button>
+                <div className="flex items-center gap-1 px-2">
+                  <button type="button" className="sidebar-filter-toggle flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md py-2 text-left hover:bg-zinc-100" aria-expanded={Boolean(openCompareGroups[group.id])} aria-controls={panelId(`group-${group.id}`)} onClick={() => setOpenCompareGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}>
+                    <span className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="h-3 w-3 shrink-0 rounded-full" style={{ background: group.color }} /><span className="text-[12px] font-semibold text-zinc-800">{group.name}</span></span>
                     <ChevronIcon isOpen={openCompareGroups[group.id] ?? false} />
-                  </div>
+                  </button>
+                  <button type="button" onClick={() => removeCompareGroup(group.id)} aria-label={`移除${group.name}`} className="sidebar-filter-remove flex items-center justify-center rounded p-1 hover:bg-red-50" title="删除此组"><TrashIcon /></button>
                 </div>
 
                 {openCompareGroups[group.id] && (
-                  <div className="px-2 pb-2">
+                  <div id={panelId(`group-${group.id}`)} className="px-2 pb-2">
                     {/* 子市场 */}
                     <div className="mb-2">
                       <div className="text-[10px] font-bold text-zinc-400 mb-1">子市场</div>
@@ -705,7 +708,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                               className="h-3.5 w-3.5 rounded border-zinc-300"
                               style={{ accentColor: group.color }}
                             />
-                            <span className="truncate max-w-[60px]">{s}</span>
+                            <span className="min-w-0 break-words">{s}</span>
                           </label>
                         ))}
                       </div>
@@ -747,7 +750,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                               className="h-3.5 w-3.5 rounded border-zinc-300"
                               style={{ accentColor: group.color }}
                             />
-                            <span className="truncate max-w-[50px]">{d}</span>
+                            <span className="min-w-0 break-words">{d}</span>
                           </label>
                         ))}
                       </div>
@@ -761,6 +764,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
               <button
                 type="button"
                 onClick={addCompareGroup}
+                ref={addCompareRef}
                 className="w-full flex items-center justify-center py-1.5 border border-dashed border-zinc-300 rounded-md text-[11px] text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-colors font-medium"
               >
                 <PlusIcon /> 添加筛选组

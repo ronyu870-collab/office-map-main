@@ -1,3 +1,4 @@
+import { verifyWorkspaceFilters } from './workspace-filters.mjs';
 import { clickWorkspaceAction } from './workspace-actions.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -151,6 +152,7 @@ try {
       await page.waitForFunction(()=>document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent==='5');
       await page.locator('.map-workspace-filter').getByText('项目类型',{exact:true}).click();
       observations.push({width,validDisplayedProjects:5,stockOnlyProjects:3,invalidOrMissingStockReadable:2,futureLayerCountFollowsVisibility:true});
+      if ([1536,390,320].includes(width)) observations.push(await verifyWorkspaceFilters(page, { width, height, stock }));
       await page.getByRole('button', { name: '项目列表', exact: true }).click();
       const list = page.getByRole('region', { name: '项目列表', exact: true });
       await list.waitFor();
