@@ -1,0 +1,82 @@
+{
+  "status": "pass",
+  "environment": "production app; isolated SDK/data/administrator",
+  "observations": [
+    {
+      "width": 1536,
+      "profileDraftNavigation": {
+        "nativeRefreshCancelled": true,
+        "crossDocumentAndSameDocumentHistoryCancelled": true,
+        "homeLinkCancelledAndAccepted": true,
+        "draftRetained": true,
+        "unmountAndRevertRemoveGuard": true,
+        "saves": 0,
+        "dialogs": [
+          "beforeunload",
+          "beforeunload",
+          "confirm",
+          "confirm",
+          "confirm",
+          "confirm"
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "profileDraftNavigation": {
+        "nativeRefreshCancelled": true,
+        "crossDocumentAndSameDocumentHistoryCancelled": true,
+        "homeLinkCancelledAndAccepted": true,
+        "draftRetained": true,
+        "unmountAndRevertRemoveGuard": true,
+        "saves": 0,
+        "dialogs": [
+          "beforeunload",
+          "beforeunload",
+          "confirm",
+          "confirm",
+          "confirm",
+          "confirm"
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "profileDraftNavigation": {
+        "nativeRefreshCancelled": true,
+        "crossDocumentAndSameDocumentHistoryCancelled": true,
+        "homeLinkCancelledAndAccepted": true,
+        "draftRetained": true,
+        "unmountAndRevertRemoveGuard": true,
+        "saves": 0,
+        "dialogs": [
+          "beforeunload",
+          "beforeunload",
+          "confirm",
+          "confirm",
+          "confirm",
+          "confirm"
+        ]
+      }
+    },
+    {
+      "width": 844,
+      "profileDraftNavigation": {
+        "nativeRefreshCancelled": true,
+        "crossDocumentAndSameDocumentHistoryCancelled": true,
+        "homeLinkCancelledAndAccepted": true,
+        "draftRetained": true,
+        "unmountAndRevertRemoveGuard": true,
+        "saves": 0,
+        "dialogs": [
+          "beforeunload",
+          "beforeunload",
+          "confirm",
+          "confirm",
+          "confirm",
+          "confirm"
+        ]
+      }
+    }
+  ]
+}

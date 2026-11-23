@@ -11,6 +11,8 @@ import { verifyLeedFilters } from './workspace-leed-filters.mjs';
 import { verifyListReading } from './workspace-list-reading.mjs';
 import { verifyProjectTrendReading } from './workspace-project-trend.mjs';
 import { verifySubmarketReading } from './workspace-submarket-reading.mjs';
+import { verifyProfileDraftNavigation } from './workspace-profile-draft-navigation.mjs';
+import { verifyMetricsDraftNavigation } from './workspace-metrics-draft-navigation.mjs';
 import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
 import { verifyFutureConditions } from './workspace-future-filters.mjs';
 import { verifyWorkspaceFilters } from './workspace-filters.mjs';
@@ -678,6 +680,12 @@ try {
         const researchPage=await context.newPage();
         try { observations.push(await verifySubmarketReading(researchPage,{width,base})); }
         finally { await researchPage.close(); }
+        const profileDraftPage=await context.newPage();
+        try { observations.push(await verifyProfileDraftNavigation(profileDraftPage,{width,base,userId:user.id})); }
+        finally { await profileDraftPage.close(); }
+        const metricsDraftPage=await context.newPage();
+        try { observations.push(await verifyMetricsDraftNavigation(metricsDraftPage,{width,base,userId:user.id,projectId:stock[0].id})); }
+        finally { await metricsDraftPage.close(); }
         if(width===320){
           const shortPage=await context.newPage();
           try { await shortPage.setViewportSize({width:320,height:560});observations.push(await verifySubmarketReading(shortPage,{width,base,evidencePrefix:'map-submarket-short'})); }

@@ -223,13 +223,21 @@
   ],
   "limits": [
     "Functional suites may run concurrently; timings and long-task fields are not performance evidence.",
-    "Business, identity, SDK transport and images are isolated fixtures; no new real SDK or production account claim.",
-    "Exact PR head necessary CI and main merge pending."
+    "Business, identity, SDK transport and images are isolated fixtures; no new real SDK or production account claim."
   ],
   "pr": {
     "url": "https://github.com/ronyu870-collab/office-map-main/pull/296",
     "initialProductHead": "25de939fc3f504832aa7db53f8ed205e903d25e6",
     "rebaseTreeUnchanged": "18df87c183f94841250b5d121310da3f11b013f4",
-    "necessaryCi": "pending on final evidence head; main merge pending"
+    "necessaryCi": "all required checks succeeded on62951b95; merged in PR296"
+  },
+  "resolution": {
+    "pr": 296,
+    "testedHead": "62951b9580ea7c19f4c5793085aaca3dcd435422",
+    "verifyRun": "45278568424",
+    "necessaryChecks": "success: search, engineering, both real Auth and summary",
+    "mergedAtUtc": "2026-11-23T22:42:47Z",
+    "main": "15a1406132c9659d59e4601098125da0b994e1bc",
+    "testedAndMainTree": "614d1e5f0d30ed5bc81dd8fb74359ceae4a6e2bb"
   }
 }
