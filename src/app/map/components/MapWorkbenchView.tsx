@@ -285,12 +285,11 @@ function MetricStrip({ stats, busy }: { stats: MapStatsState; busy: boolean }) {
   React.useEffect(() => { if (busy) return; const timer = window.setTimeout(() => setAnnouncement(description), 400); return () => window.clearTimeout(timer); }, [busy, description]);
   return (
     <section className="map-live-stats" aria-label="市场实时指标" aria-busy={busy}>
-      {busy ? <span className="map-stats-updating">更新中</span> : null}
-      <dl className="map-workspace-kpis" aria-live="off">{metrics.map(metric => <MetricValue key={metric.label} metric={metric} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
+      <dl className="map-workspace-kpis" aria-live="off">{metrics.map(metric => <MetricValue key={metric.label} metric={metric} updating={busy && metric.label === '总体量'} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
     </section>
   );
 }
-function MetricValue({ metric }: { metric: { label: string; value: string; unit: string } }) {
+function MetricValue({ metric, updating = false }: { updating?: boolean; metric: { label: string; value: string; unit: string } }) {
   const number = React.useRef<HTMLElement>(null);
   const previous = React.useRef(metric.value);
   React.useEffect(() => {
@@ -299,7 +298,7 @@ function MetricValue({ metric }: { metric: { label: string; value: string; unit:
     const animation = animateWorkspace(number.current, [{ opacity: .7 }, { opacity: 1 }], WORKSPACE_MOTION.feedback);
     return () => animation?.cancel();
   }, [metric.value]);
-  return <div><dt>{metric.label}</dt><dd><b ref={number} className="map-metric-number">{metric.value}</b><span>{metric.unit}</span></dd></div>;
+  return <div><dt><span>{metric.label}</span>{updating ? <span className="map-stats-updating">更新中</span> : null}</dt><dd><b ref={number} className="map-metric-number">{metric.value}</b><span>{metric.unit}</span></dd></div>;
 }
 
 function SupplyProjectList({ projects, onSelect }: { projects: FullListBuilding[]; onSelect: (project: FullListBuilding) => void }) {

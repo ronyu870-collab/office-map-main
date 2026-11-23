@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
-import { user, session, stock, future } from '../performance/fixtures/workspace-data.mjs';
+import { user, session, stock, future, project, stacking } from '../performance/fixtures/workspace-data.mjs';
 import { installLiveAmapProbe, waitForLiveAmapTiles } from '../performance/fixtures/live-amap-probe.mjs';
 
 // Real public SDK, camera projection and tiles; isolated business/auth records.
@@ -16,7 +16,8 @@ const extra = [
   ['single', '丽泽', 116.35, 39.87], ['same', '丽泽', 116.35, 39.87],
   ['no-coordinate', '石景山', null, null],
 ].map(([id, submarket, location_lng, location_lat]) => ({ ...stock[0], id, name: id, submarket, location_lng, location_lat }));
-const buildings = [...stock, ...extra];
+const chainPhoto = {id:'b04ed43e-bf3a-4d63-919e-c44d60d4fe75',caption:'任务链外观'};
+const buildings = [...stock.map(row=>row.id===project?{...row,photos:[chainPhoto]}:row), ...extra];
 // Put visible future supply outside the stock envelope, so forgetting it cannot
 // accidentally pass the real SDK pixel assertions.
 const regionFuture = future.map(row => ({...row,grade:'A',location_lng:116.53,location_lat:39.95}));
@@ -39,10 +40,21 @@ try {
             return route.fulfill({json:{buildings,display_overrides:[]}});
           }
           if (url.pathname === '/api/map/submarket') return route.fulfill({json:{submarket:url.searchParams.get('name'),stockCount:2,profileAvailable:false,trends:{all:[],a:[],b:[]}}});
+          if (url.pathname === `/api/stacking-plan/${project}`) return route.fulfill({json:stacking});
+          if (url.pathname === '/api/map/building-photos') {
+            assert.equal(url.searchParams.get('building_id'),project);
+            return route.fulfill({json:{url:'https://synthetic.invalid/task-chain.svg',is_preview:false,can_download:true,source_url:'',source_name:''}});
+          }
+          if (url.pathname === '/api/map/sales-materials') {
+            assert.equal(url.searchParams.get('building_id'),project);
+            const material={id:'chain-material',title:'任务链项目资料',source:'隔离业主',notes:'',original_name:'owner.png',mime_type:'image/png',file_size:1,document_date:null,created_at:'2026-11-21T00:00:00Z',content_types:['brochure']};
+            return route.fulfill({json:url.searchParams.has('material_id')?{details:[],project_facts:[],preview_url:'https://synthetic.invalid/task-chain.svg',download_url:'',provenance:{document_date_evidence:'',received:null,version_recorded_at:material.created_at,source_sha256:'a'.repeat(64)}}:{records:[material],count:1}});
+          }
           if (url.pathname.startsWith('/api/')) return route.fulfill({status:204});
           return route.continue();
         }
         if (url.origin === 'https://example.supabase.co') return route.fulfill({headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET, OPTIONS'},json:url.pathname === '/rest/v1/user_roles' ? [{role:'admin',session_id:user.id}] : []});
+        if (url.origin==='https://synthetic.invalid') return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700"><rect width="1200" height="700" fill="#c5d4dd"/></svg>'});
         if (provider(url.hostname)) return route.continue();
         return route.abort();
       });
@@ -102,6 +114,45 @@ try {
       const before=await page.evaluate(()=>{const m=window.__workspaceMap,c=m.getCenter();return [m.getZoom(),c.lng,c.lat];});
       await page.waitForTimeout(500);
       assert.deepEqual(await page.evaluate(()=>{const m=window.__workspaceMap,c=m.getCenter();return [m.getZoom(),c.lng,c.lat];}),before,'empty region does not relocate');
+      if (width===1536) {
+        await open('CBD'); await page.getByRole('button',{name:'查看全部项目',exact:true}).click();
+        const list=page.getByRole('region',{name:'项目列表',exact:true});
+        await list.getByRole('button',{name:/^CBD甲楼/}).click();
+        const detail=page.getByRole('region',{name:'CBD甲楼楼宇详情'}); await detail.waitFor();
+        for (const [mode,glyph] of [['项目','A'],['租金','146'],['空置','21%'],['LEED','–']]) {
+          await page.getByRole('button',{name:mode,exact:true}).click();
+          await page.waitForFunction(glyph=>decodeURIComponent(document.querySelector('.map-selected-marker__badge')?.getAttribute('src')??'').includes('>'+glyph+'</text>'),glyph);
+          await page.waitForTimeout(250);
+          await page.screenshot({path:`/tmp/map-task-chain-mode-${mode}.png`});
+        }
+        await page.getByRole('button',{name:'项目',exact:true}).click();
+        await detail.getByRole('button',{name:/看图 · 1张/}).click();
+        await detail.locator('[data-building-photo]:visible').waitFor();
+        await detail.getByRole('button',{name:'查看大图',exact:true}).click(); await detail.getByRole('dialog').waitFor();
+        await page.keyboard.press('Escape');
+        await detail.getByRole('tab',{name:'成交与资料',exact:true}).click();
+        await detail.getByRole('button',{name:'楼书与资料',exact:true}).click();
+        const material=page.getByRole('dialog');
+        await material.getByRole('button',{name:'查看原件',exact:true}).click();
+        await material.getByAltText('任务链项目资料',{exact:true}).waitFor();
+        await material.getByRole('button',{name:'返回项目资料',exact:true}).click();
+        await material.getByRole('button',{name:'关闭销控',exact:true}).click(); await material.waitFor({state:'detached'});
+        await page.waitForTimeout(500);
+        const camera=()=>page.evaluate(()=>{const m=window.__workspaceMap,c=m.getCenter();return [m.getZoom(),c.lng,c.lat];});
+        const beforeStack=await camera();
+        await detail.getByRole('link',{name:'Stacking Plan',exact:true}).click();
+        await page.getByRole('button',{name:/A 座 60层 连续性租户599/}).waitFor();
+        await page.getByRole('link',{name:'返回项目详情',exact:true}).click(); await detail.waitFor(); await page.waitForTimeout(900);
+        const afterStack=await camera();
+        assert.ok(afterStack.every((value,index)=>Math.abs(value-beforeStack[index])<.00001),'real SDK return restores the actual saved camera without a delayed region takeover');
+        assert.equal(await detail.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true');
+        await page.screenshot({path:'/tmp/map-task-chain-real-return.png'});
+        await detail.getByRole('button',{name:'关闭楼宇详情',exact:true}).click();
+        await page.getByRole('button',{name:'项目列表',exact:true}).click();
+        await list.getByRole('button',{name:/^CBD乙楼/}).waitFor();
+        assert.equal(await list.getByRole('button',{name:/^中关村楼/}).count(),0);
+        scenes.push({name:'complete photo, material and Stacking round trip',beforeStack,afterStack,regionPreserved:true,selectedModes:4});
+      }
       await page.screenshot({path:`/tmp/map-region-live-${width}.png`});
       results.viewports.push({width,height,network,scenes,emptyAndClose:'pass'});
       console.log('passed real region',width);

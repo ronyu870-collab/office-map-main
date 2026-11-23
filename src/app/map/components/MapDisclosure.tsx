@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { animateWorkspace, useSurfacePresence } from '../runtime/workspaceMotion';
 
 /** Nonmodal, viewport-bounded disclosure shared by map statistics, legends and list options. */
-export function MapDisclosure({ label, children, className = '', active = true, width: preferredWidth = 264 }: { label: React.ReactNode; children: React.ReactNode; className?: string; active?: boolean; width?: number }) {
+export function MapDisclosure({ label, children, className = '', active = true, width: preferredWidth = 264, actionMenu = false }: { label: React.ReactNode; children: React.ReactNode; className?: string; active?: boolean; width?: number; actionMenu?: boolean }) {
   const root = React.useRef<HTMLDetailsElement>(null);
   const content = React.useRef<HTMLDivElement>(null);
   const [open, setOpen] = React.useState(false);
@@ -24,6 +24,13 @@ export function MapDisclosure({ label, children, className = '', active = true, 
     };
   }, [open]);
   const id = React.useId();
+  const closeActionMenu = () => {
+    if (root.current) root.current.open = false;
+    setOpen(false); root.current?.querySelector('summary')?.focus({ preventScroll: true });
+  };
+  React.useEffect(() => {
+    if (open && actionMenu) content.current?.querySelector<HTMLElement>('button:not([disabled]), a[href]')?.focus({ preventScroll: true });
+  }, [open, actionMenu]);
   React.useEffect(() => { if (!active) { root.current?.removeAttribute('open'); setOpen(false); } }, [active]);
   React.useLayoutEffect(() => {
     if (!open) return;
@@ -70,6 +77,8 @@ export function MapDisclosure({ label, children, className = '', active = true, 
       if (next) document.querySelectorAll<HTMLDetailsElement>('.map-disclosure[open]').forEach(el => { if (el !== root.current) el.open = false; });
       setOpen(next);
     }}>{label}<ChevronDown size={14} aria-hidden="true" /></summary>
-    {presence.present ? createPortal(<div ref={content} id={id} className="map-disclosure-content" inert={!open || undefined} aria-hidden={!open || undefined}>{presence.children}</div>, document.body) : null}
+    {presence.present ? createPortal(<div ref={content} id={id} className="map-disclosure-content" onClick={actionMenu ? event => {
+      if ((event.target as HTMLElement).closest('button:not([disabled]), a[href]')) closeActionMenu();
+    } : undefined} inert={!open || undefined} aria-hidden={!open || undefined}>{presence.children}</div>, document.body) : null}
   </details>;
 }

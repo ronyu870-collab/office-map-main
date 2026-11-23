@@ -1,3 +1,4 @@
+import { clickWorkspaceAction } from '../verification/workspace-actions.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -152,7 +153,7 @@ try {
       assert.ok(network.tileOK > 0 && network.sdkOK > 0, 'real provider SDK and tile responses required');
       const startup = await page.evaluate(() => window.__liveAmapProbe.stages);
       await page.getByRole('tab', { name: '成交与资料', exact: true }).click();
-      if (width === 390) await detail.getByRole('button', { name: '阅读', exact: true }).click();
+      if (width === 390) await clickWorkspaceAction(page, '展开到阅读高度');
       const link = page.getByRole('link', { name: 'Stacking Plan', exact: true });
       await link.scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
       const top = await detail.locator('.workspace-scroll').evaluate(e => e.scrollTop);
