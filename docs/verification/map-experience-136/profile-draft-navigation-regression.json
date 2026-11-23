@@ -63,8 +63,7 @@
   },
   "limits": [
     "Production build in Chrome with isolated administrator/data/SDK transport, no production writes or new real account-switch/phone gesture claim.",
-    "Metrics gap and covered confirmation are fixed in the combined followup record.",
-    "Exact-head necessary CI and main merge pending."
+    "Metrics gap and covered confirmation are fixed in the combined followup record."
   ],
   "finalCombinedFollowup": {
     "unitFiles": 4,
@@ -80,5 +79,14 @@
     "complete390RunnerExit": 0,
     "metricsRecord": "metrics-draft-navigation-regression.json",
     "scope": "Final metrics dialog layer change does not alter research product source; the final390 complete run executes both helpers. Research source hash remains identical to its four-width focused run."
+  },
+  "resolution": {
+    "pr": 297,
+    "testedHead": "cc3095262d11f08e832513c41afb2b9ecb05832c",
+    "verifyRun": "45283656287",
+    "necessaryChecks": "success: search, engineering, both real Auth and summary",
+    "mergedAtUtc": "2026-11-23T23:19:19Z",
+    "main": "9ca5dd8f786fbd6843f3fdf3b07c4d676206280f",
+    "testedAndMainTree": "62457659dac673d3402521330a1459f3613034eb"
   }
 }

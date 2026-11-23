@@ -57,10 +57,18 @@
     "scripts/verification/verify-map-workspace.mjs": "0650b98b8a041f5c43fa6f9520e7b7c67e1c098c7d881204313b43dcb08b3fe0"
   },
   "limits": [
-    "Isolated administrator/data/SDK browser execution; no production business writes.",
-    "Exact-head necessary CI and main merge pending."
+    "Isolated administrator/data/SDK browser execution; no production business writes."
   ],
   "runnerCorrections": [
     "Add the existing resolve_building_id RPC read to isolated transport; assert original metric8 before typing. Prior timeout runs exit1 and are not passes."
-  ]
+  ],
+  "resolution": {
+    "pr": 297,
+    "testedHead": "cc3095262d11f08e832513c41afb2b9ecb05832c",
+    "verifyRun": "45283656287",
+    "necessaryChecks": "success: search, engineering, both real Auth and summary",
+    "mergedAtUtc": "2026-11-23T23:19:19Z",
+    "main": "9ca5dd8f786fbd6843f3fdf3b07c4d676206280f",
+    "testedAndMainTree": "62457659dac673d3402521330a1459f3613034eb"
+  }
 }

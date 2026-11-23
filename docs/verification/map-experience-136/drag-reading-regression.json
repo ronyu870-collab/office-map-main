@@ -1,0 +1,1291 @@
+{
+  "capturedAt": "2026-11-23T23:08:38.171157+00:00",
+  "baseProductHead": "d88c61c0",
+  "implementation": "No product changes in this followup. Reuse existing stable canvas, drag/no-animation rule and chart ResizeObserver behavior; add five actual pointer reading paths and native keyboard title reading to workspace CI.",
+  "conditions": [
+    {
+      "width": 1536,
+      "reducedMotion": false,
+      "runnerExit": 0,
+      "paths": [
+        {
+          "name": "project-long-owner-and-property",
+          "min": 344,
+          "max": 480,
+          "totalFrames": 58,
+          "postResizeBoundaries": 9,
+          "afterReleaseFrames": 31,
+          "maxPostResizeHorizontalOverflow": 0,
+          "maxPostResizeChartHostDelta": 0,
+          "maxAfterReleaseChartHostDelta": 0,
+          "afterReleasePaneWidths": [
+            344
+          ],
+          "canvasSizes": [
+            [
+              1536,
+              886
+            ]
+          ],
+          "postResizeSamples": [
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": false,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            }
+          ]
+        },
+        {
+          "name": "project-trend",
+          "min": 344,
+          "max": 480,
+          "totalFrames": 57,
+          "postResizeBoundaries": 9,
+          "afterReleaseFrames": 31,
+          "maxPostResizeHorizontalOverflow": 0,
+          "maxPostResizeChartHostDelta": 0,
+          "maxAfterReleaseChartHostDelta": 0,
+          "afterReleasePaneWidths": [
+            344
+          ],
+          "canvasSizes": [
+            [
+              1536,
+              886
+            ]
+          ],
+          "postResizeSamples": [
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": false,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 311,
+                  "host": 311
+                }
+              ]
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 345,
+                  "host": 345
+                }
+              ]
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 379,
+                  "host": 379
+                }
+              ]
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 413,
+                  "host": 413
+                }
+              ]
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 447,
+                  "host": 447
+                }
+              ]
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 413,
+                  "host": 413
+                }
+              ]
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 379,
+                  "host": 379
+                }
+              ]
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 345,
+                  "host": 345
+                }
+              ]
+            },
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 311,
+                  "host": 311
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "research-long-text-and-compact-trend",
+          "min": 360,
+          "max": 520,
+          "totalFrames": 58,
+          "postResizeBoundaries": 9,
+          "afterReleaseFrames": 31,
+          "maxPostResizeHorizontalOverflow": 0,
+          "maxPostResizeChartHostDelta": 0,
+          "maxAfterReleaseChartHostDelta": 0,
+          "afterReleasePaneWidths": [
+            360
+          ],
+          "canvasSizes": [
+            [
+              1536,
+              842
+            ]
+          ],
+          "postResizeSamples": [
+            {
+              "width": 360,
+              "x": 1176,
+              "dragging": false,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 335,
+                  "host": 335
+                }
+              ]
+            },
+            {
+              "width": 400,
+              "x": 1136,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 375,
+                  "host": 375
+                }
+              ]
+            },
+            {
+              "width": 440,
+              "x": 1096,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 407,
+                  "host": 407
+                }
+              ]
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 447,
+                  "host": 447
+                }
+              ]
+            },
+            {
+              "width": 520,
+              "x": 1016,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 487,
+                  "host": 487
+                }
+              ]
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 447,
+                  "host": 447
+                }
+              ]
+            },
+            {
+              "width": 440,
+              "x": 1096,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 407,
+                  "host": 407
+                }
+              ]
+            },
+            {
+              "width": 400,
+              "x": 1136,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 375,
+                  "host": 375
+                }
+              ]
+            },
+            {
+              "width": 360,
+              "x": 1176,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 335,
+                  "host": 335
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "research-trend",
+          "min": 360,
+          "max": 520,
+          "totalFrames": 58,
+          "postResizeBoundaries": 9,
+          "afterReleaseFrames": 31,
+          "maxPostResizeHorizontalOverflow": 0,
+          "maxPostResizeChartHostDelta": 0,
+          "maxAfterReleaseChartHostDelta": 0,
+          "afterReleasePaneWidths": [
+            360
+          ],
+          "canvasSizes": [
+            [
+              1536,
+              842
+            ]
+          ],
+          "postResizeSamples": [
+            {
+              "width": 360,
+              "x": 1176,
+              "dragging": false,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 335,
+                  "host": 335
+                }
+              ]
+            },
+            {
+              "width": 400,
+              "x": 1136,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 375,
+                  "host": 375
+                }
+              ]
+            },
+            {
+              "width": 440,
+              "x": 1096,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 407,
+                  "host": 407
+                }
+              ]
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 447,
+                  "host": 447
+                }
+              ]
+            },
+            {
+              "width": 520,
+              "x": 1016,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 487,
+                  "host": 487
+                }
+              ]
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 447,
+                  "host": 447
+                }
+              ]
+            },
+            {
+              "width": 440,
+              "x": 1096,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 407,
+                  "host": 407
+                }
+              ]
+            },
+            {
+              "width": 400,
+              "x": 1136,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 375,
+                  "host": 375
+                }
+              ]
+            },
+            {
+              "width": 360,
+              "x": 1176,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 335,
+                  "host": 335
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "project-expanded-long-name",
+          "min": 344,
+          "max": 480,
+          "totalFrames": 57,
+          "postResizeBoundaries": 9,
+          "afterReleaseFrames": 31,
+          "maxPostResizeHorizontalOverflow": 0,
+          "maxPostResizeChartHostDelta": 0,
+          "maxAfterReleaseChartHostDelta": 0,
+          "afterReleasePaneWidths": [
+            344
+          ],
+          "canvasSizes": [
+            [
+              1536,
+              842
+            ]
+          ],
+          "postResizeSamples": [
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": false,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            }
+          ]
+        }
+      ],
+      "titleKeyboardReading": {
+        "before": {
+          "top": 0,
+          "client": 72,
+          "total": 157
+        },
+        "after": {
+          "top": 85,
+          "client": 72,
+          "total": 157
+        }
+      }
+    },
+    {
+      "width": 1536,
+      "reducedMotion": true,
+      "runnerExit": 0,
+      "paths": [
+        {
+          "name": "project-long-owner-and-property",
+          "min": 344,
+          "max": 480,
+          "totalFrames": 58,
+          "postResizeBoundaries": 9,
+          "afterReleaseFrames": 31,
+          "maxPostResizeHorizontalOverflow": 0,
+          "maxPostResizeChartHostDelta": 0,
+          "maxAfterReleaseChartHostDelta": 0,
+          "afterReleasePaneWidths": [
+            344
+          ],
+          "canvasSizes": [
+            [
+              1536,
+              886
+            ]
+          ],
+          "postResizeSamples": [
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": false,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            }
+          ]
+        },
+        {
+          "name": "project-trend",
+          "min": 344,
+          "max": 480,
+          "totalFrames": 57,
+          "postResizeBoundaries": 9,
+          "afterReleaseFrames": 31,
+          "maxPostResizeHorizontalOverflow": 0,
+          "maxPostResizeChartHostDelta": 0,
+          "maxAfterReleaseChartHostDelta": 0,
+          "afterReleasePaneWidths": [
+            344
+          ],
+          "canvasSizes": [
+            [
+              1536,
+              886
+            ]
+          ],
+          "postResizeSamples": [
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": false,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 311,
+                  "host": 311
+                }
+              ]
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 345,
+                  "host": 345
+                }
+              ]
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 379,
+                  "host": 379
+                }
+              ]
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 413,
+                  "host": 413
+                }
+              ]
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 447,
+                  "host": 447
+                }
+              ]
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 413,
+                  "host": 413
+                }
+              ]
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 379,
+                  "host": 379
+                }
+              ]
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 345,
+                  "host": 345
+                }
+              ]
+            },
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 311,
+                  "host": 311
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "research-long-text-and-compact-trend",
+          "min": 360,
+          "max": 520,
+          "totalFrames": 57,
+          "postResizeBoundaries": 9,
+          "afterReleaseFrames": 31,
+          "maxPostResizeHorizontalOverflow": 0,
+          "maxPostResizeChartHostDelta": 0,
+          "maxAfterReleaseChartHostDelta": 0,
+          "afterReleasePaneWidths": [
+            360
+          ],
+          "canvasSizes": [
+            [
+              1536,
+              842
+            ]
+          ],
+          "postResizeSamples": [
+            {
+              "width": 360,
+              "x": 1176,
+              "dragging": false,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 335,
+                  "host": 335
+                }
+              ]
+            },
+            {
+              "width": 400,
+              "x": 1136,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 375,
+                  "host": 375
+                }
+              ]
+            },
+            {
+              "width": 440,
+              "x": 1096,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 407,
+                  "host": 407
+                }
+              ]
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 447,
+                  "host": 447
+                }
+              ]
+            },
+            {
+              "width": 520,
+              "x": 1016,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 487,
+                  "host": 487
+                }
+              ]
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 447,
+                  "host": 447
+                }
+              ]
+            },
+            {
+              "width": 440,
+              "x": 1096,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 407,
+                  "host": 407
+                }
+              ]
+            },
+            {
+              "width": 400,
+              "x": 1136,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 375,
+                  "host": 375
+                }
+              ]
+            },
+            {
+              "width": 360,
+              "x": 1176,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 335,
+                  "host": 335
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "research-trend",
+          "min": 360,
+          "max": 520,
+          "totalFrames": 58,
+          "postResizeBoundaries": 9,
+          "afterReleaseFrames": 31,
+          "maxPostResizeHorizontalOverflow": 0,
+          "maxPostResizeChartHostDelta": 0,
+          "maxAfterReleaseChartHostDelta": 0,
+          "afterReleasePaneWidths": [
+            360
+          ],
+          "canvasSizes": [
+            [
+              1536,
+              842
+            ]
+          ],
+          "postResizeSamples": [
+            {
+              "width": 360,
+              "x": 1176,
+              "dragging": false,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 335,
+                  "host": 335
+                }
+              ]
+            },
+            {
+              "width": 400,
+              "x": 1136,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 375,
+                  "host": 375
+                }
+              ]
+            },
+            {
+              "width": 440,
+              "x": 1096,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 407,
+                  "host": 407
+                }
+              ]
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 447,
+                  "host": 447
+                }
+              ]
+            },
+            {
+              "width": 520,
+              "x": 1016,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 487,
+                  "host": 487
+                }
+              ]
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 447,
+                  "host": 447
+                }
+              ]
+            },
+            {
+              "width": 440,
+              "x": 1096,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 407,
+                  "host": 407
+                }
+              ]
+            },
+            {
+              "width": 400,
+              "x": 1136,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 375,
+                  "host": 375
+                }
+              ]
+            },
+            {
+              "width": 360,
+              "x": 1176,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": [
+                {
+                  "canvas": 335,
+                  "host": 335
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "project-expanded-long-name",
+          "min": 344,
+          "max": 480,
+          "totalFrames": 57,
+          "postResizeBoundaries": 9,
+          "afterReleaseFrames": 31,
+          "maxPostResizeHorizontalOverflow": 0,
+          "maxPostResizeChartHostDelta": 0,
+          "maxAfterReleaseChartHostDelta": 0,
+          "afterReleasePaneWidths": [
+            344
+          ],
+          "canvasSizes": [
+            [
+              1536,
+              842
+            ]
+          ],
+          "postResizeSamples": [
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": false,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 480,
+              "x": 1056,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 446,
+              "x": 1090,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 412,
+              "x": 1124,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 378,
+              "x": 1158,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            },
+            {
+              "width": 344,
+              "x": 1192,
+              "dragging": true,
+              "animations": 0,
+              "maxOverflow": 0,
+              "charts": []
+            }
+          ]
+        }
+      ],
+      "titleKeyboardReading": {
+        "before": {
+          "top": 0,
+          "client": 72,
+          "total": 157
+        },
+        "after": {
+          "top": 84,
+          "client": 72,
+          "total": 157
+        }
+      }
+    }
+  ],
+  "observationCorrections": [
+    "An early requestAnimationFrame can precede application ResizeObservers and report an old chart width. At the later application-resize boundary before the same paint, overflow and chart-host deltas are zero. This is not labeled a product defect.",
+    "A native End scroll finishes asynchronously. The title test waits for actual final scroll instead of reading immediately after keyup."
+  ],
+  "verification": {
+    "lintExit": 0,
+    "lintErrors": 0,
+    "newProductBuild": "not repeated: product files unchanged since the metric accessibility build",
+    "reusedBuildId": "3fJnK5e15m5Dg2y2iwm4w",
+    "rawFramesSha256": "c865aa7b81b41ccc6374d6918ab7e6ce66728086309494ceabfcb1fb67c65c0c",
+    "rawFramesOutput": "outputs/地图体验136项_20261123/首批证据/drag-reading-full-frames.json"
+  },
+  "filesSha256": {
+    "scripts/verification/workspace-drag-reading.mjs": "2251a0ceff67fe938534b015b2eb62c67d7aa9254ce4c04802c9ba4d75490498",
+    "scripts/verification/verify-map-workspace.mjs": "252809b2d4ae476f4ea538c15761a0fce6302685fcac550a73614d775913fa6a",
+    "src/app/map/components/MapWorkspaceLayout.tsx": "8bfd91f5424c8baef01f4958a949eb10e2ef5f4e9a5c40e94446acabb6824bc9",
+    "src/services/map/trendChartRuntime.ts": "33612bd09a9678865279bda74d86b009f821b6092ab4fd88a8a34175d33885a9",
+    "src/app/map/components/SubmarketTrendChart.tsx": "2d2185da3ca81dfd9f954a2a42b0be2c1c0b3a725a149a502f74ae99a2fe27d5"
+  },
+  "limits": [
+    "Desktop1536 Chrome normal/reduced; compact layouts hide width dragging and retain previous mobile functional coverage.",
+    "Business/SDK transport are isolated; no new real SDK, production, touch gesture or performance claim. Prior real AMap1536 final drag/bounds evidence is separate.",
+    "Exact-head CI and main merge pending."
+  ],
+  "finalCombinedFollowup": {
+    "buildExit": 0,
+    "buildId": "uLzCN_fazZ1zXDRkw2zU7",
+    "completeWorkspaceExit": 0,
+    "records": 48,
+    "widths": [
+      1536,
+      390
+    ],
+    "record": "reading-layout-combined-browser.json",
+    "scope": "Final build includes metric labels, actual drag paths and delayed trend entry space. Previous focused normal/reduced drag records retain their original build scope."
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "capturedAt": "2026-11-23T23:18:11.900456+00:00",
+  "before": {
+    "diagnosticLog": "viewport 1536\ntrend loading geometry {\"width\":1536,\"before\":{\"height\":475.171875,\"sourceTop\":985.46875,\"dataHeight\":0,\"scrollHeight\":863,\"scrollTop\":0},\"after\":{\"height\":519.171875,\"sourceTop\":1029.46875,\"dataHeight\":44,\"scrollHeight\":907,\"scrollTop\":0}}\nviewport 390\ntrend loading geometry {\"width\":390,\"before\":{\"height\":483.171875,\"sourceTop\":1124.171875,\"dataHeight\":0,\"scrollHeight\":895,\"scrollTop\":0},\"after\":{\"height\":527.171875,\"sourceTop\":1168.171875,\"dataHeight\":44,\"scrollHeight\":939,\"scrollTop\":0}}\n{\"status\":\"pass\",\"environment\":\"production app; isolated SDK/data/administrator\",\"observations\":[{\"width\":1536,\"before\":{\"height\":475.171875,\"sourceTop\":985.46875,\"dataHeight\":0,\"scrollHeight\":863,\"scrollTop\":0},\"after\":{\"height\":519.171875,\"sourceTop\":1029.46875,\"dataHeight\":44,\"scrollHeight\":907,\"scrollTop\":0}},{\"width\":390,\"before\":{\"height\":483.171875,\"sourceTop\":1124.171875,\"dataHeight\":0,\"scrollHeight\":895,\"scrollTop\":0},\"after\":{\"height\":527.171875,\"sourceTop\":1168.171875,\"dataHeight\":44,\"scrollHeight\":939,\"scrollTop\":0}}]}\n",
+    "regressionExit": 1,
+    "regressionLog": "viewport 1536\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: async trend data must retain reserved reading height: {\"before\":{\"height\":475.171875,\"sourceTop\":985.46875,\"dataHeight\":0,\"scrollHeight\":863,\"scrollTop\":0},\"after\":{\"height\":519.171875,\"sourceTop\":1029.46875,\"dataHeight\":44,\"scrollHeight\":907,\"scrollTop\":0}}\n    at verifyTrendLoadingLayout (file:///private/tmp/colliers-map-workspace-v2/scripts/verification/workspace-trend-loading-layout.mjs:39:12)\n    at async file:///private/tmp/map-trend-loading-layout-focused.mjs:148:25 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '=='\n}\n\nNode.js v22.13.0\n",
+    "observedDeltaPx": 44
+  },
+  "implementation": "Reserve the existing44px collapsed period-table entry height only inside the project trend workspace, before asynchronous data arrives. No data/quarter logic or table expansion behavior changed.",
+  "after": {
+    "focusedExit": 0,
+    "widths": [
+      1536,
+      390,
+      320,
+      844
+    ],
+    "record": "trend-loading-layout-browser.json",
+    "heightAndSourceAndScrollDeltasPx": 0,
+    "completeWorkspaceExit": 0,
+    "completeWorkspaceRecords": 48,
+    "completeWorkspaceWidths": [
+      1536,
+      390
+    ],
+    "completeRecord": "reading-layout-combined-browser.json",
+    "buildExit": 0,
+    "buildId": "uLzCN_fazZ1zXDRkw2zU7",
+    "scriptLintExit": 0,
+    "scriptLintErrors": 0,
+    "reusedTypeAndUnitScope": "Metric accessibility source remains unchanged from its passed typecheck and2-file4-test run. This followup changes CSS and browser regression only."
+  },
+  "filesSha256": {
+    "src/app/map/map-workbench.css": "cd59b8b73ffc9cbf77b6bc3668bc15649cd1fd92ea835ae775ab7a1327fa5d17",
+    "scripts/verification/workspace-trend-loading-layout.mjs": "79ab682a9d91262a069a1883008d59b70456fd1555dec39b88f0406f7fd94391",
+    "scripts/verification/verify-map-workspace.mjs": "f12aac495d61dd83721fdf83a27a6cd4a425136a05a645ad9a4730127157022b"
+  },
+  "limits": [
+    "Only delayed first trend read and collapsed period entry are covered; other asynchronous images/materials remain item78 partial.",
+    "Functional isolated-data/SDK suites may run concurrently; no cumulative CLS or performance claim.",
+    "Exact-head CI/main pending; parentPR297 merged."
+  ],
+  "rebase": {
+    "ontoMain": "9ca5dd8f786fbd6843f3fdf3b07c4d676206280f",
+    "parentTestedAndMainTreeEqual": "62457659dac673d3402521330a1459f3613034eb",
+    "beforeAndAfterTree": "b8f352f960e402154e21defe802f0b9eb0abf2e5"
+  }
+}
