@@ -1,0 +1,92 @@
+{
+  "status": "pass",
+  "environment": "production app; isolated SDK/data; viewer except 1024 admin",
+  "observations": [
+    {
+      "name": "distinct supply identity in all four modes",
+      "results": [
+        {
+          "id": "future-cbd",
+          "mode": "default",
+          "glyph": "F",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false,
+          "listHoverPublicSDKVerified": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "rent",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false,
+          "listHoverPublicSDKVerified": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "vacancy",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false,
+          "listHoverPublicSDKVerified": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "leed",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false,
+          "listHoverPublicSDKVerified": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "default",
+          "glyph": "?",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false,
+          "listHoverPublicSDKVerified": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "rent",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false,
+          "listHoverPublicSDKVerified": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "vacancy",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false,
+          "listHoverPublicSDKVerified": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "leed",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false,
+          "listHoverPublicSDKVerified": false
+        }
+      ],
+      "legendMatches": true
+    }
+  ]
+}

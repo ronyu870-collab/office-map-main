@@ -39,8 +39,7 @@
   },
   "limits": [
     "Isolated role/data/SDK; desktop Chrome at four viewports, no VoiceOver/TalkBack or production write claim.",
-    "Other module icon/disabled-state audit remains item109 partial.",
-    "Exact-head CI/main pending; parentPR297 merged."
+    "Other module icon/disabled-state audit remains item109 partial."
   ],
   "finalCombinedFollowup": {
     "buildExit": 0,
@@ -58,5 +57,15 @@
     "ontoMain": "9ca5dd8f786fbd6843f3fdf3b07c4d676206280f",
     "parentTestedAndMainTreeEqual": "62457659dac673d3402521330a1459f3613034eb",
     "beforeAndAfterTree": "b8f352f960e402154e21defe802f0b9eb0abf2e5"
+  },
+  "resolution": {
+    "pr": "https://github.com/ronyu870-collab/office-map-main/pull/298",
+    "testedHead": "47daa7289d811a490d3ca5cc84bd6c20aa40d251",
+    "verifyRun": 45288053546,
+    "requiredChecks": "Search + engineering + two Real Auth + engineering summary all SUCCESS",
+    "mergedAt": "2026-11-23T23:48:57Z",
+    "main": "e266f86c0997f797808c670e76fa4791d1fb9b0c",
+    "testedAndMainTree": "fd6020a7cd908e372e1d0c2b986f8e1acaaa991c",
+    "productionScope": "Merge confirmed; no new production/browser/account verification claimed."
   }
 }

@@ -1,0 +1,97 @@
+{
+  "capturedAt": "2026-11-23T23:54:02.033400+00:00",
+  "before": {
+    "exit": 1,
+    "log": "viewport 1536\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: short material tasks leave no full-height empty panel: 375.921875px\n    at verifyContentHeight (file:///private/tmp/colliers-map-workspace-v2/scripts/verification/workspace-content-height.mjs:20:24)\n    at async file:///private/tmp/map-content-height-focused.mjs:148:25 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '=='\n}\n\nNode.js v22.13.0\n",
+    "emptyTailPx": 375.921875
+  },
+  "implementation": [
+    "Keep the logical desktop workbench column and all existing camera/visible-project assertions. Only the visible project card/background ends at content height; the map below receives pointer input.",
+    "The active visible workspace-kind hook scopes styling to project details. Hidden project DOM cannot alter list/search workspace styling.",
+    "Rich content stays capped at its existing column height, with min-height:0 preserving inner scrolling and fixed header. Resize grip stays within the project header.",
+    "Compact/fullscreen sheet sizing, shared camera code and all business/auth/data contracts are unchanged."
+  ],
+  "after": {
+    "focusedExit": 0,
+    "widths": [
+      1536,
+      1280,
+      1024,
+      390,
+      320,
+      844
+    ],
+    "fixtureRoles": "viewer except 1024 administrator",
+    "record": "content-height-browser.json",
+    "desktopShortHeightPx": 499.078125,
+    "desktopEmptyTailPx": 13,
+    "richHistoryScrollable": true,
+    "sdkCanvasStable": true,
+    "typecheckExit": 0,
+    "lintExit": 0,
+    "lintErrors": 0,
+    "lintWarnings": 6,
+    "buildExit": 0,
+    "buildId": "4FgyPBCeVAFeucnUYfZfR",
+    "desktopMapHitBelowShortCard": true,
+    "supplyFocus": {
+      "exit": 0,
+      "record": "content-height-supply-focus.json",
+      "width": 1536,
+      "fourModesPerSupply": 4,
+      "twoSupplyShapes": true,
+      "existingProjectionAssertionsUnchanged": true
+    },
+    "continuity": {
+      "exit": 0,
+      "conditions": 3,
+      "regionHistoryRoundTrips": 6,
+      "record": "content-height-continuity.json"
+    },
+    "dragReading": {
+      "exit": 0,
+      "paths": 10,
+      "width": 1536,
+      "pointerUsesActualSeparatorHitRegion": true,
+      "sameFullWidthAndOverflowAssertions": true,
+      "conditions": [
+        "normal",
+        "reduced motion"
+      ],
+      "record": "content-height-drag.json"
+    },
+    "geometryTarget": "Visible .workspace-building card; the logical aside retains the original full-height focus column.",
+    "completeWorkspaceExit": 0,
+    "completeWorkspaceRecords": 60,
+    "completeWorkspaceWidths": [
+      1536,
+      1280,
+      1024,
+      390
+    ],
+    "completeWorkspaceRecord": "content-height-combined-browser.json"
+  },
+  "observationCorrections": [
+    "First temporary prototype shrank the outside shell but let long flex content exceed it, scrolling away the header; added the nested min-height:0 constraint before adopting product CSS.",
+    "First product selector assumed one wrapper depth and did not match. Formal focused/combined regression caught unchanged375.9px tail. Replaced it with the active workspace-kind hook and rebuilt.",
+    "The 1024 fixture deliberately gives the first photo read403 for a separate gallery-recovery case. Content-height helper now has its own successful photo read and does not consume that counter.",
+    "An early helper placement created extra reading audit events before the original dedup assertions; a followup placement also preceded the original one-read count. Preserved all original assertions and moved independent page checks after their completed baseline. One superseded in-progress runner was explicitly stopped and not counted as passed.",
+    "A candidate that shrank the logical aside changed short future-project focus to the full-canvas center. The original four-mode marker regression timed out; no assertion changed. Final styling keeps the logical focus column while shrinking only the visible card and passing pointer input to the map below.",
+    "Temporary focused supply runner first duplicated an import, then dispatched the region event before SDK initialization. Those failures were not product failures; corrected import and waited actual SDK readiness before the passed run.",
+    "The resize grip now lives in the card header. Earlier drag test used a fixed100px y-offset outside the72px grip; switched only the pointer target to the actual separator midpoint, preserving full width-range, post-resize overflow and post-release geometry assertions. All five reading paths passed."
+  ],
+  "limits": [
+    "Production React/build with isolated SDK, business and identity; no native phone, current production deployment or new performance claim.",
+    "Fullscreen/compact layouts retain their existing height policy; overflowing short landscape content remains scrollable.",
+    "Exact-head CI/main pending."
+  ],
+  "filesSha256": {
+    "src/app/map/components/MapWorkbenchView.tsx": "a126a09ca3a6b23cc3e7924c019bd56c64d4191314572b944eaf8a736ef1cffa",
+    "src/app/map/map-workbench.css": "35f32fdde62d4597b9839d39c0bae024e6efeaa91aa07672c0250b39683c3018",
+    "scripts/verification/workspace-content-height.mjs": "7887d219e7b34794bfb50f218ac01afb85d33f2d323b68bf87197c73daf8474d",
+    "scripts/verification/verify-map-workspace.mjs": "b58044059dcf547799fef9d0fe6baf7698edb7fa2d2fca3a9e0b796dc9f437fe",
+    "scripts/verification/workspace-drag-reading.mjs": "3d01f40c57d77e913f3b1cbc1e5f123cf390b0c40596755c14df97f75b0a1a33"
+  },
+  "candidateFocusRegressionLog": "viewport 1536\nfilters 1536: opening\nfilters 1536: waiting for one\nfilters 1536: waiting for one\nfilters 1536: waiting for one\nfilters 1536: waiting for one\ntransit filters 1536: starting\ntransit filters 1536: selected station\ntransit filters 1536: radius broadened\nfuture conditions 1536: starting\nfuture conditions 1536: area and calendar match\nfuture conditions 1536: missing rent excluded\ntrend return observation {\"width\":1536,\"before\":{\"metric\":\"true\",\"tableOpen\":true,\"scroll\":459},\"after\":{\"metric\":\"true\",\"tableOpen\":true,\"scroll\":459},\"frames\":13,\"positions\":[459]}\nlist reading 1536 data ready\nlist reading 1536 comparison scope\nlist reading 1536 stock card\nlist reading 1536 future and pending cards\nlist reading 1536 restored scroll 33779 33779\nmetrics draft 1536 opening\nmetrics draft 1536 loaded original\nmetrics draft 1536 refresh cancelled\nmetrics draft 1536 continued editing\nmetrics draft 1536 discarded\nmetrics draft 1536 revert cleared guard\nsupply identity map-marker-fixture 1536: CBD未来楼\nworkspace failure state 1536 {\n  right: '未来供应已纳入统计 0 个项目当前筛选范围内暂无已确认供应，可调整筛选条件。查看无项目年份（5）2026年 · 暂无项目2027年 · 暂无项目2028年 · 暂无项目2029年及以后 · 暂无项目暂无供应时间 · 暂无项目项目列表 1搜索当前项目列表默认顺序项目名称面积从大到小租金从低到高租金从高到低空置率从低到高选择项目（3）更多中关村楼·超长项目名称及楼座信息超长项目名称及楼座信息超长项目名称及楼座信息超长项目名称及楼座信息超长项目名称及楼座信息超长项目名称及楼座信息中关村 · A净有效租金 · 元/㎡/月146.1空置率21.1%统计面积 · ㎡9,019,486查看资料与佣金',\n  hidden: 'true',\n  left: 'true',\n  sdk: {\n    created: 1,\n    resized: 17,\n    centers: [\n      [Array], [Array],\n      [Array], [Array],\n      [Array], [Array],\n      [Array], [Array],\n      [Array]\n    ],\n    nativeOpens: 0\n  }\n}\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\npage.waitForFunction: Timeout 10000ms exceeded.\n    at waitForVisibleProject (/private/tmp/colliers-map-workspace-v2/scripts/verification/workspace-visible-map.mjs:22:14)\n    at verifySupplyMarkers (/private/tmp/colliers-map-workspace-v2/scripts/verification/workspace-supply-markers.mjs:24:11)\n    at async file:///private/tmp/colliers-map-workspace-v2/scripts/verification/verify-map-workspace.mjs:722:29 {\n  name: 'TimeoutError'\n}\n\nNode.js v22.13.0\n",
+  "finalizedAt": "2026-11-24T00:08:47.396963+00:00"
+}

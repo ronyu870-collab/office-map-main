@@ -29,5 +29,11 @@
     "Existing modal Escape/fullscreen/panel back behavior reused from passed same-path coverage.",
     "Exact-head CI/main pending."
   ],
-  "scriptSha256": "680476d0dfb2dcb6c202a4a93b98e63f8bc7a14d7a1ef76d2a73433bf616a418"
+  "scriptSha256": "680476d0dfb2dcb6c202a4a93b98e63f8bc7a14d7a1ef76d2a73433bf616a418",
+  "latestCombinedValidation": {
+    "exit": 0,
+    "record": "content-height-combined-browser.json",
+    "records": 60,
+    "scope": "Final visible-card styling and retained logical focus column; production build with isolated SDK/data/identity."
+  }
 }

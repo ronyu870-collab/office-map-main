@@ -55,5 +55,11 @@
     "src/services/__tests__/MapController.trendRecovery.test.ts": "3c679a1bf6c50ccfa044615d9f8d64565fee9bd43768a93d802ce3da2f50a6ce",
     "scripts/verification/workspace-trend-recovery.mjs": "bcbcea81dfa738f0122f07f88c2a1ac45a10db3d8b22b97a03e2142255313595",
     "scripts/verification/verify-map-workspace.mjs": "296f253077044df194dd6907c4b73441990cf05a5ebcd3074caec9599a7f4385"
+  },
+  "latestCombinedValidation": {
+    "exit": 0,
+    "record": "content-height-combined-browser.json",
+    "records": 60,
+    "scope": "Final visible-card styling and retained logical focus column; production build with isolated SDK/data/identity."
   }
 }

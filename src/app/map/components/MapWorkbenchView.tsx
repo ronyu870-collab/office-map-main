@@ -692,7 +692,7 @@ export function MapWorkbenchView({
                   </div>
                 </div>
               ) : null}
-<div hidden={searchChoicesVisible} className={searchChoicesVisible ? 'hidden' : 'map-workspace-view'}>
+<div hidden={searchChoicesVisible} data-workspace-kind={effectiveKind} className={searchChoicesVisible ? 'hidden' : 'map-workspace-view'}>
     <div hidden={effectiveKind !== 'submarket'} className={effectiveKind === 'submarket' ? 'map-workspace-view' : 'hidden'}>{submarketDetailPanel}</div>
     <div hidden={effectiveKind !== 'building'} className={effectiveKind === 'building' ? 'map-workspace-view' : 'hidden'}>{buildingDetailPanel}</div>
     <div hidden={effectiveKind !== 'supply'} className={effectiveKind === 'supply' ? 'map-workspace-view' : 'hidden'}>

@@ -16,6 +16,7 @@ import { verifyMetricsDraftNavigation } from './workspace-metrics-draft-navigati
 import { verifyDragReading } from './workspace-drag-reading.mjs';
 import { verifyTrendLoadingLayout } from './workspace-trend-loading-layout.mjs';
 import { verifyTrendRecovery } from './workspace-trend-recovery.mjs';
+import { verifyContentHeight } from './workspace-content-height.mjs';
 import { verifySupplyMarkers } from './workspace-supply-markers.mjs';
 import { verifyFutureConditions } from './workspace-future-filters.mjs';
 import { verifyWorkspaceFilters } from './workspace-filters.mjs';
@@ -652,6 +653,11 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no document overflow');
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
+      if ([1536,1280,1024,390,320,844].includes(width)) {
+        const contentHeightPage=await context.newPage();
+        try { observations.push(await verifyContentHeight(contentHeightPage,{base,width})); }
+        finally { await contentHeightPage.close(); }
+      }
       if ([1536,390,320,844].includes(width)) {
         const regionCameraPage=await context.newPage();
         try { observations.push(await verifyRegionCamera(regionCameraPage,{width,base})); }
@@ -783,6 +789,7 @@ try {
       }
 
     } catch (error) {
+      console.error('workspace regression failure', error);
       await page?.screenshot({ path: `/tmp/map-workspace-failure-${width}.png` }).catch(() => {});
       console.error('workspace failure state', width, await page?.evaluate(() => ({
         right: document.querySelector('.map-workspace-right')?.textContent?.slice(0, 1500),

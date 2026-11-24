@@ -21,6 +21,7 @@ export async function verifyDragReading(page, { base, reducedMotion = false }) {
     await separator.press('Home');
     await page.waitForFunction(() => !document.querySelector('.map-workspace-right').getAnimations().some(animation => animation.playState === 'running' || animation.pending));
     const edge = await separator.boundingBox();
+    const pointerY = edge.y + Math.min(100, edge.height / 2);
     const min = Number(await separator.getAttribute('aria-valuemin'));
     const max = Number(await separator.getAttribute('aria-valuemax'));
     assert.ok(max > min, 'exercise a nonzero supported drag range');
@@ -45,10 +46,10 @@ export async function verifyDragReading(page, { base, reducedMotion = false }) {
     });
     let frames, releasedAt;
     try {
-      await page.mouse.move(edge.x + 3, edge.y + 100);
+      await page.mouse.move(edge.x + 3, pointerY);
       await page.mouse.down();
       for (const fraction of [.25, .5, .75, 1, .75, .5, .25, 0]) {
-        await page.mouse.move(edge.x + 3 - (max - min) * fraction, edge.y + 100);
+        await page.mouse.move(edge.x + 3 - (max - min) * fraction, pointerY);
         await page.evaluate(() => new Promise(requestAnimationFrame));
       }
       await page.mouse.up();

@@ -1273,8 +1273,7 @@
   },
   "limits": [
     "Desktop1536 Chrome normal/reduced; compact layouts hide width dragging and retain previous mobile functional coverage.",
-    "Business/SDK transport are isolated; no new real SDK, production, touch gesture or performance claim. Prior real AMap1536 final drag/bounds evidence is separate.",
-    "Exact-head CI and main merge pending."
+    "Business/SDK transport are isolated; no new real SDK, production, touch gesture or performance claim. Prior real AMap1536 final drag/bounds evidence is separate."
   ],
   "finalCombinedFollowup": {
     "buildExit": 0,
@@ -1287,5 +1286,15 @@
     ],
     "record": "reading-layout-combined-browser.json",
     "scope": "Final build includes metric labels, actual drag paths and delayed trend entry space. Previous focused normal/reduced drag records retain their original build scope."
+  },
+  "resolution": {
+    "pr": "https://github.com/ronyu870-collab/office-map-main/pull/298",
+    "testedHead": "47daa7289d811a490d3ca5cc84bd6c20aa40d251",
+    "verifyRun": 45288053546,
+    "requiredChecks": "Search + engineering + two Real Auth + engineering summary all SUCCESS",
+    "mergedAt": "2026-11-23T23:48:57Z",
+    "main": "e266f86c0997f797808c670e76fa4791d1fb9b0c",
+    "testedAndMainTree": "fd6020a7cd908e372e1d0c2b986f8e1acaaa991c",
+    "productionScope": "Merge confirmed; no new production/browser/account verification claimed."
   }
 }
