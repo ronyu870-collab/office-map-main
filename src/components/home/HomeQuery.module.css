@@ -198,3 +198,13 @@
 .replyHeading { min-height: 0; margin-bottom: 8px; color: var(--cd-color-text-secondary); }
 .replyHeading strong { font-weight: 400; }
 @media (max-width: 639px), (pointer: coarse) { .editQuestion { width: 44px; height: 44px; inset-inline-end: 0; } }
+
+.sendButton { transition: background-color var(--cd-motion-fast) var(--cd-ease-state), border-color var(--cd-motion-fast) var(--cd-ease-state), transform var(--cd-motion-fast) var(--cd-ease-out); }
+.sendButton:enabled:active { transform: scale(.97); }
+.sendGlyph { display: grid; place-items: center; width: var(--cd-icon-lg); height: var(--cd-icon-lg); }
+.sendGlyph svg { grid-area: 1 / 1; transition: opacity var(--cd-motion-fast) var(--cd-ease-state); }
+.sendGlyph svg:first-child { width: var(--cd-icon-lg); height: var(--cd-icon-lg); opacity: 1; }
+.sendGlyph svg:last-child { width: 16px; height: 16px; opacity: 0; }
+.sendButton[data-busy="true"] .sendGlyph svg:first-child { opacity: 0; }
+.sendButton[data-busy="true"] .sendGlyph svg:last-child { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .sendButton, .sendGlyph svg { transition: none; } .sendButton:enabled:active { transform: none; } }

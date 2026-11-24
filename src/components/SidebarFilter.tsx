@@ -2,6 +2,7 @@
 import { leedFilterLabel } from '@/src/lib/leed-display';
 
 import * as React from 'react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
 
 export interface NumericCondition {
   id: string;
@@ -66,17 +67,11 @@ function sameStringList(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-const ChevronIcon = ({ isOpen }: { isOpen: boolean }) => ( 
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-600' : 'text-zinc-400'}`}><polyline points="6 9 12 15 18 9"></polyline></svg>
+const ChevronIcon = ({ isOpen }: { isOpen: boolean }) => (
+  <ChevronDown size={14} strokeWidth={1.75} aria-hidden="true" className={`transition-transform duration-[var(--cd-motion-fast)] motion-reduce:transition-none ${isOpen ? 'rotate-180 text-[var(--cd-color-text-primary)]' : 'text-[var(--cd-color-text-secondary)]'}`} />
 );
-
-const TrashIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500 hover:text-red-700 transition-colors"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-);
-
-const PlusIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mr-1"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-);
+const TrashIcon = () => <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" className="text-[var(--cd-color-danger)]" />;
+const PlusIcon = () => <Plus size={14} strokeWidth={1.75} aria-hidden="true" className="mr-1" />;
 
 const NUMERIC_FIELDS = [
   { value: 'net_effective_rent', label: '净有效租金' },

@@ -174,7 +174,8 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     const editor = composer.current?.querySelector('textarea') ?? null;
     resizeEditor(editor, mode);
     const destination = node.getBoundingClientRect();
-    const destinationRadius = getComputedStyle(node).borderRadius;
+    const destinationStyle = getComputedStyle(node);
+    const destinationRadius = destinationStyle.borderRadius;
     restorePosition(scroller.current, transition.reading);
     if (mode === 'compact' && anchor.current) anchor.current.style.height = `${destination.height}px`;
     const finish = () => {
@@ -202,7 +203,8 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     }
     const bounds = (rect: DOMRect) => ({ top: `${rect.top}px`, left: `${rect.left}px`,
       width: `${rect.width}px`, height: `${rect.height}px` });
-    const timing = { duration: DURATION, easing: 'cubic-bezier(.22, 1, .36, 1)' };
+    const timing = { duration: Number.parseFloat(destinationStyle.getPropertyValue('--cd-motion-workspace')) || DURATION,
+      easing: destinationStyle.getPropertyValue('--cd-ease-out').trim() || 'cubic-bezier(.16, 1, .3, 1)' };
     const inputSurface = composer.current, slot = composerSlot.current;
     if (inputSurface?.animate && slot && transition.composer?.width) {
       const target = inputSurface.getBoundingClientRect();

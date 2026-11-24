@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Copy, FileText, MoreHorizontal } from 'lucide-react';
+import { Check, Copy, FileText, MoreHorizontal } from 'lucide-react';
 import { HomeQueryMenu, queryActionFocus } from './HomeQueryMenu';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
@@ -68,7 +68,7 @@ function ResultActions({ result, requestId, scope, internalExport, children, res
 
   return <div className={styles.root}>
     <div className={styles.toolbar} aria-label="分析结果操作">
-      {internalExport && <Button variant="ghost" size="sm" disabled={busy} aria-busy={busy} onClick={event => void copy('conclusion', event.currentTarget)}><Copy size={16} aria-hidden="true" />复制结论</Button>}
+      {internalExport && <Button variant="ghost" size="sm" loading={busy} loadingLabel="复制中…" onClick={event => void copy('conclusion', event.currentTarget)}>{copySucceeded ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}复制结论</Button>}
       {children}
       <HomeQueryMenu label={<><MoreHorizontal size={16} aria-hidden="true" />更多操作</>}>
           {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('table', event.currentTarget)}>复制结果表格</Button>}

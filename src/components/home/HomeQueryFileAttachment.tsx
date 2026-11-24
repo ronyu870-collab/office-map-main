@@ -17,8 +17,8 @@ export function HomeQueryFileAttachment({ scope, requestId, resultId, internalEx
     <Icon size={24} strokeWidth={1.5} aria-hidden="true" />
     <div className={styles.description}><strong title={filename}>{filename}</strong><p>{description} · {artifactUseLabel}</p>
       {message && <p role="status" className={state === 'failed' ? styles.error : undefined}>{message}</p>}</div>
-    {internalExport ? <Button variant="secondary" disabled={busy} aria-label={`下载 ${formatLabel}`}
-      onClick={() => void download({ format })}><Download size={16} aria-hidden="true" />{busy ? '准备中' : state === 'failed' ? '重试下载' : '下载'}</Button>
+    {internalExport ? <Button variant="secondary" loading={busy} loadingLabel="准备中…" aria-label={`下载 ${formatLabel}`}
+      onClick={() => void download({ format })}><Download size={16} aria-hidden="true" />{state === 'failed' ? '重试下载' : '下载'}</Button>
       : <span>当前无导出权限</span>}
   </section>;
 }

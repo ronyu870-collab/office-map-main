@@ -1,58 +1,80 @@
-/**
- * 单例 title tooltip —— 替代浏览器原生 title 属性，消除 ~400ms 延迟。
- *
- * 用法：
- *   import { attachTitleTooltip } from '@/src/utils/titleTooltip';
- *   // InfoWindow open 后
- *   attachTitleTooltip(containerDiv);
- */
-
+/** Native HTML adapter for the shared tooltip surface. Owns only its container's
+ * listeners; callers dispose it on rerender/unmount. React icons use Tooltip. */
 let tooltipEl: HTMLDivElement | null = null;
+let lastDismissed = -Infinity;
 
 function ensureTooltip(): HTMLDivElement {
-  if (tooltipEl) return tooltipEl;
+  if (tooltipEl?.isConnected) return tooltipEl;
   const el = document.createElement('div');
-  el.style.cssText =
-    'position:fixed;z-index:99999;pointer-events:none;' +
-    'padding:4px 8px;border-radius:4px;font-size:11px;line-height:1.4;' +
-    'color:#fff;background:rgba(15,23,42,0.92);white-space:nowrap;' +
-    'box-shadow:0 2px 8px rgba(0,0,0,0.18);opacity:0;transition:opacity 80ms;';
+  el.setAttribute('role', 'tooltip');
+  el.style.cssText = 'position:fixed;inset:auto;margin:0;pointer-events:none;' +
+    'padding:6px 10px;border:1px solid transparent;border-radius:var(--cd-radius-md);' +
+    'font-size:var(--cd-font-size-md);line-height:1.5;color:var(--cd-color-surface);' +
+    'background:var(--cd-color-tooltip);max-width:min(280px,calc(100vw - 16px));' +
+    'overflow-wrap:anywhere;box-shadow:var(--cd-shadow-panel);display:none;';
   document.body.appendChild(el);
   tooltipEl = el;
   return el;
 }
 
-function show(e: MouseEvent, text: string): void {
-  const el = ensureTooltip();
-  el.textContent = text;
-  const pad = 10;
-  let left = e.clientX + pad;
-  if (left + el.offsetWidth > window.innerWidth - 8) {
-    left = e.clientX - el.offsetWidth - pad;
+export function attachTitleTooltip(container: HTMLElement): () => void {
+  const targets = Array.from(container.querySelectorAll<HTMLElement>('[title]'));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let shown: HTMLElement | null = null;
+  const listeners: (() => void)[] = [];
+  const hide = () => {
+    clearTimeout(timer);
+    if (!shown) return;
+    lastDismissed = Date.now(); shown = null;
+    if (tooltipEl) {
+      if (tooltipEl.hidePopover && tooltipEl.matches(':popover-open')) tooltipEl.hidePopover();
+      tooltipEl.style.display = 'none';
+    }
+    document.removeEventListener('keydown', escape, true);
+    document.removeEventListener('scroll', hide, true);
+    window.removeEventListener('resize', hide);
+    window.visualViewport?.removeEventListener('resize', hide);
+  };
+  const escape = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && !event.isComposing) { event.preventDefault(); event.stopPropagation(); hide(); }
+  };
+  for (const target of targets) {
+    const text = target.getAttribute('title');
+    if (!text) continue;
+    target.removeAttribute('title');
+    target.setAttribute('data-tooltip', text);
+    const show = () => {
+      if (!target.isConnected) return;
+      const el = ensureTooltip();
+      shown = target; el.textContent = text; el.style.display = 'block';
+      if (el.showPopover) { el.popover = 'manual'; el.showPopover(); }
+      const box = target.getBoundingClientRect(), size = el.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const left = viewport?.offsetLeft ?? 0, top = viewport?.offsetTop ?? 0;
+      const width = viewport?.width ?? innerWidth, height = viewport?.height ?? innerHeight;
+      el.style.left = `${Math.max(left + 8, Math.min(box.left, left + width - size.width - 8))}px`;
+      el.style.top = `${Math.max(top + 8, Math.min(box.top - size.height - 8 >= top + 8 ? box.top - size.height - 8 : box.bottom + 8, top + height - size.height - 8))}px`;
+      document.addEventListener('keydown', escape, true);
+      document.addEventListener('scroll', hide, true);
+      window.addEventListener('resize', hide);
+      window.visualViewport?.addEventListener('resize', hide);
+    };
+    const enter = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return;
+      clearTimeout(timer);
+      if (Date.now() - lastDismissed < 600) show(); else timer = setTimeout(show, 450);
+    };
+    target.addEventListener('pointerenter', enter);
+    target.addEventListener('pointerleave', hide);
+    target.addEventListener('focus', show);
+    target.addEventListener('blur', hide);
+    target.addEventListener('pointerdown', hide);
+    listeners.push(() => {
+      target.removeEventListener('pointerenter', enter); target.removeEventListener('pointerleave', hide);
+      target.removeEventListener('focus', show); target.removeEventListener('blur', hide); target.removeEventListener('pointerdown', hide);
+      if (!target.hasAttribute('title')) target.setAttribute('title', text);
+      target.removeAttribute('data-tooltip');
+    });
   }
-  el.style.left = `${left}px`;
-  el.style.top = `${e.clientY - el.offsetHeight - 6}px`;
-  el.style.opacity = '1';
-}
-
-function hide(): void {
-  if (tooltipEl) tooltipEl.style.opacity = '0';
-}
-
-/**
- * 为容器内所有带 title 属性的元素绑定即时 tooltip。
- * 会移除原生 title 并存入 data-tooltip，鼠标离开时恢复。
- */
-export function attachTitleTooltip(container: HTMLElement): void {
-  const targets = container.querySelectorAll<HTMLElement>('[title]');
-  targets.forEach((el) => {
-    const text = el.getAttribute('title');
-    if (!text) return;
-    el.removeAttribute('title');
-    el.setAttribute('data-tooltip', text);
-
-    el.addEventListener('mouseenter', (e) => show(e, text));
-    el.addEventListener('mousemove', (e) => show(e, text));
-    el.addEventListener('mouseleave', hide);
-  });
+  return () => { hide(); listeners.forEach(dispose => dispose()); };
 }

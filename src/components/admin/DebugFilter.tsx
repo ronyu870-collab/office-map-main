@@ -81,7 +81,7 @@ export function DebugFilter({ districts, submarkets, leeds, onFilterChange }: De
   };
 
   const ChevronIcon = ({ isOpen }: { isOpen: boolean }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-600' : 'text-zinc-400'}`}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-[var(--cd-motion-fast)] ${isOpen ? 'rotate-180 text-blue-600' : 'text-zinc-400'}`}>
       <polyline points="6 9 12 15 18 9" />
     </svg>
   );
@@ -244,7 +244,7 @@ export function DebugFilter({ districts, submarkets, leeds, onFilterChange }: De
                 })}
               </div>
               <button onClick={addNumericFilter}
-                className="w-full text-[11px] py-1.5 border border-dashed border-zinc-300 rounded-md text-zinc-500 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all">
+                className="w-full text-[11px] py-1.5 border border-dashed border-zinc-300 rounded-md text-zinc-500 hover:border-primary hover:text-primary hover:bg-primary/5 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none">
                 + 添加筛选条件
               </button>
             </div>

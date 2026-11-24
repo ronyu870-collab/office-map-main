@@ -34,7 +34,6 @@ import { normalizeMapSubmarket } from "@/src/app/map/model/mapDomain";
 import { getBuildingMediaPilot } from "@/src/lib/sales-materials/building-media-pilot";
 import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger, type GalleryPhoto } from "./map/buildingPhotoGallery";
 import { photoSummaries } from "@/src/lib/building-photos/model";
-import { attachTitleTooltip } from "@/src/utils/titleTooltip";
 
 import type { BuildingMetric, BuildingWithMetrics } from "@/src/types";
 import type {
@@ -1047,8 +1046,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const markerEl = `
         <div class="map-competitor-marker" data-building-id="${building.id}" style="
           display:flex;flex-direction:column;align-items:center;gap:2px;
-          transition: transform 0.2s;
-        " onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+        ">
           <div class="map-competitor-marker__core" style="
             width:26px;height:26px;border-radius:50%;
             background:${bgColor};border:2px solid #fff;
@@ -1160,7 +1158,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                 color:${km === currentRadiusKm ? "#f59e0b" : "#64748b"};
                 background:${km === currentRadiusKm ? "#fffbeb" : "transparent"};
                 border:1px solid ${km === currentRadiusKm ? "#f59e0b" : "#e2e8f0"};
-                border-radius:6px;padding:3px 8px;cursor:pointer;transition:all 0.15s;
+                border-radius:6px;padding:3px 8px;cursor:pointer;
               ">${km < 1 ? "500m" : km + "km"}</button>
             `,
               )
@@ -1180,7 +1178,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         <div class="comp-filter-panel" style="display:none; border-top:1px solid #f1f5f9; padding:10px 16px; max-height:260px; overflow-y:auto;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <div style="font-size:10px;font-weight:700;color:#94a3b8;">项目等级</div>
-            <span class="comp-filter-collapse" style="font-size:11px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;gap:2px;padding:2px 6px;border-radius:4px;transition:all 0.15s;" title="收起筛选面板">
+            <span class="comp-filter-collapse" style="font-size:11px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;gap:2px;padding:2px 6px;border-radius:4px;" title="收起筛选面板">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
               收起
             </span>
@@ -1370,16 +1368,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         `[data-building-id="${buildingId}"]`,
       ) as HTMLElement | null;
     if (!el) return;
-    if (!document.getElementById("marker-bounce-style")) {
-      const style = document.createElement("style");
-      style.id = "marker-bounce-style";
-      style.textContent = `@keyframes markerBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}`;
-      document.head.appendChild(style);
-    }
-    // 先清除再强制回流，确保重复触发也能播放动画
-    el.style.animation = "none";
-    el.offsetHeight; // force reflow
-    el.style.animation = "markerBounce 0.22s ease-out";
+    // List hover identifies the same geographic point without moving it or
+    // forcing layout on every repeated pointer entry.
+    el.classList.add('map-marker-linked');
   }
 
   public stopBounceMarker(buildingId: string, type: 'existing' | 'future' = 'existing') {
@@ -1394,7 +1385,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       ?.querySelector(
         `[data-building-id="${buildingId}"]`,
       ) as HTMLElement | null;
-    if (el) el.style.animation = "";
+    if (el) el.classList.remove('map-marker-linked');
   }
 
   private restoreAllMarkers() {
@@ -2058,8 +2049,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           box-shadow:0 6px 14px rgba(0,0,0,0.18);
           display:flex;align-items:center;justify-content:center;
           color:${style.textColor};font-weight:800;font-size:${style.fontSize};
-          transition: transform 0.2s, background-color 0.3s;
-        " onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+        ">
           ${style.text}
         </div>
       `;
@@ -2284,8 +2274,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           width: 102px; height: 102px; border-radius: 50%;
           background: ${bgColor}; border: 2px solid rgba(255,255,255,0.9);
           box-shadow: 0 8px 24px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center;
-          color: #ffffff; cursor: pointer; backdrop-filter: blur(4px); transition: transform 0.2s ease, background 0.2s;
-        " onmouseover="this.style.transform='scale(1.05)'; this.style.background='${hoverColor}';" onmouseout="this.style.transform='scale(1)'; this.style.background='${bgColor}';">
+          color: #ffffff; cursor: pointer; transition: background-color 120ms;
+        " onmouseover="this.style.background='${hoverColor}';" onmouseout="this.style.background='${bgColor}';">
           <div style="font-size: 13px; font-weight: 900; margin-bottom: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.4); line-height:1.2; text-align:center;">${agg.name.length > 5 ? escapeHtml(agg.name.slice(0, Math.ceil(agg.name.length / 2))) + "<br>" + escapeHtml(agg.name.slice(Math.ceil(agg.name.length / 2))) : escapeHtml(agg.name)}</div>
           ${extraContent}
         </div>
@@ -2332,11 +2322,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           background: ${style.bgColor};
           opacity: 0.85;
           cursor: pointer;
-          transition: transform 0.15s ease-out, opacity 0.15s ease-out;
+          transition: opacity 120ms;
           box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         "
-        onmouseover="this.style.transform='scale(1.8)'; this.style.opacity='1';"
-        onmouseout="this.style.transform='scale(1)'; this.style.opacity='0.85';"
+        onmouseover="this.style.opacity='1';"
+        onmouseout="this.style.opacity='0.85';"
         title="${escapeHtml(building.name)}"
         aria-label="${escapeHtml(building.name)}"
         ></div>

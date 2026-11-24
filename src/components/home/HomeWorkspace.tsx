@@ -229,9 +229,9 @@ function HomeHeader({
             aria-controls="home-user-menu"
             aria-label={t("用户菜单")}
           >
-            <UserRound size={16} strokeWidth={1.55} className="sm:hidden" aria-hidden="true" />
+            <UserRound size={16} strokeWidth={1.75} className="sm:hidden" aria-hidden="true" />
             <span className="hidden max-w-36 truncate sm:inline" title={displayName}>{displayName}</span>
-            <ChevronDown size={14} strokeWidth={1.55} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+            <ChevronDown size={14} strokeWidth={1.75} className={`transition-transform duration-[var(--cd-motion-fast)] motion-reduce:transition-none ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
           </button>
 
           {menuOpen ? (
@@ -249,7 +249,7 @@ function HomeHeader({
 
               <div className="border-b border-[var(--cd-color-border)] px-3 py-2.5">
                 <div className="mb-1.5 flex items-center gap-1.5 text-xs text-[var(--cd-color-text-muted)]">
-                  <Languages size={13} strokeWidth={1.55} aria-hidden="true" />
+                  <Languages size={13} strokeWidth={1.75} aria-hidden="true" />
                   语言 / Language
                 </div>
                 <div role="group" aria-label="语言 / Language" className="flex gap-1">
@@ -285,7 +285,7 @@ function HomeHeader({
                   onClick={() => setMenuOpen(false)}
                   className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
                 >
-                  <Lock size={14} strokeWidth={1.55} aria-hidden="true" />
+                  <Lock size={14} strokeWidth={1.75} aria-hidden="true" />
                   {t("修改密码")}
                 </HomeIntentLink>
 
@@ -300,7 +300,7 @@ function HomeHeader({
                     }}
                     className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
                   >
-                    <Database size={14} strokeWidth={1.55} aria-hidden="true" />
+                    <Database size={14} strokeWidth={1.75} aria-hidden="true" />
                     <span>{t("系统管理")}</span>
                   </HomeIntentLink>
                 ) : null}
@@ -316,7 +316,7 @@ function HomeHeader({
                   }}
                   className="flex min-h-10 w-full items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-left text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
                 >
-                  <LogOut size={14} strokeWidth={1.55} aria-hidden="true" />
+                  <LogOut size={14} strokeWidth={1.75} aria-hidden="true" />
                   {t("退出登录")}
                 </button>
               </div>

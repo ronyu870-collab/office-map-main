@@ -655,7 +655,7 @@ function SubmissionProgressSection({ dicts, period, people, buildingNamesReady }
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-2 bg-zinc-100 rounded-full overflow-hidden max-w-[80px]">
                               <div
-                                className="h-full rounded-full transition-all"
+                                className="h-full rounded-full transition-[width] duration-[var(--cd-motion-normal)] motion-reduce:transition-none"
                                 style={{
                                   width: `${Math.min(100, rate)}%`,
                                   backgroundColor: rate >= 100 ? '#10b981' : rate > 0 ? '#f59e0b' : '#e5e7eb',

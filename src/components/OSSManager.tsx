@@ -621,7 +621,7 @@ function OSSWorkspace({ userEmail, scope, token, userId, role, targetUserId }: {
             {canManage ? <>
               <Button variant="secondary" size="sm" onClick={openCreateFolder}><FolderPlus size={14} />新建文件夹</Button>
               <input ref={fileInputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx" className="hidden" onChange={(event) => void executeUpload(event)} />
-              <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || loading || Boolean(loadError) || truncated}><Upload size={14} />{uploading ? '上传中…' : '上传文件'}</Button>
+              <Button size="sm" onClick={() => fileInputRef.current?.click()} loading={uploading} loadingLabel="上传中…" disabled={loading || Boolean(loadError) || truncated}><Upload size={14} />上传文件</Button>
             </> : null}
           </div>
         </div>

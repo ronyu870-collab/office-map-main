@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import ts from 'typescript';
 const require = createRequire(import.meta.url);
 const root=process.cwd(), output=path.join(root,'verification/lease-expiry');fs.mkdirSync(output,{recursive:true});
+const cssDir=path.join(root,'.next/static/css');const css=fs.readdirSync(cssDir,{recursive:true}).filter(n=>String(n).endsWith('.css')).map(n=>fs.readFileSync(path.join(cssDir,String(n)),'utf8')).join('\n');
 const modules={}, ids=new Map();
 const virtual={
  'fixture-session':`exports.useAppSession=()=>({status:'authenticated',session:{role:'admin',user:{id:'synthetic-admin'},session:{access_token:'synthetic-token'}}});`,
@@ -34,14 +35,22 @@ function resolve(name,base){
 }
 function bundle(file){
  if(ids.has(file))return ids.get(file);const id=ids.size;ids.set(file,id);
- let source=virtual[file]??fs.readFileSync(file,'utf8');
+ let source;
+ if(file.endsWith('.module.css')) {
+  // Resolve real Next CSS-module identities instead of executing CSS as JS or
+  // substituting unstyled controls in this isolated component harness.
+  const stem=path.basename(file,'.module.css'), classes={};
+  for(const match of css.matchAll(new RegExp('\\.'+stem+'_([A-Za-z0-9_-]+?)__[A-Za-z0-9_-]+','g'))) classes[match[1]]=match[0].slice(1);
+  assert.ok(Object.keys(classes).length, 'production CSS classes exist for '+stem);
+  source='module.exports='+JSON.stringify(classes)+';';
+ } else source=virtual[file]??fs.readFileSync(file,'utf8');
  if(/\.tsx?$/.test(file))source=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
  const dependencies={};for(const [,name] of source.matchAll(/require\(['"]([^'"]+)['"]\)/g))dependencies[name]=bundle(resolve(name,file));
  modules[id]=`[function(require,module,exports){${source}\n},${JSON.stringify(dependencies)}]`;return id;
 }
 const entry=bundle('fixture-entry');
 const script=`const process={env:{NODE_ENV:'production'}};const modules={${Object.entries(modules).map(([id,value])=>JSON.stringify(id)+':'+value).join(',')}};const cache={};function load(id){if(cache[id])return cache[id].exports;const m=cache[id]={exports:{}};const [fn,map]=modules[id];fn(name=>load(map[name]),m,m.exports);return m.exports;}load(${entry});`;
-const cssDir=path.join(root,'.next/static/css');const css=fs.readdirSync(cssDir,{recursive:true}).filter(n=>String(n).endsWith('.css')).map(n=>fs.readFileSync(path.join(cssDir,String(n)),'utf8')).join('\n');
+
 const source={id:'11111111-1111-4111-8111-111111111111',company:'合成验证企业（非真实业务数据）',building:'合成长名称示范楼宇 A 座',period_start:'2021-10-01',period_end:'2021-12-31',period_source:'info_date_inferred_same_year',precision:'quarter',lease_term_months:60,source_lease_term_raw:'60',source_file:'synthetic-evidence.xlsx',source_sheet:'合成样本',source_row:2,source_info_date:null,quality_status:'synthetic',building_match_scope:'project'};
 let review=null,failSave=false,saveCount=0;const requests=[];
 const item=()=>({source_kind:'history',source_available:true,source,source_fingerprint:'a'.repeat(32),proxy_start:'2026-10-01',proxy_end:'2026-12-31',has_later_name_match:true,review});
@@ -74,7 +83,9 @@ try{
   assert.equal(await page.getByLabel('补充备注').isVisible(),false);
   await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();
   await page.mouse.move(width/2,600);await page.mouse.wheel(0,10000);
-  await page.waitForFunction(()=>{const button=[...document.querySelectorAll('button')].find(b=>b.textContent==='保存补充记录');const box=button?.getBoundingClientRect();return box && box.top>=0 && box.bottom<=innerHeight;});
+  await page.getByRole('button',{name:'保存补充记录',exact:true}).scrollIntoViewIfNeeded();
+  const saveBox=await page.getByRole('button',{name:'保存补充记录',exact:true}).boundingBox();
+  assert.ok(saveBox.y>=0 && saveBox.y+saveBox.height<=900, 'save remains reachable in the viewport');
   await page.getByLabel('资料标记').selectOption('missing_info');
   await page.getByLabel('依据定位').fill('合成原件第 2 行');await page.getByLabel('补充备注').fill('缺少合同起租日与原件租期单位，需要进一步核实。');
   failSave=true;await page.getByRole('button',{name:'保存补充记录',exact:true}).click();await page.getByText('合成网络故障，可重试').waitFor();

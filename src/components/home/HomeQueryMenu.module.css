@@ -1,6 +1,6 @@
 .menu { position: relative; min-width: 0; font-size: var(--cd-font-size-sm); }
-.trigger { list-style: none; cursor: pointer; min-height: 40px; padding: var(--cd-space-2) var(--cd-space-3); color: var(--cd-color-text-secondary); display: flex; align-items: center; gap: var(--cd-space-2); border: 0; border-radius: var(--cd-radius-md); background: transparent; font: inherit; line-height: var(--cd-line-height-normal); }
-.trigger[aria-expanded="true"], .trigger:hover { background: var(--cd-color-surface-alt); color: var(--cd-color-text-primary); }
+.trigger { list-style: none; cursor: pointer; min-height: 40px; padding: var(--cd-space-2) var(--cd-space-3); color: var(--cd-color-text-secondary); display: flex; align-items: center; gap: var(--cd-space-2); border: 0; border-radius: var(--cd-radius-md); background: transparent; font: inherit; transition: background-color var(--cd-motion-fast) var(--cd-ease-state), color var(--cd-motion-fast) var(--cd-ease-state); line-height: var(--cd-line-height-normal); }
+.trigger[aria-expanded="true"] { background: var(--cd-color-surface-alt); color: var(--cd-color-text-primary); }
 .trigger:disabled { cursor: default; opacity: .6; }
 /* This component alone owns overlay geometry. Top-layer placement escapes the
    reading/table scrollports without a portal or a z-index escalation. */
@@ -13,3 +13,11 @@
 .body input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--cd-color-brand); }
 .menu :is(button, select, input):focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
 @media (max-width: 639px), (pointer: coarse) { .trigger, .body :is(button, label, select) { min-height: 44px; } }
+
+.trigger > svg, .body button > svg { width: var(--cd-icon-md); height: var(--cd-icon-md); flex-shrink: 0; stroke-width: var(--cd-icon-stroke); }
+.trigger:enabled:active { background: var(--cd-color-control-active); }
+.body { opacity: 1; transform: translateY(0); transition: opacity var(--cd-motion-fast) var(--cd-ease-out), transform var(--cd-motion-fast) var(--cd-ease-out); transform-origin: top right; }
+.body[data-placement="above"] { transform-origin: bottom right; }
+@starting-style { .body:not([hidden]) { opacity: 0; transform: translateY(-3px); } .body[data-placement="above"]:not([hidden]) { transform: translateY(3px); } }
+@media (hover: hover) { .trigger:enabled:hover { background: var(--cd-color-control-hover); color: var(--cd-color-text-primary); } }
+@media (prefers-reduced-motion: reduce) { .trigger, .body { transition: none; } }

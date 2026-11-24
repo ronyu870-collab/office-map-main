@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 
+import { Search } from 'lucide-react';
 import { Button, Input } from '@/src/components/ui';
 
 export interface SearchBarProps {
@@ -117,21 +118,8 @@ export function SearchBar({
   return (
     <div className="flex w-full items-center gap-2">
       <div className="relative flex w-full items-center">
-        <span className="pointer-events-none absolute left-3 inline-flex h-5 w-5 items-center justify-center text-zinc-400">
-          {/* 无依赖放大镜 SVG */}
-          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
-            <path
-              d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-              stroke="currentColor"
-              strokeWidth="2"
-            />
-            <path
-              d="M16.5 16.5 21 21"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
+        <span className="pointer-events-none absolute left-3 inline-flex h-5 w-5 items-center justify-center text-[var(--cd-color-text-secondary)]">
+          <Search size={16} strokeWidth={1.75} aria-hidden="true" />
         </span>
 
         <Input

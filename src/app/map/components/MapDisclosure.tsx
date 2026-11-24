@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, X } from 'lucide-react';
-import { animateWorkspace, useSurfacePresence } from '../runtime/workspaceMotion';
+import { WORKSPACE_MOTION, animateWorkspace, useSurfacePresence } from '../runtime/workspaceMotion';
 
 /** Nonmodal, viewport-bounded disclosure shared by map statistics, legends and list options. */
 export function MapDisclosure({ label, children, className = '', active = true, width: preferredWidth = 264, actionMenu = false, heading, dismissLabel = '关闭' }: { label: React.ReactNode; children: React.ReactNode; className?: string; active?: boolean; width?: number; actionMenu?: boolean; heading?: string; dismissLabel?: string }) {
@@ -22,7 +22,7 @@ export function MapDisclosure({ label, children, className = '', active = true, 
   React.useLayoutEffect(() => {
     const element = content.current;
     const start = interrupted.current; interrupted.current = null;
-    const animation = animateWorkspace(element, open ? [{ opacity: 0, transform: 'translateY(-4px)', ...start }, { opacity: 1, transform: 'translateY(0)' }] : [{ opacity: 1, transform: 'translateY(0)', ...start }, { opacity: 0, transform: 'translateY(-4px)' }], open ? 180 : 120, open ? 'none' : 'forwards');
+    const animation = animateWorkspace(element, open ? [{ opacity: 0, transform: 'translateY(-4px)', ...start }, { opacity: 1, transform: 'translateY(0)' }] : [{ opacity: 1, transform: 'translateY(0)', ...start }, { opacity: 0, transform: 'translateY(-4px)' }], open ? WORKSPACE_MOTION.state : WORKSPACE_MOTION.feedback, open ? 'none' : 'forwards');
     return () => {
       if (element && animation && (animation.playState === 'running' || animation.pending)) {
         const style = getComputedStyle(element);

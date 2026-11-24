@@ -1,5 +1,5 @@
 .anchor { min-width: 0; width: 100%; margin-inline: auto; }
-.backdrop { position: fixed; inset: 0; z-index: var(--cd-z-dialog-backdrop, 59); background: var(--cd-color-overlay); opacity: 0; pointer-events: none; transition: opacity 180ms cubic-bezier(.22, 1, .36, 1); }
+.backdrop { position: fixed; inset: 0; z-index: var(--cd-z-dialog-backdrop, 59); background: var(--cd-color-overlay); opacity: 0; pointer-events: none; transition: opacity var(--cd-motion-normal) var(--cd-ease-out); }
 .backdrop[data-open="true"] { opacity: 1; pointer-events: auto; }
 .backdrop[hidden] { display: none; }
 .composerSlot { min-width: 0; width: 100%; }
@@ -66,7 +66,7 @@
 .inputDock { position: relative; flex: 0 0 auto; min-width: 0; width: 100%; max-width: calc(var(--cd-ai-reading-width) + 64px); margin-inline: auto; padding: 0 32px 24px; }
 .jump { display: flex; justify-content: center; margin-block: 8px; }
 .jump button { min-height: 44px; font-size: var(--cd-ai-body-size); }
-.history, .research { min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: contain; background: var(--cd-color-surface-alt); animation: panelEnter 180ms ease-out; }
+.history, .research { min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: contain; background: var(--cd-color-surface-alt); animation: panelEnter var(--cd-motion-normal) var(--cd-ease-out); }
 .history[hidden], .research[hidden] { display: none; }
 .history:focus, .research:focus { outline: none; }
 .surface[data-mode="compact"] .toolbar { min-height: 44px; padding-block: 0; }
@@ -144,7 +144,7 @@
 .surface:is([data-mode="focus"], [data-mode="expanded"])[data-viewport-compact="true"][data-empty="true"] .main { padding-bottom: 0; }
 @keyframes panelEnter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @supports (transition-behavior: allow-discrete) {
-  .history, .research { animation: none; opacity: 1; transform: translateY(0); transition: opacity 180ms ease, transform 180ms ease, display 180ms; transition-behavior: allow-discrete; }
+  .history, .research { animation: none; opacity: 1; transform: translateY(0); transition: opacity var(--cd-motion-normal) var(--cd-ease-out), transform var(--cd-motion-normal) var(--cd-ease-out), display var(--cd-motion-normal); transition-behavior: allow-discrete; }
   .history[hidden], .research[hidden] { opacity: 0; transform: translateY(4px); }
   @starting-style { .history:not([hidden]), .research:not([hidden]) { opacity: 0; transform: translateY(4px); } }
 }

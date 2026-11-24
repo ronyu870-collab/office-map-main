@@ -195,10 +195,10 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              disabled={submitting}
+              loading={submitting} loadingLabel={t('登录中…')}
               className="mt-1 w-full"
             >
-              {submitting ? t('登录中…') : <>{t('登录')} <ArrowRight size={15} strokeWidth={1.5} /></>}
+              {t('登录')} <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />
             </Button>
           </form>
         </div>

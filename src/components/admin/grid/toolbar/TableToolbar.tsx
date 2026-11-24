@@ -97,7 +97,7 @@ export function TableToolbar({
           {config.viewMode.views.map(v => (
             <button
               key={v.key}
-              className={`px-3 py-1.5 text-xs rounded-md transition-all ${
+              className={`px-3 py-1.5 text-xs rounded-md transition-[color,background-color,border-color,opacity] motion-reduce:transition-none ${
                 viewMode === v.key
                   ? 'border border-[var(--cd-color-border)] bg-white text-[var(--cd-color-brand)] font-medium'
                   : 'text-zinc-500 hover:text-zinc-700'

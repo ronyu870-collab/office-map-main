@@ -35,7 +35,7 @@ export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building,
   const metadata=[building.district,submarket ? `${submarket.display_label}：${submarket.display_value}` : building.submarket,
     grade ? `${grade.display_label}：${grade.display_value}` : displayListGrade(building.grade)].filter(value=>value && value!=='—').join(' · ');
   const vacancy=listVacancyPercent(values.vacancy);
-  React.useEffect(()=>{if(cardRef.current)attachTitleTooltip(cardRef.current);});
+  React.useEffect(() => cardRef.current ? attachTitleTooltip(cardRef.current) : undefined);
   const field=(label:string,value:string,masked=false,unit?:string)=><div><dt>{label}</dt><dd>{masked ? <MaskedText>{value}</MaskedText> : value}{unit ? <span> {unit}</span> : null}</dd></div>;
   return <div ref={cardRef} onClick={onClick} className="workspace-basic-card" role="button" aria-current={current || undefined} tabIndex={0}
     onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onClick?.();}}}>
