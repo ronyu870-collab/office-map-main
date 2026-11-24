@@ -117,8 +117,8 @@
 .policyTerms { margin-bottom: 12px; color: #667588; font-size: 14px; line-height: 1.7; }
 .policyRule p.caution { color: #88632b; }
 .projectFacts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 32px; margin: 0; }
-.projectFacts > div { display: grid; grid-template-columns: 86px minmax(0,1fr); gap: 16px; align-items: baseline; padding: 18px 0; border-bottom: 1px solid #e8edf2; }
-.projectFacts dt { color: #667588; font-size: 14px; line-height: 1.7; }
+.projectFacts > div { display: grid; min-width: 0; gap: 4px; align-content: start; padding: 14px 0; border-bottom: 1px solid #e8edf2; }
+.projectFacts dt { color: #667588; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
 .projectFacts dd { margin: 0; color: #34465a; font-size: 14px; line-height: 1.75; overflow-wrap: anywhere; }
 @media (max-width:767px) {
   .policies, .projectFacts { grid-template-columns: minmax(0,1fr); }

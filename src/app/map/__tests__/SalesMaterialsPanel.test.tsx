@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SalesMaterialsPanel from '../components/sales-materials/SalesMaterialsPanel';
 import type { MaterialAccess, SalesMaterial } from '@/src/lib/sales-materials/model';
@@ -126,6 +126,32 @@ describe('极简只读销控',()=>{
 });
 
  describe('历史资料无需在线原件',()=>{
+  it('shares the historical warning while preserving each original period and source',async()=>{
+    const period='历史资料；未注明的资料日期保持未知';
+    const first={...row,series_key:'tower-a',scope_label:'A座原文',content_types:['brochure'] as const,historical_context:{period_label:period,evidence:'原件未注明日期',not_current:true as const}};
+    const second={...first,id:'33333333-3333-4333-8333-333333333333',series_key:'tower-b',scope_label:'B座原文'};
+    mocks.list.mockResolvedValue({records:[first,second],count:2});
+    mocks.access.mockImplementation((_building:string,material:string)=>Promise.resolve({...access,details:[],preview_url:null,download_url:null,project_facts:[{label:'层高口径',value:material===id?'A座保留原文':'B座保留原文',source_ref:material===id?'原件第3页':'原件第8页'}]}));
+    open();await screen.findByText('B座保留原文');
+    expect(screen.getByRole('button',{name:period})).toBeVisible();
+    expect(screen.getAllByText('历史参考，当前适用条件请向业主确认。')).toHaveLength(1);
+    for(const [scope,source] of [['A座原文','原件第3页'],['B座原文','原件第8页']]) {
+      const section=screen.getByRole('region',{name:scope});
+      fireEvent.click(within(section).getByText('资料来源',{exact:true}));
+      expect(within(section).getByText(`层高口径：${source}`)).toBeVisible();
+    }
+  });
+  it('keeps different historical periods and limits the warning to the historical section in a mixed view',async()=>{
+    const historical={...row,series_key:'historical',scope_label:'历史范围',content_types:['brochure'] as const,historical_context:{period_label:'2023年；日期未知',evidence:'历史归档',not_current:true as const}};
+    const current={...row,id:'33333333-3333-4333-8333-333333333333',series_key:'current',scope_label:'当前范围',content_types:['brochure'] as const};
+    mocks.list.mockResolvedValue({records:[historical,current],count:2});
+    mocks.access.mockResolvedValue({...access,details:[],project_facts:[{label:'参数',value:'原文参数',source_ref:'对应原件'}]});
+    open();const historicalSection=await screen.findByRole('region',{name:'历史范围'});
+    expect(within(historicalSection).getByText('历史资料 · 2023年；日期未知')).toBeVisible();
+    expect(within(historicalSection).getByText('历史参考，当前适用条件请向业主确认。')).toBeVisible();
+    expect(within(screen.getByRole('region',{name:'当前范围'})).queryByText(/历史参考/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'数据日期见各份资料'})).toBeVisible();
+  });
   it('shows extracted policies and source conditions without preview controls',async()=>{
     const historical={period_label:'2023年；日期未知',evidence:'历史归档',not_current:true as const};
     mocks.list.mockResolvedValue({records:[{...row,historical_context:historical,content_types:['commission']}],count:1});
