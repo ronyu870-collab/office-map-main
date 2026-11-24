@@ -1,4 +1,5 @@
 import { verifySupplyLoading } from './workspace-supply-loading.mjs';
+import { verifyShortViewport } from './workspace-short-viewport.mjs';
 import { verifyRouteFocus } from './workspace-route-focus.mjs';
 import { verifyAsyncReading } from './workspace-async-reading.mjs';
 import { verifyControlSemantics } from './workspace-control-semantics.mjs';
@@ -157,6 +158,7 @@ try {
       await page.locator('#map-container [data-building-id="10000000-1111-4111-8111-111111111111"]').first().waitFor();
       assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true');
       const liveStats = page.getByRole('region', { name: '市场实时指标', exact: true });
+      if (height < 520) await page.locator('.map-compact-metrics > summary').click();
       await liveStats.getByText('项目', { exact: true }).waitFor();
       assert.equal(await liveStats.locator('summary,button').count(), 0, 'metrics have no explanation trigger');
       const metricBounds = await liveStats.boundingBox();
@@ -177,6 +179,10 @@ try {
       const statsBeforeMove = await liveStats.locator('dl').innerText();
       await page.evaluate(() => { window.__workspaceMap.emit('moveend'); });
       assert.equal(await liveStats.locator('dl').innerText(), statsBeforeMove);
+      if (height < 520) {
+        await page.keyboard.press('Escape');
+        await page.locator('.map-disclosure-content').waitFor({ state: 'detached' });
+      }
       const legend = page.locator('.map-workspace-legend > summary');
       await legend.focus();
       await legend.press('Enter');
@@ -606,9 +612,11 @@ try {
         await choices.getByRole('button', { name: '清空关键词', exact: true }).waitFor();
         await clickWorkspaceAction(page, '全屏阅读工作区');
         await choices.getByRole('button', { name: '清空关键词', exact: true }).click();
-        await liveStats.getByText('项目', { exact: true }).waitFor();
         assert.equal(await search.inputValue(), '');
         assert.ok(await search.evaluate(el => el === document.activeElement));
+        await page.locator('.map-compact-metrics > summary').click();
+        await liveStats.getByText('项目', { exact: true }).waitFor();
+        await page.keyboard.press('Escape');
         await page.setViewportSize({ width, height });
         await page.waitForTimeout(350);
       }
@@ -657,6 +665,11 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no document overflow');
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
+      if (width === 1536) {
+        const shortViewportPage = await context.newPage();
+        try { observations.push(await verifyShortViewport(shortViewportPage, { base })); }
+        finally { await shortViewportPage.close(); }
+      }
       if ([1536,1024,390,320,844].includes(width)) {
         const routeFocusPage=await context.newPage();
         try { observations.push(await verifyRouteFocus(routeFocusPage,{base,width})); }

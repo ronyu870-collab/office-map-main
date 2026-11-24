@@ -525,12 +525,14 @@ export function MapWorkbenchView({
   }, [activeFilterChips, keyword, compareGroups]);
 
   const viewportRef = React.useRef<HTMLDivElement>(null);
+  const [shortViewport, setShortViewport] = React.useState(false);
   React.useEffect(() => {
     const viewport = window.visualViewport;
     const update = () => {
       const height = viewport?.height ?? window.innerHeight;
       viewportRef.current?.style.setProperty('--map-viewport-height', `${height}px`);
       viewportRef.current?.toggleAttribute('data-short-viewport', height < 520);
+      setShortViewport(height < 520);
     };
     update(); viewport?.addEventListener('resize', update); window.addEventListener('resize', update);
     return () => { viewport?.removeEventListener('resize', update); window.removeEventListener('resize', update); };
@@ -722,6 +724,9 @@ export function MapWorkbenchView({
         <div className="map-page-header">
           <BrokerSearchLink /><h1 title="北京办公楼市场地图">北京办公楼市场地图</h1>
           <MetricStrip stats={stats} busy={mapDataLoading || (!mapReady && !mapError)} />
+          <MapDisclosure className="map-compact-metrics" label="市场指标" active={!isFullListVisible && shortViewport} width={336}>
+            <div className="map-metrics-popover"><MetricStrip stats={stats} busy={mapDataLoading || (!mapReady && !mapError)} /></div>
+          </MapDisclosure>
           <div className="map-header-navigation">
             <Link href="/" className="workspace-header-link"><Home size={16} aria-hidden="true" />主页</Link>
             <Button variant="secondary" size="sm" onClick={() => onOpenFullList?.()} aria-label="完整列表">完整列表</Button>
