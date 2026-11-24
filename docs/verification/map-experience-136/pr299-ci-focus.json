@@ -75,5 +75,14 @@
     "originalAssertionsPreserved": true
   },
   "rootCause": "Not established; no unrelated homepage product or assertion change made.",
-  "nextAction": "One rerun of failed checks on the exact original head; result pending."
+  "nextAction": "Resolved: original-head failed checks rerun once and all necessary checks passed; PR299 merged.",
+  "resolution": {
+    "attempt": 2,
+    "verifyRun": 45295242424,
+    "necessaryChecks": "success: Search and filter focus coverage; engineering; both Real Auth; Typecheck, lint, test and build",
+    "mergedAtUtc": "2026-11-24T00:54:50Z",
+    "main": "7c1956077bdfc200a338a519bc0244e5fb16a64d",
+    "testedAndMainTree": "381015d67e31282586facef2b6883c29f2608bce",
+    "rootCause": "First attempt timing cause not established; no homepage product/assertion change. One original-head rerun passed."
+  }
 }

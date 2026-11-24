@@ -1,0 +1,58 @@
+{
+  "head": "2383fec2c5f3e3593fd594698333db3ad7f190bb",
+  "run": 45295242424,
+  "attempt": 2,
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "Engineering regressions",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-24T00:31:12Z",
+      "completedAt": "2026-11-24T00:53:39Z"
+    },
+    {
+      "name": "Select verification scope",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-24T00:12:28Z",
+      "completedAt": "2026-11-24T00:12:41Z"
+    },
+    {
+      "name": "Search and filter focus coverage",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-24T00:12:43Z",
+      "completedAt": "2026-11-24T00:13:33Z"
+    },
+    {
+      "name": "Real Auth lease expiry integration",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-24T00:12:43Z",
+      "completedAt": "2026-11-24T00:17:04Z"
+    },
+    {
+      "name": "Real Auth trusted query HTTP integration",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-24T00:12:43Z",
+      "completedAt": "2026-11-24T00:19:30Z"
+    },
+    {
+      "name": "Quick UI update",
+      "status": "completed",
+      "conclusion": "skipped",
+      "startedAt": "2026-11-24T00:31:19Z",
+      "completedAt": "2026-11-24T00:12:41Z"
+    },
+    {
+      "name": "Typecheck, lint, test and build",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-24T00:53:42Z",
+      "completedAt": "2026-11-24T00:53:51Z"
+    }
+  ]
+}
