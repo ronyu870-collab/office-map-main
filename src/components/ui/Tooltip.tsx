@@ -50,7 +50,8 @@ export function Tooltip({ content, children, forwardedRef }: { content: string; 
     place();
     const dismiss = () => { markDismissed(); visible.current = false; setOpen(false); };
     const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.isComposing) { event.preventDefault(); event.stopPropagation(); dismiss(); }
+      // Hints never own the surrounding dialog/menu's Escape action.
+      if (event.key === 'Escape' && !event.isComposing) dismiss();
     };
     document.addEventListener('keydown', key, true);
     document.addEventListener('scroll', dismiss, true);

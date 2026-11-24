@@ -22,6 +22,7 @@
 
 | 优先级 / 位置 | Before / 原因 | After / 方案 | 频率 / 影响 / 风险 | 验证 | 状态 |
 |---|---|---|---|---|---|
+| P0 Tooltip / Dialog Escape | 提示层吞掉Escape，联系方式需再次按键关闭 | 仅关闭提示，让外层Dialog处理同一Escape | 键盘高频；模态退出风险 | 实际Dialog单测、390/320px联系方式关闭及焦点恢复 | 已修复 |
 | P0 SearchableSelect锁定清除 | disabled仍调用onClear | 原生disabled保护 | 高频表单；越过禁用；低风险 | 旧实现单测确实失败、修复通过 | 已修复 |
 | P1 Button / IconButton | 仅hover；图标和触控规格散落 | active/pressed/focus/disabled、图标16/1.75、32/36/44目标；可选稳定加载 | 全站；公共样式风险 | 控件、调用方、全量工程与渲染 | 已实施 |
 | P1 Tooltip | 高频图标依赖title延迟和浏览器外观 | 原生Popover top layer；450ms首延迟、同组600ms宽限、键盘及Escape/点击关闭 | 高频；浮层焦点风险 | 自动组件与浏览器 | 已实施 |
@@ -72,7 +73,7 @@
 5. 完成地图工具条、联动静态强调、原生marker去几何hover及重复样式；保留相机/SDK生命周期。
 6. 完成其余业务覆盖及必要迁移，见上表。
 7. 去掉48处Tailwind transition-all及2处原生HTML全属性过渡、密集操作缩放、重复marker hover覆盖和运行时弹跳样式注入；AGGrid滚动条不再泄漏到全站；loading spinner仅busy时运行。
-8. 边界回归发现并修复关闭选择器残留空结果、Tooltip包裹节点影响直接子元素样式、错误边框被hover覆盖。完成新增连续输入/IME/Tab、禁用、ref、Tooltip清理及地图回流回归。
+8. 边界回归发现并修复关闭选择器残留空结果、Tooltip包裹节点影响直接子元素样式、错误边框被hover覆盖。完成新增连续输入/IME/Tab、禁用、ref、Tooltip清理及地图回流回归。完整地图回归发现Tooltip吞掉模态Escape，已修复事件传递并用真实Dialog和390/320px浏览器复验关闭与焦点恢复。
 
 本轮测试在当前分支执行，持续回归由现有 Vitest 全量入口和 Verify 的 `ui-craft-browser.mjs` 运行，不用历史记录替代。到期线索的既有隔离组件浏览器适配真实构建的 CSS Module 类名，避免新公共按钮在该夹具中丢失样式；保留失败重试与幂等断言。本次实际执行结果：
 

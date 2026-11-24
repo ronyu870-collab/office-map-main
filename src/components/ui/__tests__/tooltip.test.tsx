@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest';
 import { createRef } from 'react';
 import { IconButton } from '../IconButton';
+import { Dialog } from '../Dialog';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 it('delays the first pointer hint, skips delay across the toolbar, and dismisses on Escape/click', () => {
@@ -45,4 +46,19 @@ it('preserves the original toolbar parent and forwards the native button ref', (
   expect(button.parentElement).toBe(screen.getByTestId('toolbar'));
   fireEvent.click(button);
   expect(click).toHaveBeenCalledTimes(1);
+});
+
+it('dismisses the hint without consuming the containing dialog Escape action', () => {
+  vi.useFakeTimers();
+  const close = vi.fn();
+  render(<Dialog open title="联系方式" onOpenChange={close}><p>合成联系方式</p></Dialog>);
+  const button = screen.getByRole('button', { name: /^关闭$/ });
+  act(() => button.focus());
+  fireEvent.pointerEnter(button, { pointerType: 'mouse' });
+  act(() => vi.advanceTimersByTime(450));
+  expect(screen.getByRole('tooltip')).toBeVisible();
+  fireEvent.keyDown(button, { key: 'Escape' });
+  expect(close).toHaveBeenCalledTimes(1);
+  expect(close).toHaveBeenCalledWith(false);
+  expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
 });

@@ -36,7 +36,7 @@ export function attachTitleTooltip(container: HTMLElement): () => void {
     window.visualViewport?.removeEventListener('resize', hide);
   };
   const escape = (event: KeyboardEvent) => {
-    if (event.key === 'Escape' && !event.isComposing) { event.preventDefault(); event.stopPropagation(); hide(); }
+    if (event.key === 'Escape' && !event.isComposing) hide();
   };
   for (const target of targets) {
     const text = target.getAttribute('title');
