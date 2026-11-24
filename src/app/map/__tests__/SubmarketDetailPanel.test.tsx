@@ -229,15 +229,17 @@ describe('submarket research workspace', () => {
     expect(screen.getByDisplayValue('客户研究（研究草案）')).toBeInTheDocument();
   });
 
-  it('publishes only after an explicit admin confirmation', async () => {
-    const approve = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('saves and publishes clean submarket copy without a separate approval step', async () => {
+    const confirm = vi.spyOn(window, 'confirm');
     api.save.mockResolvedValue({ profile, profilePublished: true });
     render(<SubmarketDetailPanel {...props} />);
     await waitFor(() => expect(screen.getByRole('button', { name: '维护资料' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
-    fireEvent.click(screen.getByRole('button', { name: '核验并发布' }));
+    expect(screen.queryByRole('button', { name: '核验并发布' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '保存并展示' }));
     await waitFor(() => expect(api.save).toHaveBeenCalledWith('CBD', expect.objectContaining({ headline: profile.headline }), true));
-    expect(approve).toHaveBeenCalledOnce();
+    expect(confirm).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('tab', { name: '区域画像' })).toBeInTheDocument());
   });
 
   it('retains the unsaved-edit confirmation when Escape closes the full-screen dialog', async () => {
