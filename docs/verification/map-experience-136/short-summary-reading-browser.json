@@ -1,0 +1,22 @@
+{
+  "status": "pass",
+  "environment": "production app, isolated SDK and authorized data fixtures",
+  "observations": [
+    {
+      "width": 320,
+      "height": 560,
+      "identityOnlyExpandedForReading": true,
+      "coreMetricsFirst": true,
+      "primaryActionInTitleRow": true,
+      "introductionOnlyUsesBuildingComposition": true,
+      "canvasRendered": true,
+      "keyboardQuarterTable": true,
+      "zeroAndMissingRemainDistinct": true,
+      "tableFitsPanel": true,
+      "listRoundTripPreservesRegion": true,
+      "overviewRestoresAllGradesAfterEmptyGrade": true,
+      "settledEmptyTrendUsesContentHeight": true,
+      "fullReadingReloadRestoresMapWithoutFalseError": true
+    }
+  ]
+}

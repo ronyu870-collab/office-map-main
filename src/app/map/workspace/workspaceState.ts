@@ -100,15 +100,14 @@ export type SheetMode = 'compact' | 'reading' | 'full';
 export function workspaceSheetHeight(available: number, summary: number, mode: SheetMode, kind: WorkspaceKind | 'filters' = 'submarket') {
   if (mode === 'full') return available;
   const preserveMap = kind === 'submarket' || kind === 'building';
-  // Below this height the compact state is an identity/action bar. Reading
+  // A fixed short-stage boundary avoids feeding the measured summary back
+  // into its own visibility. The compact state is an identity/action bar; reading
   // remains explicit; its hidden body must not consume the camera's map strip.
-  if (preserveMap && mode === 'compact' && available < 216) return Math.min(available, 52);
+  if (preserveMap && mode === 'compact' && available < 320) return Math.min(available, 52);
   // In a short phone viewport, keep the summary readable while retaining a
   // visible map strip. Reading/full remain explicit user choices.
   const reserveRatio = available < 320 ? .32 : .4;
-  const ratioLimit = Math.max(0, available - Math.min(240, available * reserveRatio));
-  // Include the 24px attribution band and actual marker/name edge space.
-  const limit = preserveMap && mode === 'compact' && available < 320 ? Math.min(ratioLimit, available - 116) : ratioLimit;
+  const limit = Math.max(0, available - Math.min(240, available * reserveRatio));
   const compactRatio = available < 320 ? .68 : available < 360 ? .6 : .55;
   return Math.max(0, Math.min(limit, mode === 'reading' ? available * .65 : Math.min(available * compactRatio, Math.max(128, summary))));
 }

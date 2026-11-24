@@ -128,3 +128,10 @@ it('uses a readable side pane in low-height landscape while keeping half the map
   expect(result.right).toBeGreaterThanOrEqual(360);
   expect(844 - result.right).toBeGreaterThanOrEqual(422);
 });
+
+it('keeps the short identity state stable when its own hidden header reduces measured content', () => {
+  const expandedHeaderSummary = workspaceSheetHeight(272, 190, 'compact');
+  const reducedHeaderSummary = workspaceSheetHeight(272, 130, 'compact');
+  expect(expandedHeaderSummary).toBe(52);
+  expect(reducedHeaderSummary).toBe(expandedHeaderSummary);
+});

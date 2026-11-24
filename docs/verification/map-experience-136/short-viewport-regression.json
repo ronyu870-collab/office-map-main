@@ -7,7 +7,7 @@
     "failure": "626×328: short viewport retains at least 40% for map and reading: 36/328"
   },
   "after": {
-    "buildId": "V63BSSgpnu4BQve8wsuw2",
+    "buildId": "I3HOr-21wB7Hu9OHrfi3u",
     "exitCode": 0,
     "results": [
       {
@@ -57,7 +57,7 @@
     ],
     "unitTests": {
       "files": 5,
-      "passed": 44
+      "passed": 45
     },
     "typecheck": 0,
     "lint": {
@@ -65,23 +65,36 @@
       "errors": 0,
       "existingWarnings": 13
     },
-    "buildExitCode": 0
+    "buildExitCode": 0,
+    "sharedWorkspace": {
+      "widths": [
+        320
+      ],
+      "exitCode": 0,
+      "observations": 32,
+      "sha256": "e82e9f956ea7522f8193e8f7d1bbab098207452c159dabc9e254b13a102e2411",
+      "rawOutput": "用户输出目录/首批证据/short-stable-workspace-320.json",
+      "earlierWidths": "1536和844在ad10a05b完整回归先通过，之后受影响320在最终固定构建单独完整重跑；最终全宽集由必要CI执行。"
+    }
   },
   "ciEntry": "scripts/verification/verify-map-workspace.mjs -> verifyShortViewport at width 1536; existing Engineering regressions job runs the nine-width driver",
   "scope": "真实Next生产构建、React业务组件，隔离SDK、业务与身份；CSS视口等价回归不是原生浏览器缩放或软键盘实测。",
   "limits": [
     "修后原生Chrome200%尚未复验；五分钟原生窗口已归还。",
     "初版顶部容器只包标题而未包兄弟工具栏，严格相机回归失败；已统一容器后四档及真实SDK通过。",
-    "不把前一阶段完整回归或CI冒充最终提交；最终完整工作区与精确head CI另记录。"
+    "不把前一阶段完整回归或CI冒充最终提交；最终完整工作区与精确head CI另记录。",
+    "初次320完整重放未结束新增全屏阅读就继续关闭焦点断言；现实际返回分屏后保留原焦点断言。",
+    "一轮后续复测在本地重新构建时等待SDK超时，该受干扰运行不作产品终态证据；最终固定构建重新执行。"
   ],
   "sources": {
     "src/app/map/components/MapWorkbenchView.tsx": "02af55b6a3972b3a9baf4ce4e78d4bf42781afe3febe3312ded84caf0203383e",
-    "src/app/map/map-workbench.css": "b8ce70548cb1c90c55465e484b42a5d9b2942f9bb4db029c9f306dbe80c73196",
+    "src/app/map/map-workbench.css": "2c92fb18709c4bfad6e3fc87d0f9c6e5364b7e52fe443f9d3981baa71c2900b4",
     "scripts/verification/workspace-short-viewport.mjs": "465dbfb9c05ce2792beb2d37c885431cf2b0e211c5edda652250992317441302",
-    "scripts/verification/verify-map-workspace.mjs": "51b08a24c3bf3b49a3165f6de1ec38338794389e36e1d85e6c8294400a6c0031",
-    "src/app/map/components/MapWorkspaceLayout.tsx": "2db64aa120f3e3681506c5c8b2475110bb79d3953e519721e53f119a657785d8",
-    "src/app/map/workspace/workspaceState.ts": "20ac164a3498096767e50c3c93cdba9b5cff31f5da3fe813ea3a3a215ad014f7",
-    "src/app/map/workspace/workspaceState.test.ts": "8ffcc17e0662b65122e137a2a2b0386cdf5b1ddd136789b42ebe50d8eca89c3d"
+    "scripts/verification/verify-map-workspace.mjs": "ac633910baf204dd1e9b2e92b41f6c95ae2e836b3ae856bfefd390a5e1e54a19",
+    "src/app/map/components/MapWorkspaceLayout.tsx": "5ee9df94d10d3a24f0c6f90b1dba00286c5589060deb653ed26e9266b4614034",
+    "src/app/map/workspace/workspaceState.ts": "a7571ee46c1de65f856533121b497f3ec7ea6636304afe79e0d7a911d1789b4c",
+    "src/app/map/workspace/workspaceState.test.ts": "70e9f73c8617f472d6587df18d549ed7aad7735e0cd82fd604ad8616cd5fb89f",
+    "scripts/verification/workspace-submarket-reading.mjs": "bf535754f59c2ee6ddff11ee53f57708a93935c8d5e12a1a55bb4781bfcd71ed"
   },
   "supersededFirstHead": {
     "head": "14fb983bf4b650074f923f50257113e7086bb637",
@@ -121,5 +134,34 @@
     "businessAndIdentity": "隔离夹具",
     "scope": "实际相机指令、公开投影、全部项目24px以上边界和稳定终态；不是完整生产资料链或原生缩放。"
   },
-  "implementation": "实时指标直接可见；短窗口顶部统一滚动、关键工具能完整滚入可见区，工作区至少176px；极短摘要保留52px身份与操作栏，阅读/全屏主动展开。"
+  "implementation": "四项实时指标直接可见；短窗口顶部统一滚动且工具完整可达，stage至少176px；stage<320的项目/区域默认52px身份操作栏，主动展开阅读；固定边界避免显隐和测量反馈。",
+  "intermediateFindings": [
+    {
+      "path": "320×560 submarket summary",
+      "failure": "ad10a05b完整回归裁切三项核心指标",
+      "fix": "可用stage<320时使用固定52px身份操作栏，主动展开后逐项实际滚入完整指标和样本。",
+      "readingProof": "short-summary-reading-browser.json"
+    },
+    {
+      "path": "320×560 long project name in identity bar",
+      "beforeHeaderHeight": 85.296875,
+      "afterHeaderHeight": 49,
+      "afterPaneHeight": 51,
+      "fix": "身份栏隐藏副标题；展开名称限制2em并可滚动；回归实际展开/收起后打开完整阅读。",
+      "proof": "short-identity-name-browser.json"
+    },
+    {
+      "path": "measured summary visibility feedback",
+      "before": [
+        52,
+        130
+      ],
+      "after": [
+        52,
+        52
+      ],
+      "failure": "Playwright56轮等待按钮稳定后超时；同stage两次自身布局测量使显隐互相反馈。",
+      "fix": "固定short-stage边界，新增Vitest稳定性回归。"
+    }
+  ]
 }
