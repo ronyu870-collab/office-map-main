@@ -102,8 +102,8 @@ try {
   });
   await list.getByRole('button',{name:'完成选择',exact:true}).click();
   await list.getByRole('button',{name:/^CBD甲楼/}).click();await detail.waitFor();
-  await page.getByRole('tab',{name:'成交与资料',exact:true}).click();
   if(width===390)await clickWorkspaceAction(page, '展开到阅读高度');
+  await page.getByRole('tab',{name:'成交与资料',exact:true}).click();
   if(width===1536)await page.getByRole('separator',{name:'调整业务工作区宽度'}).press('End');
   await page.waitForTimeout(260);
   const stackLink = page.getByRole('link',{name:'Stacking Plan',exact:true});
@@ -234,6 +234,14 @@ try {
   const candidates=page.getByRole('region',{name:'项目搜索候选'});
   await keyboardActivate(page,candidates.getByRole('button',{name:/^CBD甲楼/}));
   await detail.waitFor();
+  await page.locator('.map-workspace-layout[data-map-layout-ready="true"]').waitFor();
+  if (await page.locator('.map-workspace-layout[data-header-only]').count()) {
+    // Compact identity sheets deliberately hide the body to preserve the map.
+    // Follow the visible keyboard reading action before reaching body controls.
+    await keyboardActivate(page,detail.locator('.workspace-mobile-tools > summary'));
+    await keyboardActivate(page,detail.getByRole('button',{name:'展开到阅读高度',exact:true}));
+    await detail.getByRole('tab',{name:'概览',exact:true}).waitFor({state:'visible'});
+  }
   await keyboardReach(page,detail.locator('[role="tab"][aria-selected="true"]'));
   for(let step=0;step<3 && await detail.getByRole('tab',{name:'概览',exact:true}).getAttribute('aria-selected')!=='true';step++) await page.keyboard.press('ArrowRight');
   const photo=detail.getByRole('button',{name:/看图 · 1张/});
