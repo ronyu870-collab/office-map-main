@@ -57,13 +57,13 @@ it('keeps multiple named contacts intact and dials each number without names or 
   expect(screen.getByRole('link',{name:'拨打 13900139000'})).toHaveAttribute('href','tel:13900139000');
 });
 
-it.each(['请联系业主','138****8000','12345678901234567890'])('preserves unrecognized contact text without inventing a dial target: %s',async phone=>{
+it.each(['请联系业主','138****8000','12345678901234567890','+44 20 87654321'])('preserves unrecognized contact text without inventing a dial target: %s',async phone=>{
   act(()=>{mountBuildingContactDialog('甲楼',phone,vi.fn());});await screen.findByRole('dialog',{name:'甲楼'});
   expect(screen.getByText(phone)).toBeVisible();expect(screen.queryByRole('link')).not.toBeInTheDocument();
 });
 
 it('normalizes explicit country codes and extensions, and avoids duplicate dial actions',async()=>{
-  const phone='+86 13800138000 / +86 13800138000；010-12345678 ext. 123；+33123456789';
+  const phone='+86 13800138000 / +86 13800138000；(010) 12345678 ext. 123；+33123456789';
   act(()=>{mountBuildingContactDialog('甲楼',phone,vi.fn());});await screen.findByRole('dialog',{name:'甲楼'});
   expect(screen.getByText(phone)).toBeVisible();
   expect(screen.getAllByRole('link').map(link=>link.getAttribute('href'))).toEqual(['tel:+8613800138000','tel:01012345678;ext=123','tel:+33123456789']);

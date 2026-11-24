@@ -8,9 +8,11 @@ export function closeBuildingContactDialog() { closeActive?.(); }
 
 /** Keep the source visible; only explicit phone numbers become dial targets. */
 function dialLinks(value: string) {
-  const pattern = /(?<![\d+*])((?:\+86[ -]?)?(?:1[3-9]\d{9}|0\d{2,3}[ -]?\d{7,8}|[48]00[ -]?\d{3}[ -]?\d{4}|[2-9]\d{6,7})|\+[1-9]\d{6,14})(?:\s*(?:转|分机|ext\.?|x|#)\s*(\d{1,6}))?(?![\d*])/gi;
+  const pattern = /(?<![\d+*(])((?:\+86[ -]?)?(?:1[3-9]\d{9}|(?:0\d{2,3}|\(0\d{2,3}\))[ -]?\d{7,8}|[48]00[ -]?\d{3}[ -]?\d{4}|[2-9]\d{6,7})|\+[1-9]\d{6,14})(?:\s*(?:转|分机|ext\.?|x|#)\s*(\d{1,6}))?(?![\d*])/gi;
   const links = new Map<string, string>();
   for (const match of value.matchAll(pattern)) {
+    // Do not extract a local-looking suffix from an unrecognized international format.
+    if (/\+\d[\d ()-]*$/.test(value.slice(0, match.index))) continue;
     const number = match[1].replace(/[^+\d]/g, '');
     const href = `tel:${number}${match[2] ? `;ext=${match[2]}` : ''}`;
     if (!links.has(href)) links.set(href, match[0].trim());
