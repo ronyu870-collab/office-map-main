@@ -1,0 +1,34 @@
+{
+  "status": "local-pass; exact-head CI pending",
+  "environment": "fixed production React build; read-only copied real project/material content; isolated administrator and SDK transport",
+  "projects": [
+    "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+    "aa927c69-78f1-4084-b8db-2deaf01f9986"
+  ],
+  "widths": [
+    1536,
+    1024,
+    390,
+    320
+  ],
+  "actualContentObservations": 24,
+  "existingMaterialBrowserRegressions": 4,
+  "unitTests": 17,
+  "oldFailureTests": 2,
+  "typecheck": "pass",
+  "lint": {
+    "errors": 0,
+    "existingWarnings": 1
+  },
+  "build": "pass",
+  "buildId": "lDvQ2BdvXZkkq-5ayFgnI",
+  "limits": [
+    "Real copied content render is distinct from production account authorization or live originals",
+    "Real photos and native historical-material/Stacking reads are recorded separately",
+    "Production PDF, full production return/close chain, mobile keyboard/gestures and reader still unverified"
+  ],
+  "sourceHashes": {
+    "src/app/map/components/sales-materials/SalesMaterialsPanel.tsx": "fa77f6e30a7d84ab1d8aeda6440898fac7f4ae8c33543f718707eba79dbcf4e4",
+    "src/app/map/components/sales-materials/SalesMaterials.module.css": "c6500e70a08efe22cfee3b5377312b798ffcd4cc8b4bb1e8af335e7b442ca3c8"
+  }
+}
