@@ -262,6 +262,7 @@ try {
   await detail.waitFor();
   assert.equal(await detail.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true');
   assert.equal(await detail.getAttribute('data-building-id'),project);
+  assert.equal(await detail.getByRole('heading',{name:/^CBD甲楼/}).evaluate(node=>node===document.activeElement),true,'Stacking return restores the visible project reading focus');
   // Exercise native history while a real submarket filter is active, separately
   // from the comparison-group-only return earlier in this run.
   const regionReading = await detail.locator('.workspace-scroll').evaluate(element=>element.scrollTop);
@@ -278,6 +279,7 @@ try {
       return scroll&&Math.abs(scroll.scrollTop-top)<2&&window.__workspaceMap.getZoom()===camera.zoom&&JSON.stringify(window.__workspaceMap.center)===JSON.stringify(camera.center);
     },{top:regionReading,camera:regionCamera});
     assert.deepEqual(await page.evaluate(()=>window.__workspaceSDK.initialCameras.at(-1)),regionCamera,'regional forward initializes at the saved camera');
+    assert.equal(await detail.getByRole('heading',{name:/^CBD甲楼/}).evaluate(node=>node===document.activeElement),true,'history forward restores visible project focus');
   }
   await page.screenshot({path:`/tmp/map-task-chain-return-${width}-${reduced}.png`});
   await keyboardActivate(page,detail.getByRole('button',{name:'关闭楼宇详情',exact:true}));

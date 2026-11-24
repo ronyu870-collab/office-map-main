@@ -6,6 +6,7 @@ import {type ReadingEntry} from '@/src/utils/readingAuditContext';
 import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import { MapReadingContext, mapReturnToken, readMapReturn, saveMapReturn, rememberMapEntry, compactView, restoreWorkspace, type Camera, type MapReturnSnapshot } from './workspace/continuity';
+import { useMapReturnFocus } from './workspace/useMapReturnFocus';
 import { workspaceReducer, initialWorkspaceState } from './workspace/workspaceState';
 import type { WorkspaceBuildingDetail } from './workspace/buildingDetail';
 import { observeMapCanvas } from './runtime/observeMapCanvas';
@@ -84,6 +85,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const [baseMapPointsVisible, setBaseMapPointsVisible] = React.useState(readingStore.baseMapPointsVisible === true);
   const restoreCamera = React.useRef<Camera | null>(returnState?.camera ?? null);
   const restoredReturn = React.useRef(false);
+  const [restoredReturnFocusReady, setRestoredReturnFocusReady] = React.useState(false);
   const canvasCoordinator = React.useRef<ReturnType<typeof observeMapCanvas> | null>(null);
   const buildingReadingStates = React.useMemo(() => new Map<string, BuildingReadingState>(Object.entries((readingStore.buildings ?? {}) as Record<string, BuildingReadingState>)), [readingScope, readingStore]);
   userRoleRef.current = userRole;
@@ -773,6 +775,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       else ctrl.openBuildingInfoWindow(state.right.building.id,'map_return');
     }
     dispatchWorkspace({ type: 'restore', state });
+    setRestoredReturnFocusReady(true);
     if (state.right?.kind !== 'building' && returnState.camera) {
       canvasCoordinator.current?.focus({ center: returnState.camera.center, camera: returnState.camera, exact: true });
       restoreCamera.current = null;
@@ -783,6 +786,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     }
     window.dispatchEvent(new CustomEvent('map-workspace-selection', { detail: state.right?.kind === 'building' ? state.right.building : null }));
   }, [returnState, mapReady, mapDataLoading, stockLoaded, allBuildings, futureSupplies, futureLoaded, controllerRef]);
+
+  useMapReturnFocus(Boolean(returnState?.right?.kind === 'building' && restoredReturnFocusReady
+    && workspace.right?.kind === 'building' && workspace.right.building.id === returnState.right.id
+    && buildingDetail?.building.id === returnState.right.id));
 
   const [focusStatus, setFocusStatus] = React.useState<{ key: string; found: boolean }>();
   const openedFocus = React.useRef('');

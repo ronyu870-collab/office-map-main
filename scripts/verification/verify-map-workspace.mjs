@@ -1,3 +1,4 @@
+import { verifyRouteFocus } from './workspace-route-focus.mjs';
 import { verifyAsyncReading } from './workspace-async-reading.mjs';
 import { verifyControlSemantics } from './workspace-control-semantics.mjs';
 import { verifyPerformanceListeners } from './workspace-performance-listeners.mjs';
@@ -655,6 +656,11 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no document overflow');
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
+      if ([1536,1024,390,320,844].includes(width)) {
+        const routeFocusPage=await context.newPage();
+        try { observations.push(await verifyRouteFocus(routeFocusPage,{base,width})); }
+        finally { await routeFocusPage.close(); }
+      }
       if ([1536,1024,390,320,844].includes(width)) {
         for (const role of width===390 ? ['viewer','admin'] : [width===1024?'admin':'viewer']) {
           const semanticsPage=await context.newPage();
