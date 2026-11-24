@@ -9,7 +9,8 @@ it('exposes a named contact task, preserves source text and closes only that lay
   act(()=>{mountBuildingContactDialog(name,phone,displayed);});
   const dialog=await screen.findByRole('dialog',{name});
   expect(screen.getByText(phone)).toBeVisible();
-  expect(screen.getByRole('link',{name:'拨打'})).toHaveAttribute('href',`tel:${phone}`);
+  expect(screen.getByRole('link',{name:'拨打 010-12345678 转 8001'})).toHaveAttribute('href','tel:01012345678;ext=8001');
+  expect(screen.getByRole('link',{name:'拨打 010-87654321'})).toHaveAttribute('href','tel:01087654321');
   expect(dialog.querySelector('长名称')).toBeNull();
   expect(displayed).toHaveBeenCalledOnce();
   fireEvent.keyDown(dialog,{key:'Escape'});
@@ -45,4 +46,25 @@ it('owns keyboard focus before the first animation frame so immediate Escape clo
   fireEvent.keyDown(document.activeElement!,{key:'Escape'});
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(trigger).toHaveFocus();
+});
+
+it('keeps multiple named contacts intact and dials each number without names or separators', async()=>{
+  const phone='联系人甲 13800138000；联系人乙 13900139000';
+  act(()=>{mountBuildingContactDialog('甲楼',phone,vi.fn());});await screen.findByRole('dialog',{name:'甲楼'});
+  expect(screen.getByText(phone)).toBeVisible();
+  expect(screen.getAllByRole('link')).toHaveLength(2);
+  expect(screen.getByRole('link',{name:'拨打 13800138000'})).toHaveAttribute('href','tel:13800138000');
+  expect(screen.getByRole('link',{name:'拨打 13900139000'})).toHaveAttribute('href','tel:13900139000');
+});
+
+it.each(['请联系业主','138****8000','12345678901234567890','+44 20 87654321'])('preserves unrecognized contact text without inventing a dial target: %s',async phone=>{
+  act(()=>{mountBuildingContactDialog('甲楼',phone,vi.fn());});await screen.findByRole('dialog',{name:'甲楼'});
+  expect(screen.getByText(phone)).toBeVisible();expect(screen.queryByRole('link')).not.toBeInTheDocument();
+});
+
+it('normalizes explicit country codes and extensions, and avoids duplicate dial actions',async()=>{
+  const phone='+86 13800138000 / +86 13800138000；(010) 12345678 ext. 123；+33123456789';
+  act(()=>{mountBuildingContactDialog('甲楼',phone,vi.fn());});await screen.findByRole('dialog',{name:'甲楼'});
+  expect(screen.getByText(phone)).toBeVisible();
+  expect(screen.getAllByRole('link').map(link=>link.getAttribute('href'))).toEqual(['tel:+8613800138000','tel:01012345678;ext=123','tel:+33123456789']);
 });

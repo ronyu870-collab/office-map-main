@@ -1,0 +1,217 @@
+{
+  "status": "pass",
+  "environment": "production app; read-only copied real projects, 61 transactions and one contact; isolated admin and SDK; no live permissions or original files tested",
+  "observations": [
+    {
+      "buildingId": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+      "width": 1536,
+      "kind": "related",
+      "count": 2,
+      "pages": 1,
+      "geometry": {
+        "width": 418,
+        "scrollWidth": 418,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true
+    },
+    {
+      "buildingId": "aa927c69-78f1-4084-b8db-2deaf01f9986",
+      "width": 1536,
+      "kind": "related",
+      "count": 59,
+      "pages": 2,
+      "geometry": {
+        "width": 418,
+        "scrollWidth": 418,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true
+    },
+    {
+      "buildingId": "93531611-0489-4921-b338-8a9c7c7741f9",
+      "width": 1536,
+      "kind": "contact",
+      "count": 0,
+      "pages": 1,
+      "geometry": {
+        "width": 446,
+        "scrollWidth": 446,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true,
+      "distinctDialLinks": 2
+    },
+    {
+      "buildingId": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+      "width": 1024,
+      "kind": "related",
+      "count": 2,
+      "pages": 1,
+      "geometry": {
+        "width": 418,
+        "scrollWidth": 418,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true
+    },
+    {
+      "buildingId": "aa927c69-78f1-4084-b8db-2deaf01f9986",
+      "width": 1024,
+      "kind": "related",
+      "count": 59,
+      "pages": 2,
+      "geometry": {
+        "width": 418,
+        "scrollWidth": 418,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true
+    },
+    {
+      "buildingId": "93531611-0489-4921-b338-8a9c7c7741f9",
+      "width": 1024,
+      "kind": "contact",
+      "count": 0,
+      "pages": 1,
+      "geometry": {
+        "width": 446,
+        "scrollWidth": 446,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true,
+      "distinctDialLinks": 2
+    },
+    {
+      "buildingId": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+      "width": 390,
+      "kind": "related",
+      "count": 2,
+      "pages": 1,
+      "geometry": {
+        "width": 356,
+        "scrollWidth": 356,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true
+    },
+    {
+      "buildingId": "aa927c69-78f1-4084-b8db-2deaf01f9986",
+      "width": 390,
+      "kind": "related",
+      "count": 59,
+      "pages": 2,
+      "geometry": {
+        "width": 356,
+        "scrollWidth": 356,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true
+    },
+    {
+      "buildingId": "93531611-0489-4921-b338-8a9c7c7741f9",
+      "width": 390,
+      "kind": "contact",
+      "count": 0,
+      "pages": 1,
+      "geometry": {
+        "width": 356,
+        "scrollWidth": 356,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true,
+      "distinctDialLinks": 2
+    },
+    {
+      "buildingId": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+      "width": 320,
+      "kind": "related",
+      "count": 2,
+      "pages": 1,
+      "geometry": {
+        "width": 286,
+        "scrollWidth": 286,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true
+    },
+    {
+      "buildingId": "aa927c69-78f1-4084-b8db-2deaf01f9986",
+      "width": 320,
+      "kind": "related",
+      "count": 59,
+      "pages": 2,
+      "geometry": {
+        "width": 286,
+        "scrollWidth": 286,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true
+    },
+    {
+      "buildingId": "93531611-0489-4921-b338-8a9c7c7741f9",
+      "width": 320,
+      "kind": "contact",
+      "count": 0,
+      "pages": 1,
+      "geometry": {
+        "width": 286,
+        "scrollWidth": 286,
+        "bodyOverflow": false
+      },
+      "focusReturned": true,
+      "transactionTabPreserved": true,
+      "distinctDialLinks": 2
+    }
+  ],
+  "requirement": 98,
+  "source": "read-only existing lease_transactions_read_v1.related_building_ids and buildings.contact_phone; same building relation as GET; no source data writes",
+  "actualRows": {
+    "live": 7,
+    "history": 54
+  },
+  "contactSourceChars": 29,
+  "limits": [
+    "Isolated admin identity and SDK transport; production access not verified",
+    "No phone call was placed; only rendered tel targets verified",
+    "Source contact text and transaction payload stay local; no raw business payload committed"
+  ],
+  "before": {
+    "wholeContactStringUsedAsTelTarget": true,
+    "twoNamesAndTwoNumbersInOneTarget": true,
+    "regressionTestsFailed": 5
+  },
+  "after": {
+    "unitTestsPassed": 17,
+    "typecheck": "pass",
+    "lint": "pass",
+    "build": "pass",
+    "recognizedNumbersHaveSeparateTargets": true,
+    "sourceTextPreserved": true,
+    "explicitExtensionsPreserved": true,
+    "fourWidthContactKeyboardRegression": "pass",
+    "parenthesizedAreaCodePreserved": true,
+    "unrecognizedInternationalSuffixNotDialed": true
+  },
+  "sourcePayloadSha256": "8f3b4f676708e7fe20b91917bc1e437944ad138d4a7c0d4dc8f63ea3e12be265",
+  "buildId": "SN2kR31retVV7Y3NWbTNs",
+  "existingContactInventory": {
+    "populated": 5,
+    "parenthesized": 0,
+    "internationalMarker": 0,
+    "extensionMarker": 0,
+    "separatedDigits": 0,
+    "maximumChars": 29
+  }
+}

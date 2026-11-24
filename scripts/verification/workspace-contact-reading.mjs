@@ -19,9 +19,10 @@ export async function verifyContactReading(page,{width,base}) {
   await page.screenshot({animations:'disabled',path:`/tmp/map-contact-${width}.png`});
   const dialog=page.getByRole('dialog',{name,exact:true});await dialog.waitFor();
   assert.equal(await dialog.getByText(phone,{exact:true}).count(),1);
-  assert.equal(await dialog.getByRole('link',{name:'拨打',exact:true}).getAttribute('href'),`tel:${phone}`);
+  assert.equal(await dialog.getByRole('link',{name:'拨打 010-12345678 转 8001',exact:true}).getAttribute('href'),'tel:01012345678;ext=8001');
+  assert.equal(await dialog.getByRole('link',{name:'拨打 010-87654321',exact:true}).getAttribute('href'),'tel:01087654321');
   const close=dialog.getByRole('button',{name:'关闭联系方式',exact:true});
-  await close.focus();await page.keyboard.press('Shift+Tab');assert.equal(await dialog.getByRole('link',{name:'拨打',exact:true}).evaluate(node=>node===document.activeElement),true);
+  await close.focus();await page.keyboard.press('Shift+Tab');assert.equal(await dialog.getByRole('link',{name:'拨打 010-87654321',exact:true}).evaluate(node=>node===document.activeElement),true);
   await page.keyboard.press('Tab');assert.equal(await close.evaluate(node=>node===document.activeElement),true);
   assert.ok(await dialog.evaluate(node=>node.scrollWidth<=node.clientWidth+1));
   await page.screenshot({animations:'disabled',path:`/tmp/map-contact-${width}.png`});
