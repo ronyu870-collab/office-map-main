@@ -49,6 +49,19 @@ type LeasePayload = {
   records: LeaseRow[];
 };
 
+type ReadFailure = { title: string; description: string };
+class RelatedLeaseReadError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
+function describeReadFailure(error: unknown): ReadFailure {
+  const status = error instanceof RelatedLeaseReadError ? error.status : null;
+  return {
+    title: status === 401 ? '登录状态已失效' : status === 403 ? '没有权限读取关联成交' : '关联成交暂时无法读取',
+    description: status === 401 ? '请重新登录后再试。' : status === 403 ? '如需查看，请确认当前账号的权限。' : '请检查网络后重试。',
+  };
+}
+
 function fmtNumber(value: number, maximumFractionDigits = 1) {
   return value.toLocaleString('zh-CN', { maximumFractionDigits });
 }
@@ -109,7 +122,8 @@ async function loadBuildingLeases(buildingId: string, page: number, signal: Abor
   const session = await getSessionFast();
   if (signal.aborted) throw new DOMException('Read cancelled', 'AbortError');
   const token = session?.session?.access_token;
-  if (!token) throw new Error('登录状态异常，请重新登录');
+  if (!token) throw new RelatedLeaseReadError('登录状态异常', 401);
+  signal.throwIfAborted();
   const headers = withImpersonationHeaders({ Authorization: `Bearer ${token}` });
   const scope = JSON.stringify([session.user.id, session.role, token, headers.get('X-Colliers-Impersonate-User')]);
   const cacheKey = `${scope}:${buildingId}:${page}`;
@@ -129,7 +143,10 @@ async function loadBuildingLeases(buildingId: string, page: number, signal: Abor
     headers, signal,
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || '关联成交读取失败');
+  signal.throwIfAborted();
+  if (!response.ok) throw new RelatedLeaseReadError('关联成交读取失败', response.status);
+  const count = body.count ?? reusedCount;
+  if (!Number.isSafeInteger(count) || count < 0 || !Array.isArray(body.records)) throw new Error('关联成交返回格式异常');
 
   const payload = {
     count: typeof body.count === 'number' ? body.count : (reusedCount ?? 0),
@@ -148,7 +165,7 @@ export function MapLeaseTransactionsBridge() {
   const panel = React.useRef<HTMLElement | null>(null);
   const [context, setContext] = React.useState<BuildingContext | null>(null);
   const [page, setPage] = React.useState(0);
-  const [resource, setResource] = React.useState<{ key: string; payload: LeasePayload | null; error: string | null } | null>(null);
+  const [resource, setResource] = React.useState<{ key: string; payload: LeasePayload | null; error: ReadFailure | null } | null>(null);
   const [expandedReadId, setExpandedReadId] = React.useState<string | null>(null);
 
   const activeContext = context?.scope === sessionScope && status === 'authenticated' ? context : null;
@@ -218,7 +235,7 @@ export function MapLeaseTransactionsBridge() {
         if (!cancelled) setResource({ key: readKey, payload: nextPayload, error: null });
       })
       .catch(loadError => {
-        if (!cancelled) setResource({ key: readKey, payload: null, error: loadError instanceof Error ? loadError.message : '关联成交读取失败' });
+        if (!cancelled) setResource({ key: readKey, payload: null, error: describeReadFailure(loadError) });
       });
     return () => { cancelled = true; controller.abort(); };
   }, [activeContext, page, readKey]);
@@ -270,7 +287,7 @@ export function MapLeaseTransactionsBridge() {
         </button>
       </header>
 
-      <div className="flex min-h-10 items-center justify-between gap-3 border-b border-[var(--cd-color-border)]/60 bg-[var(--cd-color-surface-alt)]/35 px-4">
+      {payload && <div className="flex min-h-10 items-center justify-between gap-3 border-b border-[var(--cd-color-border)]/60 bg-[var(--cd-color-surface-alt)]/35 px-4">
         <span className="text-sm leading-5 text-[var(--cd-color-text-secondary)]">
           <strong className="font-semibold tabular-nums text-[var(--cd-color-text-primary)]">{count.toLocaleString('zh-CN')}</strong> 条成交
         </span>
@@ -278,11 +295,12 @@ export function MapLeaseTransactionsBridge() {
           { id: activeContext.buildingId, name: activeContext.buildingName || '当前楼宇' },
           activeContext.backHref,
         )}>在成交库查看</a>}
-      </div>
+      </div>}
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto" aria-busy={loading}>
         {loading ? (
-          <div className="px-4 py-2" aria-label="正在读取关联成交">
+          <div className="px-4 py-2" role="status" aria-label="正在读取关联成交">
+            <p className="py-2 text-sm text-[var(--cd-color-text-secondary)]">正在读取关联成交…</p>
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className="border-b border-[var(--cd-color-border)]/40 py-3.5 last:border-b-0">
                 <div className="h-3.5 w-2/3 animate-pulse rounded bg-slate-200" />
@@ -293,8 +311,8 @@ export function MapLeaseTransactionsBridge() {
           </div>
         ) : error ? (
           <div className="flex h-full min-h-48 flex-col items-center justify-center px-8 text-center">
-            <div className="text-sm font-normal leading-5 text-[var(--cd-color-text-primary)]">关联成交暂时无法读取</div>
-            <div className="mt-1.5 text-sm leading-5 text-[var(--cd-color-text-muted)]">{error}</div>
+            <div className="text-sm font-normal leading-5 text-[var(--cd-color-text-primary)]">{error.title}</div>
+            <div className="mt-1.5 text-sm leading-5 text-[var(--cd-color-text-muted)]">{error.description}</div>
             <button
               type="button"
               onClick={() => {
@@ -423,7 +441,7 @@ export function MapLeaseTransactionsBridge() {
         )}
       </div>
 
-      {count > PAGE_SIZE ? (
+      {page > 0 || count > PAGE_SIZE ? (
         <footer className="flex h-11 items-center justify-center gap-2.5 border-t border-[var(--cd-color-border)]/55 px-4">
           <button
             type="button"
