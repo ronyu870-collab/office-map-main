@@ -1,0 +1,79 @@
+{
+  "pr": 299,
+  "head": "2383fec2c5f3e3593fd594698333db3ad7f190bb",
+  "run": 45295242424,
+  "firstAttempt": "FAILED: homepage long-result focus; required summary correctly failed",
+  "issues": [
+    {
+      "width": 1280,
+      "issues": [
+        {
+          "direction": "Tab",
+          "step": 30,
+          "active": {
+            "tag": "BUTTON",
+            "text": "复制结论",
+            "visible": false,
+            "withinDialog": true,
+            "wasBelowFold": true,
+            "rect": {
+              "left": 240,
+              "top": 1309.75,
+              "right": 329,
+              "bottom": 1349.75
+            },
+            "scrollport": {
+              "left": 0,
+              "top": 61,
+              "right": 1280,
+              "bottom": 798
+            },
+            "scrollerTop": 967
+          }
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "issues": [
+        {
+          "direction": "Tab",
+          "step": 29,
+          "active": {
+            "tag": "BUTTON",
+            "text": "数据依据",
+            "visible": false,
+            "withinDialog": true,
+            "wasBelowFold": true,
+            "rect": {
+              "left": 16,
+              "top": 1657.0625,
+              "right": 60,
+              "bottom": 1701.0625
+            },
+            "scrollport": {
+              "left": 0,
+              "top": 56,
+              "right": 390,
+              "bottom": 758
+            },
+            "scrollerTop": 1078
+          }
+        }
+      ]
+    }
+  ],
+  "artifact": "colliers-ai-experience-p2-verification",
+  "localFollowup": {
+    "exit": 0,
+    "browser": "145.0.7632.6",
+    "records": 49,
+    "widths": [
+      1280,
+      390
+    ],
+    "originalAssertionsPreserved": true
+  },
+  "rootCause": "Not established; no unrelated homepage product or assertion change made.",
+  "nextAction": "One rerun of failed checks on the exact original head; result pending."
+}

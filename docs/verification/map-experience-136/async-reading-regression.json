@@ -1,0 +1,33 @@
+{
+  "item": 78,
+  "recordedAt": "2026-11-24T00:33:50.867919+00:00",
+  "kind": "Existing photo/material behavior verified; no new product fix. Reuses earlier trend loading-space defect fix.",
+  "environment": "Production React/controller; isolated HTTP data, SVG bytes and SDK; viewer; desktop Chrome viewport emulation.",
+  "after": {
+    "exit": 0,
+    "widths": [
+      1536,
+      390,
+      320,
+      844
+    ],
+    "segments": 16,
+    "checks": [
+      "Horizontal image arrival, portrait image arrival, material index arrival, material details arrival separately gated.",
+      "At most one geometry adjustment for each arrival; stable tail >=500ms after actual readiness.",
+      "Actual SDK canvas and project header rects unchanged within each segment."
+    ],
+    "record": "async-reading-browser.json",
+    "integrated390Exit": 0,
+    "integrated390Records": 27
+  },
+  "limits": [
+    "Geometry stability for representative delayed content, not full-page CLS or a performance benchmark.",
+    "Natural aspect-ratio adjustment is preserved; no fixed distorted image shape.",
+    "No new production material or native phone claim."
+  ],
+  "filesSha256": {
+    "scripts/verification/workspace-async-reading.mjs": "04345a98b56bc498182acef7ee79a394ed692cb69b89b0ef184582d8a54126f1",
+    "scripts/verification/verify-map-workspace.mjs": "90636eb9092a91c47e83666ccba34c4b479c100b1b49ea7708b42cf4bcddd6c3"
+  }
+}
