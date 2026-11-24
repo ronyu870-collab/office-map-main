@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { initialWorkspaceState, PANEL_SIZES, mapCanvasMinimum, contentPanelWidth, workspaceColumns, workspaceReducer, workspaceSheetHeight, type WorkspaceKind } from './workspaceState';
+import { fitMapExtent, mercatorPoint } from '../runtime/mapExtent';
+import { visibleMapRect } from '../runtime/mapFocusViewport';
 import { createDefaultFilterState } from '../model/mapDomain';
 
 describe('map workspace navigation and physical canvas budget', () => {
@@ -82,9 +84,32 @@ describe('map workspace navigation and physical canvas budget', () => {
     expect(workspaceSheetHeight(700, 900, 'compact')).toBeCloseTo(385);
     expect(workspaceSheetHeight(700, 160, 'reading')).toBeCloseTo(455);
     expect(workspaceSheetHeight(700, 160, 'full')).toBe(700);
-    expect(workspaceSheetHeight(240, 160, 'compact')).toBe(160);
     expect(workspaceSheetHeight(200, 900, 'compact')).toBeLessThanOrEqual(136);
   });
+});
+
+it('leaves room for an actual region camera and marker edges in very short sheets', () => {
+  const rows = [
+    { id: 'west', location_lng: 116.46, location_lat: 39.91 },
+    { id: 'east', location_lng: 116.53, location_lat: 39.95 },
+  ];
+  for (const height of [158, 176, 240, 300]) {
+    const sheet = workspaceSheetHeight(height, 900, 'compact');
+    const canvas = { left: 0, top: 0, right: 626, bottom: height, width: 626, height };
+    const panel = { left: 0, right: 626, top: height - 24 - sheet, bottom: height - 24, width: 626, height: sheet };
+    const target = fitMapExtent(rows, canvas, visibleMapRect(canvas, { bottom: panel }));
+    expect(target, `a ${height}px stage can issue a region camera`).not.toBeNull();
+    const center = mercatorPoint(...target!.center), scale = 256 * 2 ** target!.zoom;
+    for (const row of rows) {
+      const world = mercatorPoint(row.location_lng, row.location_lat);
+      const x = (world[0] - center[0]) * scale + 313;
+      const y = (world[1] - center[1]) * scale + height / 2;
+      expect(Math.min(x, 626 - x, y, panel.top - y)).toBeGreaterThanOrEqual(24);
+    }
+    expect(sheet).toBeGreaterThanOrEqual(52);
+  }
+  expect(workspaceSheetHeight(176, 900, 'compact', 'search')).toBeGreaterThan(100);
+  expect(workspaceSheetHeight(176, 900, 'compact', 'filters')).toBeGreaterThan(100);
 });
 
 it('uses compact content widths before a user preference exists and avoids unnecessary tablet sheets', () => {

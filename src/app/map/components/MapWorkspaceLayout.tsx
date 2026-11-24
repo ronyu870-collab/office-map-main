@@ -99,7 +99,7 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
     return () => { cancelAnimationFrame(frame); resize?.disconnect(); mutations.disconnect(); };
   }, [kind, leftVisible, rightVisible, columns.compact, summaryKey, contentPending]);
 
-  const sheetHeight = workspaceSheetHeight(available.height, summary, mode);
+  const sheetHeight = workspaceSheetHeight(available.height, summary, mode, modeKey);
   const range = PANEL_SIZES[kind];
   const displayWidth = columns.right;
   // A wider right pane may temporarily yield the left pane; the user's width
@@ -151,6 +151,7 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   };
   const finishDrag = () => { dragRef.current = null; setDragging(false); };
   return <div ref={root} className="map-workspace-layout" data-compact={columns.compact || undefined}
+    data-header-only={columns.compact && mode === 'compact' && (modeKey === 'submarket' || modeKey === 'building') && available.height > 0 && available.height < 216 || undefined}
     data-short-stage={columns.compact && available.height > 0 && available.height < 320 || undefined}
     data-expanded={expanded || undefined} data-dragging={dragging || undefined} data-left-priority={showLeftFirst || undefined}
     data-map-layout-ready={!columns.compact || (!leftVisible && !rightVisible) || !contentPending && measuredKey === summaryKey ? 'true' : 'false'}

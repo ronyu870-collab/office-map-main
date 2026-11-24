@@ -312,6 +312,8 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .map-workspace-layout[data-expanded] > main { visibility: hidden; }
 .map-workspace-layout[data-expanded] .map-workspace-resize { display: none; }
 .workspace-panel-header { flex-shrink: 0; min-width: 0; padding: 8px 12px; border-bottom: 1px solid #d9e0e8; background: #f8fafc; }
+.map-workspace-layout[data-header-only] .workspace-panel-header { padding-block: 2px; }
+.map-workspace-layout[data-header-only] .workspace-scroll { visibility: hidden; pointer-events: none; }
 .workspace-panel-title-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .workspace-panel-title-row h2 { flex: 1; min-width: 0; overflow-wrap: anywhere; margin: 0; padding: 4px; }
 .workspace-heading-inline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 8px; }
@@ -573,16 +575,13 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 
 .workspace-panel-title-row h2 { max-height: none; }
 
-/* Short windows keep statistics available without spending the reading height. */
-.map-compact-metrics { display: none; }
-.map-workbench[data-short-viewport] .map-page-header > .map-live-stats { display: none; }
-.map-workbench[data-short-viewport] .map-compact-metrics { display: block; }
+/* Keep live metrics directly visible. In very short windows the tools own a
+   scroll area, so the map and explicit reading state retain usable height. */
+.map-workbench-tools { display: contents; }
+.map-workbench[data-short-viewport] .map-workbench-tools { display: block; position: relative; z-index: 500; flex-shrink: 0; max-height: max(96px,calc(var(--map-viewport-height) - 176px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .map-workbench[data-short-viewport] .map-page-header { min-height: 48px; padding-block: 2px; }
 .map-workbench[data-short-viewport] .map-page-header h1 { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-workbench[data-short-viewport] .map-workspace-toolbar { padding-block: 4px; row-gap: 4px; }
-.map-metrics-popover .map-live-stats { display: block; }
-.map-metrics-popover .map-workspace-kpis { width: 100%; grid-template-columns: repeat(2,minmax(0,1fr)); }
-.map-metrics-popover .map-live-stats .map-workspace-kpis > div { grid-column: auto; }
 
 /* The panel, rather than the browser, owns reading density. */
 .map-workspace-right { container: workspace-pane / inline-size; }

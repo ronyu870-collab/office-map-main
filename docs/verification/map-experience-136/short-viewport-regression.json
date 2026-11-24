@@ -7,7 +7,7 @@
     "failure": "626×328: short viewport retains at least 40% for map and reading: 36/328"
   },
   "after": {
-    "buildId": "Ze98j2R-siVE9aJo6Bvz4",
+    "buildId": "V63BSSgpnu4BQve8wsuw2",
     "exitCode": 0,
     "results": [
       {
@@ -15,69 +15,111 @@
         "height": 328,
         "stageHeight": 176,
         "readingHeight": 98,
-        "allMetricsReachable": true,
-        "materialActionReachable": true
+        "mapStrip": 100,
+        "regionCameraIssued": true,
+        "allMetricsDirectlyVisible": true,
+        "materialActionReachable": true,
+        "toolsScrollReachable": true
       },
       {
         "width": 600,
         "height": 328,
         "stageHeight": 176,
         "readingHeight": 98,
-        "allMetricsReachable": true,
-        "materialActionReachable": true
+        "mapStrip": 100,
+        "regionCameraIssued": true,
+        "allMetricsDirectlyVisible": true,
+        "materialActionReachable": true,
+        "toolsScrollReachable": true
       },
       {
         "width": 540,
         "height": 360,
-        "stageHeight": 158,
-        "readingHeight": 80,
-        "allMetricsReachable": true,
-        "materialActionReachable": true
+        "stageHeight": 176,
+        "readingHeight": 98,
+        "mapStrip": 100,
+        "regionCameraIssued": true,
+        "allMetricsDirectlyVisible": true,
+        "materialActionReachable": true,
+        "toolsScrollReachable": true
       },
       {
         "width": 320,
         "height": 360,
-        "stageHeight": 158,
-        "readingHeight": 80,
-        "allMetricsReachable": true,
-        "materialActionReachable": true
+        "stageHeight": 176,
+        "readingHeight": 98,
+        "mapStrip": 100,
+        "regionCameraIssued": true,
+        "allMetricsDirectlyVisible": true,
+        "materialActionReachable": true,
+        "toolsScrollReachable": true
       }
     ],
     "unitTests": {
-      "files": 3,
-      "passed": 30
+      "files": 5,
+      "passed": 44
     },
     "typecheck": 0,
     "lint": {
       "exitCode": 0,
       "errors": 0,
-      "existingWarnings": 6
+      "existingWarnings": 13
     },
-    "buildExitCode": 0,
-    "sharedWorkspace": {
-      "exitCode": 0,
-      "widths": [
-        1536,
-        844,
-        320
-      ],
-      "observations": 87,
-      "includesFourShortViewportCases": true,
-      "rawOutput": "用户输出目录/首批证据/short-viewport-workspace-full.json",
-      "sha256": "e6d68e1ac374fb1ba43c267a8ef9b9d37f2eac6f20c4b9675886a32b128e27f8"
-    }
+    "buildExitCode": 0
   },
   "ciEntry": "scripts/verification/verify-map-workspace.mjs -> verifyShortViewport at width 1536; existing Engineering regressions job runs the nine-width driver",
   "scope": "真实Next生产构建、React业务组件，隔离SDK、业务与身份；CSS视口等价回归不是原生浏览器缩放或软键盘实测。",
   "limits": [
-    "修后原生Chrome200%尚未复验",
-    "首轮共享回归因旧断言仍等待短窗口内联指标超时；改为先确认清空后搜索焦点，再实际展开指标并检查值，不删原焦点断言。",
-    "共享回归第二次在844短屏指标退出动画与图例进入并存的120ms内，用宽泛单弹层locator产生歧义；现明确等待指标弹层卸载再打开图例，产品动画与断言均保留。"
+    "修后原生Chrome200%尚未复验；五分钟原生窗口已归还。",
+    "初版顶部容器只包标题而未包兄弟工具栏，严格相机回归失败；已统一容器后四档及真实SDK通过。",
+    "不把前一阶段完整回归或CI冒充最终提交；最终完整工作区与精确head CI另记录。"
   ],
   "sources": {
-    "src/app/map/components/MapWorkbenchView.tsx": "a958ca042e8aff8e6d0683ef8df08dea041cb5f1d2d72a2f87b63a02c2b746d2",
-    "src/app/map/map-workbench.css": "952ac8064e774b57ffaeb5c500b808d303b45bc04d0b5ef96cc4be7f6d177877",
-    "scripts/verification/workspace-short-viewport.mjs": "b56c087b2b9dc1e77ff1793ec458a80b5b8443500da6ebae0d421fadaeaf15d8",
-    "scripts/verification/verify-map-workspace.mjs": "8a1fa2aad3e9eecacbc198f58765351522dbd047527cbe877f2930611af722e3"
-  }
+    "src/app/map/components/MapWorkbenchView.tsx": "02af55b6a3972b3a9baf4ce4e78d4bf42781afe3febe3312ded84caf0203383e",
+    "src/app/map/map-workbench.css": "b8ce70548cb1c90c55465e484b42a5d9b2942f9bb4db029c9f306dbe80c73196",
+    "scripts/verification/workspace-short-viewport.mjs": "465dbfb9c05ce2792beb2d37c885431cf2b0e211c5edda652250992317441302",
+    "scripts/verification/verify-map-workspace.mjs": "51b08a24c3bf3b49a3165f6de1ec38338794389e36e1d85e6c8294400a6c0031",
+    "src/app/map/components/MapWorkspaceLayout.tsx": "2db64aa120f3e3681506c5c8b2475110bb79d3953e519721e53f119a657785d8",
+    "src/app/map/workspace/workspaceState.ts": "20ac164a3498096767e50c3c93cdba9b5cff31f5da3fe813ea3a3a215ad014f7",
+    "src/app/map/workspace/workspaceState.test.ts": "8ffcc17e0662b65122e137a2a2b0386cdf5b1ddd136789b42ebe50d8eca89c3d"
+  },
+  "supersededFirstHead": {
+    "head": "14fb983bf4b650074f923f50257113e7086bb637",
+    "ciRun": 45339176627,
+    "ciConclusion": "success",
+    "limitations": "指标折叠违背原始直接可见要求，且真实SDK短屏补测未发出区域相机；不合并此版本。"
+  },
+  "shortSheetFailure": {
+    "head": "14fb983bf4b650074f923f50257113e7086bb637",
+    "viewport": [
+      626,
+      328
+    ],
+    "actualMapHeight": 32.328,
+    "cameraIssued": false,
+    "unitTestBefore": "新增组合执行回归旧实现失败：158px stage fitMapExtent=null；修后34项及最终44项通过。"
+  },
+  "realSdkAfter": {
+    "result": "short-viewport-real-sdk.json",
+    "viewports": [
+      [
+        626,
+        328
+      ],
+      [
+        320,
+        360
+      ]
+    ],
+    "scenes": [
+      "CBD",
+      "望京",
+      "丽泽"
+    ],
+    "minimumFinalEdgePx": 27.52,
+    "sdkAndTiles": "真实公开高德SDK/瓦片",
+    "businessAndIdentity": "隔离夹具",
+    "scope": "实际相机指令、公开投影、全部项目24px以上边界和稳定终态；不是完整生产资料链或原生缩放。"
+  },
+  "implementation": "实时指标直接可见；短窗口顶部统一滚动、关键工具能完整滚入可见区，工作区至少176px；极短摘要保留52px身份与操作栏，阅读/全屏主动展开。"
 }

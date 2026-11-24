@@ -10,26 +10,38 @@ export async function verifyShortViewport(page, { base }) {
     await page.goto(new URL('/map?building=10000000-1111-4111-8111-111111111111', base).href);
     const panel = page.getByRole('region', { name: 'CBD甲楼楼宇详情', exact: true });
     await panel.waitFor();
+    await page.waitForFunction(() => window.__workspaceMap?.getCenter());
+    const cameraBefore = await page.evaluate(() => {
+      const c = window.__workspaceMap.getCenter(); return [c.getLng?.() ?? c.lng, c.getLat?.() ?? c.lat];
+    });
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } })));
+    await page.getByRole('region', { name: 'CBD', exact: true }).waitFor();
+    await page.waitForFunction(before => {
+      const c = window.__workspaceMap.getCenter(), lng = c.getLng?.() ?? c.lng, lat = c.getLat?.() ?? c.lat;
+      return Math.abs(lng - before[0]) > .000001 || Math.abs(lat - before[1]) > .000001;
+    }, cameraBefore);
+    const mapStrip = await page.evaluate(() => document.querySelector('.map-workspace-right[data-open]').getBoundingClientRect().top - document.querySelector('#map-container').getBoundingClientRect().top);
+    assert.ok(mapStrip >= 82, `region keeps real map room below short tools: ${mapStrip}`);
+    await page.screenshot({ path: `/tmp/map-short-region-${viewport.width}.png`, animations: 'disabled' });
     await page.getByRole('searchbox', { name: '搜索楼宇、子市场、业主或物业', exact: true }).fill('CBD');
     await page.getByRole('button', { name: '搜索：CBD', exact: true }).waitFor();
     const stage = await page.locator('.map-workspace-layout').boundingBox();
     assert.ok(stage.height >= viewport.height * .4, `short viewport ${viewport.width}×${viewport.height} retains at least 40% for map and reading: ${stage.height}`);
     assert.ok(await page.locator('.map-workspace-toolbar').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'short tools do not overflow horizontally');
-    const metrics = page.locator('.map-compact-metrics > summary');
-    await metrics.click();
     const stats = page.getByRole('region', { name: '市场实时指标', exact: true });
-    await stats.waitFor();
-    assert.equal(await stats.locator('dd').count(), 4, 'all four metrics remain available');
-    const popover = await page.locator('.map-disclosure-content').boundingBox();
-    assert.ok(popover.x >= 0 && popover.y >= 0 && popover.x + popover.width <= viewport.width && popover.y + popover.height <= viewport.height, 'statistics stay inside the short viewport');
-    assert.ok(await stats.evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'metric units remain inside the disclosure');
-    await page.keyboard.press('Escape');
-    assert.ok(await metrics.evaluate(el => el === document.activeElement), 'closing statistics restores its visible trigger');
-    await metrics.click();
-    await stats.waitFor();
+    assert.equal(await stats.locator('dd').count(), 4, 'all metrics stay directly visible without a disclosure');
+    const header = page.locator('.map-workbench-tools');
+    await header.evaluate(el => { el.scrollTop = 0; });
+    const bounds = await stats.boundingBox(), headerBounds = await header.boundingBox();
+    assert.ok(bounds.y >= headerBounds.y && bounds.y + bounds.height <= headerBounds.y + headerBounds.height, 'all metric values are directly inside the initial tools viewport');
+    assert.equal(await page.getByText('市场指标', { exact: true }).count(), 0, 'no folded market summary replaces the live metrics');
+    for (const control of [page.getByRole('searchbox', { name: '搜索楼宇、子市场、业主或物业', exact: true }), page.getByRole('button', { name: '筛选', exact: true }), page.locator('.map-workspace-legend > summary'), page.getByRole('button', { name: '未来供应', exact: true }), page.getByRole('button', { name: '项目列表', exact: true })]) {
+      await control.scrollIntoViewIfNeeded();
+      const box = await control.boundingBox();
+      assert.ok(box.y >= headerBounds.y && box.y + box.height <= headerBounds.y + headerBounds.height + 1, 'scrolling tools brings the whole control into view');
+    }
     await page.setViewportSize({ width: viewport.width, height: 700 });
-    await page.locator('.map-disclosure-content').waitFor({ state: 'detached' });
-    assert.ok(await page.locator('.map-page-header > .map-live-stats').isVisible(), 'taller windows restore inline statistics without an orphaned popover');
+    assert.ok(await stats.isVisible(), 'taller windows retain the same live statistics');
     await page.setViewportSize(viewport);
     // Search results can take over the panel; select the same project again.
     await page.getByRole('button', { name: /^CBD甲楼 CBD/ }).click();
@@ -46,7 +58,7 @@ export async function verifyShortViewport(page, { base }) {
     await dialog.getByRole('heading', { name: 'CBD甲楼', exact: true }).waitFor();
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'detached' });
-    results.push({ ...viewport, stageHeight: stage.height, readingHeight: scroll.height, allMetricsReachable: true, materialActionReachable: true });
+    results.push({ ...viewport, stageHeight: stage.height, readingHeight: scroll.height, mapStrip, regionCameraIssued: true, allMetricsDirectlyVisible: true, materialActionReachable: true, toolsScrollReachable: true });
   }
   return { shortViewport: results };
 }
