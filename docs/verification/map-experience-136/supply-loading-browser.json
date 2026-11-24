@@ -1,0 +1,72 @@
+{
+  "status": "pass",
+  "environment": "production app; isolated SDK/data; viewer except 1024 admin",
+  "observations": [
+    {
+      "width": 1536,
+      "role": "viewer",
+      "supplyReadStates": {
+        "initialLoading": true,
+        "authorizedEmpty": true,
+        "readErrorDistinct": true,
+        "stockStillReadable": true,
+        "freshReadRecovered": true
+      }
+    },
+    {
+      "width": 1024,
+      "role": "admin",
+      "supplyReadStates": {
+        "initialLoading": true,
+        "authorizedEmpty": true,
+        "readErrorDistinct": true,
+        "stockStillReadable": true,
+        "freshReadRecovered": true
+      }
+    },
+    {
+      "width": 390,
+      "role": "viewer",
+      "supplyReadStates": {
+        "initialLoading": true,
+        "authorizedEmpty": true,
+        "readErrorDistinct": true,
+        "stockStillReadable": true,
+        "freshReadRecovered": true
+      }
+    },
+    {
+      "width": 390,
+      "role": "admin",
+      "supplyReadStates": {
+        "initialLoading": true,
+        "authorizedEmpty": true,
+        "readErrorDistinct": true,
+        "stockStillReadable": true,
+        "freshReadRecovered": true
+      }
+    },
+    {
+      "width": 320,
+      "role": "viewer",
+      "supplyReadStates": {
+        "initialLoading": true,
+        "authorizedEmpty": true,
+        "readErrorDistinct": true,
+        "stockStillReadable": true,
+        "freshReadRecovered": true
+      }
+    },
+    {
+      "width": 844,
+      "role": "viewer",
+      "supplyReadStates": {
+        "initialLoading": true,
+        "authorizedEmpty": true,
+        "readErrorDistinct": true,
+        "stockStillReadable": true,
+        "freshReadRecovered": true
+      }
+    }
+  ]
+}

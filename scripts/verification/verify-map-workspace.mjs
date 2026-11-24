@@ -1,3 +1,4 @@
+import { verifySupplyLoading } from './workspace-supply-loading.mjs';
 import { verifyRouteFocus } from './workspace-route-focus.mjs';
 import { verifyAsyncReading } from './workspace-async-reading.mjs';
 import { verifyControlSemantics } from './workspace-control-semantics.mjs';
@@ -663,6 +664,9 @@ try {
       }
       if ([1536,1024,390,320,844].includes(width)) {
         for (const role of width===390 ? ['viewer','admin'] : [width===1024?'admin':'viewer']) {
+          const supplyStatePage=await context.newPage();
+          try { observations.push(await verifySupplyLoading(supplyStatePage,{base,width,role})); }
+          finally { await supplyStatePage.close(); }
           const semanticsPage=await context.newPage();
           try { observations.push(await verifyControlSemantics(semanticsPage,{base,width,role})); }
           finally { await semanticsPage.close(); }

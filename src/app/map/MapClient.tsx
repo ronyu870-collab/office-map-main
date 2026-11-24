@@ -981,6 +981,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         futureSupplyCalendar={futureSupplyCalendar}
         futureSuppliesCount={scopedFutureSupplies.filter(supply => !isPendingFutureSupply(supply)).length}
         futureSupplies={scopedFutureSupplies}
+        futureSupplyLoading={!futureLoaded ? 'initial' : fullListBusy ? 'updating' : null}
         activeFilterChips={activeFilterChips}
         keyword={searchInput}
         filterState={filterState}
