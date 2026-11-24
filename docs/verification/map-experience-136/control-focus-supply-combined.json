@@ -1,0 +1,14 @@
+{
+  "status": "pass",
+  "exit": 0,
+  "records": 69,
+  "widths": [
+    1536,
+    1024,
+    390
+  ],
+  "environment": "production app, isolated SDK and authorized data fixtures",
+  "preserved": "Original audit, stock first-read and photo403 assertions remain before independent helper pages.",
+  "fullEvidence": "outputs/地图体验136项_20261123/首批证据/control-focus-supply-combined-full.json",
+  "fullEvidenceSha256": "a2f839de6530ae4fcfc80f314478ea40c549544f7e2416bc04a0826f6dae8295"
+}

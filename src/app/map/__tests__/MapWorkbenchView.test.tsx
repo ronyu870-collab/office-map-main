@@ -321,3 +321,25 @@ it('shows one accurate future identity and one pending identity in the project l
   expect(within(popup as HTMLElement).getAllByText('未来供应', {exact: true})).toHaveLength(1);
   expect(pending).toBeVisible();
 });
+
+
+it('distinguishes a pending supply read from an authorized empty result', () => {
+  const callbacks=renderWorkbench({isSupplyOpen:true,rightKind:'supply',futureSupplyLoading:'initial'});
+  const supply=screen.getByRole('region',{name:'未来供应'});
+  expect(supply).toHaveAttribute('aria-busy','true');
+  expect(within(supply).getByRole('status')).toHaveTextContent('正在读取未来供应');
+  expect(within(supply).queryByText(/暂无已确认供应/)).not.toBeInTheDocument();
+  expect(within(supply).queryByText(/查看无项目年份/)).not.toBeInTheDocument();
+  callbacks.update({futureSupplyLoading:null});
+  expect(supply).toHaveAttribute('aria-busy','false');
+  expect(within(supply).getByRole('status')).toHaveTextContent('暂无已确认供应');
+});
+
+it('keeps already read supply projects while announcing a local update', () => {
+  const project={id:'future-a',name:'保留的未来供应',type:'办公',launch_year:2027,launch_quarter:'Q1'};
+  renderWorkbench({isSupplyOpen:true,rightKind:'supply',futureSupplyLoading:'updating',futureSupplies:[project],futureSuppliesCount:1,futureSupplyCalendar:{...emptyCalendar,'2027':{total:1,office:1,park:0,commercial:0}}});
+  const supply=screen.getByRole('region',{name:'未来供应'});
+  expect(within(supply).getByRole('status')).toHaveTextContent('正在更新未来供应');
+  expect(within(supply).getByRole('button',{name:'保留的未来供应'})).toBeVisible();
+  expect(supply).toHaveAttribute('aria-busy','true');
+});

@@ -1,0 +1,59 @@
+{
+  "item": 111,
+  "recordedAt": "2026-11-24T00:52:37.282314+00:00",
+  "before": {
+    "exit": 1,
+    "log": "viewport 1536\nloading supply {\"width\":1536,\"text\":\"未来供应\\n\\n已纳入统计 0 个项目\\n\\n当前筛选范围内暂无已确认供应，可调整筛选条件。\\n\\n查看无项目年份（5）\",\"busy\":null}\nAssertionError [ERR_ASSERTION]: pending supply read is announced as busy rather than an empty calendar\n\nnull !== 'true'\n\n    at inspectFutureLoading (file:///private/tmp/map-future-loading-audit.mjs:9:10)\n    at async file:///private/tmp/map-future-loading-focused.mjs:149:25 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: null,\n  expected: 'true',\n  operator: 'strictEqual'\n}\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: pending supply read is announced as busy rather than an empty calendar\n\nnull !== 'true'\n\n    at inspectFutureLoading (file:///private/tmp/map-future-loading-audit.mjs:9:10)\n    at async file:///private/tmp/map-future-loading-focused.mjs:149:25 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: null,\n  expected: 'true',\n  operator: 'strictEqual'\n}\n\nNode.js v22.13.0\n",
+    "actual": "Pending future read appeared as already-counted zero and empty calendar."
+  },
+  "existingFailureWarning": {
+    "status": "pass",
+    "exit": 0,
+    "log": "/tmp/map-future-failure-before.log",
+    "note": "The read-failure warning already worked. This change does not claim to introduce it."
+  },
+  "after": {
+    "unitFiles": 2,
+    "unitTests": 27,
+    "unitExit": 0,
+    "typeExit": 0,
+    "lintExit": 0,
+    "lintErrors": 0,
+    "lintWarnings": 31,
+    "buildExit": 0,
+    "buildId": "vJyh-vzbs977ZF0eQbQO7",
+    "focusedExit": 0,
+    "focusedPaths": 6,
+    "widths": [
+      1536,
+      1024,
+      390,
+      320,
+      844
+    ],
+    "rolesAt390": [
+      "viewer",
+      "admin"
+    ],
+    "focusedRecord": "supply-loading-browser.json",
+    "combinedExit": 0,
+    "combinedRecords": 69,
+    "combinedRecord": "control-focus-supply-combined.json"
+  },
+  "implementation": [
+    "Initial future loading is distinct from an authorized empty result.",
+    "Existing projects stay readable during local update; shared panel announces updating.",
+    "Existing error alert and stock-map readability preserved. A fresh page read clears the prior error on success. No new retry control or data-fetch policy."
+  ],
+  "limits": [
+    "Production build with isolated business, identity and SDK transport. No production account or physical-phone claim.",
+    "The updating branch is exercised by React component execution; initial/empty/error/fresh success are also exercised in the actual browser."
+  ],
+  "filesSha256": {
+    "src/app/map/MapClient.tsx": "214f260fda22a589d1bc0af38167deb24ce20337fc74e147fcfdde1cf0884497",
+    "src/app/map/components/MapWorkbenchView.tsx": "f14d6b014b83c56e8ca22d57b2dae3e13e064b281797ea1449c29289bc9777e8",
+    "src/app/map/__tests__/MapWorkbenchView.test.tsx": "4aded1bb9308b4812b36fedad785abaa69a554a13be0337948da6b2bff3f44fe",
+    "scripts/verification/workspace-supply-loading.mjs": "fdccd3fa75d7792630111b31ce1c0ef6953e5d0e206903fb99bca2de8ab2bfb2",
+    "scripts/verification/verify-map-workspace.mjs": "e676f433e0a54bbf22b8c23c66f0e8accfd0a473e0648e05a25819e3796cdf2c"
+  }
+}

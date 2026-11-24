@@ -81,6 +81,7 @@ type MapWorkbenchViewProps = {
   comparisonIdentityKey?: string;
   futureSupplyCalendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   futureSuppliesCount: number;
+  futureSupplyLoading?: 'initial' | 'updating' | null;
   futureSupplies: FullListBuilding[];
   activeFilterChips: ActiveFilterChip[];
   keyword: string;
@@ -335,9 +336,9 @@ function SupplyPanel({
   pendingProjects,
   onSelect,
   onClose,
-  active, warning,
+  active, warning, loading,
 }: {
-  active: boolean; warning?: string | null;
+  active: boolean; warning?: string | null; loading?: 'initial' | 'updating' | null;
   calendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   total: number;
   commercialProjects: FullListBuilding[];
@@ -353,9 +354,10 @@ function SupplyPanel({
   const projects = [...officeProjects, ...commercialProjects];
   const first = SUPPLY_CALENDAR_CATEGORIES.find(category => calendar[category].total > 0);
   const empty = SUPPLY_CALENDAR_CATEGORIES.filter(category => !calendar[category].total);
-  return <section className="map-workspace-supply" aria-label="未来供应">
-    <WorkspacePanelHeader title="未来供应" subtitle={`已纳入统计 ${total} 个项目`} onClose={onClose} closeLabel="关闭未来供应" />
+  return <section className="map-workspace-supply" aria-label="未来供应" aria-busy={Boolean(loading)}>
+    <WorkspacePanelHeader title="未来供应" subtitle={loading && !total ? (loading === 'initial' ? '正在读取项目' : '正在更新项目') : `已纳入统计 ${total} 个项目`} onClose={onClose} closeLabel="关闭未来供应" />
     <div ref={scroll} className="workspace-scroll workspace-supply-scroll">
+      {loading ? <p role="status" className="workspace-note">{loading === 'initial' ? '正在读取未来供应…' : '正在更新未来供应…'}</p> : null}
       {warning ? <p role="alert" className="workspace-note">{warning}</p> : null}
       {SUPPLY_CALENDAR_CATEGORIES.filter(category => calendar[category].total > 0).map(category => {
         const data = calendar[category];
@@ -369,9 +371,9 @@ function SupplyPanel({
           {commercial.length ? <details {...disclosure(`${category}:commercial`, !office.length)} className="workspace-supply-type"><summary>商业项目 · {commercial.length}</summary><SupplyProjectList projects={commercial} onSelect={onSelect} /></details> : null}
         </details>;
       })}
-      {!warning && !projects.length ? <p role="status" className="workspace-empty">当前筛选范围内暂无已确认供应，可调整筛选条件。</p> : null}
+      {!loading && !warning && !projects.length ? <p role="status" className="workspace-empty">当前筛选范围内暂无已确认供应，可调整筛选条件。</p> : null}
       {pendingProjects.length ? <details {...disclosure('pending')} className="workspace-supply-year"><summary>待核实项目（{pendingProjects.length}）</summary><SupplyProjectList projects={pendingProjects} onSelect={onSelect} /></details> : null}
-      {empty.length ? <details {...disclosure('empty')} className="workspace-supply-year"><summary>查看无项目年份（{empty.length}）</summary>{empty.map(category => <p key={category} className="workspace-note">{SUPPLY_CALENDAR_LABELS[category]} · 暂无项目</p>)}</details> : null}
+      {!loading && empty.length ? <details {...disclosure('empty')} className="workspace-supply-year"><summary>查看无项目年份（{empty.length}）</summary>{empty.map(category => <p key={category} className="workspace-note">{SUPPLY_CALENDAR_LABELS[category]} · 暂无项目</p>)}</details> : null}
     </div>
   </section>;
 }
@@ -394,6 +396,7 @@ export function MapWorkbenchView({
   stats,
   futureSupplyCalendar,
   futureSuppliesCount,
+  futureSupplyLoading = null,
   futureSupplies,
   activeFilterChips,
   keyword,
@@ -696,7 +699,7 @@ export function MapWorkbenchView({
     <div hidden={effectiveKind !== 'submarket'} className={effectiveKind === 'submarket' ? 'map-workspace-view' : 'hidden'}>{submarketDetailPanel}</div>
     <div hidden={effectiveKind !== 'building'} className={effectiveKind === 'building' ? 'map-workspace-view' : 'hidden'}>{buildingDetailPanel}</div>
     <div hidden={effectiveKind !== 'supply'} className={effectiveKind === 'supply' ? 'map-workspace-view' : 'hidden'}>
-      <SupplyPanel active={effectiveKind === 'supply' && !searchChoicesVisible} warning={fullListWarning} calendar={futureSupplyCalendar} total={futureSuppliesCount}
+      <SupplyPanel loading={futureSupplyLoading} active={effectiveKind === 'supply' && !searchChoicesVisible} warning={fullListWarning} calendar={futureSupplyCalendar} total={futureSuppliesCount}
         commercialProjects={futureSupplies.filter(supply => !isPendingFutureSupply(supply) && isCommercialFutureSupply(supply))}
         officeProjects={futureSupplies.filter(supply => !isPendingFutureSupply(supply) && !isCommercialFutureSupply(supply))}
         pendingProjects={futureSupplies.filter(isPendingFutureSupply)}

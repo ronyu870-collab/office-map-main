@@ -25,7 +25,7 @@ export function WorkspacePanelHeader({ title, subtitle, onClose, closeLabel, act
     <div className="workspace-panel-title-row">
       {context?.backLabel ? <button type="button" className="workspace-icon" onClick={context.onBack}
         aria-label={`返回${context.backLabel}`} title={`返回${context.backLabel}`}><ArrowLeft size={17} aria-hidden="true" /></button> : null}
-      <h2 id={titleId} ref={titleRef} title={typeof title === 'string' ? title : undefined} tabIndex={titleRef ? -1 : undefined}>
+      <h2 id={titleId} ref={titleRef} title={typeof title === 'string' ? title : undefined} tabIndex={-1}>
         {longTitle ? <button type="button" className="workspace-title-toggle" aria-expanded={titleExpanded}
           title={titleExpanded ? '收起完整名称' : '展开完整名称'} onClick={() => setExpandedTitle(titleExpanded ? null : title)}>
           <span className={titleExpanded ? 'workspace-title-expanded' : 'workspace-title-clamped'}>{title}</span><ChevronDown size={14} aria-hidden="true" />

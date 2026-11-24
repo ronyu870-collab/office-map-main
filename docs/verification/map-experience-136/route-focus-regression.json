@@ -1,0 +1,52 @@
+{
+  "item": 108,
+  "recordedAt": "2026-11-24T00:42:55.613485+00:00",
+  "before": {
+    "exit": 1,
+    "log": "viewport 1024\nAssertionError [ERR_ASSERTION]: route return restores focus inside the visible current project\n\nfalse !== true\n\n    at inspectAIReturn (file:///private/tmp/map-ai-return-focus.mjs:11:9)\n    at async file:///private/tmp/map-ai-return-focused.mjs:149:25 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: 'strictEqual'\n}\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: route return restores focus inside the visible current project\n\nfalse !== true\n\n    at inspectAIReturn (file:///private/tmp/map-ai-return-focus.mjs:11:9)\n    at async file:///private/tmp/map-ai-return-focused.mjs:149:25 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: 'strictEqual'\n}\n\nNode.js v22.13.0\n",
+    "actual": "Administrator AI route return restored project/market tab but document.activeElement was BODY."
+  },
+  "implementation": [
+    "Restore a visible current-project title focus once after the authorized return snapshot is hydrated.",
+    "preventScroll preserves the saved reading position; direct entry, an existing control focus or a newer pointer/key/focus action suppress restoration.",
+    "A bounded observer handles delayed/inert workspace mounting and disconnects after restoration, takeover or unmount. No polling or new route/session data is persisted."
+  ],
+  "after": {
+    "unitFiles": 2,
+    "unitTests": 18,
+    "unitExit": 0,
+    "typeExit": 0,
+    "lintExit": 0,
+    "lintErrors": 0,
+    "lintWarnings": 26,
+    "buildExit": 0,
+    "buildId": "ydd6RTh6q84VUSnII7b04",
+    "browserExit": 0,
+    "widths": [
+      1536,
+      1024,
+      390,
+      320,
+      844
+    ],
+    "browserRecord": "route-focus-browser.json",
+    "continuityExit": 0,
+    "continuityConditions": 3,
+    "historyRoundTrips": 6,
+    "continuityRecord": "route-focus-continuity.json"
+  },
+  "scriptCorrection": "Compact project headings include grade/submarket metadata. New assertions now use the actual heading prefix; the invalid exact-name attempt is not counted as passing.",
+  "limits": [
+    "Isolated administrator/viewer data and SDK; no production AI/real account or native phone claim.",
+    "Earlier photo/material/contact/related/filter/draft focus checks remain applicable; physical keyboard/OS/read-screen boundaries retain separate items."
+  ],
+  "filesSha256": {
+    "src/app/map/MapClient.tsx": "d67ea78cd06900a31c1df4086fd4b11fa86f1e6580f08379246dfb16f9cf13f5",
+    "src/app/map/components/WorkspacePanelHeader.tsx": "e5352e4f22e33bddd55d902144db21eedb5730b03bd5290c18d6f26750693ff7",
+    "src/app/map/workspace/useMapReturnFocus.ts": "f1df1068e7196042428cf599f96200eb154ead03d25b0961428aac830bf809fd",
+    "src/app/map/workspace/useMapReturnFocus.test.tsx": "cdd268601b0aebac9fe0109654b3fbd6bb686f681b60746fed58e41dfc0c595c",
+    "scripts/verification/workspace-route-focus.mjs": "2efad49389499fc6ac8a5c34dd9c2154acb216fba0809c6b67b0c5136fa61e56",
+    "scripts/verification/verify-map-workspace.mjs": "bcc51910226618d5e3cdf9ded6dbdd5662af9bec7ee3267be6534eba8e69ac33",
+    "scripts/verification/verify-map-continuity.mjs": "9f904092c3bc7763802043b870f13f89e4b2d08007f1b9c8a9659ecb62b82137"
+  }
+}
