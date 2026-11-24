@@ -1,0 +1,20 @@
+{
+  "status": "pass",
+  "environment": "production app, isolated SDK and authorized data fixtures",
+  "observations": [
+    {
+      "nameHeader": {
+        "x": 0,
+        "y": 472,
+        "width": 320,
+        "height": 49
+      },
+      "namePane": {
+        "x": 0,
+        "y": 472,
+        "width": 320,
+        "height": 51
+      }
+    }
+  ]
+}

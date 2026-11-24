@@ -97,8 +97,13 @@ export function workspaceColumns(width: number, left: boolean, right: boolean, p
 }
 
 export type SheetMode = 'compact' | 'reading' | 'full';
-export function workspaceSheetHeight(available: number, summary: number, mode: SheetMode) {
+export function workspaceSheetHeight(available: number, summary: number, mode: SheetMode, kind: WorkspaceKind | 'filters' = 'submarket') {
   if (mode === 'full') return available;
+  const preserveMap = kind === 'submarket' || kind === 'building';
+  // A fixed short-stage boundary avoids feeding the measured summary back
+  // into its own visibility. The compact state is an identity/action bar; reading
+  // remains explicit; its hidden body must not consume the camera's map strip.
+  if (preserveMap && mode === 'compact' && available < 320) return Math.min(available, 52);
   // In a short phone viewport, keep the summary readable while retaining a
   // visible map strip. Reading/full remain explicit user choices.
   const reserveRatio = available < 320 ? .32 : .4;

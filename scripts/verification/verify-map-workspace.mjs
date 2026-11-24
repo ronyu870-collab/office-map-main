@@ -1,4 +1,5 @@
 import { verifySupplyLoading } from './workspace-supply-loading.mjs';
+import { verifyShortViewport } from './workspace-short-viewport.mjs';
 import { verifyRouteFocus } from './workspace-route-focus.mjs';
 import { verifyAsyncReading } from './workspace-async-reading.mjs';
 import { verifyControlSemantics } from './workspace-control-semantics.mjs';
@@ -606,9 +607,10 @@ try {
         await choices.getByRole('button', { name: '清空关键词', exact: true }).waitFor();
         await clickWorkspaceAction(page, '全屏阅读工作区');
         await choices.getByRole('button', { name: '清空关键词', exact: true }).click();
-        await liveStats.getByText('项目', { exact: true }).waitFor();
         assert.equal(await search.inputValue(), '');
         assert.ok(await search.evaluate(el => el === document.activeElement));
+        await liveStats.getByText('项目', { exact: true }).waitFor();
+        await page.keyboard.press('Escape');
         await page.setViewportSize({ width, height });
         await page.waitForTimeout(350);
       }
@@ -631,12 +633,23 @@ try {
         await longDetail.getByTitle('收起完整名称', { exact: true }).click();
         assert.equal(await nameToggle.getAttribute('aria-expanded'), 'false');
         await page.setViewportSize({ width, height: 560 }); await page.waitForTimeout(350);
+        const identityReading=await page.locator('.map-workspace-layout[data-header-only]').count()>0;
+        if(identityReading){
+          assert.equal(await longDetail.locator('.workspace-building-metrics dd').first().isVisible(),false,'identity summary hides the clipped metric body');
+          await nameToggle.click();
+          const expandedHeader=await longDetail.locator('.workspace-panel-header').boundingBox(),identityPane=await longDetail.boundingBox();
+          assert.ok(expandedHeader.y+expandedHeader.height<=identityPane.y+identityPane.height+1,'expanded long name preserves all identity-bar controls');
+          await longDetail.getByTitle('收起完整名称',{exact:true}).click();
+          await clickWorkspaceAction(page,'全屏阅读工作区');
+          await longDetail.locator('.workspace-building-metrics dd').first().waitFor();
+        }
         const valueBox = await longDetail.locator('.workspace-building-metrics dd').first().boundingBox();
         const readingBox = await longDetail.locator('.workspace-scroll').boundingBox();
-        assert.ok(valueBox.y + valueBox.height <= readingBox.y + readingBox.height + 1, 'a short phone still shows the metric values below a long project title');
+        assert.ok(valueBox.y + valueBox.height <= readingBox.y + readingBox.height + 1, 'short-phone reading shows metric values below a long project title');
         const lastValueBox = await longDetail.locator('.workspace-building-metrics dd').last().boundingBox();
-        assert.ok(lastValueBox.y + lastValueBox.height <= readingBox.y + readingBox.height + 1, 'the whole metric summary remains visible in a short phone sheet');
+        assert.ok(lastValueBox.y + lastValueBox.height <= readingBox.y + readingBox.height + 1, 'the whole metric summary remains visible in short-phone reading');
         await page.screenshot({path:'/tmp/map-layout-short-phone-320.png'});
+        if(identityReading)await clickWorkspaceAction(page,'返回地图分屏');
         await page.setViewportSize({ width, height }); await page.waitForTimeout(250);
       }
       await search.fill('');
@@ -657,6 +670,11 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no document overflow');
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
       observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
+      if (width === 1536) {
+        const shortViewportPage = await context.newPage();
+        try { observations.push(await verifyShortViewport(shortViewportPage, { base })); }
+        finally { await shortViewportPage.close(); }
+      }
       if ([1536,1024,390,320,844].includes(width)) {
         const routeFocusPage=await context.newPage();
         try { observations.push(await verifyRouteFocus(routeFocusPage,{base,width})); }

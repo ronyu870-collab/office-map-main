@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { clickWorkspaceAction } from './workspace-actions.mjs';
 
 export async function verifySubmarketReading(page,{width,base,evidencePrefix='map-submarket'}) {
   const points=[['2025Q4',180,10],['2026Q1',0,0],['2026Q2',null,null],['2026Q3',170,13]].map(([period,rent,vacancyPct])=>({period,year:Number(period.slice(0,4)),quarter:Number(period.at(-1)),rent,vacancyPct,rentSamples:rent==null?0:2,vacancySamples:vacancyPct==null?0:3,rentArea:100,vacancyArea:100}));
@@ -13,6 +14,14 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   const clear=page.getByRole('button',{name:'清空',exact:true});if(await clear.isVisible())await clear.click();
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name:'CBD'}})));
   const panel=page.getByRole('region',{name:'CBD',exact:true});await panel.waitFor();
+  await page.waitForFunction(()=>document.querySelector('.map-workspace-layout')?.getAttribute('data-map-layout-ready')==='true');
+  const identityOnly=await page.locator('.map-workspace-layout[data-header-only]').count()>0;
+  if(identityOnly){
+    assert.equal(await panel.getByRole('region',{name:'市场核心指标',exact:true}).isVisible(),false,'identity summary does not expose clipped metric controls');
+    await panel.getByRole('button',{name:'查看全部项目',exact:true}).waitFor();
+    await clickWorkspaceAction(page,'全屏阅读工作区');
+    await panel.getByRole('region',{name:'市场核心指标',exact:true}).waitFor();
+  }
   await panel.getByText('国际商务集聚区',{exact:true}).waitFor();
   const capture=async name=>{
     if(!await page.locator('#map-container').evaluate(el=>Boolean(el.closest('[inert],[aria-hidden="true"],[hidden]'))))
@@ -37,7 +46,15 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   await panel.locator('canvas').waitFor();
   await capture('summary');
   const metrics=await panel.getByRole('region',{name:'市场核心指标',exact:true}).boundingBox();
-  if(await page.locator('.map-workspace-layout[data-short-stage]').count()){const bounds=await panel.boundingBox();assert.ok(metrics.y+metrics.height<=bounds.y+bounds.height+1,'short summary contains all three market values');}
+  if(identityOnly){
+    const scroller=panel.locator('.workspace-scroll');
+    for(const metric of await panel.locator('.submarket-metric').all()){
+      await metric.scrollIntoViewIfNeeded();
+      const box=await metric.boundingBox(),reading=await scroller.boundingBox();
+      assert.ok(box.y>=reading.y && box.y+box.height<=reading.y+reading.height+1,'expanded reading exposes each full metric and its sample note');
+    }
+    await scroller.evaluate(el=>{el.scrollTop=0;});
+  } else if(await page.locator('.map-workspace-layout[data-short-stage]').count()){const bounds=await panel.boundingBox();assert.ok(metrics.y+metrics.height<=bounds.y+bounds.height+1,'short summary contains all three market values');}
   const intro=await panel.getByRole('region',{name:'区域定位',exact:true}).boundingBox();
   assert.ok(metrics.y<intro.y,'core metrics precede introduction');
   const primary=await panel.getByRole('button',{name:'查看全部项目',exact:true}).boundingBox();
@@ -45,10 +62,10 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   assert.ok(Math.abs((primary.y+primary.height/2)-(title.y+title.height/2))<2,'project action shares title row');
   assert.equal(await panel.getByRole('region',{name:'区域特点',exact:true}).count(),0);
   assert.equal(await panel.getByRole('region',{name:'楼宇结构',exact:true}).count(),1);
-  if(await panel.locator('.workspace-mobile-tools > summary').isVisible()){
+  if(!identityOnly && await panel.locator('.workspace-mobile-tools > summary').isVisible()){
     await panel.locator('.workspace-mobile-tools > summary').click();
     await page.getByRole('button',{name:'全屏阅读工作区',exact:true}).click();
-  } else if(width===844) await panel.getByRole('button',{name:'全屏阅读工作区',exact:true}).click();
+  } else if(!identityOnly && width===844) await panel.getByRole('button',{name:'全屏阅读工作区',exact:true}).click();
   await panel.getByRole('tab',{name:'行情趋势',exact:true}).click();
   const summary=panel.locator('.submarket-quarter-data > summary');
   await summary.waitFor();await panel.locator('canvas').waitFor();
@@ -87,5 +104,5 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
     await page.locator('.map-live-stats[aria-busy="false"]').waitFor({state:'attached'});
     await capture('restored');
   }
-  return {width,height:page.viewportSize().height,coreMetricsFirst:true,primaryActionInTitleRow:true,introductionOnlyUsesBuildingComposition:true,canvasRendered:true,keyboardQuarterTable:true,zeroAndMissingRemainDistinct:true,tableFitsPanel:true,listRoundTripPreservesRegion:true,overviewRestoresAllGradesAfterEmptyGrade:true,settledEmptyTrendUsesContentHeight:true,fullReadingReloadRestoresMapWithoutFalseError:true};
+  return {width,height:page.viewportSize().height,identityOnlyExpandedForReading:identityOnly,coreMetricsFirst:true,primaryActionInTitleRow:true,introductionOnlyUsesBuildingComposition:true,canvasRendered:true,keyboardQuarterTable:true,zeroAndMissingRemainDistinct:true,tableFitsPanel:true,listRoundTripPreservesRegion:true,overviewRestoresAllGradesAfterEmptyGrade:true,settledEmptyTrendUsesContentHeight:true,fullReadingReloadRestoresMapWithoutFalseError:true};
 }

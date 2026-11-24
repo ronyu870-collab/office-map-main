@@ -1,0 +1,33 @@
+
+> office-map-main@0.1.0 test
+> vitest --run src/app/map/workspace/workspaceState.test.ts
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.6 /private/tmp/colliers-map-workspace-v2
+
+ ❯ src/app/map/workspace/workspaceState.test.ts (11 tests | 1 failed) 39ms
+   × leaves room for an actual region camera and marker edges in very short sheets 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/app/map/workspace/workspaceState.test.ts > leaves room for an actual region camera and marker edges in very short sheets
+AssertionError: a 158px stage can issue a region camera: expected null not to be null
+ ❯ src/app/map/workspace/workspaceState.test.ts:101:73
+     99|     const panel = { left: 0, right: 626, top: height - 24 - sheet, bot…
+    100|     const target = fitMapExtent(rows, canvas, visibleMapRect(canvas, {…
+    101|     expect(target, `a ${height}px stage can issue a region camera`).no…
+       |                                                                         ^
+    102|     const center = mercatorPoint(...target!.center), scale = 256 * 2 *…
+    103|     for (const row of rows) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+   Start at  14:31:31
+   Duration  966ms (transform 67ms, setup 77ms, import 64ms, tests 39ms, environment 662ms)
+

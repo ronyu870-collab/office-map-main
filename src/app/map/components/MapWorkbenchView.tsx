@@ -718,6 +718,7 @@ export function MapWorkbenchView({
       {/* Keep SDK visibility measurable during direct list startup; opacity and inert hide the inactive map. */}
       <div ref={mapWorkspaceRef} className={isFullListVisible ? 'opacity-0 pointer-events-none absolute inset-0' : 'absolute inset-0'} inert={isFullListVisible || undefined} aria-hidden={isFullListVisible || undefined}>
     <div className="map-workbench-page flex h-full flex-col overflow-hidden bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
+      <div className="map-workbench-tools">
       <header className="relative z-[500] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <div className="map-page-header">
           <BrokerSearchLink /><h1 title="北京办公楼市场地图">北京办公楼市场地图</h1>
@@ -868,6 +869,7 @@ export function MapWorkbenchView({
         </div>
 
 
+      </div>
       {dataNotice ? <div role="alert" className="workspace-data-notice"><span>{dataNotice}</span><button type="button" className="workspace-business-action" onClick={() => { void onRetryNotice?.(); }}>重新读取</button></div> : null}
       <MapWorkspaceLayout contentPending={rightKind === 'submarket' && fullListBusy} left={isFullListVisible ? null : filters} right={rightContent}
         leftOpen={isFilterPanelOpen} rightOpen={rightOpen} focus={focusMode} width={preferredWidth} kind={panelKind}
