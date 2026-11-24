@@ -1,0 +1,338 @@
+{
+  "baseline": "249e97cccffb47a9ab79fd613be0171646ca721c",
+  "sourceDiffSha256": "d1bd2730b8d348938804204592326cc8e7b6e89c8b40082da4e0b4df15f01e05",
+  "browser": "158.0.8127.36",
+  "environment": "Next production; actual React; synthetic HTTP only",
+  "zoom": 1,
+  "before": {
+    "baseline": "249e97cccffb47a9ab79fd613be0171646ca721c",
+    "outcome": "failed: actual menu height below 40px",
+    "viewport": {
+      "width": 1280,
+      "height": 900,
+      "scale": 1
+    },
+    "mode": "focus",
+    "trigger": {
+      "left": 452,
+      "top": 414.390625,
+      "right": 552,
+      "bottom": 454.390625,
+      "width": 100,
+      "height": 40
+    },
+    "menu": {
+      "left": 452,
+      "top": 454.390625,
+      "right": 628,
+      "bottom": 464.390625,
+      "width": 176,
+      "height": 10
+    },
+    "bounds": {
+      "left": 41,
+      "right": 1239,
+      "top": 94,
+      "bottom": 765
+    },
+    "top": "40px",
+    "bottom": "44px",
+    "height": "10px",
+    "maxHeight": "360px",
+    "overflowX": "auto",
+    "overflowY": "auto",
+    "clipping": [
+      {
+        "tag": "DIV",
+        "className": "HomeQueryWorkspace_scroller__IaAZk",
+        "box": {
+          "left": 41,
+          "top": 94,
+          "right": 1239,
+          "bottom": 765,
+          "width": 1198,
+          "height": 671
+        },
+        "x": "hidden",
+        "y": "auto"
+      },
+      {
+        "tag": "DIV",
+        "className": "HomeQueryWorkspace_body__rmmBJ",
+        "box": {
+          "left": 41,
+          "top": 94,
+          "right": 1239,
+          "bottom": 867,
+          "width": 1198,
+          "height": 773
+        },
+        "x": "hidden",
+        "y": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "className": "HomeQuery_conversation__5IgR7 HomeQueryWorkspace_surface__I9lAV",
+        "box": {
+          "left": 40,
+          "top": 32,
+          "right": 1240,
+          "bottom": 868,
+          "width": 1200,
+          "height": 836
+        },
+        "x": "hidden",
+        "y": "hidden"
+      }
+    ],
+    "topLayer": false,
+    "activeOverlays": [
+      "HomeQueryMenu_menu__5rKrs"
+    ],
+    "items": [
+      {
+        "rect": {
+          "left": 457,
+          "top": 459.390625,
+          "right": 623,
+          "bottom": 503.390625,
+          "width": 166,
+          "height": 44
+        },
+        "visible": false,
+        "hit": false,
+        "actualHit": "<div class=\"HomeQueryWorkspace_reading__c5ZD8\"><div class=\"HomeQuery_transcript__zvJXI\"><article class=\"HomeQuery_turn__IUIoN\" aria-label=\"本次问答\" data-query-turn=\"e0f76a9b-f91a-44d5-b2d5-95518dcb962b\"><div class=\"HomeQuery_questionRow__GfkVb\"><p class=\"HomeQuery_question__baVDs\"><span class=\"sr-only\">你的问题：</span>2026Q3 CBD 净有效租金<button type=\"button\""
+      },
+      {
+        "rect": {
+          "left": 457,
+          "top": 507.390625,
+          "right": 623,
+          "bottom": 551.390625,
+          "width": 166,
+          "height": 44
+        },
+        "visible": false,
+        "hit": false,
+        "actualHit": "<div class=\"HomeQueryWorkspace_scroller__IaAZk\" role=\"region\" aria-label=\"对话记录\" tabindex=\"0\"><div class=\"HomeQueryWorkspace_reading__c5ZD8\"><div class=\"HomeQuery_transcript__zvJXI\"><article class=\"HomeQuery_turn__IUIoN\" aria-label=\"本次问答\" data-query-turn=\"e0f76a9b-f91a-44d5-b2d5-95518dcb962b\"><div class=\"HomeQuery_questionRow__GfkVb\"><p class=\"HomeQ"
+      },
+      {
+        "rect": {
+          "left": 457,
+          "top": 555.390625,
+          "right": 623,
+          "bottom": 599.390625,
+          "width": 166,
+          "height": 44
+        },
+        "visible": false,
+        "hit": false,
+        "actualHit": "<div class=\"HomeQueryWorkspace_scroller__IaAZk\" role=\"region\" aria-label=\"对话记录\" tabindex=\"0\"><div class=\"HomeQueryWorkspace_reading__c5ZD8\"><div class=\"HomeQuery_transcript__zvJXI\"><article class=\"HomeQuery_turn__IUIoN\" aria-label=\"本次问答\" data-query-turn=\"e0f76a9b-f91a-44d5-b2d5-95518dcb962b\"><div class=\"HomeQuery_questionRow__GfkVb\"><p class=\"HomeQ"
+      },
+      {
+        "rect": {
+          "left": 457,
+          "top": 603.390625,
+          "right": 623,
+          "bottom": 647.390625,
+          "width": 166,
+          "height": 44
+        },
+        "visible": false,
+        "hit": false,
+        "actualHit": "<div class=\"HomeQueryWorkspace_scroller__IaAZk\" role=\"region\" aria-label=\"对话记录\" tabindex=\"0\"><div class=\"HomeQueryWorkspace_reading__c5ZD8\"><div class=\"HomeQuery_transcript__zvJXI\"><article class=\"HomeQuery_turn__IUIoN\" aria-label=\"本次问答\" data-query-turn=\"e0f76a9b-f91a-44d5-b2d5-95518dcb962b\"><div class=\"HomeQuery_questionRow__GfkVb\"><p class=\"HomeQ"
+      }
+    ],
+    "horizontalOverflow": false
+  },
+  "after": {
+    "outcome": "passed",
+    "geometryAssertions": 317,
+    "widths": {
+      "1280": 53,
+      "1536": 53,
+      "1024": 53,
+      "768": 52,
+      "390": 53,
+      "320": 53
+    },
+    "firstAnswerMenu": {
+      "label": "answer more actions",
+      "viewport": {
+        "width": 1280,
+        "height": 900,
+        "scale": 1
+      },
+      "mode": "focus",
+      "trigger": {
+        "left": 452,
+        "top": 414.390625,
+        "right": 552,
+        "bottom": 454.390625,
+        "width": 100,
+        "height": 40
+      },
+      "menu": {
+        "left": 342,
+        "top": 458.390625,
+        "right": 552,
+        "bottom": 648.390625,
+        "width": 210,
+        "height": 190
+      },
+      "bounds": {
+        "left": 40,
+        "right": 1240,
+        "top": 32,
+        "bottom": 868
+      },
+      "top": "458.391px",
+      "bottom": "251.609px",
+      "height": "190px",
+      "maxHeight": "360px",
+      "overflowX": "auto",
+      "overflowY": "auto",
+      "clipping": [
+        {
+          "tag": "DIV",
+          "className": "HomeQueryWorkspace_scroller__IaAZk",
+          "box": {
+            "left": 41,
+            "top": 94,
+            "right": 1239,
+            "bottom": 765,
+            "width": 1198,
+            "height": 671
+          },
+          "x": "hidden",
+          "y": "auto"
+        },
+        {
+          "tag": "DIV",
+          "className": "HomeQueryWorkspace_body__rmmBJ",
+          "box": {
+            "left": 41,
+            "top": 94,
+            "right": 1239,
+            "bottom": 867,
+            "width": 1198,
+            "height": 773
+          },
+          "x": "hidden",
+          "y": "hidden"
+        },
+        {
+          "tag": "DIV",
+          "className": "HomeQuery_conversation__5IgR7 HomeQueryWorkspace_surface__I9lAV",
+          "box": {
+            "left": 40,
+            "top": 32,
+            "right": 1240,
+            "bottom": 868,
+            "width": 1200,
+            "height": 836
+          },
+          "x": "hidden",
+          "y": "hidden"
+        }
+      ],
+      "topLayer": true,
+      "activeOverlays": [
+        "_r_a_"
+      ],
+      "items": [
+        {
+          "rect": {
+            "left": 351,
+            "top": 467.390625,
+            "right": 543,
+            "bottom": 507.390625,
+            "width": 192,
+            "height": 40
+          },
+          "visible": true,
+          "hit": true,
+          "actualHit": "<button type=\"button\" class=\"inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--cd-radius-md)] border font-medium transition-colors duration-[var(--cd-motion-fast)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50 border-transparent bg-transparent text-["
+        },
+        {
+          "rect": {
+            "left": 351,
+            "top": 511.390625,
+            "right": 543,
+            "bottom": 551.390625,
+            "width": 192,
+            "height": 40
+          },
+          "visible": true,
+          "hit": true,
+          "actualHit": "<button type=\"button\" class=\"inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--cd-radius-md)] border font-medium transition-colors duration-[var(--cd-motion-fast)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50 border-transparent bg-transparent text-["
+        },
+        {
+          "rect": {
+            "left": 351,
+            "top": 555.390625,
+            "right": 543,
+            "bottom": 595.390625,
+            "width": 192,
+            "height": 40
+          },
+          "visible": true,
+          "hit": true,
+          "actualHit": "<button type=\"button\" class=\"inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--cd-radius-md)] border font-medium transition-colors duration-[var(--cd-motion-fast)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50 border-transparent bg-transparent text-["
+        },
+        {
+          "rect": {
+            "left": 351,
+            "top": 599.390625,
+            "right": 543,
+            "bottom": 639.390625,
+            "width": 192,
+            "height": 40
+          },
+          "visible": true,
+          "hit": true,
+          "actualHit": "<button type=\"button\" class=\"inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--cd-radius-md)] border font-medium transition-colors duration-[var(--cd-motion-fast)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50 border-transparent bg-transparent text-["
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    "nativeZoom": {
+      "200": {
+        "browser": "145.0.7632.6",
+        "zoom": 2,
+        "records": 6,
+        "viewports": [
+          [
+            640,
+            300
+          ],
+          [
+            640,
+            450
+          ]
+        ],
+        "channel": "chromium (full browser, not headless shell)"
+      },
+      "125": {
+        "browser": "145.0.7632.6",
+        "zoom": 1.25,
+        "records": 7,
+        "viewports": [
+          [
+            1024,
+            480
+          ],
+          [
+            1024,
+            672
+          ],
+          [
+            1024,
+            720
+          ]
+        ],
+        "channel": "chromium (full browser, not headless shell)"
+      }
+    }
+  }
+}

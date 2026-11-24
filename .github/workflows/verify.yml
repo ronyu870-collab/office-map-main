@@ -364,6 +364,10 @@ jobs:
           node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
           node scripts/verification/home-entry-browser.mjs after http://127.0.0.1:3210
           HOME_QUERY_P2_BUILD_MODE=production HOME_QUERY_P2_EVIDENCE_DIR="$RUNNER_TEMP/colliers-ai-experience-p2" node scripts/verification/home-query-experience-p2-browser.mjs after http://127.0.0.1:3210
+          HOME_QUERY_MENU_ONLY=1 HOME_QUERY_P2_BUILD_MODE=production HOME_QUERY_P2_EVIDENCE_DIR="$RUNNER_TEMP/colliers-ai-menus" node scripts/verification/home-query-experience-p2-browser.mjs after http://127.0.0.1:3210
+          for zoom in 1.25 2; do
+            HOME_QUERY_MENU_ONLY=1 HOME_QUERY_P2_WIDTHS=1280 HOME_QUERY_P2_BROWSER_ZOOM="$zoom" HOME_QUERY_P2_BUILD_MODE=production HOME_QUERY_P2_EVIDENCE_DIR="$RUNNER_TEMP/colliers-ai-menus/zoom-$zoom" node scripts/verification/home-query-experience-p2-browser.mjs after http://127.0.0.1:3210
+          done
           node scripts/performance/verify-admin-ledger-first-open.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs --prefetch-policy http://127.0.0.1:3210
           node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
@@ -424,7 +428,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: colliers-ai-experience-p2-verification
-          path: ${{ runner.temp }}/colliers-ai-experience-p2
+          path: |
+            ${{ runner.temp }}/colliers-ai-experience-p2
+            ${{ runner.temp }}/colliers-ai-menus
           if-no-files-found: ignore
           retention-days: 7
 

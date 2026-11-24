@@ -71,5 +71,6 @@ it('does not report a saved file or dispatch when a download is revoked and perm
   await screen.findByText('当前导出资格已撤回。');
   expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
   expect(client.reportDelivery.mock.calls.some(call => call[2] === 'browser_download_dispatched')).toBe(false);
+  fireEvent.click(screen.getByText('下载图表'));
   expect(screen.getByRole('button', { name: '下载 PNG 与来源' })).toBeEnabled();
 });

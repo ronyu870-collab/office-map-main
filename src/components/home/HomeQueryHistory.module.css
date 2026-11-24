@@ -34,13 +34,8 @@
 .open:focus-visible, .turns button:focus-visible, .tabs button:focus-visible, .helpToggle:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
 .open:hover, .turns button:hover { color: var(--cd-color-brand); }
 .open:disabled, .turns button:disabled { cursor: default; opacity: .6; }
-.entryActions { position: relative; align-self: center; }
 .more { min-width: 36px; min-height: 36px; color: var(--cd-color-text-secondary); opacity: .85; transition: opacity var(--cd-motion-fast), background-color var(--cd-motion-fast); }
 .entry:hover .more, .entry:focus-within .more, .entry[data-menu-open="true"] .more { opacity: 1; }
-.entry[data-menu-open="true"] { z-index: 2; }
-.entryMenu { position: absolute; z-index: 3; top: calc(100% + 4px); right: 0; display: grid; gap: 4px; width: 176px; max-width: calc(100vw - 48px); padding: 4px; background: var(--cd-color-surface); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-md); box-shadow: var(--cd-shadow-popover); }
-.entryMenu[data-above="true"] { top: auto; bottom: calc(100% + 4px); }
-.entryMenu button { width: 100%; justify-content: flex-start; font-size: var(--cd-ai-body-size); font-weight: 400; }
 .actions, .pagination { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 4px; margin-top: 8px; }
 .actions button, .pagination button { padding-inline: 8px; font-size: var(--cd-ai-body-size); }
 .entry form { grid-column: 1 / -1; display: grid; gap: 8px; padding: 8px 4px 8px 0; font-size: var(--cd-ai-body-size); }

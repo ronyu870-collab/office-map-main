@@ -60,7 +60,7 @@ export function HomeQueryDetailPanel({ drawer }: { drawer: boolean }) {
     // Portal events follow the React parent tree, not the physical aside.
     // Handle keyboard containment on the actual panel DOM for every artifact.
     const keydown = (event: KeyboardEvent) => {
-      if (event.isComposing) return;
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') {
         const menu = event.target instanceof Element ? event.target.closest('details[open]') : null;
         event.preventDefault(); event.stopPropagation();

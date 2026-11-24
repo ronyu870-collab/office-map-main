@@ -2,10 +2,11 @@ import { checkKeyboardLayoutContinuity } from './query-focus-layout-checks.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { checkAllQueryMenus, checkResponsiveQueryMenus, menuRecords } from './query-menu-browser-checks.mjs';
 import { checkFocusTransitions } from './query-focus-browser-checks.mjs';
 
 // Actual Next/React pages, synthetic HTTP data. This is visual and interaction
@@ -31,6 +32,7 @@ const { crossTrendPlan, crossTrendSnapshots } = sourceRequire(`${sourceRoot}/src
 const { resolveNumericFact } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/facts.ts`);
 const { attachResearchAnalysis } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/researchAnalysis.ts`);
 const { buildResultChart } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/charts.ts`);
+const { renderResultCopy } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/resultOutput.ts`);
 const { buildResultArtifact } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/artifacts.ts`);
 const { resultViewSchema } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/presentation.ts`);
 const { chromium } = require(process.env.PERF_PLAYWRIGHT_MODULE || 'playwright-core');
@@ -85,6 +87,11 @@ listSnapshot.rows = Array.from({ length: 32 }, (_, index) => {
 });
 listSnapshot.expectedCount = listSnapshot.rows.length;
 const tableResult = stableResult(buildListResult(listSnapshot, ['height', 'netEffectiveRent']), '44444444-4444-4444-8444-444444444444');
+if (process.env.HOME_QUERY_MENU_ONLY === '1') {
+  tableResult.table.columns.push({ key: 'submarket', label: '子市场', unit: null }, { key: 'grade', label: '等级', unit: null });
+  tableResult.table.rows.forEach((row, i) => { row.cells.submarket = { kind: 'text', value: i % 2 ? '望京' : 'CBD', sourceIds: [] }; row.cells.grade = { kind: 'text', value: i % 3 ? '甲级' : '乙级', sourceIds: [] }; });
+}
+const professional = stableResult({ ...tableResult, parameters: { ...tableResult.parameters, agentChart: { version: 'chart-workspace/1', format: 'png_zip', request: { kind: 'plot', type: 'horizontal_bar', x: 'name', y: ['netEffectiveRent'] } } } }, '45454545-4545-4545-8545-454545454545');
 const ranking = stableResult(buildRankResult(listSnapshot, 'height', 10, 'desc'), '55555555-5555-4555-8555-555555555555');
 const distributionSnapshot = fixture();
 for (const [index, value] of [[0, 100], [1, 101], [3, 200]]) {
@@ -130,40 +137,61 @@ const fixtureDigest = createHash('sha256').update(JSON.stringify({ examples, agg
 const baseline = execFileSync('git', ['-C', sourceRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const sourceDiff = execFileSync('git', ['-C', sourceRoot, 'diff', '--', 'src/components/home', 'src/styles/tokens.css'], { encoding: 'utf8' });
 const sourceDiffSha256 = createHash('sha256').update(sourceDiff).digest('hex');
-const browser = await chromium.launch({ ...(process.env.PERF_BROWSER_EXECUTABLE ? { executablePath: process.env.PERF_BROWSER_EXECUTABLE } : process.env.PERF_BROWSER_CHANNEL && process.env.PERF_BROWSER_CHANNEL !== 'chromium' ? { channel: process.env.PERF_BROWSER_CHANNEL } : {}), headless: true });
+const launchOptions = { ...(process.env.PERF_BROWSER_EXECUTABLE ? { executablePath: process.env.PERF_BROWSER_EXECUTABLE } : process.env.PERF_BROWSER_CHANNEL && process.env.PERF_BROWSER_CHANNEL !== 'chromium' ? { channel: process.env.PERF_BROWSER_CHANNEL } : {}), headless: true };
+const zoom = Number(process.env.HOME_QUERY_P2_BROWSER_ZOOM || 1);
+assert.ok([1, 1.25, 2].includes(zoom));
+let zoomProfile, zoomContext;
+if (zoom !== 1) {
+  assert.ok(widths.length === 1 && widths[0] === 1280 && process.env.HOME_QUERY_MENU_ONLY === '1');
+  // Chromium's native per-host browser zoom, not CSS zoom or pinch emulation.
+  zoomProfile = await mkdtemp('/tmp/colliers-ai-zoom-');
+  await mkdir(`${zoomProfile}/Default`);
+  await writeFile(`${zoomProfile}/Default/Preferences`, JSON.stringify({ partition: { per_host_zoom_levels: { x: { [new URL(base).hostname]: { zoom_level: Math.log(zoom) / Math.log(1.2), last_modified: '13400000000000000' } } } } }));
+  // Playwright's default headless shell does not load Chrome's zoom prefs.
+  // The installed full Chromium channel uses native Chrome browser zoom.
+  const zoomBrowser = process.env.PERF_BROWSER_EXECUTABLE ? {} : { channel: process.env.PERF_BROWSER_CHANNEL || 'chromium' };
+  zoomContext = await chromium.launchPersistentContext(zoomProfile, { ...launchOptions, ...zoomBrowser, viewport: { width: 1280, height: 900 }, serviceWorkers: 'block', locale: 'zh-CN', timezoneId: 'Asia/Shanghai' });
+}
+const browser = zoomContext?.browser() ?? await chromium.launch(launchOptions);
 
 async function makePage(width, capability = 'enabled', role = 'admin') {
   const height = width === 768 ? 1024 : width < 640 ? 844 : 900;
-  const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block', locale: 'zh-CN', timezoneId: 'Asia/Shanghai' });
+  const context = zoomContext ?? await browser.newContext({ viewport: { width, height }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block', locale: 'zh-CN', timezoneId: 'Asia/Shanghai' });
   const calls = [], errors = [];
-  const control = { answer: 'short', release: null, currentResult: aggregate, lastBody: null };
+  const localHistory = structuredClone(historyEntries);
+  if (process.env.HOME_QUERY_MENU_ONLY === '1') for (let i = 3; i < 15; i++) localHistory.push({ ...localHistory[0], conversationId: `33333333-3333-4333-8333-${String(i).padStart(12, '0')}`, title: `合成长历史记录 ${i}` });
+  const control = { exportFailures: 0, answer: 'short', release: null, currentResult: aggregate, lastBody: null };
   // Keep localhost's development HMR transport; only the synthetic Supabase
   // realtime transport is closed. Production mode does not require HMR.
   await context.routeWebSocket(/^wss:\/\/example\.supabase\.co/, ws => ws.close());
   await context.route('**/*', async route => {
     const request = route.request(), url = new URL(request.url());
     const body = request.method() === 'POST' ? request.postDataJSON() : null;
-    calls.push({ path: url.pathname, method: request.method(), action: body?.action });
+    calls.push({ path: url.pathname, method: request.method(), action: body?.action, ...(['export', 'chart'].includes(body?.action) ? { selection: body.selection, chart: body.chart, resultId: body.resultId, format: body.format } : {}) });
     const json = data => route.fulfill({ json: data });
     if (url.origin === new URL(base).origin) {
       if (url.pathname === '/api/intelligence/query/capabilities') return capability === 'error'
         ? route.fulfill({ status: 503, json: { error: 'synthetic capability unavailable' } })
         : json({ enabled: capability === 'enabled', permissionRevision: 'synthetic-visual-v1', examples: capability === 'enabled' ? examples : [], internalExport: true });
       if (url.pathname === '/api/intelligence/query/history') {
-        if (body.action === 'list') return json({ status: 'ready', page: { entries: historyEntries.filter(entry => entry.title.includes(body.search || '') || entry.latestQuestion.includes(body.search || '')), hasMore: false, indexing: false, unavailable: 0 } });
+        if (body.action === 'list') return json({ status: 'ready', page: { entries: localHistory.filter(entry => entry.archived === !!body.archived && (entry.title.includes(body.search || '') || entry.latestQuestion.includes(body.search || ''))), hasMore: false, indexing: false, unavailable: 0 } });
         if (body.action === 'open') return json({ status: 'ready', opened: { conversation: { id: body.conversationId, parentRequestId: requestId, resumeToken: 'synthetic-resume' }, title: historyEntries[0].title, turns: [{ requestId, question: '2026Q3 CBD 净有效租金是多少？', submittedAt: '2026-11-17T02:30:00Z', state: 'ready' }], selected: { requestId, question: '2026Q3 CBD 净有效租金是多少？', submittedAt: '2026-11-17T02:30:00Z', state: 'ready', reply: { requestId, status: 'ready', result: aggregate } }, hasMore: false } });
+        if (body.action === 'rename') localHistory.find(entry => entry.conversationId === body.conversationId).title = body.title;
+        if (body.action === 'archive') localHistory.find(entry => entry.conversationId === body.conversationId).archived = body.archived;
         return json({ status: 'saved' });
       }
       if (url.pathname === '/api/intelligence/query/artifact') {
         if (body.action === 'chart') {
-          const selected = [aggregate, vacancyResult, relationship, regional, trend, tableResult, ranking, distribution, entity, fileResult, leaseSummary, leaseUnknown].find(result => result.resultId === body.resultId);
+          const selected = [aggregate, vacancyResult, relationship, regional, trend, tableResult, professional, ranking, distribution, entity, fileResult, pdfResult, leaseSummary, leaseUnknown].find(result => result.resultId === body.resultId);
           return json({ status: 'ready', chart: buildResultChart(selected ?? control.currentResult, body.chart) });
         }
-        if (body.action === 'export' && [fileResult.resultId, pdfResult.resultId].includes(body.resultId)) {
-          const artifact = await buildResultArtifact(body.resultId === pdfResult.resultId ? pdfResult : fileResult, body);
-          return route.fulfill({ body: Buffer.from(artifact.bytes), contentType: artifact.contentType, headers: { 'content-disposition': `attachment; filename="fixture.${body.format}"`, 'x-query-result-id': body.resultId, 'x-artifact-sha256': artifact.sha256 } });
+        if (body.action === 'export' && (process.env.HOME_QUERY_MENU_ONLY === '1' || [fileResult.resultId, pdfResult.resultId].includes(body.resultId))) {
+          if (control.exportFailures-- > 0) return route.fulfill({ status: 503, json: { error: '合成下载失败，请重试。' } });
+          const source = [aggregate, vacancyResult, relationship, regional, trend, tableResult, professional, ranking, distribution, entity, fileResult, pdfResult, leaseSummary, leaseUnknown].find(result => result.resultId === body.resultId);
+          const artifact = await buildResultArtifact(source, body);
+          return route.fulfill({ body: Buffer.from(artifact.bytes), contentType: artifact.contentType, headers: { 'content-disposition': `attachment; filename="fixture.${body.format.endsWith('_zip') ? 'zip' : body.format}"`, 'x-query-result-id': body.resultId, 'x-artifact-sha256': artifact.sha256 } });
         }
-        if (body.action === 'copy') return json({ status: 'ready', requestId: body.requestId, resultId: body.resultId, format: body.format, text: '合成视觉夹具的研究结论。', resultDigest: 'a'.repeat(64) });
+        if (body.action === 'copy') return json({ status: 'ready', requestId: body.requestId, resultId: body.resultId, format: body.format, text: renderResultCopy([aggregate, trend, tableResult, professional, ranking].find(result => result.resultId === body.resultId) ?? control.currentResult, body.format), resultDigest: 'a'.repeat(64) });
         return route.fulfill({ status: 503, json: { error: 'Visual fixture does not implement file export; original export regressions remain required.' } });
       }
       if (url.pathname === '/api/intelligence/query/receipt') return json({ status: 'recorded' });
@@ -174,8 +202,8 @@ async function makePage(width, capability = 'enabled', role = 'admin') {
         if (control.answer === 'failure') return json({ ...shared, status: 'unavailable' });
         if (control.answer === 'clarification') return json({ ...shared, status: 'clarification', reason: 'period_required', message: '你想查看哪个季度的净有效租金？选择季度后，我会按当前获权样本继续查询。', options: [{ id: 'quarter', label: '2026 年第三季度', question: '2026Q3 CBD 净有效租金' }] });
         if (control.answer === 'long-markdown') return json({ ...shared, status: 'clarification', reason: 'assistant_help', message: longMarkdown });
-        if (['aggregate', 'vacancy', 'relationship', 'regional', 'complex', 'table', 'ranking', 'distribution', 'entity', 'file', 'pdf', 'lease-unknown', 'lease-alternative'].includes(control.answer)) {
-          control.currentResult = ({ table: tableResult, aggregate, vacancy: vacancyResult, relationship, regional, complex: trend, ranking, distribution, entity, file: fileResult, pdf: pdfResult, 'lease-unknown': leaseUnknown, 'lease-alternative': leaseSummary })[control.answer];
+        if (['professional', 'aggregate', 'vacancy', 'relationship', 'regional', 'complex', 'table', 'ranking', 'distribution', 'entity', 'file', 'pdf', 'lease-unknown', 'lease-alternative'].includes(control.answer)) {
+          control.currentResult = ({ professional, table: tableResult, aggregate, vacancy: vacancyResult, relationship, regional, complex: trend, ranking, distribution, entity, file: fileResult, pdf: pdfResult, 'lease-unknown': leaseUnknown, 'lease-alternative': leaseSummary })[control.answer];
           return json({ ...shared, status: 'ready', historySaved: true, result: control.currentResult, ...(control.answer === 'lease-alternative' ? { answerSelection: leaseSelection } : {}) });
         }
         return json({ ...shared, status: 'clarification', reason: 'assistant_help', message: '你好！今天想了解什么？' });
@@ -429,6 +457,16 @@ try {
   for (const width of widths) {
     const session = await makePage(width);
     const { page, control } = session;
+    if (process.env.HOME_QUERY_MENU_ONLY === '1') {
+      try {
+        if (zoom !== 1) await checkResponsiveQueryMenus(session, { send, expanded }, zoom);
+        else await checkAllQueryMenus(session, { send, expanded });
+      } finally {
+        await writeFile(`${out}/menu-geometry.json`, JSON.stringify({ baseline, sourceDiffSha256, browser: browser.version(), environment: `Next ${buildMode}; actual React; synthetic HTTP only`, zoom, menuRecords }, null, 2));
+        await session.context.close();
+      }
+      continue;
+    }
     await capture(session, 'welcome');
     if (variant === 'after') await checkFocusTransitions(session, examples);
     if (width === 1280 || width === 390) {
@@ -732,14 +770,14 @@ try {
     assert.equal(await unavailable.page.locator('#home-query').isDisabled(), true);
     await unavailable.context.close();
   }
-  for (const role of ['editor', 'viewer']) {
+  for (const role of process.env.HOME_QUERY_MENU_ONLY === '1' ? [] : ['editor', 'viewer']) {
     const restricted = await makePage(390, 'disabled', role);
     await capture(restricted, `role-${role}`);
     assert.equal(await restricted.page.locator('#home-query').count(), 0);
     assert.ok(!restricted.calls.some(call => call.path.startsWith('/api/intelligence/query')), 'ordinary accounts must not probe AI');
     await restricted.context.close();
   }
-} finally { await browser.close(); }
+} finally { await browser.close(); if (zoomProfile) await rm(zoomProfile, { recursive: true, force: true }); }
 assert.ok(records.every(record => Object.values(record.checks).every(Boolean)), 'One or more observed visual/layout checks failed; screenshots and report retain the evidence.');
 if (variant === 'after') {
   assert.ok(records.every(record => record.interactionChecks.shortViewportTabCycle?.passed !== false), 'Short viewport keyboard focus reached an invisible control; retained in evidence.');

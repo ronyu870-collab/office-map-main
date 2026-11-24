@@ -138,3 +138,20 @@ it('rejects inverted axes locally and downloads the applied view after workspace
   await waitFor(() => expect(click).toHaveBeenCalledOnce());
   expect(client.download).toHaveBeenCalledWith(scope, expect.objectContaining({ resultId: value.resultId, chart: expect.objectContaining({ yAxis: { min: 0, max: 300, ticks: 5 } }) }), expect.any(AbortSignal));
 });
+
+it('keeps a detail editor open for legacy IME Escape and closes only its active menu', async () => {
+  render(<Workspace drawer><HomeQueryDataTable result={classified()} internalExport={false} onSource={vi.fn()} /></Workspace>);
+  fireEvent.click(screen.getByRole('button', { name: '展开表格' }));
+  const panel = screen.getByRole('dialog', { name: '数据工作区' });
+  const search = within(panel).getByRole('searchbox');
+  search.focus();
+  fireEvent.keyDown(search, { key: 'Escape', keyCode: 229 });
+  expect(panel).toBeVisible();
+  const fields = within(panel).getByRole('button', { name: '显示字段' });
+  fireEvent.click(fields);
+  const option = within(panel).getByRole('checkbox', { name: '建筑高度' });
+  option.focus();
+  fireEvent.keyDown(option, { key: 'Escape' });
+  expect(fields).toHaveAttribute('aria-expanded', 'false');
+  expect(fields).toHaveFocus(); expect(panel).toBeVisible();
+});

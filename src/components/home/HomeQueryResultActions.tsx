@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Copy, FileText, MoreHorizontal } from 'lucide-react';
-import { HomeQueryMenu } from './HomeQueryMenu';
+import { HomeQueryMenu, queryActionFocus } from './HomeQueryMenu';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { renderResultCopy, type ResultCopyFormat } from '@/src/lib/intelligence/query/resultOutput';
@@ -18,7 +18,6 @@ export function HomeQueryResultActions(props: Props) {
 
 function ResultActions({ result, requestId, scope, internalExport, children, responseActions }: Props) {
   const copyId = React.useId();
-  const root = React.useRef<HTMLDivElement>(null);
   const [summary, setSummary] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -36,21 +35,6 @@ function ResultActions({ result, requestId, scope, internalExport, children, res
     return () => window.clearTimeout(timer);
   }, [copySucceeded]);
   React.useEffect(() => { if (summary) summaryRef.current?.focus({ preventScroll: true }); }, [summary]);
-  React.useEffect(() => {
-    const element = root.current;
-    if (!element) return;
-    const keepSingleDisclosure = (event: Event) => {
-      const opened = event.target;
-      if (!(opened instanceof HTMLDetailsElement) || !opened.open) return;
-      element.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(disclosure => {
-        if (disclosure !== opened) disclosure.open = false;
-      });
-    };
-    const dismiss = (event: PointerEvent) => { if (!element.contains(event.target as Node)) element.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(menu => { menu.open = false; }); };
-    document.addEventListener('pointerdown', dismiss);
-    element.addEventListener('toggle', keepSingleDisclosure, true);
-    return () => { document.removeEventListener('pointerdown', dismiss); element.removeEventListener('toggle', keepSingleDisclosure, true); };
-  }, []);
 
   async function copy(format: ResultCopyFormat, trigger: HTMLButtonElement) {
     if (!internalExport || active.current) return;
@@ -82,20 +66,7 @@ function ResultActions({ result, requestId, scope, internalExport, children, res
     catch { setMessage('本次结果过长，暂无法生成摘要。请查看原分析或导出完整数据。'); }
   }
 
-  function restoreActionFocus(trigger: HTMLButtonElement | null) {
-    const disclosure = trigger?.closest('details');
-    const destination = disclosure && !disclosure.open ? disclosure.querySelector('summary') : trigger;
-    destination?.focus({ preventScroll: true });
-  }
-
-  return <div ref={root} className={styles.root} onKeyDown={event => {
-    // Close the local disclosure first; Escape must not also close the workspace.
-    if (event.key !== 'Escape' || event.nativeEvent.isComposing || event.keyCode === 229) return;
-    const disclosure = event.target instanceof HTMLElement ? event.target.closest('details[open]') : null;
-    if (!(disclosure instanceof HTMLDetailsElement) || !event.currentTarget.contains(disclosure)) return;
-    event.preventDefault(); event.stopPropagation(); disclosure.open = false;
-    disclosure.querySelector('summary')?.focus({ preventScroll: true });
-  }}>
+  return <div className={styles.root}>
     <div className={styles.toolbar} aria-label="分析结果操作">
       {internalExport && <Button variant="ghost" size="sm" disabled={busy} aria-busy={busy} onClick={event => void copy('conclusion', event.currentTarget)}><Copy size={16} aria-hidden="true" />复制结论</Button>}
       {children}
@@ -111,10 +82,10 @@ function ResultActions({ result, requestId, scope, internalExport, children, res
       <label htmlFor={copyId}>可手动复制的分析内容</label>
       <textarea ref={manual} id={copyId} readOnly value={manualText} rows={6} />
       <Button variant="ghost" size="sm" onClick={() => { manual.current?.focus(); manual.current?.select(); }}>选择全部文字</Button>
-      <Button variant="ghost" size="sm" onClick={() => { setManualText(null); restoreActionFocus(copyTrigger.current); }}>关闭复制内容</Button>
+      <Button variant="ghost" size="sm" onClick={() => { setManualText(null); queryActionFocus(copyTrigger.current); }}>关闭复制内容</Button>
     </div>}
     {summary && <section className={styles.summary} aria-label="市场分析摘要" tabIndex={-1} ref={summaryRef}>
-      <div className={styles.summaryHeading}><h3>市场分析摘要</h3><Button variant="ghost" size="sm" onClick={() => { setSummary(null); restoreActionFocus(summaryTrigger.current); }}>收起摘要</Button></div>
+      <div className={styles.summaryHeading}><h3>市场分析摘要</h3><Button variant="ghost" size="sm" onClick={() => { setSummary(null); queryActionFocus(summaryTrigger.current); }}>收起摘要</Button></div>
       <p className={styles.message}>根据本次结果整理；保留原期间、口径与未知项。</p>
       <pre>{summary}</pre>
       {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('summary', event.currentTarget)}>复制分析摘要</Button>}
