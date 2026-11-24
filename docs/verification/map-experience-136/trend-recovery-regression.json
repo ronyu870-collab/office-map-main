@@ -1,0 +1,65 @@
+{
+  "capturedAt": "2026-11-23T23:36:19.350063+00:00",
+  "parent": "47daa7289d811a490d3ca5cc84bd6c20aa40d251",
+  "before": {
+    "browserExit": 1,
+    "browserLog": "viewport 1536\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: empty history uses a compact status instead of an empty chart: 280px\n    at verifyTrendRecovery (file:///private/tmp/colliers-map-workspace-v2/scripts/verification/workspace-trend-recovery.mjs:23:10)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at process.processImmediate (node:internal/timers:459:9)\n    at process.callbackTrampoline (node:internal/async_hooks:130:17)\n    at async file:///private/tmp/map-trend-recovery-focused.mjs:148:25 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '=='\n}\n\nNode.js v22.13.0\n",
+    "unitExit": 1,
+    "unitLog": "\n> office-map-main@0.1.0 test\n> vitest --run src/services/__tests__/MapController.trendRecovery.test.ts\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.6 /private/tmp/colliers-map-workspace-v2\n\n ❯ src/services/__tests__/MapController.trendRecovery.test.ts (4 tests | 4 failed) 145ms\n   × distinguishes empty reads from errors and retries once without closing the panel 25ms\n   × ignores an earlier read after close and reopen of the same project 53ms\n   × ignores late reads after hiding or detaching the current trend panel 32ms\n   × does not render a pending read after controller destruction 34ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  src/services/__tests__/MapController.trendRecovery.test.ts > distinguishes empty reads from errors and retries once without closing the panel\nAssertionError: expected null not to be null\n ❯ src/services/__tests__/MapController.trendRecovery.test.ts:29:21\n     27|   await waitFor(() => expect(document.body.textContent).toContain('历史数…\n     28|   const retry = document.querySelector<HTMLButtonElement>('#info-chart…\n     29|   expect(retry).not.toBeNull();\n       |                     ^\n     30|   expect(retry.textContent).toBe('重试读取历史数据');\n     31|   retry.focus(); retry.click();\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯\n\n FAIL  src/services/__tests__/MapController.trendRecovery.test.ts > ignores an earlier read after close and reopen of the same project\nAssertionError: expected \"vi.fn()\" to not be called at all, but actually been called 1 times\n\nReceived:\n\n  1st vi.fn() call:\n\n    Array []\n\n\nNumber of calls: 1\n\n ❯ src/services/__tests__/MapController.trendRecovery.test.ts:48:24\n     46|   finishOld([]);\n     47|   await new Promise(resolve => setTimeout(resolve, 30));\n     48|   expect(oldReady).not.toHaveBeenCalled();\n       |                        ^\n     49|   expect(document.getElementById('info-chart-panel')?.dataset.trendSta…\n     50|   expect(currentReady).toHaveBeenCalledOnce();\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯\n\n FAIL  src/services/__tests__/MapController.trendRecovery.test.ts > ignores late reads after hiding or detaching the current trend panel\nAssertionError: expected \"vi.fn()\" to not be called at all, but actually been called 1 times\n\nReceived:\n\n  1st vi.fn() call:\n\n    Array []\n\n\nNumber of calls: 1\n\n ❯ src/services/__tests__/MapController.trendRecovery.test.ts:59:21\n     57|   toggle('a', { onReady: ready }); toggle('a'); finish([]);\n     58|   await new Promise(resolve => setTimeout(resolve, 30));\n     59|   expect(ready).not.toHaveBeenCalled();\n       |                     ^\n     60|   toggle('a', { onReady: ready }); document.getElementById('info-chart…\n     61|   await new Promise(resolve => setTimeout(resolve, 30));\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯\n\n FAIL  src/services/__tests__/MapController.trendRecovery.test.ts > does not render a pending read after controller destruction\nAssertionError: expected \"vi.fn()\" to not be called at all, but actually been called 1 times\n\nReceived:\n\n  1st vi.fn() call:\n\n    Array []\n\n\nNumber of calls: 1\n\n ❯ src/services/__tests__/MapController.trendRecovery.test.ts:71:21\n     69|   toggle('a', { onReady: ready }); controller.destroy(); finish([]);\n     70|   await new Promise(resolve => setTimeout(resolve, 30));\n     71|   expect(ready).not.toHaveBeenCalled();\n       |                     ^\n     72| });\n     73|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯\n\n\n Test Files  1 failed (1)\n      Tests  4 failed (4)\n   Start at  07:34:42\n   Duration  1.33s (transform 227ms, setup 161ms, import 338ms, tests 145ms, environment 555ms)\n\n",
+    "assertions": "Missing actionable retry; old ready callbacks still run after same-project close/reopen, hide and controller destruction. All four fail independently with read mocks reset per case."
+  },
+  "implementation": [
+    "Empty/error chart states use content height and hide ineffective metric switches/empty period entry. Normal loading and data retain 280px chart height.",
+    "Read failure has a native keyboard retry button; exactly one read retains project/tab/open state. Focus enters loading status and returns to active metric on recovery.",
+    "Each attempt has its own token. Hide, newer reads, disconnected panel and destroyed controller reject late responses. Quarter selection and server auth are unchanged."
+  ],
+  "after": {
+    "focusedBrowserExit": 0,
+    "record": "trend-recovery-browser.json",
+    "widths": [
+      1536,
+      390,
+      320,
+      844
+    ],
+    "unitExit": 0,
+    "unitFiles": 5,
+    "unitTests": 22,
+    "typecheckExit": 0,
+    "lintExit": 0,
+    "lintErrors": 0,
+    "lintWarnings": 72,
+    "buildExit": 0,
+    "buildId": "lfTYLgmMdkW3Nm9Oe0uow",
+    "completeWorkspaceExit": 0,
+    "completeWorkspaceRecord": "trend-recovery-combined-browser.json",
+    "completeWorkspaceRecords": 50,
+    "completeWorkspaceWidths": [
+      1536,
+      390
+    ]
+  },
+  "observationCorrections": [
+    "First test draft attempted mocking the async ECharts module and hit real jsdom canvas errors; final controller tests use successful empty reads and callback assertions. Real canvas recovery is exercised in the browser.",
+    "A failed old implementation test initially left queued one-shot read mocks for following cases. Added per-case mockReset and reran: missing retry and three stale ready callbacks now fail independently.",
+    "Focused runner inherited an administrator label from an earlier template; actual four-width fixture role is viewer. This evidence corrects that metadata; 1024 in the shared runner separately uses admin."
+  ],
+  "limits": [
+    "Isolated reads/SDK/identity; no new real SDK, production account switching, native phone or performance measurement.",
+    "No claim that all async materials/layout or every role/module loading state is complete.",
+    "Exact-head CI/main pending."
+  ],
+  "filesSha256": {
+    "src/services/MapController.ts": "4acf1fd6295c3da65a6380365619b1d1866614cb21c4e7abe053c9ea6e0248ae",
+    "src/app/map/map-workbench.css": "99d677929239fdd0ee4a50bb9164dae17c65e35e009ca8d50bf5bf533e1fe8f1",
+    "src/services/__tests__/MapController.trendRecovery.test.ts": "3c679a1bf6c50ccfa044615d9f8d64565fee9bd43768a93d802ce3da2f50a6ce",
+    "scripts/verification/workspace-trend-recovery.mjs": "bcbcea81dfa738f0122f07f88c2a1ac45a10db3d8b22b97a03e2142255313595",
+    "scripts/verification/verify-map-workspace.mjs": "296f253077044df194dd6907c4b73441990cf05a5ebcd3074caec9599a7f4385"
+  },
+  "latestCombinedValidation": {
+    "exit": 0,
+    "record": "content-height-combined-browser.json",
+    "records": 60,
+    "scope": "Final visible-card styling and retained logical focus column; production build with isolated SDK/data/identity."
+  }
+}

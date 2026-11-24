@@ -262,6 +262,23 @@ try {
   await detail.waitFor();
   assert.equal(await detail.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true');
   assert.equal(await detail.getAttribute('data-building-id'),project);
+  // Exercise native history while a real submarket filter is active, separately
+  // from the comparison-group-only return earlier in this run.
+  const regionReading = await detail.locator('.workspace-scroll').evaluate(element=>element.scrollTop);
+  const regionCamera = await page.evaluate(()=>({zoom:window.__workspaceMap.getZoom(),center:window.__workspaceMap.center}));
+  for(let round=0;round<2;round++) {
+    await page.goBack();
+    await page.getByRole('heading',{name:/CBD甲楼/}).waitFor();
+    assert.ok(new URL(page.url()).pathname.startsWith('/stacking-plan/'), 'regional history back enters its actual Stacking layer');
+    await page.goForward(); await detail.waitFor();
+    assert.equal(await detail.getAttribute('data-building-id'),project);
+    assert.equal(await detail.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true');
+    await page.waitForFunction(({top,camera})=>{
+      const scroll=document.querySelector('.workspace-building-scroll');
+      return scroll&&Math.abs(scroll.scrollTop-top)<2&&window.__workspaceMap.getZoom()===camera.zoom&&JSON.stringify(window.__workspaceMap.center)===JSON.stringify(camera.center);
+    },{top:regionReading,camera:regionCamera});
+    assert.deepEqual(await page.evaluate(()=>window.__workspaceSDK.initialCameras.at(-1)),regionCamera,'regional forward initializes at the saved camera');
+  }
   await page.screenshot({path:`/tmp/map-task-chain-return-${width}-${reduced}.png`});
   await keyboardActivate(page,detail.getByRole('button',{name:'关闭楼宇详情',exact:true}));
   assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'),'true');
@@ -284,7 +301,7 @@ try {
     assert.equal(await page.getByText('地图加载失败',{exact:true}).count(),0,'valid empty stock is not a data failure');
   }
   await context.close();
-  observations.push({width,reduced,roundTrip:true,keyboardTaskChain:true,regionPreservedAfterChain:true,readingScroll,sameProjectRefocus:true,refreshRetainsContent:true,dirtyCancel:true,resizeCalls:resizes,dense600ReadyMs:denseReadyMs,dense600FilterMs:denseFilterMs,motion,errors});
+  observations.push({width,reduced,roundTrip:true,keyboardTaskChain:true,regionPreservedAfterChain:true,regionHistoryRoundTrips:2,regionHistoryReadingScroll:regionReading,readingScroll,sameProjectRefocus:true,refreshRetainsContent:true,dirtyCancel:true,resizeCalls:resizes,dense600ReadyMs:denseReadyMs,dense600FilterMs:denseFilterMs,motion,errors});
   assert.deepEqual(errors,[]);
  }
  console.log(JSON.stringify({environment:'production React + real controller + isolated SDK/data transport',observations}));

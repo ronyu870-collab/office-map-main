@@ -1,0 +1,154 @@
+{
+  "exit": 0,
+  "scope": "Final production build, isolated SDK/data/viewer; normal and reduced actual pointer reading, no new performance/native-phone claim.",
+  "paths": [
+    {
+      "mode": "normal",
+      "name": "project-long-owner-and-property",
+      "min": 344,
+      "max": 480,
+      "frames": 59,
+      "afterApplicationResizeSamples": 9,
+      "maxOverflowPx": 0,
+      "maxChartHostGapPx": 0,
+      "maxCanvasWidthChange": 0,
+      "maxCanvasHeightChange": 0
+    },
+    {
+      "mode": "normal",
+      "name": "project-trend",
+      "min": 344,
+      "max": 480,
+      "frames": 57,
+      "afterApplicationResizeSamples": 9,
+      "maxOverflowPx": 0,
+      "maxChartHostGapPx": 0,
+      "maxCanvasWidthChange": 0,
+      "maxCanvasHeightChange": 0
+    },
+    {
+      "mode": "normal",
+      "name": "research-long-text-and-compact-trend",
+      "min": 360,
+      "max": 520,
+      "frames": 58,
+      "afterApplicationResizeSamples": 9,
+      "maxOverflowPx": 0,
+      "maxChartHostGapPx": 0,
+      "maxCanvasWidthChange": 0,
+      "maxCanvasHeightChange": 0
+    },
+    {
+      "mode": "normal",
+      "name": "research-trend",
+      "min": 360,
+      "max": 520,
+      "frames": 57,
+      "afterApplicationResizeSamples": 9,
+      "maxOverflowPx": 0,
+      "maxChartHostGapPx": 0,
+      "maxCanvasWidthChange": 0,
+      "maxCanvasHeightChange": 0
+    },
+    {
+      "mode": "normal",
+      "name": "project-expanded-long-name",
+      "min": 344,
+      "max": 480,
+      "frames": 57,
+      "afterApplicationResizeSamples": 9,
+      "maxOverflowPx": 0,
+      "maxChartHostGapPx": 0,
+      "maxCanvasWidthChange": 0,
+      "maxCanvasHeightChange": 0
+    },
+    {
+      "mode": "reduced",
+      "name": "project-long-owner-and-property",
+      "min": 344,
+      "max": 480,
+      "frames": 58,
+      "afterApplicationResizeSamples": 9,
+      "maxOverflowPx": 0,
+      "maxChartHostGapPx": 0,
+      "maxCanvasWidthChange": 0,
+      "maxCanvasHeightChange": 0
+    },
+    {
+      "mode": "reduced",
+      "name": "project-trend",
+      "min": 344,
+      "max": 480,
+      "frames": 58,
+      "afterApplicationResizeSamples": 9,
+      "maxOverflowPx": 0,
+      "maxChartHostGapPx": 0,
+      "maxCanvasWidthChange": 0,
+      "maxCanvasHeightChange": 0
+    },
+    {
+      "mode": "reduced",
+      "name": "research-long-text-and-compact-trend",
+      "min": 360,
+      "max": 520,
+      "frames": 57,
+      "afterApplicationResizeSamples": 9,
+      "maxOverflowPx": 0,
+      "maxChartHostGapPx": 0,
+      "maxCanvasWidthChange": 0,
+      "maxCanvasHeightChange": 0
+    },
+    {
+      "mode": "reduced",
+      "name": "research-trend",
+      "min": 360,
+      "max": 520,
+      "frames": 57,
+      "afterApplicationResizeSamples": 9,
+      "maxOverflowPx": 0,
+      "maxChartHostGapPx": 0,
+      "maxCanvasWidthChange": 0,
+      "maxCanvasHeightChange": 0
+    },
+    {
+      "mode": "reduced",
+      "name": "project-expanded-long-name",
+      "min": 344,
+      "max": 480,
+      "frames": 57,
+      "afterApplicationResizeSamples": 9,
+      "maxOverflowPx": 0,
+      "maxChartHostGapPx": 0,
+      "maxCanvasWidthChange": 0,
+      "maxCanvasHeightChange": 0
+    }
+  ],
+  "titleReading": {
+    "normal": {
+      "before": {
+        "top": 0,
+        "client": 72,
+        "total": 157
+      },
+      "after": {
+        "top": 85,
+        "client": 72,
+        "total": 157
+      }
+    },
+    "reduced": {
+      "before": {
+        "top": 0,
+        "client": 72,
+        "total": 157
+      },
+      "after": {
+        "top": 84,
+        "client": 72,
+        "total": 157
+      }
+    }
+  },
+  "rawFramesOutput": "content-height-drag-full-frames.json",
+  "rawFramesSha256": "f6332ca6430b4afd0361a99cf69753f888bfb7efe2f883e7b4df1ace18ca749d"
+}

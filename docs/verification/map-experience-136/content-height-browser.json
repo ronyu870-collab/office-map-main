@@ -1,0 +1,198 @@
+{
+  "status": "pass",
+  "environment": "production app; isolated SDK/data; viewer except 1024 admin",
+  "observations": [
+    {
+      "width": 1536,
+      "contentHeight": {
+        "compact": false,
+        "short": {
+          "paneHeight": 499.078125,
+          "emptyTail": 13,
+          "scrollClient": 425,
+          "scrollHeight": 425,
+          "scrollTop": 0
+        },
+        "long": {
+          "paneHeight": 862,
+          "stageHeight": 886,
+          "headerTop": 114,
+          "paneTop": 114,
+          "scrollHeight": 1186,
+          "scrollClient": 788,
+          "scrollTop": 398
+        },
+        "returned": {
+          "paneHeight": 499.078125,
+          "emptyTail": 13,
+          "scrollClient": 425,
+          "scrollHeight": 425,
+          "scrollTop": 0
+        },
+        "sdkCanvasStable": true,
+        "headerRetained": true,
+        "mapReachableBelowShortContent": true
+      }
+    },
+    {
+      "width": 1280,
+      "contentHeight": {
+        "compact": false,
+        "short": {
+          "paneHeight": 499.078125,
+          "emptyTail": 13,
+          "scrollClient": 425,
+          "scrollHeight": 425,
+          "scrollTop": 0
+        },
+        "long": {
+          "paneHeight": 582,
+          "stageHeight": 606,
+          "headerTop": 114,
+          "paneTop": 114,
+          "scrollHeight": 1186,
+          "scrollClient": 508,
+          "scrollTop": 678
+        },
+        "returned": {
+          "paneHeight": 499.078125,
+          "emptyTail": 13,
+          "scrollClient": 425,
+          "scrollHeight": 425,
+          "scrollTop": 0
+        },
+        "sdkCanvasStable": true,
+        "headerRetained": true,
+        "mapReachableBelowShortContent": true
+      }
+    },
+    {
+      "width": 1024,
+      "contentHeight": {
+        "compact": false,
+        "short": {
+          "paneHeight": 499.078125,
+          "emptyTail": 13,
+          "scrollClient": 425,
+          "scrollHeight": 425,
+          "scrollTop": 0
+        },
+        "long": {
+          "paneHeight": 822,
+          "stageHeight": 846,
+          "headerTop": 154,
+          "paneTop": 154,
+          "scrollHeight": 1247,
+          "scrollClient": 748,
+          "scrollTop": 499
+        },
+        "returned": {
+          "paneHeight": 499.078125,
+          "emptyTail": 13,
+          "scrollClient": 425,
+          "scrollHeight": 425,
+          "scrollTop": 0
+        },
+        "sdkCanvasStable": true,
+        "headerRetained": true,
+        "mapReachableBelowShortContent": true
+      }
+    },
+    {
+      "width": 390,
+      "contentHeight": {
+        "compact": true,
+        "short": {
+          "paneHeight": 579,
+          "emptyTail": 81.21875,
+          "scrollClient": 526,
+          "scrollHeight": 526,
+          "scrollTop": 0
+        },
+        "long": {
+          "paneHeight": 579,
+          "stageHeight": 604,
+          "headerTop": 241,
+          "paneTop": 241,
+          "scrollHeight": 1218,
+          "scrollClient": 526,
+          "scrollTop": 692
+        },
+        "returned": {
+          "paneHeight": 579,
+          "emptyTail": 81.21875,
+          "scrollClient": 526,
+          "scrollHeight": 526,
+          "scrollTop": 0
+        },
+        "sdkCanvasStable": true,
+        "headerRetained": true,
+        "mapReachableBelowShortContent": null
+      }
+    },
+    {
+      "width": 320,
+      "contentHeight": {
+        "compact": true,
+        "short": {
+          "paneHeight": 583,
+          "emptyTail": 85.21875,
+          "scrollClient": 530,
+          "scrollHeight": 530,
+          "scrollTop": 0
+        },
+        "long": {
+          "paneHeight": 583,
+          "stageHeight": 608,
+          "headerTop": 237,
+          "paneTop": 237,
+          "scrollHeight": 1218,
+          "scrollClient": 530,
+          "scrollTop": 688
+        },
+        "returned": {
+          "paneHeight": 583,
+          "emptyTail": 85.21875,
+          "scrollClient": 530,
+          "scrollHeight": 530,
+          "scrollTop": 0
+        },
+        "sdkCanvasStable": true,
+        "headerRetained": true,
+        "mapReachableBelowShortContent": null
+      }
+    },
+    {
+      "width": 844,
+      "contentHeight": {
+        "compact": false,
+        "short": {
+          "paneHeight": 262,
+          "emptyTail": -260.078125,
+          "scrollClient": 184,
+          "scrollHeight": 457,
+          "scrollTop": 0
+        },
+        "long": {
+          "paneHeight": 262,
+          "stageHeight": 286,
+          "headerTop": 104,
+          "paneTop": 104,
+          "scrollHeight": 1218,
+          "scrollClient": 184,
+          "scrollTop": 1034
+        },
+        "returned": {
+          "paneHeight": 262,
+          "emptyTail": -242.078125,
+          "scrollClient": 184,
+          "scrollHeight": 457,
+          "scrollTop": 18
+        },
+        "sdkCanvasStable": true,
+        "headerRetained": true,
+        "mapReachableBelowShortContent": null
+      }
+    }
+  ]
+}

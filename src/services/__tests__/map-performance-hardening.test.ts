@@ -40,7 +40,7 @@ describe('Map performance hardening contracts', () => {
     expect(runtimeImport).toBeGreaterThanOrEqual(0);
     expect(historyRequest).toBeGreaterThan(runtimeImport);
     expect(trendSource).toContain('void trendRuntimePromise');
-    expect(trendSource).toContain('trend.buildingId !== buildingId');
-    expect(trendSource).toContain('panel.style.display === "none"');
+    expect(trendSource).toContain('trend.readRequest === readRequest');
+    expect(trendSource).toContain("panel.style.display !== 'none'");
   });
 });

@@ -1,0 +1,54 @@
+{
+  "status": "pass",
+  "environment": "Production React + real MapController; isolated SDK, data and viewer identity (four widths); no production writes or native phone claim.",
+  "observations": [
+    {
+      "width": 1536,
+      "trendRecovery": {
+        "emptyHeight": 44,
+        "errorHeight": 52,
+        "dataHeight": 280,
+        "reads": 3,
+        "exactSingleKeyboardRetry": true,
+        "projectAndTabPreserved": true,
+        "recoveredMetricFocus": true
+      }
+    },
+    {
+      "width": 390,
+      "trendRecovery": {
+        "emptyHeight": 44,
+        "errorHeight": 60,
+        "dataHeight": 280,
+        "reads": 3,
+        "exactSingleKeyboardRetry": true,
+        "projectAndTabPreserved": true,
+        "recoveredMetricFocus": true
+      }
+    },
+    {
+      "width": 320,
+      "trendRecovery": {
+        "emptyHeight": 44,
+        "errorHeight": 88.296875,
+        "dataHeight": 280,
+        "reads": 3,
+        "exactSingleKeyboardRetry": true,
+        "projectAndTabPreserved": true,
+        "recoveredMetricFocus": true
+      }
+    },
+    {
+      "width": 844,
+      "trendRecovery": {
+        "emptyHeight": 44,
+        "errorHeight": 60,
+        "dataHeight": 280,
+        "reads": 3,
+        "exactSingleKeyboardRetry": true,
+        "projectAndTabPreserved": true,
+        "recoveredMetricFocus": true
+      }
+    }
+  ]
+}

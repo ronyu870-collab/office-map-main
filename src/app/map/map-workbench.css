@@ -337,6 +337,11 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .workspace-sheet-states button { min-height: 36px; min-width: 52px; padding: 4px 8px; border-radius: 6px; color: #596779; }
 .workspace-sheet-states [aria-pressed="true"] { color: #003e7e; background: #edf4fb; }
 .workspace-building.building-popup { display: flex; flex-direction: column; width: 100%; height: 100%; max-height: none; border-radius: 0; background: #f8fafc; font-size: 14px; }
+/* Preserve the focus column while the visible project card ends at its content.
+   The map remains interactive below it; rich reading keeps the inner scroller. */
+.map-workspace-layout:not([data-compact]):not([data-expanded]) > .map-workspace-right:has([data-workspace-kind="building"]:not([hidden])) { background: transparent; border-left: 0; pointer-events: none; }
+.map-workspace-layout:not([data-compact]):not([data-expanded]) .workspace-building { height: fit-content; max-height: 100%; min-height: 0; flex: 0 1 auto; border-left: 1px solid #d9e0e8; border-bottom: 1px solid #d9e0e8; pointer-events: auto; }
+.map-workspace-layout:not([data-compact]):not([data-expanded]) > .map-workspace-right:has([data-workspace-kind="building"]:not([hidden])) .map-workspace-resize { bottom: auto; height: 72px; max-height: 100%; pointer-events: auto; }
 .workspace-building-scroll { padding: 12px 16px; }
 .workspace-building-photos { margin: 16px 0 0; }
 .workspace-building-photos .building-pilot-photo-trigger { min-height: 36px; padding: 6px 10px; border: 1px solid #d9e0e8; border-radius: 6px; background: #f8fafc; font-weight: 400; }
@@ -379,6 +384,9 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .workspace-trend-switch button[aria-pressed="true"] { color: #003e7e; background: #edf4fb; font-weight: 600; }
 .workspace-trend-switch button:focus-visible { outline: 2px solid #003e7e; outline-offset: -2px; }
 .workspace-trend-status { display: flex; align-items: center; justify-content: center; height: 100%; color: #667085; font-size: 14px; }
+#info-chart-panel:is([data-trend-state="empty"], [data-trend-state="error"]) #info-chart-container { height: auto !important; }
+#info-chart-panel:is([data-trend-state="empty"], [data-trend-state="error"]) .workspace-trend-status { justify-content: flex-start; flex-wrap: wrap; gap: 8px; min-height: 44px; padding: 8px 0; }
+#info-chart-panel:is([data-trend-state="empty"], [data-trend-state="error"]) :is(.workspace-trend-switch, [data-building-trend-data]) { display: none; }
 .workspace-trend-data { font-size: 14px; line-height: 20px; }
 .workspace-trend-data summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; color: #003e7e; }
 .workspace-trend-data summary::before { content: '›'; margin-right: 8px; }
