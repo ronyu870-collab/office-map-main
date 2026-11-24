@@ -206,6 +206,7 @@ function Heatmap({chart,onSource}:{chart:ResultChart;onSource:Props['onSource']}
 }
 
 function DistributionPlot({chart,onSource}:{chart:ResultChart;onSource:Props['onSource']}) {
+  const [selected, setSelected] = React.useState<number | null>(null);
   const d=chart.distribution!;
   if(!d.stats)return <p>没有有效样本，无法绘制分布；未知未按零绘制。</p>;
   const g=distributionGeometry(chart),maxCount=Math.max(1,...chart.points.map(p=>p.y??0));
@@ -216,7 +217,11 @@ function DistributionPlot({chart,onSource}:{chart:ResultChart;onSource:Props['on
       {chart.kind==='histogram'?<svg width="640" height="320" role="img" aria-label={`${d.label}直方图，${d.validCount}栋有效样本`}>
         <ChartGrid left={50} right={620} top={20} bottom={260} />
         <path d="M50 20 V260 H620" fill="none" stroke="var(--cd-color-border-strong)"/>
-        {chart.points.map((p,i)=>{const width=560/chart.points.length,left=55+i*width,height=(p.y??0)/maxCount*210;return <g key={p.yCell.entityId}><rect x={left} y={260-height} width={Math.max(1,width-2)} height={height} fill="var(--cd-color-ai-chart-fill, #bacfe5)"><title>{p.label}：{p.yText}栋</title></rect><text x={left+width/2} y={250-height} textAnchor="middle">{p.yText}</text><text x={left+width/2} y="284" textAnchor="middle">{i+1}</text></g>;})}
+        {chart.points.map((p,i)=>{const width=560/chart.points.length,left=55+i*width,height=(p.y??0)/maxCount*210;return <g key={p.yCell.entityId}><rect
+          tabIndex={height > 0 ? 0 : undefined} role={height > 0 ? 'button' : undefined} aria-label={`${p.label}：${p.yText} 栋`} aria-pressed={height > 0 ? selected === i : undefined}
+          onClick={() => setSelected(i)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(i); } }}
+          x={left} y={260-height} width={Math.max(1,width-2)} height={height} fill="var(--cd-color-ai-chart-fill, #bacfe5)"
+          stroke={selected === i ? 'var(--cd-color-brand)' : 'none'} strokeWidth="2"><title>{p.label}：{p.yText}栋</title></rect><text x={left+width/2} y={250-height} textAnchor="middle">{p.yText}</text><text x={left+width/2} y="284" textAnchor="middle">{i+1}</text></g>;})}
         <text x="50" y="310">区间编号（边界见下方）；纵向为楼宇数量</text>
       </svg>:<svg width="100%" height="200" role="img" aria-label={`${d.label}箱线图，${d.validCount}栋有效样本`}>
         <line x1={percent(x('lowerWhisker'))} x2={percent(x('upperWhisker'))} y1="80" y2="80" stroke="var(--cd-color-border-strong)"/>
@@ -226,6 +231,13 @@ function DistributionPlot({chart,onSource}:{chart:ResultChart;onSource:Props['on
         <text x={percent(70)} y="145">{g.min}</text><text x={percent(600)} y="145" textAnchor="end">{g.max}</text><text x={percent(70)} y="180">{d.label}（{units[d.unit]??d.unit}）</text>
       </svg>}
     </div>
+    {chart.kind === 'histogram' && selected !== null && chart.points[selected] && <div className={styles.actions} role="status" aria-label="区间读数">
+      <span>{chart.points[selected].label}：{chart.points[selected].yText} 栋</span>
+      <button type="button" className={styles.cell} onClick={event => {
+        const point = chart.points[selected];
+        onSource(point.yCell.sourceIds, `${point.label}：${point.yText} 栋`, event.currentTarget);
+      }}>数据依据</button>
+    </div>}
     <details className={styles.trace}><summary>分位数与箱线数值</summary><div className={styles.tableScroll} tabIndex={0} aria-label="分布统计数值，可滚动"><table><caption className="sr-only">分位算法Type 7，数值与来源来自本次结果</caption><thead><tr><th>统计量</th><th>数值（{units[d.unit]??d.unit}）</th></tr></thead><tbody>{(Object.keys(distributionStatLabels) as (keyof typeof distributionStatLabels)[]).map(key=><tr key={key}><th scope="row">{distributionStatLabels[key]}</th><td className={styles.number}><button type="button" className={styles.cell} onClick={event=>onSource(d.sourceIds,`${distributionStatLabels[key]}：${formatExact(d.stats![key],d.unit)}`,event.currentTarget)}>{formatExact(d.stats![key],d.unit)}</button></td></tr>)}</tbody></table></div></details>
     {chart.kind==='histogram'?<div className={styles.tableScroll} tabIndex={0} aria-label="分箱边界与数量，可滚动"><table><caption className="sr-only">分箱边界与数量</caption><thead><tr><th>区间（{units[d.unit]??d.unit}）</th><th>楼宇数量</th></tr></thead><tbody>{chart.points.map(p=><tr key={p.yCell.entityId}><th scope="row">{p.label}</th><td className={styles.number}><button type="button" className={styles.cell} onClick={event=>onSource(p.yCell.sourceIds,`${p.label}：${p.yText}栋`,event.currentTarget)}>{p.yText} 栋</button></td></tr>)}</tbody></table></div>:<p>箱体为P25–P75，中线为中位数；须线到围栏内的实际记录，点为围栏外记录。{d.assessment==='insufficient_sample'?'不足4栋未判定离群，须线使用最小/最大值。':'离群值仍参与全部统计。'}</p>}
   </>;

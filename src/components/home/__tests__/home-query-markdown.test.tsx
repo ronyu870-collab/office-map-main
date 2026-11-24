@@ -65,4 +65,24 @@ describe('shared AI Markdown answers', () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(scroll).toHaveBeenCalled();
   });
+
+  it('moves only the answer scrollport when a directory heading is selected', () => {
+    const long = ['## 研究结论', '研究正文。'.repeat(160), '## 样本核查', '研究正文。'.repeat(160), '## 后续核实', '需要核实。'.repeat(160)].join('\n\n');
+    const { container } = render(<div data-testid="workspace" style={{ overflow: 'hidden' }}><div data-testid="answer" style={{ overflowY: 'auto' }}><HomeQueryMarkdown text={long} /></div></div>);
+    const workspace = screen.getByTestId('workspace'), answer = screen.getByTestId('answer');
+    const heading = screen.getByRole('heading', { name: '后续核实' });
+    workspace.scrollTop = 37; answer.scrollTop = 100;
+    heading.style.scrollMarginTop = '24px';
+    vi.spyOn(answer, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 800, 400));
+    vi.spyOn(heading, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 1100, 400, 24));
+    const nativeScroll = vi.fn(() => { workspace.scrollTop = 480; });
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: nativeScroll });
+    fireEvent.click(screen.getByText('回答目录'));
+    fireEvent.click(screen.getByRole('button', { name: '后续核实' }));
+    expect(heading).toHaveFocus();
+    expect(answer.scrollTop).toBe(1076);
+    expect(workspace.scrollTop).toBe(37);
+    expect(nativeScroll).not.toHaveBeenCalled();
+    expect(container).toHaveTextContent('后续核实');
+  });
 });

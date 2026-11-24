@@ -24,6 +24,46 @@ function Workspace({ children, drawer = false }: { children: React.ReactNode; dr
 }
 beforeEach(() => { vi.resetAllMocks(); client.reportDelivery.mockResolvedValue(true); client.chart.mockImplementation(async (_scope, _request, result, request) => buildResultChart(result, request)); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+it('keeps the verified scope and quarter next to a single metric, including a real zero', () => {
+  const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
+  result.parameters.scope = { inventory: 'tracked', submarkets: ['CBD'] };
+  const cell = result.table.rows[0].cells.value;
+  if (cell.kind !== 'number') throw new Error('expected a numeric fixture');
+  cell.value = { numeric: 0, exact: { numerator: '0', denominator: '1' } };
+  const original = JSON.stringify(result);
+  render(<Workspace><HomeQueryResult result={result} /></Workspace>);
+  const metric = screen.getByRole('region', { name: '核心指标' });
+  expect(within(metric).getByLabelText('结果范围')).toHaveTextContent('CBD');
+  expect(within(metric).getByLabelText('结果范围')).toHaveTextContent('2026 Q3');
+  expect(within(metric).getByRole('button', { name: /查看来源/ })).toHaveTextContent('0');
+  expect(metric).toHaveTextContent('元/㎡/月');
+  expect(JSON.stringify(result)).toBe(original);
+});
+it('shows material uncertainty once beside a single entity without hiding its evidence', () => {
+  const result = classified();
+  result.table.rows = [result.table.rows[0]];
+  const row = result.table.rows[0];
+  row.entityId = '11111111-1111-4111-8111-111111111111';
+  for (const source of result.sources) if (row.cells.name.sourceIds.includes(source.id)) {
+    source.entityId = row.entityId;
+    source.recordId = row.entityId;
+  }
+  result.sources = result.sources.map(source => ({ ...source, verification: 'historical' }));
+  result.sources[0].verification = 'unreviewed';
+  result.table.columns.push({ key: 'netEffectiveRent', label: '净有效租金', unit: 'CNY/m2/month' });
+  result.table.rows[0].cells.netEffectiveRent = { kind: 'unknown', state: 'missing', reason: 'no_valid_sample', sourceIds: [] };
+  const original = JSON.stringify(result);
+  render(<Workspace><HomeQueryResult result={result} /></Workspace>);
+  expect(screen.getByRole('region', { name: '记录摘要' })).toHaveTextContent('未知');
+  const notices = screen.getAllByLabelText('重要数据限制');
+  expect(notices).toHaveLength(1);
+  expect(notices[0]).toHaveTextContent('不按零处理');
+  expect(notices[0]).toHaveTextContent('尚未核验');
+  expect(notices[0]).toHaveTextContent('含历史来源');
+  fireEvent.click(screen.getByRole('button', { name: '数据依据' }));
+  expect(screen.getByRole('region', { name: '数据依据' })).toBeInTheDocument();
+  expect(JSON.stringify(result)).toBe(original);
+});
 it('retains local table state through workspace opening, source switching and return without chart or query calls', async () => {
   const user = userEvent.setup();
   render(<Workspace><HomeQueryResult result={classified()} /></Workspace>);
