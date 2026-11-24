@@ -127,7 +127,7 @@ BEGIN
          'chatgpt_mcp', 'building_data_ai_enrichment',
          'building_brochure_data', a.target_id, a.target_name,
          a.new_values, a.old_values,
-         v_batch || ':rollback:' || a.details->>'building_id',
+         v_batch || ':rollback:' || (a.details->>'building_id'),
          'tool', 'ChatGPT（工具执行）'
     FROM public.audit_logs a
    WHERE a.action_type = 'AI_FIELD_FILL'
