@@ -3,6 +3,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { BUILDINGS } from '../../supabase/tests/ai-query-authority/snapshot-fixture.mjs';
 
+export function snapshotCopyBusinessText(text, result) {
+  // Opaque identifiers can randomly contain the mutation sentinel. Exclude only
+  // the exact saved identifiers; keep every business value in the assertion.
+  return text.replaceAll(result.dataVersion, '').replaceAll(result.resultId, '');
+}
+
 /** Real GoTrue / PostgreSQL / PostgREST / production Next execution. */
 export async function verifyP2Outputs({ db, app, check, queryAdmin, person, call, artifact, acknowledge, exportCaps, events, decrypt }) {
   const query = () => call(queryAdmin, { idempotencyKey: randomUUID(), question: '2026Q3CBD净有效租金' });
@@ -24,7 +30,8 @@ export async function verifyP2Outputs({ db, app, check, queryAdmin, person, call
         const copy = await artifact(queryAdmin, { requestId: source.requestId, resultId: source.result.resultId, action: 'copy', format });
         assert.equal(copy.status, 200); assert.equal(copy.body.resultId, source.result.resultId); assert.equal(copy.body.format, format);
         assert.match(copy.body.text, /2026Q3/); assert.match(copy.body.text, /170/); assert.match(copy.body.text, /元\/㎡\/月/);
-        assert.match(copy.body.text, /有效 3 栋|参与 3 栋/); assert.doesNotMatch(copy.body.text, /9999|9,999/);
+        assert.match(copy.body.text, /有效 3 栋|参与 3 栋/);
+        assert.doesNotMatch(snapshotCopyBusinessText(copy.body.text, source.result), /9999|9,999/);
         assert.equal(copy.body.result, undefined); assert.match(copy.headers.get('cache-control'), /no-store/);
         assert.equal(copy.headers.get('x-query-body-sha256'), createHash('sha256').update(JSON.stringify(copy.body)).digest('hex'));
         const logged = decrypt((await events(copy.body.attemptId)).find(event => event.kind === 'response_generated')).content.result.artifact;

@@ -56,6 +56,6 @@ it('aborts a closed read and never reopens from its late response',async()=>{
 });
 it('retries a denied read in the same project without changing its source identity',async()=>{
  const reader=vi.mocked(fetch);reader.mockResolvedValueOnce(Response.json({error:'当前账号无权读取'},{status:403}));
- setup();await screen.findByText('当前账号无权读取');fireEvent.click(screen.getByRole('button',{name:'重新加载'}));
+ setup();await screen.findByRole('alert');expect(screen.getByText('没有权限读取关联成交')).toBeVisible();fireEvent.click(screen.getByRole('button',{name:'重新加载'}));
  await screen.findByText('历史公司');expect(reader).toHaveBeenCalledTimes(2);expect(reader.mock.calls[1][0]).toBe(reader.mock.calls[0][0]);
 });

@@ -34,6 +34,19 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('memo navigation and save feedback', () => {
+  it('keeps an unavailable memo distinct from a failed request and can open another memo', async () => {
+    api.getMemo.mockResolvedValueOnce(null);
+    render(<MemoManager adminEmail="admin@example.test" />);
+    await act(async () => {
+      fireEvent.click(screen.getByText('打开甲'));
+      await vi.dynamicImportSettled();
+    });
+    expect(screen.getByText('备忘录不可用')).toBeVisible();
+    expect(screen.queryByRole('button', { name: '重试读取正文' })).not.toBeInTheDocument();
+    await act(async () => { fireEvent.click(screen.getByText('打开乙')); });
+    expect(screen.getByText('乙正文')).toBeVisible();
+  });
+
   it('saves body, title and tags before switching within the debounce window', async () => {
     await openEditor();
     fireEvent.change(screen.getByLabelText('备忘录正文'), { target: { value: '最新正文' } });
@@ -52,7 +65,7 @@ describe('memo navigation and save feedback', () => {
     await act(async () => { fireEvent.click(screen.getByText('打开乙')); });
     expect(screen.getByRole('alert')).toHaveTextContent('当前输入仍保留');
     expect(screen.getByLabelText('备忘录正文')).toHaveValue('未保存内容');
-    expect(api.getMemo).not.toHaveBeenCalledWith('b');
+    expect(api.getMemo).not.toHaveBeenCalledWith('b', expect.any(AbortSignal));
     await act(async () => { fireEvent.click(screen.getByText('新建')); });
     expect(api.createNew).not.toHaveBeenCalled();
     api.updateMemoContent.mockResolvedValue({});

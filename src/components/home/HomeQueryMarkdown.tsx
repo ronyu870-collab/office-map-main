@@ -17,6 +17,19 @@ type Section = { line: number; label: string };
 const remarkPlugins = [remarkGfm];
 const rehypePlugins = [rehypeSanitize];
 
+function revealSection(target: HTMLElement) {
+  target.focus({ preventScroll: true });
+  // Native scrollIntoView also scrolls overflow:hidden workspace ancestors,
+  // moving the composer. A directory jump owns only the nearest reading pane.
+  for (let parent = target.parentElement; parent; parent = parent.parentElement) {
+    if (!/(auto|scroll)/.test(getComputedStyle(parent).overflowY)) continue;
+    const margin = Number.parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+    parent.scrollTop += target.getBoundingClientRect().top - parent.getBoundingClientRect().top - parent.clientTop - margin;
+    return;
+  }
+  target.scrollIntoView({ block: 'start', behavior: 'auto' });
+}
+
 /** A small optional reading aid. Code fences and indented code are not headings.
  * IDs use source lines, so repeated titles never collide within an answer. */
 function sectionsFor(text: string): Section[] {
@@ -91,7 +104,7 @@ export const HomeQueryMarkdown = React.memo(function HomeQueryMarkdown({ text, s
       <summary>回答目录</summary>
       <nav aria-label="回答目录">{sections.map(section => <button key={section.line} type="button" onClick={() => {
         const target = document.getElementById(`${prefix}-section-${section.line}`);
-        target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'start', behavior: 'auto' });
+        if (target) revealSection(target);
       }}>{section.label}</button>)}</nav>
     </details>}
     <MarkdownBody text={rendered} prefix={prefix} />

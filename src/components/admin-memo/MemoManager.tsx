@@ -1,7 +1,8 @@
 'use client';
 
-import { lazy, Suspense, useState, useCallback, useRef } from 'react';
+import { lazy, Suspense, useState, useCallback, useEffect, useRef } from 'react';
 import { ChevronLeft, FileText, Loader2 } from 'lucide-react';
+import { useAdminEditProtection } from '@/src/components/admin/AdminEditProtection';
 import { useMemos } from '@/src/hooks/useMemos';
 import { MemoList } from './MemoList';
 import type { MemoEditorHandle } from './MemoEditor';
@@ -22,6 +23,23 @@ export function MemoManager({ adminEmail }: MemoManagerProps) {
   const editorRef = useRef<MemoEditorHandle>(null);
   const changingMemo = useRef(false);
   const [leaving, setLeaving] = useState(false);
+  const { register } = useAdminEditProtection();
+  const guardKey = useRef(Symbol('memo-editor'));
+
+  useEffect(() => {
+    if (!selectedId) return;
+    return register(guardKey.current, async () => {
+      if (changingMemo.current) return false;
+      changingMemo.current = true;
+      setLeaving(true);
+      try {
+        return await editorRef.current?.saveBeforeLeave() ?? true;
+      } finally {
+        changingMemo.current = false;
+        setLeaving(false);
+      }
+    });
+  }, [register, selectedId]);
 
   const { memos, loading, error, tags, tagError, refresh, refreshList, refreshTags, createNew, remove, togglePin } = useMemos({
     tag: selectedTag ?? undefined,

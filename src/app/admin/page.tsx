@@ -8,7 +8,8 @@ import { useSearchParams } from "next/navigation";
 import { AdminSidebar, ADMIN_SECTION_META, type AdminSection } from "@/src/components/admin/AdminSidebar";
 import { PageErrorBoundary } from "@/src/components/ErrorBoundary/PageErrorBoundary";
 import { IconButton, LoadingState } from "@/src/components/ui";
-import { useAdminOperator, useAdminOperatorEmail } from "./adminOperatorEmail";
+import { useAdminOperator } from "./adminOperatorEmail";
+import { noticeDraftKey } from "@/src/components/admin/noticeDraftStorage";
 import { useAppSession } from "@/src/components/SessionProvider";
 import { isAdminRole } from "@/src/utils/adminAccess";
 
@@ -42,7 +43,9 @@ function AdminImpersonationSection() {
 function AdminPageContent() {
   const searchParams = useSearchParams();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const adminEmail = useAdminOperatorEmail();
+  const operator = useAdminOperator();
+  const adminEmail = operator?.email ?? '';
+  const noticeStorageKey = operator?.sessionId ? noticeDraftKey(operator.userId, operator.sessionId) : null;
   const requestedSection = searchParams.get('section');
   const activeSection: AdminSection = requestedSection && requestedSection in ADMIN_SECTION_META && requestedSection !== 'display-overrides'
     ? requestedSection as AdminSection
@@ -61,7 +64,7 @@ function AdminPageContent() {
           {activeSection === 'submissions' && <SubmissionManager />}
           {activeSection === 'schema' && <div className="h-full min-h-0 w-full overflow-hidden"><SchemaMap /></div>}
           {activeSection === 'oss' && <div className="h-full min-h-0 w-full overflow-hidden"><OSSManager userEmail={adminEmail || 'unknown'} /></div>}
-          {activeSection === 'notice' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><NoticeManager key={adminEmail} adminEmail={adminEmail} /></div>}
+          {activeSection === 'notice' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><NoticeManager key={noticeStorageKey ?? adminEmail} adminEmail={adminEmail} draftStorageKey={noticeStorageKey} /></div>}
           {activeSection === 'memo' && <div className="h-full min-h-0 w-full overflow-hidden"><MemoManager adminEmail={adminEmail || 'unknown'} /></div>}
           {activeSection === 'issues' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><IssueManager key={adminEmail} adminEmail={adminEmail} /></div>}
           {activeSection === 'changelog' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><ChangelogManager key={adminEmail} adminEmail={adminEmail} /></div>}

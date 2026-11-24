@@ -41,6 +41,7 @@ const readingAudit = load(path.join(cwd, 'src/utils/businessReadingAudit.ts'), n
 });
 const report = load(path.join(directory, 'OccupierInsightsReport.tsx'), name => {
   if (name === '@/src/utils/businessReadingAudit') return readingAudit;
+  if (name === '@/src/utils/visualPreview') return load(path.join(cwd, 'src/utils/visualPreview.ts'));
   if (name === 'next/image') return { __esModule: true, default: ({ src, fill, ...input }) => {
     const props = { ...input };
     delete props.unoptimized;

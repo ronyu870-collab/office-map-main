@@ -5,6 +5,7 @@ import { createContext, useContext } from 'react';
 export interface AdminOperator {
   userId: string;
   email: string;
+  sessionId: string | null;
 }
 
 export const AdminOperatorContext = createContext<AdminOperator | null>(null);

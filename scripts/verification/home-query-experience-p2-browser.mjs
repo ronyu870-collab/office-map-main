@@ -2,10 +2,11 @@ import { checkKeyboardLayoutContinuity } from './query-focus-layout-checks.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { checkAllQueryMenus, checkResponsiveQueryMenus, menuRecords } from './query-menu-browser-checks.mjs';
 import { checkFocusTransitions } from './query-focus-browser-checks.mjs';
 
 // Actual Next/React pages, synthetic HTTP data. This is visual and interaction
@@ -19,17 +20,19 @@ const [variant = 'after', base = 'http://127.0.0.1:3213'] = process.argv.slice(2
 assert.ok(['before', 'after'].includes(variant));
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(base).hostname), 'local isolated preview only');
 const out = resolve(process.env.HOME_QUERY_P2_EVIDENCE_DIR || `${root}/docs/verification/colliers-ai-experience-p2/browser`);
-const widths = (process.env.HOME_QUERY_P2_WIDTHS || '1280,1536,768,390,320').split(',').map(Number);
-assert.ok(widths.every(width => [1280,1536,768,390,320].includes(width)));
+const widths = (process.env.HOME_QUERY_P2_WIDTHS || '1280,1536,1024,768,390,320').split(',').map(Number);
+assert.ok(widths.every(width => [1280,1536,1024,768,390,320].includes(width)));
 await mkdir(out, { recursive: true });
 const sourceRequire = createRequire(`${sourceRoot}/package.json`);
 const screenshotPixels = sourceRequire('sharp');
 sourceRequire('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'CommonJS', moduleResolution: 'Node' } });
 const { fixture } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/__tests__/fixtures.ts`);
-const { buildAggregateResult, buildTrendResult, buildListResult, buildRankResult } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/result.ts`);
+const { buildAggregateResult, buildTrendResult, buildListResult, buildRankResult, buildDistributionResult, buildRelationshipResult, buildGroupedResult } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/result.ts`);
+const { crossTrendPlan, crossTrendSnapshots } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/__tests__/crossTrendFixture.ts`);
 const { resolveNumericFact } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/facts.ts`);
 const { attachResearchAnalysis } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/researchAnalysis.ts`);
 const { buildResultChart } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/charts.ts`);
+const { renderResultCopy } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/resultOutput.ts`);
 const { buildResultArtifact } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/artifacts.ts`);
 const { resultViewSchema } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/presentation.ts`);
 const { chromium } = require(process.env.PERF_PLAYWRIGHT_MODULE || 'playwright-core');
@@ -59,6 +62,16 @@ function stableResult(result, resultId) {
   return resultViewSchema.parse(copy);
 }
 const aggregate = stableResult(buildAggregateResult(fixture(), 'rent'), '11111111-1111-4111-8111-111111111111');
+const vacancyResult = stableResult(buildAggregateResult(fixture(), 'vacancy'), '11111111-2222-4222-8222-111111111111');
+const relationship = stableResult(buildRelationshipResult(fixture()), '11111111-3333-4333-8333-111111111111');
+const regionSnapshots = crossTrendSnapshots(crossTrendPlan());
+const regional = stableResult(buildGroupedResult([regionSnapshots.at(-1)], [regionSnapshots.at(-1)], 'submarket', 'rent', 'per_period'), '11111111-4444-4444-8444-111111111111');
+regional.parameters.scope = { inventory: 'tracked' };
+const longMarkdown = ['## ' + '北京办公市场研究与有效样本边界'.repeat(6),
+  '此回答为合成界面夹具，未附可核验来源，不能作为业务结论。', '研究正文与样本限制。'.repeat(260),
+  '## 样本核查', '| 指标 | 数值 |\n| --- | ---: |\n| 合成读数 | 0 |',
+  'https://example.test/' + 'long-path-without-breaks'.repeat(12),
+  '## 后续核实', '长研究回答的最后一段。', '```text\n尚未闭合的代码与 **Markdown'].join('\n\n');
 const gapSnapshots = snapshots.map((snapshot, index) => index !== 4 ? snapshot : { ...snapshot, rows: snapshot.rows.map(row => ({ ...row, facts: { ...row.facts, netEffectiveRent: resolveNumericFact('netEffectiveRent', row.id, row.facts.netEffectiveRent.sources.map(source => ({ ...source, rawValue: null })), snapshot.period) } })) });
 const trend = stableResult(attachResearchAnalysis(buildTrendResult(gapSnapshots, 'rent', 'per_period'), gapSnapshots), '22222222-2222-4222-8222-222222222222');
 // Larger source-bound list for AI6 table interactions. Only local fixture data.
@@ -74,9 +87,32 @@ listSnapshot.rows = Array.from({ length: 32 }, (_, index) => {
 });
 listSnapshot.expectedCount = listSnapshot.rows.length;
 const tableResult = stableResult(buildListResult(listSnapshot, ['height', 'netEffectiveRent']), '44444444-4444-4444-8444-444444444444');
-const ranking = stableResult(buildRankResult(listSnapshot, 'height', 5, 'desc'), '55555555-5555-4555-8555-555555555555');
+if (process.env.HOME_QUERY_MENU_ONLY === '1') {
+  tableResult.table.columns.push({ key: 'submarket', label: '子市场', unit: null }, { key: 'grade', label: '等级', unit: null });
+  tableResult.table.rows.forEach((row, i) => { row.cells.submarket = { kind: 'text', value: i % 2 ? '望京' : 'CBD', sourceIds: [] }; row.cells.grade = { kind: 'text', value: i % 3 ? '甲级' : '乙级', sourceIds: [] }; });
+}
+const professional = stableResult({ ...tableResult, parameters: { ...tableResult.parameters, agentChart: { version: 'chart-workspace/1', format: 'png_zip', request: { kind: 'plot', type: 'horizontal_bar', x: 'name', y: ['netEffectiveRent'] } } } }, '45454545-4545-4545-8545-454545454545');
+const ranking = stableResult(buildRankResult(listSnapshot, 'height', 10, 'desc'), '55555555-5555-4555-8555-555555555555');
+const distributionSnapshot = fixture();
+for (const [index, value] of [[0, 100], [1, 101], [3, 200]]) {
+  const row = distributionSnapshot.rows[index];
+  row.facts.netEffectiveRent = resolveNumericFact('netEffectiveRent', row.id,
+    row.facts.netEffectiveRent.sources.map(source => ({ ...source, rawValue: value })), distributionSnapshot.period);
+}
+const distribution = stableResult(buildDistributionResult(distributionSnapshot, 'rent'), '99999999-9999-4999-8999-999999999999');
+const entitySnapshot = fixture();
+entitySnapshot.rows = [entitySnapshot.rows[2]];
+entitySnapshot.expectedCount = entitySnapshot.rows.length;
+const entityRow = entitySnapshot.rows[0];
+entityRow.id = '12345678-1111-4111-8111-111111111111';
+entityRow.nameSource = { ...entityRow.nameSource, entityId: entityRow.id, recordId: entityRow.id };
+for (const fact of Object.values(entityRow.facts)) fact.sources = fact.sources.map(source => ({ ...source, entityId: entityRow.id }));
+const entity = stableResult(buildListResult(entitySnapshot, ['height', 'totalArea']), '12345678-2222-4222-8222-222222222222');
+entity.sources = entity.sources.map(source => ({ ...source, verification: source.id === entityRow.nameSource.id ? 'historical' : 'unreviewed' }));
 const fileResult = stableResult({ ...tableResult, parameters: { ...tableResult.parameters,
   agentExport: { version: 'agent-export/1', format: 'xlsx', singleSheet: false, matchedRows: 32, exportedRows: 32 } } }, '66666666-6666-4666-8666-666666666666');
+const pdfResult = stableResult({ ...tableResult, parameters: { ...tableResult.parameters,
+  agentReport: { version: 'research-pdf/1', format: 'pdf', purpose: 'internal', generatedAt: '2026-11-17T03:00:00.000Z', sectionCount: 1, rowCount: 32, sections: [{ result: tableResult, chart: null }] } } }, '66666666-7777-4777-8777-666666666666');
 function leaseFixture(available, quarter) {
   const result = structuredClone(aggregate);
   result.resultId = available ? '77777777-7777-4777-8777-777777777777' : '88888888-8888-4888-8888-888888888888';
@@ -97,44 +133,65 @@ const historyEntries = ['CBD 季度租金跟踪', '金融街与 CBD 区域对比
 }));
 const notices = [{ id: 1, content: '季度数据已更新，请核对负责楼宇的填报进度。', updated_at: '2026-11-17T02:00:00Z', is_active: true }, { id: 2, content: '地图支持查看楼宇照片、租赁成交及历史季度指标。', updated_at: '2026-11-16T02:00:00Z', is_active: true }];
 const records = [];
-const fixtureDigest = createHash('sha256').update(JSON.stringify({ examples, aggregate, trend, tableResult, ranking, fileResult, leaseSelection, historyEntries, notices })).digest('hex');
+const fixtureDigest = createHash('sha256').update(JSON.stringify({ examples, aggregate, vacancyResult, relationship, regional, longMarkdown, trend, tableResult, ranking, distribution, entity, fileResult, pdfResult, leaseSelection, historyEntries, notices })).digest('hex');
 const baseline = execFileSync('git', ['-C', sourceRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const sourceDiff = execFileSync('git', ['-C', sourceRoot, 'diff', '--', 'src/components/home', 'src/styles/tokens.css'], { encoding: 'utf8' });
 const sourceDiffSha256 = createHash('sha256').update(sourceDiff).digest('hex');
-const browser = await chromium.launch({ ...(process.env.PERF_BROWSER_EXECUTABLE ? { executablePath: process.env.PERF_BROWSER_EXECUTABLE } : process.env.PERF_BROWSER_CHANNEL && process.env.PERF_BROWSER_CHANNEL !== 'chromium' ? { channel: process.env.PERF_BROWSER_CHANNEL } : {}), headless: true });
+const launchOptions = { ...(process.env.PERF_BROWSER_EXECUTABLE ? { executablePath: process.env.PERF_BROWSER_EXECUTABLE } : process.env.PERF_BROWSER_CHANNEL && process.env.PERF_BROWSER_CHANNEL !== 'chromium' ? { channel: process.env.PERF_BROWSER_CHANNEL } : {}), headless: true };
+const zoom = Number(process.env.HOME_QUERY_P2_BROWSER_ZOOM || 1);
+assert.ok([1, 1.25, 2].includes(zoom));
+let zoomProfile, zoomContext;
+if (zoom !== 1) {
+  assert.ok(widths.length === 1 && widths[0] === 1280 && process.env.HOME_QUERY_MENU_ONLY === '1');
+  // Chromium's native per-host browser zoom, not CSS zoom or pinch emulation.
+  zoomProfile = await mkdtemp('/tmp/colliers-ai-zoom-');
+  await mkdir(`${zoomProfile}/Default`);
+  await writeFile(`${zoomProfile}/Default/Preferences`, JSON.stringify({ partition: { per_host_zoom_levels: { x: { [new URL(base).hostname]: { zoom_level: Math.log(zoom) / Math.log(1.2), last_modified: '13400000000000000' } } } } }));
+  // Playwright's default headless shell does not load Chrome's zoom prefs.
+  // The installed full Chromium channel uses native Chrome browser zoom.
+  const zoomBrowser = process.env.PERF_BROWSER_EXECUTABLE ? {} : { channel: process.env.PERF_BROWSER_CHANNEL || 'chromium' };
+  zoomContext = await chromium.launchPersistentContext(zoomProfile, { ...launchOptions, ...zoomBrowser, viewport: { width: 1280, height: 900 }, serviceWorkers: 'block', locale: 'zh-CN', timezoneId: 'Asia/Shanghai' });
+}
+const browser = zoomContext?.browser() ?? await chromium.launch(launchOptions);
 
 async function makePage(width, capability = 'enabled', role = 'admin') {
   const height = width === 768 ? 1024 : width < 640 ? 844 : 900;
-  const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block', locale: 'zh-CN', timezoneId: 'Asia/Shanghai' });
+  const context = zoomContext ?? await browser.newContext({ viewport: { width, height }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block', locale: 'zh-CN', timezoneId: 'Asia/Shanghai' });
   const calls = [], errors = [];
-  const control = { answer: 'short', release: null, currentResult: aggregate, lastBody: null };
+  const localHistory = structuredClone(historyEntries);
+  if (process.env.HOME_QUERY_MENU_ONLY === '1') for (let i = 3; i < 15; i++) localHistory.push({ ...localHistory[0], conversationId: `33333333-3333-4333-8333-${String(i).padStart(12, '0')}`, title: `合成长历史记录 ${i}` });
+  const control = { exportFailures: 0, answer: 'short', release: null, currentResult: aggregate, lastBody: null };
   // Keep localhost's development HMR transport; only the synthetic Supabase
   // realtime transport is closed. Production mode does not require HMR.
   await context.routeWebSocket(/^wss:\/\/example\.supabase\.co/, ws => ws.close());
   await context.route('**/*', async route => {
     const request = route.request(), url = new URL(request.url());
     const body = request.method() === 'POST' ? request.postDataJSON() : null;
-    calls.push({ path: url.pathname, method: request.method(), action: body?.action });
+    calls.push({ path: url.pathname, method: request.method(), action: body?.action, ...(['export', 'chart'].includes(body?.action) ? { selection: body.selection, chart: body.chart, resultId: body.resultId, format: body.format } : {}) });
     const json = data => route.fulfill({ json: data });
     if (url.origin === new URL(base).origin) {
       if (url.pathname === '/api/intelligence/query/capabilities') return capability === 'error'
         ? route.fulfill({ status: 503, json: { error: 'synthetic capability unavailable' } })
         : json({ enabled: capability === 'enabled', permissionRevision: 'synthetic-visual-v1', examples: capability === 'enabled' ? examples : [], internalExport: true });
       if (url.pathname === '/api/intelligence/query/history') {
-        if (body.action === 'list') return json({ status: 'ready', page: { entries: historyEntries.filter(entry => entry.title.includes(body.search || '') || entry.latestQuestion.includes(body.search || '')), hasMore: false, indexing: false, unavailable: 0 } });
+        if (body.action === 'list') return json({ status: 'ready', page: { entries: localHistory.filter(entry => entry.archived === !!body.archived && (entry.title.includes(body.search || '') || entry.latestQuestion.includes(body.search || ''))), hasMore: false, indexing: false, unavailable: 0 } });
         if (body.action === 'open') return json({ status: 'ready', opened: { conversation: { id: body.conversationId, parentRequestId: requestId, resumeToken: 'synthetic-resume' }, title: historyEntries[0].title, turns: [{ requestId, question: '2026Q3 CBD 净有效租金是多少？', submittedAt: '2026-11-17T02:30:00Z', state: 'ready' }], selected: { requestId, question: '2026Q3 CBD 净有效租金是多少？', submittedAt: '2026-11-17T02:30:00Z', state: 'ready', reply: { requestId, status: 'ready', result: aggregate } }, hasMore: false } });
+        if (body.action === 'rename') localHistory.find(entry => entry.conversationId === body.conversationId).title = body.title;
+        if (body.action === 'archive') localHistory.find(entry => entry.conversationId === body.conversationId).archived = body.archived;
         return json({ status: 'saved' });
       }
       if (url.pathname === '/api/intelligence/query/artifact') {
         if (body.action === 'chart') {
-          const selected = [aggregate, trend, tableResult, ranking, fileResult, leaseSummary, leaseUnknown].find(result => result.resultId === body.resultId);
+          const selected = [aggregate, vacancyResult, relationship, regional, trend, tableResult, professional, ranking, distribution, entity, fileResult, pdfResult, leaseSummary, leaseUnknown].find(result => result.resultId === body.resultId);
           return json({ status: 'ready', chart: buildResultChart(selected ?? control.currentResult, body.chart) });
         }
-        if (body.action === 'export' && body.resultId === fileResult.resultId) {
-          const artifact = await buildResultArtifact(fileResult, body);
-          return route.fulfill({ body: Buffer.from(artifact.bytes), contentType: artifact.contentType, headers: { 'content-disposition': `attachment; filename="fixture.xlsx"`, 'x-query-result-id': body.resultId, 'x-artifact-sha256': artifact.sha256 } });
+        if (body.action === 'export' && (process.env.HOME_QUERY_MENU_ONLY === '1' || [fileResult.resultId, pdfResult.resultId].includes(body.resultId))) {
+          if (control.exportFailures-- > 0) return route.fulfill({ status: 503, json: { error: '合成下载失败，请重试。' } });
+          const source = [aggregate, vacancyResult, relationship, regional, trend, tableResult, professional, ranking, distribution, entity, fileResult, pdfResult, leaseSummary, leaseUnknown].find(result => result.resultId === body.resultId);
+          const artifact = await buildResultArtifact(source, body);
+          return route.fulfill({ body: Buffer.from(artifact.bytes), contentType: artifact.contentType, headers: { 'content-disposition': `attachment; filename="fixture.${body.format.endsWith('_zip') ? 'zip' : body.format}"`, 'x-query-result-id': body.resultId, 'x-artifact-sha256': artifact.sha256 } });
         }
-        if (body.action === 'copy') return json({ status: 'ready', requestId: body.requestId, resultId: body.resultId, format: body.format, text: '合成视觉夹具的研究结论。', resultDigest: 'a'.repeat(64) });
+        if (body.action === 'copy') return json({ status: 'ready', requestId: body.requestId, resultId: body.resultId, format: body.format, text: renderResultCopy([aggregate, trend, tableResult, professional, ranking].find(result => result.resultId === body.resultId) ?? control.currentResult, body.format), resultDigest: 'a'.repeat(64) });
         return route.fulfill({ status: 503, json: { error: 'Visual fixture does not implement file export; original export regressions remain required.' } });
       }
       if (url.pathname === '/api/intelligence/query/receipt') return json({ status: 'recorded' });
@@ -144,8 +201,9 @@ async function makePage(width, capability = 'enabled', role = 'admin') {
         const shared = { requestId, conversation: body.conversation, options: [] };
         if (control.answer === 'failure') return json({ ...shared, status: 'unavailable' });
         if (control.answer === 'clarification') return json({ ...shared, status: 'clarification', reason: 'period_required', message: '你想查看哪个季度的净有效租金？选择季度后，我会按当前获权样本继续查询。', options: [{ id: 'quarter', label: '2026 年第三季度', question: '2026Q3 CBD 净有效租金' }] });
-        if (['aggregate', 'complex', 'table', 'ranking', 'file', 'lease-unknown', 'lease-alternative'].includes(control.answer)) {
-          control.currentResult = ({ table: tableResult, aggregate, complex: trend, ranking, file: fileResult, 'lease-unknown': leaseUnknown, 'lease-alternative': leaseSummary })[control.answer];
+        if (control.answer === 'long-markdown') return json({ ...shared, status: 'clarification', reason: 'assistant_help', message: longMarkdown });
+        if (['professional', 'aggregate', 'vacancy', 'relationship', 'regional', 'complex', 'table', 'ranking', 'distribution', 'entity', 'file', 'pdf', 'lease-unknown', 'lease-alternative'].includes(control.answer)) {
+          control.currentResult = ({ professional, table: tableResult, aggregate, vacancy: vacancyResult, relationship, regional, complex: trend, ranking, distribution, entity, file: fileResult, pdf: pdfResult, 'lease-unknown': leaseUnknown, 'lease-alternative': leaseSummary })[control.answer];
           return json({ ...shared, status: 'ready', historySaved: true, result: control.currentResult, ...(control.answer === 'lease-alternative' ? { answerSelection: leaseSelection } : {}) });
         }
         return json({ ...shared, status: 'clarification', reason: 'assistant_help', message: '你好！今天想了解什么？' });
@@ -207,8 +265,11 @@ async function capture(session, state) {
       return box.width === 0 || box.height === 0 || box.left >= identityBox.right - 1 || box.top >= identityBox.bottom - 1 || box.bottom <= identityBox.top + 1;
     });
     const current = document.querySelector('[aria-label="本次问答"]');
+    const textNodes = [...(document.querySelector('#colliers-ai')?.querySelectorAll('h2,h3,h4,p,summary,button,th,td,dt,dd,span,label,time') || [])]
+      .filter(node => node.getClientRects().length && [...node.childNodes].some(child => child.nodeType === Node.TEXT_NODE && child.textContent.trim()) && !node.closest('pre,code'));
+    const typography = { sizes: [...new Set(textNodes.map(node => getComputedStyle(node).fontSize))].sort(), weights: [...new Set(textNodes.map(node => getComputedStyle(node).fontWeight))].sort() };
     const readingSurfaces = [...(current?.querySelectorAll('summary, [aria-label="图表与分析"], figure') || [])].map(node => ({ tag: node.tagName, text: node.textContent?.slice(0, 70), className: node.className, rect: rect(node), maxWidth: getComputedStyle(node).maxWidth, width: getComputedStyle(node).width, marginInline: getComputedStyle(node).marginInline }));
-    return { viewport: { width: innerWidth, height: innerHeight }, scrollWidth: document.documentElement.scrollWidth, surface: rect(document.querySelector('#colliers-ai')), input: rect(input), composer: rect(composer), dialog: rect(dialog), inputCount: document.querySelectorAll('#home-query').length, nav: rect(document.querySelector('[aria-label="业务入口"]')), activeElement: document.activeElement?.id, toolbarNonOverlap, readingSurfaces, colors: { page: getComputedStyle(document.querySelector('main')).backgroundColor, workspace: getComputedStyle(document.querySelector('#colliers-ai') || document.body).backgroundColor, composer: composer ? getComputedStyle(composer).backgroundColor : null } };
+    return { viewport: { width: innerWidth, height: innerHeight }, scrollWidth: document.documentElement.scrollWidth, surface: rect(document.querySelector('#colliers-ai')), input: rect(input), composer: rect(composer), dialog: rect(dialog), inputCount: document.querySelectorAll('#home-query').length, nav: rect(document.querySelector('[aria-label="业务入口"]')), activeElement: document.activeElement?.id, toolbarNonOverlap, readingSurfaces, typography, colors: { page: getComputedStyle(document.querySelector('main')).backgroundColor, workspace: getComputedStyle(document.querySelector('#colliers-ai') || document.body).backgroundColor, composer: composer ? getComputedStyle(composer).backgroundColor : null } };
   });
   const checks = { pageOverflow: metrics.scrollWidth <= width, toolbarNonOverlap: metrics.toolbarNonOverlap, singleInput: role !== 'admin' ? metrics.inputCount === 0 : metrics.inputCount === 1, expandedInputWithinViewport: !metrics.dialog || !metrics.input || (metrics.input.y >= -1 && metrics.input.bottom <= height + 1) };
   if (chart) {
@@ -375,6 +436,9 @@ async function checkLongResultFocus(session) {
     await page.locator('#home-query').focus();
     for (let step = 0; step < 60; step++) {
       await page.keyboard.press(direction);
+      // Native focus scrolling and disclosure blur may settle on the next paint.
+      // Measure the rendered target, retaining every visibility/containment check.
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const active = await focusedControl(page);
       if (!active.visible || !active.withinDialog) {
         issues.push({ direction, step, active });
@@ -393,6 +457,16 @@ try {
   for (const width of widths) {
     const session = await makePage(width);
     const { page, control } = session;
+    if (process.env.HOME_QUERY_MENU_ONLY === '1') {
+      try {
+        if (zoom !== 1) await checkResponsiveQueryMenus(session, { send, expanded }, zoom);
+        else await checkAllQueryMenus(session, { send, expanded });
+      } finally {
+        await writeFile(`${out}/menu-geometry.json`, JSON.stringify({ baseline, sourceDiffSha256, browser: browser.version(), environment: `Next ${buildMode}; actual React; synthetic HTTP only`, zoom, menuRecords }, null, 2));
+        await session.context.close();
+      }
+      continue;
+    }
     await capture(session, 'welcome');
     if (variant === 'after') await checkFocusTransitions(session, examples);
     if (width === 1280 || width === 390) {
@@ -452,6 +526,10 @@ try {
     await capture(session, 'clarification');
     await send(session, '2026Q3 CBD 净有效租金', 'aggregate');
     await page.getByRole('region', { name: '核心指标', exact: true }).waitFor();
+    if (variant === 'after') {
+      const context = await page.getByRole('article', { name: '本次问答', exact: true }).getByLabel('结果范围', { exact: true }).innerText();
+      assert.ok(context.includes('CBD') && context.includes('2026 Q3'), 'formal metric keeps its scope and period');
+    }
     await capture(session, 'data-result');
     await page.getByRole('region', { name: '查询结果', exact: true }).last().evaluate(node => node.scrollIntoView({ block: 'start', inline: 'nearest' }));
     await capture(session, 'data-summary');
@@ -554,13 +632,48 @@ try {
     assert.equal(session.calls.filter(call => call.path === '/api/intelligence/query' && call.method === 'POST').length, postsBeforeFilter, 'workspace switching uses saved result only');
     session.interactionChecks.structuredTable = { passed: true, boundedRows: 25, returnedRows: 32, localSearchAndSort: true, retainedSelection: true, noQueryOnInteraction: true };
     await capture(session, 'interactive-table');
-    await send(session, '按建筑高度查看最高五栋楼', 'ranking');
+    await send(session, '按建筑高度查看最高十栋楼', 'ranking');
     const activeAnswer = page.getByRole('article', { name: '本次问答', exact: true });
     await activeAnswer.getByRole('figure', { name: '同源查询图表', exact: true }).waitFor();
     assert.equal(await activeAnswer.getByRole('table').count(), 0, 'ranking defaults to one comparison visual');
     const rankingLead = await activeAnswer.getByRole('button', { name: '编辑问题', exact: true }).evaluate(viewportGeometry);
     assert.ok(rankingLead.visible && rankingLead.intersection.height >= 32, 'new structured answer keeps its question and lead visible rather than jumping to the tail');
     await capture(session, 'default-ranking');
+    if (variant === 'after') {
+      await send(session, '查看合成单楼宇资料', 'entity');
+      await activeAnswer.getByRole('region', { name: '记录摘要', exact: true }).waitFor();
+      const boundary = activeAnswer.getByLabel('重要数据限制', { exact: true });
+      assert.equal(await boundary.count(), 1);
+      assert.match(await boundary.innerText(), /不按零处理/);
+      assert.match(await boundary.innerText(), /尚未核验/);
+      assert.match(await boundary.innerText(), /含历史来源/);
+      await capture(session, 'entity-boundary');
+      await send(session, '查看合成租金分布', 'distribution');
+      await activeAnswer.getByText('图表设置', { exact: true }).click();
+      await activeAnswer.getByRole('button', { name: '查看直方图', exact: true }).click();
+      const zeroBar = activeAnswer.getByRole('img', { name: /直方图/ }).locator('rect[height="0"]');
+      assert.equal(await zeroBar.count(), 1, 'synthetic distribution retains its zero-count interval');
+      assert.equal(await zeroBar.getAttribute('tabindex'), null, 'zero-height bars cannot become invisible keyboard stops');
+      await activeAnswer.getByRole('table', { name: '分箱边界与数量', exact: true }).getByRole('button', { name: '0 栋', exact: true }).waitFor();
+      const histogramGeometry = await activeAnswer.getByRole('img', { name: /直方图/ }).locator('g').filter({ has: page.locator('rect[role="button"]') }).evaluateAll(groups => groups.map(group => {
+        const bar = group.querySelector('rect').getBBox(), value = group.querySelector('text').getBBox();
+        return { barCenter: bar.x + bar.width / 2, valueCenter: value.x + value.width / 2 };
+      }));
+      assert.ok(histogramGeometry.length > 0 && histogramGeometry.every(point => Math.abs(point.barCenter - point.valueCenter) <= 2), `histogram values align with intervals: ${JSON.stringify(histogramGeometry)}`);
+      const bar = activeAnswer.getByRole('img', { name: /直方图/ }).getByRole('button').first();
+      await bar.focus(); await bar.press('Enter');
+      const reading = activeAnswer.getByRole('status', { name: '区间读数', exact: true });
+      assert.match(await reading.innerText(), /区间 1：/);
+      await reading.getByRole('button', { name: '数据依据', exact: true }).click();
+      const evidence = page.getByRole('region', { name: '来源详情', exact: true });
+      await evidence.waitFor();
+      await evidence.getByText('记录技术信息', { exact: true }).first().click();
+      assert.ok((await evidence.innerText()).includes('net_effective_rent'));
+      await page.getByRole('button', { name: '返回对话', exact: true }).click();
+      await reading.waitFor();
+      await capture(session, 'distribution-reading');
+      session.interactionChecks.resultContextAndEvidence = { passed: true, entityLimitsVisibleOnce: true, keyboardIntervalReading: true, sourceReturn: true };
+    }
     await send(session, '查看第四季度成交汇总', 'lease-unknown');
     await activeAnswer.getByRole('heading', { name: '该期间暂无可交付统计', exact: true }).waitFor();
     assert.equal(await activeAnswer.getByText('该期间暂无可交付统计', { exact: true }).filter({ visible: true }).count(), 1, 'unavailable state is stated once');
@@ -589,6 +702,59 @@ try {
     await activeAnswer.getByText('已发起下载', { exact: true }).waitFor();
     session.interactionChecks.representativeAnswers = { passed: true, rankingDefaultChart: true, allUnknownState: true, selectedLeaseAlternative: true, realWorkbookDownloaded: true };
     await capture(session, 'file-delivery');
+    if (variant === 'after') {
+      await send(session, '2026Q3 CBD 空置率', 'vacancy');
+      const vacancyMetric = activeAnswer.getByRole('region', { name: '空置率指标', exact: true });
+      await vacancyMetric.waitFor();
+      assert.match(await vacancyMetric.innerText(), /17.5/);
+      await capture(session, 'vacancy-metric');
+
+      await send(session, '比较 CBD 与金融街的净有效租金', 'regional');
+      const regionChart = activeAnswer.getByRole('figure', { name: '同源查询图表', exact: true });
+      await regionChart.getByText('CBD', { exact: true }).waitFor();
+      await regionChart.getByText('金融街', { exact: true }).waitFor();
+      await capture(session, 'regional-comparison');
+
+      await send(session, '净有效租金与空置率的关系', 'relationship');
+      const points = activeAnswer.getByRole('img', { name: /有效联合样本/ }).getByRole('button');
+      await points.first().waitFor();
+      const chartCalls = session.calls.filter(call => call.path === '/api/intelligence/query/artifact' && call.action === 'chart').length;
+      await points.first().focus(); await points.first().press('Space');
+      const pointReading = activeAnswer.getByRole('status').filter({ has: page.getByRole('button', { name: '数据依据', exact: true }) });
+      await pointReading.getByRole('button', { name: '数据依据', exact: true }).click();
+      await page.getByRole('region', { name: '来源详情', exact: true }).waitFor();
+      await page.getByRole('button', { name: '返回对话', exact: true }).click();
+      assert.equal(session.calls.filter(call => call.path === '/api/intelligence/query/artifact' && call.action === 'chart').length, chartCalls, 'point/source roundtrip keeps the rendered snapshot');
+      await capture(session, 'relationship-reading');
+
+      await send(session, '生成本次合成研究 PDF', 'pdf');
+      const pdfDownload = page.waitForEvent('download');
+      await activeAnswer.getByRole('button', { name: '下载 PDF 研究报告', exact: true }).click();
+      const pdfFile = await pdfDownload;
+      assert.equal(pdfFile.suggestedFilename(), 'fixture.pdf');
+      assert.equal(await pdfFile.failure(), null);
+      assert.equal((await readFile(await pdfFile.path())).subarray(0, 5).toString(), '%PDF-', 'the interface downloads actual report bytes');
+      await activeAnswer.getByText('已发起下载', { exact: true }).waitFor();
+      await capture(session, 'pdf-delivery');
+
+      await send(session, '阅读含长标题、表格和未闭合代码的研究回答', 'long-markdown');
+      await activeAnswer.getByText('回答目录', { exact: true }).click();
+      await settledPaint(page);
+      const directoryBefore = await page.locator('#home-query').boundingBox();
+      const backgroundBeforeDirectory = await page.evaluate(() => document.querySelector('main > div')?.scrollTop || 0);
+      await activeAnswer.getByRole('button', { name: '后续核实', exact: true }).click();
+      await settledPaint(page);
+      const directoryAfter = await page.locator('#home-query').boundingBox();
+      assert.ok(Math.abs(directoryBefore.y - directoryAfter.y) <= 2, `answer directory keeps the composer fixed: ${directoryBefore.y} -> ${directoryAfter.y}`);
+      assert.equal(await page.evaluate(() => document.querySelector('main > div')?.scrollTop || 0), backgroundBeforeDirectory, 'directory does not move the page behind the workspace');
+      await activeAnswer.getByRole('heading', { name: '后续核实', exact: true }).waitFor();
+      assert.equal(await activeAnswer.getByRole('heading', { name: '后续核实', exact: true }).evaluate(node => node === document.activeElement), true);
+      assert.match(await activeAnswer.locator('pre').innerText(), /尚未闭合/);
+      assert.equal(await activeAnswer.getByRole('table').count(), 1);
+      assert.equal(await activeAnswer.getByRole('figure').count(), 0, 'a source-less narrative cannot manufacture a structured chart');
+      await capture(session, 'long-markdown');
+      session.interactionChecks.additionalAnswerReading = { passed: true, vacancy: true, multipleRegions: true, scatterKeyboardAndSources: true, realPdfDownload: true, longChineseTitle: true, longUrl: true, incompleteMarkdown: true, headingNavigation: true };
+    }
     await send(session, '查看新的分析', 'failure');
     await page.getByRole('button', { name: '重试本次请求', exact: true }).waitFor();
     await capture(session, 'failure');
@@ -604,14 +770,14 @@ try {
     assert.equal(await unavailable.page.locator('#home-query').isDisabled(), true);
     await unavailable.context.close();
   }
-  for (const role of ['editor', 'viewer']) {
+  for (const role of process.env.HOME_QUERY_MENU_ONLY === '1' ? [] : ['editor', 'viewer']) {
     const restricted = await makePage(390, 'disabled', role);
     await capture(restricted, `role-${role}`);
     assert.equal(await restricted.page.locator('#home-query').count(), 0);
     assert.ok(!restricted.calls.some(call => call.path.startsWith('/api/intelligence/query')), 'ordinary accounts must not probe AI');
     await restricted.context.close();
   }
-} finally { await browser.close(); }
+} finally { await browser.close(); if (zoomProfile) await rm(zoomProfile, { recursive: true, force: true }); }
 assert.ok(records.every(record => Object.values(record.checks).every(Boolean)), 'One or more observed visual/layout checks failed; screenshots and report retain the evidence.');
 if (variant === 'after') {
   assert.ok(records.every(record => record.interactionChecks.shortViewportTabCycle?.passed !== false), 'Short viewport keyboard focus reached an invisible control; retained in evidence.');

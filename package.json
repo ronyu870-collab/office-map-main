@@ -22,7 +22,8 @@
     "sales:import": "node --experimental-strip-types scripts/sales-materials/ingest.mjs",
     "sales:pdf-assets": "node scripts/sales-materials/pdf-assets.mjs",
     "prebuild": "npm run sales:pdf-assets",
-    "perf:map:live": "node scripts/performance/verify-live-amap.mjs"
+    "perf:map:live": "node scripts/performance/verify-live-amap.mjs",
+    "test:db:lease-transfer": "node supabase/tests/lease-transfer-safety/run.mjs"
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",

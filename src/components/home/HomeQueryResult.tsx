@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { z } from 'zod';
-import { cellText, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
+import { cellText, resultScopeText, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { researchAnalysisSchema, type ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnalysisView';
 import { metricLabels, resultMetrics, resultMetricAnalysis } from '@/src/lib/intelligence/query/multiMetricView';
 import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailability';
@@ -72,9 +72,9 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
         {primaryFinding && <button type="button" className={experienceStyles.citation} aria-label="查看结论依据"
           onClick={event => showSources(primaryFinding.sourceIds, primaryFinding.title, event.currentTarget)}>依据</button>}
       </p>
-      <ResultBoundary result={result} research={research} />
     </div>),
     metrics: () => (<section className={`${styles.multiMetrics} ${experienceStyles.metrics}`} aria-label={facts.length === 1 ? "核心指标" : "关键结果"}>
+      <p className={experienceStyles.factScope} aria-label="结果范围">{resultScopeText(result)}</p>
       {facts.map(({ column, cell, label, entityId }) => <section key={`${entityId}/${column.key}`} className={experienceStyles.fact} aria-label={`${label}指标`}>
         <h3>{label}</h3>
         <div className={experienceStyles.metricReading}><button type="button" className={cell.kind === 'number' ? experienceStyles.metricValue : styles.metricUnknown}
@@ -128,9 +128,11 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
     destination?.focus({ preventScroll: true });
   }
   return <section ref={resultPanel} tabIndex={-1} className={`${styles.result} ${experienceStyles.result}`} aria-label="查询结果" data-presentation={presentation} data-result-id={result.resultId}>
-    {!availability && decision.primaryExpression === 'fact' && <ResultBoundary result={result} research={research} />}
     {availability && <section className={styles.emptyState} aria-label="查询数据状态"><h3>{availability.title}</h3><p>{availability.description}</p></section>}
-    {blocks.map(block => <div key={block.type} className={block.type === 'file' ? experienceStyles.readingVisual : ['analysis', 'building', 'table', 'research'].includes(block.type) ? experienceStyles.readingSection : undefined}>{renderers[block.type]?.()}</div>)}
+    {blocks.map(block => <div key={block.type} className={block.type === 'file' ? experienceStyles.readingVisual : ['analysis', 'building', 'table', 'research'].includes(block.type) ? experienceStyles.readingSection : undefined}>
+      {renderers[block.type]?.()}
+      {!availability && ['summary', 'metrics', 'building'].includes(block.type) && <ResultBoundary result={result} research={research} />}
+    </div>)}
     <div ref={setActionContainer} className={experienceStyles.resultActions}>
       {!blocks.some(block => block.type === 'analysis') && requestId && scope && <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport} responseActions={responseActions} />}
     </div>

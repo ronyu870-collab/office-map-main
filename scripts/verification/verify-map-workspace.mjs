@@ -27,6 +27,7 @@ import { verifyFutureConditions } from './workspace-future-filters.mjs';
 import { verifyWorkspaceFilters } from './workspace-filters.mjs';
 import { verifyTransitFilters, transitMapData } from './workspace-transit-filters.mjs';
 import { clickWorkspaceAction } from './workspace-actions.mjs';
+import { verifyFullListReading } from './workspace-full-list-reading.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -830,6 +831,12 @@ try {
         }
       }
 
+      // Use a fresh map page: the full list deliberately remains mounted after
+      // closing, while earlier assertions inspect the map's entire DOM text.
+      dataRows = stock; futureRows = future;
+      await page.goto(new URL('/map', base).href);
+      await page.locator('#map-container [data-building-id="10000000-1111-4111-8111-111111111111"]').first().waitFor();
+      observations.push({ width, ...await verifyFullListReading(page, width) });
     } catch (error) {
       console.error('workspace regression failure', error);
       await page?.screenshot({ path: `/tmp/map-workspace-failure-${width}.png` }).catch(() => {});
