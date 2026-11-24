@@ -171,6 +171,11 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL 17 atomic lease transfer and audit regressions
+        run: node supabase/tests/lease-transfer-safety/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL 17 lease expiry review regressions
         run: node supabase/tests/lease-expiry/run.mjs
         env:
