@@ -310,7 +310,7 @@ export function MapLeaseTransactionsBridge() {
             ))}
           </div>
         ) : error ? (
-          <div className="flex h-full min-h-48 flex-col items-center justify-center px-8 text-center">
+          <div role="alert" className="flex h-full min-h-48 flex-col items-center justify-center px-8 text-center">
             <div className="text-sm font-normal leading-5 text-[var(--cd-color-text-primary)]">{error.title}</div>
             <div className="mt-1.5 text-sm leading-5 text-[var(--cd-color-text-muted)]">{error.description}</div>
             <button

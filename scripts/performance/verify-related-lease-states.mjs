@@ -25,9 +25,9 @@ try {
         const request = route.request();
         const url = new URL(request.url());
         if (url.origin === base.origin) {
-          if (url.pathname === '/api/map/data') return route.fulfill({ json: { display_overrides: [], future_supplies: [], buildings: [{ id: 'fixture-tower', name: '隔离楼宇', grade: 'A', district: '朝阳区', submarket: '其他', location_lng: 116.46, location_lat: 39.91, building_metrics: [] }] } });
+          if (url.pathname === '/api/map/data') return route.fulfill({ json: { display_overrides: [], future_supplies: [], buildings: [{ id: '9ee3e3ff-4845-41a1-a78f-390c11b1917a', name: '隔离楼宇', grade: 'A', district: '朝阳区', submarket: '其他', location_lng: 116.46, location_lat: 39.91, building_metrics: [] }] } });
           if (url.pathname === '/api/lease-transactions/read') {
-            assert.equal(url.searchParams.get('building_id'), 'fixture-tower');
+            assert.equal(url.searchParams.get('building_id'), '9ee3e3ff-4845-41a1-a78f-390c11b1917a');
             assert.equal(request.headers().authorization, `Bearer ${token}`);
             attempts++;
             if (attempts === 1) { await hold; return route.fulfill({ status: 403, json: { error: '合成权限拒绝' } }); }
@@ -43,7 +43,7 @@ try {
           if (url.pathname === '/auth/v1/user') return route.fulfill({ headers, json: user });
           return route.fulfill({ headers, json: [] });
         }
-        if (url.origin === 'https://webapi.amap.com' && url.pathname === '/maps') return route.fulfill({ contentType: 'application/javascript', body: `(${installSyntheticMap.toString()})();window.AMap.Map.prototype.setZoomAndCenter = function(zoom, center) { this.root.dataset.fixtureViewport = JSON.stringify([zoom, center]); this.emit('zoomend'); };` });
+        if (url.origin === 'https://webapi.amap.com' && url.pathname === '/maps') return route.fulfill({ contentType: 'application/javascript', body: `(${installSyntheticMap.toString()})();const OriginalMap = window.AMap.Map; window.AMap.Map = class extends OriginalMap { constructor(...args) { super(...args); this.zoom = args[1]?.zoom; this.center = args[1]?.center; window.__relatedMap = this; } };` });
         return route.abort();
       });
       await context.addInitScript(({ origin, session }) => {
@@ -53,26 +53,31 @@ try {
       }, { origin: base.origin, session });
       const page = await context.newPage();
       page.setDefaultTimeout(6500);
-      await page.goto(new URL('/map', base).href);
-      const marker = page.locator('#map-container [data-building-id="fixture-tower"]').first();
-      await (width === 390 ? marker.tap() : marker.click());
+      await page.goto(new URL('/map?building=9ee3e3ff-4845-41a1-a78f-390c11b1917a', base).href);
+      const detail = page.getByRole('region', { name: '隔离楼宇楼宇详情' });
+      await detail.waitFor();
       const verifyCompareReturn = async () => {
         const search = page.getByRole('searchbox', { name: '搜索楼宇、子市场、业主或物业' });
         await search.fill('隔离楼宇');
         await page.getByRole('group', { name: '已生效筛选条件' }).getByText(/隔离楼宇/).waitFor();
+        await page.getByRole('region', { name: '项目搜索候选' }).locator('[data-map-search-choice]').first().click();
+        await detail.waitFor();
         for (const browserBack of [false, true]) {
-          await page.locator('.building-popup button[data-map-action="building-compare"]').click();
+          await page.getByRole('tab', { name: '行情', exact: true }).click();
+          const camera = await page.evaluate(() => [window.__relatedMap.getZoom(), window.__relatedMap.getCenter().getLng(), window.__relatedMap.getCenter().getLat()]);
+          await page.getByRole('button', { name: '楼宇对比', exact: true }).click();
           await page.waitForURL('**/compare?**');
           if (browserBack) await page.goBack();
-          else await page.getByRole('button', { name: '返回地图' }).click();
-          await page.waitForURL('**/map');
+          else await page.getByRole('link', { name: '返回地图' }).click();
+          await page.waitForURL(url => url.pathname === '/map');
           await search.waitFor();
           assert.equal(await search.inputValue(), '隔离楼宇', 'returning from comparison preserves the map search');
-          await page.locator('.building-popup[data-building-id="fixture-tower"]').waitFor();
-          await page.locator('#map-container [data-fixture-viewport="[15,[116.46,39.9]]"]').waitFor();
+          await detail.waitFor();
+          assert.deepEqual(await page.evaluate(() => [window.__relatedMap.getZoom(), window.__relatedMap.getCenter().getLng(), window.__relatedMap.getCenter().getLat()]), camera, 'comparison return restores the captured camera');
         }
       };
       if (compareOnly) { await verifyCompareReturn(); continue; }
+      await page.getByRole('tab', { name: '成交与资料', exact: true }).click();
       const trigger = page.locator('.building-popup button[data-map-action="related-leases"]');
       await (width === 390 ? trigger.tap() : trigger.click());
       const panel = page.getByRole('dialog', { name: '隔离楼宇关联成交' });

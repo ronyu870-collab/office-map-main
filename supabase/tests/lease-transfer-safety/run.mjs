@@ -7,7 +7,7 @@ import { createLeaseTestDatabase, OWNER, OTHER, ADMIN, VIEWER, recordId } from '
 const db = await createLeaseTestDatabase();
 const THIRD = '66666666-6666-4666-8666-666666666666';
 const MISSING = '99999999-9999-4999-8999-999999999999';
-const migration = new URL('../../migrations/20261027013818_secure_lease_submission_transfer.sql', import.meta.url);
+const migration = new URL('../../migrations/20261124142812_secure_lease_submission_transfer.sql', import.meta.url);
 const sql = 'select public.transfer_lease_submission_v1($1,$2,$3,$4,$5,$6) as result';
 const baselineTimestamp = '2026-10-26T01:02:03.123456Z';
 let count = 0;

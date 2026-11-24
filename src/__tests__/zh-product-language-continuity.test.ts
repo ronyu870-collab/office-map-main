@@ -47,11 +47,10 @@ describe('Product language continuity', () => {
     for (const requiredChineseCopy of [
       '租赁成交填报',
       '新增成交记录',
-      '校验就绪',
-      '企业与需求',
-      '成交楼宇',
-      '租赁商务条件',
-      '成交时间与备注',
+      '企业信息与需求类型',
+      '交易楼宇信息',
+      '成交核心数据',
+      '时间与备注',
       '取消',
       '提交记录',
     ]) {
@@ -66,12 +65,12 @@ describe('Product language continuity', () => {
     const wrapper = source('src/app/lease-submission/components/LeaseTransactionForm.tsx');
     const form = source('src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx');
 
-    expect(page).toContain("import { LeaseTransactionForm } from './components/LeaseTransactionForm'");
+    expect(page).toContain("import('./components/LeaseTransactionForm').then((module) => module.LeaseTransactionForm)");
     expect(wrapper).toContain("export { LeaseTransactionForm } from './LeaseTransactionWorkspaceForm';");
     expect(form).toContain('onSubmit={handleSubmit(submitValidated, invalidSubmit)}');
     expect(form).toContain('transaction_quarter: data.transaction_quarter');
     expect(form).toContain('await submitTransaction(payload)');
-    expect(form).toContain('await updateTransaction(initialData.id, payload, userId)');
+    expect(form).toContain('await updateTransaction(initialData.id, payload, userId, initialData.updated_at)');
   });
 
   it('preserves Q1-Q4 as the professional quarter notation', () => {
