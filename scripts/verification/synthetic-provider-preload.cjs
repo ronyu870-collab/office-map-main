@@ -1,6 +1,7 @@
 // Explicitly loaded only by the disposable Auth harness's Next child process.
 // Production endpoint/model validation remains unchanged. Only the transport
 // for the official supplier URL is replaced; identity and data APIs stay real.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Node --require preload executes before the Next process initializes fetch.
 const assert = require('node:assert/strict');
 assert.equal(process.env.AI_QUERY_AUTH_ALLOW_LOCAL, 'disposable');
 const target = new URL(process.env.AI_QUERY_TEST_PROVIDER_TARGET);
