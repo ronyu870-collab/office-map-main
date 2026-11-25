@@ -286,6 +286,16 @@ export async function checkAllQueryMenus(session, helpers) {
   await history.locator('[data-history-scroll]').evaluate(node => { node.scrollTop -= 100; });
   await page.waitForFunction(() => !document.querySelector('[data-query-menu-panel]:not([hidden])'));
   await history.getByRole('button', { name: '关闭历史', exact: true }).click();
+  // A viewport event can finish workspace motion while a sidebar is still
+  // exiting. A hidden sidebar must stop occupying compact layout immediately.
+  await page.getByRole('button', { name: '收起 Colliers AI 工作空间', exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await page.waitForFunction(() => document.querySelector('#colliers-ai')?.dataset.mode === 'compact'
+    && document.querySelector('#colliers-ai')?.dataset.transitioning === 'false');
+  const hiddenPanels = await page.locator('#query-workspace-history[hidden], #query-workspace-research[hidden]').evaluateAll(nodes => nodes
+    .map(node => ({ id: node.id, display: getComputedStyle(node).display, height: node.getBoundingClientRect().height })));
+  assert.equal(hiddenPanels.length, 2);
+  assert.ok(hiddenPanels.every(panel => panel.height === 0), `compact hidden sidebar layout: ${JSON.stringify(hiddenPanels)}`);
   await expanded(page, false);
   await more.click(); await assertMenu(page, more, 'compact menu');
   // Nested scroll restoration can change offsets while leaving the visible
