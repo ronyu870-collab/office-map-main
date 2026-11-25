@@ -161,15 +161,15 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/quarterly-db-tests" --no-save --ignore-scripts @electric-sql/pglite@0.3.14
           PGLITE_MODULE="$RUNNER_TEMP/quarterly-db-tests/node_modules/@electric-sql/pglite/dist/index.js" node supabase/tests/quarterly-reliability/run.mjs
 
-      - name: Real PostgreSQL 17 Pitch Studio foundation and PPTX regressions
-        run: node supabase/tests/pitch-studio/run.mjs
-        env:
-          PITCH_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
-
       - name: Real PostgreSQL 17 concurrent quarterly regressions
         run: node supabase/tests/quarterly-reliability/concurrency.mjs
         env:
           QUARTERLY_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
+      - name: Real PostgreSQL 17 Pitch Studio foundation and PPTX regressions
+        run: node supabase/tests/pitch-studio/run.mjs
+        env:
+          PITCH_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
       - name: Real PostgreSQL 17 lease edit and audit regressions
         run: npm run test:db:lease-audit

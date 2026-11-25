@@ -510,5 +510,16 @@
     "cases": [
       "continues search through result updates, middle edits, empty results and IME without losing focus or selection"
     ]
+  },
+  {
+    "id": "pitch-studio-workspace",
+    "roots": [
+      "src/components/pitch/PitchWorkspace.tsx"
+    ],
+    "file": "src/components/pitch/PitchWorkspace.focus.test.tsx",
+    "cases": [
+      "keeps project name focused through continuous typing and cursor edits",
+      "keeps category fields focused while editing and switching static filters"
+    ]
   }
 ]
