@@ -14,7 +14,7 @@ import { makeFile, mediaRowSchema, pitchRpc, readFile, uploadFile, type PitchCon
 
 const pageSchema = z.object({ id: z.uuid(), content: slideContentSchema, scene: slideSceneSchema });
 const previewContextSchema = z.object({ slides: z.array(pageSchema).min(1).max(50), themes: z.array(z.object({ definition: designThemeSchema })), media: z.array(mediaRowSchema) });
-async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>[], scenes: z.infer<typeof slideSceneSchema>[]) {
+export async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>[], scenes: z.infer<typeof slideSceneSchema>[]) {
   const refs = sceneMediaReferences(scenes), files: SceneMedia[] = [];
   for (const ref of refs) {
     if (files.some(f => f.id === ref.id && f.version === ref.version)) continue;
@@ -24,7 +24,7 @@ async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>
   }
   return inspectMedia(files);
 }
-async function studioRegistry(ctx: PitchContext, themeId: string, themeVersion: number) {
+export async function studioRegistry(ctx: PitchContext, themeId: string, themeVersion: number) {
   const reg = z.object({ template: z.object({ config: templateConfigSchema }), theme: z.object({ definition: designThemeSchema }) }).parse(await pitchRpc(ctx, { action: 'registry', templateId: 'studio-content', templateVersion: 1, themeId, themeVersion }));
   if (reg.theme.definition.id !== themeId || reg.theme.definition.version !== themeVersion || reg.template.config.adapter !== 'structured-content/2') throw new Error('PITCH_REGISTRY_MISMATCH');
   return reg;
@@ -70,6 +70,7 @@ export async function previewPage(ctx: PitchContext, command: Extract<PitchComma
   return { svg, scene, pageCount: scene.pagination?.count ?? 1, quality: await assertSceneQuality(scene, theme, media), font: 'Noto Sans SC', fontMode: 'bundled-glyph-outlines' };
 }
 export async function prepareRenderExport(ctx: PitchContext, command: Extract<PitchCommand, { action: 'export_start' }>) {
+  if (command.pages && (command.page !== undefined || ['png','svg'].includes(command.format))) throw new Error('PITCH_INVALID');
   if (['png', 'svg'].includes(command.format) && command.page === undefined) throw new Error('PITCH_SINGLE_PAGE_REQUIRED');
   const current = z.object({ project: z.object({ title: z.string() }) }).parse(await pitchRpc(ctx, { action: 'get_project', projectId: command.projectId }));
   return pitchRpc(ctx, { ...command, action: 'export_prepare', asynchronous: true, filename: artifactName(current.project.title, command.format, command.page) });
@@ -82,9 +83,9 @@ export async function runRenderExport(ctx: PitchContext, command: Extract<PitchC
   try {
     const claim = z.object({ claimed: z.boolean() }).parse(await pitchRpc(ctx, { action: 'export_claim', ...args }));
     if (!claim.claimed) return;
-    const context = previewContextSchema.extend({ export: z.object({ storage_path: z.string(), format: z.enum(['pptx', 'png', 'svg', 'xlsx']), render_options: z.object({ page: z.number().optional() }) }), project: z.object({ title: z.string() }) }).parse(await pitchRpc(ctx, { action: 'export_context', ...args }));
+    const context = previewContextSchema.extend({ export: z.object({ storage_path: z.string(), format: z.enum(['pptx', 'png', 'svg', 'xlsx']), render_options: z.object({ page: z.number().optional(), pages: z.array(z.number()).optional() }) }), project: z.object({ title: z.string() }) }).parse(await pitchRpc(ctx, { action: 'export_context', ...args }));
     const selected = context.export.render_options.page;
-    const slides = selected === undefined ? context.slides : [context.slides[selected]];
+    const slides = context.export.render_options.pages ? context.export.render_options.pages.map(i => context.slides[i]) : selected === undefined ? context.slides : [context.slides[selected]];
     if (!slides.length || slides.some(s => !s)) throw new Error('PITCH_INVALID');
     const media = await loadMedia(ctx, context.media, slides.map(s => s.scene)), pages = slides.map(s => ({ scene: s.scene, theme: pageTheme(s.scene, context.themes) }));
     await pitchRpc(ctx, { action: 'export_progress', ...args, progress: 30 });

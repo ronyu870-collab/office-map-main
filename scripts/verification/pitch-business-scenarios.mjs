@@ -44,4 +44,5 @@ export async function verifyPitchBusiness({app,db,owner,other,admin,scope,call,l
   await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[admin.id]);
   assert.equal((await call(admin,{action:'download',projectId,exportId,audience:'internal'})).status,403);assert.equal((await call(admin,{action:'preview',projectId,page:0},true)).status,403);assert.equal((await business(admin,{action:'generation',projectId})).status,403);const raw=await admin.client.from('pitch_business_generations').select('project_id');assert.equal(raw.error,null,JSON.stringify(raw.error));assert.equal(raw.data.length,0);
  });
+ return {ids,projectId,exportId};
 }

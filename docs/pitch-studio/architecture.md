@@ -133,3 +133,7 @@
 持续回归包含 `src/lib/pitch/__tests__`、首页独立开关行为、现有研究 Office 导出、`supabase/tests/pitch-studio/render.mjs`（12 布局、原生 OOXML、分页、导出与错误反馈）、`supabase/tests/pitch-studio/run.mjs`（真实 PostgreSQL 17 + 真实应用工作流／PPTX）及 `scripts/verification/verify-pitch-studio-http.mjs`（实际本地 GoTrue / PostgREST / Storage / 生产构建 Next HTTP）。渲染、数据库及 HTTP 回归均已接入 Verify，失败阻断。
 
 本 PR 不合并 main、不执行生产迁移、不授予生产账号权限、不开启生产试点。上线需另行授权：应用本迁移、部署对应版本、按真实业务组织／区域发放最小授权，再独立开启服务端与数据库开关；首页入口随构建开关生成。回退先关闭数据库开关和服务端开关；不要删掉已归档的资产／项目／版本记录来回退应用。
+
+## 阶段 05：产品工作台
+
+[工作台协议与执行说明](workspace.md) 补充私人编辑层、乐观并发与 30 个历史修订、来源不变的用户改写、可取消持久生成、部分页面导出及历史文件授权快照。所有页面仍经过原内容协议、布局和场景渲染；没有新增业务数据库副本或 AI 调用。相关迁移仅作为待部署代码交付。

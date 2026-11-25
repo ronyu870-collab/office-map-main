@@ -198,6 +198,16 @@
         "name": "pitch_business_generations",
         "label": "业务生成快照",
         "fieldCount": 9
+      },
+      {
+        "name": "pitch_workspace_states",
+        "label": "Pitch 工作台编辑状态",
+        "fieldCount": 5
+      },
+      {
+        "name": "pitch_exports",
+        "label": "Pitch 私有导出文件",
+        "fieldCount": 15
       }
     ]
   }

@@ -514,6 +514,160 @@
           "who": "系统自动"
         }
       ]
-    }
+    },
+{
+      "name": "pitch_workspace_states",
+      "label": "Pitch 工作台编辑状态",
+      "desc": "私人项目上下文、页面编辑来源、当前页与可恢复删除；仅项目本人在有效授权下可读，写入经版本校验的服务端 RPC。",
+      "fields": [
+            {
+                  "name": "project_id",
+                  "label": "Pitch 项目",
+                  "type": "UUID",
+                  "desc": "绑定真实所有者的项目，不随模拟身份共享",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "context",
+                  "label": "项目上下文",
+                  "type": "JSON",
+                  "desc": "楼宇、客户、业务、语言、默认季度与私人说明",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "page_settings",
+                  "label": "页面来源与编辑状态",
+                  "type": "JSON",
+                  "desc": "原素材、业务参数及用户改写标记；改写不得冒充正式值",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "active_slide",
+                  "label": "当前页面",
+                  "type": "UUID",
+                  "desc": "再次进入时恢复选中页",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "deleted_at",
+                  "label": "移入回收站时间",
+                  "type": "时间戳",
+                  "desc": "软删除，所有者可恢复；不删除来源原件",
+                  "who": "系统自动"
+            }
+      ]
+},
+{
+      "name": "pitch_exports",
+      "label": "Pitch 私有导出文件",
+      "desc": "文件实际生成后才可下载；历史下载按冻结的原素材及媒体依赖再次授权，不随页面编辑更新。",
+      "fields": [
+            {
+                  "name": "id",
+                  "label": "导出ID",
+                  "type": "UUID",
+                  "desc": "导出ID；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "project_id",
+                  "label": "Pitch项目",
+                  "type": "UUID",
+                  "desc": "Pitch项目；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "job_id",
+                  "label": "任务ID",
+                  "type": "UUID",
+                  "desc": "任务ID；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "audience",
+                  "label": "内部或对客用途",
+                  "type": "文本",
+                  "desc": "内部或对客用途；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "state",
+                  "label": "待生成、可下载或失败",
+                  "type": "文本",
+                  "desc": "待生成、可下载或失败；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "format",
+                  "label": "PPTX/PNG/SVG/XLSX",
+                  "type": "文本",
+                  "desc": "PPTX/PNG/SVG/XLSX；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "storage_path",
+                  "label": "私有存储路径",
+                  "type": "文本",
+                  "desc": "私有存储路径；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "sha256",
+                  "label": "文件哈希",
+                  "type": "文本",
+                  "desc": "文件哈希；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "size_bytes",
+                  "label": "文件字节数",
+                  "type": "整数",
+                  "desc": "文件字节数；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "slide_versions",
+                  "label": "生成时的页面版本",
+                  "type": "JSON",
+                  "desc": "生成时的页面版本；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "created_by",
+                  "label": "创建人",
+                  "type": "UUID",
+                  "desc": "创建人；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "created_at",
+                  "label": "创建时间",
+                  "type": "时间戳",
+                  "desc": "创建时间；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "filename",
+                  "label": "下载文件名",
+                  "type": "文本",
+                  "desc": "下载文件名；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "render_options",
+                  "label": "页面选择与后台生成参数",
+                  "type": "JSON",
+                  "desc": "页面选择与后台生成参数；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            },
+            {
+                  "name": "authorization_snapshot",
+                  "label": "导出时原始资产版本与媒体依赖",
+                  "type": "JSON",
+                  "desc": "导出时原始资产版本与媒体依赖；仅授权服务端写入，按真实项目所有者读取。",
+                  "who": "系统自动"
+            }
+      ]
+}
   ]
 }
