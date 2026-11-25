@@ -8,7 +8,7 @@ import { resultMapEligible, resultTablePolicy } from '@/src/lib/intelligence/que
 import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailability';
 import { resultBuildingRows } from '@/src/lib/intelligence/query/buildingCards';
 import { queryMapHref } from '@/src/lib/intelligence/query/buildingNavigation';
-import { tableCellText, tableRowIndexes, type TableSort, type TableFilter } from '@/src/lib/intelligence/query/tableView';
+import { tableCellText, tableRowIndexes, restoredResultTableView, type TableSort, type TableFilter } from '@/src/lib/intelligence/query/tableView';
 import { units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { HomeQueryMenu } from './HomeQueryMenu';
@@ -24,14 +24,15 @@ export const HomeQueryDataTable = React.memo(function HomeQueryDataTable(props: 
 function DataTable({ result, requestId, scope, internalExport, onSource, onPage, preview = false, statusShown = false }: Props) {
   const [search, setSearch] = React.useState('');
   const [toolsOpen, setToolsOpen] = React.useState(false);
-  const [sort, setSort] = React.useState<TableSort>(null);
-  const [page, setPage] = React.useState(0);
-  const [filters, setFilters] = React.useState<readonly TableFilter[]>([]);
+  const [initialView] = React.useState(() => restoredResultTableView(result));
+  const [sort, setSort] = React.useState<TableSort>(initialView.sort);
+  const [page, setPage] = React.useState(initialView.page);
+  const [filters, setFilters] = React.useState<readonly TableFilter[]>(initialView.filters);
   const detail = useQueryDetail();
   const instanceId = React.useId();
   const detailId = `${result.resultId}-${instanceId}-table`;
   const expanded = detail?.active?.id === detailId;
-  const PAGE_SIZE = preview && !expanded ? 8 : 25;
+  const PAGE_SIZE = preview && !expanded && !result.parameters.agentTableView ? 8 : 25;
   const [selected, setSelected] = React.useState<ReadonlySet<number>>(new Set());
   const [hiddenColumns, setHiddenColumns] = React.useState<ReadonlySet<string>>(new Set());
   const allSelected = React.useRef<HTMLInputElement>(null);

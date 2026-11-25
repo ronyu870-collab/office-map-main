@@ -11,6 +11,15 @@ import { HomeQueryDataTable } from '../HomeQueryDataTable';
 const scope = { actorId: 'owner', effectiveId: 'owner', sessionId: 'session', targetId: null };
 const requestId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const result = () => resultViewSchema.parse(buildListResult(fixture(), ['height', 'netEffectiveRent']));
+it('restores a server-validated numeric filter and sort without losing the full result', () => {
+  const value = result();
+  value.parameters.agentTableView = { version: 'result-table-view/1', sort: { key: 'height', direction: 'desc' },
+    filters: [{ key: 'height', operator: 'gte', value: '200' }], page: 0 };
+  render(<HomeQueryDataTable result={value} internalExport={false} onSource={vi.fn()} />);
+  expect(screen.getByRole('table').textContent).toContain('A座');
+  expect(screen.getByRole('table').textContent).not.toContain('B座');
+  expect(value.table.rows).toHaveLength(4);
+});
 beforeEach(() => { vi.resetAllMocks(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it('links both all-buildings and a single building to this exact source-bound result snapshot', () => {

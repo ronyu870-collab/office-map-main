@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { requiresDataFactEvidence } from './queryObligation';
+import { compactModelContext, modelContextEnvelope, externalModelForbidden } from './modelContext';
 import { AGENT_TOOLS, completeWithDeepSeek, deepseekAgentConfigured, ModelProviderError } from './modelProvider';
 import { createOpenAIAdapter } from './openaiAdapter';
 import type { AgentMessage, AgentCompletion, ModelAdapter, ProviderId } from './modelProtocol';
@@ -41,6 +43,8 @@ export type ModelAttempt = {
   inputTokens: number | null; outputTokens: number | null; cachedInputTokens: number | null; reasoningTokens: number | null;
   providerRequestId: string | null; estimateUsd: number; estimateBasis: string;
   reservationTokens: number; chargedTokens: number; usageStatus: 'provider_reported' | 'unknown_reserved' | 'not_sent';
+  purpose?: 'agent' | 'semantic_intent' | 'synthesis';
+  context?: ReturnType<typeof modelContextEnvelope>;
   billing: { actualUsd: null; state: 'not_reconciled'; currency: 'USD' };
 };
 const retryable = new Set(['not_configured', 'rate_limited', 'timeout', 'provider_unavailable', 'model_not_found', 'payment_required', 'stream_interrupted']);
@@ -49,16 +53,26 @@ const retryable = new Set(['not_configured', 'rate_limited', 'timeout', 'provide
  * on every round. This is a model capability catalogue, never a data grant. */
 export function modelToolCatalogue(question: string, mode: ModelMode, messages: AgentMessage[], hasChartContext = false, contextDomains: readonly ContextDomain[] = []) {
   if (/^(?:你好|您好|嗨|哈[喽啰]|hello|hi|谢谢|多谢|感谢|thanks|thank you)[！!。.?？\s]*$/i.test(question.trim())) return [];
-  const selected = new Set(['query_verified_real_estate', 'get_data_capabilities', 'search_buildings', 'get_building_profile',
-    'list_buildings', 'query_quarterly_metrics', 'rank_buildings', 'summarize_result', 'check_data_coverage', 'get_source_evidence', 'select_answer_results']);
-  if (mode === 'deep' || /比较|对比|变化|趋势|同比|环比|多季度|过去|近.{0,6}季度|(?:和|与|、).{0,30}(?:同一|一张|一起|同图)/.test(question))
+  if (/概念|含义|定义|方法|如何计算|怎么计算|写一|^(?:请)?(?:什么是|解释|介绍|说明|what is|define|explain)/i.test(question.trim()) && !requiresDataFactEvidence(question)) return [];
+  void mode;
+  const research = /研究|报告|Word|PPT|PDF|research|report/i.test(question);
+  const hasResult = hasChartContext || contextDomains.length > 0 || messages.some(m => m.role === 'tool' && /"resultId"/.test(m.content ?? ''));
+  const selected = new Set(['query_verified_real_estate', 'get_data_capabilities', 'search_buildings']);
+  if (/列表|列出|所有|全部|哪些|list/i.test(question)) selected.add('list_buildings');
+  if (/高度|楼层|车位|参数|profile/i.test(question)) selected.add('get_building_profile');
+  if (/排名|最高|最低|top|rank/i.test(question)) selected.add('rank_buildings');
+  if (/租金|空置|季度|rent|vacancy|quarter/i.test(question)) selected.add('query_quarterly_metrics');
+  if (hasResult && /排列|排序|筛选|分页|下一页|sort|filter|page/i.test(question)) selected.add('apply_result_view');
+  if (hasResult) for (const name of ['summarize_result', 'check_data_coverage', 'get_source_evidence', 'select_answer_results']) selected.add(name);
+  if (/复合|交叉|多指标|cross/i.test(question)) selected.add('execute_query_plan');
+  if (research || /比较|对比|变化|趋势|同比|环比|多季度|过去|近.{0,6}季度|(?:和|与|、).{0,30}(?:同一|一张|一起|同图)/.test(question))
     for (const name of ['compare_market_segments', 'analyze_market_trends', 'compare_result_sets']) selected.add(name);
-  if (mode === 'deep' || /空置|散点|相关|联合/.test(question)) selected.add('analyze_rent_vacancy');
-  if (mode === 'deep' || /分布|直方|箱线|异常/.test(question)) selected.add('analyze_distribution');
+  if (research || /空置|散点|相关|联合/.test(question)) selected.add('analyze_rent_vacancy');
+  if (research || /分布|直方|箱线|异常/.test(question)) selected.add('analyze_distribution');
   if (/Excel|CSV|xlsx|导出|表格|全部结果/i.test(question)) selected.add('export_table');
   if (/翻页|下一页|第.{0,6}页|继续列|更多结果/.test(question)) selected.add('read_result_page');
   if (/地图|定位|只查看|只看|选中/.test(question)) selected.add('prepare_map_selection');
-  if (mode === 'deep' || /摘要|总结|结论/.test(question)) selected.add('prepare_research_output');
+  if (research || /摘要|总结|结论/.test(question)) selected.add('prepare_research_output');
   // Follow-up tasks retain tools already selected by this verified conversation.
   // This is discoverability only: the executor still rechecks every grant.
   const domainTools = new Set(['query_lease_transactions', 'query_building_dossier', 'query_submarket_profile',
@@ -67,7 +81,7 @@ export function modelToolCatalogue(question: string, mode: ModelMode, messages: 
   if (contextDomains.includes('lease')) selected.add('query_lease_transactions');
   if (contextDomains.includes('business')) for (const name of ['query_building_dossier', 'query_submarket_profile', 'query_future_supply', 'query_stacking_plan']) selected.add(name);
   if (contextDomains.includes('knowledge')) for (const name of ['list_knowledge_documents', 'search_internal_documents']) selected.add(name);
-  if (mode === 'deep') for (const name of ['plan_research_task', 'advance_research_task', 'review_research_task', 'generate_research_deliverable', 'query_report_market']) selected.add(name);
+  if (research) for (const name of ['plan_research_task', 'advance_research_task', 'review_research_task', 'generate_research_deliverable', 'query_report_market']) selected.add(name);
   if (/PDF/i.test(question)) selected.add('generate_pdf_report');
   if (/成交|租赁|租户|租在哪|行业|免租|签约|TMT|lease|transaction|tenant|industry/i.test(question)) selected.add('query_lease_transactions');
   if (/资料|楼书|参数|介绍|供应|楼层|层数|地址|行政区|等级|建成年|竣工|面积|高度|停车|车位|交通|地铁|绿色|认证|物业|设施|空调|客梯|通信|交付|GFA|LEED|Stacking|销控|单元/i.test(question))
@@ -100,12 +114,17 @@ export function modelToolCatalogue(question: string, mode: ModelMode, messages: 
 /** Request-local budget and routing; the existing DB receipt admission still
  * enforces the cross-instance per-account minute/day cap. No automatic SDK retries. */
 export function createModelRuntime(input: { actorId: string; question: string; mode?: ModelMode; hasChartContext?: boolean; contextDomains?: readonly ContextDomain[];
-  revalidate: (signal: AbortSignal) => Promise<void>; onAttempt: (attempt: ModelAttempt) => Promise<void>;
+  revalidate: (signal: AbortSignal) => Promise<void>; admit?: (signal: AbortSignal) => Promise<void>; onAttempt: (attempt: ModelAttempt) => Promise<void>;
   legacyInvoke?: typeof completeWithDeepSeek; adapters?: Partial<Record<ProviderId, ModelAdapter>> }) {
   const mode = chooseModelMode(input.question, input.mode), configured = process.env[`AI_PROVIDER_${mode.toUpperCase()}`] ?? 'deepseek';
   if (!['deepseek', 'openai'].includes(configured)) throw new ModelProviderError('invalid_configuration');
   let active: ProviderId = configured === 'openai' && openAIAllowed(input.actorId) ? 'openai' : 'deepseek';
   let fallbackUsed = false, spent = 0, tokens = 0, attempts = 0;
+  let budgetRejection: string | null = null;
+  let busy = false, admitted = false;
+  const rejectBudget = (reason: NonNullable<ModelProviderError['budgetReason']>): never => {
+    budgetRejection = reason; throw new ModelProviderError('budget_exceeded', reason);
+  };
   const maxTokens = Math.floor(boundedNumber('AI_AGENT_MAX_TOKENS', 60000, 1000, 60000));
   const maxUsd = boundedNumber('AI_AGENT_MAX_ESTIMATED_USD', .25, .000001, 5);
   const maxOutputTokens = Math.floor(boundedNumber('AI_AGENT_MAX_OUTPUT_TOKENS', 1800, 256, 4096));
@@ -126,7 +145,9 @@ export function createModelRuntime(input: { actorId: string; question: string; m
       : { input: .3, output: 1.2, basis: 'deepseek_planning_upper_range_2026-11-19_not_invoice' };
     return { model, rates };
   };
-  const invoke = async (messages: AgentMessage[], signal: AbortSignal, onDelta?: (delta: string) => Promise<void>): Promise<AgentCompletion> => {
+  const invokeInternal = async (originalMessages: AgentMessage[], signal: AbortSignal, onDelta?: (delta: string) => Promise<void>, purpose: 'agent' | 'semantic_intent' | 'synthesis' = 'agent'): Promise<AgentCompletion> => {
+    if (externalModelForbidden(input.question)) throw new ModelProviderError('disclosure_denied');
+    const messages = compactModelContext(originalMessages);
     for (;;) {
       signal.throwIfAborted(); await input.revalidate(signal);
       const provider = active, started = Date.now();
@@ -137,15 +158,20 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         settings = { model: 'unconfigured', rates: { input: 0, output: 0, basis: 'request_not_sent' } };
       }
       const { model, rates } = settings;
-      const tools = modelToolCatalogue(input.question, mode, messages, input.hasChartContext, input.contextDomains);
-      // UTF-8 bytes are a conservative preflight token envelope, with framing
-      // and native opaque continuation included. No silent context truncation.
-      const upperInput = Buffer.byteLength(JSON.stringify(messages)) + Buffer.byteLength(JSON.stringify(tools))
-        + messages.reduce((n, m) => n + (m.continuationBudgetBytes ?? 0), 0) + 1024;
-      const reserveTokens = configurationFailure ? 0 : upperInput + maxOutputTokens;
-      const reserveUsd = (upperInput * rates.input + maxOutputTokens * rates.output) / 1e6;
-      if (attempts >= limits[mode].rounds + 1 || tokens + reserveTokens > maxTokens || spent + reserveUsd > maxUsd)
-        throw new ModelProviderError('budget_exceeded');
+      const tools = purpose === 'semantic_intent' ? [] : modelToolCatalogue(input.question, mode, messages, input.hasChartContext, input.contextDomains);
+      const outputLimit = purpose === 'semantic_intent' ? Math.min(1200, maxOutputTokens) : maxOutputTokens;
+      const context = modelContextEnvelope(provider, messages, tools);
+      const upperInput = context.inputUpperTokens;
+      const reserveTokens = configurationFailure ? 0 : upperInput + outputLimit;
+      const reserveUsd = configurationFailure ? 0 : (upperInput * rates.input + outputLimit * rates.output) / 1e6;
+      if (attempts >= limits[mode].rounds + 1) rejectBudget('attempt_limit');
+      if (tokens + reserveTokens > maxTokens) rejectBudget('token_reservation');
+      if (spent + reserveUsd > maxUsd) rejectBudget('cost_reservation');
+      if (!admitted && !configurationFailure) {
+        try { await input.admit?.(signal); }
+        catch (error) { if (error instanceof ModelProviderError && error.code === 'budget_exceeded') rejectBudget(error.budgetReason ?? 'account_admission'); throw error; }
+        admitted = true;
+      }
       attempts++;
       let result: AgentCompletion | undefined, failure: unknown;
       const deltas: string[] = [];
@@ -153,7 +179,8 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         if (configurationFailure) throw configurationFailure;
         result = await (input.adapters?.[provider] ?? (provider === 'deepseek' ? deepseek : openai))(messages, signal,
           onDelta ? async delta => { deltas.push(delta); if (deltas.join('').length > 12000) throw new ModelProviderError('invalid_response'); } : undefined,
-          { model, maxOutputTokens, timeoutMs, tools });
+          { model, maxOutputTokens: outputLimit, timeoutMs: purpose === 'semantic_intent' ? Math.min(12000, timeoutMs) : timeoutMs, tools,
+            ...(purpose === 'semantic_intent' && provider === 'deepseek' ? { responseFormat: 'json_object' as const, maxResponseBytes: 32768 } : {}) });
         if (result.provider !== provider || !Number.isSafeInteger(result.inputTokens ?? 0) || !Number.isSafeInteger(result.outputTokens ?? 0)
           || (result.inputTokens ?? 0) < 0 || (result.outputTokens ?? 0) < 0) throw new ModelProviderError('invalid_response');
       } catch (error) { failure = error; }
@@ -164,7 +191,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
       tokens += chargedTokens; spent += estimateUsd;
       const errorCode = failure instanceof ModelProviderError ? failure.code : signal.aborted ? 'cancelled'
         : failure instanceof Error && failure.message === 'QUERY_DENIED' ? 'authorization_denied' : failure ? 'provider_unavailable' : undefined;
-      const record: ModelAttempt = { protocol: 'agent-model-attempt/1', mode, attempt: attempts, provider, model: result?.model ?? model,
+      const record: ModelAttempt = { purpose, context, protocol: 'agent-model-attempt/1', mode, attempt: attempts, provider, model: result?.model ?? model,
         state: failure ? 'failed' : 'completed', ...(errorCode ? { errorCode } : {}), fallback: fallbackUsed,
         durationMs: Math.max(0, Date.now() - started), inputTokens: result?.inputTokens ?? null, outputTokens: result?.outputTokens ?? null,
         cachedInputTokens: result?.cachedInputTokens ?? null, reasoningTokens: result?.reasoningTokens ?? null,
@@ -173,7 +200,8 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         billing: { actualUsd: null, state: 'not_reconciled', currency: 'USD' } };
       records.push(record); await input.onAttempt(record);
       if (!failure) {
-        if (tokens > maxTokens || spent > maxUsd) throw new ModelProviderError('budget_exceeded');
+        if (tokens > maxTokens) rejectBudget('actual_token_limit');
+        if (spent > maxUsd) rejectBudget('actual_cost_limit');
         await input.revalidate(signal);
         for (const delta of deltas) await onDelta?.(delta);
         return result!;
@@ -186,7 +214,15 @@ export function createModelRuntime(input: { actorId: string; question: string; m
       await input.revalidate(signal); active = alternate; fallbackUsed = true;
     }
   };
-  return { mode, limits: limits[mode], invoke, records,
+  const invoke = async (messages: AgentMessage[], signal: AbortSignal, onDelta?: (delta: string) => Promise<void>, purpose: 'agent' | 'semantic_intent' | 'synthesis' = 'agent') => {
+    // Serialize ownership, including nested interpretation and fallback. A
+    // caller cannot race two reservations against the same remaining balance.
+    if (busy) throw new ModelProviderError('invalid_configuration');
+    busy = true;
+    try { return await invokeInternal(messages, signal, onDelta, purpose); }
+    finally { busy = false; }
+  };
+  return { mode, interpret: (messages: AgentMessage[], signal: AbortSignal) => invoke(messages, signal, undefined, 'semantic_intent'), limits: limits[mode], invoke, records,
     summary: () => ({ mode, attempts, estimatedUpperUsd: spent, chargedTokens: tokens, maxTokens, maxEstimatedUsd: maxUsd,
-      providers: [...new Set(records.map(r => r.provider))], fallbackUsed, actualBilledUsd: null, billingStatus: 'not_reconciled' as const }) };
+      budgetRejection, providers: [...new Set(records.map(r => r.provider))], fallbackUsed, actualBilledUsd: null, billingStatus: 'not_reconciled' as const }) };
 }

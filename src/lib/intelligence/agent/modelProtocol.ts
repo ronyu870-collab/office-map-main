@@ -15,6 +15,6 @@ export type AgentCompletion = {
   providerRequestId?: string;
 };
 export type AgentToolDefinition = { name: string; description: string; parameters: Record<string, unknown> };
-export type AdapterOptions = { model: string; maxOutputTokens: number; timeoutMs: number; tools?: AgentToolDefinition[] };
+export type AdapterOptions = { model: string; maxOutputTokens: number; timeoutMs: number; tools?: AgentToolDefinition[]; responseFormat?: 'json_object'; maxResponseBytes?: number };
 export type ModelAdapter = (messages: AgentMessage[], signal: AbortSignal,
   onDelta?: (delta: string) => Promise<void>, options?: AdapterOptions) => Promise<AgentCompletion>;

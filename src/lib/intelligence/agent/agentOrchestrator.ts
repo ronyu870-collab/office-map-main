@@ -5,6 +5,12 @@ import { BUSINESS_TOOL_NAMES } from '../business/protocol';
 import { RESEARCH_TOOL_NAMES } from '../research/protocol';
 import type { QueryPlan } from '../query/plan';
 import { requestedArtifactFormats } from './artifactFulfillment';
+import { preferredChartRequest } from './resultTools';
+import { resultViewSchema } from '../query/presentation';
+import { structuredQueryPlan } from './structuredQueryPlan';
+import type { StructuredDataToolName } from './toolRegistry';
+import type { TaskRoute } from './taskRouting';
+import { ModelProviderError } from './modelProvider';
 import { requiresDataFactEvidence } from './queryObligation';
 
 export const AGENT_LIMITS = { rounds: 9, tools: 12, maxToolText: 12000,
@@ -23,6 +29,8 @@ export type AgentEvent = { type: 'model_finished' | 'tool_started' | 'tool_finis
   inputTokens?: number | null; outputTokens?: number | null; status?: 'ready' | 'limited'; errorCode?: string };
 export type AgentDependencies<T> = {
   question: string;
+  taskRoute?: TaskRoute;
+  previousResultId?: string;
   history?: Array<{ user: string; assistant: string }>;
   /** Server-validated prior plan only. Never accepts a browser-claimed result. */
   contextPlan?: QueryPlan;
@@ -45,7 +53,7 @@ export type AgentDependencies<T> = {
   onEvent?: (event: AgentEvent) => Promise<void>;
 };
 
-export function agentInstructions(): string {
+export function agentInstructions(question?: string): string {
   return [
     '你是 Colliers AI，高力国际北京区的研究与业务助手。普通交流和概念问题自然作答，不要求先给地区、季度。寒暄一句、通常40汉字以内，零数据查询，不列能力或示例；用户问能做什么时才紧凑介绍。',
     '正文预算：简单事实一至两句、通常80字以内；普通查数/排名/比较简短判断、通常120字以内，最多三条必要观察；不可用一句状态和一句可信原因，至多一个下一步；文件由真实附件说明。用户明确要求详细解释、方法或完整研究时充分展开。',
@@ -64,7 +72,16 @@ export function agentInstructions(): string {
     '历史文本只代表意图，不是当前事实/权限。仅服务器本轮已重新授权导入的结果ID可复用；其余继承合法旧条件后重新查询。工作集、已恢复图表和研究任务仍逐次授权，不扩权、不提高预算。',
     '工具错误按结构化原因有限纠正或解释限制，不能无限重试或以失败假称成功。部分完成与最终完成分开；未知、受控、无权限、空结果和失败不混同。正文只留准确的短状态，工具名/错误码/技术日志进诊断，不推断未查询的数据。',
     '今天北京时间：' + new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
-  ].join('\n');
+  ].filter(rule => {
+    if (question === undefined) return true;
+    if (/^成交仅|^最新一笔成交/.test(rule)) return /成交|租赁|交易|TMT|行业|租户|lease|transaction/i.test(question);
+    if (/^内部文档使用/.test(rule)) return /文档|楼书|原件|公开|检索|研究|报告|document|research/i.test(question);
+    if (/^楼宇资料/.test(rule)) return /资料|子市场|供应|Stacking|地图|竣工|空调|认证|dossier|map|supply/i.test(question);
+    if (/^图表明确/.test(rule)) return /图|轴|PNG|SVG|chart|plot|axis/i.test(question);
+    if (/^Excel\/CSV/.test(rule)) return /Excel|CSV|xlsx|导出|文件|export/i.test(question);
+    if (/^PDF须/.test(rule)) return /研究|报告|PDF|Word|PPT|research|report/i.test(question);
+    return true;
+  }).join('\n');
 }
 
 function classifyToolError(error: unknown): string {
@@ -132,9 +149,91 @@ const errorHint: Record<string, string> = {
   no_verified_result: '数据工具没有产生完整的正式 QueryResult，不能认定查询已完成。',
 };
 
+/** The fast route uses the same registered tool executor, workset and terminal
+ * archive as the Agent. It never manufactures a model completion or a fact. */
+async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): Promise<AgentLoopResult<T>> {
+  const toolNames: string[] = [], phases: AgentPhase[] = ['understanding'];
+  let result: T | undefined;
+  const failures: Array<{ tool: string; code: string }> = [];
+  const run = async (name: string, args: Record<string, unknown>) => {
+    input.signal.throwIfAborted(); await input.revalidate?.(input.signal);
+    await input.onEvent?.({ type: 'tool_started', name });
+    const started = Date.now(); toolNames.push(name);
+    try {
+      const observed = await input.runTool(name, parseAgentToolArguments(name, args), input.signal);
+      if (observed.result !== undefined) result = observed.result;
+      const status = JSON.parse(observed.content).status;
+      if (status !== 'ready') failures.push({ tool: name, code: status ?? 'no_verified_result' });
+      await input.onEvent?.({ type: 'tool_finished', name, status: status === 'ready' ? 'ready' : 'limited', durationMs: Date.now() - started });
+      return observed;
+    } catch (error) {
+      if (input.signal.aborted || error instanceof Error && error.message === 'QUERY_DENIED') throw error;
+      const code = error instanceof ModelProviderError ? error.budgetReason ?? error.code : classifyToolError(error);
+      failures.push({ tool: name, code });
+      await input.onEvent?.({ type: 'tool_finished', name, status: 'limited', errorCode: code, durationMs: Date.now() - started });
+      return undefined;
+    }
+  };
+  let clarification: string | undefined;
+  let serverReply: string | undefined;
+  if (task.capabilities) {
+    const observed = await run('get_data_capabilities', task.availablePeriods ? { includePeriods: true } : {});
+    if (observed) {
+      const payload = JSON.parse(observed.content);
+      const authority = payload.authority;
+      const fields = authority?.fields?.map((f: { label: string }) => f.label).join('、');
+      if (task.availablePeriods) serverReply = payload.availablePeriods?.length
+        ? payload.availablePeriods.map((group: { label: string; periods: string[]; truncated: boolean }) => `${group.label}：${group.periods.join('、') || '未找到有效期间'}${group.truncated ? '（仅最近40期）' : ''}`).join('；') + '。按当前获权范围和字段有效记录列示，不代表每栋楼都有数据。'
+        : '当前没有可用于读取季度索引的授权字段，不能据此判定业务数据不存在。';
+      else serverReply = fields ? `当前允许的数值字段：${fields}。范围受当前子市场与楼宇授权约束；权限不保证存在有效数据。`
+        : '当前未开放数值字段；实际范围和操作仍受独立资格约束。';
+    }
+  } else if (task.plan) await run('execute_query_plan', { plan: task.plan });
+  else if (task.reusePrevious && input.previousResultId) {
+    // Materialize the full authorized result through the executor, no snapshot read.
+    const observed = await run('select_answer_results', { primaryResultId: input.previousResultId, auxiliary: [], task: task.tableView ? 'fact' : 'file', status: 'answered' });
+    if (!observed?.result) failures.push({ tool: 'select_answer_results', code: 'result_not_found' });
+  } else if (task.route === 'single_interpretation') {
+    const observed = await run('query_verified_real_estate', { question: task.question });
+    if (observed) { const payload = JSON.parse(observed.content); if (payload.status === 'requires_clarification') clarification = payload.message; }
+  } else if (!task.reply) failures.push({ tool: 'verified_data', code: 'result_not_found' });
+  if (task.tableView && result && !failures.length) {
+    const view = resultViewSchema.parse(result); await run('apply_result_view', { resultId: view.resultId, view: task.tableView });
+  }
+  if (task.chartType && result && !failures.length) {
+    const view = resultViewSchema.parse(result);
+    const chart = preferredChartRequest(view);
+    const type = chart?.kind === 'plot' ? chart.type : chart?.kind === 'bar' ? 'bar'
+      : chart?.kind === 'time_series' || chart?.kind === 'grouped_time_series' ? 'line' : chart?.kind === 'scatter' ? 'scatter' : undefined;
+    if (!chart || task.chartType !== 'auto' && task.chartType !== type) failures.push({ tool: 'create_chart', code: 'unsupported' });
+    else await run('create_chart', { resultId: view.resultId, chart });
+  }
+  if (task.chartExport && result && !failures.length) {
+    const view = resultViewSchema.parse(result); await run('export_chart', { resultId: view.resultId, format: task.chartExport });
+  }
+  if (task.exportFormat && result && !failures.length) {
+    const id = typeof result === 'object' && 'resultId' in result ? result.resultId : undefined;
+    await run('export_table', { resultIds: [id], format: task.exportFormat });
+  }
+  if (task.route !== 'direct_response' && !result && !failures.length) failures.push({ tool: 'verified_data', code: 'no_verified_result' });
+  await input.revalidate?.(input.signal);
+  phases.push('verification', 'completed');
+  return { answer: task.reply ?? serverReply ?? clarification ?? (result ? '查询结果见下方表格。' : '本轮未取得可核验的数据结果，请明确查询条件。'),
+    result, model: '', calls: 0, toolCalls: toolNames.length, inputTokens: 0, outputTokens: 0,
+    toolNames, phases, executionStatus: failures.length ? result ? 'partial' : 'limited' : 'completed', unresolvedFailures: failures };
+}
+
+function canonicalToolArguments(value: unknown): string {
+  const normalize = (v: unknown, key = ''): unknown => Array.isArray(v)
+    ? ['buildingIds', 'submarkets'].includes(key) ? v.map(x => normalize(x)).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) : v.map(x => normalize(x))
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, normalize(x, k)])) : v;
+  return JSON.stringify(normalize(value));
+}
+
 export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<AgentLoopResult<T>> {
+  if (input.taskRoute && !['bounded_agent', 'deep_research'].includes(input.taskRoute.route)) return runPlannedTask(input, input.taskRoute);
   const limits = input.limits ?? AGENT_LIMITS;
-  const messages: AgentMessage[] = [{ role: 'system', content: agentInstructions() }];
+  const messages: AgentMessage[] = [{ role: 'system', content: agentInstructions(input.question + (input.contextChart ? ' 图表' : '') + (input.contextExport ? ' 导出' : '') + (input.researchContext ? ' 研究' : '') + (input.leaseResults?.length ? ' 成交' : '')) }];
   if (input.memory) messages.push({ role: 'user', content: '会话结构化摘要（仅为用户意图和引用，不是数据事实或授权）：' + JSON.stringify(input.memory) });
   if (input.answerResults?.length) messages.push({ role: 'system', content: '上轮实际展示的主/辅助完整快照已由服务器重新验证本人、会话、权限和全部来源并导入本轮工作集。可用真实resultId选择、比较、来源、图表及文件操作；原期间不更新，需实时数据时重新查询。此清单为引用元信息，不能从中推算数值：' + JSON.stringify(input.answerResults) });
   if (input.researchContext) messages.push({ role: 'system', content: '以下是本人研究任务的合法恢复进度（全部来源已重新鉴权），复用已完成结果并继续，不得猜测内容：' + JSON.stringify(input.researchContext) });
@@ -148,16 +247,15 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
   if (input.reportResults?.length) messages.push({ role: 'system', content: 'PDF专用：以下当前对话中最近8轮的正式快照已经逐一核对本人、对话、当前权限和全部来源并导入本轮工作集，可直接选择resultId组合PDF；不要重新计算或用模型摘要替代原数据。' + JSON.stringify(input.reportResults)
     + (input.reportHistoryLimited ? '。更早历史未导入，若需要更早结果必须重新合法查询，不能声称已包含全部对话历史。' : '') });
   if (input.contextChart) messages.push({ role: 'system', content: '上轮图表快照已按本人会话、权限、全部来源重新验证并导入本轮工作集，可直接复用此resultId修改或导出，保持数据版本。规格：' + JSON.stringify(input.contextChart) });
-  for (const turn of (input.history ?? []).slice(-AGENT_LIMITS.maxHistoryTurns)) {
-    messages.push({ role: 'user', content: turn.user.slice(0, 1600) },
-      { role: 'assistant', content: '历史回复不作为当前事实。涉及正式数值、原件或文件时须复用服务器本轮已重新授权的引用，或重新查询。' });
-  }
+  for (const turn of (input.history ?? []).slice(-3)) messages.push({ role: 'user', content: turn.user.slice(0, 600) });
   messages.push({ role: 'user', content: input.question });
   const observed = new Map<string, AgentToolObservation<T>>();
   const toolNames: string[] = [];
   const phases: AgentPhase[] = [];
   const unresolved = new Map<string, string>();
   const errors = new Map<string, number>();
+  let stagnant = 0;
+  const failedCalls = new Map<string, string>();
   let result: T | undefined, model = '', calls = 0, toolCalls = 0;
   let selectedResult: T | undefined;
   let trustedClarification: string | undefined;
@@ -174,7 +272,18 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
   for (let round = 0; round < limits.rounds; round++) {
     input.signal.throwIfAborted();
     await input.revalidate?.(input.signal);
-    const completed = await input.invoke(messages, input.signal);
+    let completed: AgentCompletion;
+    try { completed = await input.invoke(messages, input.signal); }
+    catch (error) {
+      // Only optional supplier synthesis may degrade. Authorization, audit,
+      // source checks and cancellation must propagate and never deliver data.
+      if (!(error instanceof ModelProviderError) || result === undefined || input.signal.aborted) throw error;
+      await input.revalidate?.(input.signal);
+      await phase('completed');
+      return { answer: '查询已完成，附加分析未生成。', result: selectedResult ?? result, model, calls, toolCalls,
+        inputTokens, outputTokens, toolNames, phases, executionStatus: 'partial',
+        unresolvedFailures: [...unresolved].map(([tool, code]) => ({ tool, code })).concat({ tool: 'model_synthesis', code: error.budgetReason ?? error.code }) };
+    }
     calls++; model = completed.model;
     inputTokens = inputTokens === null || completed.inputTokens === null ? null : inputTokens + completed.inputTokens;
     outputTokens = outputTokens === null || completed.outputTokens === null ? null : outputTokens + completed.outputTokens;
@@ -246,7 +355,12 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
       const presentation = PRESENTATION_TOOL_NAMES.has(name);
       const priorResultId = result && typeof result === 'object' && 'resultId' in result
         && typeof result.resultId === 'string' ? result.resultId : 'no_verified_result';
-      const fingerprint = name + ':' + JSON.stringify(parsed ?? call.arguments)
+      let signature: unknown = parsed ?? call.arguments;
+      let family = name;
+      if (parsed && !parsed.question && STRUCTURED_DATA_TOOL_NAMES.has(name)) {
+        try { signature = structuredQueryPlan(name as StructuredDataToolName, parsed); family = 'formal_query'; } catch { /* Strict execution reports a bounded error. */ }
+      }
+      const fingerprint = family + ':' + canonicalToolArguments(signature)
         + (presentation && !parsed?.resultId ? ':' + priorResultId : '');
       const reused = parsed && name !== 'advance_research_task' ? observed.has(fingerprint) : false;
       if (!reused) await input.onEvent?.({ type: 'tool_started', name });
@@ -256,6 +370,8 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
       if (!parsed) {
         code = 'invalid_arguments';
         observation = { content: '' };
+      } else if (failedCalls.has(fingerprint)) {
+        code = failedCalls.get(fingerprint); observation = { content: '' };
       } else {
         try {
           observation = (name === 'advance_research_task' ? undefined : observed.get(fingerprint)) ?? await input.runTool(name, parsed, input.signal);
@@ -268,12 +384,13 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
         }
       }
       if (code) {
+        failedCalls.set(fingerprint, code);
         const attempt = (errors.get(name) ?? 0) + 1;
         errors.set(name, attempt);
         unresolved.set(name, code);
         if (attempt > AGENT_LIMITS.recoveriesPerTool) throw new Error('AGENT_TOOL_RECOVERY_EXHAUSTED');
         observation.content = JSON.stringify({ status: 'error', code,
-          retryable: attempt <= AGENT_LIMITS.recoveriesPerTool,
+          retryable: !['export_not_authorized', 'unsupported', 'field_not_available'].includes(code) && attempt <= AGENT_LIMITS.recoveriesPerTool,
           remainingRetries: Math.max(0, AGENT_LIMITS.recoveriesPerTool - attempt),
           message: errorHint[code] });
       } else {
@@ -302,6 +419,14 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
         status: code ? 'limited' : (() => { try { return JSON.parse(observation.content).status === 'ready' ? 'ready' : 'limited'; }
           catch { return observation.result ? 'ready' : 'limited'; } })(),
         ...(code ? { errorCode: code } : {}) });
+      stagnant = reused || code ? stagnant + 1 : 0;
+    }
+    if (stagnant >= 3) {
+      await input.revalidate?.(input.signal);
+      return { answer: result === undefined ? '执行未能取得完整结果，请明确查询条件。' : '已保留正式结果，部分步骤未完成。',
+        result: selectedResult ?? result, model, calls, toolCalls, inputTokens, outputTokens, toolNames, phases,
+        executionStatus: result === undefined ? 'limited' : 'partial',
+        unresolvedFailures: [...unresolved].map(([tool, code]) => ({ tool, code })).concat({ tool: 'execution', code: 'no_progress' }) };
     }
   }
   throw new Error('AGENT_ROUND_LIMIT');

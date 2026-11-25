@@ -108,7 +108,12 @@ export async function verifyAi5FinalHardening({ db, service, keys, output, check
         return step ? text('完整正式结果与来源见本条回答。') : completion([call(tool, args)]);
       }, parent);
       assert.equal(current.status, 200, JSON.stringify(current.body)); assert.ok(current.body.result.table.rows.length > 0);
-      assert.deepEqual(current.body.result.parameters.executedPlan.scope, scope);
+      const executedScope = current.body.result.parameters.executedPlan.scope;
+      assert.deepEqual(executedScope.submarkets, ['CBD']);
+      if (id === 'B6') assert.equal(executedScope.inventory, 'all_authorized');
+      // Model-scripted buildingIds are not user conditions. The fast path
+      // preserves the user's logical scope; the real grant filters records.
+      assert.ok(current.body.result.table.rows.every(row => buildingIds.includes(row.entityId)));
       if (id === 'B9') assert.deepEqual(current.body.result.parameters.executedPlan.period, period);
       assert.deepEqual((await recover(who, current.body.requestId)).body.result, current.body.result);
     });

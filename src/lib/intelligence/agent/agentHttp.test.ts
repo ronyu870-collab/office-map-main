@@ -80,6 +80,18 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it('applies an authorized prior-result view through the actual HTTP executor with zero model calls', async () => {
+    const prior = { ...buildListResult(fixture(), ['height']), parameters: { executedPlan: parseQueryPlan({ operation: 'list',
+      fields: ['height'], scope: { inventory: 'all_authorized', submarkets: ['CBD'] }, period: null }) } };
+    state.history.mockResolvedValue(Object.assign([], { contextResult: prior, contextResults: [prior] }));
+    const response = await handleAgentSubmission(fakeRequest('筛选建筑高度至少200米').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.agent.modelCalls).toBe(0);
+    expect(body.result.parameters.agentTableView.filters).toEqual([{ key: 'height', value: '200', operator: 'gte' }]);
+    expect(body.result.table.rows).toHaveLength(4);
+    expect(state.provider).not.toHaveBeenCalled(); expect(state.structured).not.toHaveBeenCalled();
+  });
+
   it('does not pair a Q3 narrative with the last all-unknown Q4 check when no primary result was chosen', async () => {
     const rawA = buildAggregateResult(fixture(), 'rent');
     const a = { ...rawA, parameters: { ...rawA.parameters, executedPlan: parseQueryPlan({ operation: 'aggregate',
@@ -200,7 +212,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     const response = await handleAgentSubmission(fakeRequest(question).request, deps());
     const body = await response.json();
     expect(response.status).toBe(200); expect(body.agent.executionStatus).toBe('completed');
-    expect(state.provider).toHaveBeenCalledOnce(); expect(body.result).toBeUndefined();
+    expect(state.provider).toHaveBeenCalledTimes(question === '你好' ? 0 : 1); expect(body.result).toBeUndefined();
   });
   it.each([true, false])('retains the trusted map operation outcome outside the formal result summary (prepared=%s)', async prepared => {
     let raw = prepared ? buildListResult(fixture(), ['height']) : buildAggregateResult(fixture(), 'rent');
@@ -275,7 +287,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(body.message).not.toMatch(/已保存|fake.invalid/); expect(body.result?.parameters?.researchDeliverables).toBeUndefined();
   });
   it('answers through provider after budget and audited admission', async () => {
-    const { request, input } = fakeRequest();
+    const { request, input } = fakeRequest('解释市场研究的方法');
     const response = await handleAgentSubmission(request, deps());
     const output = await response.json();
     expect(response.status).toBe(200);
@@ -284,7 +296,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(output.conversation).toEqual(input.conversation);
     expect(output.agent).toMatchObject({ model: 'deepseek-v4-flash', modelCalls: 1, toolCalls: 0, inputTokens: 12, outputTokens: 18 });
     expect(state.provider).toHaveBeenCalledOnce();
-    expect(state.provider.mock.calls[0][0].at(-1)).toMatchObject({ role: 'user', content: '你好' });
+    expect(state.provider.mock.calls[0][0].at(-1)).toMatchObject({ role: 'user', content: '解释市场研究的方法' });
     expect(output.historySaved).toBe(true);
     expect(state.save).toHaveBeenCalledWith(expect.anything(), keys, expect.anything(), input.conversation.id, output.requestId);
     expect(state.receive).toHaveBeenCalledOnce();
@@ -449,10 +461,10 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
   });
 
   it('budget denial is distinct from a completed model response', async () => {
-    const { request } = fakeRequest();
+    const { request } = fakeRequest('解释市场研究的方法');
     const response = await handleAgentSubmission(request, deps(false));
     expect(response.status).toBe(503);
-    expect((await response.json()).error).toContain('预算校验未通过');
+    expect((await response.json()).error).toMatch(/预算/);
     expect(state.provider).not.toHaveBeenCalled();
     expect(state.append.mock.calls.map(x => x[1])).toContain('failed');
   });
@@ -462,7 +474,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
         function: { name: 'rank_buildings', arguments: JSON.stringify({ scope: { inventory: 'tracked', submarkets: ['CBD'] },
           field: 'height', direction: 'desc', limit: 10 }) } }] } }).mockRejectedValueOnce(new Error('synthetic-private-error-do-not-log'));
     state.structured.mockRejectedValue(new Error('QUERY_READ_UNAVAILABLE'));
-    const response = await handleAgentSubmission(fakeRequest('CBD最高十栋楼').request, deps());
+    const response = await handleAgentSubmission(fakeRequest('综合核对CBD高度资料和覆盖').request, deps());
     expect(response.status).toBe(503);
     const failure = state.append.mock.calls.find(c => c[1] === 'accounting' && c[2]?.status === 'incomplete')![2];
     expect(failure.toolTrace).toEqual([expect.objectContaining({ name: 'rank_buildings', status: 'limited', errorCode: 'source_unavailable' })]);

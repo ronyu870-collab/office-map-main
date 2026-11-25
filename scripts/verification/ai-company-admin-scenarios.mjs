@@ -39,8 +39,8 @@ export async function setupCompanyAdmin(db, load) {
         const body = JSON.parse(raw); semanticCalls++; semanticInputs.push(body);
         assert.equal(body.max_tokens, 1200); assert.equal(body.stream, false);
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({ model: 'synthetic-semantic-model', choices: [{ finish_reason: 'stop',
-          message: { content: JSON.stringify(semanticReply ?? { invalid: 'no synthetic semantic reply configured' }) } }],
+        res.end(JSON.stringify({ model: 'deepseek-flash', choices: [{ finish_reason: 'stop',
+          message: { role: 'assistant', content: JSON.stringify(semanticReply ?? { invalid: 'no synthetic semantic reply configured' }) } }],
           usage: { prompt_tokens: 100, completion_tokens: 50 } })); return;
       }
       assert.equal(req.url, '/responses');
@@ -56,9 +56,11 @@ export async function setupCompanyAdmin(db, load) {
   provider.listen(0, '127.0.0.1'); await once(provider, 'listening');
   const baseUrl = `http://127.0.0.1:${provider.address().port}`;
   const model = 'synthetic-company-admin';
+  const officialBase = 'https://api.deepseek.com';
   return {
-    env: { LEASE_COMPANY_AI_MODE: 'hints', DEEPSEEK_API_KEY: 'synthetic-local-only', DEEPSEEK_API_BASE_URL: baseUrl, DEEPSEEK_MODEL: model },
-    policy: createHash('sha256').update(JSON.stringify(['lease-company-pair-v1', baseUrl, model])).digest('hex'),
+    providerTarget: baseUrl,
+    env: { LEASE_COMPANY_AI_MODE: 'hints', DEEPSEEK_API_KEY: 'synthetic-local-only', DEEPSEEK_API_BASE_URL: officialBase, DEEPSEEK_MODEL: model, DEEPSEEK_CHAT_MODEL: 'deepseek-flash' },
+    policy: createHash('sha256').update(JSON.stringify(['lease-company-pair-v1', officialBase, model])).digest('hex'),
     calls: () => calls,
     semanticCalls: () => semanticCalls,
     semanticInputs: () => semanticInputs,

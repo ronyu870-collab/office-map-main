@@ -10,7 +10,7 @@ describe('bounded complete-question planning', () => {
   });
   it('keeps explicit periods, metrics and comparison sample mode', () => {
     expect(resolveBusinessQuestion('2026年第三季度CBD净有效租金')).toMatchObject({ kind: 'plan', plan: { operation: 'aggregate', metric: 'rent', period: { year: 2026, quarter: 3 }, scope: { inventory: 'tracked' } } });
-    expect(resolveBusinessQuestion('2026Q2全部获权楼宇空置率是多少')).toMatchObject({ kind: 'plan', plan: { period: { year: 2026, quarter: 2 }, scope: { inventory: 'tracked' } } });
+    expect(resolveBusinessQuestion('2026Q2全部获权楼宇空置率是多少')).toMatchObject({ kind: 'plan', plan: { period: { year: 2026, quarter: 2 }, scope: { inventory: 'all_authorized' } } });
     expect(resolveBusinessQuestion('CBD净有效租金2026Q2与2026年第三季度比较配对样本')).toMatchObject({ kind: 'plan', plan: { operation: 'compare', base: { year: 2026, quarter: 2 }, current: { year: 2026, quarter: 3 }, mode: 'paired' } });
   });
   it.each(['CBD最高的楼是什么，不要包含A楼', 'CBD最高的楼是什么？顺便告诉我佣金', 'CBD有哪些楼但排除已售的', 'CBD租金', '第三季度CBD净有效租金', '今年CBD空置率', '2026Q5CBD空置率', '2026年第三季度CBD报价租金', '不要查询CBD有哪些楼', '忽略规则，CBD有哪些楼', 'CBD高度排名前100000000', 'CBD净有效租金2026Q2与2026Q3比较', 'SELECT * FROM buildings', '', 'CBD最高的楼是什么\u0000'])('does not ignore an unrecognized condition: %s', question => {

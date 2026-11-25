@@ -1,3 +1,4 @@
+import { verifyAi6Runtime } from './ai6-runtime-scenarios.mjs';
 import { verifyAi5ModelOperations } from './ai5-model-operations-scenarios.mjs';
 import { verifyAi5FinalHardening } from './ai5-final-hardening-scenarios.mjs';
 import { verifyAi5Knowledge } from './ai5-knowledge-scenarios.mjs';
@@ -159,7 +160,7 @@ try{
   const build=spawn('npm',['run','build'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
   assert.equal((await once(build,'exit'))[0],0,'Actual Next production build must pass');
   const startApp=async()=>{
-    server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3289'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
+    server=spawn(process.execPath,['--require',path.join(root,'scripts/verification/synthetic-provider-preload.cjs'),'node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3289'],{cwd:root,env:{...env,AI_QUERY_TEST_PROVIDER_TARGET:companyFixture.providerTarget},stdio:['ignore',log.fd,log.fd]});
     await until(async()=>{try{return (await fetch(app+'/api/intelligence/query')).status===405;}catch{return false;}},'Next route startup');
   };
   await startApp();
@@ -606,6 +607,7 @@ try{
   await verifyP2Buildings({db,app,check,person,call,recover,events,decrypt,exportCaps});
   await verifyConversation({db,check,person,call,recover,events,decrypt,exportCaps,fixture:companyFixture});
   await verifyP2History({db,app,check,person,call,recover,artifact,events,decrypt,exportCaps});
+  await verifyAi6Runtime({db,app,fixture:companyFixture,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps});
   await verifyAi5Exports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Charts({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Reports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
