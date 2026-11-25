@@ -48,4 +48,23 @@ describe('AI management workspace lifecycle and safe states',()=>{
   available=true;await act(async()=>{await vi.advanceTimersByTimeAsync(30000);});expect(request.mock.calls.length).toBe(initial+3);
   Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});fireEvent(document,new Event('visibilitychange'));await act(async()=>{await Promise.resolve();});expect(released).toBe(true);
  });
+ it('keeps task filter focus, caret and Chinese composition across server results and empty pages',async()=>{
+  let finish:(value:unknown)=>void=()=>{};
+  const pending=new Promise(resolve=>{finish=resolve;});let delayed=false;
+  request.mockImplementation(async(_scope,input)=>input.action==='read'?read():input.action==='tasks'?(delayed?pending:{allowed:true,asOf:now,items:[],hasMore:false}):input.action==='overview'?overview():{allowed:true,asOf:now,totals:[],unsettledAttempts:0});
+  render(<ManagementConsole scope={scope}/>);await screen.findByText('AI 请求');
+  fireEvent.click(screen.getByRole('button',{name:'任务监控'}));await screen.findByText('当前筛选无投影任务；历史覆盖缺口见总览。');
+  const input=screen.getByLabelText('模型 ID') as HTMLInputElement;input.focus();
+  fireEvent.change(input,{target:{value:'deep'}});input.setSelectionRange(2,2);
+  delayed=true;fireEvent.click(screen.getByRole('button',{name:'应用筛选'}));
+  await waitFor(()=>expect(request).toHaveBeenCalledWith(scope,expect.objectContaining({action:'tasks',model:'deep'}),expect.any(AbortSignal)));
+  expect(input).toHaveFocus();expect(input.selectionStart).toBe(2);
+  fireEvent.compositionStart(input);fireEvent.change(input,{target:{value:'de模型ep'}});input.setSelectionRange(4,4);
+  await act(async()=>{finish({allowed:true,asOf:now,items:[],hasMore:false});});
+  expect(screen.getByLabelText('模型 ID')).toBe(input);expect(input).toHaveFocus();expect(input).toHaveValue('de模型ep');expect(input.selectionStart).toBe(4);
+  fireEvent.compositionEnd(input);fireEvent.change(input,{target:{value:'deepseek'}});input.setSelectionRange(8,8);
+  expect(input).toHaveFocus();expect(input.selectionStart).toBe(8);
+  fireEvent.change(input,{target:{value:''}});expect(input).toHaveFocus();expect(input).toHaveValue('');
+ });
+
 });

@@ -510,5 +510,25 @@
     "cases": [
       "continues search through result updates, middle edits, empty results and IME without losing focus or selection"
     ]
+  },
+  {
+    "id": "ai-management-task-filters",
+    "roots": [
+      "src/components/admin/ai-management/AiManagementWorkspace.tsx"
+    ],
+    "file": "src/components/admin/ai-management/AiManagementWorkspace.test.tsx",
+    "cases": [
+      "keeps task filter focus, caret and Chinese composition across server results and empty pages"
+    ]
+  },
+  {
+    "id": "ai-management-grant-search",
+    "roots": [
+      "src/components/admin/ai-management/GovernancePanels.tsx"
+    ],
+    "file": "src/components/admin/ai-management/GovernancePanels.test.tsx",
+    "cases": [
+      "keeps grant search focus, caret and Chinese composition while delayed account results arrive"
+    ]
   }
 ]
