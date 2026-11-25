@@ -8,6 +8,7 @@ on:
       - codex/pitch-studio-02-render-engine
       - codex/pitch-studio-03-material-library
       - codex/pitch-studio-04-business-templates
+      - codex/pitch-studio-05-workspace
   push:
     branches:
       - main
@@ -178,6 +179,7 @@ jobs:
           node supabase/tests/pitch-studio/library.mjs
           node supabase/tests/pitch-studio/business.mjs
           node supabase/tests/pitch-studio/workspace.mjs
+          node supabase/tests/pitch-studio/ai.mjs
         env:
           PITCH_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 

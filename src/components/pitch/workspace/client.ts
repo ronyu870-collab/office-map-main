@@ -27,7 +27,7 @@ export type Catalog = {
 export type Call = <T = Record<string, unknown>>(
   input: Record<string, unknown>,
   write?: boolean,
-  path?: "workspace" | "business" | "library" | "",
+  path?: "workspace" | "business" | "library" | "ai" | "",
   signal?: AbortSignal,
 ) => Promise<T>;
 export type Draft = {

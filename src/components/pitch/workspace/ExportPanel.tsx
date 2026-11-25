@@ -12,7 +12,9 @@ export function ExportPanel({
   flush,
   canClient,
   disabled,
+  openSignal = 0,
 }: {
+  openSignal?: number;
   call: Call;
   detail: WorkspaceDetail;
   active: string | null;
@@ -22,6 +24,7 @@ export function ExportPanel({
   disabled: boolean;
 }) {
   const [open, setOpen] = React.useState(false),
+    [dismissedSignal, setDismissedSignal] = React.useState(0),
     [format, setFormat] = React.useState("pptx"),
     [audience, setAudience] = React.useState("internal"),
     [range, setRange] = React.useState("all"),
@@ -151,7 +154,15 @@ export function ExportPanel({
       >
         导出
       </Button>
-      <Dialog open={open} onOpenChange={setOpen} title="导出 Pitch" size="sm">
+      <Dialog
+        open={open || openSignal > dismissedSignal}
+        onOpenChange={(value) => {
+          setOpen(value);
+          if (!value) setDismissedSignal(openSignal);
+        }}
+        title="导出 Pitch"
+        size="sm"
+      >
         <div className={`${styles.studio} ${styles.form}`}>
           <label>
             文件格式

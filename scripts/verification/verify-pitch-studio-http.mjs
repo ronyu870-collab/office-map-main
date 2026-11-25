@@ -1,6 +1,7 @@
 // Actual GoTrue, PostgREST, Storage and production-built Next route. This accepts
 // only the disposable localhost stack; keys never enter argv or printed output.
 import assert from 'node:assert/strict';
+import {verifyPitchAi} from './verify-pitch-ai-http.mjs';
 import {verifyPitchWorkspace} from './pitch-workspace-scenarios.mjs';
 import {verifyPitchBusiness} from './pitch-business-scenarios.mjs';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
@@ -41,7 +42,7 @@ try {
    create table if not exists public.user_roles(user_id uuid primary key references auth.users(id),role text not null,email text,chinese_name text,full_name text);
    grant select on public.user_roles to service_role;
  `);
- for (const migration of ['20261125165826_pitch_studio_foundation.sql', '20261125174626_pitch_studio_render_engine.sql', '20261125182357_pitch_studio_material_library.sql', '20261125192547_pitch_studio_business_templates.sql', '20261125201503_pitch_studio_workspace.sql']) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
+ for (const migration of ['20261125165826_pitch_studio_foundation.sql', '20261125174626_pitch_studio_render_engine.sql', '20261125182357_pitch_studio_material_library.sql', '20261125192547_pitch_studio_business_templates.sql', '20261125201503_pitch_studio_workspace.sql', '20261126090000_pitch_studio_ai.sql']) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
  await db.query("notify pgrst,'reload schema'");
  const owner=await person('editor'),other=await person('editor'),viewer=await person('viewer'),admin=await person('admin');
  const env={...process.env,NEXT_PUBLIC_SUPABASE_URL:settings.API_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:settings.ANON_KEY,SUPABASE_SECRET_KEY:settings.SERVICE_ROLE_KEY,PITCH_STUDIO_ENABLED:'true',DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'syntheticfixture'};
@@ -160,6 +161,7 @@ try {
  });
  const businessResult=await verifyPitchBusiness({app,db,owner,other,admin,scope,call,library,check,until});
  await verifyPitchWorkspace({app,db,owner,other,admin,scope,call,check,until,...businessResult});
+ await verifyPitchAi({app,db,owner,other,admin,check,until});
  await check('revoked grants block recovery, raw RLS and previously archived download',async()=>{
    await db.query('update private.pitch_grants set enabled=false where user_id=$1',[owner.id]);
    assert.equal((await call(owner,{action:'download',projectId:studioProject,exportId:studioExport,audience:'internal'})).status,403);

@@ -78,3 +78,7 @@ PITCH_TEST_ALLOW_LOCAL=disposable PITCH_TEST_PG_PORT=55437 node supabase/tests/p
 ```
 
 数据库脚本创建并销毁随机隔离数据库，调用真实生产 TS 工作流与真实 SQL，输出 `tmp/pitch-material-fixtures/`：公司／团队／案例／市场合成原件、标准化案例两主题 PPTX、原生图表 PPTX；全部明确隔离测试，不含真实客户数据。`library-parser.mjs` 覆盖所有输入类型、真实页序、隐藏／备注排除、损坏／宏／实体／ZIP Bomb 等。`verify-pitch-studio-http.mjs` 在专用本地 Supabase Auth／PostgREST／Storage 和生产构建 Next 上验证真实 HTTP 上传、after 解析、发布、检索、PPTX 导出与撤权。上述解析和数据库回归接入 Verify CI，搜索焦点／IME 回归亦进入强制 gate。实际执行结果随 PR 记录，文档中的命令不代表尚未运行的检查通过。
+
+## 阶段 06 联动
+
+导入后可由管理员为明确素材版本设置独立处理授权，再从工作台辅助入口创建限时学习任务。AI 整理结果原子形成有来源依赖的私有草稿；核对后仍使用原素材发布、标准化及导出流程。原件、真实页码、历史业务日期与隐藏内容边界不变。 详见 [AI 与持续学习](ai-intelligence.md)。

@@ -6,6 +6,10 @@ import type { AuthSessionResult } from "@/src/services/Auth";
 import type { Call, Catalog } from "./client";
 import { themeLabel } from "./client";
 import styles from "./workspace.module.css";
+const AiManager = dynamic(
+  () => import("./AiManager").then((m) => m.AiManager),
+  { loading: () => <p>正在读取辅助能力管理…</p> },
+);
 const MaterialLibrary = dynamic(
   () => import("../library/MaterialLibrary").then((m) => m.MaterialLibrary),
   { loading: () => <p>正在打开素材管理…</p> },
@@ -90,6 +94,7 @@ export function Manager({
             ? [
                 ["settings", "分类与主题"],
                 ["operations", "权限与运行记录"],
+                ["ai", "AI 与持续学习"],
               ]
             : []),
         ].map(([id, label]) => (
@@ -103,6 +108,7 @@ export function Manager({
         ))}
       </nav>
       {error && <p role="alert">{error}</p>}
+      {tab === "ai" && admin && <AiManager call={call} catalog={catalog} />}
       {tab === "library" && <MaterialLibrary {...props} />}{" "}
       {tab === "templates" && <BusinessStudio {...props} />}
       {tab === "settings" && admin && (

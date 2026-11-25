@@ -358,6 +358,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
           await recheckLeases();
+          if (name.startsWith('pitch_')) {
+            if (!/Pitch\s*Studio|商务提案|Pitch\b/i.test(valid.question)) throw new Error('PITCH_DENIED');
+            const { runPitchTool } = await import('@/src/lib/pitch/ai/tools');
+            const observation = await runPitchTool({client,identity:actor,signal:toolSignal}, name as import('@/src/lib/pitch/ai/toolSchemas').PitchToolName, args);
+            await audit!.append(requestId, 'tool_finished', {tool:name,status:'completed',domain:'pitch'});
+            return {content:JSON.stringify(observation)};
+          }
+
           if (name === 'select_answer_results') {
             selectedAnswer = workset.select(args, worksetOwner);
             return { content: JSON.stringify({ status: 'ready', primaryResultId: selectedAnswer.primaryResultId,

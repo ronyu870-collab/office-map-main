@@ -48,6 +48,10 @@ import { PagePreview, usePagePreviews } from "./workspace/Preview";
 import { Projects } from "./workspace/Projects";
 import { ExportPanel } from "./workspace/ExportPanel";
 import styles from "./workspace/workspace.module.css";
+const AiAssist = dynamic(
+  () => import("./workspace/AiAssist").then((m) => m.AiAssist),
+  { loading: () => <p>正在打开辅助工具…</p> },
+);
 const Manager = dynamic(
   () => import("./workspace/Manager").then((m) => m.Manager),
   { loading: () => <p>正在打开管理中心…</p> },
@@ -110,6 +114,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [conflict, setConflict] = React.useState(false),
     [message, setMessage] = React.useState(""),
     [busy, setBusy] = React.useState(false);
+  const [exportTrigger, setExportTrigger] = React.useState(0);
   const [createOpen, setCreateOpen] = React.useState(false),
     [name, setName] = React.useState(""),
     [context, setContext] = React.useState(projectContextSchema.parse({})),
@@ -160,7 +165,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     async <T,>(
       input: Record<string, unknown>,
       write = false,
-      path: "workspace" | "business" | "library" | "" = "workspace",
+      path: "workspace" | "business" | "library" | "ai" | "" = "workspace",
       signal?: AbortSignal,
     ) => {
       if (session.user.id !== session.session.user.id)
@@ -223,6 +228,12 @@ function Studio({ session }: { session: AuthSessionResult }) {
       .then(([c, b, p, cap]) => {
         if (!alive) return;
         setCatalog(c);
+        if (
+          new URLSearchParams(window.location.search).get("panel") ===
+            "admin" &&
+          c.scopes.some((s) => s.canAdmin)
+        )
+          setPanel("admin");
         setBuildingSearch(cap.buildingSearch);
         setPreferences(preferencesSchema.parse(p));
         const parsed = businessCatalog.parse(b);
@@ -282,6 +293,26 @@ function Studio({ session }: { session: AuthSessionResult }) {
         : null,
     );
   }, []);
+  const linkedProjectRead = React.useRef(false);
+  React.useEffect(() => {
+    if (!catalog || linkedProjectRead.current) return;
+    const id = new URLSearchParams(window.location.search).get("project");
+    if (!id || !z.uuid().safeParse(id).success) return;
+    linkedProjectRead.current = true;
+    const c = new AbortController();
+    void call({ action: "get", projectId: id }, true, "workspace", c.signal)
+      .then((raw) => {
+        if (!c.signal.aborted) {
+          accept(workspaceDetailSchema.parse(raw));
+          setPanel("quick");
+        }
+      })
+      .catch((e) => {
+        if (!c.signal.aborted) setMessage(e.message);
+      });
+    return () => c.abort();
+  }, [catalog, call, accept]);
+
   const edit = React.useCallback((update: (d: Draft) => Draft) => {
     draftSequence.current++;
     setDraft((value) => {
@@ -860,6 +891,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   历史
                 </Button>
                 <ExportPanel
+                  openSignal={exportTrigger}
                   call={call}
                   detail={detail}
                   active={active}
@@ -937,6 +969,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                     {[
                       ["templates", "模板"],
                       ["assets", "素材"],
+                      ["assist", "辅助"],
                     ].map(([id, label]) => (
                       <button
                         key={id}
@@ -968,7 +1001,21 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       自定义
                     </Button>
                   </div>
-                  {leftTab === "templates" ? (
+                  {leftTab === "assist" ? (
+                    <AiAssist
+                      key={detail.project.id}
+                      call={call}
+                      projectId={detail.project.id}
+                      buildingIds={draft.context.buildingIds}
+                      period={draft.context.period}
+                      language={draft.context.language}
+                      admin={catalog.scopes.some((s) => s.canAdmin)}
+                      busy={busy || rendering || conflict}
+                      onGenerate={generate}
+                      onReload={() => open(detail.project.id)}
+                      onExport={() => setExportTrigger((v) => v + 1)}
+                    />
+                  ) : leftTab === "templates" ? (
                     <TemplatePicker
                       call={call}
                       compact
@@ -1046,6 +1093,31 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       {page && (
                         <>
                           <h2>当前页面</h2>
+                          <Button
+                            variant="ghost"
+                            disabled={busy || rendering || conflict}
+                            onClick={() =>
+                              void run(async () => {
+                                const saved = await flush();
+                                await call(
+                                  {
+                                    action: "submit_candidate",
+                                    projectId: saved.project.id,
+                                    slideId: page.id,
+                                    expectedVersion: saved.project.version,
+                                    candidateId: crypto.randomUUID(),
+                                  },
+                                  true,
+                                  "ai",
+                                );
+                                setMessage(
+                                  "已主动提交给素材管理员；原 Pitch 仍为私人项目。",
+                                );
+                              })
+                            }
+                          >
+                            推荐为企业素材
+                          </Button>
                           <label>
                             页面标题
                             <input
