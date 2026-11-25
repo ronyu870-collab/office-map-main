@@ -29,6 +29,7 @@ export function createOpenAIAdapter(): ModelAdapter {
       }
     }
     const body = { model: options.model, input, store: false, background: false,
+      ...(options.responseFormat === 'json_object' ? {text:{format:{type:'json_object' as const}}} : {}),
       include: ['reasoning.encrypted_content' as const], max_output_tokens: options.maxOutputTokens,
       parallel_tool_calls: false, tool_choice: 'auto' as const,
       // Existing schemas contain optional fields. Server Zod validation remains

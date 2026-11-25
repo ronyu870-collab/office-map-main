@@ -1,0 +1,27 @@
+import * as React from 'react';
+import { act,cleanup,fireEvent,render,screen,waitFor } from '@testing-library/react';
+import { afterEach,expect,it,vi } from 'vitest';
+import { GrantsPanel } from './GovernancePanels';
+const actorId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+afterEach(cleanup);
+it('keeps grant search focus, caret and Chinese composition while delayed account results arrive',async()=>{
+ let finish:(value:unknown)=>void=()=>{};
+ const pending=new Promise(resolve=>{finish=resolve;});
+ const action=vi.fn(async()=>pending);
+ render(<GrantsPanel act={action} busy={false} actorId={actorId} onDirty={()=>{}}/>);
+ const input=screen.getByLabelText('姓名或完整用户 ID') as HTMLInputElement;input.focus();
+ fireEvent.change(input,{target:{value:'合成'}});input.setSelectionRange(1,1);
+ fireEvent.click(screen.getByRole('button',{name:'检索账号'}));
+ await waitFor(()=>expect(action).toHaveBeenCalledWith({action:'grants',search:'合成'}));
+ expect(input).toHaveFocus();expect(input.selectionStart).toBe(1);
+ fireEvent.compositionStart(input);fireEvent.change(input,{target:{value:'合甲成'}});input.setSelectionRange(2,2);
+ await act(async()=>{finish({allowed:true,users:[{id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',name:'合成管理员',role:'admin',management:null,query:null,audit_read:null,audit_export:null,lease:null,business:null,knowledge:null}]});});
+ expect(screen.getByRole('button',{name:/合成管理员/})).toBeInTheDocument();
+ expect(screen.getByLabelText('姓名或完整用户 ID')).toBe(input);expect(input).toHaveFocus();expect(input).toHaveValue('合甲成');expect(input.selectionStart).toBe(2);
+ fireEvent.compositionEnd(input);fireEvent.change(input,{target:{value:'甲'}});input.setSelectionRange(1,1);
+ expect(input).toHaveFocus();expect(input.selectionStart).toBe(1);
+ action.mockResolvedValueOnce({allowed:true,users:[]});fireEvent.click(screen.getByRole('button',{name:'检索账号'}));
+ await waitFor(()=>expect(screen.queryByRole('button',{name:/合成管理员/})).toBeNull());
+ expect(input).toHaveFocus();expect(input).toHaveValue('甲');
+ fireEvent.change(input,{target:{value:''}});expect(input).toHaveFocus();expect(input).toHaveValue('');
+});

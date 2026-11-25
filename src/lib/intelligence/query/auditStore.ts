@@ -1,3 +1,4 @@
+import { operationMetadata } from '../control/operationsProjection';
 import { createHash, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -69,17 +70,30 @@ export function submissionIdentityContent(request: { submittedText: string; plan
 
 /** Real durable RPC adapter. Keys must be provisioned server-side; no fallback or browser key. */
 export function createRpcAuditPort(client: SupabaseClient, identity: VerifiedQueryIdentity, keys: AuditKeys): AuditPort {
+  let operational:boolean|undefined;
+  const persist=async(name:'ai_query_audit_receive'|'ai_query_audit_append',args:Record<string,unknown>,metadata?:unknown)=>{
+    const extended=name+'_operational';
+    if(operational!==false){
+      const result=await client.rpc(extended,{...args,...(name==='ai_query_audit_append'?{p_metadata:metadata??null}:{})}).abortSignal(AbortSignal.timeout(8000));
+      if(!result.error){operational=true;return result;}
+      if(result.error.code!=='PGRST202'||!result.error.message.includes(extended))return result;
+      operational=false;
+    }
+    return client.rpc(name,args).abortSignal(AbortSignal.timeout(8000));
+  };
   if (keys.encryptionKey.byteLength!==32 || keys.digestKey.byteLength!==32) throw new Error('AUDIT_KEY_UNAVAILABLE');
   const sealed = (requestId: string,eventId: string,content: string) => ({
     p_payload_digest: auditPayloadDigest(content,keys.digestKey),
     p_cipher: encryptAuditContent(content,{requestId,eventId,actorId:identity.actorId,effectiveUserId:identity.effectiveUserId},keys.keyId,keys.encryptionKey),
   });
-  const appendOne = async (requestId: string,kind: string,content: string) => {
+  const appendOne = async (requestId: string,kind: string,content: string, projected?:unknown) => {
     const eventId=randomUUID();
     // Audit completion is independent of the browser abort signal, with its own finite deadline.
-    const { data,error }=await client.rpc('ai_query_audit_append',{
+    let metadata:unknown=null;
+    try{metadata=projected??operationMetadata(kind as Parameters<typeof operationMetadata>[0],JSON.parse(content));}catch{console.warn('AI_OPERATIONS_PROJECTION_UNAVAILABLE');}
+    const { data,error }=await persist('ai_query_audit_append',{
       p_request_id:requestId,p_event_id:eventId,p_kind:kind,...sealed(requestId,eventId,content),
-    }).abortSignal(AbortSignal.timeout(8000));
+    },metadata);
     if(error)throw new Error('AUDIT_PERSISTENCE_UNAVAILABLE');
     receiptSchema.parse(data);
   };
@@ -90,13 +104,13 @@ export function createRpcAuditPort(client: SupabaseClient, identity: VerifiedQue
       const eventId=firstEventId(request.requestId);
       const submitted=submissionIdentityContent(request);
       const content=JSON.stringify(sanitizeAuditContent({submittedText:request.submittedText,plan:request.plan,authority:request.authority,metadata:request.metadata??null,sessionId:identity.sessionId,entry:'query_api',timezone:'Asia/Shanghai',idempotencyVersion:'submission/3'}));
-      const { data,error }=await client.rpc('ai_query_audit_receive',{
+      const { data,error }=await persist('ai_query_audit_receive',{
         p_request_id:request.requestId,p_event_id:eventId,p_actor:identity.actorId,p_effective:identity.effectiveUserId,
         p_policy_version:request.authority.policyVersion,...sealed(request.requestId,eventId,content),
         // Session/role refresh does not change a submitted question's identity.
         // Cipher AEAD + the database event chain still bind the full first context.
         p_payload_digest:auditPayloadDigest(JSON.stringify(submitted),keys.digestKey),
-      }).abortSignal(AbortSignal.timeout(8000));
+      });
       if(error)throw new Error(error.code==='22023'&&error.message==='audit idempotency conflict'?'AUDIT_IDEMPOTENCY_CONFLICT':'AUDIT_PERSISTENCE_UNAVAILABLE');
       const receipt=receiptSchema.parse(data);
       return {replayed:receipt.replayed};
@@ -106,7 +120,8 @@ export function createRpcAuditPort(client: SupabaseClient, identity: VerifiedQue
       const bytes=Buffer.from(content,'utf8');
       if(bytes.length<=80*1024) {await appendOne(requestId,kind,content);return;}
       if(kind!=='response_generated')throw new Error('AUDIT_CONTENT_LIMIT');
-      for(const part of encodeGeneratedArchive(content))await appendOne(requestId,kind,part);
+      const projected=operationMetadata(kind,detail);
+      for(const part of encodeGeneratedArchive(content))await appendOne(requestId,kind,part,projected);
     },
   };
 }

@@ -13,6 +13,8 @@ export type ModelCompletion = {
   message: ModelMessage;
   inputTokens: number | null;
   outputTokens: number | null;
+  cachedInputTokens?: number | null;
+  reasoningTokens?: number | null;
   providerRequestId?: string;
 };
 
@@ -54,13 +56,13 @@ const responseSchema = z.object({
     }),
   })).length(1),
   usage: z.object({ prompt_tokens: z.number().int().nonnegative().optional(),
-    completion_tokens: z.number().int().nonnegative().optional() }).optional(),
+    completion_tokens: z.number().int().nonnegative().optional(),prompt_cache_hit_tokens:z.number().int().nonnegative().optional(),completion_tokens_details:z.object({reasoning_tokens:z.number().int().nonnegative().optional()}).optional() }).optional(),
 });
 
 export class ModelProviderError extends Error {
   constructor(public readonly code: 'not_configured' | 'invalid_configuration' | 'unauthorized' | 'payment_required'
     | 'model_not_found' | 'rate_limited' | 'timeout' | 'provider_unavailable' | 'invalid_response' | 'stream_interrupted'
-    | 'budget_exceeded' | 'disclosure_denied', public readonly budgetReason?: 'account_admission' | 'admission_service_unavailable' | 'attempt_limit' | 'token_reservation' | 'cost_reservation' | 'actual_token_limit' | 'actual_cost_limit') {
+    | 'budget_exceeded' | 'disclosure_denied', public readonly budgetReason?: 'global_daily' | 'global_monthly' | 'provider_daily' | 'provider_monthly' | 'model_daily' | 'model_monthly' | 'test_daily' | 'account_admission' | 'admission_service_unavailable' | 'attempt_limit' | 'token_reservation' | 'cost_reservation' | 'actual_token_limit' | 'actual_cost_limit') {
     super('AGENT_MODEL_' + code.toUpperCase());
   }
 }
@@ -107,7 +109,8 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
   onDelta?: (delta: string) => Promise<void>, options?: import('./modelProtocol').AdapterOptions): Promise<ModelCompletion> {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   if (!key) throw new ModelProviderError('not_configured');
-  const model = configuredModel();
+  const model = options?.model ?? configuredModel();
+  if (!SUPPORTED_AGENT_MODELS.has(model)) throw new ModelProviderError('invalid_configuration');
   const url = providerUrl();
   const deadline = AbortSignal.any([signal, AbortSignal.timeout(options?.timeoutMs ?? 18000)]);
   let response: Response;
@@ -146,6 +149,8 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
       ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) },
     inputTokens: parsed.data.usage?.prompt_tokens ?? null,
     outputTokens: parsed.data.usage?.completion_tokens ?? null,
+    ...(parsed.data.usage?.prompt_cache_hit_tokens!==undefined?{cachedInputTokens:parsed.data.usage.prompt_cache_hit_tokens}:{}),
+    ...(parsed.data.usage?.completion_tokens_details?.reasoning_tokens!==undefined?{reasoningTokens:parsed.data.usage.completion_tokens_details.reasoning_tokens}:{}),
     ...(parsed.data.id ? { providerRequestId: parsed.data.id } : {}),
   };
 }

@@ -32,7 +32,7 @@ export async function menuGeometry(panel) {
       const hit = document.elementFromPoint(x, y);
       return { rect: r, visible: r.width > 0 && r.height > 0 && x >= bounds.left && x <= bounds.right && y >= Math.max(bounds.top, box.top) && y <= Math.min(bounds.bottom, box.bottom), hit: element === hit || element.contains(hit), actualHit: hit?.outerHTML.slice(0, 350) };
     };
-    return { viewport: { width: innerWidth, height: innerHeight, scale: viewport?.scale }, mode: workspace?.dataset.mode, trigger: trigger && rect(trigger), menu: box, bounds, top: style.top, bottom: style.bottom, height: style.height, maxHeight: style.maxHeight, overflowX: style.overflowX, overflowY: style.overflowY, clipping, topLayer, activeOverlays: [...document.querySelectorAll('[data-query-menu-panel]:not([hidden]), details[open]')].map(n => n.id || n.className), items: items.map(item), horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
+    return { hidden: node.hidden, expanded: trigger?.getAttribute('aria-expanded'), transitioning: workspace?.dataset.transitioning, activeElement: document.activeElement?.outerHTML.slice(0, 350), viewport: { width: innerWidth, height: innerHeight, scale: viewport?.scale }, mode: workspace?.dataset.mode, trigger: trigger && rect(trigger), menu: box, bounds, top: style.top, bottom: style.bottom, height: style.height, maxHeight: style.maxHeight, overflowX: style.overflowX, overflowY: style.overflowY, clipping, topLayer, activeOverlays: [...document.querySelectorAll('[data-query-menu-panel]:not([hidden]), details[open]')].map(n => n.id || n.className), items: items.map(item), horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
   });
 }
 
@@ -110,9 +110,13 @@ async function exerciseMenu(page, trigger, label) {
   const moved = await trigger.evaluate(node => {
     for (let parent = node.parentElement; parent; parent = parent.parentElement) {
       if (parent.scrollHeight > parent.clientHeight + 2) {
-        const before = parent.scrollTop;
+        const before = parent.scrollTop, anchorBefore = node.getBoundingClientRect();
         parent.scrollTop += before > 1 ? -1 : 1;
-        if (parent.scrollTop !== before) return true;
+        const anchorAfter = node.getBoundingClientRect();
+        if (Math.abs(anchorAfter.x - anchorBefore.x) > .5 || Math.abs(anchorAfter.y - anchorBefore.y) > .5) return true;
+        // A fixed workspace can have a scrollable, inert background ancestor.
+        // Moving that offset does not move this menu's anchor.
+        parent.scrollTop = before;
       }
     }
     return false;
@@ -284,6 +288,49 @@ export async function checkAllQueryMenus(session, helpers) {
   await history.getByRole('button', { name: '关闭历史', exact: true }).click();
   await expanded(page, false);
   await more.click(); await assertMenu(page, more, 'compact menu');
+  const openedAnchor = menuRecords.at(-1).trigger;
+  // Nested scroll restoration can change offsets while leaving the visible
+  // anchor in exactly the same place. It must not dismiss a usable menu.
+  const compensated = await more.evaluate(node => {
+    const parents = [];
+    for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+      if (parent.scrollHeight > parent.clientHeight + 4) parents.push(parent);
+    }
+    const [inner, outer] = parents;
+    if (!inner || !outer) return { available: false };
+    const delta = [2, -2].find(value => inner.scrollTop + value >= 0
+      && inner.scrollTop + value <= inner.scrollHeight - inner.clientHeight
+      && outer.scrollTop - value >= 0 && outer.scrollTop - value <= outer.scrollHeight - outer.clientHeight);
+    if (delta === undefined) return { available: false };
+    const before = node.getBoundingClientRect();
+    inner.scrollTop += delta; outer.scrollTop -= delta;
+    const after = node.getBoundingClientRect();
+    return { available: true, deltaX: after.x - before.x, deltaY: after.y - before.y };
+  });
+  assert.ok(compensated.available && Math.abs(compensated.deltaX) < .5 && Math.abs(compensated.deltaY) < .5,
+    `compact scroll compensation: ${JSON.stringify(compensated)}`);
+  const settled = await more.evaluate(node => new Promise((resolve, reject) => {
+    const start = performance.now(); let changed = start, last;
+    const sample = now => {
+      const box = node.getBoundingClientRect(), next = { x: box.x, y: box.y };
+      if (!last || Math.abs(next.x - last.x) > .1 || Math.abs(next.y - last.y) > .1) changed = now;
+      last = next;
+      if (now - changed >= 100) resolve(next);
+      else if (now - start > 2000) reject(new Error('compact anchor did not settle'));
+      else requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
+  // Native scroll anchoring may subsequently move the trigger (observed at
+  // 1536px and 320px). Compare with the opening geometry: it may already have moved
+  // between the initial assertion and the synthetic compensation.
+  console.log(`menus: compensation ${JSON.stringify({ openedAnchor, settled, compensated })}`);
+  if (Math.abs(settled.x - openedAnchor.left) < .5 && Math.abs(settled.y - openedAnchor.top) < .5) {
+    await assertMenu(page, more, 'compact menu after stable scroll compensation');
+  } else {
+    await page.waitForFunction(node => node.getAttribute('aria-expanded') === 'false', await more.elementHandle());
+    await closed(more);
+  }
   await expanded(page, true);
   await closed(more);
   assert.equal(session.errors.length, 0, session.errors.join('\n'));

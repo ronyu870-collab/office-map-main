@@ -56,7 +56,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     const signal=AbortSignal.any([request.signal,AbortSignal.timeout(30000)]),verified=identity;
     const authority=await loadDataAuthority(client,verified,signal);
     if((input.action==='export'||input.action==='copy')&&!authority.grants.includes('export:internal'))throw new Error('QUERY_DENIED');
-    await audit.append(attemptId,'running',{authority,sourceRequestId:input.requestId,action:input.action});
+    await audit.append(attemptId,'running',{authority,sourceRequestId:input.requestId,action:input.action,...(mode==='recover'&&input.action==='recover'?{phase:'result_recovery',recoveryRequested:true}:{})});
     const record=await readOwnResult(client,verified,input.requestId,input.action!=='status'?'archive':'status',signal);
     if(record.permission_revision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
     const restored=input.action!=='status'&&record.state==='succeeded'
@@ -111,7 +111,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
       ...(artifact?{artifact:artifact.type==='chart'?{kind:'chart',spec:artifact.chart,resultDigest:artifact.resultDigest}
         :artifact.type==='copy'?{kind:'copy',format:artifact.format,text:artifact.text,resultDigest:artifact.resultDigest,rendererVersion:'result-copy/1'}
         :{kind:'download',format:mode==='document'?'document_original':(input as ArtifactInput & {format:string}).format,filename:artifact.filename,bytes:artifact.bytes.byteLength,resultDigest:artifact.resultDigest,rendererVersion:mode==='document'?'document-original/1':'result-chart/1',chart:'chart' in input?input.chart:null}}:{})}});
-    await audit.append(attemptId,'succeeded',{delivery:'not_yet_sent'});terminal=true;
+    await audit.append(attemptId,'succeeded',{delivery:'not_yet_sent',...(mode==='recover'&&input.action==='recover'&&restored?{recoveryCompleted:true}:{})});terminal=true;
     const deliveryHeaders=await prepareDelivery(audit,keys,verified,{requestId:attemptId,bodySha256,
       kind:artifact?.type==='download'?'download':artifact?.type==='chart'?'chart':artifact?.type==='copy'?'copy':restored?'result':'status',
       resultId:restored?.resultId??null,itemCount:artifact?.type==='chart'?artifact.chart.points.length:restored?(restored.result as {table:{rows:unknown[]}}).table.rows.length:0},
