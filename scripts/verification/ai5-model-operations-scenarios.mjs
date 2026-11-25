@@ -101,7 +101,8 @@ export async function verifyAi5ModelOperations({ db, service, keys, output, chec
     });
     await check('AI5模型运营 / 真实HTTP流有可信完成凭据，流中断无完成事件与混合输出', async () => {
       const who = await actor('stream'); env({ AI_PROVIDER_QUICK: 'openai', AI_MODEL_FALLBACK_ENABLED: 'false' });
-      const greeting = await submit(who, { stream: true }); assert.match(greeting.body, /event: run_completed/); assert.doesNotMatch(greeting.body, /event: message_delta/);
+      const greeting = await submit(who, { stream: true, input: { idempotencyKey: randomUUID(), question: '你好', conversation: { id: randomUUID() } } });
+      assert.match(greeting.body, /event: run_completed/); assert.doesNotMatch(greeting.body, /event: message_delta/); assert.equal(greeting.calls.length, 0);
       const explanation = { idempotencyKey: randomUUID(), question: '解释空置率的含义。', conversation: { id: randomUUID() } };
       const stream = await submit(who, { stream: true, input: explanation }); assert.match(stream.body, /event: run_completed/); assert.match(stream.body, /deliveryToken/); assert.match(stream.body, /event: message_delta/);
       const truncated = await submit(who, { stream: true, truncated: true, input: { ...explanation, idempotencyKey: randomUUID() } }); assert.match(truncated.body, /event: run_failed/); assert.doesNotMatch(truncated.body, /event: run_completed|event: message_delta/);
