@@ -1,4 +1,4 @@
-import { cleanup,fireEvent,render,screen,waitFor } from '@testing-library/react';
+import { cleanup,fireEvent,render,screen,waitFor,within } from '@testing-library/react';
 import { afterEach,expect,it,vi } from 'vitest';
 import { ControlConfiguration,defaultConfiguration } from './ControlConfiguration';
 import type { RegisteredModel } from '@/src/lib/intelligence/control/config';
@@ -24,4 +24,28 @@ it('retains draft values and original revision on validation conflict and concur
  view.rerender(<ControlConfiguration {...props} read={{...read,state:{...read.state,revision:crypto.randomUUID()}}}/>);
  fireEvent.click(screen.getByRole('button',{name:'校验并预览'}));await waitFor(()=>expect(act).toHaveBeenCalled());
  expect(act).toHaveBeenLastCalledWith(expect.objectContaining({expectedRevision:revision}));expect(screen.getAllByLabelText('最多模型尝试')[0]).toHaveValue(2);expect(screen.getByRole('button',{name:'保存草稿'})).toBeDisabled();
+});
+
+it('filters models by provider and name while retaining selected, ineligible, caret and Chinese composition states',()=>{
+ const alternate={...model,id:'openai-candidate',provider:'openai' as const,model:'gpt-synthetic',name:'合成备选',structured:false,tools:false};
+ const unverified={...model,id:'not-verified',name:'待验证模型',verification:'unverified' as const};
+ const props={read:{...read,models:[model,alternate,unverified]},initial:config,onDirty:vi.fn(),act:vi.fn(async()=>({})),busy:false};
+ const view=render(<ControlConfiguration {...props}/>);
+ const choices=screen.getAllByLabelText('模型')[0] as HTMLSelectElement;
+ expect(within(choices).getByRole('option',{name:/待验证模型/})).toBeDisabled();
+ expect(within(choices).getByRole('option',{name:/合成备选/})).toBeDisabled();
+ expect(within(choices).getByRole('option',{name:/已选/})).toHaveValue('synthetic');
+ fireEvent.click(screen.getByText('筛选可选模型'));
+ const input=screen.getByLabelText('模型名称或 ID') as HTMLInputElement;input.focus();
+ fireEvent.change(input,{target:{value:'合成备'}});input.setSelectionRange(1,1);
+ fireEvent.change(screen.getByLabelText('模型供应商'),{target:{value:'openai'}});
+ expect(within(choices).queryByRole('option',{name:/待验证模型/})).toBeNull();
+ expect(within(choices).getByRole('option',{name:/已选/})).toHaveValue('synthetic');
+ expect(input).toHaveFocus();expect(input.selectionStart).toBe(1);
+ fireEvent.compositionStart(input);fireEvent.change(input,{target:{value:'合成备选'}});input.setSelectionRange(4,4);
+ view.rerender(<ControlConfiguration {...props} read={{...props.read,state:{...read.state,revision:crypto.randomUUID()}}}/>);
+ expect(screen.getByLabelText('模型名称或 ID')).toBe(input);expect(input).toHaveFocus();expect(input.selectionStart).toBe(4);
+ fireEvent.compositionEnd(input);fireEvent.change(input,{target:{value:'无匹配'}});expect(within(choices).getAllByRole('option')).toHaveLength(1);
+ fireEvent.change(input,{target:{value:''}});expect(input).toHaveFocus();expect(within(choices).getAllByRole('option')).toHaveLength(2);
+ expect(props.act).not.toHaveBeenCalled();
 });

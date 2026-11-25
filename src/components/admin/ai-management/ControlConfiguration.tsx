@@ -12,13 +12,19 @@ export function defaultConfiguration(model:RegisteredModel,hard?:Props['hardLimi
  return controlConfigSchema.parse({protocol:'ai-control-config/1',modes:{quick:policy,professional:policy,deep:policy},purposes:{semantic_intent:null,synthesis:null},budget:{kind:'observe',dailyUsd:1,monthlyUsd:10,testDailyUsd:0,warningPercent:[85],providerLimits:{deepseek:null,openai:null},modelLimits:{}},disabledTools:[]});
 }
 export function ControlConfiguration({read,initial,onDirty,act,busy,budgetOnly=false,availableTools=[],hardLimits}:Props){
- const first=read.models.find(m=>m.enabled&&m.verification!=='unverified');
+ const first=read.models.find(m=>m.enabled&&m.verification!=='unverified'&&m.tools&&m.streaming);
+ const [modelSearch,setModelSearch]=React.useState(''),[provider,setProvider]=React.useState('');
  const [config,setConfig]=React.useState<ControlConfig|null>(initial??(first?defaultConfiguration(first,hardLimits):null)),[reason,setReason]=React.useState(''),[preview,setPreview]=React.useState<unknown>(null),[draftId,setDraftId]=React.useState<string|null>(null);
  const baseRevision=React.useRef(read.state.revision);
  const [baseline,setBaseline]=React.useState(()=>JSON.stringify(initial));
  const changed=JSON.stringify(config)!==baseline;
  React.useEffect(()=>{onDirty(changed);return()=>onDirty(false);},[changed,onDirty]);
- const models=read.models.filter(m=>m.enabled&&m.verification!=='unverified');
+ const models=read.models;
+ const matches=(m:RegisteredModel)=>!provider||m.provider===provider;
+ const options=(selected:string,needs:'agent'|'semantic',output:number,excludeProvider?:string)=>models.filter(m=>m.id===selected||((!excludeProvider||m.provider!==excludeProvider)&&matches(m)&&`${m.name} ${m.model} ${m.id}`.toLocaleLowerCase().includes(modelSearch.trim().toLocaleLowerCase()))).map(m=>{
+  const unavailable=!m.enabled?'已停用':m.verification==='unverified'||m.verification==='verified'&&!m.verifiedAt?'未验证':needs==='agent'&&(!m.tools||!m.streaming)?'缺少工具或流式能力':needs==='semantic'&&!m.structured?'缺少结构化能力':m.outputLimit!==null&&m.outputLimit<output?'输出限额不足':null;
+  return <option key={m.id} value={m.id} disabled={!!unavailable}>{m.id===selected?'已选 · ':''}{m.name} · {m.provider} · {unavailable??labels[m.verification]}</option>;
+ });
  if(!config)return <p>先在模型管理中登记现有部署模型，或完成候选模型的协议测试与批准，再建立配置。当前请求继续继承服务端环境配置。</p>;
  const edit=(next:ControlConfig)=>{setConfig(next);setPreview(null);setDraftId(null);};
  const canModels=read.capabilities.includes('models:write'),canBudget=read.capabilities.includes('budgets:write');
@@ -27,12 +33,13 @@ export function ControlConfiguration({read,initial,onDirty,act,busy,budgetOnly=f
  const diff=configurationDiff(initial,config);
  return <section aria-label="配置编辑">
   <p>新请求绑定发布版本；进行中的请求保留原版本。紧急暂停和实时撤权立即生效。所有数值仍受部署硬上限约束。</p>
+  {!budgetOnly&&<details><summary>筛选可选模型</summary><div className="cc-row"><label>模型名称或 ID<input value={modelSearch} maxLength={120} onChange={e=>setModelSearch(e.target.value)}/></label><label>模型供应商<select value={provider} onChange={e=>setProvider(e.target.value)}><option value="">全部供应商</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select></label></div><p>已选模型始终保留。停用、未验证或能力不足的模型不可选；发布仍校验当前凭据、披露资格与部署上限。</p></details>}
   <div className="cc-grid">{(['quick','professional','deep'] as const).map(mode=><fieldset key={mode}><legend>{labels[mode]}</legend>
-   {!budgetOnly&&<><label>模型<select disabled={!canModels} value={config.modes[mode].model} onChange={e=>edit({...config,modes:{...config.modes,[mode]:{...config.modes[mode],model:e.target.value}}})}>{models.map(m=><option key={m.id} value={m.id}>{m.name} · {m.provider}</option>)}</select></label>
-   <label>跨供应商回退<select disabled={!canModels} value={config.modes[mode].fallback??''} onChange={e=>edit({...config,modes:{...config.modes,[mode]:{...config.modes[mode],fallback:e.target.value||null}}})}><option value="">停用</option>{models.filter(m=>m.provider!==models.find(x=>x.id===config.modes[mode].model)?.provider).map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label></>}
+   {!budgetOnly&&<><label>模型<select disabled={!canModels} value={config.modes[mode].model} onChange={e=>edit({...config,modes:{...config.modes,[mode]:{...config.modes[mode],model:e.target.value}}})}>{options(config.modes[mode].model,'agent',config.modes[mode].limits.outputTokens)}</select></label>
+   <label>跨供应商回退<select disabled={!canModels} value={config.modes[mode].fallback??''} onChange={e=>edit({...config,modes:{...config.modes,[mode]:{...config.modes[mode],fallback:e.target.value||null}}})}><option value="">停用</option>{options(config.modes[mode].fallback??'','agent',config.modes[mode].limits.outputTokens,models.find(m=>m.id===config.modes[mode].model)?.provider)}</select></label></>}
    {fields.map(key=><label key={key}>{names[key]}<input disabled={!canBudget} type="number" step={key==='usd'?'0.000001':'1'} value={config.modes[mode].limits[key]} onChange={e=>edit({...config,modes:{...config.modes,[mode]:{...config.modes[mode],limits:{...config.modes[mode].limits,[key]:Number(e.target.value)}}}})} /></label>)}
   </fieldset>)}</div>
-  {!budgetOnly&&<><div className="cc-grid">{(['semantic_intent','synthesis'] as const).map(purpose=><label key={purpose}>{purpose==='semantic_intent'?'语义解析模型':'结果总结模型'}<select disabled={!canModels} value={config.purposes[purpose]??''} onChange={e=>edit({...config,purposes:{...config.purposes,[purpose]:e.target.value||null}})}><option value="">继承模式模型</option>{models.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label>)}</div>
+  {!budgetOnly&&<><div className="cc-grid">{(['semantic_intent','synthesis'] as const).map(purpose=><label key={purpose}>{purpose==='semantic_intent'?'语义解析模型':'结果总结模型'}<select disabled={!canModels} value={config.purposes[purpose]??''} onChange={e=>edit({...config,purposes:{...config.purposes,[purpose]:e.target.value||null}})}><option value="">继承模式模型</option>{options(config.purposes[purpose]??'',purpose==='semantic_intent'?'semantic':'agent',Math.max(...Object.values(config.modes).map(m=>m.limits.outputTokens)))}</select></label>)}</div>
    <details><summary>功能工具开关（只限制已获权能力）</summary><div className="cc-grid">{availableTools.map(name=><label key={name}><input type="checkbox" disabled={!canModels} checked={!config.disabledTools.includes(name)} onChange={e=>edit({...config,disabledTools:e.target.checked?config.disabledTools.filter(v=>v!==name):[...config.disabledTools,name]})} />{name}</label>)}</div></details></>}
   <fieldset><legend>跨请求预算</legend><div className="cc-grid">
    <label>控制方式<select disabled={!canBudget} value={config.budget.kind} onChange={e=>edit({...config,budget:{...config.budget,kind:e.target.value as ControlConfig['budget']['kind']}})}><option value="observe">仅观察</option><option value="soft">软提醒</option><option value="hard">硬限制</option></select></label>

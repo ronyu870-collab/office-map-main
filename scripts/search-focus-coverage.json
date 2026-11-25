@@ -530,5 +530,15 @@
     "cases": [
       "keeps grant search focus, caret and Chinese composition while delayed account results arrive"
     ]
+  },
+  {
+    "id": "ai-management-model-filter",
+    "roots": [
+      "src/components/admin/ai-management/ControlConfiguration.tsx"
+    ],
+    "file": "src/components/admin/ai-management/ControlConfiguration.test.tsx",
+    "cases": [
+      "filters models by provider and name while retaining selected, ineligible, caret and Chinese composition states"
+    ]
   }
 ]
