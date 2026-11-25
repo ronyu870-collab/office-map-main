@@ -32,7 +32,7 @@ export async function menuGeometry(panel) {
       const hit = document.elementFromPoint(x, y);
       return { rect: r, visible: r.width > 0 && r.height > 0 && x >= bounds.left && x <= bounds.right && y >= Math.max(bounds.top, box.top) && y <= Math.min(bounds.bottom, box.bottom), hit: element === hit || element.contains(hit), actualHit: hit?.outerHTML.slice(0, 350) };
     };
-    return { viewport: { width: innerWidth, height: innerHeight, scale: viewport?.scale }, mode: workspace?.dataset.mode, trigger: trigger && rect(trigger), menu: box, bounds, top: style.top, bottom: style.bottom, height: style.height, maxHeight: style.maxHeight, overflowX: style.overflowX, overflowY: style.overflowY, clipping, topLayer, activeOverlays: [...document.querySelectorAll('[data-query-menu-panel]:not([hidden]), details[open]')].map(n => n.id || n.className), items: items.map(item), horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
+    return { hidden: node.hidden, expanded: trigger?.getAttribute('aria-expanded'), transitioning: workspace?.dataset.transitioning, activeElement: document.activeElement?.outerHTML.slice(0, 350), viewport: { width: innerWidth, height: innerHeight, scale: viewport?.scale }, mode: workspace?.dataset.mode, trigger: trigger && rect(trigger), menu: box, bounds, top: style.top, bottom: style.bottom, height: style.height, maxHeight: style.maxHeight, overflowX: style.overflowX, overflowY: style.overflowY, clipping, topLayer, activeOverlays: [...document.querySelectorAll('[data-query-menu-panel]:not([hidden]), details[open]')].map(n => n.id || n.className), items: items.map(item), horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
   });
 }
 
