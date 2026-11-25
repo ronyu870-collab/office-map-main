@@ -562,5 +562,25 @@
       "accepts editable quarter and submarket text without resetting partially typed values or separators",
       "exports only selected indices and exposes success only after a ready receipt with downloadable bytes"
     ]
+  },
+  {
+    "id": "pitch-ai-assist",
+    "roots": [
+      "src/components/pitch/workspace/AiAssist.tsx"
+    ],
+    "file": "src/components/pitch/workspace/AiAssist.focus.test.tsx",
+    "cases": [
+      "keeps assistant keywords focused through delayed results, middle edits and Chinese IME"
+    ]
+  },
+  {
+    "id": "pitch-ai-manager",
+    "roots": [
+      "src/components/pitch/workspace/AiManager.tsx"
+    ],
+    "file": "src/components/pitch/workspace/AiManager.focus.test.tsx",
+    "cases": [
+      "keeps model filter focused through delayed and stale results, middle edits and Chinese IME"
+    ]
   }
 ]

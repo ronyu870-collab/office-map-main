@@ -177,6 +177,10 @@ begin
   if op='ai_cancel' then
    update private.pitch_ai_tasks set state='cancelled',token=null,lease_until=null,updated_at=now() where batch_id=bid and actor_id=p_actor and state in('queued','paused','processing');
   else
+   -- Operators can resume directly from their task list, without first polling
+   -- the original browser batch to reconcile its expired worker.
+   update private.pitch_ai_tasks set state=case when reserved_usd>0 then 'failed' else 'paused' end,error_code='worker_timeout',charged_usd=greatest(charged_usd,reserved_usd),token=null,lease_until=null,updated_at=now()
+    where batch_id=bid and actor_id=p_actor and state='processing' and lease_until<clock_timestamp();
    update private.pitch_ai_tasks set state='queued',error_code=null,token=null,lease_until=null,policy_revision=null,config_revision=null,cache_key=null,updated_at=now() where batch_id=bid and actor_id=p_actor and state in('failed','paused','cancelled') and attempts<1+(c.config->>'retries')::integer;
   end if;result:=jsonb_build_object('batchId',bid);
  elsif op='ai_claim' then
@@ -295,6 +299,9 @@ begin
   return result||jsonb_build_object('assetId',aid);
  elsif op='ai_operations' then
   if not is_admin then raise exception 'PITCH_DENIED' using errcode='42501';end if;
+  update private.pitch_ai_tasks t set state=case when t.reserved_usd>0 then 'failed' else 'paused' end,error_code='worker_timeout',charged_usd=greatest(t.charged_usd,t.reserved_usd),token=null,lease_until=null,updated_at=now()
+   from public.pitch_content_assets a where a.id=t.asset_id and t.state='processing' and t.lease_until<clock_timestamp()
+   and private.pitch_access(p_actor,p_session,a.organization_id,a.region,a.city,a.business_line,'admin');
   -- Scope filtering precedes aggregation; never return source/context/policy text.
   select coalesce(jsonb_agg(to_jsonb(x)),'[]') into result from (
    select t.id,t.batch_id,t.actor_id,t.asset_id,t.asset_version,t.request->>'task' task,t.state,t.cached,t.attempts,t.error_code,t.created_at,t.updated_at,t.reserved_usd,t.charged_usd,

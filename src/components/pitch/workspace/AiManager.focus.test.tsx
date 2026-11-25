@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 import * as React from "react";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  cleanup,
+  act,
+} from "@testing-library/react";
 import { it, expect, vi, afterEach } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { AiManager } from "./AiManager";
 import { DEFAULT_AI_CONFIG } from "@/src/lib/pitch/ai/protocol";
 import type { Call, Catalog } from "./client";
@@ -118,3 +125,49 @@ it.each([true, false])(
     );
   },
 );
+
+it("keeps model filter focused through delayed and stale results, middle edits and Chinese IME", async () => {
+  const user = userEvent.setup();
+  const pending: Array<{ model: string; resolve: (value: unknown) => void }> =
+    [];
+  const call = vi.fn(async (input: Record<string, unknown>) => {
+    if (input.action === "config") return DEFAULT_AI_CONFIG;
+    if (!input.model) return operations;
+    return new Promise((resolve) =>
+      pending.push({ model: String(input.model), resolve }),
+    );
+  });
+  render(<AiManager call={call as Call} catalog={catalog} />);
+  const field = (await screen.findByLabelText("模型")) as HTMLInputElement;
+  await user.type(field, "model");
+  expect(field).toHaveFocus();
+  field.setSelectionRange(2, 2);
+  await user.keyboard("X");
+  expect(field.value).toBe("moXdel");
+  expect(field.selectionStart).toBe(3);
+  fireEvent.compositionStart(field, { data: "模" });
+  fireEvent.change(field, { target: { value: "mo模型del" } });
+  field.setSelectionRange(4, 4);
+  await act(async () => {});
+  expect(pending.at(-1)?.model).toBe("mo模型del");
+  await act(async () => {
+    pending
+      .at(-1)!
+      .resolve({ ...operations, summary: { ...operations.summary, count: 7 } });
+  });
+  await screen.findByText(/本页 7 项/);
+  // An obsolete request completing after the latest response must not replace it.
+  await act(async () => {
+    pending[0].resolve(operations);
+  });
+  expect(screen.getByText(/本页 7 项/)).toBeInTheDocument();
+  expect(screen.getByLabelText("模型")).toBe(field);
+  expect(field).toHaveFocus();
+  expect(field.selectionStart).toBe(4);
+  expect(field.value).toBe("mo模型del");
+  fireEvent.compositionEnd(field, { data: "模型" });
+  await user.clear(field);
+  await screen.findByText(/本页 0 项/);
+  expect(field).toHaveFocus();
+  expect(screen.getByLabelText("模型")).toBe(field);
+});

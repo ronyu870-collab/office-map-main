@@ -679,9 +679,29 @@ try {
         "update private.pitch_ai_tasks set lease_until=now()-interval '1 second' where id=$1",
         [claim.id],
       );
-      assert.equal((await rows(bid))[0].state, "paused");
+      // Resume directly, without status polling from the now-closed editor.
       await db.rpc(ADMIN, { action: "ai_resume", batchId: bid });
+      assert.equal((await rows(bid))[0].state, "queued");
       assert.equal((await run(bid))[0].state, "completed");
+      const listed = await start("match-template");
+      const orphan = await db.rpc(ADMIN, {
+        action: "ai_claim",
+        batchId: listed,
+      });
+      await db.setup.query(
+        "update private.pitch_ai_tasks set lease_until=now()-interval '1 second' where id=$1",
+        [orphan.id],
+      );
+      const operations = await db.rpc(ADMIN, {
+        action: "ai_operations",
+        offset: 0,
+      });
+      assert.equal(
+        operations.tasks.find((t) => t.id === orphan.id).state,
+        "paused",
+      );
+      await db.rpc(ADMIN, { action: "ai_resume", batchId: listed });
+      assert.equal((await run(listed))[0].state, "completed");
     },
   );
   await check(

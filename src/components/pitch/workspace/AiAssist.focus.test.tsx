@@ -6,8 +6,10 @@ import {
   fireEvent,
   waitFor,
   cleanup,
+  act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { AiAssist } from "./AiAssist";
 import type { Call } from "./client";
 const id = "11111111-1111-4111-8111-111111111111";
@@ -197,4 +199,80 @@ describe("Pitch optional assistant behavior", () => {
     fireEvent.click(screen.getByText("移除"));
     expect(screen.queryByText("确认生成 1 个板块")).toBeNull();
   });
+});
+
+it("keeps assistant keywords focused through delayed results, middle edits and Chinese IME", async () => {
+  const user = userEvent.setup();
+  let resolveSearch!: (value: unknown) => void;
+  const call = vi.fn(async (input: Record<string, unknown>) =>
+    input.action === "recommend"
+      ? new Promise((resolve) => {
+          resolveSearch = resolve;
+        })
+      : {},
+  );
+  render(
+    <AiAssist
+      call={call as Call}
+      projectId={id}
+      buildingIds={[]}
+      period=""
+      language="zh"
+      admin={false}
+      busy={false}
+      onGenerate={async () => {}}
+      onReload={async () => {}}
+      onExport={() => {}}
+    />,
+  );
+  const field = screen.getByLabelText("关键词") as HTMLInputElement;
+  await user.type(field, "office case");
+  expect(field).toHaveFocus();
+  field.setSelectionRange(7, 7);
+  await user.keyboard("X");
+  expect(field.value).toBe("office Xcase");
+  expect(field.selectionStart).toBe(8);
+  await user.click(screen.getByText("查找适用素材"));
+  field.focus();
+  field.setSelectionRange(7, 8);
+  fireEvent.compositionStart(field, { data: "北" });
+  fireEvent.change(field, { target: { value: "office 北京case" } });
+  field.setSelectionRange(9, 9);
+  await act(async () => {
+    resolveSearch({
+      items: [
+        {
+          id,
+          version: 1,
+          title: "隔离搜索结果",
+          kind: "case",
+          templateId: "case-portfolio",
+          reasons: [],
+        },
+      ],
+    });
+  });
+  expect(screen.getByLabelText("关键词")).toBe(field);
+  expect(field).toHaveFocus();
+  expect(field.selectionStart).toBe(9);
+  expect(field.value).toBe("office 北京case");
+  fireEvent.compositionEnd(field, { data: "北京" });
+  await user.click(screen.getByText("查找适用素材"));
+  field.focus();
+  field.setSelectionRange(9, 9);
+  await act(async () => {
+    resolveSearch({ items: [] });
+  });
+  expect(screen.queryByText("隔离搜索结果")).toBeNull();
+  expect(field).toHaveFocus();
+  expect(field.selectionStart).toBe(9);
+  expect(call).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      action: "recommend",
+      query: expect.objectContaining({ q: "office 北京case" }),
+    }),
+    true,
+    "ai",
+    expect.any(AbortSignal),
+  );
 });
