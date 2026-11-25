@@ -145,6 +145,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
       body: string;
       run: () => Promise<void>;
     } | null>(null),
+    [taskPollFailed, setTaskPollFailed] = React.useState(false),
+    [readingResult, setReadingResult] = React.useState(false),
     [historyOpen, setHistoryOpen] = React.useState(false);
   const life = React.useRef(new AbortController()),
     current = React.useRef({ detail, draft, dirty }),
@@ -255,6 +257,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
     };
   }, [call]);
   const accept = React.useCallback((value: WorkspaceDetail) => {
+    setTaskPollFailed(false);
+    setReadingResult(false);
     setDetail(value);
     setDraft(draftOf(value));
     setDirty(false);
@@ -461,12 +465,21 @@ function Studio({ session }: { session: AuthSessionResult }) {
         )
           .then(async (result) => {
             if (c.signal.aborted) return;
-            setTask(result);
+            setTaskPollFailed(false);
             if (result.state === "completed") {
+              setReadingResult(true);
               const saved = workspaceDetailSchema.parse(
-                await call({ action: "get", projectId }, true),
+                await call(
+                  { action: "get", projectId },
+                  true,
+                  "workspace",
+                  c.signal,
+                ),
               );
+              if (c.signal.aborted) return;
               if (current.current.dirty) {
+                setReadingResult(false);
+                setTask(result);
                 setConflict(true);
                 setMessage(
                   "页面已生成；当前未保存的编辑已保留，请重新读取或另存副本。",
@@ -479,10 +492,16 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 setMobile("preview");
                 setMessage("页面已生成并保存。");
               }
+            } else {
+              setReadingResult(false);
+              setTask(result);
             }
           })
           .catch((e) => {
-            if (!c.signal.aborted) setMessage(e.message);
+            if (!c.signal.aborted) {
+              setMessage(e.message);
+              setTaskPollFailed(true);
+            }
           });
       }, 800);
     return () => {
@@ -1294,28 +1313,44 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   {rendering ? (
                     <>
                       <span>
-                        {task.state === "queued"
-                          ? "页面正在排队"
-                          : "正在生成页面，原页面可继续查看"}
+                        {readingResult
+                          ? "页面已生成，正在读取结果"
+                          : task.state === "queued"
+                            ? "页面正在排队"
+                            : "正在生成页面，原页面可继续查看"}
                       </span>
-                      <Button
-                        variant="ghost"
-                        onClick={() =>
-                          void run(async () => {
-                            const r = await call<typeof task>(
-                              {
-                                action: "cancel",
-                                projectId: detail.project.id,
-                                taskId: task.id,
-                              },
-                              true,
-                            );
-                            setTask(r);
-                          })
-                        }
-                      >
-                        取消生成
-                      </Button>
+                      {!readingResult && (
+                        <Button
+                          variant="ghost"
+                          onClick={() =>
+                            void run(async () => {
+                              const r = await call<typeof task>(
+                                {
+                                  action: "cancel",
+                                  projectId: detail.project.id,
+                                  taskId: task.id,
+                                },
+                                true,
+                              );
+                              setTask(r);
+                            })
+                          }
+                        >
+                          取消生成
+                        </Button>
+                      )}
+                      {taskPollFailed && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setTaskPollFailed(false);
+                            setMessage("");
+                            setTask({ ...task });
+                          }}
+                        >
+                          重新查询生成进度
+                        </Button>
+                      )}
                     </>
                   ) : task.state === "failed" ? (
                     <>

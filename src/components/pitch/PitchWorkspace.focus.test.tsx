@@ -149,12 +149,18 @@ const initial = () => ({
 });
 let detail: ReturnType<typeof initial>,
   writes: Record<string, unknown>[],
+  failTaskPoll = false,
+  failCompletedRead = false,
+  completedTask = false,
   rejectSave = false;
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 beforeEach(() => {
   state.role = "editor";
   state.other = false;
   rejectSave = false;
+  failTaskPoll = false;
+  failCompletedRead = false;
+  completedTask = false;
   detail = clone(initial());
   writes = [];
   vi.stubGlobal(
@@ -186,8 +192,19 @@ beforeEach(() => {
           ],
           next: null,
         };
-      else if (c.action === "get") body = detail;
-      else if (c.action === "preview")
+      else if (c.action === "get") {
+        if (failCompletedRead && writes.some((c) => c.action === "status"))
+          throw new Error("新页面暂时读取失败");
+        body = detail;
+      } else if (c.action === "status") {
+        if (failTaskPoll) throw new Error("生成进度网络中断");
+        body = {
+          id: c.taskId,
+          state: completedTask ? "completed" : "failed",
+          attempts: 1,
+          error_code: "PITCH_WORKER_TIMEOUT",
+        };
+      } else if (c.action === "preview")
         body = {
           svg: '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><text>实际测试场景</text></svg>',
         };
@@ -370,6 +387,72 @@ describe("Pitch workspace continuous editing", () => {
     expect(screen.getByLabelText("搜索 Pitch")).toBe(field);
     expect(field).toHaveFocus();
   });
+});
+
+it("recovers progress after a network failure without duplicating generation or losing the old page", async () => {
+  Object.assign(detail, {
+    tasks: [
+      {
+        id: "99999999-9999-4999-8999-999999999999",
+        state: "processing",
+        attempts: 1,
+      },
+    ],
+  });
+  failTaskPoll = true;
+  const user = await enter();
+  const retry = await screen.findByRole(
+    "button",
+    { name: "重新查询生成进度" },
+    { timeout: 3000 },
+  );
+  expect(screen.getByLabelText("页面标题")).toHaveValue(
+    initial().slides[0].content.title,
+  );
+  expect(
+    screen.queryByRole("button", { name: "重试生成" }),
+  ).not.toBeInTheDocument();
+  failTaskPoll = false;
+  await user.click(retry);
+  await screen.findByRole("button", { name: "重试生成" }, { timeout: 3000 });
+  expect(writes.filter((c) => c.action === "start")).toHaveLength(0);
+  expect(writes.filter((c) => c.action === "status")).toHaveLength(2);
+});
+
+it("keeps the old page until a completed generation can actually be read, then recovers without a second generation", async () => {
+  Object.assign(detail, {
+    tasks: [
+      {
+        id: "99999999-9999-4999-8999-999999999999",
+        state: "processing",
+        attempts: 1,
+      },
+    ],
+  });
+  failCompletedRead = true;
+  completedTask = true;
+  const user = await enter();
+  const retry = await screen.findByRole(
+    "button",
+    { name: "重新查询生成进度" },
+    { timeout: 3000 },
+  );
+  expect(screen.getByLabelText("页面标题")).toHaveValue(
+    initial().slides[0].content.title,
+  );
+  expect(screen.getByRole("button", { name: "导出" })).toBeDisabled();
+  expect(screen.getByText("页面已生成，正在读取结果")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "取消生成" }),
+  ).not.toBeInTheDocument();
+  failCompletedRead = false;
+  detail.slides[0].content.title = "已读取的实际新页面";
+  await user.click(retry);
+  await waitFor(() =>
+    expect(screen.getByLabelText("页面标题")).toHaveValue("已读取的实际新页面"),
+  );
+  expect(screen.getByRole("button", { name: "导出" })).toBeEnabled();
+  expect(writes.filter((c) => c.action === "start")).toHaveLength(0);
 });
 
 it("keeps category fields focused while editing and switching static filters", async () => {
