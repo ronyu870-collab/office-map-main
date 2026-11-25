@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HomeQueryMenu } from '../HomeQueryMenu';
 
@@ -63,6 +63,31 @@ it('keeps an open menu when layout compensation changes ancestor scroll offsets 
   expect(trigger).toHaveAttribute('aria-expanded', 'true');
   fireEvent.click(screen.getByRole('button', { name: '复制' }));
   expect(trigger).toHaveAttribute('aria-expanded', 'false');
+});
+
+it('uses the latest measured anchor after a resize before checking compensated scrolling', () => {
+  const popover = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'showPopover');
+  Object.defineProperty(HTMLElement.prototype, 'showPopover', { value: () => {}, configurable: true });
+  let frame: FrameRequestCallback | undefined;
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => { frame = callback; return 1; });
+  try {
+    const view = render(<div data-testid="scroll"><HomeQueryMenu label="重新定位"><button>复制</button></HomeQueryMenu></div>);
+    const trigger = screen.getByRole('button', { name: '重新定位' }), scroller = view.getByTestId('scroll');
+    let top = 100;
+    vi.spyOn(trigger, 'getBoundingClientRect').mockImplementation(() => ({ top, bottom: top + 40, left: 200, right: 300, width: 100, height: 40 }) as DOMRect);
+    fireEvent.click(trigger);
+    top = 120;
+    fireEvent(window, new Event('resize'));
+    act(() => frame!(0));
+    expect(view.container.querySelector('[data-query-menu-panel]')).toHaveStyle({ top: '164px' });
+    scroller.scrollTop = 10; fireEvent.scroll(scroller);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    top = 110; scroller.scrollTop = 20; fireEvent.scroll(scroller);
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  } finally {
+    if (popover) Object.defineProperty(HTMLElement.prototype, 'showPopover', popover);
+    else Reflect.deleteProperty(HTMLElement.prototype, 'showPopover');
+  }
 });
 
 it('opens a command menu from ArrowUp at the last command and navigates without leaving it', () => {

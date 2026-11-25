@@ -43,6 +43,7 @@ export function HomeQueryMenu(props: Props) {
     const mode = workspace?.dataset.mode;
     const parent = owner.parentElement;
     let frame = 0;
+    let scrollAnchor = button.getBoundingClientRect();
     const close = (restore = true) => change(false, restore);
     const measure = () => {
       frame = 0;
@@ -59,6 +60,7 @@ export function HomeQueryMenu(props: Props) {
       const bottom = Math.min(vTop + (viewport?.height ?? innerHeight), box?.bottom ?? Infinity) - 8;
       const anchor = button.getBoundingClientRect();
       if (right <= left || bottom <= top || anchor.bottom < top || anchor.top > bottom) { close(); return; }
+      scrollAnchor = anchor;
       node.style.minWidth = `${Math.min(210, right - left)}px`;
       node.style.maxWidth = `${Math.min(320, right - left)}px`;
       // Measure intrinsic content after horizontal wrapping, unconstrained by
@@ -102,7 +104,6 @@ export function HomeQueryMenu(props: Props) {
     // Compare positions captured at open, so that old event cannot dismiss the
     // new menu; only a subsequent movement of its own anchor path does.
     const scrollPositions = new Map<Element, { top: number; left: number }>();
-    const scrollAnchor = button.getBoundingClientRect();
     for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
       scrollPositions.set(ancestor, { top: ancestor.scrollTop, left: ancestor.scrollLeft });
     }
