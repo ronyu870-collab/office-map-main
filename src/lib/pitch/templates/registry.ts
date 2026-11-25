@@ -25,6 +25,8 @@ export const STUDIO_TEMPLATE = templateConfigSchema.parse({ ...BASIC_TEMPLATE, i
   inputSchema: 'studio-parameters/2', adapter: 'structured-content/2', layouts: layoutIdSchema.options, exports: ['pptx', 'png', 'svg', 'xlsx'], scenarios: ['single-page', 'multi-page'],
 });
 
+export const HISTORY_TEMPLATE = templateConfigSchema.parse({ ...STUDIO_TEMPLATE, id: 'history-standardizer', names: { zh: '历史素材标准化', en: 'Historical material normalization' } });
+
 /** Only reviewed code is executable. Configuration cannot supply a function, HTML or code. */
 const adapters = new Map<string, (content: unknown, parameters: unknown) => SlideContent>([
   ['structured-content/2', (raw, rawParameters) => {

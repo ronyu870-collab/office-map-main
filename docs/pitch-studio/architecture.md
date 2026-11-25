@@ -1,6 +1,6 @@
 # Colliers Pitch Studio 公共架构与协议
 
-阶段 01–02，公共协议 `colliers-pitch/1`；新布局引擎 `pitch-layout/2`，场景渲染标记 `pitch-scene/2`。阶段 02 依赖阶段 01 PR #309 的已验证提交 `fef812d3`，不从缺失基础表、权限与注册表的旧 main 重建。渲染细则见 [渲染引擎](render-engine.md)。
+阶段 01–03，公共协议 `colliers-pitch/1`；新布局引擎 `pitch-layout/2`，场景渲染标记 `pitch-scene/2`。阶段 02 依赖阶段 01 PR #309 的已验证提交 `fef812d3`，不从缺失基础表、权限与注册表的旧 main 重建。渲染细则见 [渲染引擎](render-engine.md)。阶段 03 基于阶段 02 已验证提交 `ab6b9b15`，企业素材库协议、真实任务执行、权限边界与限制见 [素材库](material-library.md)。
 
 已提供真实的「测试素材归档 → 结构化内容与独立布局 → 私人单页／多页项目 → 共享场景预览 → PPTX／PNG／SVG／Excel → 私有归档与项目重开」闭环。原件、业务内容、视觉布局、主题及用户作品分别管理。产品以可编辑单页／多页 PPT 为核心，独立素材导出为兼容方向，AI 完整提案为后续方向。
 
@@ -15,6 +15,7 @@
 | `src/lib/pitch/design` | 独立主题协议；业务模板不包含品牌配色、字体或字号 |
 | `src/lib/pitch/layout` | 12 类视觉布局、可组合组件、字体度量、分页和质量检查；只处理结构化内容与主题 |
 | `src/lib/pitch/render` | 同一场景 → 原生可编辑 PPTX、矢量 SVG／PNG、可见数据 Excel；不接收 URL、脚本或 XML |
+| `src/lib/pitch/library` | 安全结构解析、候选提取、任务分批执行、来源缩略图与历史标准化；复用共享布局与渲染 |
 | `src/lib/pitch/data` | 新鲜权限 RPC、对象存储、哈希、模板与主题快照、任务与文件生命周期 |
 | `private.pitch_studio_access` | 唯一领域写入者，原子保存业务记录和审计事件；所有读写都重核有效角色、会话、试点资格及范围 |
 

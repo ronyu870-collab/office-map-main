@@ -101,6 +101,258 @@
         {"name":"value","label":"设置值","type":"文本","desc":"配置值","who":"管理员"},
         {"name":"updated_at","label":"更新时间","type":"时间戳","desc":"最后更新","who":"系统自动"}
       ]
+    },
+    {
+      "name": "pitch_parse_jobs",
+      "label": "素材解析任务",
+      "desc": "私有历史素材解析的持久状态、页游标与有界租约；只允许经授权领域 RPC 修改。",
+      "fields": [
+        {
+          "name": "id",
+          "label": "任务 ID",
+          "type": "UUID",
+          "desc": "稳定任务标识",
+          "who": "系统自动"
+        },
+        {
+          "name": "document_id",
+          "label": "原件 ID",
+          "type": "UUID",
+          "desc": "关联不可变来源文件",
+          "who": "系统自动"
+        },
+        {
+          "name": "parser_version",
+          "label": "解析版本",
+          "type": "文本",
+          "desc": "结构协议执行器版本",
+          "who": "系统自动"
+        },
+        {
+          "name": "state",
+          "label": "状态",
+          "type": "文本",
+          "desc": "queued/processing/completed/partially_completed/failed/cancelled",
+          "who": "系统自动"
+        },
+        {
+          "name": "cursor",
+          "label": "已完成页数",
+          "type": "整数",
+          "desc": "逐页原子提交的恢复位置，最多120",
+          "who": "系统自动"
+        },
+        {
+          "name": "total_pages",
+          "label": "总页数",
+          "type": "整数",
+          "desc": "真实页数或逻辑单元数",
+          "who": "系统自动"
+        },
+        {
+          "name": "progress",
+          "label": "解析进度",
+          "type": "整数",
+          "desc": "0–100，不等于上传成功",
+          "who": "系统自动"
+        },
+        {
+          "name": "partial_count",
+          "label": "部分解析页数",
+          "type": "整数",
+          "desc": "需要人工确认的页数",
+          "who": "系统自动"
+        },
+        {
+          "name": "attempts",
+          "label": "恢复次数",
+          "type": "整数",
+          "desc": "最多3次",
+          "who": "系统自动"
+        },
+        {
+          "name": "worker_token",
+          "label": "领取令牌",
+          "type": "UUID",
+          "desc": "防止重复执行及取消后写入",
+          "who": "系统自动"
+        },
+        {
+          "name": "lease_until",
+          "label": "租约到期",
+          "type": "时间戳",
+          "desc": "50秒执行租约",
+          "who": "系统自动"
+        },
+        {
+          "name": "error_code",
+          "label": "失败代码",
+          "type": "文本",
+          "desc": "安全错误码，不含正文",
+          "who": "系统自动"
+        },
+        {
+          "name": "metadata",
+          "label": "导入元信息",
+          "type": "JSON",
+          "desc": "范围、真实日期、来源和权限快照",
+          "who": "系统自动"
+        },
+        {
+          "name": "request_key",
+          "label": "幂等键",
+          "type": "文本",
+          "desc": "上传者内唯一请求标识",
+          "who": "系统自动"
+        },
+        {
+          "name": "created_by",
+          "label": "上传者",
+          "type": "UUID",
+          "desc": "真实认证用户",
+          "who": "系统自动"
+        },
+        {
+          "name": "updated_by",
+          "label": "最后操作者",
+          "type": "UUID",
+          "desc": "最近授权操作用户",
+          "who": "系统自动"
+        },
+        {
+          "name": "created_at",
+          "label": "创建时间",
+          "type": "时间戳",
+          "desc": "任务建立时刻",
+          "who": "系统自动"
+        },
+        {
+          "name": "updated_at",
+          "label": "更新时间",
+          "type": "时间戳",
+          "desc": "最近进度时刻",
+          "who": "系统自动"
+        }
+      ]
+    },
+    {
+      "name": "pitch_upload_parts",
+      "label": "素材上传分块",
+      "desc": "受控上传的不可变分块引用；浏览器不能直接读取或写入。",
+      "fields": [
+        {
+          "name": "job_id",
+          "label": "任务 ID",
+          "type": "UUID",
+          "desc": "关联解析任务",
+          "who": "系统自动"
+        },
+        {
+          "name": "position",
+          "label": "分块序号",
+          "type": "整数",
+          "desc": "0–15，每片最多768KiB",
+          "who": "系统自动"
+        },
+        {
+          "name": "file",
+          "label": "文件引用",
+          "type": "JSON",
+          "desc": "私有路径、MIME、大小和SHA-256",
+          "who": "系统自动"
+        }
+      ]
+    },
+    {
+      "name": "pitch_media_occurrences",
+      "label": "页面媒体关联",
+      "desc": "精确媒体与真实来源页面的位置、裁切与分组关系；不以文件名猜测。",
+      "fields": [
+        {
+          "name": "page_id",
+          "label": "来源页 ID",
+          "type": "UUID",
+          "desc": "实际来源页",
+          "who": "系统自动"
+        },
+        {
+          "name": "media_id",
+          "label": "媒体 ID",
+          "type": "UUID",
+          "desc": "独立可复用媒体",
+          "who": "系统自动"
+        },
+        {
+          "name": "media_version",
+          "label": "媒体版本",
+          "type": "整数",
+          "desc": "固定版本，避免覆盖",
+          "who": "系统自动"
+        },
+        {
+          "name": "position",
+          "label": "出现次序",
+          "type": "整数",
+          "desc": "页内出现顺序",
+          "who": "系统自动"
+        },
+        {
+          "name": "placement",
+          "label": "原始位置",
+          "type": "JSON",
+          "desc": "裁切、位置、局部组及真实嵌入关系",
+          "who": "系统自动"
+        }
+      ]
+    },
+    {
+      "name": "pitch_asset_links",
+      "label": "素材资产版本关联",
+      "desc": "合并及区域／语言草稿版本的可追溯关系。",
+      "fields": [
+        {
+          "name": "target_id",
+          "label": "目标资产",
+          "type": "UUID",
+          "desc": "新建或合并后的资产",
+          "who": "系统自动"
+        },
+        {
+          "name": "source_id",
+          "label": "来源资产",
+          "type": "UUID",
+          "desc": "原始资产，保留权限依赖",
+          "who": "系统自动"
+        },
+        {
+          "name": "source_version",
+          "label": "来源版本",
+          "type": "整数",
+          "desc": "关联时固定版本",
+          "who": "系统自动"
+        },
+        {
+          "name": "kind",
+          "label": "关联类型",
+          "type": "文本",
+          "desc": "merge/regional/language",
+          "who": "系统自动"
+        },
+        {
+          "name": "created_by",
+          "label": "操作者",
+          "type": "UUID",
+          "desc": "真实认证用户",
+          "who": "系统自动"
+        },
+        {
+          "name": "created_at",
+          "label": "建立时间",
+          "type": "时间戳",
+          "desc": "版本关系建立时刻",
+          "who": "系统自动"
+        }
+      ]
     }
   ]
 }

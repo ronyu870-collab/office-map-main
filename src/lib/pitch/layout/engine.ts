@@ -100,8 +100,9 @@ export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, raw
       groups.push(...tablePages(table, t, m, top, width, height, id === 'data-table' && alt));
     }
   } else if (id === 'chart-insight') {
-    const charts = requireBlocks(content, 'chart'); const iw = alt ? width : width * .3, cw = alt ? width : width - iw - gap, ch = alt ? 2.7 : height;
-    const insight = insightText(content, en), ih = alt ? height - ch - gap : height;
+    const charts = requireBlocks(content, 'chart'), hasInsight = content.blocks.some(b => b.kind === 'insight');
+    const iw = alt ? width : width * .3, cw = !hasInsight || alt ? width : width - iw - gap, ch = hasInsight && alt ? 2.7 : height;
+    const insight = hasInsight ? insightText(content, en) : '', ih = alt ? height - ch - gap : height;
     for (const chart of charts) {
       if (chart.chartType === 'scatter') throw new LayoutError('PITCH_CHART_UNSUPPORTED', '散点图尚未注册，请选择柱状、条形、折线、饼图或组合图。');
       if (!chart.categories.length || chart.categories.length > 12 || chart.series.length > 4 || chart.categories.some(c => t.lines(c, chart.chartType === 'bar' ? .9 : (cw - 1.2) / chart.categories.length).length > 2)) throw new LayoutError('PITCH_CHART_LABELS', '图表标签过密或过长，请减少本页分类或换用条形图。');
@@ -117,6 +118,7 @@ export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, raw
       if (chart.chartType === 'pie' && (chart.series.length !== 1 || chart.series[0].values.some(v => v === null || v < 0) || !chart.series[0].values.some(v => v! > 0))) throw new LayoutError('PITCH_PIE_VALUES', '饼图需要一组完整、非负且总量大于零的数值。');
       if (chart.chartType === 'combo' && chart.series.length !== 2) throw new LayoutError('PITCH_COMBO_SERIES', '组合图需要两个同单位系列：柱形与折线。');
       const el: SceneElement = { kind: 'chart', x: m, y: top, w: cw, h: ch, chartType: chart.chartType, categories: chart.categories, series: chart.series };
+      if (!hasInsight) { groups.push([el]); continue; }
       groups.push(...chunk(t.lines(insight, iw), Math.floor(ih / t.lh)).map(lines => [el, t.text(lines.join('\n'), alt ? m : m + cw + gap, alt ? top + ch + gap : top, iw, ih)]));
     }
   } else if (id === 'map-analysis') {

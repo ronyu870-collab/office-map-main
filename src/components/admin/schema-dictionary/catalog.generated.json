@@ -163,6 +163,26 @@
         "name": "app_settings",
         "label": "系统设置",
         "fieldCount": 3
+      },
+      {
+        "name": "pitch_parse_jobs",
+        "label": "素材解析任务",
+        "fieldCount": 18
+      },
+      {
+        "name": "pitch_upload_parts",
+        "label": "素材上传分块",
+        "fieldCount": 3
+      },
+      {
+        "name": "pitch_media_occurrences",
+        "label": "页面媒体关联",
+        "fieldCount": 5
+      },
+      {
+        "name": "pitch_asset_links",
+        "label": "素材资产版本关联",
+        "fieldCount": 6
       }
     ]
   }

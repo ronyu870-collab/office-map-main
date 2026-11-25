@@ -1,13 +1,14 @@
 // Actual GoTrue, PostgREST, Storage and production-built Next route. This accepts
 // only the disposable localhost stack; keys never enter argv or printed output.
 import assert from 'node:assert/strict';
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { readFile, mkdir, open } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 import JSZip from 'jszip';
+import { materialFixtures, NOTE_SECRET, HIDDEN_SECRET } from '../../supabase/tests/pitch-studio/library-fixtures.mjs';
 assert.equal(process.env.PITCH_TEST_ALLOW_LOCAL,'disposable');
 const settings=JSON.parse(await readFile(process.env.PITCH_AUTH_STATUS,'utf8'));
 for(const value of [settings.API_URL,settings.DB_URL])assert.equal(new URL(value).hostname,'127.0.0.1');
@@ -38,7 +39,7 @@ try {
    create table if not exists public.user_roles(user_id uuid primary key references auth.users(id),role text not null,email text,chinese_name text,full_name text);
    grant select on public.user_roles to service_role;
  `);
- for (const migration of ['20261125165826_pitch_studio_foundation.sql', '20261125174626_pitch_studio_render_engine.sql']) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
+ for (const migration of ['20261125165826_pitch_studio_foundation.sql', '20261125174626_pitch_studio_render_engine.sql', '20261125182357_pitch_studio_material_library.sql']) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
  await db.query("notify pgrst,'reload schema'");
  const owner=await person('editor'),other=await person('editor'),viewer=await person('viewer'),admin=await person('admin');
  const env={...process.env,NEXT_PUBLIC_SUPABASE_URL:settings.API_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:settings.ANON_KEY,SUPABASE_SECRET_KEY:settings.SERVICE_ROLE_KEY,PITCH_STUDIO_ENABLED:'true',DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'syntheticfixture'};
@@ -130,6 +131,30 @@ try {
    if(format==='png')assert.deepEqual([...file.body.slice(0,8)],[137,80,78,71,13,10,26,10]);
    if(format==='svg')assert.match(new TextDecoder().decode(file.body),/<svg/);
    if(format==='xlsx'){const zip=await JSZip.loadAsync(file.body);assert.ok(zip.file('xl/workbook.xml'));}
+ });
+ async function library(who,input,write=false){
+  const res=await fetch(app+'/api/intelligence/pitch/library'+(write?'':'?'+new URLSearchParams(input)),{method:write?'POST':'GET',headers:{Authorization:'Bearer '+who.token,...(write?{'Content-Type':'application/json'}:{})},...(write?{body:JSON.stringify(input)}:{})});
+  return {status:res.status,body:res.headers.get('content-type')?.includes('application/json')?await res.json():new Uint8Array(await res.arrayBuffer())};
+ }
+ await check('real library chunk upload, hash preservation and resumable after-response page parser',async()=>{
+  await db.query('update private.pitch_grants set maintainer=true where user_id=$1',[owner.id]);
+  const f=await materialFixtures(),category=(await call(owner,{action:'catalog'})).body.categories.find(c=>c.system_code==='general');
+  const input={action:'prepare',requestId:randomUUID(),filename:'隔离历史素材.pptx',mime:'application/vnd.openxmlformats-officedocument.presentationml.presentation',size:f.pptx.length,sha256:createHash('sha256').update(f.pptx).digest('hex'),metadata:{scope,language:'zh',dataAsOf:'2025-12-31',validFrom:null,validUntil:null,visibility:'organization',source:'隔离 HTTP 测试，无真实客户',tags:['隔离测试'],categoryId:category.id,isTestData:true,allowClientExport:false}};
+  assert.equal((await library(viewer,input,true)).status,403);
+  const prepared=await library(owner,input,true);assert.equal(prepared.status,200,JSON.stringify(prepared.body));const {job,documentId}=prepared.body;
+  for(let position=0;position<Math.ceil(f.pptx.length/786432);position++){const res=await fetch(app+`/api/intelligence/pitch/library?jobId=${job.id}&position=${position}`,{method:'PUT',headers:{Authorization:'Bearer '+owner.token,'Content-Type':'application/octet-stream'},body:f.pptx.slice(position*786432,(position+1)*786432)});assert.equal(res.status,200,await res.text());}
+  assert.equal((await library(owner,{action:'finish',jobId:job.id},true)).status,202);
+  let status;await until(async()=>{status=await library(owner,{action:'status',jobId:job.id});assert.equal(status.status,200,JSON.stringify(status.body));assert.notEqual(status.body.job.state,'failed',JSON.stringify(status.body));if(status.body.job.state==='queued')await library(owner,{action:'step',jobId:job.id},true);return ['completed','partially_completed'].includes(status.body.job.state);},'library parser');assert.equal(status.body.job.cursor,4);
+  assert.equal((await library(owner,input,true)).body.documentId,documentId);
+  const original=await library(owner,{action:'original',documentId});assert.equal(original.status,200);assert.equal(createHash('sha256').update(original.body).digest('hex'),input.sha256);
+  const pages=await library(owner,{action:'search',kind:'pages',documentId});assert.equal(pages.body.items.length,4);assert.equal((await library(viewer,{action:'search',kind:'pages',documentId})).body.items.length,0);
+  const items=pages.body.items.map(p=>({assetId:p.asset_id,expectedVersion:1}));assert.equal((await library(owner,{action:'confirm',items,acknowledgePartial:false},true)).status,409);assert.equal((await library(owner,{action:'confirm',items,acknowledgePartial:true},true)).status,200);
+  const results=await library(viewer,{action:'search',kind:'pages',documentId,q:'案例'});assert.equal(results.status,200);assert.equal(results.body.items.length,1);assert.equal((await library(viewer,{action:'original',documentId})).status,403);
+  const sourcePage=results.body.items[0],detail=await library(viewer,{action:'page',pageId:sourcePage.id});assert.equal(detail.body.document.sha256,input.sha256);assert.doesNotMatch(JSON.stringify(detail.body.page),new RegExp(NOTE_SECRET+'|'+HIDDEN_SECRET));
+  const normalized=randomUUID();const generated=await library(owner,{action:'normalize',assetId:sourcePage.asset_id,projectId:normalized,title:'隔离历史案例标准化',themeId:'colliers-default-v1',themeVersion:2},true);assert.equal(generated.status,200,JSON.stringify(generated.body));const opened=await call(owner,{action:'get_project',projectId:normalized});assert.equal(opened.body.slides[0].source_snapshot[0].pageId,sourcePage.id);
+  const exportId=randomUUID();assert.equal((await call(owner,{action:'export_start',projectId:normalized,exportId,format:'pptx',audience:'internal'},true)).status,202);await until(async()=>{const value=await call(owner,{action:'export_status',projectId:normalized,exportId});assert.notEqual(value.body.state,'failed',JSON.stringify(value.body));return value.body.state==='ready';},'normalized export');const file=await call(owner,{action:'download',projectId:normalized,exportId,audience:'internal'});assert.equal(file.status,200);const zip=await JSZip.loadAsync(file.body),xml=(await Promise.all(Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+[.]xml$/.test(n)).map(n=>zip.file(n).async('string')))).join('');assert.match(xml,/<a:tbl>/);assert.match(xml,/测试楼 A/);
+  const media=(await db.query('select m.storage_path from pitch_media_assets m join pitch_source_pages p on p.id=m.source_page_id where p.document_id=$1',[documentId])).rows;assert.ok((await viewer.client.storage.from('pitch-studio-private').download(media[0].storage_path)).error);
+  await db.query('update private.pitch_grants set enabled=false where user_id=$1',[viewer.id]);assert.equal((await library(viewer,{action:'page',pageId:sourcePage.id})).status,403);
  });
  await check('revoked grants block recovery, raw RLS and previously archived download',async()=>{
    await db.query('update private.pitch_grants set enabled=false where user_id=$1',[owner.id]);

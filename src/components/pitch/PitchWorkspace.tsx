@@ -10,6 +10,7 @@ import { supabase } from '@/src/services/supabaseClient';
 import { scopeSchema, slideContentSchema } from '@/src/lib/pitch/contracts/content';
 import type { AuthSessionResult } from '@/src/services/Auth';
 import styles from './pitch.module.css';
+import { MaterialLibrary } from './library/MaterialLibrary';
 import { ScenePreview } from './ScenePreview';
 import { LAYOUTS } from '@/src/lib/pitch/layout/definitions';
 import { slideSceneSchema, type LayoutId } from '@/src/lib/pitch/contracts/scene';
@@ -37,7 +38,7 @@ function ScopedPitch({ session }: { session: AuthSessionResult }) {
   const [catalog, setCatalog] = React.useState<Catalog | null>(null);
   const [assets, setAssets] = React.useState<z.infer<typeof assetSchema>[]>([]);
   const [projects, setProjects] = React.useState<z.infer<typeof projectSchema>[]>([]);
-  const [assetNext, setAssetNext] = React.useState<string | null>(null), [projectNext, setProjectNext] = React.useState<string | null>(null);
+  const [, setAssetNext] = React.useState<string | null>(null), [projectNext, setProjectNext] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState(''), [title, setTitle] = React.useState('测试 Pitch');
   const [layoutId, setLayoutId] = React.useState<LayoutId>('image-text');
   const [fixtureLanguage, setFixtureLanguage] = React.useState<'zh' | 'en'>('zh');
@@ -107,7 +108,7 @@ function ScopedPitch({ session }: { session: AuthSessionResult }) {
           })}>创建测试素材</Button></div>
         </div>{deckParts.length > 0 && <ol className={styles.list}>{deckParts.map((part, i) => <li key={i}><span>{i + 1}. {assets.find(a => a.id === part.assetId)?.names.zh ?? '素材'} · {LAYOUTS.find(l => l.id === part.layoutId)?.zh}</span><Button variant="secondary" disabled={busy} onClick={() => { setDeckParts(v => v.filter((_, n) => n !== i)); setProjectRequest(null); }}>移除此内容</Button></li>)}</ol>}{!canGenerate && <p>当前身份只读，可以查看已授权素材和已有项目。</p>}
       </section>}
-      {panel === 'assets' && <section className={styles.section}><h2>企业素材库</h2><p>只展示你有权读取的已发布素材及自己的私人素材。</p><ul className={styles.list}>{assets.map(a => <li key={a.id}><div><strong>{a.names.zh ?? a.names.en}</strong><p>{a.is_test_data ? '测试数据 · 非真实案例' : '业务素材'} · {({ draft: '草稿', published: '已发布', pending_review: '待确认', archived: '已归档' } as Record<string, string>)[a.state]} · 版本 {a.current_version}</p></div><Button variant="secondary" disabled={!canGenerate} onClick={() => { setSelected(a.id); setPanel('quick'); }}>使用素材</Button></li>)}</ul>{assets.length === 0 && <p>当前没有可用素材，可在快速生成中创建测试素材。</p>}{assetNext && <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const out = await call({ action: 'list_assets', before: assetNext }); setAssets(v => [...v, ...z.array(assetSchema).parse(out.items)]); setAssetNext(out.next); })}>加载更多素材</Button>}</section>}
+      {panel === 'assets' && <MaterialLibrary userId={session.session.user.id} simulated={simulated} scopes={catalog.scopes} categories={catalog.categories} themes={catalog.themes} onProject={async id => { await openProject(id); await load(); }} />}
       {panel === 'templates' && <section className={styles.section}><h2>模板中心</h2><ul className={styles.list}>{catalog.templates.map(t => <li key={t.id}><div><strong>{t.names.zh ?? t.names.en}</strong><p>已发布 · 版本 {t.current_version} · 可编辑 PPTX</p></div><Button variant="secondary" onClick={() => setPanel('quick')}>选择素材</Button></li>)}</ul><p>业务模板使用独立布局。十二类布局支持标准与替换结构；超出容量时分页或明确反馈。</p></section>}
       {panel === 'projects' && <section className={styles.section}><h2>我的 Pitch</h2><ul className={styles.list}>{projects.map(p => <li key={p.id}><div><strong>{p.title}</strong>{p.is_test_data && <p>测试数据 · 非真实案例</p>}</div><Button variant="secondary" disabled={busy} onClick={() => void run(() => openProject(p.id))}>打开项目</Button></li>)}</ul>{projects.length === 0 && <p>还没有私人项目，请从素材生成单页。</p>}{projectNext && <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const out = await call({ action: 'list_projects', before: projectNext }); setProjects(v => [...v, ...z.array(projectSchema).parse(out.items)]); setProjectNext(out.next); })}>加载更多项目</Button>}
         {detail && <article className={styles.detail}><h2>{detail.project.title}</h2>{detail.slides.map(s => <div key={s.id} className={styles.slide}><h3>{s.content.title}</h3>{s.content.blocks.map((b, i) => b.kind === 'paragraph' ? <p key={i}>{b.text}</p> : b.kind === 'image' ? <p key={i}>配图：{b.alt}</p> : null)}<p>数据时间：{s.content.dataAsOf} · {s.content.sources.map(r => r.label).join('；')}</p></div>)}

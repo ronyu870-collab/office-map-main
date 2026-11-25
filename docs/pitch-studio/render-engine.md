@@ -75,3 +75,5 @@ npm run lint
 - `ScenePreview.test.tsx` 与 `PitchWorkspace.focus.test.tsx`：参数局部刷新、缩略图／缩放、解码状态、失败重试、下载与连续输入焦点保护。
 
 三条专项执行路径已接入 Verify。类型、Lint、审计覆盖、搜索焦点、全量 Vitest 和构建沿用仓库工程门槛；不增加人工视觉审批或真机验收。实现者仍检查生成的实际 PPTX 及其 Office 渲染结果。
+
+阶段 03 补充：`chart-insight` 允许只有真实图表而没有分析文本，使用完整绘图区，不虚构业务结论；已有分析的双栏／上下变体不变。历史素材按 [素材库协议](material-library.md) 转换并记录可追溯的标准化报告。

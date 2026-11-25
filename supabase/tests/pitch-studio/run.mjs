@@ -29,9 +29,9 @@ function ctx(uid) {
 }
 const owner=ctx(OWNER);let assetId,projectId,artifact;
 try {
- await check('migration has RLS and explicit no direct writes on all 17 exposed tables',async()=>{
+ await check('migration has RLS and explicit no direct writes on all 21 exposed tables',async()=>{
   const rows=(await db.setup.query("select relname,relrowsecurity from pg_class where relnamespace='public'::regnamespace and relname like 'pitch_%' and relkind='r'")).rows;
-  assert.equal(rows.length,17);assert.ok(rows.every(r=>r.relrowsecurity));
+  assert.equal(rows.length,21);assert.ok(rows.every(r=>r.relrowsecurity));
   for(const r of rows)assert.equal((await db.setup.query("select has_table_privilege('authenticated',$1,'INSERT') allowed",[r.relname])).rows[0].allowed,false);
  });
  await check('disabled pilot and ungranted accounts fail closed',async()=>{

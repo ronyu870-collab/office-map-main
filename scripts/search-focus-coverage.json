@@ -521,5 +521,15 @@
       "keeps project name focused through continuous typing and cursor edits",
       "keeps category fields focused while editing and switching static filters"
     ]
+  },
+  {
+    "id": "pitch-material-library",
+    "roots": [
+      "src/components/pitch/library/MaterialLibrary.tsx"
+    ],
+    "file": "src/components/pitch/library/MaterialLibrary.focus.test.tsx",
+    "cases": [
+      "keeps library search focused through delayed results, cursor edits, empty results and IME"
+    ]
   }
 ]
