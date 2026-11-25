@@ -66,7 +66,7 @@ export async function verifyAi5ModelOperations({ db, service, keys, output, chec
   }
   async function submit(who, options = {}) {
     scenario = options; requests = [];
-    const input = options.input ?? { idempotencyKey: randomUUID(), question: options.query ? '查询CBD楼宇清单和高度' : '你好', conversation: options.conversation ?? { id: randomUUID() } };
+    const input = options.input ?? { idempotencyKey: randomUUID(), question: options.query ? '核对CBD楼宇清单和高度资料' : '解释风险的含义', conversation: options.conversation ?? { id: randomUUID() } };
     const response = await originalFetch(endpoint + (options.stream ? '/agent/stream' : '/agent'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + who.token }, body: JSON.stringify(input) });
     return { status: response.status, body: options.stream ? await response.text() : await response.json(), input, calls: [...requests] };
   }

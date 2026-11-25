@@ -180,6 +180,23 @@ try{
     await assert.rejects(api.readQuerySnapshots(service,identity,scoped,{...plan,scope:{inventory:'tracked',submarkets:['金融街']}},new AbortController().signal),/QUERY_DENIED/);
     await grantQuery(db,OWNER);
   });
+  await check('AI6 all-authorized quarterly groups include reference buildings and exclude ungranted rows',async()=>{
+    await db.setup.query("update public.buildings set tracking_scope='reference_only',submarket='金融街' where id=$1",[BUILDINGS[2]]);
+    await grantQuery(db,OWNER,{allBuildings:false,buildingIds:BUILDINGS.slice(0,3)});
+    try {
+      const p={operation:'group_aggregate',scope:{inventory:'all_authorized'},metric:'rent',groupBy:'submarket',period:{year:2026,quarter:2}};
+      const snapshots=await api.readQuerySnapshots(service,identity,await fresh(),p,new AbortController().signal);
+      assert.equal(snapshots[0].rows.length,3);
+      const result=api.executeQueryPlan(p,snapshots);
+      const value=market=>result.table.rows.find(r=>r.cells.name.value===market).cells.value.value.numeric;
+      assert.equal(value('CBD'),157.5);assert.equal(value('金融街'),160);
+      assert.ok(result.sources.some(s=>s.entityId===BUILDINGS[2]));assert.ok(!result.sources.some(s=>s.entityId===BUILDINGS[3]));
+      const tracked=await api.readQuerySnapshots(service,identity,await fresh(),{...p,scope:{inventory:'tracked'}},new AbortController().signal);
+      assert.equal(tracked[0].rows.length,2);
+    } finally {
+      await db.setup.query("update public.buildings set tracking_scope='tracked',submarket='CBD' where id=$1",[BUILDINGS[2]]);await grantQuery(db,OWNER);
+    }
+  });
   await check('3000-plus rows remain complete despite the gateway row limit; highest row beyond first page participates',async()=>{
     await db.setup.query("insert into public.buildings(id,name,submarket,grade) select ('77777777-7777-4777-8777-'||lpad(n::text,12,'0'))::uuid,'合成分页楼'||n,'CBD','A' from generate_series(1,3001) n");
     const highest='ffffffff-ffff-4fff-8fff-ffffffffffff';await db.setup.query("insert into public.buildings(id,name,submarket,grade) values($1,'合成末行最高楼','CBD','A')",[highest]);

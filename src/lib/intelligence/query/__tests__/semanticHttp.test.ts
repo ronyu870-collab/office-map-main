@@ -312,7 +312,7 @@ describe('P1 actual semantic HTTP and encrypted-context integration', () => {
     const response = await h.submit(input('2026Q3CBD净有效租金水平怎么样'));
     expect(response.status).toBe(422);
     expect(response.body).toMatchObject({ status: 'clarification', reason: 'unrecognized' });
-    expect(response.body.message).toContain('DeepSeek 语义解析暂不可用');
+    expect(response.body.message).toContain('模型语义解析暂不可用');
     expect(queryReplySchema.parse(response.body).status).toBe('clarification');
     expect(understandWithModel).toHaveBeenCalledOnce();
     expect(h.calls('ai_query_snapshot_read')).toHaveLength(0);

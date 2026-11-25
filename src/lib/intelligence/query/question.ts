@@ -16,7 +16,7 @@ function quarter(year: string, latin: string, chinese: string) {
   return { year: Number(year), quarter: latin ? Number(latin) : '一二三四'.includes(chinese) ? '一二三四'.indexOf(chinese) + 1 : Number(chinese) };
 }
 function scope(market: string, quarterly = false): QueryPlan['scope'] {
-  return { inventory: quarterly ? 'tracked' : 'all_authorized', ...(market === '全部获权楼宇' ? {} : { submarkets: [market] }) };
+  return { inventory: quarterly && market !== '全部获权楼宇' ? 'tracked' : 'all_authorized', ...(market === '全部获权楼宇' ? {} : { submarkets: [market] }) };
 }
 
 /** Relative dates use a trusted server clock, then the same full-string grammar.
@@ -38,7 +38,7 @@ function resolveExplicitQuestion(question: string): QuestionResolution {
   if (!question || question.length > 6000) return clarification;
   const text = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
   const marketList = `(${QUESTION_SUBMARKETS.join('|')})(?:、(?:${QUESTION_SUBMARKETS.join('|')}))*`;
-  const groupedScope = (value: string): QueryPlan['scope'] => ({ inventory: 'tracked', ...(value === '全部获权楼宇' ? {} : { submarkets: [...new Set(value.split('、'))] }) });
+  const groupedScope = (value: string): QueryPlan['scope'] => ({ inventory: value === '全部获权楼宇' ? 'all_authorized' : 'tracked', ...(value === '全部获权楼宇' ? {} : { submarkets: [...new Set(value.split('、'))] }) });
   const distributionMeasures={建筑高度:'height',楼层数:'floors',总车位数:'parking',季度总面积:'totalArea',空置面积:'vacantArea',净有效租金:'rent',空置率:'vacancy'} as const;
   const distribution=new RegExp(`^${period}((?:${marketList})|全部获权楼宇)(建筑高度|楼层数|总车位数|季度总面积|空置面积|净有效租金|空置率)分布$`).exec(text);
   if(distribution)return {kind:'plan',plan:parseQueryPlan({operation:'distribution',period:quarter(distribution[1],distribution[2],distribution[3]),scope:groupedScope(distribution[4]),measure:distributionMeasures[distribution[6] as keyof typeof distributionMeasures]})};

@@ -1,3 +1,4 @@
+import { verifyAi6Runtime } from './ai6-runtime-scenarios.mjs';
 import { verifyAi5ModelOperations } from './ai5-model-operations-scenarios.mjs';
 import { verifyAi5FinalHardening } from './ai5-final-hardening-scenarios.mjs';
 import { verifyAi5Knowledge } from './ai5-knowledge-scenarios.mjs';
@@ -606,6 +607,7 @@ try{
   await verifyP2Buildings({db,app,check,person,call,recover,events,decrypt,exportCaps});
   await verifyConversation({db,check,person,call,recover,events,decrypt,exportCaps,fixture:companyFixture});
   await verifyP2History({db,app,check,person,call,recover,artifact,events,decrypt,exportCaps});
+  await verifyAi6Runtime({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps});
   await verifyAi5Exports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Charts({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Reports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});

@@ -1,0 +1,56 @@
+{
+  "protocol": "ai6-offline-context/1",
+  "baseline": "cd9b5410",
+  "providerRequests": 0,
+  "measurement": "UTF-8 serialized messages plus tool schemas; potential baseline input, not provider-reported usage or latency",
+  "cases": [
+    {
+      "question": "什么是净有效租金",
+      "route": "bounded_agent",
+      "beforeOfferedBytes": 14599,
+      "afterOfferedBytes": 2951,
+      "afterPlannedProviderBytes": 2951,
+      "plannedByteReduction": 0.7978628673196795,
+      "beforeToolCount": 11,
+      "afterToolCount": 0,
+      "supplierTokens": null,
+      "actualBilledUsd": null
+    },
+    {
+      "question": "2026Q2 CBD净有效租金",
+      "route": "deterministic_query",
+      "beforeOfferedBytes": 14600,
+      "afterOfferedBytes": 5730,
+      "afterPlannedProviderBytes": 0,
+      "plannedByteReduction": 1,
+      "beforeToolCount": 11,
+      "afterToolCount": 4,
+      "supplierTokens": null,
+      "actualBilledUsd": null
+    },
+    {
+      "question": "2026Q2全部获权楼宇净有效租金按子市场比较",
+      "route": "deterministic_query",
+      "beforeOfferedBytes": 17001,
+      "afterOfferedBytes": 10725,
+      "afterPlannedProviderBytes": 0,
+      "plannedByteReduction": 1,
+      "beforeToolCount": 14,
+      "afterToolCount": 8,
+      "supplierTokens": null,
+      "actualBilledUsd": null
+    },
+    {
+      "question": "把CBD在2026Q2净有效租金最高的10栋楼导出Excel",
+      "route": "deterministic_query",
+      "beforeOfferedBytes": 16472,
+      "afterOfferedBytes": 9461,
+      "afterPlannedProviderBytes": 0,
+      "plannedByteReduction": 1,
+      "beforeToolCount": 12,
+      "afterToolCount": 6,
+      "supplierTokens": null,
+      "actualBilledUsd": null
+    }
+  ]
+}

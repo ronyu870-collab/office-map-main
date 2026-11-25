@@ -1,3 +1,4 @@
+import { resultViewSchema } from '../query/presentation';
 import { KNOWLEDGE_TOOL_NAMES, isKnowledgeResult, type KnowledgeToolName } from '../knowledge/protocol';
 import { queryKnowledge, knowledgeModelObservation, recheckKnowledgeResults } from '../knowledge/research';
 import { publicSearchConfigured } from '../knowledge/publicSearch';
@@ -39,6 +40,8 @@ import { exportAuthorizedTable } from './exportTableTool';
 import type { QueryResult } from '../query/result';
 import { estimateAgentCostRange } from './agentCost';
 import { createModelRuntime, modelModeSchema } from './modelRuntime';
+import { validatedResultTableView } from '../query/tableView';
+import { routeTask } from './taskRouting';
 import { nextAgentMemory } from './agentMemory';
 import { queryVerifiedRealEstate, executeStructuredDataTool } from './verifiedDataTool';
 import { queryCapabilityManifest } from '../query/capabilityManifest';
@@ -74,7 +77,12 @@ function scopedAgentId(identity: VerifiedQueryIdentity, idempotencyKey: string):
 function providerMessage(error: unknown): string {
   if (error instanceof ModelProviderError) {
     switch (error.code) {
-      case 'budget_exceeded': return '本轮模型调用已达到 token 或费用估算预算，未继续调用供应商。';
+      case 'budget_exceeded':
+        if (error.budgetReason === 'admission_service_unavailable') return '模型预算服务暂不可用，本轮未调用模型。';
+        if (error.budgetReason === 'account_admission') return '本轮模型调用额度预算校验未通过，未调用供应商。';
+        if (error.budgetReason === 'token_reservation') return '下一次模型调用的输入和输出预留超出本轮 token 预算，未继续调用供应商。';
+        if (error.budgetReason === 'cost_reservation') return '下一次模型调用的费用预留超出本轮估算预算，未继续调用供应商。';
+        return '本轮模型调用已达到 token 或费用估算预算，未继续调用供应商。';
       case 'disclosure_denied': return '当前账号未获准向该模型供应商披露请求，未调用供应商。';
       case 'stream_interrupted': return '模型供应商流式连接中断，未取得完整回复。';
       case 'not_configured': return '模型供应商尚未配置，本轮未调用模型。';
@@ -167,18 +175,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const workset = new AuthorizedResultWorkset(worksetOwner);
     await audit.append(requestId, 'running', { phase: 'agent_planning', provider: 'server_policy',
       permissionRevision: authority.permissionRevision, policyVersion: authority.policyVersion });
-    const budget = await client.rpc('ai_query_model_budget', {
-      p_actor: actor.actorId, p_effective: actor.effectiveUserId,
-      p_session: actor.sessionId, p_request_id: requestId,
-    }).abortSignal(signal);
-    if (budget.error || budget.data?.allowed !== true) {
-      const reason = budget.error ? 'budget_rpc_unavailable' : 'budget_rejected';
-      await audit.append(requestId, 'failed', { stage: 'provider_admission', reason, delivery: 'not_sent' });
-      completed = true;
-      return json({ requestId, status: 'unavailable', error: budget.error
-        ? '模型供应商调用预算服务暂不可用，本轮没有调用模型。'
-        : '模型供应商调用预算校验未通过，本轮没有调用模型。' }, 503);
-    }
+    const admitModel = async (currentSignal: AbortSignal) => {
+      const budget = await client.rpc('ai_query_model_budget', {
+        p_actor: actor.actorId, p_effective: actor.effectiveUserId,
+        p_session: actor.sessionId, p_request_id: requestId,
+      }).abortSignal(currentSignal);
+      currentSignal.throwIfAborted();
+      if (budget.error || budget.data?.allowed !== true) throw new ModelProviderError('budget_exceeded', budget.error ? 'admission_service_unavailable' : 'account_admission');
+    };
     const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal);
     const research = new ResearchExecution(history.contextResult && isResearchResult(history.contextResult) ? history.contextResult : undefined);
     let researchTouched = false;
@@ -249,9 +253,10 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       hasChartContext: !!history.contextChart,
       contextDomains: [...(leaseResults.size ? ['lease' as const] : []), ...(businessResults.size ? ['business' as const] : []),
         ...(knowledgeResults.size ? ['knowledge' as const] : [])],
-      legacyInvoke: dependencies.invokeModel ?? completeWithDeepSeek, revalidate: revalidateModel,
+      legacyInvoke: dependencies.invokeModel ?? completeWithDeepSeek, revalidate: revalidateModel, admit: admitModel,
       onAttempt: async attempt => { await audit!.append(requestId, 'accounting', attempt); } });
     let preparedMap: QueryResult | undefined;
+    let preparedView: QueryResult | undefined;
     let preparedExport: QueryResult | undefined;
     let preparedReport: QueryResult | undefined;
     let reportFile: Record<string, unknown> | undefined;
@@ -290,10 +295,13 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const needsSelection = () => new Set([...queriedIds, ...referencedIds]).size > 1
       && (!selectedAnswer || comparisonRequested && !selectedAnswer.results.some(item => item.role === 'comparison'));
 
+    const previousResult = history.contextResults?.length ? history.contextResults.length === 1 ? history.contextResults[0] : undefined : history.contextResult;
+    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult ? resultViewSchema.parse(previousResult) : undefined);
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
+        taskRoute, previousResultId: history.contextResults?.length === 1 ? history.contextResults[0].resultId : history.contextResult?.resultId,
         history, memory: history.memory, limits: runtime.limits,
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
@@ -499,6 +507,13 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             for (const id of args.resultIds as string[]) deliverySources.set(id, workset.read(id, worksetOwner));
             return exported;
           }
+          if (name === 'apply_result_view') {
+            const source = workset.read(args.resultId as string, worksetOwner);
+            const view = validatedResultTableView(resultViewSchema.parse(source), args.view);
+            referencedIds.add(source.resultId);
+            preparedView = { ...source, parameters: { ...source.parameters, agentTableView: view } };
+            return { result: preparedView, content: JSON.stringify({ status: 'ready', resultId: source.resultId, view, rowCount: source.table.rows.length }) };
+          }
           if (WORKSET_TOOL_NAMES.has(name)) {
             const ids = name === 'compare_result_sets' ? args.resultIds as string[] : [args.resultId as string];
             for (const id of ids) { workset.read(id, worksetOwner); referencedIds.add(id); }
@@ -524,7 +539,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (/(?:成交|租赁交易|lease.transaction)/i.test(args.question)) throw new Error('LEASE_TOOL_REQUIRED');
             // Bounded migration for previous native Tool Calling clients.
             observation = await queryVerifiedRealEstate({ client, keys, identity: actor, audit: audit!,
-              requestId, authority, signal: toolSignal }, args.question);
+              requestId, authority, signal: toolSignal, ...(taskRoute.route === 'single_interpretation' ? { interpret: runtime.interpret, contextPlan: history.contextPlan } : {}) }, args.question);
           } else if (STRUCTURED_DATA_TOOL_NAMES.has(name)) {
             observation = await executeStructuredDataTool({ client, keys, identity: actor, audit: audit!,
               requestId, authority, signal: toolSignal }, name as StructuredDataToolName, args);
@@ -540,7 +555,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         },
       });
     } catch (error) {
-      await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: 'incomplete', toolTrace,
+      await audit.append(requestId, 'accounting', { provider: 'server_policy', executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), status: 'incomplete', toolTrace,
         modelCallsCompleted: completedModels, inputTokens: reportedInput, outputTokens: reportedOutput,
         providerRequestIds: providerRequestIds.slice(0, 6),
         cost: null, costStatus: 'planning_range_not_invoice',
@@ -562,8 +577,41 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         completed = true; checkpointPreserved = true;
         await recordHistorySubmission(client, keys, actor, valid.conversation.id, requestId);
       }
+      const recoverable = signal.aborted || error instanceof ModelProviderError
+        || error instanceof Error && /^AGENT_(?:ROUND_LIMIT|TOOL_BUDGET_EXCEEDED|TOOL_RECOVERY_EXHAUSTED|TOKEN_BUDGET_EXCEEDED)$/.test(error.message);
+      const candidates = generatedResults.length ? generatedResults
+        : selectedAnswer?.results.map(item => item.result as QueryResult)
+          ?? [...queriedIds].map(id => workset.read(id, worksetOwner));
+      if (!research.task && recoverable && candidates.length && !(error instanceof Error && error.message === 'QUERY_DENIED')) {
+        const checkpointSignal = AbortSignal.timeout(10000);
+        const current = await loadDataAuthority(client, actor, checkpointSignal);
+        if (current.permissionRevision !== authority.permissionRevision || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+        await recheckBusinessResults(client, actor, checkpointSignal, candidates);
+        await recheckLeaseResults(client, actor, checkpointSignal, candidates);
+        await recheckKnowledgeResults(client, actor, checkpointSignal, candidates);
+        const primary = candidates[0];
+        const selection: AnswerSelection = { version: 'answer-selection/1', task: answerTask(valid.question, primary),
+          status: 'partial', primaryResultId: primary.resultId,
+          notice: candidates.length > 1 ? '已保存多份中间查询结果，尚未确认最终主结果；原任务尚未全部完成。' : '已保存正式结果，原任务尚未全部完成。', results: candidates.map((result, i) => ({ role: i ? 'comparison' : 'primary', result: result as AnswerSelection['results'][number]['result'] })) };
+        await audit.append(requestId, 'tool_finished', { protocol: 'agent-answer/1', answerContext: true,
+          resolution: { protocol: 'answer-selection/1' }, permissionRevision: authority.permissionRevision,
+          history: trimAgentHistory(history, valid.question, selection.notice!), memory: nextAgentMemory(history.memory, valid.question, primary),
+          operations: runtime.summary(), executionRoute: taskRoute.route, executionStatus: 'partial', status: 'checkpoint_prepared' });
+        await audit.append(requestId, 'response_generated', { result: selection });
+        await audit.append(requestId, 'succeeded', { delivery: 'not_sent', executionStatus: 'partial', resultInterrupted: true });
+        completed = true;
+        // Reuse the exact owner/session/source/version recovery check; no
+        // checkpoint is offered as recoverable until every source passes it.
+        const read = await readOwnResult(client, actor, requestId, 'archive', checkpointSignal);
+        await recoverOwnResult(client, actor, keys, requestId, read, checkpointSignal);
+        checkpointPreserved = true;
+        await recordHistorySubmission(client, keys, actor, valid.conversation.id, requestId);
+      }
       throw error;
     }
+    execution.calls = runtime.records.length;
+    execution.inputTokens = runtime.records.some(r => r.usageStatus === 'unknown_reserved') ? null : runtime.records.reduce((n, r) => n + (r.inputTokens ?? 0), 0);
+    execution.outputTokens = runtime.records.some(r => r.usageStatus === 'unknown_reserved') ? null : runtime.records.reduce((n, r) => n + (r.outputTokens ?? 0), 0);
     if(execution.unresolvedFailures.some(item=>item.code==='knowledge_public_search_disabled'))execution.answer='公开搜索服务尚未启用，本轮没有联网或发送外部查询。需由维护者配置正式搜索服务及公开研究授权。';
     if (execution.unresolvedFailures.some(item => item.code === 'lease_scope_too_large')) execution.answer = '获权成交数据池超过20000条，未返回部分结果。请由授权维护者缩小正式研究授权范围后重试；本轮未完成成交查询。';
     if (!preparedChart && (execution.toolNames.some(name => ['prepare_chart', 'create_chart', 'modify_chart'].includes(name))
@@ -657,7 +705,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     if (selectedAnswer && !needsSelection() && !terminalDelivery && !researchTouched) {
       selectedAnswer = { ...selectedAnswer, results: selectedAnswer.results.map(item => {
         const prepared = preparedChart?.resultId === item.result.resultId ? preparedChart
-          : preparedMap?.resultId === item.result.resultId ? preparedMap : undefined;
+          : preparedMap?.resultId === item.result.resultId ? preparedMap : preparedView?.resultId === item.result.resultId ? preparedView : undefined;
         return prepared ? { ...item, result: prepared as typeof item.result } : item;
       }) };
       execution.result = selectedAnswerResult(selectedAnswer) as QueryResult;
@@ -755,7 +803,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       }
       if (selectedAnswer.notice) execution.answer = selectedAnswer.notice;
     }
-    await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: execution.executionStatus,
+    await audit.append(requestId, 'accounting', { provider: 'server_policy', executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), status: execution.executionStatus, formalResult: !!execution.result, reusedTools: toolTrace.filter(t => t.reused).length,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       providerRequestIds: providerRequestIds.slice(0, 6), toolNames: execution.toolNames,
@@ -775,7 +823,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       protocol: 'agent-answer/1', provider: 'server_policy', model: execution.model,
       permissionRevision: authority.permissionRevision,
       history: trimAgentHistory(history, valid.question, execution.answer),
-      memory: nextAgentMemory(history.memory, valid.question, execution.result), operations: runtime.summary(),
+      memory: nextAgentMemory(history.memory, valid.question, execution.result), executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(),
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
       ...(researchAnswer ? { researchContext: true, resolution: { protocol: 'deep-research/1' } } : {}),
@@ -811,7 +859,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       message: execution.answer, ...(execution.result ? { result: execution.result } : {}),
       ...(selectedAnswer ? { answerSelection: selectedAnswer } : {}),
       conversation: valid.conversation, historySaved,
-      agent: { model: execution.model, modelCalls: execution.calls, operations: runtime.summary(),
+      agent: { executionRoute: taskRoute.route, taskType: taskRoute.taskType, model: execution.model, modelCalls: execution.calls, operations: runtime.summary(),
         toolCalls: execution.toolCalls, inputTokens: execution.inputTokens,
         outputTokens: execution.outputTokens, executionStatus: execution.executionStatus,
         phases: execution.phases, workset: workset.manifest(worksetOwner),
@@ -853,8 +901,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       catch { /* Audit persistence unavailable: never deliver a successful result. */ }
     }
     if (request.signal.aborted) return json({ requestId, status: 'cancelled',
-      error: checkpointPreserved ? '研究已中断，已完成的合法步骤已记录，可从历史恢复继续；研究尚未全部完成。' : '浏览器已中断请求，不能确认服务端是否完全停止。' }, 409);
-    if (checkpointPreserved) return json({ requestId, status: 'cancelled', error: '本轮执行受到预算、时间或服务异常限制，合法研究进度已记录，可从历史恢复继续；研究尚未全部完成。' }, 409);
+      error: checkpointPreserved ? '执行已中断，已有正式结果已记录，可从历史恢复；任务尚未全部完成。' : '浏览器已中断请求，不能确认服务端是否完全停止。' }, 409);
+    if (checkpointPreserved) return json({ requestId, status: 'cancelled', error: '本轮执行受到预算、时间或服务异常限制，已有正式结果已记录，可从历史恢复；任务尚未全部完成。' }, 409);
     return json({ requestId, status: error instanceof Error && error.message === 'QUERY_DENIED' ? 'denied' : 'unavailable',
       error: providerMessage(error) },
       error instanceof Error && error.message === 'QUERY_DENIED' ? 403 : 503);

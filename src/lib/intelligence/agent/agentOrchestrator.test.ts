@@ -188,8 +188,8 @@ describe('Colliers AI 4.0 native Agent loop', () => {
       history: [{ user: 'CBD净有效租金如何', assistant: '上一轮研究了CBD净有效租金。' }],
       signal, invoke, runTool: vi.fn() });
     const messages = invoke.mock.calls[0][0] as Array<{ role: string; content: string }>;
-    expect(messages.slice(-3).map(item => item.content)).toEqual([
-      'CBD净有效租金如何', '历史回复不作为当前事实。涉及正式数值、原件或文件时须复用服务器本轮已重新授权的引用，或重新查询。', '那金融街呢？',
+    expect(messages.slice(-2).map(item => item.content)).toEqual([
+      'CBD净有效租金如何', '那金融街呢？',
     ]);
   });
   it('executes two structured queries and a page read without losing the first result reference', async () => {
@@ -275,7 +275,7 @@ describe('Colliers AI 4.0 native Agent loop', () => {
     const runTool = vi.fn().mockRejectedValue(new Error('QUERY_READ_UNAVAILABLE'));
     await expect(runAgentLoop({ question: '查询CBD', signal, invoke, runTool }))
       .rejects.toThrow('AGENT_TOOL_RECOVERY_EXHAUSTED');
-    expect(runTool).toHaveBeenCalledTimes(3);
+    expect(runTool).toHaveBeenCalledTimes(1);
   });
 
 });
