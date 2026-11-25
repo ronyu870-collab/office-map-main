@@ -170,7 +170,7 @@ export function BackupModal({ onClose }: BackupModalProps) {
               </div>
               <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-[#003e7e] rounded-full transition-all duration-300"
+                  className="h-full bg-[#003e7e] rounded-full transition-[width] duration-[var(--cd-motion-normal)] motion-reduce:transition-none duration-300"
                   style={{ width: `${(progress.current / progress.total) * 100}%` }}
                 />
               </div>

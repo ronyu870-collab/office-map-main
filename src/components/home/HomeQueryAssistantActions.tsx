@@ -54,9 +54,9 @@ function AssistantActions({ scope, requestId, conversationId, message, internalE
 
   if (!internalExport) return null;
   return <div className={styles.root}>
-    <Button ref={copyButton} variant="ghost" size="sm" className={styles.copy} disabled={busy} onClick={() => void copy()}>
+    <Button ref={copyButton} variant="ghost" size="sm" className={styles.copy} loading={busy} loadingLabel="复制中…" onClick={() => void copy()}>
       {copied ? <Check size={16} aria-hidden /> : <Copy size={16} aria-hidden />}
-      {busy ? '复制中…' : '复制回答'}
+      复制回答
     </Button>
     {status && <p role="status" className={styles.status}>{status}</p>}
     {manualText !== null && <div className={styles.fallback}>

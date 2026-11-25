@@ -111,8 +111,8 @@ function MySubmissionTable({ items, pending, userName, canWrite, onEdit, onTrans
                 <td className="px-3 py-2.5 text-center">
                   {canWrite ? (
                     <div className="inline-flex gap-1.5">
-                      <button type="button" onClick={() => onEdit(item)} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-[#003e7e] transition hover:border-[#003e7e]/25 hover:bg-[#003e7e]/5"><Edit2 size={11} /> 编辑</button>
-                      <button type="button" onClick={() => onTransfer(item)} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-200 hover:bg-emerald-50"><Gift size={11} /> 转交</button>
+                      <Button variant="ghost" size="sm" onClick={() => onEdit(item)}><Edit2 size={16} aria-hidden="true" />编辑</Button>
+                      <Button variant="ghost" size="sm" onClick={() => onTransfer(item)}><Gift size={16} aria-hidden="true" />转交</Button>
                     </div>
                   ) : <span className="text-[10px] font-medium text-slate-400">只读</span>}
                 </td>

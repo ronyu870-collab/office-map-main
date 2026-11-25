@@ -168,7 +168,7 @@ export function LeaseExpiryReviewPanel({ token }: { token: string }) {
           <label className="block">补充备注<textarea className={`${control} min-h-32 resize-y`} value={draft.notes} maxLength={4000} placeholder="选填：跟进中发现的新情况、资料缺口或来源差异" onChange={e => setDraft({ ...draft, notes: e.target.value })} /></label>
         </fieldset>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="primary" className="min-h-11" disabled={!selected.source_available || saving || conflict || (draft.status !== 'pending' && !draft.notes.trim())} onClick={() => void save()}>{saving ? '正在保存…' : '保存补充记录'}</Button>
+          <Button variant="primary" className="min-h-11" loading={saving} loadingLabel="正在保存…" disabled={!selected.source_available || saving || conflict || (draft.status !== 'pending' && !draft.notes.trim())} onClick={() => void save()}>保存补充记录</Button>
           <span>{dirty ? '有未保存的修改' : '补充信息不改变自动估算'}</span>
           {conflict && <Button variant="secondary" className="min-h-11" onClick={() => { if (canLeave()) { setSelected(null); setConflict(false); setReload(n => n + 1); } }}>放弃当前输入并重新载入</Button>}
         </div>

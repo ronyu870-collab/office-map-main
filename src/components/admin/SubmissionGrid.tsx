@@ -7,12 +7,12 @@ import type { ColDef as AgColDef, GridApi } from 'ag-grid-community'
 ModuleRegistry.registerModules([AllCommunityModule])
 
 const submissionTheme = themeQuartz.withParams({
-  backgroundColor: '#ffffff',
-  foregroundColor: '#374151',
-  headerBackgroundColor: '#f9fafb',
-  headerTextColor: '#6b7280',
-  borderColor: '#e5e7eb',
-  rowHoverColor: '#f9fafb',
+  backgroundColor: 'var(--cd-color-surface)',
+  foregroundColor: 'var(--cd-color-text-primary)',
+  headerBackgroundColor: 'var(--cd-color-surface-alt)',
+  headerTextColor: 'var(--cd-color-text-secondary)',
+  borderColor: 'var(--cd-color-border)',
+  rowHoverColor: 'var(--cd-color-surface-alt)',
   fontSize: 13,
   rowHeight: 40,
   headerHeight: 44,

@@ -16,14 +16,14 @@ ModuleRegistry.registerModules([AllCommunityModule])
 
 // 自定义主题
 const myTheme = themeQuartz.withParams({
-  backgroundColor: '#ffffff',
-  foregroundColor: '#374151',
-  headerBackgroundColor: '#f9fafb',
-  headerTextColor: '#6b7280',
-  borderColor: '#e5e7eb',
-  rowHoverColor: '#f9fafb',
-  selectedRowBackgroundColor: '#eff6ff',
-  rangeSelectionBorderColor: '#003e7e',
+  backgroundColor: 'var(--cd-color-surface)',
+  foregroundColor: 'var(--cd-color-text-primary)',
+  headerBackgroundColor: 'var(--cd-color-surface-alt)',
+  headerTextColor: 'var(--cd-color-text-secondary)',
+  borderColor: 'var(--cd-color-border)',
+  rowHoverColor: 'var(--cd-color-surface-alt)',
+  selectedRowBackgroundColor: 'var(--cd-color-brand-soft)',
+  rangeSelectionBorderColor: 'var(--cd-color-brand)',
   fontSize: 13,
   rowHeight: 36,
   headerHeight: 40,

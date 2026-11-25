@@ -7,6 +7,7 @@ import Link from 'next/link';
 
 import { SearchBar } from '@/src/components/SearchBar';
 import { Button } from '@/src/components/ui';
+import { Tooltip } from '@/src/components/ui/Tooltip';
 import { MaskedText } from '@/src/components/demo';
 import { futureSupplyDate, isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
@@ -18,7 +19,7 @@ import { futureSupplyImage } from '../runtime/mapSelectionMarker';
 import { animateWorkspace, WORKSPACE_MOTION } from '../runtime/workspaceMotion';
 import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
 import { contentPanelWidth, type PanelWidths, type WorkspaceKind } from '../workspace/workspaceState';
-import { Maximize2, Minimize2, Info, MoreHorizontal, Home, List } from 'lucide-react';
+import { Maximize2, Minimize2, Info, MoreHorizontal, Home, List, ListFilter, CalendarDays } from 'lucide-react';
 import { FullBuildingList } from './FullBuildingList';
 import { type FullListBuilding } from '../model/fullBuildingList';
 import { describeMapSearchMatch, rankMapSearchCandidates } from '../model/mapSearchCandidates';
@@ -165,12 +166,11 @@ function IconButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <Tooltip content={label}><button
       type="button"
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
-      title={label}
       className={`flex h-9 ${text ? 'w-auto gap-1.5 px-2' : 'w-9'} shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] border text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
         active
           ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand)] text-white'
@@ -179,7 +179,7 @@ function IconButton({
     >
       {children}
       {text ? <span aria-hidden="true">{text}</span> : null}
-    </button>
+    </button></Tooltip>
   );
 }
 
@@ -744,10 +744,10 @@ export function MapWorkbenchView({
         <div data-map-focus-top className="map-workspace-toolbar">
           <div className="map-toolbar-primary">
             <IconButton label={focusMode ? '恢复工作区' : '地图专注'} active={focusMode} onClick={() => onFocusModeChange?.()}>
-              {focusMode ? <Minimize2 size={17} aria-hidden="true" /> : <Maximize2 size={17} aria-hidden="true" />}
+              {focusMode ? <Minimize2 size={16} strokeWidth={1.75} aria-hidden="true" /> : <Maximize2 size={16} strokeWidth={1.75} aria-hidden="true" />}
             </IconButton>
             <IconButton label="筛选" active={isFilterPanelOpen} onClick={toggleFilterPanel}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+              <ListFilter size={16} strokeWidth={1.75} aria-hidden="true" />
             </IconButton>
           </div>
 
@@ -802,7 +802,7 @@ export function MapWorkbenchView({
           </div>
           <div className="map-toolbar-actions">
             <IconButton label="未来供应" text="供应" active={isSupplyOpen} onClick={toggleSupplyPanel}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+              <CalendarDays size={16} strokeWidth={1.75} aria-hidden="true" />
             </IconButton>
             <button
               type="button"
@@ -811,7 +811,7 @@ export function MapWorkbenchView({
               className="flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-[14px] font-normal text-[var(--cd-color-text-secondary)] shadow-[var(--cd-shadow-sm)] transition-colors hover:border-[var(--cd-color-border-strong)] hover:text-[var(--cd-color-brand)] disabled:cursor-not-allowed disabled:opacity-45"
               aria-label="项目列表" title="查看项目列表"
             >
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
+              <List size={16} strokeWidth={1.75} aria-hidden="true" />
               <span aria-hidden="true">列表</span>
             </button>
           </div>

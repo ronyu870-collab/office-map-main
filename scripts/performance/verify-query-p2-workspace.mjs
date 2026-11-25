@@ -111,7 +111,7 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
         && [...section.querySelectorAll('button')].some(node => node.textContent === '收起摘要' && !node.disabled);
     }
     if (mode === 'copy') return [...document.querySelectorAll('[role="status"]')].some(node => visible(node) && node.textContent.trim() === '已复制结论。')
-      && [...document.querySelectorAll('button')].some(node => node.textContent === '复制结论' && !node.disabled);
+      && [...document.querySelectorAll('button')].some(node => node.innerText.trim() === '复制结论' && !node.disabled);
     if (mode === 'buildings_snapshot' || mode === 'buildings_page') {
       const section = cards(), articles = [...(section?.querySelectorAll('article[aria-label$="楼宇卡片"]') ?? [])];
       return visible(section) && articles.length === expectedCount && articles.every((node, index) => visible(node)
@@ -139,7 +139,7 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
   };
   const click = event => {
     const button = event.target?.closest?.('button');
-    if (state.start === null && button && (triggerAria ? button.getAttribute('aria-label') === triggerAria : button.textContent.trim() === triggerText)) {
+    if (state.start === null && button && (triggerAria ? button.getAttribute('aria-label') === triggerAria : button.innerText.trim() === triggerText)) {
       state.start = performance.now(); state.status = 'running';
     }
   };

@@ -11,7 +11,7 @@ export async function checkKeyboardLayoutContinuity(page) {
     await page.keyboard.press('Tab');
     found=await page.evaluate(()=>{
       const target=document.activeElement;
-      if(target?.tagName!=='BUTTON'||target.textContent.trim()!=='复制结论'||!target.closest('[aria-label="对话记录"]'))return false;
+      if(target?.tagName!=='BUTTON'||target.innerText.trim()!=='复制结论'||!target.closest('[aria-label="对话记录"]'))return false;
       window.__keyboardLayoutTarget=target;return true;
     });
     if(found)break;

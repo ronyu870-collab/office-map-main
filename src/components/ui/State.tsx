@@ -16,7 +16,7 @@ export function LoadingState({
         aria-live="polite"
         aria-busy="true"
       >
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" aria-hidden="true" />
+        <span className="h-4 w-4 animate-spin motion-reduce:animate-none rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" aria-hidden="true" />
         <span>{label}</span>
       </div>
     );
@@ -24,12 +24,12 @@ export function LoadingState({
 
   return (
     <div className={`space-y-3 ${className}`} aria-live="polite" aria-busy="true">
-      <div className="h-8 w-44 animate-pulse rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)]" />
+      <div className="h-8 w-44 animate-pulse motion-reduce:animate-none rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)]" />
       <div className="space-y-2">
         {Array.from({ length: rows }).map((_, index) => (
           <div
             key={index}
-            className="h-10 animate-pulse rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]"
+            className="h-10 animate-pulse motion-reduce:animate-none rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]"
           />
         ))}
       </div>

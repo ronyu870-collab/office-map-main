@@ -33,8 +33,11 @@ export function HomeQueryComposer({ editorRef, composingRef, enabled, busy, foll
       }} />
     <div className={styles.composerFooter}>
       <p id="home-query-status" className={enabled ? styles.keyboardHint : undefined}>{enabled ? 'Enter 发送 · Shift+Enter 换行' : status}</p>
-      {busy ? <Button className={styles.sendButton} size="icon" variant="secondary" aria-label="停止等待" onClick={onStop}><Square size={16} aria-hidden="true" /></Button>
-        : <Button className={styles.sendButton} size="icon" aria-label="发送问题" disabled={!enabled || !draft.trim()} onClick={onSubmit}><ArrowUp size={18} strokeWidth={1.5} aria-hidden="true" /></Button>}
+      <Button className={styles.sendButton} size="icon" variant={busy ? "secondary" : "primary"}
+        aria-label={busy ? "停止等待" : "发送问题"} data-busy={busy}
+        disabled={!busy && (!enabled || !draft.trim())} onClick={busy ? onStop : onSubmit}>
+        <span className={styles.sendGlyph} aria-hidden="true"><ArrowUp size={20} strokeWidth={1.75} /><Square size={16} strokeWidth={1.75} /></span>
+      </Button>
     </div>
   </>;
 }

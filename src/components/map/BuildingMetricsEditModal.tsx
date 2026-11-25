@@ -547,7 +547,7 @@ export function BuildingMetricsEditModal({
                 value={year}
                 onChange={(e) => handleYearChange(Number(e.target.value))}
                 disabled={isFormDisabled}
-                className="px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50"
+                className="px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50"
               >
                 {years.map(y => (
                   <option key={y} value={y}>{y}年</option>
@@ -561,7 +561,7 @@ export function BuildingMetricsEditModal({
                 value={quarter}
                 onChange={(e) => handleQuarterChange(Number(e.target.value))}
                 disabled={isFormDisabled}
-                className="px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50"
+                className="px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50"
               >
                 {quarters.map(q => (
                   <option key={q} value={q}>Q{q}</option>
@@ -612,7 +612,7 @@ export function BuildingMetricsEditModal({
                     onChange={(e) => handleInputChange('asking_rent', e.target.value)}
                     disabled={isFormDisabled}
                     placeholder="元/m²/天"
-                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50 disabled:bg-zinc-50"
+                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50 disabled:bg-zinc-50"
                   />
                 </div>
 
@@ -628,7 +628,7 @@ export function BuildingMetricsEditModal({
                     onChange={(e) => handleInputChange('management_fee', e.target.value)}
                     disabled={isFormDisabled}
                     placeholder="元/m²/月"
-                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50 disabled:bg-zinc-50"
+                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50 disabled:bg-zinc-50"
                   />
                 </div>
 
@@ -644,7 +644,7 @@ export function BuildingMetricsEditModal({
                     onChange={(e) => handleInputChange('face_rent', e.target.value)}
                     disabled={isFormDisabled}
                     placeholder="元/m²/天"
-                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50 disabled:bg-zinc-50"
+                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50 disabled:bg-zinc-50"
                   />
                 </div>
 
@@ -660,7 +660,7 @@ export function BuildingMetricsEditModal({
                     onChange={(e) => handleInputChange('rent_free_period', e.target.value)}
                     disabled={isFormDisabled}
                     placeholder="0-36"
-                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50 disabled:bg-zinc-50"
+                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50 disabled:bg-zinc-50"
                   />
                 </div>
 
@@ -676,7 +676,7 @@ export function BuildingMetricsEditModal({
                     onChange={(e) => handleInputChange('vacant_area', e.target.value)}
                     disabled={isFormDisabled}
                     placeholder="m²"
-                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50 disabled:bg-zinc-50"
+                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50 disabled:bg-zinc-50"
                   />
                 </div>
               </div>

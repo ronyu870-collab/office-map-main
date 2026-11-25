@@ -1261,7 +1261,7 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
     <div className="flex flex-col h-full min-h-0 w-full">
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg transition-all ${toast.ok ? 'bg-emerald-600' : 'bg-red-600'}`}>
+        <div className={`fixed top-4 right-4 z-50 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg transition-[color,background-color,border-color,opacity] motion-reduce:transition-none ${toast.ok ? 'bg-emerald-600' : 'bg-red-600'}`}>
           {toast.msg}
         </div>
       )}
@@ -1326,24 +1326,24 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
               上传说明
             </button>
           )}
-          <button onClick={fetchRows} className="h-8 rounded border border-zinc-300 bg-white px-3 text-xs transition-all duration-150 hover:bg-zinc-50 active:scale-[0.98]">
+          <button onClick={fetchRows} className="h-8 rounded border border-zinc-300 bg-white px-3 text-xs transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] hover:bg-zinc-50 active:bg-[var(--cd-color-control-active)]">
             刷新
           </button>
           {!config.hideTemplate && (
-            <button onClick={downloadTemplate} className="h-8 rounded border border-zinc-300 bg-white px-3 text-xs transition-all duration-150 hover:bg-zinc-50 active:scale-[0.98]">
+            <button onClick={downloadTemplate} className="h-8 rounded border border-zinc-300 bg-white px-3 text-xs transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] hover:bg-zinc-50 active:bg-[var(--cd-color-control-active)]">
               模板
             </button>
           )}
           {!config.hideUpload && (
             <>
-              <button onClick={triggerUpload} disabled={uploading} className="h-8 rounded border border-zinc-300 bg-white px-3 text-xs transition-all duration-150 hover:bg-zinc-50 active:scale-[0.98] disabled:opacity-50">
+              <button onClick={triggerUpload} disabled={uploading} className="h-8 rounded border border-zinc-300 bg-white px-3 text-xs transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] hover:bg-zinc-50 active:bg-[var(--cd-color-control-active)] disabled:opacity-50">
                 {uploading ? '上传中...' : '上传'}
               </button>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileSelect} className="hidden" />
             </>
           )}
           {!config.hideAdd && (
-            <button onClick={startAdd} className="h-8 rounded bg-blue-600 px-3 text-xs text-white transition-all duration-150 hover:bg-blue-700 active:scale-[0.98]">
+            <button onClick={startAdd} className="h-8 rounded bg-[var(--cd-color-brand)] px-3 text-xs text-white transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] hover:bg-[var(--cd-color-brand-hover)]">
               + 新增
             </button>
           )}
@@ -1377,10 +1377,10 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
             ))}
           </div>
           <div className="mt-3 flex gap-2">
-            <button onClick={saveAdd} disabled={saving} className="rounded bg-emerald-600 px-4 py-1.5 text-xs text-white transition-all duration-150 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50">
+            <button onClick={saveAdd} disabled={saving} className="rounded bg-emerald-600 px-4 py-1.5 text-xs text-white transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] hover:bg-emerald-700 disabled:opacity-50">
               {saving ? '保存中...' : '确认新增'}
             </button>
-            <button onClick={cancelAdd} className="rounded border border-zinc-300 bg-white px-4 py-1.5 text-xs transition-all duration-150 hover:bg-zinc-50 active:scale-[0.98]">
+            <button onClick={cancelAdd} className="rounded border border-zinc-300 bg-white px-4 py-1.5 text-xs transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] hover:bg-zinc-50 active:bg-[var(--cd-color-control-active)]">
               取消
             </button>
           </div>
@@ -1459,7 +1459,7 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
             ) : paged.map(row => {
               const isEditing = editingId === row.id
               return (
-                <tr key={row.id} className={`transition-colors duration-150 hover:bg-zinc-50/80 ${isEditing ? 'bg-blue-50' : ''}`}>
+                <tr key={row.id} className={`transition-colors duration-[var(--cd-motion-fast)] hover:bg-zinc-50/80 ${isEditing ? 'bg-blue-50' : ''}`}>
                   {statsEnabled && (
                     <td className="px-2 py-2 align-middle border-r border-zinc-200 bg-white">
                       <input type="checkbox" checked={selectedIds.has(row.id)}
@@ -1486,10 +1486,10 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
                   <td className="px-3 py-2 align-middle">
                     {isEditing ? (
                       <div className="flex gap-1.5">
-                        <button onClick={saveEdit} disabled={saving} className="rounded bg-blue-600 px-2 py-1 text-xs text-white transition-all duration-150 hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50">
+                        <button onClick={saveEdit} disabled={saving} className="rounded bg-[var(--cd-color-brand)] px-2 py-1 text-xs text-white transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] hover:bg-[var(--cd-color-brand-hover)] disabled:opacity-50">
                           {saving ? '...' : '保存'}
                         </button>
-                        <button onClick={cancelEdit} className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs transition-all duration-150 hover:bg-zinc-50 active:scale-[0.98]">
+                        <button onClick={cancelEdit} className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] hover:bg-zinc-50 active:bg-[var(--cd-color-control-active)]">
                           取消
                         </button>
                       </div>
@@ -1502,7 +1502,7 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
                             历史
                           </button>
                         )}
-                        <button onClick={() => startEdit(row)} className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs transition-all duration-150 hover:bg-zinc-50 active:scale-[0.98]">
+                        <button onClick={() => startEdit(row)} className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] hover:bg-zinc-50 active:bg-[var(--cd-color-control-active)]">
                           编辑
                         </button>
                         {/* 特殊操作按钮 */}
@@ -1510,7 +1510,7 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
                           <button key={action.key}
                             onClick={() => handleSpecialAction(action, row)}
                             disabled={actionLoading === `${action.key}-${row.id}`}
-                            className={`rounded border px-2 py-1 text-xs transition-all duration-150 disabled:opacity-50 ${
+                            className={`rounded border px-2 py-1 text-xs transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] disabled:opacity-50 ${
                               action.style === 'danger' ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100' :
                               action.style === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' :
                               'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
@@ -1519,7 +1519,7 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
                           </button>
                         ))}
                         <button onClick={() => deleteRow(row.id, getDisplayName(row))}
-                          className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600 transition-all duration-150 hover:bg-red-100 active:scale-[0.98]">
+                          className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] hover:bg-red-100 active:bg-[var(--cd-color-control-active)]">
                           删除
                         </button>
                       </div>
@@ -1538,9 +1538,9 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
           <span>第 {page + 1} / {totalPages} 页，共 {filtered.length} 条</span>
           <div className="flex gap-1">
             <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-              className="rounded border border-zinc-300 px-2 py-1 transition-all duration-150 disabled:opacity-40 hover:bg-zinc-50 active:scale-[0.98]">上一页</button>
+              className="rounded border border-zinc-300 px-2 py-1 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] disabled:opacity-40 hover:bg-zinc-50 active:bg-[var(--cd-color-control-active)]">上一页</button>
             <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-              className="rounded border border-zinc-300 px-2 py-1 transition-all duration-150 disabled:opacity-40 hover:bg-zinc-50 active:scale-[0.98]">下一页</button>
+              className="rounded border border-zinc-300 px-2 py-1 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none duration-[var(--cd-motion-fast)] disabled:opacity-40 hover:bg-zinc-50 active:bg-[var(--cd-color-control-active)]">下一页</button>
           </div>
         </div>
       )}

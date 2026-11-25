@@ -1,0 +1,20 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { MapController } from '../MapController';
+vi.mock('../supabaseClient', () => ({ supabase: {} }));
+vi.mock('@/src/utils/audit', () => ({ logAction: vi.fn() }));
+afterEach(() => { document.body.innerHTML = ''; document.getElementById('marker-bounce-style')?.remove(); });
+it('identifies a linked map marker without restarting a layout-driven bounce', () => {
+  const container = document.createElement('div');
+  const marker = document.createElement('div');
+  marker.dataset.buildingId = 'building-a'; container.append(marker); document.body.append(container);
+  const controller = new MapController();
+  Object.assign(controller, { map: { getContainer: () => container } });
+  const layout = vi.spyOn(marker, 'offsetHeight', 'get');
+  controller.bounceMarker('building-a');
+  expect(marker.classList.contains('map-marker-linked')).toBe(true);
+  controller.bounceMarker('building-a');
+  expect(layout).not.toHaveBeenCalled();
+  controller.stopBounceMarker('building-a');
+  expect(marker.classList.contains('map-marker-linked')).toBe(false);
+  expect(marker.style.animation).toBe('');
+});

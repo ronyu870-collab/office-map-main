@@ -213,7 +213,7 @@ export function BuildingSortManager() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-[color,background-color,border-color,opacity] motion-reduce:transition-none ${
               activeTab === tab.key
                 ? 'bg-[#003e7e] text-white'
                 : 'text-zinc-600 hover:bg-zinc-100'

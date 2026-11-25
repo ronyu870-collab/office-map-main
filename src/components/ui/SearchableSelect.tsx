@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { ChevronDown, X } from 'lucide-react';
+import styles from './SearchableSelect.module.css';
 
 type Option = string | { value: string; label: string; detail?: string; keywords?: readonly string[]; aliases?: readonly string[] };
 
@@ -44,6 +46,40 @@ export function SearchableSelect({
   const [activeIndex, setActiveIndex] = React.useState(0);
   const ref = React.useRef<HTMLDivElement>(null);
   const listboxId = React.useId();
+  const list = React.useRef<HTMLDivElement>(null);
+  React.useLayoutEffect(() => {
+    const panel = list.current;
+    if (!open || listPlacement !== 'overlay' || !panel?.showPopover) return;
+    panel.popover = 'manual'; panel.showPopover();
+    const place = () => {
+      const box = ref.current?.getBoundingClientRect();
+      if (!box) return;
+      const viewport = window.visualViewport;
+      const left = viewport?.offsetLeft ?? 0, top = viewport?.offsetTop ?? 0;
+      const width = viewport?.width ?? innerWidth, height = viewport?.height ?? innerHeight;
+      panel.style.position = 'fixed'; panel.style.margin = '0';
+      panel.style.width = `${Math.min(box.width, width - 16)}px`;
+      panel.style.left = `${Math.max(left + 8, Math.min(box.left, left + width - box.width - 8))}px`;
+      const below = top + height - box.bottom - 12, above = box.top - top - 12;
+      const upwards = below < Math.min(240, panel.scrollHeight) && above > below;
+      panel.style.maxHeight = `${Math.max(0, Math.min(240, upwards ? above : below))}px`;
+      panel.style.top = `${upwards ? box.top - panel.getBoundingClientRect().height - 4 : box.bottom + 4}px`;
+      panel.dataset.placement = upwards ? 'above' : 'below';
+    };
+    place();
+    const resize = new ResizeObserver(place);
+    if (ref.current) resize.observe(ref.current);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    window.visualViewport?.addEventListener('resize', place);
+    return () => {
+      if (panel.matches(':popover-open')) panel.hidePopover();
+      panel.removeAttribute('popover'); panel.removeAttribute('style');
+      resize.disconnect(); window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+      window.visualViewport?.removeEventListener('resize', place);
+    };
+  }, [open, listPlacement, query, options]);
 
   const normalized = React.useMemo(() => normalizeOptions(options), [options]);
 
@@ -55,7 +91,7 @@ export function SearchableSelect({
     if (open) document.getElementById(`${listboxId}-${Math.min(activeIndex, filtered.length - 1)}`)?.scrollIntoView?.({ block: 'nearest' });
   }, [open, activeIndex, filtered.length, listboxId]);
 
-  const listClass = listPlacement === 'inline' ? 'relative' : 'absolute z-50 shadow-lg';
+  const listClass = listPlacement === 'inline' ? styles.inline : styles.overlay;
   const selectedLabel = normalized.find(o => o.value === value)?.label ?? '';
 
   React.useEffect(() => {
@@ -103,20 +139,19 @@ export function SearchableSelect({
   // 锁定状态：显示选中值 + 清除按钮
   if (locked && value) {
     return (
-      <div ref={ref} className={`relative ${className}`}>
-        <div className="flex min-h-10 w-full items-center rounded-lg border border-[#003e7e]/40 bg-blue-50 px-3 py-2.5 text-sm font-medium text-[#003e7e]">
+      <div ref={ref} className={`relative ${className}`} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setOpen(false); setQuery(''); } }}>
+        <div className={styles.locked} aria-disabled={disabled || undefined}>
           <span className="flex-1 truncate">{selectedLabel || value}</span>
           {onClear && (
             <button
               type="button"
               onClick={onClear}
+              disabled={disabled}
               aria-label="清除选择"
-              className="ml-2 text-zinc-400 hover:text-zinc-600 flex-shrink-0"
+              className={styles.clear}
               title="清除选择"
             >
-              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X size={16} strokeWidth={1.75} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -125,7 +160,7 @@ export function SearchableSelect({
   }
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div ref={ref} className={`relative ${className}`} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setOpen(false); setQuery(''); } }}>
       <input
         id={id}
         type="text"
@@ -143,27 +178,20 @@ export function SearchableSelect({
         aria-controls={listboxId}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className={`
-          min-h-10 w-full rounded-lg border px-3 py-2.5 text-sm
-          transition-[border-color,box-shadow,background-color] duration-200
-          focus:outline-none focus:ring-2 focus:ring-[#003e7e]/20 focus:border-[#003e7e]
-          disabled:bg-zinc-50 disabled:text-zinc-400 disabled:cursor-not-allowed
-          ${!value && !open ? 'text-zinc-400' : 'text-zinc-900'}
-          border-zinc-200 bg-white hover:border-zinc-300
-        `.trim()}
+        className={styles.input}
       />
-      <div className="pointer-events-none absolute right-0 top-0 flex h-11 items-center pr-2">
-        <svg aria-hidden="true" className="h-4 w-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+      <div className={styles.chevron} data-open={open}>
+        <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
       </div>
-      {open && filtered.length > 0 && (
-        <div id={listboxId} role="listbox" className={`${listClass} mt-1 max-h-60 w-full overflow-auto overscroll-contain rounded-lg border border-zinc-200 bg-white p-1`}>
+      <div ref={list} id={listboxId} role="listbox" hidden={!open} className={`${styles.list} ${listClass}`}>
+          {open ? filtered.length > 0 ? <>
           {filtered.map((opt, index) => (
             <button
               type="button"
               key={opt.value}
               id={`${listboxId}-${index}`}
+              onMouseDown={event => event.preventDefault()}
+              tabIndex={-1}
               onClick={() => {
                 onChange(opt.value);
                 setOpen(false);
@@ -173,23 +201,16 @@ export function SearchableSelect({
               aria-selected={opt.value === value}
               aria-label={opt.label}
               aria-describedby={opt.detail || (query && opt.aliases?.length) ? `${listboxId}-detail-${index}` : undefined}
-              className={`block w-full cursor-pointer rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-blue-50 ${
-                opt.value === value ? 'bg-blue-100 font-medium text-[#003e7e]' : index === activeIndex ? 'bg-blue-50 text-zinc-700' : 'text-zinc-700'
-              }`}
+              data-active={index === activeIndex || undefined}
+              className={styles.option}
             >
               {opt.label}
-              <span id={`${listboxId}-detail-${index}`} className="block break-words text-[var(--cd-color-text-secondary)]">
+              <span id={`${listboxId}-detail-${index}`} className={styles.detail}>
                 {[opt.detail, query && opt.aliases?.length ? `曾用名：${opt.aliases.join("、")}` : ""].filter(Boolean).join(" · ")}
               </span>
             </button>
-          ))}
+          ))}</> : <div className={styles.empty} role="status">无匹配选项</div> : null}
         </div>
-      )}
-      {open && filtered.length === 0 && (
-        <div className={`${listClass} mt-1 w-full rounded-lg border border-zinc-200 bg-white p-3 text-center text-sm text-zinc-400`}>
-          无匹配选项
-        </div>
-      )}
     </div>
   );
 }

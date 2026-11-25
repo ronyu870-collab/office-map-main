@@ -36,7 +36,8 @@ export function AppHeader({
       {homeHref ? (
         <Link
           href={homeHref}
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[var(--cd-radius-md)] px-2 text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)]"
+          aria-label={homeLabel}
+          className="inline-flex min-h-11 min-w-11 sm:min-h-8 sm:min-w-0 shrink-0 items-center gap-1 rounded-[var(--cd-radius-md)] px-2 text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)] transition-colors duration-[var(--cd-motion-fast)] motion-reduce:transition-none hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)]"
         >
           <ChevronLeft aria-hidden="true" className="h-4 w-4" />
           <span className="hidden sm:inline">{homeLabel}</span>
