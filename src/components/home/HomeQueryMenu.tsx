@@ -59,6 +59,7 @@ export function HomeQueryMenu(props: Props) {
       const bottom = Math.min(vTop + (viewport?.height ?? innerHeight), box?.bottom ?? Infinity) - 8;
       const anchor = button.getBoundingClientRect();
       if (right <= left || bottom <= top || anchor.bottom < top || anchor.top > bottom) { close(); return; }
+      const scrollTop = node.scrollTop, scrollLeft = node.scrollLeft;
       node.style.minWidth = `${Math.min(210, right - left)}px`;
       node.style.maxWidth = `${Math.min(320, right - left)}px`;
       // Measure intrinsic content after horizontal wrapping, unconstrained by
@@ -74,6 +75,9 @@ export function HomeQueryMenu(props: Props) {
       node.style.left = `${Math.max(left, Math.min(anchor.right - actual.width, right - actual.width))}px`;
       node.style.top = `${upwards ? anchor.top - 4 - actual.height : anchor.bottom + 4}px`;
       node.dataset.placement = upwards ? 'above' : 'below';
+      // Intrinsic sizing temporarily expands the scrollport and can clamp its
+      // offset. Preserve the user’s position across observer-driven placement.
+      node.scrollTop = scrollTop; node.scrollLeft = scrollLeft;
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(measure); };
     const outside = (event: PointerEvent) => { if (event.target instanceof Node && !owner.contains(event.target)) close(false); };
@@ -102,14 +106,17 @@ export function HomeQueryMenu(props: Props) {
     // Compare positions captured at open, so that old event cannot dismiss the
     // new menu; only a subsequent movement of its own anchor path does.
     const scrollPositions = new Map<Element, { top: number; left: number }>();
-    for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
-      scrollPositions.set(ancestor, { top: ancestor.scrollTop, left: ancestor.scrollLeft });
-    }
     const scroll = (event: Event) => {
       const target = event.target === document ? document.scrollingElement : event.target;
       if (!(target instanceof Element)) return;
       const previous = scrollPositions.get(target);
-      if (previous && (Math.abs(previous.top - target.scrollTop) > .5 || Math.abs(previous.left - target.scrollLeft) > .5)) close();
+      if (previous && (Math.abs(previous.top - target.scrollTop) > .5 || Math.abs(previous.left - target.scrollLeft) > .5)) {
+        const anchor = button.getBoundingClientRect();
+        // Nested restoration/scroll anchoring can compensate offsets without
+        // moving the trigger. Dismiss only when its visible position changes.
+        if (Math.abs(anchor.top - scrollAnchor.top) > .5 || Math.abs(anchor.left - scrollAnchor.left) > .5) close();
+        else scrollPositions.set(target, { top: target.scrollTop, left: target.scrollLeft });
+      }
     };
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
     observer?.observe(node); observer?.observe(button); if (workspace) observer?.observe(workspace);
@@ -118,6 +125,12 @@ export function HomeQueryMenu(props: Props) {
     });
     if (workspace) mutations?.observe(workspace, { attributes: true, subtree: true, attributeFilter: ['hidden', 'inert', 'data-mode', 'data-transitioning'] });
     measure();
+    // Initial popover placement can itself flush nested scroll restoration.
+    // Capture both the anchor and offsets from that same, placed layout.
+    const scrollAnchor = button.getBoundingClientRect();
+    for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      scrollPositions.set(ancestor, { top: ancestor.scrollTop, left: ancestor.scrollLeft });
+    }
     if (commandMenu) {
       const commands = node.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
       commands[lastCommand.current ? commands.length - 1 : 0]?.focus({ preventScroll: true });

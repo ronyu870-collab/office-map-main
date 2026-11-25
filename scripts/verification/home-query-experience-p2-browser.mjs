@@ -382,14 +382,9 @@ async function send(session, question, kind) {
 }
 async function expanded(page, open) {
   const mode = await page.locator('#colliers-ai').getAttribute('data-mode');
-  if (mode !== (open ? 'expanded' : 'compact')) {
-    await page.getByRole('button', { name: open ? mode === 'focus' ? '全屏 Colliers AI 工作空间' : '展开 Colliers AI 工作空间' : '收起 Colliers AI 工作空间', exact: true }).click();
-  }
+  if (mode === (open ? 'expanded' : 'compact')) return;
+  await page.getByRole('button', { name: open ? mode === 'focus' ? '全屏 Colliers AI 工作空间' : '展开 Colliers AI 工作空间' : '收起 Colliers AI 工作空间', exact: true }).click();
   await page.waitForFunction(value => { const node = document.querySelector('#colliers-ai'); return node?.dataset.mode === value && node?.dataset.transitioning === 'false'; }, open ? 'expanded' : 'compact');
-  // The mode flag is committed before ResizeObserver and native scroll/focus
-  // events from releasing the fixed surface drain. Use the same rendered-frame
-  // barrier as capture() before opening and measuring a menu in the new mode.
-  await settledPaint(page);
 }
 // A focusable node can have a box while still being outside its scrollport.
 // Verify actual visibility after Tab, including clipping ancestors, rather than

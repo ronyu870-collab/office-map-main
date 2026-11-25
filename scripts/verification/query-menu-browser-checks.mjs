@@ -110,9 +110,13 @@ async function exerciseMenu(page, trigger, label) {
   const moved = await trigger.evaluate(node => {
     for (let parent = node.parentElement; parent; parent = parent.parentElement) {
       if (parent.scrollHeight > parent.clientHeight + 2) {
-        const before = parent.scrollTop;
+        const before = parent.scrollTop, anchorBefore = node.getBoundingClientRect();
         parent.scrollTop += before > 1 ? -1 : 1;
-        if (parent.scrollTop !== before) return true;
+        const anchorAfter = node.getBoundingClientRect();
+        if (Math.abs(anchorAfter.x - anchorBefore.x) > .5 || Math.abs(anchorAfter.y - anchorBefore.y) > .5) return true;
+        // A fixed workspace can have a scrollable, inert background ancestor.
+        // Moving that offset does not move this menu's anchor.
+        parent.scrollTop = before;
       }
     }
     return false;
@@ -284,6 +288,36 @@ export async function checkAllQueryMenus(session, helpers) {
   await history.getByRole('button', { name: '关闭历史', exact: true }).click();
   await expanded(page, false);
   await more.click(); await assertMenu(page, more, 'compact menu');
+  // Nested scroll restoration can change offsets while leaving the visible
+  // anchor in exactly the same place. It must not dismiss a usable menu.
+  const compensated = await more.evaluate(node => {
+    const parents = [];
+    for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+      if (parent.scrollHeight > parent.clientHeight + 4) parents.push(parent);
+    }
+    const [inner, outer] = parents;
+    if (!inner || !outer) return { available: false };
+    const delta = [2, -2].find(value => inner.scrollTop + value >= 0
+      && inner.scrollTop + value <= inner.scrollHeight - inner.clientHeight
+      && outer.scrollTop - value >= 0 && outer.scrollTop - value <= outer.scrollHeight - outer.clientHeight);
+    if (delta === undefined) return { available: false };
+    const before = node.getBoundingClientRect();
+    inner.scrollTop += delta; outer.scrollTop -= delta;
+    const after = node.getBoundingClientRect();
+    return { available: true, x: before.x, y: before.y, deltaX: after.x - before.x, deltaY: after.y - before.y };
+  });
+  assert.ok(compensated.available && Math.abs(compensated.deltaX) < .5 && Math.abs(compensated.deltaY) < .5,
+    `compact scroll compensation: ${JSON.stringify(compensated)}`);
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+  const settled = await more.evaluate(node => { const box = node.getBoundingClientRect(); return { x: box.x, y: box.y }; });
+  // Native scroll anchoring may subsequently move the trigger (observed at
+  // 320px). Test the settled visible position, not only the synchronous offsets.
+  if (Math.abs(settled.x - compensated.x) < .5 && Math.abs(settled.y - compensated.y) < .5) {
+    await assertMenu(page, more, 'compact menu after stable scroll compensation');
+  } else {
+    await page.waitForFunction(node => node.getAttribute('aria-expanded') === 'false', await more.elementHandle());
+    await closed(more);
+  }
   await expanded(page, true);
   await closed(more);
   assert.equal(session.errors.length, 0, session.errors.join('\n'));
