@@ -67,6 +67,15 @@ describe('AI6 full-condition execution routing', () => {
   it.each(['什么是净有效租金', '如何计算空置率', '请写一封邮件解释净有效租金'])('does not turn conceptual discussion into a database query: %s', q => {
     expect(routeTask(q).route).toBe('bounded_agent'); expect(modelToolCatalogue(q, 'deep', [])).toHaveLength(0);
   });
+  it('keeps report-period policy tasks out of the narrow semantic extractor', () => {
+    const q = '查询最近一个已结束季度的净有效租金，用于内部报告。';
+    expect(routeTask(q).route).toBe('bounded_agent');
+    expect(modelToolCatalogue(q, 'professional', []).some(tool => tool.name === 'query_report_market')).toBe(true);
+  });
+  it('preserves chart-axis instructions for tool orchestration', () => {
+    expect(routeTask('净有效租金为横轴，空置率为纵轴。').route).toBe('bounded_agent');
+    expect(routeTask('net effective rent on x axis, vacancy rate on y axis').route).toBe('bounded_agent');
+  });
   it('keeps an explicit new scope independent of old building IDs and inventory', () => {
     const prior = { ...plan, scope: { inventory: 'tracked' as const, submarkets: ['CBD'], buildingIds: [randomUUID()] } };
     expect(routeTask(question, prior).plan?.scope).toEqual({ inventory: 'all_authorized' });

@@ -119,7 +119,7 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
     question: query, plan: resolution.plan, ...(exportFormat ? { exportFormat } : {}), ...(chartType ? { chartType } : {}) };
   // A narrow semantic extraction gets no domain tools and cannot recurse into
   // the Agent. Unknown conditions stay fail-closed in the formal planner.
-  if (!/成交|租赁|楼书|文档|资料|Stacking|供应|地图|图|原因|为什么|分析差异|核对|检查|并|综合|研究|lease|transaction|document|why|research/i.test(query)
+  if (!/成交|租赁|楼书|文档|资料|报告|Stacking|供应|地图|图|横轴|纵轴|[xy]轴|原因|为什么|分析差异|核对|检查|并|综合|研究|lease|transaction|document|report|axis|why|research/i.test(query)
     && /净有效租金|空置率|季度总面积|建筑高度|楼层数|总车位数|楼宇列表/.test(query)
     && !/导出|生成|Excel|CSV|xlsx|PNG|SVG/i.test(query))
     return { route: 'single_interpretation', taskType: exportFormat ? 'artifact' : 'query', question: exported ? query : question,
