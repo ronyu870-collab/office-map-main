@@ -353,6 +353,167 @@
           "who": "系统自动"
         }
       ]
+    },
+    {
+      "name": "pitch_business_profiles",
+      "label": "业务资产档案版本",
+      "desc": "维护者可见的公司、团队、案例、研究及自定义档案；原资产版本不可覆盖。",
+      "fields": [
+        {
+          "name": "asset_id",
+          "label": "内容资产",
+          "type": "UUID",
+          "desc": "内容资产；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "asset_version",
+          "label": "资产版本",
+          "type": "整数",
+          "desc": "资产版本；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "profile",
+          "label": "维护档案（含内部披露信息）",
+          "type": "JSON",
+          "desc": "维护档案（含内部披露信息）；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "created_by",
+          "label": "维护者",
+          "type": "UUID",
+          "desc": "维护者；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "created_at",
+          "label": "建立时间",
+          "type": "时间戳",
+          "desc": "建立时间；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        }
+      ]
+    },
+    {
+      "name": "pitch_business_templates",
+      "label": "业务模板配置版本",
+      "desc": "受控策略与通用布局的版本化配置，不执行用户代码。",
+      "fields": [
+        {
+          "name": "id",
+          "label": "模板代码",
+          "type": "文本",
+          "desc": "模板代码；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "revision",
+          "label": "配置版本",
+          "type": "整数",
+          "desc": "配置版本；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "category_id",
+          "label": "模板分类",
+          "type": "UUID",
+          "desc": "模板分类；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "config",
+          "label": "受控模板配置",
+          "type": "JSON",
+          "desc": "受控模板配置；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "created_by",
+          "label": "维护者",
+          "type": "UUID",
+          "desc": "维护者；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "created_at",
+          "label": "建立时间",
+          "type": "时间戳",
+          "desc": "建立时间；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        }
+      ]
+    },
+    {
+      "name": "pitch_business_generations",
+      "label": "业务生成快照",
+      "desc": "固定参数、来源资产版本及授权数据结果；刷新另存，撤权拒绝读取及导出。",
+      "fields": [
+        {
+          "name": "project_id",
+          "label": "Pitch项目",
+          "type": "UUID",
+          "desc": "Pitch项目；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "request_key",
+          "label": "幂等指纹",
+          "type": "文本",
+          "desc": "幂等指纹；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "parameters",
+          "label": "生成参数",
+          "type": "JSON",
+          "desc": "生成参数；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "bindings",
+          "label": "原资产版本",
+          "type": "JSON",
+          "desc": "原资产版本；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "snapshots",
+          "label": "可信数据快照",
+          "type": "JSON",
+          "desc": "可信数据快照；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "recipes",
+          "label": "模板版本",
+          "type": "JSON",
+          "desc": "模板版本；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "changes",
+          "label": "分页及布局调整记录",
+          "type": "JSON",
+          "desc": "分页及布局调整记录；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "created_by",
+          "label": "创建者",
+          "type": "UUID",
+          "desc": "创建者；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        },
+        {
+          "name": "created_at",
+          "label": "生成时间",
+          "type": "时间戳",
+          "desc": "生成时间；受真实身份、来源及权限约束",
+          "who": "系统自动"
+        }
+      ]
     }
   ]
 }

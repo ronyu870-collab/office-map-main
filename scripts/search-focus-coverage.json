@@ -531,5 +531,16 @@
     "cases": [
       "keeps library search focused through delayed results, cursor edits, empty results and IME"
     ]
+  },
+  {
+    "id": "pitch-business-studio",
+    "roots": [
+      "src/components/pitch/business/BusinessStudio.tsx"
+    ],
+    "file": "src/components/pitch/business/BusinessStudio.focus.test.tsx",
+    "cases": [
+      "keeps asset search stable through delayed results, middle edits, empty results and Chinese IME",
+      "keeps real building selection search focused when authorized catalog results change"
+    ]
   }
 ]

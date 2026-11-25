@@ -1,8 +1,10 @@
 # Colliers Pitch Studio 公共架构与协议
 
-阶段 01–03，公共协议 `colliers-pitch/1`；新布局引擎 `pitch-layout/2`，场景渲染标记 `pitch-scene/2`。阶段 02 依赖阶段 01 PR #309 的已验证提交 `fef812d3`，不从缺失基础表、权限与注册表的旧 main 重建。渲染细则见 [渲染引擎](render-engine.md)。阶段 03 基于阶段 02 已验证提交 `ab6b9b15`，企业素材库协议、真实任务执行、权限边界与限制见 [素材库](material-library.md)。
+阶段 01–04，公共协议 `colliers-pitch/1`；新布局引擎 `pitch-layout/2`，场景渲染标记 `pitch-scene/2`。阶段 02 依赖阶段 01 PR #309 的已验证提交 `fef812d3`，不从缺失基础表、权限与注册表的旧 main 重建。渲染细则见 [渲染引擎](render-engine.md)。阶段 03 基于阶段 02 已验证提交 `ab6b9b15`，企业素材库协议、真实任务执行、权限边界与限制见 [素材库](material-library.md)。
 
 已提供真实的「测试素材归档 → 结构化内容与独立布局 → 私人单页／多页项目 → 共享场景预览 → PPTX／PNG／SVG／Excel → 私有归档与项目重开」闭环。原件、业务内容、视觉布局、主题及用户作品分别管理。产品以可编辑单页／多页 PPT 为核心，独立素材导出为兼容方向，AI 完整提案为后续方向。
+
+阶段 04 在阶段 03 提交 `89712682` 上增加版本化业务档案、15 个业务配置、统一可信数据适配与持久生成快照；完整能力及明确限制见 [业务模板](business-templates.md)。所有生产模式仍输出相同 SlideContent，不改变既有研究报告契约。
 
 ## 1. 模块职责与依赖
 
@@ -15,13 +17,14 @@
 | `src/lib/pitch/design` | 独立主题协议；业务模板不包含品牌配色、字体或字号 |
 | `src/lib/pitch/layout` | 12 类视觉布局、可组合组件、字体度量、分页和质量检查；只处理结构化内容与主题 |
 | `src/lib/pitch/render` | 同一场景 → 原生可编辑 PPTX、矢量 SVG／PNG、可见数据 Excel；不接收 URL、脚本或 XML |
+| `src/lib/pitch/business` | 业务档案、受控业务配置、可信数据适配、固定快照、混合组合及新鲜权限依赖 |
 | `src/lib/pitch/library` | 安全结构解析、候选提取、任务分批执行、来源缩略图与历史标准化；复用共享布局与渲染 |
 | `src/lib/pitch/data` | 新鲜权限 RPC、对象存储、哈希、模板与主题快照、任务与文件生命周期 |
 | `private.pitch_studio_access` | 唯一领域写入者，原子保存业务记录和审计事件；所有读写都重核有效角色、会话、试点资格及范围 |
 
 复用 `SessionProvider`、共享 Supabase 客户端、`verifyQueryIdentity`、现有原件哈希方法、私有 Supabase Storage 机制和品牌 Logo。将现有研究报告的 PptxGenJS 初始化提取为 `officePresentation.ts`，研究导出与 Pitch 共用底层引擎；两者继续拥有独立内容与存储模型。未修改客户方案草稿、楼书知识库或研究结果的业务协议。
 
-没有为了目录完整创建空的 AI／任务模块。已有 `verifiedDataTool`、`modelProvider`、`modelRuntime` 的数据授权、模型路由和成本控制留作阶段 04／06 的适配入口，不能把管理员专用 AI 查询资格误当作 Pitch 员工资格。
+没有为了目录完整创建空的 AI／任务模块。已有 `verifiedDataTool`、`modelProvider`、`modelRuntime` 的数据授权、模型路由和成本控制由阶段 04 复用可信查询，阶段 06 再接入完整模型能力，不能把管理员专用 AI 查询资格误当作 Pitch 员工资格。
 
 ## 2. 领域及数据模型
 

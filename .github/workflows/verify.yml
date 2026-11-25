@@ -6,6 +6,7 @@ on:
       - main
       - codex/pitch-studio-01-foundation
       - codex/pitch-studio-02-render-engine
+      - codex/pitch-studio-03-material-library
   push:
     branches:
       - main
@@ -174,6 +175,7 @@ jobs:
           node supabase/tests/pitch-studio/run.mjs
           node supabase/tests/pitch-studio/library-parser.mjs
           node supabase/tests/pitch-studio/library.mjs
+          node supabase/tests/pitch-studio/business.mjs
         env:
           PITCH_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 

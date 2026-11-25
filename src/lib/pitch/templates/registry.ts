@@ -26,6 +26,7 @@ export const STUDIO_TEMPLATE = templateConfigSchema.parse({ ...BASIC_TEMPLATE, i
 });
 
 export const HISTORY_TEMPLATE = templateConfigSchema.parse({ ...STUDIO_TEMPLATE, id: 'history-standardizer', names: { zh: '历史素材标准化', en: 'Historical material normalization' } });
+export const BUSINESS_TEMPLATE = templateConfigSchema.parse({ ...STUDIO_TEMPLATE, id: 'business-content', names: { zh: '企业业务模板', en: 'Business templates' } });
 
 /** Only reviewed code is executable. Configuration cannot supply a function, HTML or code. */
 const adapters = new Map<string, (content: unknown, parameters: unknown) => SlideContent>([
