@@ -6,6 +6,10 @@ import { createPitchDatabase, OWNER, OTHER, ADMIN, VIEWER, sessionFor } from './
 const require=createRequire(import.meta.url);
 const {handlePitchRequest}=require('../../../src/lib/pitch/http.ts');
 const {DEFAULT_THEME}=require('../../../src/lib/pitch/design/theme.ts');
+const {composeProject,previewPage,prepareRenderExport,runRenderExport,downloadArtifact}=require('../../../src/lib/pitch/data/renderWorkflow.ts');
+const {LAYOUTS}=require('../../../src/lib/pitch/layout/definitions.ts');
+const {STUDIO_THEME,VERIFICATION_THEME}=require('../../../src/lib/pitch/design/theme.ts');
+const {STUDIO_TEMPLATE}=require('../../../src/lib/pitch/templates/registry.ts');
 const {BASIC_TEMPLATE}=require('../../../src/lib/pitch/templates/registry.ts');
 const {createSample,createProject,exportProject,downloadExport,upgradeProjectTheme}=require('../../../src/lib/pitch/data/workflow.ts');
 const db=await createPitchDatabase();
@@ -86,13 +90,13 @@ try {
   const stored=(await db.setup.query('select * from pitch_exports where id=$1',[artifact.exportId])).rows[0];assert.equal(stored.state,'ready');assert.equal(stored.sha256,artifact.sha256);
  });
  await check('theme upgrade keeps original project, slide content, asset and theme version reproducible',async()=>{
-  const theme={...DEFAULT_THEME,version:2,colors:{...DEFAULT_THEME.colors,background:'F1F2F3'}};
-  await db.setup.query('insert into pitch_theme_versions(theme_id,version,definition,sha256) values($1,2,$2,$3)',[DEFAULT_THEME.id,theme,'a'.repeat(64)]);
-  await db.setup.query('update pitch_design_themes set current_version=2 where id=$1',[DEFAULT_THEME.id]);
-  const next=randomUUID();const command={action:'project_theme_upgrade',sourceProjectId:projectId,projectId:next,expectedVersion:1,themeId:DEFAULT_THEME.id,themeVersion:2};
+  const theme={...DEFAULT_THEME,version:3,colors:{...DEFAULT_THEME.colors,background:'F1F2F3'}};
+  await db.setup.query('insert into pitch_theme_versions(theme_id,version,definition,sha256) values($1,3,$2,$3)',[DEFAULT_THEME.id,theme,'a'.repeat(64)]);
+  await db.setup.query('update pitch_design_themes set current_version=3 where id=$1',[DEFAULT_THEME.id]);
+  const next=randomUUID();const command={action:'project_theme_upgrade',sourceProjectId:projectId,projectId:next,expectedVersion:1,themeId:DEFAULT_THEME.id,themeVersion:3};
   await upgradeProjectTheme(owner,command);await upgradeProjectTheme(owner,command);
   const original=await db.rpc(OWNER,{action:'get_project',projectId}),upgraded=await db.rpc(OWNER,{action:'get_project',projectId:next});
-  assert.equal(original.slides[0].theme_version,1);assert.equal(upgraded.slides[0].theme_version,2);
+  assert.equal(original.slides[0].theme_version,1);assert.equal(upgraded.slides[0].theme_version,3);
   assert.equal(upgraded.project.parent_project_id,projectId);assert.equal(upgraded.slides[0].version,2);
   assert.deepEqual(upgraded.slides[0].content,original.slides[0].content);assert.equal(upgraded.slides[0].asset_version,original.slides[0].asset_version);
   await exportProject(owner,next,'internal');
@@ -154,6 +158,63 @@ try {
   const id=randomUUID();await assert.rejects(db.rpc(ADMIN,{action:'category_save',id,expectedRevision:0,systemCode:'rollback-test',names:{zh:'测试回滚'},enabled:true}),/injected audit failure/);
   assert.equal((await db.setup.query('select * from pitch_asset_categories where id=$1',[id])).rowCount,0);
   await db.setup.query('drop trigger pitch_fail_test on private.pitch_events');
+ });
+ let studioProject, studioParts, latest;
+ await check('stage 2 registry pins reviewed theme, universal business adapter and twelve distinct layout definitions',async()=>{
+  const reg=await db.rpc(OWNER,{action:'registry',templateId:STUDIO_TEMPLATE.id,templateVersion:1,themeId:STUDIO_THEME.id,themeVersion:2});
+  assert.deepEqual(reg.template.config,STUDIO_TEMPLATE);assert.deepEqual(reg.theme.definition,STUDIO_THEME);
+  assert.equal((await db.setup.query("select count(*)::int n from pitch_layout_definitions where engine='pitch-layout/2'")).rows[0].n,12);
+ });
+ await check('twelve actual test assets compose into a persisted multi-page project with team media dependencies and deck numbering',async()=>{
+  studioParts=[];
+  for(const layout of LAYOUTS){const out=await createSample(owner,randomUUID(),scope,layout.id);studioParts.push({assetId:out.assetId,layoutId:layout.id,variant:'standard'});}
+  studioProject=randomUUID(); const command={action:'project_compose',projectId:studioProject,title:'测试十二页 / Native renderer',parts:studioParts,themeId:STUDIO_THEME.id,themeVersion:2};
+  assert.equal((await composeProject(owner,command)).pages,12);assert.equal((await composeProject(owner,command)).replayed,true);
+  const opened=await db.rpc(OWNER,{action:'get_project',projectId:studioProject});assert.equal(opened.slides.length,12);
+  assert.equal(opened.slides[11].scene.elements.find(e=>e.purpose==='footer').text,'12');
+  const team=await db.rpc(OWNER,{action:'get_asset',assetId:studioParts[5].assetId});assert.equal(team.media.length,1);
+  await assert.rejects(composeProject(ctx(OTHER),{...command,projectId:randomUUID()}),/PITCH_DENIED/);
+  await assert.rejects(exportProject(owner,studioProject,'internal'),/PITCH_ASYNC_REQUIRED/);
+ });
+ await check('actual preview is shared-scene SVG, parameters refresh one content group and theme substitution preserves saved data',async()=>{
+  const before=(await db.rpc(OWNER,{action:'get_project',projectId:studioProject})).slides[8];
+  const preview=await previewPage(owner,{action:'preview',projectId:studioProject,page:8,layoutId:'chart-insight',variant:'alternate',themeId:VERIFICATION_THEME.id,themeVersion:1});
+  assert.equal(preview.scene.elements.find(e=>e.kind==='text'&&e.purpose==='footer').text,'9');
+  const unchanged=await previewPage(owner,{action:'preview',projectId:studioProject,page:9,layoutId:'comparison',variant:'standard',themeId:STUDIO_THEME.id,themeVersion:STUDIO_THEME.version});
+  assert.equal(unchanged.scene.elements.find(e=>e.kind==='text'&&e.purpose==='footer').text,'10');
+  assert.match(preview.svg,/<svg/);assert.equal(preview.scene.themeId,VERIFICATION_THEME.id);assert.ok(preview.scene.elements.some(e=>e.kind==='chart'));
+  const after=(await db.rpc(OWNER,{action:'get_project',projectId:studioProject})).slides[8];assert.deepEqual(after,before);
+  await assert.rejects(previewPage(ctx(OTHER),{action:'preview',projectId:studioProject,page:0}),/PITCH_DENIED/);
+  await assert.rejects(previewPage(owner,{action:'preview',projectId:studioProject,page:0,layoutId:'kpi'}),/PITCH_UNSUPPORTED_CONTENT/);
+ });
+ for(const format of ['pptx','png','svg','xlsx']) await check(`durable ${format} task claims once, records progress, archives and rechecks actual download`,async()=>{
+  const command={action:'export_start',projectId:studioProject,exportId:randomUUID(),audience:'internal',format,...(format==='pptx'?{}:{page:7})};
+  await prepareRenderExport(owner,command);await runRenderExport(owner,command);await runRenderExport(owner,command);
+  const state=await db.rpc(OWNER,{action:'export_status',projectId:studioProject,exportId:command.exportId});assert.equal(state.state,'ready');assert.equal(state.progress,100);assert.match(state.filename,new RegExp('[.]'+format+'$'));
+  const file=await downloadArtifact(owner,command);assert.ok(file.bytes.length>100);assert.match(file.mime,format==='svg'?/svg/:format==='png'?/png/:/openxmlformats/);
+  if(format==='pptx'){const zip=await (await import('jszip')).default.loadAsync(file.bytes);assert.equal(Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+[.]xml$/.test(n)).length,12);latest=command;}
+  if(format==='xlsx'){const XLSX=await import('xlsx');const book=XLSX.read(file.bytes,{type:'array'});assert.equal(book.SheetNames.length,1);}
+ });
+ await check('revoked authority blocks queued task, preview, status and previously archived file; expiry becomes explicit failed receipt',async()=>{
+  const command={action:'export_start',projectId:studioProject,exportId:randomUUID(),audience:'internal',format:'pptx'};await prepareRenderExport(owner,command);
+  await db.setup.query('update private.pitch_grants set enabled=false where user_id=$1',[OWNER]);
+  await runRenderExport(owner,command);await assert.rejects(previewPage(owner,{action:'preview',projectId:studioProject,page:0}),/PITCH_DENIED/);await assert.rejects(downloadArtifact(owner,latest),/PITCH_DENIED/);
+  await assert.rejects(db.rpc(OWNER,{action:'export_status',projectId:studioProject,exportId:command.exportId}),e=>e.code==='42501');
+  await db.setup.query('update private.pitch_grants set enabled=true where user_id=$1',[OWNER]);
+  await db.setup.query("update pitch_jobs set lease_until=now()-interval '1 second' where id=$1",[command.exportId]);
+  const state=await db.rpc(OWNER,{action:'export_status',projectId:studioProject,exportId:command.exportId});assert.equal(state.state,'failed');assert.equal(state.error_code,'PITCH_WORKER_TIMEOUT');
+ });
+ await check('revoked team photo source prevents preview and all export formats',async()=>{
+  const row=await db.rpc(OWNER,{action:'get_asset',assetId:studioParts[5].assetId}),mid=row.media[0].id;
+  await db.setup.query("update pitch_media_assets set state='archived' where id=$1",[mid]);
+  await assert.rejects(previewPage(owner,{action:'preview',projectId:studioProject,page:5}),/PITCH_DENIED/);
+  await assert.rejects(prepareRenderExport(owner,{action:'export_start',projectId:studioProject,exportId:randomUUID(),audience:'internal',format:'png',page:5}),/PITCH_DENIED/);
+  await db.setup.query("update pitch_media_assets set state='draft' where id=$1",[mid]);
+ });
+ await check('new scene theme upgrade preserves original content, sources and global numbering',async()=>{
+  const next=randomUUID();await upgradeProjectTheme(owner,{action:'project_theme_upgrade',sourceProjectId:studioProject,projectId:next,expectedVersion:1,themeId:VERIFICATION_THEME.id,themeVersion:1});
+  const before=await db.rpc(OWNER,{action:'get_project',projectId:studioProject}),after=await db.rpc(OWNER,{action:'get_project',projectId:next});
+  assert.equal(after.slides.length,12);assert.deepEqual(after.slides.map(s=>s.content),before.slides.map(s=>s.content));assert.equal(after.slides[11].scene.elements.find(e=>e.purpose==='footer').text,'12');assert.equal(after.project.parent_project_id,studioProject);
  });
  console.log(`PASS ${count} Pitch Studio PostgreSQL 17 and application workflow scenarios; synthetic isolated data only`);
 }finally{await db.close();}

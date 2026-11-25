@@ -22,3 +22,13 @@ export const DEFAULT_THEME: DesignTheme = designThemeSchema.parse({
   table: { headerFill: 'E8EBF0', border: 'BBC2CB', cellPadding: .1 },
   footer: { enabled: true, pageNumber: true, label: '临时主题 · 未经品牌确认' },
 });
+
+/** Stage 2 themes validate substitution, not two official brand proposals. */
+export const STUDIO_THEME = designThemeSchema.parse({ ...DEFAULT_THEME, version: 2,
+  fonts: { zh: 'Noto Sans SC', en: 'Noto Sans SC' }, colors: { ...DEFAULT_THEME.colors, background: 'FAF9F6' },
+  logo: { ...DEFAULT_THEME.logo, enabled: false }, footer: { enabled: true, pageNumber: true, label: '' },
+});
+export const VERIFICATION_THEME = designThemeSchema.parse({ ...STUDIO_THEME, id: 'colliers-render-verification', version: 1,
+  colors: { primary: '435866', secondary: '7C868B', background: 'F4F5F3', text: '28343A', muted: '56636A' },
+  chartColors: ['435866', '84979A', 'B5BEBD'], table: { ...STUDIO_THEME.table, headerFill: 'E4E9E7', border: 'AEBAB7' },
+});

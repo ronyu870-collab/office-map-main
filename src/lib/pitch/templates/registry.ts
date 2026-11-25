@@ -2,26 +2,36 @@ import { z } from 'zod';
 import { slideContentSchema, type SlideContent } from '../contracts/content';
 import { layoutDefinitionSchema, slideSceneSchema, type SlideScene } from '../contracts/scene';
 import type { DesignTheme } from '../design/theme';
+import { layoutIdSchema } from '../contracts/scene';
 
 export const templateConfigSchema = z.strictObject({
   id: z.string().regex(/^[a-z0-9-]+$/).max(100), version: z.number().int().positive(),
   names: z.strictObject({ zh: z.string().min(1).max(100), en: z.string().min(1).max(100) }),
   categoryCode: z.string().min(1).max(100), assetTypes: z.array(z.enum(['content'])).min(1), scenarios: z.array(z.string().min(1).max(100)).min(1).max(20),
-  inputSchema: z.literal('text-image-parameters/1'), adapter: z.literal('text-image/1'), dataSources: z.array(z.enum(['content_asset'])).min(1),
-  requiredPermissions: z.array(z.enum(['internal_generate'])).min(1), layouts: z.array(z.literal('text-image')).min(1),
-  exports: z.array(z.enum(['pptx'])).min(1), ai: z.literal('none'), missingData: z.literal('reject'),
+  inputSchema: z.enum(['text-image-parameters/1', 'studio-parameters/2']), adapter: z.enum(['text-image/1', 'structured-content/2']), dataSources: z.array(z.enum(['content_asset'])).min(1),
+  requiredPermissions: z.array(z.enum(['internal_generate'])).min(1), layouts: z.array(z.union([z.literal('text-image'), layoutIdSchema])).min(1),
+  exports: z.array(z.enum(['pptx', 'png', 'svg', 'xlsx'])).min(1), ai: z.literal('none'), missingData: z.literal('reject'),
 });
 export type BusinessTemplate = z.infer<typeof templateConfigSchema>;
 export const templateParametersSchema = z.strictObject({ language: z.enum(['zh', 'en']).default('zh') });
+export const studioParametersSchema = z.strictObject({ language: z.enum(['zh', 'en']), layoutId: layoutIdSchema, variant: z.enum(['standard', 'alternate']).default('standard') });
 export const BASIC_TEMPLATE: BusinessTemplate = templateConfigSchema.parse({
   id: 'basic-text-image', version: 1, names: { zh: '基础图文', en: 'Text and image' }, categoryCode: 'general',
   assetTypes: ['content'], scenarios: ['single-page'], inputSchema: 'text-image-parameters/1', adapter: 'text-image/1', dataSources: ['content_asset'],
   requiredPermissions: ['internal_generate'], layouts: ['text-image'], exports: ['pptx'], ai: 'none', missingData: 'reject',
 });
 export const BASIC_LAYOUT = layoutDefinitionSchema.parse({ id: 'text-image', version: 1, name: '图文双栏', contentKinds: ['paragraph', 'image'], engine: 'text-image/1', maxBodyCharacters: 240 });
+export const STUDIO_TEMPLATE = templateConfigSchema.parse({ ...BASIC_TEMPLATE, id: 'studio-content', version: 1, names: { zh: '结构化业务内容', en: 'Structured business content' },
+  inputSchema: 'studio-parameters/2', adapter: 'structured-content/2', layouts: layoutIdSchema.options, exports: ['pptx', 'png', 'svg', 'xlsx'], scenarios: ['single-page', 'multi-page'],
+});
 
 /** Only reviewed code is executable. Configuration cannot supply a function, HTML or code. */
 const adapters = new Map<string, (content: unknown, parameters: unknown) => SlideContent>([
+  ['structured-content/2', (raw, rawParameters) => {
+    const content = slideContentSchema.parse(raw), parameters = studioParametersSchema.parse(rawParameters);
+    if (!content.locale.startsWith(parameters.language)) throw new Error('PITCH_LANGUAGE_UNAVAILABLE');
+    return content;
+  }],
   ['text-image/1', (raw, rawParameters) => {
     const content = slideContentSchema.parse(raw), parameters = templateParametersSchema.parse(rawParameters);
     if (!content.locale.startsWith(parameters.language)) throw new Error('PITCH_LANGUAGE_UNAVAILABLE');

@@ -38,7 +38,7 @@ try {
    create table if not exists public.user_roles(user_id uuid primary key references auth.users(id),role text not null,email text,chinese_name text,full_name text);
    grant select on public.user_roles to service_role;
  `);
- await db.query(await readFile('supabase/migrations/20261125165826_pitch_studio_foundation.sql','utf8'));
+ for (const migration of ['20261125165826_pitch_studio_foundation.sql', '20261125174626_pitch_studio_render_engine.sql']) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
  await db.query("notify pgrst,'reload schema'");
  const owner=await person('editor'),other=await person('editor'),viewer=await person('viewer'),admin=await person('admin');
  const env={...process.env,NEXT_PUBLIC_SUPABASE_URL:settings.API_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:settings.ANON_KEY,SUPABASE_SECRET_KEY:settings.SERVICE_ROLE_KEY,PITCH_STUDIO_ENABLED:'true',DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'syntheticfixture'};
@@ -98,17 +98,43 @@ try {
  });
  await check('explicit theme upgrade preserves original and re-renders an archived new version',async()=>{
    const row=(await db.query('select definition from pitch_theme_versions where theme_id=$1 and version=1',['colliers-default-v1'])).rows[0];
-   const theme={...row.definition,version:2};
-   await db.query('insert into pitch_theme_versions(theme_id,version,definition,sha256) values($1,2,$2,$3)',['colliers-default-v1',theme,'a'.repeat(64)]);
-   await db.query('update pitch_design_themes set current_version=2 where id=$1',['colliers-default-v1']);
-   const upgraded=randomUUID();const out=await call(owner,{action:'project_theme_upgrade',sourceProjectId:projectId,projectId:upgraded,expectedVersion:1,themeId:'colliers-default-v1',themeVersion:2},true);
+   const theme={...row.definition,version:3};
+   await db.query('insert into pitch_theme_versions(theme_id,version,definition,sha256) values($1,3,$2,$3)',['colliers-default-v1',theme,'a'.repeat(64)]);
+   await db.query('update pitch_design_themes set current_version=3 where id=$1',['colliers-default-v1']);
+   const upgraded=randomUUID();const out=await call(owner,{action:'project_theme_upgrade',sourceProjectId:projectId,projectId:upgraded,expectedVersion:1,themeId:'colliers-default-v1',themeVersion:3},true);
    assert.equal(out.status,200,JSON.stringify(out.body));
    assert.equal((await call(owner,{action:'get_project',projectId})).body.slides[0].theme_version,1);
-   assert.equal((await call(owner,{action:'get_project',projectId:upgraded})).body.slides[0].theme_version,2);
+   assert.equal((await call(owner,{action:'get_project',projectId:upgraded})).body.slides[0].theme_version,3);
    assert.equal((await call(owner,{action:'export',projectId:upgraded,audience:'internal'},true)).status,200);
+ });
+ let studioProject, studioExport;
+ await check('all twelve real fixture assets compose into persisted editable pages and authorized scene previews',async()=>{
+   const layouts=['cover','section-divider','image-text','two-columns','kpi','team-profile','case-study','data-table','chart-insight','comparison','map-analysis','strategy-framework'],parts=[];
+   for(const [i,layoutId] of layouts.entries()){
+     const out=await call(owner,{action:'sample_create',requestId:randomUUID(),scope,fixture:layoutId,language:i%2?'en':'zh'},true);assert.equal(out.status,200,JSON.stringify(out.body));parts.push({assetId:out.body.assetId,layoutId,variant:'standard'});
+   }
+   studioProject=randomUUID();const out=await call(owner,{action:'project_compose',projectId:studioProject,title:'十二类布局 Test Deck',parts,themeId:'colliers-default-v1',themeVersion:2},true);assert.equal(out.status,200,JSON.stringify(out.body));
+   const opened=await call(owner,{action:'get_project',projectId:studioProject});assert.equal(opened.body.slides.length,12);assert.equal(opened.body.slides[11].scene.elements.find(e=>e.purpose==='footer').text,'12');
+   const preview=await call(owner,{action:'preview',projectId:studioProject,page:8,layoutId:'chart-insight',variant:'alternate',themeId:'colliers-render-verification',themeVersion:1},true);assert.equal(preview.status,200,JSON.stringify(preview.body));assert.match(preview.body.svg,/<svg/);assert.equal(preview.body.scene.themeId,'colliers-render-verification');
+   assert.equal((await call(other,{action:'preview',projectId:studioProject,page:0},true)).status,403);
+   assert.equal((await call(owner,{action:'preview',projectId:studioProject,page:0,scene:{execute:'JS'}},true)).status,400);
+   assert.equal((await call(owner,{action:'export',projectId:studioProject,audience:'internal'},true)).status,422);
+ });
+ for(const format of ['pptx','png','svg','xlsx'])await check(`real background ${format} export acknowledges HTTP, records durable progress and downloads exact archived bytes`,async()=>{
+   const exportId=randomUUID(),input={action:'export_start',projectId:studioProject,exportId,audience:'internal',format,...(format==='pptx'?{}:{page:7})};
+   const out=await call(owner,input,true);assert.equal(out.status,202,JSON.stringify(out.body));
+   let status;await until(async()=>{status=await call(owner,{action:'export_status',projectId:studioProject,exportId});assert.equal(status.status,200,JSON.stringify(status.body));assert.notEqual(status.body.state,'failed',JSON.stringify(status.body));return status.body.state==='ready';},'durable '+format);
+   assert.equal(status.body.progress,100);assert.ok(status.body.filename.endsWith('.'+format));
+   const file=await call(owner,{action:'download',projectId:studioProject,exportId,audience:'internal'});assert.equal(file.status,200,JSON.stringify(file.body));assert.match(file.headers.get('content-disposition'),/filename\*=UTF-8/);
+   if(format==='pptx'){const zip=await JSZip.loadAsync(file.body);assert.equal(Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+[.]xml$/.test(n)).length,12);studioExport=exportId;}
+   if(format==='png')assert.deepEqual([...file.body.slice(0,8)],[137,80,78,71,13,10,26,10]);
+   if(format==='svg')assert.match(new TextDecoder().decode(file.body),/<svg/);
+   if(format==='xlsx'){const zip=await JSZip.loadAsync(file.body);assert.ok(zip.file('xl/workbook.xml'));}
  });
  await check('revoked grants block recovery, raw RLS and previously archived download',async()=>{
    await db.query('update private.pitch_grants set enabled=false where user_id=$1',[owner.id]);
+   assert.equal((await call(owner,{action:'download',projectId:studioProject,exportId:studioExport,audience:'internal'})).status,403);
+   assert.equal((await call(owner,{action:'preview',projectId:studioProject,page:0},true)).status,403);
    assert.equal((await call(owner,{action:'get_project',projectId})).status,403);
    assert.equal((await call(owner,{action:'download',projectId,exportId:artifact.exportId,audience:'internal'})).status,403);
    assert.equal((await owner.client.from('pitch_projects').select('id')).data.length,0);

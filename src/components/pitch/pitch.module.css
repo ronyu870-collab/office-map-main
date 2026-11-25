@@ -21,3 +21,15 @@
 .return { margin-top: 24px; }
 .return a { text-decoration: underline; }
 @media(max-width: 600px) { .workspace { padding: 24px 16px; } .nav { gap: 4px 16px; } .actions > button { flex: 1 1 180px; min-height: 44px; } .slide { padding: 16px; } }
+.preview { margin: 24px 0; }
+.previewToolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 16px 0; }
+.previewToolbar label { display: grid; gap: 6px; }
+.previewToolbar select { min-height: 44px; font: inherit; padding: 8px; border: 1px solid #bbc2cb; background: #faf9f6; max-width: 220px; }
+.thumbnails { display: flex; gap: 12px; overflow-x: auto; padding: 8px 0 16px; }
+.thumbnails button { flex: 0 0 128px; border: 1px solid #bbc2cb; padding: 4px; min-height: 80px; font: inherit; cursor: pointer; }
+.thumbnails button[aria-current] { border: 2px solid #25408f; }
+.thumbnails img { width: 100%; height: auto; aspect-ratio: 16/9; display: block; }
+.canvasViewport { width: 100%; overflow: auto; background: #ebecea; padding: 12px; }
+.canvas { min-width: 320px; aspect-ratio: 16/9; background: #faf9f6; margin: 0 auto; }
+.canvas img { display: block; width: 100%; height: auto; aspect-ratio: 16/9; }
+@media(max-width: 600px) { .previewToolbar label { flex: 1 1 140px; } .previewToolbar select { max-width: none; width: 100%; } .canvasViewport { padding: 4px; } }

@@ -7,17 +7,19 @@ import { designThemeSchema } from '../design/theme';
 import { digest, makeFile, mediaRowSchema, pitchRpc, readFile, uploadFile, type PitchContext } from './store';
 import type { PitchCommand } from '../contracts/api';
 import { PPTX_MIME } from '../render/pptx';
+import type { LayoutId } from '../contracts/scene';
 
 /** Synthetic art only. Never a real Colliers building, client or case study. */
 async function sampleImage(): Promise<Uint8Array> {
   const { Resvg } = await import('@resvg/resvg-js');
   return new Resvg('<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640"><rect width="960" height="640" fill="#E7EBEE"/><path d="M140 540V190h220v350M400 540V100h260v440M700 540V280h130v260" fill="#778BA5"/><path d="M175 230h150m-150 60h150m-150 60h150m-150 60h150m110-260h180m-180 70h180m-180 70h180m-180 70h180m-180 70h180m100-90h70m-70 65h70" stroke="#E7EBEE" stroke-width="18"/></svg>', { font: { loadSystemFonts: false } }).render().asPng();
 }
-export async function createSample(ctx: PitchContext, requestId: string, scope: PitchScope) {
+export async function createSample(ctx: PitchContext, requestId: string, scope: PitchScope, fixture?: LayoutId, language: 'zh' | 'en' = 'zh') {
   // IDs are request-scoped so an interrupted upload can retry without duplicates.
   const { createHash } = await import('node:crypto');
   const id = (kind: string) => {
-    const b = createHash('sha256').update(`pitch-sample/1:${ctx.identity.actorId}:${requestId}:${kind}`).digest().subarray(0, 16);
+    const namespace = fixture ? 'pitch-sample/2' : 'pitch-sample/1';
+    const b = createHash('sha256').update(`${namespace}:${ctx.identity.actorId}:${requestId}:${kind}`).digest().subarray(0, 16);
     b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
     const h = b.toString('hex'); return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
   };
@@ -25,10 +27,12 @@ export async function createSample(ctx: PitchContext, requestId: string, scope: 
   const assetId = id('asset'), documentId = id('document'), pageId = id('page'), mediaId = id('media'), sourceId = id('source');
   // Fixed synthetic business date makes interrupted retries byte-identical.
   const dataAsOf = '2026-01-01';
-  const original = new TextEncoder().encode(JSON.stringify({ kind: 'synthetic', notice: '测试数据；非高力国际真实案例', dataAsOf, title: '测试办公空间', description: '此素材仅用于验证内容、页面、主题及文件导出的完整流程。' }));
+  const { layoutFixture } = await import('../fixtures/layouts');
+  const testContent = fixture ? layoutFixture(fixture, language, sourceId, mediaId) : undefined;
+  const original = new TextEncoder().encode(JSON.stringify({ kind: 'synthetic', notice: '测试数据；非高力国际真实案例', dataAsOf, title: '测试办公空间', description: '此素材仅用于验证内容、页面、主题及文件导出的完整流程。', ...(testContent ? { content: testContent } : {}) }));
   const sourceFile = makeFile(`sources/${ctx.identity.actorId}/${documentId}/original.json`, 'application/json', original);
   const png = await sampleImage(), mediaFile = makeFile(`media/${ctx.identity.actorId}/${mediaId}/1.png`, 'image/png', png);
-  const content = slideContentSchema.parse({ protocol: PROTOCOL, locale: 'zh', title: '测试办公空间 · 非真实案例',
+  const content = slideContentSchema.parse(testContent ? { ...testContent, sources: testContent.sources.map(s => ({ ...s, documentId, pageId, sha256: sourceFile.sha256 })) } : { protocol: PROTOCOL, locale: 'zh', title: '测试办公空间 · 非真实案例',
     subtitle: 'Pitch Studio 流程验证', dataAsOf, disclosure: 'internal', isTestData: true,
     blocks: [ { kind: 'paragraph', text: '此内容为隔离的合成测试素材，用于验证从内容资产到可编辑单页的完整流程。\n所有文字与配图均不代表真实项目或客户案例。', sourceIds: [sourceId] },
       { kind: 'image', mediaAssetId: mediaId, mediaVersion: 1, alt: '合成办公楼示意图；测试数据', sourceIds: [sourceId] } ],
@@ -37,6 +41,8 @@ export async function createSample(ctx: PitchContext, requestId: string, scope: 
   // Authorize target scope BEFORE touching storage; final transaction rechecks.
   const catalog = z.object({ scopes: z.array(z.object({ organizationId: z.string(), region: z.string().nullable(), city: z.string().nullable(), businessLine: z.string().nullable(), canGenerate: z.boolean() })) }).parse(await pitchRpc(ctx, { action: 'catalog' }));
   if (!catalog.scopes.some(g => g.canGenerate && g.organizationId === scope.organizationId && (!g.region || g.region === scope.region) && (!g.city || g.city === scope.city) && (!g.businessLine || g.businessLine === scope.businessLine))) throw new Error('PITCH_DENIED');
+  const prior = z.object({ replayed: z.boolean() }).parse(await pitchRpc(ctx, { action: 'sample_lookup', assetId, scope, sourceSha256: sourceFile.sha256 }));
+  if (prior.replayed) return { assetId, replayed: true };
   await uploadFile(ctx, sourceFile, original); await uploadFile(ctx, mediaFile, png);
   return pitchRpc(ctx, { action: 'sample_create', scope, assetId, documentId, pageId, mediaId, content, sourceFile, mediaFile, sha256: digest(new TextEncoder().encode(JSON.stringify(content))) });
 }
@@ -56,6 +62,8 @@ const exportContextSchema = z.object({
   themes: z.array(z.object({ definition: designThemeSchema })).min(1), media: z.array(mediaRowSchema),
 });
 export async function exportProject(ctx: PitchContext, projectId: string, audience: 'internal' | 'client') {
+  const current = z.object({ slides: z.array(z.object({ scene: slideSceneSchema })) }).parse(await pitchRpc(ctx, { action: 'get_project', projectId }));
+  if (current.slides.length > 1 || current.slides.some(s => s.scene.rendererVersion)) throw new Error('PITCH_ASYNC_REQUIRED');
   const exportId = randomUUID(), args = { projectId, exportId, audience };
   await pitchRpc(ctx, { action: 'export_prepare', ...args });
   try {
@@ -98,10 +106,21 @@ export async function downloadExport(ctx: PitchContext, input: { projectId: stri
 /** An explicit upgrade creates a linked project revision. Original project,
  * content/asset versions and archived exports remain exactly reproducible. */
 export async function upgradeProjectTheme(ctx: PitchContext, command: Extract<PitchCommand, { action: 'project_theme_upgrade' }>) {
-  const source = z.object({ slides: z.array(z.object({ id: z.uuid(), layout_id: z.literal('text-image'), layout_version: z.literal(1), content: slideContentSchema })).min(1).max(50) }).parse(await pitchRpc(ctx, { action: 'get_project', projectId: command.sourceProjectId }));
+  const source = z.object({ slides: z.array(z.object({ id: z.uuid(), layout_id: z.string(), layout_version: z.number(), scene: slideSceneSchema, content: slideContentSchema })).min(1).max(50) }).parse(await pitchRpc(ctx, { action: 'get_project', projectId: command.sourceProjectId }));
   const registry = z.object({ theme: z.object({ definition: designThemeSchema }) }).parse(await pitchRpc(ctx, { action: 'registry', templateId: 'basic-text-image', templateVersion: 1, themeId: command.themeId, themeVersion: command.themeVersion }));
   const theme = registry.theme.definition;
   if (theme.id !== command.themeId || theme.version !== command.themeVersion) throw new Error('PITCH_REGISTRY_MISMATCH');
-  const slides = source.slides.map(s => ({ sourceSlideId: s.id, slideId: randomUUID(), scene: layoutContent(s.content, theme) }));
-  return pitchRpc(ctx, { ...command, action: 'project_clone_theme', slides });
+  const slides = await Promise.all(source.slides.map(async s => {
+    let scene;
+    if (s.scene.rendererVersion) {
+      const { layoutSlides } = await import('../layout/engine');
+      const pages = await layoutSlides(s.content, theme, s.layout_id as LayoutId, s.scene.variant);
+      if (pages.length !== s.scene.pagination?.count) throw new Error('PITCH_THEME_REPAGINATION');
+      scene = pages[s.scene.pagination.index];
+    } else scene = layoutContent(s.content, theme);
+    return { sourceSlideId: s.id, slideId: randomUUID(), scene };
+  }));
+  const { numberDeckPages } = await import('../layout/pagination');
+  const numbered = numberDeckPages(slides.map(s => ({ ...s, theme }))).map(s => ({ sourceSlideId: s.sourceSlideId, slideId: s.slideId, scene: s.scene }));
+  return pitchRpc(ctx, { ...command, action: 'project_clone_theme', slides: numbered });
 }

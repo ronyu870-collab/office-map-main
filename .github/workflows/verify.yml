@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - codex/pitch-studio-01-foundation
   push:
     branches:
       - main
@@ -167,7 +168,9 @@ jobs:
           QUARTERLY_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
       - name: Real PostgreSQL 17 Pitch Studio foundation and PPTX regressions
-        run: node supabase/tests/pitch-studio/run.mjs
+        run: |
+          node supabase/tests/pitch-studio/render.mjs
+          node supabase/tests/pitch-studio/run.mjs
         env:
           PITCH_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
