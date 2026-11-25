@@ -77,3 +77,6 @@ next-env.d.ts
 /verification/ai-audit-people/
 
 /verification/ai-audit-export/
+
+# Disposable Pitch Studio database, build logs and verification artifacts.
+/tmp/

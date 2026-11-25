@@ -66,6 +66,8 @@ const INTELLIGENCE_WORKSPACE: WorkspaceModule = {
   note: '内部试用',
 };
 
+const PITCH_WORKSPACE: WorkspaceModule = { href: '/intelligence/pitch', module: 'pitch-studio', title: 'Pitch Studio', note: '内部试点', icon: FileText };
+
 const BUSINESS_WORKSPACES: WorkspaceModule[] = [
   {
     href: '/lease-submission',
@@ -395,7 +397,7 @@ function DeferredHomeActivity(props: HomeTeamActivityProps) {
   ) : <LoadingActivity />;
 }
 
-export function HomeWorkspace() {
+export function HomeWorkspace({ pitchStudioVisible = false }: { pitchStudioVisible?: boolean }) {
   const { t } = useLanguage();
   const router = useRouter();
   const { session: ctx, status } = useAppSession();
@@ -495,6 +497,7 @@ export function HomeWorkspace() {
                 <div className={styles.businessLinks}>
                   {activeSession ? visibleBusinessWorkspaces.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)
                     : [0, 1, 2, 3].map(item => <div key={item} className={styles.linkSkeleton} aria-hidden="true" />)}
+                  {pitchStudioVisible && activeSession && !isImpersonating && !targetUserId && <WorkspaceCard workspace={PITCH_WORKSPACE} role={activeRole} onActivate={handleWorkspaceActivation} />}
                   {canSeeIntelligence && <WorkspaceCard workspace={INTELLIGENCE_WORKSPACE} role={activeRole} onActivate={handleWorkspaceActivation} />}
                 </div>
               </nav>

@@ -1,5 +1,6 @@
 const SERVER_AUDIT_CALL = /\b(?:withCriticalAudit|writeAuditBestEffort|writeAuditStackingSpace)\s*\(/gi;
 export const RELIABLE_ROUTES = new Map([
+  ['src/app/api/intelligence/pitch/route.ts',['handlePitchRequest(', 'pitch_studio_access']],
   ...['map/building-photos','map/sales-materials'].map(route=>[`src/app/api/${route}/route.ts`,['withCriticalAudit(']]),
   ...['admin/create-user','admin/reset-password','admin/users','auth/complete-password-change','oss','map/submarket','admin/audit/export','lease-submission/export','audit-events/critical'].map(route=>[`src/app/api/${route}/route.ts`,['withCriticalAudit(']]),
   ['src/app/api/admin/transfer-submission/route.ts',["await client.rpc('transfer_lease_submission_v1'",'if (error)',"'TRANSFER_UNCONFIRMED'"]],

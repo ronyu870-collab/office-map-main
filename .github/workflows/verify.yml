@@ -161,6 +161,11 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/quarterly-db-tests" --no-save --ignore-scripts @electric-sql/pglite@0.3.14
           PGLITE_MODULE="$RUNNER_TEMP/quarterly-db-tests/node_modules/@electric-sql/pglite/dist/index.js" node supabase/tests/quarterly-reliability/run.mjs
 
+      - name: Real PostgreSQL 17 Pitch Studio foundation and PPTX regressions
+        run: node supabase/tests/pitch-studio/run.mjs
+        env:
+          PITCH_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL 17 concurrent quarterly regressions
         run: node supabase/tests/quarterly-reliability/concurrency.mjs
         env:
@@ -516,6 +521,10 @@ jobs:
         shell: bash
         run: |
           AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-ai-query-auth.mjs
+      - name: Pitch Studio real Auth, private Storage and production HTTP round trip
+        shell: bash
+        run: |
+          PITCH_TEST_ALLOW_LOCAL=disposable PITCH_TEST_REUSE_BUILD=true PITCH_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-pitch-studio-http.mjs
       - name: Stop only the disposable query Auth stack
         if: always()
         run: supabase stop --workdir "$RUNNER_TEMP/ai-query-auth-integration" --no-backup
