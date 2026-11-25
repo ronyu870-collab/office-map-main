@@ -41,6 +41,14 @@ describe('AI6 full-condition execution routing', () => {
     expect(invoke).not.toHaveBeenCalled(); expect(runTool.mock.calls[0][0]).toBe('get_data_capabilities');
     expect(out.executionStatus).toBe('completed'); expect(out.answer).toContain('建筑高度'); expect(out.answer).toContain('不保证');
   });
+  it('lists field-specific data quarters without confusing the calendar with available data', async () => {
+    const runTool = vi.fn().mockResolvedValue({ content: JSON.stringify({ status: 'ready', authority: {},
+      availablePeriods: [{ label: '净有效租金', periods: ['2026Q2'], truncated: true }] }) }), invoke = vi.fn();
+    const q = '你能够查询哪些季度';
+    const out = await runAgentLoop({ question: q, taskRoute: routeTask(q), invoke, runTool, signal: signal() });
+    expect(invoke).not.toHaveBeenCalled(); expect(runTool.mock.calls[0][1]).toEqual({ includePeriods: true });
+    expect(out.answer).toContain('2026Q2'); expect(out.answer).toContain('仅最近40期'); expect(out.answer).toContain('不代表每栋楼');
+  });
   it('preserves period, metric, grouping and all-authorized population across both planners', () => {
     const task = routeTask(question);
     expect(task).toMatchObject({ route: 'deterministic_query', plan: { operation: 'group_aggregate', metric: 'rent', groupBy: 'submarket', period: { year: 2026, quarter: 2 }, scope: { inventory: 'all_authorized' } } });
@@ -54,7 +62,7 @@ describe('AI6 full-condition execution routing', () => {
   it.each([
     '比较2026Q2 CBD和金融街净有效租金，但排除乙级楼宇，再生成图表',
     '2026Q2 CBD净有效租金，只看LEED楼宇', '2026Q2 CBD net effective rent excluding grade B', '2026Q2 CBD净有效租金并解释原因',
-    '生成包含成交、楼书和季度统计的研究报告', '2026Q2 CBD净有效租金，不要发给外部模型',
+    '生成包含成交、楼书和季度统计的研究报告',
   ])('does not drop unsupported or multi-domain requirements: %s', q => expect(routeTask(q).route).not.toBe('deterministic_query'));
   it.each(['什么是净有效租金', '如何计算空置率', '请写一封邮件解释净有效租金'])('does not turn conceptual discussion into a database query: %s', q => {
     expect(routeTask(q).route).toBe('bounded_agent'); expect(modelToolCatalogue(q, 'deep', [])).toHaveLength(0);
@@ -136,6 +144,16 @@ describe('AI6 actual formal result, artifact and partial delivery', () => {
 });
 
 describe('AI6 unified budget and context ownership', () => {
+  it('honors an explicit no-external-model constraint in both routing and the supplier boundary', async () => {
+    const q = '2026Q2 CBD净有效租金，不要发给外部模型';
+    expect(routeTask(q)).toMatchObject({ route: 'deterministic_query', modelForbidden: true, plan: { metric: 'rent' } });
+    expect(routeTask('研究楼书，但不要把资料发给外部模型')).toMatchObject({ route: 'direct_response', modelForbidden: true });
+    const adapter = vi.fn(), admit = vi.fn();
+    const runtime = createModelRuntime({ actorId: randomUUID(), question: q, adapters: { deepseek: adapter }, admit,
+      revalidate: async () => {}, onAttempt: async () => {} });
+    await expect(runtime.invoke([{ role: 'user', content: q }], signal())).rejects.toMatchObject({ code: 'disclosure_denied' });
+    expect(adapter).not.toHaveBeenCalled(); expect(admit).not.toHaveBeenCalled();
+  });
   it('keeps semantic equivalents in one authorized query cache and stops repeated non-progress', async () => {
     const result = { resultId: randomUUID() };
     const invoke = vi.fn().mockImplementation(async () => ({ ...completion(), message: { role: 'assistant', content: null,

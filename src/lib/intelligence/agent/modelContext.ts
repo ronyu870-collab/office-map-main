@@ -1,6 +1,8 @@
 import type { AgentMessage, AgentToolDefinition, ProviderId } from './modelProtocol';
 import { toLegacyMessages } from './deepseekAdapter';
 
+export const externalModelForbidden = (question: string) => /(?:不要|不得|禁止).{0,30}(?:外部模型|第三方模型|外部供应商)|(?:do not|don't|never).{0,40}(?:external|third.party).{0,10}(?:model|provider)/i.test(question);
+
 /** Never remove a call/result pair or touch provider-owned continuation state.
  * Old successful observations keep references and limits; the last two tool
  * observations retain their previews for the current decision. */

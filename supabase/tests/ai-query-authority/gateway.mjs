@@ -38,7 +38,7 @@ try{
     ].join('\n');},
   }]});
   let compiled;
-  try{compiled=(await bundle.generate({format:'cjs'})).output.find(file=>file.type==='chunk').code;}finally{await bundle.close();}
+  try{compiled=(await bundle.generate({format:'cjs',codeSplitting:false})).output.find(file=>file.type==='chunk').code;}finally{await bundle.close();}
   const modulePath=path.join(temporary,'actual-adapters.cjs');await writeFile(modulePath,compiled);
   const api=createRequire(import.meta.url)(modulePath);
   const socket=createServer();socket.listen(0,'127.0.0.1');await once(socket,'listening');const port=socket.address().port;await new Promise(resolve=>socket.close(resolve));

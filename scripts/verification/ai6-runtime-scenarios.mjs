@@ -7,7 +7,7 @@ import JSZip from 'jszip';
 import { loadAgentHandler } from './ai5-export-scenarios.mjs';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 
-export async function verifyAi6Runtime({ db, service, keys, output, check, person, artifact, recover, events, decrypt, exportCaps }) {
+export async function verifyAi6Runtime({ db, app, fixture, service, keys, output, check, person, artifact, recover, events, decrypt, exportCaps }) {
   const handle = await loadAgentHandler(output);
   const originalFetch = globalThis.fetch, previous = new Map();
   const env = values => { for (const [key, value] of Object.entries(values)) { previous.set(key, process.env[key]); process.env[key] = value; } };
@@ -30,10 +30,20 @@ export async function verifyAi6Runtime({ db, service, keys, output, check, perso
   };
   async function submit(who, question, extra = {}) {
     calls = 0; controller = new AbortController();
-    const response = await handle(new Request('http://127.0.0.1/api/intelligence/query/agent', { method: 'POST',
+    const started = performance.now();
+    const before = fixture.semanticCalls() + fixture.calls();
+    const request = new Request(app + '/api/intelligence/query/agent', { method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + who.token }, signal: controller.signal,
-      body: JSON.stringify({ idempotencyKey: randomUUID(), question, conversation: { id: randomUUID() }, ...extra }) }), { client: service, keys, enabled: true });
-    return { status: response.status, body: await response.json(), calls };
+      body: JSON.stringify({ idempotencyKey: randomUUID(), question, conversation: { id: randomUUID() }, ...extra }) });
+    // Core fast paths exercise the built Next route over real HTTP. Fault
+    // injection uses that same handler with a synthetic supplier transport.
+    const response = mode === 'forbid' ? await originalFetch(request)
+      : await handle(request, { client: service, keys, enabled: true });
+    calls += fixture.semanticCalls() + fixture.calls() - before;
+    const body = await response.json(), durationMs = Math.round(performance.now() - started);
+    console.log('AI6_EXECUTION_SAMPLE ' + JSON.stringify({ question, status: response.status, durationMs,
+      supplierCalls: calls, toolCalls: body.agent?.toolCalls, route: body.agent?.executionRoute, executionStatus: body.agent?.executionStatus }));
+    return { status: response.status, body, calls, durationMs };
   }
   const grant = (who, caps = exportCaps) => grantQuery({ setup: db }, who.id, { capabilities: caps,
     fields: ['height', 'netEffectiveRent', 'totalArea', 'vacantArea'], allBuildings: false, buildingIds: ids.slice(0, 4) });
@@ -51,11 +61,19 @@ export async function verifyAi6Runtime({ db, service, keys, output, check, perso
       assert.equal(grouped.status, 200, JSON.stringify(grouped.body)); assert.equal(grouped.calls, 0);
       assert.equal(grouped.body.agent.modelCalls, 0); assert.equal(grouped.body.agent.executionRoute, 'deterministic_query');
       assert.equal(grouped.body.result.parameters.executedPlan.scope.inventory, 'all_authorized');
+      const value = (result, market) => result.table.rows.find(r => r.cells.name.value === market).cells.value.value.numeric;
+      assert.equal(value(grouped.body.result, 'CBD'), 100); assert.equal(value(grouped.body.result, '金融街'), 200);
       const encoded = JSON.stringify(grouped.body.result);
       assert.ok(encoded.includes(ids[2]), 'non-tracked authorized source was dropped');
       assert.ok(!encoded.includes(ids[4]), 'ungranted source escaped');
       assert.deepEqual((await recover(owner, grouped.body.requestId)).body.result, grouped.body.result);
       assert.equal((await recover(other, grouped.body.requestId)).status, 403);
+      const vacancy = await submit(owner, '2026Q2全部获权楼宇空置率按子市场比较');
+      assert.equal(vacancy.status, 200, JSON.stringify(vacancy.body)); assert.equal(vacancy.calls, 0);
+      assert.equal(value(vacancy.body.result, 'CBD'), .05); assert.equal(value(vacancy.body.result, '金融街'), .2);
+      const periods = await submit(owner, '你能够查询哪些季度');
+      assert.equal(periods.status, 200, JSON.stringify(periods.body)); assert.equal(periods.calls, 0);
+      assert.match(periods.body.message, /2026Q2/); assert.match(periods.body.message, /不代表每栋楼/);
     });
     await check('AI6 / 已重新鉴权的上一轮快照直接生成CSV与图表，不重新查数或调用供应商', async () => {
       const conversation = { id: grouped.body.conversation.id, parentRequestId: grouped.body.requestId };
@@ -72,8 +90,9 @@ export async function verifyAi6Runtime({ db, service, keys, output, check, perso
         const image = await submit(owner, '导出' + label, { conversation: { id: chart.body.conversation.id, parentRequestId: chart.body.requestId } });
         assert.equal(image.status, 200, JSON.stringify(image.body)); assert.equal(image.calls, 0);
         assert.equal(image.body.agent.executionStatus, 'completed');
-        const downloaded = await artifact(owner, { requestId: image.body.requestId, resultId: image.body.result.resultId, action: 'export', format });
-        assert.equal(downloaded.status, 200);
+        const downloaded = await artifact(owner, { requestId: image.body.requestId, resultId: image.body.result.resultId, action: 'export', format,
+          chart: image.body.result.parameters.agentChart.request });
+        assert.equal(downloaded.status, 200, JSON.stringify(downloaded.body));
         const zip = await JSZip.loadAsync(downloaded.bytes);
         const file = Object.values(zip.files).find(f => f.name.endsWith(extension)); assert.ok(file);
         if (label === 'PNG') assert.deepEqual([...(await file.async('uint8array')).slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
@@ -95,6 +114,10 @@ export async function verifyAi6Runtime({ db, service, keys, output, check, perso
       assert.equal((await artifact(owner, request)).status, 403); await grant(owner);
     });
     await check('AI6 / 供应商总结失败仍交付正式结果并可从加密历史恢复', async () => {
+      // Earlier query/artifact requests intentionally consume real receipt caps.
+      // A separate real actor isolates the supplier-failure behavior without
+      // bypassing or increasing the production account admission limit.
+      owner = await person('admin', 'ai6-model-owner'); await grant(owner);
       mode = 'fail'; const reply = await submit(owner, '复合核对全部获权楼宇的季度市场资料');
       assert.equal(reply.status, 200, JSON.stringify(reply.body)); assert.equal(reply.body.agent.executionStatus, 'partial');
       assert.ok(reply.body.result); assert.equal(reply.calls, 2);

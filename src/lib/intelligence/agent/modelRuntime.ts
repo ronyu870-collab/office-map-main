@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { requiresDataFactEvidence } from './queryObligation';
-import { compactModelContext, modelContextEnvelope } from './modelContext';
+import { compactModelContext, modelContextEnvelope, externalModelForbidden } from './modelContext';
 import { AGENT_TOOLS, completeWithDeepSeek, deepseekAgentConfigured, ModelProviderError } from './modelProvider';
 import { createOpenAIAdapter } from './openaiAdapter';
 import type { AgentMessage, AgentCompletion, ModelAdapter, ProviderId } from './modelProtocol';
@@ -146,6 +146,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
     return { model, rates };
   };
   const invokeInternal = async (originalMessages: AgentMessage[], signal: AbortSignal, onDelta?: (delta: string) => Promise<void>, purpose: 'agent' | 'semantic_intent' | 'synthesis' = 'agent'): Promise<AgentCompletion> => {
+    if (externalModelForbidden(input.question)) throw new ModelProviderError('disclosure_denied');
     const messages = compactModelContext(originalMessages);
     for (;;) {
       signal.throwIfAborted(); await input.revalidate(signal);

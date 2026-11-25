@@ -29,7 +29,7 @@ const predicate = z.strictObject({
   value: z.string().max(100).regex(/^[+-]?\d+(?:\.\d+)?$/),
 });
 const legacy = z.strictObject({ question: z.string().trim().min(2).max(1000) });
-const capabilityRequest = z.strictObject({ question: legacy.shape.question.optional() });
+const capabilityRequest = z.strictObject({ includePeriods: z.boolean().optional(), question: legacy.shape.question.optional() });
 const resultRef = z.strictObject({ resultId: z.uuid() });
 const optionalResultRef = z.strictObject({ resultId: z.uuid().optional() });
 const rowSort = z.strictObject({ field: z.string().min(1).max(50), direction: z.enum(['asc', 'desc']) });

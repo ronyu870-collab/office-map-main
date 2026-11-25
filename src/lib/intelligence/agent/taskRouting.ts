@@ -1,8 +1,8 @@
 import { resolveSemanticQuestion, type SemanticContext } from '../query/semanticPlanner';
 import { requiresDataFactEvidence } from './queryObligation';
 import type { QueryPlan } from '../query/plan';
-import type { QueryResultView } from '../query/presentation';
-import { restoredResultTableView, type ResultTableView } from '../query/tableView';
+import { restoredResultTableView, type ResultTableView, type ResultTableReference } from '../query/tableView';
+import { externalModelForbidden } from './modelContext';
 
 export type ExecutionRoute = 'direct_response' | 'deterministic_query' | 'single_interpretation' | 'bounded_agent' | 'deep_research';
 export type TaskRoute = {
@@ -14,8 +14,10 @@ export type TaskRoute = {
   exportFormat?: 'xlsx' | 'csv_zip';
   reusePrevious?: boolean;
   capabilities?: boolean;
+  availablePeriods?: boolean;
   tableView?: ResultTableView;
   chartExport?: 'png_zip' | 'svg_zip';
+  modelForbidden?: boolean;
   chartType?: 'auto' | 'bar' | 'line' | 'scatter';
 };
 
@@ -40,8 +42,17 @@ function englishQuery(text: string): string {
 
 /** Full consumption is owned by the existing semantic planner. Wrappers below
  * remove only an entire, supported delivery suffix, never arbitrary conditions. */
-export function routeTask(question: string, contextPlan?: QueryPlan, research = false, hasPreviousResult = false, previousResult?: QueryResultView): TaskRoute {
+export function routeTask(question: string, contextPlan?: QueryPlan, research = false, hasPreviousResult = false, previousResult?: ResultTableReference): TaskRoute {
   const text = question.normalize('NFKC').trim().replace(/[。！？.!?]+$/u, '').trim();
+  if (externalModelForbidden(text)) {
+    const local = text.replace(/[,，;；]?\s*(?:不要|不得|禁止)(?:发送给?|发给|传给)(?:外部模型|第三方模型|外部供应商)$/u, '').trim();
+    if (local && local !== text) {
+      const task = routeTask(local, contextPlan, research, hasPreviousResult, previousResult);
+      if (['direct_response', 'deterministic_query'].includes(task.route)) return { ...task, question, modelForbidden: true };
+    }
+    return { route: 'direct_response', taskType: 'analysis', question, modelForbidden: true,
+      reply: '本轮不向外部模型发送请求。当前条件尚不能由受控规则完整执行，请补充明确的查询范围、期间和指标。' };
+  }
   if (/^(?:你好|您好|嗨|哈[喽啰]|hello|hi|hey)$/i.test(text))
     return { route: 'direct_response', taskType: 'social', question, reply: '你好。' };
   if (/^(?:谢谢|多谢|感谢|thanks|thank you)$/i.test(text))
@@ -52,6 +63,8 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
     return { route: 'direct_response', taskType: 'social', question, reply: '我是 Colliers AI，高力国际北京办公楼市场的研究与业务助手。' };
   if (/^(?:你有哪些数据权限|你有什么数据权限|我有哪些数据权限|what data permissions do I have)$/i.test(text))
     return { route: 'direct_response', taskType: 'query', question, capabilities: true };
+  if (/^(?:你能够查询哪些季度|你能查询哪些季度|有哪些可用季度|可以查询哪些季度|which quarters are available)$/i.test(text))
+    return { route: 'direct_response', taskType: 'query', question, capabilities: true, availablePeriods: true };
   if (previousResult && hasPreviousResult) {
     const exportedChart = /^(?:请)?(?:(?:把|将)?(?:刚才|当前)的?(?:图表|图))?导出(?:为)?(PNG|SVG)$/i.exec(text)
       ?? /^export (?:the current chart as )?(PNG|SVG)$/i.exec(text);

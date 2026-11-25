@@ -1,4 +1,5 @@
-import { resultViewSchema } from '../query/presentation';
+import { readAvailablePeriodGroups } from '../query/availablePeriods';
+import { numericFields, type NumericField } from '../query/registry';
 import { KNOWLEDGE_TOOL_NAMES, isKnowledgeResult, type KnowledgeToolName } from '../knowledge/protocol';
 import { queryKnowledge, knowledgeModelObservation, recheckKnowledgeResults } from '../knowledge/research';
 import { publicSearchConfigured } from '../knowledge/publicSearch';
@@ -296,7 +297,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       && (!selectedAnswer || comparisonRequested && !selectedAnswer.results.some(item => item.role === 'comparison'));
 
     const previousResult = history.contextResults?.length ? history.contextResults.length === 1 ? history.contextResults[0] : undefined : history.contextResult;
-    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult ? resultViewSchema.parse(previousResult) : undefined);
+    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult);
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
@@ -412,7 +413,16 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return { ...observed, content: JSON.stringify({ ...JSON.parse(observed.content), workset: manifest }) };
           }
           if (name === 'get_data_capabilities') {
-            return { content: JSON.stringify({ status: 'ready', authority: queryCapabilityManifest(rechecked), business:await businessCapabilities(client,actor,toolSignal),knowledge:{privateTextSentToModel:false,requiresDocumentGrant:true,publicSearchConfigured:publicSearchConfigured()} }) };
+            let availablePeriods: Array<{ label: string; periods: string[]; truncated: boolean }> | undefined;
+            if (args.includePeriods === true) {
+              const fields = rechecked.grants.includes('query:quarter') ? rechecked.fields.filter(field => ['totalArea', 'vacantArea', 'netEffectiveRent'].includes(field)) as NumericField[] : [];
+              if (fields.length) {
+                const available = await readAvailablePeriodGroups(client, actor, rechecked, { inventory: 'all_authorized' }, fields.map(field => [field]), toolSignal);
+                availablePeriods = (available.fieldGroups ?? [available]).map(group => ({ label: group.fields.map(field => numericFields[field].label).join('、'),
+                  periods: group.periods.map(period => `${period.year}Q${period.quarter}`), truncated: group.truncated }));
+              } else availablePeriods = [];
+            }
+            return { content: JSON.stringify({ status: 'ready', authority: queryCapabilityManifest(rechecked), ...(availablePeriods ? { availablePeriods } : {}), business:await businessCapabilities(client,actor,toolSignal),knowledge:{privateTextSentToModel:false,requiresDocumentGrant:true,publicSearchConfigured:publicSearchConfigured()} }) };
           }
           if (PRESENTATION_TOOL_NAMES.has(name)) {
             toolSignal.throwIfAborted();
@@ -509,7 +519,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           }
           if (name === 'apply_result_view') {
             const source = workset.read(args.resultId as string, worksetOwner);
-            const view = validatedResultTableView(resultViewSchema.parse(source), args.view);
+            const view = validatedResultTableView(source, args.view);
             referencedIds.add(source.resultId);
             preparedView = { ...source, parameters: { ...source.parameters, agentTableView: view } };
             return { result: preparedView, content: JSON.stringify({ status: 'ready', resultId: source.resultId, view, rowCount: source.table.rows.length }) };
@@ -587,7 +597,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         const current = await loadDataAuthority(client, actor, checkpointSignal);
         if (current.permissionRevision !== authority.permissionRevision || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
         await recheckBusinessResults(client, actor, checkpointSignal, candidates);
-        await recheckLeaseResults(client, actor, checkpointSignal, candidates);
+        await recheckLeaseResults(client, actor, checkpointSignal, candidates.filter(isLeaseResult));
         await recheckKnowledgeResults(client, actor, checkpointSignal, candidates);
         const primary = candidates[0];
         const selection: AnswerSelection = { version: 'answer-selection/1', task: answerTask(valid.question, primary),

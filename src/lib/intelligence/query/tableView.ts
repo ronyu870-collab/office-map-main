@@ -5,8 +5,9 @@ export const resultTableViewSchema = z.strictObject({ version: z.literal('result
   sort: z.strictObject({ key: z.string().min(1).max(100), direction: z.enum(['asc', 'desc']) }).nullable().default(null),
   filters: z.array(z.strictObject({ key: z.string().min(1).max(100), value: z.string().max(100),
     operator: z.enum(['eq', 'gte', 'lte']).optional() })).max(10).default([]), page: z.number().int().min(0).max(4000).default(0) });
+export type ResultTableReference = { parameters: Readonly<Record<string, unknown>>; table: { columns: readonly { key: string; label: string; unit: string | null }[] } };
 export type ResultTableView = z.infer<typeof resultTableViewSchema>;
-export function validatedResultTableView(result: QueryResultView, input: unknown): ResultTableView {
+export function validatedResultTableView(result: ResultTableReference, input: unknown): ResultTableView {
   const view = resultTableViewSchema.parse(input);
   for (const key of [view.sort?.key, ...view.filters.map(f => f.key)].filter(Boolean)) {
     if (!result.table.columns.some(c => c.key === key)) throw new Error('AGENT_FIELD_NOT_AVAILABLE');
@@ -16,7 +17,7 @@ export function validatedResultTableView(result: QueryResultView, input: unknown
   }
   return view;
 }
-export function restoredResultTableView(result: QueryResultView): ResultTableView {
+export function restoredResultTableView(result: ResultTableReference): ResultTableView {
   try { return validatedResultTableView(result, result.parameters.agentTableView); }
   catch { return { version: 'result-table-view/1', sort: null, filters: [], page: 0 }; }
 }

@@ -177,11 +177,15 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
   let clarification: string | undefined;
   let serverReply: string | undefined;
   if (task.capabilities) {
-    const observed = await run('get_data_capabilities', {});
+    const observed = await run('get_data_capabilities', task.availablePeriods ? { includePeriods: true } : {});
     if (observed) {
-      const authority = JSON.parse(observed.content).authority;
+      const payload = JSON.parse(observed.content);
+      const authority = payload.authority;
       const fields = authority?.fields?.map((f: { label: string }) => f.label).join('、');
-      serverReply = fields ? `当前允许的数值字段：${fields}。范围受当前子市场与楼宇授权约束；权限不保证存在有效数据。`
+      if (task.availablePeriods) serverReply = payload.availablePeriods?.length
+        ? payload.availablePeriods.map((group: { label: string; periods: string[]; truncated: boolean }) => `${group.label}：${group.periods.join('、') || '未找到有效期间'}${group.truncated ? '（仅最近40期）' : ''}`).join('；') + '。按当前获权范围和字段有效记录列示，不代表每栋楼都有数据。'
+        : '当前没有可用于读取季度索引的授权字段，不能据此判定业务数据不存在。';
+      else serverReply = fields ? `当前允许的数值字段：${fields}。范围受当前子市场与楼宇授权约束；权限不保证存在有效数据。`
         : '当前未开放数值字段；实际范围和操作仍受独立资格约束。';
     }
   } else if (task.plan) await run('execute_query_plan', { plan: task.plan });
