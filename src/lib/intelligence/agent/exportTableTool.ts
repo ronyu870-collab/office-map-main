@@ -8,6 +8,7 @@ import { buildResultArtifact } from '../query/artifacts';
 import { resultViewSchema } from '../query/presentation';
 import { parseQueryPlan } from '../query/plan';
 import { Decimal } from '../query/decimal';
+import { projectResultTable } from '../query/tableView';
 import type { QueryResult, ResultCell } from '../query/result';
 
 function compare(a: ResultCell, b: ResultCell): number {
@@ -43,7 +44,7 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
   fields.forEach(check);
   if (args.sort) check(args.sort.field);
   for (const filter of args.filters) check(filter.field);
-  let rows: Array<{ entityId: string; cells: Record<string, ResultCell> }> = results.flatMap(result => result.table.rows.map(row => ({ ...row,
+  let rows: Array<{ entityId: string; cells: Record<string, ResultCell> }> = results.flatMap(result => projectResultTable(resultViewSchema.parse(result)).table.rows.map(row => ({ ...row,
     cells: { ...row.cells, ...(results.length > 1 ? {
       export_result_id: { kind: 'text' as const, value: result.resultId, sourceIds: [] },
       export_period: { kind: 'text' as const, value: JSON.stringify(lease ? result.parameters.scope : result.parameters.period ?? {

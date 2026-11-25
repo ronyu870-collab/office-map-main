@@ -588,6 +588,35 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(saved.toolTrace).toHaveLength(4);
   });
 
+  it('uses a view applied earlier in the same model request for both chart tools and model paging', async () => {
+    const raw = buildListResult(fixture(), ['height']);
+    const result = { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({ operation: 'list', fields: ['height'],
+      period: null, scope: { inventory: 'tracked', submarkets: ['CBD'] } }) } };
+    const call = (id: string, name: string, args: object) => ({ id, type: 'function' as const,
+      function: { name, arguments: JSON.stringify(args) } });
+    const round = (tool_calls: ReturnType<typeof call>[]) => ({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 12,
+      message: { role: 'assistant' as const, content: null, tool_calls } });
+    state.structured.mockResolvedValue({ content: '{"status":"ready"}', result });
+    state.provider.mockReset()
+      .mockResolvedValueOnce(round([call('list', 'search_buildings', { scope: { inventory: 'tracked', submarkets: ['CBD'] } })]))
+      .mockResolvedValueOnce(round([call('view', 'apply_result_view', { resultId: result.resultId, view: { version: 'result-table-view/1',
+        filters: [{ key: 'height', operator: 'gte', value: '200' }], page: 1 } })]))
+      .mockResolvedValueOnce(round([call('page', 'read_result_page', { resultId: result.resultId, offset: 0, limit: 10 }),
+        call('chart', 'create_chart', { resultId: result.resultId, chart: { kind: 'bar', field: 'height' } })]))
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 12,
+        message: { role: 'assistant', content: '已按高度筛选并准备同源图表。' } });
+    const response = await handleAgentSubmission(fakeRequest('综合核对CBD楼宇清单，筛选高度并生成柱状图和读取下一页').request, deps());
+    const output = await response.json();
+    expect(response.status, JSON.stringify(output)).toBe(200);
+    expect(output.agent.executionStatus).toBe('completed');
+    const observations = state.provider.mock.calls[3][0].filter((message: { role: string }) => message.role === 'tool')
+      .map((message: { content: string }) => JSON.parse(message.content));
+    expect(observations.find((item: { totalMatched?: number }) => item.totalMatched !== undefined)).toMatchObject({ totalMatched: 1, rows: [{ entityId: 'A' }] });
+    expect(observations.find((item: { chartKind?: string }) => item.chartKind)).toMatchObject({ totalPoints: 1, points: [{ label: 'A座' }] });
+    expect(output.result.table.rows).toHaveLength(4);
+    expect(output.result.parameters.agentTableView.filters).toEqual([{ key: 'height', operator: 'gte', value: '200' }]);
+  });
+
   it('fails authorization after a first result instead of reading the workset after revocation', async () => {
     const raw = buildListResult(fixture(), ['height']);
     const a = { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({

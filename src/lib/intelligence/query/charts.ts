@@ -5,6 +5,7 @@ import { CROSS_TREND_LIMITS, quarterRange } from './plan';
 import { quarterSchema, quarterKey } from './contracts';
 import { cellText, resultScopeText, resultSummary, units, type DisplayCell, type QueryResultView } from './presentation';
 import { metricLabels, resultMetricColumns, resultMetrics, selectResultMetric } from './multiMetricView';
+import { projectResultTable } from './tableView';
 
 export { chartRequestSchema, type ChartRequest } from './chartSpec';
 import { chartRequestSchema, type ChartRequest } from './chartSpec';
@@ -30,6 +31,12 @@ const projected = (cell: DisplayCell, unit: string | null) => {
 };
 
 export function buildResultChart(result: QueryResultView, raw: ChartRequest): ResultChart {
+  const scoped = projectResultTable(result);
+  // These shapes consist of independent rows. Distribution summaries, matrix
+  // axes and period analysis cannot be reused after removing archived rows.
+  if (scoped !== result && !['list', 'rank', 'group_aggregate'].includes(result.operation)) throw new Error('CHART_VIEW_UNSUPPORTED');
+  const hasView = scoped !== result;
+  result = scoped;
   const request = chartRequestSchema.parse(raw);
   const chart = request.kind === 'plot' ? buildCartesianChart(result, request) : buildLegacyChart(result, request);
   const eligibility = resultChartEligibility(result, request);
@@ -39,6 +46,7 @@ export function buildResultChart(result: QueryResultView, raw: ChartRequest): Re
     const subject = scope?.submarkets?.join('、') ?? '';
     chart.title = subject + chart.yLabel + (chart.kind === 'line' || chart.kind === 'faceted_line' ? '季度趋势' : result.operation === 'rank' ? '排名' : chart.kind === 'scatter' ? `与${chart.xLabel}的关系` : chart.kind === 'heatmap' ? '分组比较' : chart.distribution ? '分布' : '比较');
   }
+  if (hasView) chart.summary = [`图示当前视图的 ${result.table.rows.length} 条记录；原始完整范围与统计口径见结果表。`];
   return configureChart(result, chart);
 }
 

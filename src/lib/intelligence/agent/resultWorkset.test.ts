@@ -21,6 +21,19 @@ function manyBuildings(count = 25) {
 }
 
 describe('AI 5.0 ephemeral authorized result workset', () => {
+  it('inherits archived filters and ordering for model pages without inheriting the UI page or changing the full manifest', () => {
+    const identity = owner(), workset = new AuthorizedResultWorkset(identity);
+    const raw = buildListResult(fixture(), ['height']);
+    const result = { ...raw, parameters: { ...raw.parameters, agentTableView: { version: 'result-table-view/1',
+      filters: [{ key: 'height', operator: 'gte', value: '190' }], sort: { key: 'height', direction: 'asc' }, page: 1 } } };
+    workset.register(result, identity);
+    const page = workset.page({ resultId: result.resultId, offset: 0, limit: 1 }, identity);
+    expect(page.rowCount).toBe(4); expect(page.totalMatched).toBe(2);
+    expect(page.rows.map(row => row.entityId)).toEqual(['B']);
+    const next = workset.page({ resultId: result.resultId, offset: page.nextOffset!, limit: 1 }, identity);
+    expect(next.rows.map(row => row.entityId)).toEqual(['A']);
+    expect(workset.read(result.resultId, identity)).toBe(result);
+  });
   it('filters model pages using exact decimals, consistently with table and export boundaries', () => {
     const identity = owner(), workset = new AuthorizedResultWorkset(identity);
     const result = buildListResult(fixture(), ['height']);
@@ -36,6 +49,21 @@ describe('AI 5.0 ephemeral authorized result workset', () => {
     expect(page('gte')).toEqual(['B', 'C']);
     expect(page('lte')).toEqual(['A', 'B']);
     expect(page('eq')).toEqual(['B']);
+  });
+  it('applies a validated current view to subsequent tools without modifying the sealed source or its manifest', () => {
+    const identity = owner(), workset = new AuthorizedResultWorkset(identity);
+    const result = buildListResult(fixture(), ['height']), before = JSON.stringify(result);
+    workset.register(result, identity);
+    const view = { version: 'result-table-view/1', filters: [{ key: 'height', operator: 'gte', value: '200' }], page: 1 };
+    const current = workset.applyView(result.resultId, view, identity);
+    expect(current.parameters.agentTableView).toMatchObject(view);
+    expect(workset.page({ resultId: result.resultId, offset: 0, limit: 100 }, identity).rows.map(row => row.entityId)).toEqual(['A']);
+    expect(workset.manifest(identity)[0].rowCount).toBe(4);
+    expect(JSON.stringify(result)).toBe(before);
+    (current.parameters.agentTableView as { filters: { value: string }[] }).filters[0].value = '0';
+    expect(workset.page({ resultId: result.resultId, offset: 0, limit: 100 }, identity).totalMatched).toBe(1);
+    expect(() => workset.applyView(result.resultId, view, { ...identity, actorId: randomUUID() })).toThrow('QUERY_DENIED');
+    expect(() => workset.applyView(result.resultId, { ...view, filters: [{ key: 'foreign', value: '0' }] }, identity)).toThrow('AGENT_FIELD_NOT_AVAILABLE');
   });
   it('selects exact full snapshots and rejects invented, foreign-owner and changed references', () => {
     const identity = owner(), workset = new AuthorizedResultWorkset(identity);

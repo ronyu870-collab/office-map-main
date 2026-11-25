@@ -127,6 +127,25 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
         assert.equal(restored.status, 200); assert.deepEqual(restored.body.result, reply.body.result);
       }
       assert.deepEqual(reply.body.result.parameters.agentTableView.filters.map(f => [f.operator, f.value]), [['lte', '150'], ['gte', '110']]);
+      const buildingRequest = { requestId: reply.body.requestId, resultId: reply.body.result.resultId, action: 'buildings', mapSelection: true, offset: 0, limit: 500 };
+      const buildings = async who => {
+        const response = await originalFetch(app + '/api/intelligence/query/buildings', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + who.token }, body: JSON.stringify(buildingRequest) });
+        return { status: response.status, body: await response.json() };
+      };
+      const selected = await buildings(analyst);
+      assert.equal(selected.status, 200, JSON.stringify(selected.body));
+      assert.deepEqual(selected.body.buildings.map(row => row.id), [ids[1]]);
+      assert.equal((await buildings(other)).status, 403);
+      const chart = await submit(analyst, '把刚才的结果画成柱状图', { conversation: { id: reply.body.conversation.id, parentRequestId: reply.body.requestId } });
+      assert.equal(chart.status, 200, JSON.stringify(chart.body)); assert.equal(chart.calls, 0);
+      assert.equal(JSON.stringify(chart.body.result.table.rows), rows);
+      const image = await artifact(analyst, { requestId: chart.body.requestId, resultId: chart.body.result.resultId,
+        action: 'export', format: 'svg_zip', chart: chart.body.result.parameters.agentChart.request });
+      assert.equal(image.status, 200, JSON.stringify(image.body));
+      const zip = await JSZip.loadAsync(image.bytes), svg = Object.values(zip.files).find(file => file.name.endsWith('.svg'));
+      assert.ok(svg); const rendered = await svg.async('string');
+      assert.ok(rendered.includes('合成AI6-2')); assert.ok(!rendered.includes('合成AI6-1'));
       const exported = await submit(analyst, '把刚才的结果导出Excel', { conversation: { id: reply.body.conversation.id, parentRequestId: reply.body.requestId } });
       assert.equal(exported.status, 200, JSON.stringify(exported.body)); assert.equal(exported.calls, 0);
       assert.deepEqual(exported.body.result.table.rows.map(r => r.entityId), [ids[1]]);
@@ -138,6 +157,8 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       assert.equal((await artifact(other, request)).status, 403);
       await grant(analyst, ['query:catalog', 'query:brochure', 'query:quarter']);
       assert.equal((await artifact(analyst, request)).status, 403);
+      assert.equal((await artifact(analyst, { requestId: chart.body.requestId, resultId: chart.body.result.resultId,
+        action: 'export', format: 'svg_zip', chart: chart.body.result.parameters.agentChart.request })).status, 403);
     });
     await check('AI6 / 供应商总结失败仍交付正式结果并可从加密历史恢复', async () => {
       // Earlier query/artifact requests intentionally consume real receipt caps.

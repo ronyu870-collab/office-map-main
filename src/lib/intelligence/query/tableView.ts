@@ -24,6 +24,16 @@ export function restoredResultTableView(result: ResultTableReference): ResultTab
   catch { return { version: 'result-table-view/1', sort: null, filters: [], page: 0 }; }
 }
 
+/** Read all rows in the archived view. UI pagination never limits downstream tools.
+ * This temporary projection keeps the sealed snapshot and its provenance intact. */
+export function projectResultTable(result: QueryResultView): QueryResultView {
+  if (result.parameters.agentTableView === undefined) return result;
+  const view = validatedResultTableView(result, result.parameters.agentTableView);
+  if (!view.filters.length && !view.sort) return result;
+  return { ...result, parameters: { ...result.parameters, agentTableView: undefined },
+    table: { ...result.table, rows: tableRowIndexes(result, '', view.filters, view.sort).map(index => result.table.rows[index]) } };
+}
+
 export type TableSort = { key: string; direction: 'asc' | 'desc' } | null;
 export function compareDisplayCells(a: DisplayCell, b: DisplayCell): number {
   if (a.kind === 'unknown' || b.kind === 'unknown') return a.kind === b.kind ? 0 : a.kind === 'unknown' ? 1 : -1;
