@@ -638,6 +638,93 @@ try {
     },
   );
   await check(
+    "legacy ready files freeze their original authorization before adoption and cannot acquire unrelated edited-page permissions",
+    async () => {
+      let legacy = await workspace.copyWorkspace(ordinary, {
+        action: "copy",
+        projectId: deck.project.id,
+        newProjectId: randomUUID(),
+        title: "隔离前序版本迁移",
+      });
+      const command = {
+        action: "export_start",
+        projectId: legacy.project.id,
+        exportId: randomUUID(),
+        format: "pptx",
+        audience: "internal",
+      };
+      await render.prepareRenderExport(ordinary, command);
+      await render.runRenderExport(ordinary, command);
+      // Only the isolated fixture emulates a file produced before phase 05.
+      await db.setup.query(
+        "update pitch_exports set authorization_snapshot=null where id=$1",
+        [command.exportId],
+      );
+      await db.setup.query(
+        "delete from pitch_workspace_states where project_id=$1",
+        [legacy.project.id],
+      );
+      legacy = await workspace.getWorkspace(ordinary, legacy.project.id);
+      const removed = legacy.slides[0].asset_id;
+      const frozen = (
+        await db.setup.query(
+          "select authorization_snapshot from pitch_exports where id=$1",
+          [command.exportId],
+        )
+      ).rows[0].authorization_snapshot;
+      assert.ok(
+        Array.isArray(frozen) && frozen.some((row) => row.assetId === removed),
+        "first adoption freezes the legacy file’s actual sources",
+      );
+      legacy = await workspace.saveWorkspace(
+        ordinary,
+        save(legacy, {
+          pages: legacy.slides
+            .filter((page) => page.asset_id !== removed)
+            .map((page) => ({ id: page.id })),
+        }),
+      );
+      assert.ok(
+        (await render.downloadArtifact(ordinary, command)).bytes.length > 100,
+      );
+      try {
+        await db.setup.query(
+          "update pitch_content_assets set state='archived' where id=$1",
+          [removed],
+        );
+        assert.ok(
+          (await workspace.getWorkspace(ordinary, legacy.project.id)).slides
+            .length > 0,
+          "the current deck no longer depends on the removed asset",
+        );
+        await assert.rejects(
+          render.downloadArtifact(ordinary, command),
+          /PITCH_DENIED/,
+        );
+      } finally {
+        await db.setup.query(
+          "update pitch_content_assets set state='published' where id=$1",
+          [removed],
+        );
+      }
+      // A genuinely unverifiable old file is rejected rather than backfilled
+      // from the new deck, even when its former source is still accessible.
+      await db.setup.query(
+        "update pitch_exports set authorization_snapshot=null where id=$1",
+        [command.exportId],
+      );
+      await workspace.getWorkspace(ordinary, legacy.project.id);
+      await assert.rejects(
+        render.prepareRenderExport(ordinary, command),
+        /PITCH_CONFLICT/,
+      );
+      await assert.rejects(
+        render.downloadArtifact(ordinary, command),
+        /PITCH_DENIED/,
+      );
+    },
+  );
+  await check(
     "cancelled generation is never committed, even when cancellation races after source generation",
     async () => {
       const taskId = randomUUID(),

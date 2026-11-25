@@ -59,6 +59,7 @@ begin
     (select coalesce(jsonb_agg(jsonb_build_object('id',s.id,'version',s.version) order by position),'[]') from public.pitch_project_slides s where s.project_id=pid)) then raise exception 'PITCH_CONFLICT' using errcode='23505';end if;
   end if;
   if op='export_download' then
+   if exists(select 1 from public.pitch_exports e join public.pitch_workspace_states w on w.project_id=e.project_id where e.id=(p_input->>'exportId')::uuid and e.project_id=pid and e.authorization_snapshot is null) then raise exception 'PITCH_DENIED' using errcode='42501';end if;
    for item in select x from public.pitch_exports e cross join lateral jsonb_array_elements(e.authorization_snapshot) x where e.id=(p_input->>'exportId')::uuid and e.project_id=pid loop
     if not private.pitch_version_visible(p_actor,p_session,(item->>'assetId')::uuid,(item->>'assetVersion')::integer,case when p_input->>'audience'='client' then 'client' else 'generate' end) then raise exception 'PITCH_DENIED' using errcode='42501';end if;
     for c in select value from jsonb_array_elements(item->'media') loop
@@ -70,6 +71,8 @@ begin
   if op='export_prepare' and p_input?'pages' then update public.pitch_exports set render_options=render_options-'pages' where id=(p_input->>'exportId')::uuid and project_id=pid;end if;
   result:=private.pitch_studio_access_v4(p_actor,p_session,p_input);
   if op='export_prepare' then
+   if exists(select 1 from public.pitch_exports e where e.id=(p_input->>'exportId')::uuid and e.project_id=pid and e.authorization_snapshot is null and e.slide_versions is distinct from
+    (select coalesce(jsonb_agg(jsonb_build_object('id',s.id,'version',s.version) order by position),'[]') from public.pitch_project_slides s where s.project_id=pid)) then raise exception 'PITCH_CONFLICT' using errcode='23505';end if;
    update public.pitch_exports set authorization_snapshot=coalesce(authorization_snapshot,(select coalesce(jsonb_agg(jsonb_build_object('assetId',s.asset_id,'assetVersion',s.asset_version,'media',(select coalesce(jsonb_agg(to_jsonb(cm)),'[]') from private.pitch_content_media(s.content) cm))),'[]') from public.pitch_project_slides s where s.project_id=pid)) where id=(p_input->>'exportId')::uuid and project_id=pid;
   end if;
   if op='export_prepare' and p_input?'pages' then
@@ -139,6 +142,11 @@ begin
    if not private.pitch_project_visible(p_actor,p_session,pid,'generate') then raise exception 'PITCH_DENIED' using errcode='42501';end if;
    insert into public.pitch_workspace_states(project_id) values(pid) on conflict do nothing;
    if op='workspace_get' then
+    -- Freeze pre-workspace files before the first mutable editor can replace
+    -- their slides. Unverifiable older revisions remain unavailable, never
+    -- relabelled with the currently edited project's unrelated dependencies.
+    update public.pitch_exports e set authorization_snapshot=(select coalesce(jsonb_agg(jsonb_build_object('assetId',s.asset_id,'assetVersion',s.asset_version,'media',(select coalesce(jsonb_agg(to_jsonb(cm)),'[]') from private.pitch_content_media(s.content) cm))),'[]') from public.pitch_project_slides s where s.project_id=pid)
+     where e.project_id=pid and e.authorization_snapshot is null and e.slide_versions=(select coalesce(jsonb_agg(jsonb_build_object('id',s.id,'version',s.version) order by position),'[]') from public.pitch_project_slides s where s.project_id=pid);
     result:=private.pitch_studio_access_v4(p_actor,p_session,jsonb_build_object('action','get_project','projectId',pid));
     return result||jsonb_build_object('workspace',(select to_jsonb(x) from public.pitch_workspace_states x where project_id=pid),
      'history',coalesce((select jsonb_agg(to_jsonb(x)) from(select version,created_at from private.pitch_workspace_revisions where project_id=pid order by version desc limit 30)x),'[]'),
