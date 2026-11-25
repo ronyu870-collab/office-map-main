@@ -1,5 +1,6 @@
 import { cellText, type DisplayCell, type QueryResultView } from './presentation';
 import { z } from 'zod';
+import { Decimal } from './decimal';
 
 export const resultTableViewSchema = z.strictObject({ version: z.literal('result-table-view/1'),
   sort: z.strictObject({ key: z.string().min(1).max(100), direction: z.enum(['asc', 'desc']) }).nullable().default(null),
@@ -12,8 +13,9 @@ export function validatedResultTableView(result: ResultTableReference, input: un
   for (const key of [view.sort?.key, ...view.filters.map(f => f.key)].filter(Boolean)) {
     if (!result.table.columns.some(c => c.key === key)) throw new Error('AGENT_FIELD_NOT_AVAILABLE');
   }
-  for (const filter of view.filters) if (filter.operator && filter.operator !== 'eq') {
-    if (!Number.isFinite(Number(filter.value)) || result.table.columns.find(c => c.key === filter.key)?.unit === null) throw new Error('AGENT_INVALID_TOOL_ARGUMENTS');
+  for (const filter of view.filters) {
+    const numeric = result.table.columns.find(c => c.key === filter.key)?.unit !== null;
+    if (numeric ? !Decimal.parse(filter.value) : filter.operator && filter.operator !== 'eq') throw new Error('AGENT_INVALID_TOOL_ARGUMENTS');
   }
   return view;
 }
@@ -49,13 +51,19 @@ function searchIndex(result: QueryResultView) {
 export function tableRowIndexes(result: QueryResultView, search: string, filter: TableFilter | readonly TableFilter[] | null, sort: TableSort): number[] {
   const query = search.trim().toLocaleLowerCase();
   const filters: readonly TableFilter[] = !filter ? [] : 'key' in filter ? [filter] : filter;
+  const predicates = filters.map(item => ({ ...item, numeric: Decimal.parse(item.value) }));
   const text = query ? searchIndex(result) : [];
   const indexes = result.table.rows.flatMap((row, index) => {
-    if (filters.some(item => {
+    if (predicates.some(item => {
       const cell = row.cells[item.key];
       if (!cell) return true;
-      if (item.operator === 'gte' || item.operator === 'lte') return cell.kind !== 'number'
-        || !Number.isFinite(Number(item.value)) || (item.operator === 'gte' ? cell.value.numeric < Number(item.value) : cell.value.numeric > Number(item.value));
+      if (cell.kind === 'number') {
+        if (!item.numeric) return true;
+        const exact = cell.value.exact;
+        const compared = Decimal.fraction(BigInt(exact.numerator), BigInt(exact.denominator)).compare(item.numeric);
+        return item.operator === 'gte' ? compared < 0 : item.operator === 'lte' ? compared > 0 : compared !== 0;
+      }
+      if (item.operator === 'gte' || item.operator === 'lte') return true;
       return tableCellText(cell, item.key, null) !== item.value;
     })) return [];
     return !query || text[index].includes(query) ? [index] : [];

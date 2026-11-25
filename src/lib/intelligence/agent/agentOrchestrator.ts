@@ -7,6 +7,7 @@ import type { QueryPlan } from '../query/plan';
 import { requestedArtifactFormats } from './artifactFulfillment';
 import { preferredChartRequest } from './resultTools';
 import { resultViewSchema } from '../query/presentation';
+import { restoredResultTableView } from '../query/tableView';
 import { structuredQueryPlan } from './structuredQueryPlan';
 import type { StructuredDataToolName } from './toolRegistry';
 import type { TaskRoute } from './taskRouting';
@@ -212,8 +213,16 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
     const view = resultViewSchema.parse(result); await run('export_chart', { resultId: view.resultId, format: task.chartExport });
   }
   if (task.exportFormat && result && !failures.length) {
-    const id = typeof result === 'object' && 'resultId' in result ? result.resultId : undefined;
-    await run('export_table', { resultIds: [id], format: task.exportFormat });
+    const source = resultViewSchema.parse(result);
+    // A follow-up export inherits the archived view, including all bounds and
+    // ordering, but never its page. The executor still reads the full sealed
+    // snapshot and applies the existing exact export predicates.
+    const view = task.reusePrevious ? restoredResultTableView(source) : undefined;
+    await run('export_table', { resultIds: [source.resultId], format: task.exportFormat,
+      ...(view ? { filters: view.filters.map(filter => ({ field: filter.key, operator: filter.operator ?? 'eq',
+        value: filter.key === 'grade' ? ({ 甲级: 'A', 乙级: 'B' }[filter.value] ?? filter.value) : filter.value })),
+        ...(view.sort ? { sort: { field: view.sort.key, direction: view.sort.direction } } : {}) } : {}),
+    });
   }
   if (task.route !== 'direct_response' && !result && !failures.length) failures.push({ tool: 'verified_data', code: 'no_verified_result' });
   await input.revalidate?.(input.signal);

@@ -1,5 +1,6 @@
 import { resultViewSchema, cellText, resultSummary, type QueryResultView } from '../query/presentation';
 import type { QueryResult } from '../query/result';
+import { Decimal } from '../query/decimal';
 import { answerSelectionSchema, selectAnswerResultsSchema, type AnswerSelection } from '../query/answerSelection';
 
 export type WorksetOwner = Readonly<{
@@ -122,16 +123,18 @@ export class AuthorizedResultWorkset {
     let rows = sort || filter ? view.table.rows.map((row, index) => ({ row, index })) : undefined;
     if (filter && input.filter) {
       const f = input.filter;
+      const numeric = Decimal.parse(f.value);
+      if (filter.unit !== null && f.operator !== 'contains' && !numeric) throw new Error('AGENT_INVALID_TOOL_ARGUMENTS');
       rows = rows!.filter(({ row }) => {
         const cell = row.cells[filter.key];
         if (cell.kind === 'unknown') return false;
         if (f.operator === 'contains') return cell.kind === 'text'
           && cell.value.toLocaleLowerCase().includes(String(f.value).toLocaleLowerCase());
         if (cell.kind === 'text') return f.operator === 'eq' && cell.value === String(f.value);
-        const n = Number(f.value);
-        if (!Number.isFinite(n)) throw new Error('AGENT_INVALID_TOOL_ARGUMENTS');
-        const value = cell.value.numeric;
-        return f.operator === 'eq' ? value === n : f.operator === 'gte' ? value >= n : value <= n;
+        if (!numeric) throw new Error('AGENT_INVALID_TOOL_ARGUMENTS');
+        const exact = cell.value.exact;
+        const compared = Decimal.fraction(BigInt(exact.numerator), BigInt(exact.denominator)).compare(numeric);
+        return f.operator === 'eq' ? compared === 0 : f.operator === 'gte' ? compared >= 0 : compared <= 0;
       });
     }
     if (sort && input.sort) {

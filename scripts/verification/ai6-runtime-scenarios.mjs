@@ -113,6 +113,32 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       await grant(owner, ['query:catalog', 'query:brochure', 'query:quarter']);
       assert.equal((await artifact(owner, request)).status, 403); await grant(owner);
     });
+    await check('AI6 / 连续上下界筛选经加密恢复后导出相同范围，零模型调用且拒绝跨账号与撤权下载', async () => {
+      const analyst = await person('admin', 'ai6-filter-owner'); await grant(analyst);
+      let reply = await submit(analyst, 'CBD在2026Q2净有效租金最高的10栋楼');
+      assert.equal(reply.status, 200, JSON.stringify(reply.body)); assert.equal(reply.calls, 0);
+      const rows = JSON.stringify(reply.body.result.table.rows), sources = JSON.stringify(reply.body.result.sources);
+      for (const question of ['筛选净有效租金至少90元/平方米/月', '筛选净有效租金不超过150元/平方米/月', '筛选净有效租金至少110元/平方米/月', '按租金从低到高排列']) {
+        reply = await submit(analyst, question, { conversation: { id: reply.body.conversation.id, parentRequestId: reply.body.requestId } });
+        assert.equal(reply.status, 200, JSON.stringify(reply.body)); assert.equal(reply.calls, 0);
+        assert.equal(JSON.stringify(reply.body.result.table.rows), rows);
+        assert.equal(JSON.stringify(reply.body.result.sources), sources);
+        const restored = await recover(analyst, reply.body.requestId);
+        assert.equal(restored.status, 200); assert.deepEqual(restored.body.result, reply.body.result);
+      }
+      assert.deepEqual(reply.body.result.parameters.agentTableView.filters.map(f => [f.operator, f.value]), [['lte', '150'], ['gte', '110']]);
+      const exported = await submit(analyst, '把刚才的结果导出Excel', { conversation: { id: reply.body.conversation.id, parentRequestId: reply.body.requestId } });
+      assert.equal(exported.status, 200, JSON.stringify(exported.body)); assert.equal(exported.calls, 0);
+      assert.deepEqual(exported.body.result.table.rows.map(r => r.entityId), [ids[1]]);
+      const request = { requestId: exported.body.requestId, resultId: exported.body.result.resultId, action: 'export', format: 'xlsx' };
+      const file = await artifact(analyst, request); assert.equal(file.status, 200);
+      const book = XLSX.read(file.bytes, { type: 'array' });
+      const data = XLSX.utils.sheet_to_json(book.Sheets['数据'], { header: 1 });
+      assert.equal(data.length, 2); assert.ok(data[1].includes('合成AI6-2')); assert.ok(data[1].includes(120));
+      assert.equal((await artifact(other, request)).status, 403);
+      await grant(analyst, ['query:catalog', 'query:brochure', 'query:quarter']);
+      assert.equal((await artifact(analyst, request)).status, 403);
+    });
     await check('AI6 / 供应商总结失败仍交付正式结果并可从加密历史恢复', async () => {
       // Earlier query/artifact requests intentionally consume real receipt caps.
       // A separate real actor isolates the supplier-failure behavior without

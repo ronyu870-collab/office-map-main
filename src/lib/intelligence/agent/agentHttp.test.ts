@@ -37,6 +37,9 @@ vi.mock('./agentConversation', async original => ({
 }));
 
 import { handleAgentSubmission } from './agentHttp';
+import { tableRowIndexes, restoredResultTableView } from '../query/tableView';
+import { buildResultArtifact } from '../query/artifacts';
+import { resultViewSchema } from '../query/presentation';
 
 const actorId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const sessionId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -80,6 +83,59 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it('does not widen an archived numeric view when exporting the previous result', async () => {
+    const raw = buildListResult(fixture(), ['height']);
+    const prior = { ...raw, parameters: { ...raw.parameters,
+      executedPlan: parseQueryPlan({ operation: 'list', fields: ['height'], scope: { inventory: 'all_authorized' }, period: null }),
+      agentTableView: { version: 'result-table-view/1', sort: { key: 'height', direction: 'asc' }, filters: [{ key: 'height', operator: 'gte', value: '190' }, { key: 'height', operator: 'lte', value: '220' }], page: 1 },
+    } };
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    state.history.mockResolvedValue(Object.assign([], { contextResult: prior, contextResults: [prior] }));
+    const response = await handleAgentSubmission(fakeRequest('把刚才的结果导出Excel').request, deps());
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.result.table.rows.map((row: { entityId: string }) => row.entityId)).toEqual(['B', 'A']);
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
+  it('keeps both numeric bounds across follow-ups and exports exactly that filtered order', async () => {
+    let prior = buildListResult(fixture(), ['height']);
+    prior = { ...prior, parameters: { ...prior.parameters, executedPlan: parseQueryPlan({ operation: 'list',
+      fields: ['height'], scope: { inventory: 'all_authorized', submarkets: ['CBD'] }, period: null }) } };
+    const original = JSON.stringify(prior.table), sources = JSON.stringify(prior.sources);
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    for (const question of ['筛选建筑高度至少200米', '筛选建筑高度不超过220米', '筛选建筑高度至少205米', '按高度从高到低排列']) {
+      state.history.mockResolvedValue(Object.assign([], { contextResult: prior, contextResults: [prior] }));
+      const response = await handleAgentSubmission(fakeRequest(question).request, deps());
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.agent.modelCalls).toBe(0);
+      prior = body.result;
+      expect(JSON.stringify(prior.table)).toBe(original);
+      expect(JSON.stringify(prior.sources)).toBe(sources);
+      const view = restoredResultTableView(prior);
+      expect(tableRowIndexes(resultViewSchema.parse(prior), '', view.filters, view.sort)).toEqual([0]);
+    }
+    expect(restoredResultTableView(prior).filters).toEqual([
+      { key: 'height', operator: 'lte', value: '220' }, { key: 'height', operator: 'gte', value: '205' },
+    ]);
+    state.history.mockResolvedValue(Object.assign([], { contextResult: prior, contextResults: [prior] }));
+    const response = await handleAgentSubmission(fakeRequest('把刚才的结果导出Excel').request, deps());
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.agent.modelCalls).toBe(0);
+    expect(body.result.table.rows.map((row: { entityId: string }) => row.entityId)).toEqual(['A']);
+    const file = await buildResultArtifact(body.result, { requestId: randomUUID(), resultId: body.result.resultId, action: 'export', format: 'xlsx' });
+    if (file.type !== 'download') throw new Error('missing Excel');
+    const XLSX = await import('xlsx');
+    const book = XLSX.read(file.bytes, { type: 'array' });
+    const rows = XLSX.utils.sheet_to_json(book.Sheets['数据'], { header: 1 });
+    expect(rows).toHaveLength(2);
+    expect(JSON.stringify(rows)).toContain('A座');
+    expect(JSON.stringify(rows)).not.toContain('B座');
+    expect(state.provider).not.toHaveBeenCalled(); expect(state.structured).not.toHaveBeenCalled();
+  });
+
   it('applies an authorized prior-result view through the actual HTTP executor with zero model calls', async () => {
     const prior = { ...buildListResult(fixture(), ['height']), parameters: { executedPlan: parseQueryPlan({ operation: 'list',
       fields: ['height'], scope: { inventory: 'all_authorized', submarkets: ['CBD'] }, period: null }) } };

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { fixture } from '../query/__tests__/fixtures';
 import { buildListResult } from '../query/result';
+import { Decimal } from '../query/decimal';
 import { AuthorizedResultWorkset, WORKSET_LIMITS, type WorksetOwner } from './resultWorkset';
 
 const owner = (): WorksetOwner => ({ requestId: randomUUID(), actorId: randomUUID(),
@@ -20,6 +21,22 @@ function manyBuildings(count = 25) {
 }
 
 describe('AI 5.0 ephemeral authorized result workset', () => {
+  it('filters model pages using exact decimals, consistently with table and export boundaries', () => {
+    const identity = owner(), workset = new AuthorizedResultWorkset(identity);
+    const result = buildListResult(fixture(), ['height']);
+    const rows = result.table.rows.map((row, index) => {
+      const value = ['199.99999999999999999', '200', '200.00000000000000001'][index];
+      const exact = value && Decimal.parse(value);
+      return exact ? { ...row, cells: { ...row.cells, height: { kind: 'number' as const,
+        value: { numeric: exact.toNumber(), exact: exact.exact() }, sourceIds: row.cells.height.sourceIds } } } : row;
+    });
+    workset.register({ ...result, table: { ...result.table, rows } }, identity);
+    const page = (operator: 'eq' | 'gte' | 'lte') => workset.page({ resultId: result.resultId, offset: 0, limit: 100,
+      filter: { field: 'height', operator, value: '200.0' } }, identity).rows.map(row => row.entityId);
+    expect(page('gte')).toEqual(['B', 'C']);
+    expect(page('lte')).toEqual(['A', 'B']);
+    expect(page('eq')).toEqual(['B']);
+  });
   it('selects exact full snapshots and rejects invented, foreign-owner and changed references', () => {
     const identity = owner(), workset = new AuthorizedResultWorkset(identity);
     const a = manyBuildings(32), b = manyBuildings(2);
