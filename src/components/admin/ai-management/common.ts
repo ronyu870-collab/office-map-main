@@ -1,0 +1,6 @@
+import type { ManagementInput } from '@/src/lib/intelligence/control/managementView';
+export type ControlAction=(input:ManagementInput)=>Promise<unknown>;
+export const time=(value:string|null|undefined)=>value?new Date(value).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false}):'未验证';
+export const number=(value:number|null|undefined)=>value==null?'未知':value.toLocaleString('zh-CN',{maximumFractionDigits:6});
+export const usd=(value:number|null|undefined)=>value==null?'未知':`$${value.toFixed(6)}`;
+export const labels:Record<string,string>={budget:'预算',configuration:'配置',security:'安全拒绝',provider:'供应商',tool:'工具',data:'数据或交付',agent:'执行编排',social:'问候与说明',query:'业务查询',artifact:'图表或文件',analysis:'综合分析',research:'深度研究',semantic_intent:'语义解析',synthesis:'结果总结',newest:'最新优先',oldest:'最早优先',quick:'Quick',professional:'Professional',deep:'Deep',completed:'完成',partial:'部分完成',incomplete:'未完成',clarification:'待澄清',denied:'安全拒绝',cancelled:'已取消',failed:'失败',running:'执行中',received:'已接收',unknown:'未知',unverified:'未验证',verified:'协议已验证',environment_legacy:'继承现有部署',direct_response:'直接响应',deterministic_query:'确定性执行',single_interpretation:'一次语义解析',bounded_agent:'有界 Agent',deep_research:'深度研究',new:'新告警',acknowledged:'已确认',ongoing:'持续异常',recovered:'已恢复',closed:'已关闭',silenced:'维护静默'};

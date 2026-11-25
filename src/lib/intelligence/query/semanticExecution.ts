@@ -1,3 +1,4 @@
+import { bindRuntimeControl } from '../control/runtimeControl';
 import { ModelProviderError } from '../agent/modelProvider';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuditPort } from './admission';
@@ -90,7 +91,7 @@ export async function prepareSemanticExecution(input: Input) {
         let inferred: Awaited<ReturnType<typeof understandWithModel>> | undefined;
         try {
           const modelInvoke = input.modelInvoke ?? (await import('../agent/modelRuntime')).createModelRuntime({
-            actorId: identity.actorId, question, mode: 'professional',
+            actorId: identity.actorId, question, mode: 'professional', control: await bindRuntimeControl(client, identity, signal, requestId),
             revalidate: async currentSignal => {
               const current = await loadDataAuthority(client, identity, currentSignal);
               if (current.permissionRevision !== authority.permissionRevision || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');

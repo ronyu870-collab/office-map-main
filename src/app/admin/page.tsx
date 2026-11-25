@@ -17,6 +17,7 @@ function AdminSectionLoading() {
   return <div className="flex min-h-0 flex-1 items-center justify-center px-6"><LoadingState label="正在加载管理栏目" rows={0} /></div>;
 }
 
+const AiManagementWorkspace = dynamic(() => import("@/src/components/admin/ai-management/AiManagementWorkspace").then(module => module.AiManagementWorkspace), { loading: AdminSectionLoading });
 const DatabaseManager = dynamic(() => import("@/src/components/admin/DatabaseManagerEntry").then(module => module.DatabaseManagerEntry), { loading: AdminSectionLoading });
 const UserManager = dynamic(() => import("@/src/components/admin/UserManager").then(module => module.UserManager), { loading: AdminSectionLoading });
 const SubmissionManager = dynamic(() => import("@/src/components/admin/SubmissionManager").then(module => module.SubmissionManager), { loading: AdminSectionLoading });
@@ -59,6 +60,7 @@ function AdminPageContent() {
           <IconButton label="打开管理导航" className="min-h-11 min-w-11" variant="ghost" size="sm" onClick={() => setMobileNavOpen(true)}><Menu size={16} /></IconButton>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden">
+          {activeSection === 'ai-management' && <AiManagementWorkspace />}
           {activeSection === 'database' && <DatabaseManager />}
           {activeSection === 'users' && <UserManager />}
           {activeSection === 'submissions' && <SubmissionManager />}

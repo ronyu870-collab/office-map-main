@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 export type AdminSection =
+  | 'ai-management'
   | 'database'
   | 'users'
   | 'submissions'
@@ -48,6 +49,7 @@ type NavGroup = {
 };
 
 export const ADMIN_SECTION_META: Record<AdminSection, { title: string; group: string }> = {
+  'ai-management': {title:'AI 管理',group:'系统'},
   users: { title: '用户管理', group: '用户' },
   impersonate: { title: '用户模拟', group: '用户' },
   database: { title: '数据库管理', group: '数据' },
@@ -89,6 +91,7 @@ const GROUPS: NavGroup[] = [
   {
     label: '系统',
     items: [
+      { key:'ai-management',label:'AI 管理',icon:<MonitorCog size={15}/> },
       { key: 'notice', label: '系统公告', icon: <Bell size={15} /> },
       { key: 'memo', label: '备忘录', icon: <StickyNote size={15} /> },
       { key: 'issues', label: '需求反馈', icon: <MessageSquareWarning size={15} /> },
