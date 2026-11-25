@@ -102,6 +102,7 @@ export function HomeQueryMenu(props: Props) {
     // Compare positions captured at open, so that old event cannot dismiss the
     // new menu; only a subsequent movement of its own anchor path does.
     const scrollPositions = new Map<Element, { top: number; left: number }>();
+    const scrollAnchor = button.getBoundingClientRect();
     for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
       scrollPositions.set(ancestor, { top: ancestor.scrollTop, left: ancestor.scrollLeft });
     }
@@ -109,7 +110,13 @@ export function HomeQueryMenu(props: Props) {
       const target = event.target === document ? document.scrollingElement : event.target;
       if (!(target instanceof Element)) return;
       const previous = scrollPositions.get(target);
-      if (previous && (Math.abs(previous.top - target.scrollTop) > .5 || Math.abs(previous.left - target.scrollLeft) > .5)) close();
+      if (previous && (Math.abs(previous.top - target.scrollTop) > .5 || Math.abs(previous.left - target.scrollLeft) > .5)) {
+        const anchor = button.getBoundingClientRect();
+        // Nested restoration/scroll anchoring can compensate offsets without
+        // moving the trigger. Dismiss only when its visible position changes.
+        if (Math.abs(anchor.top - scrollAnchor.top) > .5 || Math.abs(anchor.left - scrollAnchor.left) > .5) close();
+        else scrollPositions.set(target, { top: target.scrollTop, left: target.scrollLeft });
+      }
     };
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
     observer?.observe(node); observer?.observe(button); if (workspace) observer?.observe(workspace);
