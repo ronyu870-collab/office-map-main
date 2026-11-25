@@ -288,6 +288,7 @@ export async function checkAllQueryMenus(session, helpers) {
   await history.getByRole('button', { name: '关闭历史', exact: true }).click();
   await expanded(page, false);
   await more.click(); await assertMenu(page, more, 'compact menu');
+  const openedAnchor = menuRecords.at(-1).trigger;
   // Nested scroll restoration can change offsets while leaving the visible
   // anchor in exactly the same place. It must not dismiss a usable menu.
   const compensated = await more.evaluate(node => {
@@ -304,15 +305,27 @@ export async function checkAllQueryMenus(session, helpers) {
     const before = node.getBoundingClientRect();
     inner.scrollTop += delta; outer.scrollTop -= delta;
     const after = node.getBoundingClientRect();
-    return { available: true, x: before.x, y: before.y, deltaX: after.x - before.x, deltaY: after.y - before.y };
+    return { available: true, deltaX: after.x - before.x, deltaY: after.y - before.y };
   });
   assert.ok(compensated.available && Math.abs(compensated.deltaX) < .5 && Math.abs(compensated.deltaY) < .5,
     `compact scroll compensation: ${JSON.stringify(compensated)}`);
-  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-  const settled = await more.evaluate(node => { const box = node.getBoundingClientRect(); return { x: box.x, y: box.y }; });
+  const settled = await more.evaluate(node => new Promise((resolve, reject) => {
+    const start = performance.now(); let changed = start, last;
+    const sample = now => {
+      const box = node.getBoundingClientRect(), next = { x: box.x, y: box.y };
+      if (!last || Math.abs(next.x - last.x) > .1 || Math.abs(next.y - last.y) > .1) changed = now;
+      last = next;
+      if (now - changed >= 100) resolve(next);
+      else if (now - start > 2000) reject(new Error('compact anchor did not settle'));
+      else requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
   // Native scroll anchoring may subsequently move the trigger (observed at
-  // 320px). Test the settled visible position, not only the synchronous offsets.
-  if (Math.abs(settled.x - compensated.x) < .5 && Math.abs(settled.y - compensated.y) < .5) {
+  // 1536px and 320px). Compare with the opening geometry: it may already have moved
+  // between the initial assertion and the synthetic compensation.
+  console.log(`menus: compensation ${JSON.stringify({ openedAnchor, settled, compensated })}`);
+  if (Math.abs(settled.x - openedAnchor.left) < .5 && Math.abs(settled.y - openedAnchor.top) < .5) {
     await assertMenu(page, more, 'compact menu after stable scroll compensation');
   } else {
     await page.waitForFunction(node => node.getAttribute('aria-expanded') === 'false', await more.elementHandle());
