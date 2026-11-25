@@ -76,6 +76,7 @@ export function HomeQueryMenu(props: Props) {
       node.style.left = `${Math.max(left, Math.min(anchor.right - actual.width, right - actual.width))}px`;
       node.style.top = `${upwards ? anchor.top - 4 - actual.height : anchor.bottom + 4}px`;
       node.dataset.placement = upwards ? 'above' : 'below';
+      for (const ancestor of scrollPositions.keys()) scrollPositions.set(ancestor, snapshotScroll(ancestor));
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(measure); };
     const outside = (event: PointerEvent) => { if (event.target instanceof Node && !owner.contains(event.target)) close(false); };
@@ -103,9 +104,11 @@ export function HomeQueryMenu(props: Props) {
     // Focus/scrollIntoView can queue a scroll event before the opening click.
     // Compare positions captured at open, so that old event cannot dismiss the
     // new menu; only a subsequent movement of its own anchor path does.
-    const scrollPositions = new Map<Element, { top: number; left: number }>();
+    const snapshotScroll = (element: Element) => ({ top: element.scrollTop, left: element.scrollLeft,
+      height: element.scrollHeight, width: element.scrollWidth, clientHeight: element.clientHeight, clientWidth: element.clientWidth });
+    const scrollPositions = new Map<Element, ReturnType<typeof snapshotScroll>>();
     for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
-      scrollPositions.set(ancestor, { top: ancestor.scrollTop, left: ancestor.scrollLeft });
+      scrollPositions.set(ancestor, snapshotScroll(ancestor));
     }
     const scroll = (event: Event) => {
       const target = event.target === document ? document.scrollingElement : event.target;
@@ -113,10 +116,21 @@ export function HomeQueryMenu(props: Props) {
       const previous = scrollPositions.get(target);
       if (previous && (Math.abs(previous.top - target.scrollTop) > .5 || Math.abs(previous.left - target.scrollLeft) > .5)) {
         const anchor = button.getBoundingClientRect();
+        // Content removal/viewport layout can clamp scrollTop without reader
+        // input. Reposition against the new layout before resuming dismissal.
+        const layoutChanged = Array.from(scrollPositions).some(([element, before]) =>
+          element.scrollHeight !== before.height || element.scrollWidth !== before.width
+          || element.clientHeight !== before.clientHeight || element.clientWidth !== before.clientWidth);
+        if (layoutChanged) {
+          scrollAnchor = anchor;
+          for (const ancestor of scrollPositions.keys()) scrollPositions.set(ancestor, snapshotScroll(ancestor));
+          measure();
+          return;
+        }
         // Nested restoration/scroll anchoring can compensate offsets without
         // moving the trigger. Dismiss only when its visible position changes.
         if (Math.abs(anchor.top - scrollAnchor.top) > .5 || Math.abs(anchor.left - scrollAnchor.left) > .5) close();
-        else scrollPositions.set(target, { top: target.scrollTop, left: target.scrollLeft });
+        else scrollPositions.set(target, snapshotScroll(target));
       }
     };
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);

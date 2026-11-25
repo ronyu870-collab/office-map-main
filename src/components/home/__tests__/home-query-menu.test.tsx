@@ -90,6 +90,23 @@ it('uses the latest measured anchor after a resize before checking compensated s
   }
 });
 
+it('repositions through content shrink scroll clamping, then dismisses an actual reader scroll', () => {
+  const view = render(<div data-testid="scroll"><HomeQueryMenu label="内容更新"><button>复制</button></HomeQueryMenu></div>);
+  const scroller = view.getByTestId('scroll'), trigger = screen.getByRole('button', { name: '内容更新' });
+  let height = 900, top = 100;
+  Object.defineProperties(scroller, { scrollHeight: { get: () => height }, clientHeight: { get: () => 300 } });
+  vi.spyOn(trigger, 'getBoundingClientRect').mockImplementation(() => ({ top, left: 200 }) as DOMRect);
+  scroller.scrollTop = 600;
+  fireEvent.click(trigger);
+  // Removing transient content clamps a scroller near its end. This is a
+  // layout update, so keep the menu aligned instead of interpreting it as input.
+  height = 852; top = 98; scroller.scrollTop = 552; fireEvent.scroll(scroller);
+  expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  // The next movement with unchanged layout still dismisses normally.
+  top = 118; scroller.scrollTop = 532; fireEvent.scroll(scroller);
+  expect(trigger).toHaveAttribute('aria-expanded', 'false');
+});
+
 it('opens a command menu from ArrowUp at the last command and navigates without leaving it', () => {
   render(<HomeQueryMenu label="历史操作" commandMenu><button>重命名</button><button disabled>不可用</button><button>归档</button></HomeQueryMenu>);
   const trigger = screen.getByRole('button', { name: '历史操作' }); trigger.focus();
