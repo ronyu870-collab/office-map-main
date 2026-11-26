@@ -67,6 +67,7 @@ import { Projects } from "./workspace/Projects";
 import { PanelSeparator } from "./workspace/PanelSeparator";
 import { SlideNavigator } from "./workspace/SlideNavigator";
 import { Presentation } from "./workspace/Presentation";
+import { ProposalPreview, type ProposalProjectInput } from "./workspace/ProposalPreview";
 import { canMoveObject } from "@/src/lib/pitch/workspace/object-layout";
 const ObjectCanvas = dynamic(() => import("./workspace/ObjectCanvas").then(module => module.ObjectCanvas), {
   loading: () => <p role="status">正在打开对象编辑…</p>,
@@ -182,6 +183,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [context, setContext] = React.useState(projectContextSchema.parse({})),
     [scopeIndex, setScopeIndex] = React.useState(0),
     [brief, setBrief] = React.useState(""),
+    [homeProposal, setHomeProposal] = React.useState(""),
+    [homeGenerating, setHomeGenerating] = React.useState(false),
     [assistSeed, setAssistSeed] = React.useState(""),
     [createFromBrief, setCreateFromBrief] = React.useState(false),
     [buildingSearch, setBuildingSearch] = React.useState(false);
@@ -706,6 +709,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     catalog?.scopes.filter(
       (s) => s.canGenerate && s.region && s.city && s.businessLine,
     ) ?? [];
+  const homeGrant = grants.length === 1 ? grants[0] : undefined;
   const slidesForDisplay = draft?.pages.map((p) => {
     const sourceId = p.duplicateOf ?? p.id;
     const source = detail?.slides.find((slide) => slide.id === sourceId);
@@ -722,10 +726,40 @@ function Studio({ session }: { session: AuthSessionResult }) {
     if (!request || !canGenerate) return;
     setChosen(null);
     setBrief(request);
+    if (homeGrant) setHomeProposal(request);
+    else openBriefProjectSettings(request);
+  }
+  function openBriefProjectSettings(request: string) {
+    setHomeProposal("");
     setCreateFromBrief(true);
     setName(request.replace(/[。！？!?]+$/u, "").slice(0, 160));
     setContext(projectContextSchema.parse({}));
     setCreateOpen(true);
+  }
+  async function createHomeProposalProject(input: ProposalProjectInput) {
+    if (!homeGrant?.region || !homeGrant.city || !homeGrant.businessLine)
+      throw new Error("业务范围已变化，请打开项目设置。");
+    if (current.current.dirty) await flush();
+    const scope = { organizationId: homeGrant.organizationId, region: homeGrant.region,
+      city: homeGrant.city, businessLine: homeGrant.businessLine };
+    let source: WorkspaceDetail;
+    try {
+      source = workspaceDetailSchema.parse(await call({
+        action: "create", projectId: input.id, title: input.title, scope,
+        themeId: "colliers-default-v1", themeVersion: 2,
+        context: projectContextSchema.parse({ language: input.language, buildingIds: input.buildingIds, period: input.period }),
+      }, true));
+    } catch (cause) {
+      // A lost create response can be recovered from the same private workspace ID.
+      try {
+        source = workspaceDetailSchema.parse(await call({ action: "get", projectId: input.id }, true));
+      } catch {
+        throw cause;
+      }
+    }
+    if (source.project.id !== input.id || source.slides.length)
+      throw new Error("提案项目已变化，请重新核对。");
+    return { id: source.project.id, version: source.project.version };
   }
   function openInspector(tab: Inspector) {
     setChosen(null);
@@ -1962,6 +1996,23 @@ function Studio({ session }: { session: AuthSessionResult }) {
         grants={grants.flatMap(scope => scope.region && scope.city && scope.businessLine
           ? [{ ...scope, region: scope.region, city: scope.city, businessLine: scope.businessLine }] : [])}
         onOpen={open} onClose={() => setHandoff(null)} />}
+      {homeProposal && homeGrant && <Dialog open dismissible={!homeGenerating} title="核对提案" size="md"
+        onOpenChange={(value) => { if (!value) setHomeProposal(""); }}
+        footer={<Button variant="ghost" disabled={homeGenerating} onClick={() => openBriefProjectSettings(homeProposal)}>
+          打开项目设置
+        </Button>}>
+        <div className={`${styles.studio} ${styles.form}`}>
+          <p>{homeProposal}</p>
+          <ProposalPreview call={call} city={homeGrant.city ?? undefined}
+            question={homeProposal} language="zh" period="" buildingIds={[]}
+            initialQuestion={homeProposal} disabled={busy} createProject={createHomeProposalProject}
+            onGenerating={setHomeGenerating} onGenerated={async (id) => {
+              await open(id);
+              setHomeProposal("");
+              setBrief("");
+            }} />
+        </div>
+      </Dialog>}
       <Dialog
         open={createOpen}
         onOpenChange={(value) => {

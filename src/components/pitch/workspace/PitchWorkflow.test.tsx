@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { readPitchHandoff } from "../PitchHandoffLink";
 import { HandoffReview } from "./HandoffReview";
 import { ProposalPreview } from "./ProposalPreview";
-import type { Call } from "./client";
+import { WorkspaceError, type Call } from "./client";
 
 afterEach(cleanup);
 
@@ -79,4 +79,35 @@ it("preserves source selection through review and confirms one versioned handoff
     target: { mode: "create", title: "已选楼宇对比", projectId: expect.any(String), scope,
       themeId: "colliers-default-v1", themeVersion: 2 } });
   expect(onOpen).toHaveBeenCalledWith((command.target as { projectId: string }).projectId);
+});
+
+it("rechecks the same home project version when confirming a newly reviewed plan", async () => {
+  const user = userEvent.setup();
+  let version = 1;
+  const createProject = vi.fn(async ({ id }: { id: string }) => ({ id, version }));
+  const onGenerated = vi.fn(async () => {});
+  const call = vi.fn(async (entry: Record<string, unknown>) => {
+    if (entry.action === "proposal_plan") {
+      return { status: "ready", selection: "explicit",
+        plan: { id, title: "楼宇推介", version: 1, contextFingerprint: fingerprint,
+          slides: [{ id: newId, title: "楼宇概况" }], gaps: [] },
+        brief: { city: "北京", submarkets: [], period: "2026-Q3", buildingIds: [buildingId] } };
+    }
+    const confirmation = entry.confirmation as { taskId: string; expectedVersion: number };
+    if (confirmation.expectedVersion === 1) {
+      version = 2;
+      throw new WorkspaceError("项目版本已变化。", 409);
+    }
+    return { taskId: confirmation.taskId, projectId: newId, state: "completed" };
+  }) as unknown as Call;
+  render(<ProposalPreview call={call} question="为五矿广场制作项目推介" language="zh" period=""
+    buildingIds={[]} createProject={createProject} disabled={false} onGenerated={onGenerated} />);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await user.click(screen.getByRole("button", { name: "规划正式提案" }));
+    await user.click(await screen.findByRole("button", { name: "确认并生成 Pitch" }));
+    if (attempt === 0) await screen.findByText("项目或资料已更新，请重新规划正式提案。");
+  }
+  await waitFor(() => expect(onGenerated).toHaveBeenCalledWith(newId));
+  expect(createProject).toHaveBeenCalledTimes(2);
+  expect(createProject.mock.calls[1][0].id).toBe(createProject.mock.calls[0][0].id);
 });

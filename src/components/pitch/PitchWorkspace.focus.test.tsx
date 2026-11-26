@@ -159,7 +159,11 @@ let detail: ReturnType<typeof initial>,
   failCompletedRead = false,
   completedTask = false,
   rejectSave = false,
-  expandedCatalog = false;
+  expandedCatalog = false,
+  readyProposal = false,
+  dropProposalCreateResponse = false,
+  proposalSource: { id: string; detail: unknown } | undefined;
+const proposalId = "66666666-6666-4666-8666-666666666666";
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 beforeEach(() => {
   state.role = "editor";
@@ -169,6 +173,9 @@ beforeEach(() => {
   failTaskPoll = false;
   failCompletedRead = false;
   completedTask = false;
+  readyProposal = false;
+  dropProposalCreateResponse = false;
+  proposalSource = undefined;
   detail = clone(initial());
   writes = [];
   revisions = new Map();
@@ -204,11 +211,25 @@ beforeEach(() => {
       else if (c.action === "get") {
         if (failCompletedRead && writes.some((c) => c.action === "status"))
           throw new Error("新页面暂时读取失败");
-        body = detail;
+        body = proposalSource && c.projectId === proposalSource.id ? proposalSource.detail
+          : c.projectId === proposalId ? { ...detail, project: { ...detail.project, id: proposalId, title: "CBD 选址方案" } }
+            : detail;
       } else if (c.action === "create") {
-        body = {...detail, project: {...detail.project, id: c.projectId, title: c.title, theme_id: c.themeId, theme_version: c.themeVersion}, workspace: {...detail.workspace, context: c.context, active_slide: null}, slides: [], tasks: []};
+        const created = {...detail, project: {...detail.project, id: c.projectId, title: c.title, theme_id: c.themeId, theme_version: c.themeVersion}, workspace: {...detail.workspace, context: c.context, active_slide: null}, slides: [], tasks: []};
+        body = created;
+        if (readyProposal) {
+          proposalSource = { id: c.projectId, detail: created };
+          if (dropProposalCreateResponse) throw new Error("建项响应中断");
+        }
       } else if (c.action === "proposal_plan") {
-        body = { status: "clarification", message: "请确认选址范围。" };
+        body = readyProposal ? {
+          status: "ready", selection: "scoped-sample",
+          plan: { id: sourceId, version: 1, title: "CBD 选址方案", contextFingerprint: "a".repeat(64),
+            slides: [{ id: pageId, title: "楼宇参数对比" }], gaps: [] },
+          brief: { city: "北京", submarkets: ["CBD"], period: "2026-Q3", language: "zh", buildingIds: [assetId] },
+        } : { status: "clarification", message: "请确认选址范围。" };
+      } else if (c.action === "proposal_generate") {
+        body = { state: "completed", taskId: c.confirmation.taskId, projectId: proposalId };
       } else if (c.action === "status") {
         if (failTaskPoll) throw new Error("生成进度网络中断");
         body = {
@@ -313,13 +334,16 @@ async function enter() {
   return user;
 }
 describe("Pitch workspace continuous editing", () => {
-  it("takes a workbench brief to the real project assistant only after project creation", async () => {
+  it("plans a workbench brief before writes and opens the project assistant when settings are needed", async () => {
     const user = userEvent.setup();
     render(<PitchWorkspace />);
     const brief = await screen.findByLabelText("你想制作什么？");
     await user.type(brief, "为科技企业制作选址提案");
     await user.click(screen.getByRole("button", { name: "进入提案助手" }));
+    await screen.findByText("请确认选址范围。");
+    expect(writes.find(entry => entry.action === "proposal_plan")?.input).not.toHaveProperty("projectId");
     expect(writes.some((entry) => entry.action === "create" || entry.action === "prepare")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "打开项目设置" }));
     const projectTitle = screen.getByLabelText("Pitch 名称");
     expect(projectTitle).toHaveValue("为科技企业制作选址提案");
     await user.clear(projectTitle);
@@ -329,8 +353,48 @@ describe("Pitch workspace continuous editing", () => {
     expect(question).toHaveValue("为科技企业制作选址提案");
     await screen.findByText("请确认选址范围。");
     expect(writes.filter((entry) => entry.action === "create")).toHaveLength(1);
-    expect(writes.filter((entry) => entry.action === "proposal_plan")).toHaveLength(1);
+    expect(writes.filter((entry) => entry.action === "proposal_plan")).toHaveLength(2);
     expect(writes.some((entry) => entry.action === "proposal_generate")).toBe(false);
+  }, 60000);
+  it("routes each flagship entry through a business plan review without creating a project", async () => {
+    const user = userEvent.setup();
+    render(<PitchWorkspace />);
+    const scenarios = [
+      ["招商代理", "为霄云路33号制作招商代理提案。"],
+      ["办公选址对比", "制作CBD五个甲级写字楼的选址对比。"],
+      ["季度市场报告", "用最新正式季度制作北京写字楼市场报告。"],
+      ["单楼项目推介", "为五矿广场制作项目推介。"],
+    ];
+    for (const [label, question] of scenarios) {
+      await user.click(await screen.findByRole("button", { name: label }));
+      await screen.findByText("请确认选址范围。");
+      expect(writes.at(-1)).toMatchObject({ action: "proposal_plan", input: { question, audience: "internal" } });
+      await user.click(screen.getByRole("button", { name: "关闭" }));
+    }
+    expect(writes.map(entry => entry.action)).toEqual(scenarios.map(() => "proposal_plan"));
+  });
+  it("creates the reviewed home proposal only after confirmation and recovers the same project after a lost create response", async () => {
+    readyProposal = true;
+    dropProposalCreateResponse = true;
+    const user = userEvent.setup();
+    render(<PitchWorkspace />);
+    await user.click(await screen.findByRole("button", { name: "办公选址对比" }));
+    await screen.findByText("楼宇参数对比");
+    expect(writes.filter(entry => entry.action === "create" || entry.action === "proposal_generate")).toHaveLength(0);
+    const plan = writes.find(entry => entry.action === "proposal_plan")!;
+    expect(plan.input).toEqual(expect.objectContaining({
+      question: "制作CBD五个甲级写字楼的选址对比。", audience: "internal",
+    }));
+    await user.click(screen.getByRole("button", { name: "确认并生成 Pitch" }));
+    await screen.findByLabelText("页面标题");
+    const creates = writes.filter(entry => entry.action === "create");
+    expect(creates).toHaveLength(1);
+    expect(creates[0].context).toMatchObject({ buildingIds: [assetId], period: "2026-Q3" });
+    expect(writes.find(entry => entry.action === "proposal_generate")?.confirmation).toEqual(expect.objectContaining({
+      projectId: creates[0].projectId, expectedVersion: 1, contextFingerprint: "a".repeat(64),
+      request: { ...(plan.input as object), projectId: creates[0].projectId },
+    }));
+    expect(writes.find(entry => entry.action === "get" && entry.projectId === proposalId)).toBeDefined();
   }, 60000);
   it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
     expandedCatalog = true;

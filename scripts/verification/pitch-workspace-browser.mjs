@@ -305,6 +305,8 @@ export async function verifyPitchOutlineBrowser({ app, who, buildingName, period
       await page.goto(app + "/intelligence/pitch");
       await page.getByLabel("你想制作什么？").fill("制作隔离办公选址提案，包含市场研究与一栋办公楼的正式季度数据。");
       await byButton("进入提案助手").click();
+      await page.getByRole("dialog").first().waitFor();
+      if (await byButton("打开项目设置").isVisible()) await byButton("打开项目设置").click();
       await page.getByLabel("Pitch 名称").fill(name);
       await page.getByText("更多项目设置（可选）", { exact: true }).click();
       await page.getByLabel("搜索楼宇").fill(buildingName);
