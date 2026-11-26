@@ -347,7 +347,8 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .map-workspace-layout:not([data-compact]):not([data-expanded]) > .map-workspace-right:has([data-workspace-kind="building"]:not([hidden])) { background: transparent; border-left: 0; pointer-events: none; }
 .map-workspace-layout:not([data-compact]):not([data-expanded]) .workspace-building { height: fit-content; max-height: 100%; min-height: 0; flex: 0 1 auto; border-left: 1px solid var(--cd-color-border); border-bottom: 1px solid var(--cd-color-border); pointer-events: auto; }
 .map-workspace-layout:not([data-compact]):not([data-expanded]) > .map-workspace-right:has([data-workspace-kind="building"]:not([hidden])) .map-workspace-resize { bottom: auto; height: 72px; max-height: 100%; pointer-events: auto; }
-.workspace-building-scroll { padding: 12px 16px; }
+/* Keep scroll-to-control targets below the sticky tabs, including touch sizing. */
+.workspace-building-scroll { padding: 12px 16px; scroll-padding-top: 60px; }
 .workspace-building-photos { margin: 16px 0 0; }
 .workspace-building-photos .building-pilot-photo-trigger { min-height: 36px; padding: 6px 10px; border: 1px solid var(--cd-color-border); border-radius: 6px; background: var(--cd-color-surface-alt); font-weight: 400; }
 .workspace-building-photos .building-pilot-photo-trigger span { gap: 6px; padding: 0; border: 0; font: inherit; }

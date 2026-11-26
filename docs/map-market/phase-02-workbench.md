@@ -1,6 +1,6 @@
 # 地图 Phase 02：紧凑工作台与实心子市场气泡
 
-本阶段从 main `2a64b568` 开始，交付前同步 main `fa9d6bb9`，整合尚未合并的 [Phase 01 PR #319](https://github.com/ronyu870-collab/office-map-main/pull/319) 数据契约。独立分支 `codex/map-vnext-02-workbench-design`；不合入 main，不执行生产数据写入或发布。
+本阶段从 main `2a64b568` 开始，交付前同步 main `585ddbaa`，整合已合并的 [Phase 01 PR #319](https://github.com/ronyu870-collab/office-map-main/pull/319) 数据契约。独立分支 `codex/map-vnext-02-workbench-design`；合入 main 按当前用户授权执行，不执行生产数据写入。
 
 ## 呈现与交互
 
