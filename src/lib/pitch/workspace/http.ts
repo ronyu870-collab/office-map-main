@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
+import { runAiBatch } from "../ai/workflow";
 import {
   authorizePitch,
   pitchRpc,
@@ -19,6 +20,7 @@ import {
   restoreWorkspace,
   restoreWorkspacePage,
   reviewOutlineData,
+  startCanvasText,
   previewCanvasRevision,
   applyCanvasRevision,
   startWorkspaceTask,
@@ -85,6 +87,12 @@ export async function handleWorkspaceRequest(
     }
     const c = workspaceCommandSchema.parse(raw);
     if (c.action === "get") return reply(await getWorkspace(ctx, c.projectId));
+    if (c.action === "start_canvas_text") {
+      if (!schedule) throw new Error("PITCH_WORKER_UNAVAILABLE");
+      const receipt = await startCanvasText(ctx, c);
+      schedule(() => runAiBatch({ ...ctx, signal: AbortSignal.timeout(30000) }, c.batchId));
+      return reply(receipt, 202);
+    }
     if (c.action === "preview_canvas_revision") return reply(await previewCanvasRevision(ctx, c));
     if (c.action === "apply_canvas_revision") return reply(await applyCanvasRevision(ctx, c));
     if (c.action === "review_outline_data") return reply(await reviewOutlineData(ctx, c));
@@ -135,6 +143,8 @@ export async function handleWorkspaceRequest(
         { error: "素材已撤回、过期或当前权限不足，请重新选择内容。" },
         403,
       );
+    if (code === "PITCH_CANVAS_REVISION_PERMISSION")
+      return reply({ code, error: "本素材没有仍有效的完整文字处理授权，未启动模型。" }, 403);
     if (code === "PITCH_CANVAS_REVISION_UNAVAILABLE")
       return reply({ code, error: "当前页不是原素材的未编辑单页，或无法完整预览。可以保留为私有素材草稿。" }, 422);
     if (code === "PITCH_AI_PREVIEW_REQUIRED")

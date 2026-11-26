@@ -107,6 +107,7 @@ export const taskRequestSchema = z.strictObject({
   version: z.number().int().positive(),
   language: z.enum(["zh", "en"]),
   length: z.enum(["brief", "detailed"]).default("brief"),
+  canvasOnly: z.literal(true).optional(),
 });
 export type TaskRequest = z.infer<typeof taskRequestSchema>;
 export const understandingSchema = z.strictObject({

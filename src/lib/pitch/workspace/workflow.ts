@@ -1,4 +1,4 @@
-import { getReviewedCanvasText, hash } from "../ai/workflow";
+import { getReviewedCanvasText, hash, startAiBatch } from "../ai/workflow";
 import { stableId } from "../library/extract";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -278,16 +278,47 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
   });
   return getWorkspace(ctx, command.projectId);
 }
+function editableCanvasPage(current: WorkspaceDetail, slideId: string) {
+  const page = current.slides.find(candidate => candidate.id === slideId);
+  const setting = current.workspace.page_settings[slideId] ?? {};
+  if (!page || page.content.disclosure !== "internal" || setting.manual || setting.origin === "data" || setting.example ||
+    page.scene.elements.some(element => element.editorId) || (page.scene.pagination?.count ?? 1) > 1)
+    throw new Error("PITCH_CANVAS_REVISION_UNAVAILABLE");
+  return { page, setting };
+}
+export async function startCanvasText(ctx: PitchContext, command: Extract<WorkspaceCommand, { action: "start_canvas_text" }>) {
+  const current = await getWorkspace(ctx, command.projectId);
+  checkVersion(current, command.expectedVersion);
+  const { page } = editableCanvasPage(current, command.slideId);
+  const source = z.object({
+    asset: z.object({ organization_id: z.string(), region: z.string(), city: z.string(), business_line: z.string(),
+      allow_external_ai: z.boolean(), allow_client_export: z.boolean() }),
+    version: z.object({ version: z.number(), content: slideContentSchema }),
+  }).parse(await pitchRpc(ctx, { action: "get_asset", assetId: page.asset_id }));
+  const project = current.project;
+  if (page.asset_version !== source.version.version || hash(page.content) !== hash(source.version.content) ||
+    source.asset.organization_id !== project.organization_id || source.asset.region !== project.region ||
+    source.asset.city !== project.city || source.asset.business_line !== project.business_line ||
+    source.asset.allow_client_export || !source.asset.allow_external_ai)
+    throw new Error("PITCH_CANVAS_REVISION_UNAVAILABLE");
+  const policies = z.array(z.object({ asset_version: z.number(), mode: z.string(), expires_at: z.string() }))
+    .parse(await pitchRpc(ctx, { action: "ai_policies", assetId: page.asset_id }));
+  if (!policies.some(policy => policy.asset_version === page.asset_version && policy.mode === "approved_provider" &&
+      Date.parse(policy.expires_at) > Date.now())) throw new Error("PITCH_CANVAS_REVISION_PERMISSION");
+  await startAiBatch(ctx, { action: "start", batchId: command.batchId, tasks: [{
+    assetId: page.asset_id, version: page.asset_version, task: "revise-text", canvasOnly: true,
+    language: page.content.locale.startsWith("en") ? "en" : "zh", length: "brief",
+  }] });
+  return { batchId: command.batchId, tasks: await pitchRpc(ctx, { action: "ai_status", batchId: command.batchId }) };
+}
 type CanvasRevision = Extract<WorkspaceCommand, { action: "preview_canvas_revision" | "apply_canvas_revision" }>;
 async function buildCanvasRevision(ctx: PitchContext, c: CanvasRevision) {
   const current = await getWorkspace(ctx, c.projectId);
   checkVersion(current, c.expectedVersion);
-  const page = current.slides.find(candidate => candidate.id === c.slideId);
-  const setting = current.workspace.page_settings[c.slideId] ?? {};
+  const { page, setting } = editableCanvasPage(current, c.slideId);
   const reviewed = await getReviewedCanvasText(ctx, c.taskId, c.revisionFingerprint, c.selectedRefs);
-  if (!page || page.asset_id !== reviewed.assetId || page.asset_version !== reviewed.assetVersion ||
-    page.content.disclosure !== "internal" || reviewed.original.disclosure !== "internal" || setting.manual || setting.origin === "data" || setting.example ||
-    page.scene.elements.some(element => element.editorId) || (page.scene.pagination?.count ?? 1) > 1 ||
+  if (page.asset_id !== reviewed.assetId || page.asset_version !== reviewed.assetVersion ||
+    reviewed.original.disclosure !== "internal" ||
     hash(slideContentSchema.parse(page.content)) !== hash(reviewed.original) ||
     reviewed.scope.organizationId !== current.project.organization_id || reviewed.scope.region !== current.project.region ||
     reviewed.scope.city !== current.project.city || reviewed.scope.businessLine !== current.project.business_line)

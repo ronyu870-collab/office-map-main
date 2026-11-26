@@ -130,6 +130,8 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     action: z.literal("review_outline_data"), projectId: id,
     buildingIds: outlineBuildingIds, period: outlineQuarter, compareQuarters: z.literal(true).optional(),
   }),
+  z.strictObject({ action: z.literal("start_canvas_text"), projectId: id, slideId: id,
+    expectedVersion: z.number().int().positive(), batchId: id }),
   z.strictObject({ action: z.literal("preview_canvas_revision"), ...revisionCanvasOptions }),
   z.strictObject({ action: z.literal("apply_canvas_revision"), ...revisionCanvasOptions, canvasFingerprint: outlineFingerprint }),
   z.strictObject({ action: z.literal("get"), projectId: id }),

@@ -749,7 +749,14 @@ try {
     await render.composeProject(admin, { action: "project_compose", projectId, title: "真实版式修订隔离项目",
       parts: [{ assetId: draftAsset, layoutId: "two-columns", variant: "standard" }], themeId: "colliers-default-v1", themeVersion: 2 });
     const original = await workspace.getWorkspace(admin, projectId), slide = original.slides[0];
-    const bid = await start("revise-text", { assetId: draftAsset, version: 1 });
+    const bid = randomUUID(), startCanvas = { action: "start_canvas_text", projectId,
+      slideId: slide.id, expectedVersion: original.project.version, batchId: bid };
+    const queued = await workspace.startCanvasText(admin, startCanvas);
+    assert.equal(queued.batchId, bid);
+    assert.equal(queued.tasks[0].state, "queued");
+    assert.equal(queued.tasks[0].request.canvasOnly, true);
+    assert.equal(queued.tasks[0].request.assetId, draftAsset);
+    assert.equal((await workspace.startCanvasText(admin, startCanvas)).tasks[0].id, queued.tasks[0].id);
     const [task] = await run(bid, async (...args) => {
       const output = await mock(...args), result = JSON.parse(output.message.content);
       result.revisions = [{ ref: "title", text: "经审阅的新标题" },
@@ -780,6 +787,11 @@ try {
     assert.deepEqual(restored.slides[0].content, slide.content);
     await db.rpc(ADMIN, { ...rule, expectedRevision: 1, mode: "deterministic_only", provider: null, model: null });
     await assert.rejects(workspace.previewCanvasRevision(admin, { ...input, expectedVersion: restored.project.version, action: "preview_canvas_revision" }), /PITCH_DENIED/);
+    await assert.rejects(workspace.startCanvasText(admin, { ...startCanvas,
+      expectedVersion: restored.project.version, batchId: randomUUID() }), /PITCH_CANVAS_REVISION_PERMISSION/);
+    const beforeUnapproved = calls;
+    assert.equal((await run(await start("revise-text", { canvasOnly: true })))[0].error_code, "authorization_denied");
+    assert.equal(calls, beforeUnapproved);
     await db.setup.query("update private.pitch_grants set can_external_ai=false where user_id=$1", [ADMIN]);
   });
   await check(

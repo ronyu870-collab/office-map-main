@@ -47,6 +47,7 @@ import {
 } from "./workspace/client";
 import { TemplatePicker, type Template } from "./workspace/TemplatePicker";
 import { TemplateParameters, BuildingPicker } from "./workspace/Parameters";
+import { CurrentPageRevision } from "./workspace/CurrentPageRevision";
 import { AssetPicker } from "./workspace/Assets";
 import { PagePreview, usePagePreviews } from "./workspace/Preview";
 import { Projects } from "./workspace/Projects";
@@ -147,6 +148,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [mobile, setMobile] = React.useState("preview"),
     [leftWidth, setLeftWidth] = React.useState(228),
     [leftTab, setLeftTab] = React.useState("pages"),
+    [pageRevisionBatches, setPageRevisionBatches] = React.useState<Record<string, string>>({}),
     [chosen, setChosen] = React.useState<Template | null>(null),
     [regenerating, setRegenerating] = React.useState(false);
   const [selected, setSelected] = React.useState<string[]>([]),
@@ -606,6 +608,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
     canGenerate = catalog?.scopes.some((s) => s.canGenerate) ?? false,
     canManage =
       catalog?.scopes.some((s) => s.canMaintain || s.canAdmin) ?? false;
+  const canvasRevisionTarget = detail && page && active === page.id && page.content.disclosure === "internal" &&
+    !dirty && !saving && !detail.workspace.page_settings[page.id]?.manual &&
+    detail.workspace.page_settings[page.id]?.origin !== "data" && !detail.workspace.page_settings[page.id]?.example &&
+    !page.scene.elements.some(element => element.editorId) && (page.scene.pagination?.count ?? 1) === 1 ? {
+      projectId: detail.project.id, slideId: page.id, expectedVersion: detail.project.version,
+      assetId: page.asset_id, assetVersion: page.asset_version,
+    } : undefined;
   const savedCanvas = savedCanvasHistory?.projectId === detail?.project.id &&
     savedCanvasHistory?.version === detail?.project.version && savedCanvasHistory?.slideId === active
     ? savedCanvasHistory : null;
@@ -1207,14 +1216,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                             scope: { organizationId: detail.project.organization_id, region: detail.project.region,
                               city: detail.project.city, businessLine: detail.project.business_line },
                           } : undefined}
-                      canvasTarget={page && active === page.id && page.content.disclosure === "internal" && !dirty && !saving &&
-                        !detail.workspace.page_settings[page.id]?.manual &&
-                        detail.workspace.page_settings[page.id]?.origin !== "data" &&
-                        !page.scene.elements.some(element => element.editorId) &&
-                        (page.scene.pagination?.count ?? 1) === 1 ? {
-                          projectId: detail.project.id, slideId: page.id, expectedVersion: detail.project.version,
-                          assetId: page.asset_id, assetVersion: page.asset_version,
-                        } : undefined}
+                      canvasTarget={canvasRevisionTarget}
                       onCanvasSaved={result => accept(workspaceDetailSchema.parse(result))}
                       onGenerateOutline={startOutline}
                       onExport={() => setExportTrigger((v) => v + 1)}
@@ -1349,6 +1351,26 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       {page && (
                         <>
                           <h2>当前页面</h2>
+                          {canvasRevisionTarget && catalog.scopes.some(s =>
+                            s.canAdmin && s.organizationId === detail.project.organization_id &&
+                            (s.region === null || s.region === detail.project.region) &&
+                            (s.city === null || s.city === detail.project.city) &&
+                            (s.businessLine === null || s.businessLine === detail.project.business_line)) &&
+                            <CurrentPageRevision key={page.id} call={call}
+                              target={{ projectId: canvasRevisionTarget.projectId, slideId: canvasRevisionTarget.slideId,
+                                expectedVersion: canvasRevisionTarget.expectedVersion }}
+                              batchId={pageRevisionBatches[page.id]}
+                              rememberBatch={id => setPageRevisionBatches(previous => {
+                                const next = { ...previous };
+                                if (id) next[page.id] = id;
+                                else delete next[page.id];
+                                return next;
+                              })}
+                              onCanvasSaved={result => {
+                                accept(workspaceDetailSchema.parse(result));
+                                setMessage("所选文字已应用到当前页，原稿可从历史版本恢复。");
+                              }}
+                              disabled={busy || rendering || conflict} />}
                           <Button
                             variant="ghost"
                             disabled={busy || rendering || conflict}

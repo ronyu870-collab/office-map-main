@@ -88,6 +88,8 @@ export async function runAiBatch(
             config: configSchema,
           })
           .parse(await rpc("ai_model_authorize"));
+        if (task.request.canvasOnly && (task.request.task !== "revise-text" || authorized.mode !== "approved_provider"))
+          throw new Error("PITCH_DENIED");
         config = authorized.config;
         policyRevision = authorized.policyRevision;
         profile = authorized.profile;
@@ -142,7 +144,9 @@ export async function runAiBatch(
         )
           throw new ModelProviderError("not_configured");
         const revalidate = async () => {
-          await rpc("ai_model_authorize");
+          const current = await rpc("ai_model_authorize");
+          if (task.request.canvasOnly && (!current || typeof current !== "object" ||
+            !("mode" in current) || current.mode !== "approved_provider")) throw new Error("PITCH_DENIED");
         };
         const runtime = createModelRuntime({
           actorId: ctx.identity.actorId,

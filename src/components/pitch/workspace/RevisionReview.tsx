@@ -9,9 +9,9 @@ import styles from "./workspace.module.css";
 
 export type RevisionDestination = { scope: PitchScope; categoryId: string };
 export type CanvasRevisionTarget = { projectId: string; slideId: string; expectedVersion: number };
-export function RevisionReview({ call, taskId, destination, disabled, canvasTarget, onCanvasSaved }: {
+export function RevisionReview({ call, taskId, destination, disabled, canvasTarget, onCanvasSaved, canvasOnly }: {
   call: Call; taskId: string; destination?: RevisionDestination; disabled?: boolean;
-  canvasTarget?: CanvasRevisionTarget; onCanvasSaved?: (result: unknown) => void;
+  canvasTarget?: CanvasRevisionTarget; canvasOnly?: boolean; onCanvasSaved?: (result: unknown) => void;
 }) {
   const [preview, setPreview] = React.useState<RevisionPreview | null>(null);
   const [canvas, setCanvas] = React.useState<{ before: string; after: string; canvasFingerprint: string; key: string } | null>(null);
@@ -30,7 +30,7 @@ export function RevisionReview({ call, taskId, destination, disabled, canvasTarg
     setStatus("");
     try {
       const value = await call<RevisionPreview>({ action: "revision_preview", taskId,
-        ...(visual ? { visual: true, ...(selected.length ? { selectedRefs: selected } : {}) } : {}),
+        ...(visual ? { ...(!canvasOnly ? { visual: true } : {}), ...(selected.length ? { selectedRefs: selected } : {}) } : {}),
       }, true, "ai", c.signal);
       if (!c.signal.aborted) {
         setPreview(value);
@@ -124,9 +124,9 @@ export function RevisionReview({ call, taskId, destination, disabled, canvasTarg
     <Dialog open={Boolean(preview)} onOpenChange={open => { if (!open) close(); }} title="文字修订对照"
       footer={<>
         <Button variant="secondary" disabled={busy} onClick={close}>暂不采用</Button>
-        <Button disabled={busy || !destination || !scopeMatches || !selectionMatches || uncertain ||
+        {!canvasOnly && <Button disabled={busy || !destination || !scopeMatches || !selectionMatches || uncertain ||
           (!preview?.changes.length && preview?.beforeLanguage === preview?.afterLanguage)}
-          onClick={() => void save()}>保存为私有草稿</Button>
+          onClick={() => void save()}>保存为私有草稿</Button>}
       </>}>
       {preview && <div className={`${styles.studio} ${styles.form}`}>
         <p>来源 v{preview.sourceVersion} · 资料日期 {preview.dataAsOf}。保存不会覆盖当前页面，也不会发布素材。</p>
@@ -150,7 +150,7 @@ export function RevisionReview({ call, taskId, destination, disabled, canvasTarg
         </section>)}
         {!preview.redacted && <div className={styles.actions}>
           <Button variant="secondary" disabled={busy || (!selected.length && !!preview.changes.length)}
-            onClick={() => void review(true)}>预览所选改动</Button>
+            onClick={() => void review(true)}>{canvasOnly ? "核对所选文字" : "预览所选改动"}</Button>
           {!selectionMatches && <p role="status">选择已变化。请重新预览所选改动后再保存。</p>}
         </div>}
         {selectionMatches && preview.visual === null && !preview.redacted &&
@@ -179,7 +179,7 @@ export function RevisionReview({ call, taskId, destination, disabled, canvasTarg
                 src={"data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg)} alt={label} /></div>)}
           </section>}
         </>}
-        {!destination && <p>本项目没有可写入的素材分类；可在 AI 管理中选择归档位置。</p>}
+        {!canvasOnly && !destination && <p>本项目没有可写入的素材分类；可在 AI 管理中选择归档位置。</p>}
         {destination && !scopeMatches && <p>草稿须保存在原素材范围：{preview.scope.region} / {preview.scope.city} / {preview.scope.businessLine}。</p>}
         {status && <p role="status">{status}</p>}
       </div>}
