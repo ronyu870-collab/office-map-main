@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, renameSync, rmSync, symlinkSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { checkResults, getScope } from './ci-scope.mjs';
+import { checkResults, getScope, hasAffectedTestCoverage } from './ci-scope.mjs';
 
 function fixture(t) {
   const cwd = mkdtempSync(join(tmpdir(), 'ci-scope-'));
@@ -62,10 +62,10 @@ test('missing, invalid, unavailable and empty comparison commits fall back to fu
   }
 });
 
-const jobs = ['search-focus', 'standard', 'engineering', 'ai-query-auth', 'lease-expiry-auth'];
+const jobs = ['search-focus', 'standard', 'engineering', 'full-app', 'ai-query-auth', 'lease-expiry-auth'];
 function results(mode) {
-  const required = mode === 'docs' ? [] : mode === 'full' ? ['search-focus', 'engineering', 'ai-query-auth', 'lease-expiry-auth'] : ['search-focus', 'standard'];
-  return { changes: { result: 'success', outputs: { docs_only: String(mode === 'docs'), full_only: String(mode === 'full') } },
+  const required = mode === 'docs' ? [] : mode === 'full' ? ['search-focus', 'engineering', 'full-app', 'ai-query-auth', 'lease-expiry-auth'] : ['search-focus', 'standard'];
+  return { changes: { result: 'success', outputs: { docs_only: String(mode === 'docs'), full_only: String(mode === 'full'), draft: 'false' } },
     ...Object.fromEntries(jobs.map(job => [job, { result: required.includes(job) ? 'success' : 'skipped' }])) };
 }
 test('all three scopes require exactly their applicable jobs and reject missing, cancelled and failed jobs', () => {
@@ -177,4 +177,27 @@ test('draft uses routine checks; ready-for-review restores sensitive checks', t 
   f.commit();
   assert.equal(getScope(f.base, { ...f, draft: true }).fullOnly, false);
   assert.equal(getScope(f.base, f).fullOnly, true);
+});
+
+test('draft green checks cannot be reused for merging before ready-for-review', () => {
+  const needs = results('standard');
+  needs.changes.outputs.draft = 'true';
+  assert.throws(() => checkResults(needs), /mark ready for review/);
+});
+test('affected test coverage requires actual executed tests and all changed test files', () => {
+  const valid = { numTotalTests: 1, testResults: [{name:'src/example.test.ts', assertionResults:[{status:'passed'}]}] };
+  assert.equal(hasAffectedTestCoverage(valid, ['src/example.test.ts']), true);
+  assert.equal(hasAffectedTestCoverage(valid, ['src/other.test.ts']), false);
+  assert.equal(hasAffectedTestCoverage({...valid, numTotalTests:0}, []), false);
+  assert.equal(hasAffectedTestCoverage({...valid, testResults:[]}, []), false);
+  assert.equal(hasAffectedTestCoverage(undefined, []), false);
+  assert.equal(hasAffectedTestCoverage({numTotalTests:1,testResults:[{name:'src/example.test.ts',assertionResults:[{status:'skipped'}]}]}, []), false);
+});
+test('post-merge optimization only applies to a valid comparison without forced full regression', t => {
+  const f = fixture(t);
+  f.write('src/runtime.ts','export const value = 2;');
+  f.commit();
+  assert.equal(getScope(f.base, {...f, postMerge:true}).postMerge, true);
+  assert.equal(getScope('invalid', {...f, postMerge:true}).postMerge, false);
+  assert.equal(getScope(f.base, {...f, postMerge:true, forceFull:true}).postMerge, false);
 });

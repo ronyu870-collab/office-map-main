@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: verify-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -35,6 +36,9 @@ jobs:
       map_browser: ${{ steps.scope.outputs.map_browser }}
       ai_browser: ${{ steps.scope.outputs.ai_browser }}
       comparison_sha: ${{ steps.scope.outputs.comparison_sha }}
+      affected_only: ${{ steps.scope.outputs.affected_only }}
+      post_merge: ${{ steps.scope.outputs.post_merge }}
+      draft: ${{ steps.scope.outputs.draft }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,13 +48,26 @@ jobs:
           node-version: 24
       - name: Verify safe scope selection and required-check results
         run: node --test scripts/verification/ci-scope.node-test.mjs
+      - name: Recognize an already verified PR merge
+        id: merge
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # An exact merged PR is required; failures/non-PR pushes use ordinary risk classification.
+          if gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --paginate --jq '.[] | select(.merged_at != null and .base.ref == "main") | .merge_commit_sha' | grep -Fxq "$GITHUB_SHA"; then
+            echo 'post_merge=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'post_merge=false' >> "$GITHUB_OUTPUT"
+          fi
       - id: scope
         run: node scripts/verification/ci-scope.mjs
         env:
           CI_COMPARISON_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           CI_FORCE_FULL: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
           CI_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
-          CI_POST_MERGE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          CI_POST_MERGE: ${{ steps.merge.outputs.post_merge == 'true' }}
 
   search-focus:
     needs: changes
@@ -100,18 +117,27 @@ jobs:
         run: npm run audit:coverage
         env:
           AUDIT_COVERAGE_BASE_SHA: ${{ needs.changes.outputs.comparison_sha }}
+      - name: Changed-file lint, types and affected tests
+        if: ${{ needs.changes.outputs.affected_only == 'true' }}
+        run: npm run verify:quick
+        env:
+          CI_COMPARISON_SHA: ${{ needs.changes.outputs.comparison_sha }}
       - name: Typecheck
+        if: ${{ needs.changes.outputs.affected_only != 'true' }}
         run: npm run typecheck
       - name: Check schema dictionary catalog and search index
         run: node scripts/generate-schema-dictionary.mjs --check
       - name: Lint
+        if: ${{ needs.changes.outputs.affected_only != 'true' }}
         run: npm run lint
       - name: Unit and component tests
+        if: ${{ needs.changes.outputs.affected_only != 'true' }}
         run: npm run test
       - name: Offline AI evaluation (affected module)
         if: ${{ needs.changes.outputs.ai_browser == 'true' }}
         run: npm run test:ai-eval
       - name: Cache Next.js compiler
+        if: ${{ needs.changes.outputs.post_merge != 'true' }}
         uses: actions/cache@v4
         with:
           path: .next/cache
@@ -119,9 +145,16 @@ jobs:
           restore-keys: |
             next-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}-
       - name: Production build
+        if: ${{ needs.changes.outputs.post_merge != 'true' }}
         run: npm run build
         env:
           NEXT_PUBLIC_AMAP_KEY: syntheticfixture
+      - name: Cache Playwright Chromium
+        if: ${{ runner.environment == 'github-hosted' && (needs.changes.outputs.map_browser == 'true' || needs.changes.outputs.ai_browser == 'true') }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.58.2-${{ runner.os }}-${{ runner.arch }}
       - name: Affected map and AI browser functional regressions
         if: ${{ needs.changes.outputs.map_browser == 'true' || needs.changes.outputs.ai_browser == 'true' }}
         shell: bash
@@ -152,7 +185,7 @@ jobs:
   engineering:
     needs: changes
     if: ${{ needs.changes.outputs.full_only == 'true' }}
-    name: Engineering regressions
+    name: Database and specialist regressions
     runs-on: >-
       ${{ github.event_name == 'pull_request'
           && github.event.pull_request.head.repo.full_name == github.repository
@@ -160,8 +193,7 @@ jobs:
           && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
           && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
           || 'ubuntu-24.04' }}
-    # Full native Pitch fixture generation and existing browser regressions run here.
-    # The measured combined job exceeded 35 minutes without a test failure.
+    # Database suites retain their own isolated PostgreSQL service.
     timeout-minutes: 45
     services:
       postgres:
@@ -182,7 +214,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -193,26 +225,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Audit coverage contract
-        run: npm run audit:coverage
-        env:
-          AUDIT_COVERAGE_BASE_SHA: ${{ needs.changes.outputs.comparison_sha }}
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Check schema dictionary catalog and search index
-        run: node scripts/generate-schema-dictionary.mjs --check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm run test
-
-      - name: Offline AI evaluation budget and replay boundaries
-        run: npm run test:ai-eval
 
       - name: Archived original ingestion regression
         run: |
@@ -425,6 +437,89 @@ jobs:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
           POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
 
+      - name: Retain Audit 2 execution evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-2-verification
+          path: verification/audit-2
+          if-no-files-found: ignore
+          retention-days: 3
+      - name: Retain AI query and audit evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-query-audit-verification
+          path: |
+            verification/ai-query-intake/results.json
+            verification/ai-query-p1/results.json
+            verification/ai-query-p1/gateway-results.json
+            verification/ai-audit-console/results.json
+            verification/ai-admin-only/results.json
+            verification/ai-audit-people/results.json
+            verification/ai-audit-export/results.json
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Retain generated editable Pitch template and kit samples
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitch-template-ecosystem
+          path: tmp/pitch-ecosystem-fixtures/
+          if-no-files-found: ignore
+          retention-days: 3
+
+
+  full-app:
+    needs: changes
+    if: ${{ needs.changes.outputs.full_only == 'true' }}
+    name: Full application and browser regressions
+    runs-on: >-
+      ${{ github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && vars.CI_TEMP_RUNNER_BRANCH != ''
+          && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
+          && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
+          || 'ubuntu-24.04' }}
+    # Run independently of database regressions; browser suites use isolated fixtures.
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          # The temporary runner already has a warm npm cache on disk.
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit coverage contract
+        run: npm run audit:coverage
+        env:
+          AUDIT_COVERAGE_BASE_SHA: ${{ needs.changes.outputs.comparison_sha }}
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Check schema dictionary catalog and search index
+        run: node scripts/generate-schema-dictionary.mjs --check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Offline AI evaluation budget and replay boundaries
+        run: npm run test:ai-eval
+
       - name: Cache Next.js compiler
         uses: actions/cache@v4
         with:
@@ -437,6 +532,12 @@ jobs:
         env:
           NEXT_PUBLIC_AMAP_KEY: syntheticfixture
 
+      - name: Cache Playwright Chromium
+        if: ${{ runner.environment == 'github-hosted' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.58.2-${{ runner.os }}-${{ runner.arch }}
       - name: Browser measurement calibration and anonymous production-build regression
         shell: bash
         run: |
@@ -508,7 +609,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: audit-2-verification
+          name: audit-2-browser-verification
           path: verification/audit-2
           if-no-files-found: ignore
           retention-days: 3
@@ -552,31 +653,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
-      - name: Retain AI query and audit evidence
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-query-audit-verification
-          path: |
-            verification/ai-query-intake/results.json
-            verification/ai-query-p1/results.json
-            verification/ai-query-p1/gateway-results.json
-            verification/ai-audit-console/results.json
-            verification/ai-admin-only/results.json
-            verification/ai-audit-people/results.json
-            verification/ai-audit-export/results.json
-          if-no-files-found: ignore
-          retention-days: 3
-
-      - name: Retain generated editable Pitch template and kit samples
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pitch-template-ecosystem
-          path: tmp/pitch-ecosystem-fixtures/
-          if-no-files-found: ignore
-          retention-days: 3
-
       - name: Retain isolated lease expiry review evidence
         if: failure()
         uses: actions/upload-artifact@v4
@@ -588,6 +664,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
+
   ai-query-auth:
     needs: changes
     if: ${{ needs.changes.outputs.full_only == 'true' }}
@@ -597,7 +674,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -618,6 +695,12 @@ jobs:
         shell: bash
         run: |
           AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-ai-query-auth.mjs
+      - name: Cache Playwright Chromium
+        if: ${{ runner.environment == 'github-hosted' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.58.2-${{ runner.os }}-${{ runner.arch }}
       - name: Pitch Studio real Auth, private Storage and production HTTP round trip
         shell: bash
         run: |
@@ -669,6 +752,12 @@ jobs:
           supabase start --workdir "$RUNNER_TEMP/f6-auth-integration" -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/f6-auth-start.log" 2>&1
           supabase status --workdir "$RUNNER_TEMP/f6-auth-integration" -o json > "$RUNNER_TEMP/f6-auth-status.json"
           chmod 600 "$RUNNER_TEMP/f6-auth-status.json"
+      - name: Cache Playwright Chromium
+        if: ${{ runner.environment == 'github-hosted' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.58.2-${{ runner.os }}-${{ runner.arch }}
       - name: Real account, authorization, concurrency and revocation regressions
         shell: bash
         run: |
@@ -692,7 +781,7 @@ jobs:
   verify:
     name: Typecheck, lint, test and build
     if: ${{ always() }}
-    needs: [changes, search-focus, standard, engineering, ai-query-auth, lease-expiry-auth]
+    needs: [changes, search-focus, standard, engineering, full-app, ai-query-auth, lease-expiry-auth]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
