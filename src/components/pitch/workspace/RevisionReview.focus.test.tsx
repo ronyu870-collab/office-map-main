@@ -76,3 +76,26 @@ it("renders the selected-only proposal and the same selection is bound to save",
     action: "materialize", taskId, selectedRefs: ["title"], revisionFingerprint: chosen.fingerprint,
   }), true, "ai", expect.anything()));
 });
+
+it("applies to current canvas only after reading both exact SVGs and binds the page version", async () => {
+  const target = { projectId: taskId, slideId: destination.categoryId, expectedVersion: 5 };
+  const onCanvasSaved = vi.fn(), saved = { project: { version: 6 } };
+  const call = vi.fn(async (input: Record<string, unknown>) => {
+    if (input.action === "revision_preview") return receipt;
+    if (input.action === "preview_canvas_revision")
+      return { before: "<svg/>", after: "<svg width='2'/>", canvasFingerprint: "b".repeat(64) };
+    return saved;
+  });
+  render(<RevisionReview taskId={taskId} call={call as Call} destination={destination} canvasTarget={target}
+    onCanvasSaved={onCanvasSaved} />);
+  fireEvent.click(screen.getByText("查看修改前后"));
+  expect(await screen.findByRole("button", { name: "应用所选到当前页" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "对比当前画布" }));
+  expect(await screen.findByRole("img", { name: "当前画布改后" })).toBeInTheDocument();
+  expect(onCanvasSaved).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "应用所选到当前页" }));
+  await waitFor(() => expect(onCanvasSaved).toHaveBeenCalledWith(saved));
+  expect(call).toHaveBeenLastCalledWith(expect.objectContaining({ action: "apply_canvas_revision",
+    ...target, taskId, revisionFingerprint: receipt.fingerprint, canvasFingerprint: "b".repeat(64),
+  }), true, "workspace", expect.anything());
+});

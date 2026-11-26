@@ -222,7 +222,7 @@ export const outlineSchema = z.strictObject({
   title: z.string().min(1).max(160),
   part: generationPartSchema,
 });
-const revisionRefs = z.array(z.string().regex(/^(?:title|approved:0|block:(?:0|[1-9]\d?))$/)).min(1).max(51)
+export const revisionRefs = z.array(z.string().regex(/^(?:title|approved:0|block:(?:0|[1-9]\d?))$/)).min(1).max(51)
   .refine(entries => new Set(entries).size === entries.length);
 export const aiCommandSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("config") }),

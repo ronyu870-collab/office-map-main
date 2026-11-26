@@ -8,10 +8,13 @@ import { WorkspaceError, type Call } from "./client";
 import styles from "./workspace.module.css";
 
 export type RevisionDestination = { scope: PitchScope; categoryId: string };
-export function RevisionReview({ call, taskId, destination, disabled }: {
+export type CanvasRevisionTarget = { projectId: string; slideId: string; expectedVersion: number };
+export function RevisionReview({ call, taskId, destination, disabled, canvasTarget, onCanvasSaved }: {
   call: Call; taskId: string; destination?: RevisionDestination; disabled?: boolean;
+  canvasTarget?: CanvasRevisionTarget; onCanvasSaved?: (result: unknown) => void;
 }) {
   const [preview, setPreview] = React.useState<RevisionPreview | null>(null);
+  const [canvas, setCanvas] = React.useState<{ before: string; after: string; canvasFingerprint: string; key: string } | null>(null);
   const [selected, setSelected] = React.useState<string[]>([]);
   const [status, setStatus] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -19,7 +22,7 @@ export function RevisionReview({ call, taskId, destination, disabled }: {
   const [uncertain, setUncertain] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => controller.current?.abort(), []);
-  function close() { if (!busy) { setPreview(null); setStatus(""); } }
+  function close() { if (!busy) { setPreview(null); setCanvas(null); setStatus(""); } }
   async function review(visual = false) {
     const c = new AbortController();
     controller.current = c;
@@ -46,6 +49,46 @@ export function RevisionReview({ call, taskId, destination, disabled }: {
     Object.entries(preview.scope).every(([key, value]) => destination.scope[key as keyof PitchScope] === value);
   const shownRefs = preview?.selectedRefs ?? preview?.changes.map(change => change.id) ?? [];
   const selectionMatches = selected.length === shownRefs.length && selected.every(ref => shownRefs.includes(ref));
+  const canvasKey = canvasTarget && preview
+    ? JSON.stringify([canvasTarget.projectId, canvasTarget.slideId, canvasTarget.expectedVersion, preview.fingerprint]) : "";
+  const canvasMatches = selectionMatches && !!canvasKey && canvas?.key === canvasKey;
+  async function changeCanvas(apply = false) {
+    if (!preview || !canvasTarget || !selectionMatches || busy || disabled || saved || uncertain || (apply && !canvasMatches)) return;
+    const c = new AbortController();
+    controller.current = c;
+    setBusy(true);
+    setStatus("");
+    try {
+      const command = { ...canvasTarget, taskId, revisionFingerprint: preview.fingerprint,
+        ...(preview.selectedRefs?.length ? { selectedRefs: preview.selectedRefs } : {}) };
+      if (apply) {
+        const result = await call({ action: "apply_canvas_revision", ...command, canvasFingerprint: canvas!.canvasFingerprint },
+          true, "workspace", c.signal);
+        if (c.signal.aborted) return;
+        onCanvasSaved?.(result);
+        setSaved(true);
+        setCanvas(null);
+        setPreview(null);
+        setStatus("所选文字已应用到当前页。既有页面历史可恢复原稿。");
+      } else {
+        const value = await call<{ before: string; after: string; canvasFingerprint: string }>(
+          { action: "preview_canvas_revision", ...command }, true, "workspace", c.signal,
+        );
+        if (!c.signal.aborted) setCanvas({ ...value, key: canvasKey });
+      }
+    } catch (error) {
+      if (c.signal.aborted) return;
+      setCanvas(null);
+      if (apply && (!(error instanceof WorkspaceError) || error.status >= 500)) {
+        setUncertain(true);
+        setStatus("应用结果待查，请重新打开项目核对当前页，不要重复应用。");
+      } else {
+        setStatus(error instanceof Error ? error.message : "画布操作未完成。");
+      }
+    } finally {
+      if (!c.signal.aborted) setBusy(false);
+    }
+  }
   async function save() {
     if (!preview || !destination || !scopeMatches || !selectionMatches || busy || saved || uncertain) return;
     const c = new AbortController();
@@ -123,6 +166,19 @@ export function RevisionReview({ call, taskId, destination, disabled }: {
               </div>)}
           </div>
         </section>}
+        {canvasTarget && !preview.redacted && preview.changes.length > 0 && <>
+          <div className={styles.actions}>
+            <Button variant="secondary" disabled={busy || disabled || !selectionMatches || uncertain}
+              onClick={() => void changeCanvas()}>对比当前画布</Button>
+            <Button disabled={busy || disabled || !canvasMatches || uncertain}
+              onClick={() => void changeCanvas(true)}>应用所选到当前页</Button>
+          </div>
+          {canvasMatches && canvas && <section aria-label="当前画布前后对照" className={styles.revisionColumns}>
+            {([["当前画布原页", canvas.before], ["当前画布改后", canvas.after]] as const).map(([label, svg]) =>
+              <div key={label}><strong>{label}</strong><img className={styles.revisionImage}
+                src={"data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg)} alt={label} /></div>)}
+          </section>}
+        </>}
         {!destination && <p>本项目没有可写入的素材分类；可在 AI 管理中选择归档位置。</p>}
         {destination && !scopeMatches && <p>草稿须保存在原素材范围：{preview.scope.region} / {preview.scope.city} / {preview.scope.businessLine}。</p>}
         {status && <p role="status">{status}</p>}

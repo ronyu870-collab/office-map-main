@@ -1,3 +1,5 @@
+import { getReviewedCanvasText, hash } from "../ai/workflow";
+import { stableId } from "../library/extract";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { slideContentSchema, type SlideContent } from "../contracts/content";
@@ -275,6 +277,70 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
     ...(await commitPayload(ctx, current, pages, settings, command)),
   });
   return getWorkspace(ctx, command.projectId);
+}
+type CanvasRevision = Extract<WorkspaceCommand, { action: "preview_canvas_revision" | "apply_canvas_revision" }>;
+async function buildCanvasRevision(ctx: PitchContext, c: CanvasRevision) {
+  const current = await getWorkspace(ctx, c.projectId);
+  checkVersion(current, c.expectedVersion);
+  const page = current.slides.find(candidate => candidate.id === c.slideId);
+  const setting = current.workspace.page_settings[c.slideId] ?? {};
+  const reviewed = await getReviewedCanvasText(ctx, c.taskId, c.revisionFingerprint, c.selectedRefs);
+  if (!page || page.asset_id !== reviewed.assetId || page.asset_version !== reviewed.assetVersion ||
+    page.content.disclosure !== "internal" || reviewed.original.disclosure !== "internal" || setting.manual || setting.origin === "data" || setting.example ||
+    page.scene.elements.some(element => element.editorId) || (page.scene.pagination?.count ?? 1) > 1 ||
+    hash(slideContentSchema.parse(page.content)) !== hash(reviewed.original) ||
+    reviewed.scope.organizationId !== current.project.organization_id || reviewed.scope.region !== current.project.region ||
+    reviewed.scope.city !== current.project.city || reviewed.scope.businessLine !== current.project.business_line)
+    throw new Error("PITCH_CANVAS_REVISION_UNAVAILABLE");
+
+  // Preserve existing content and sources; only the chosen text and an internal
+  // AI revision attribution can change. Server renders the existing slide layout.
+  const sourceId = stableId([c.projectId, c.slideId, c.expectedVersion, c.taskId, c.revisionFingerprint].join(":"));
+  const blocks = new Set(reviewed.selectedRefs.filter(ref => ref.startsWith("block:")).map(ref => Number(ref.slice(6))));
+  const content = slideContentSchema.parse({
+    ...reviewed.content,
+    blocks: reviewed.content.blocks.map((block, index) => blocks.has(index)
+      ? { ...block, sourceIds: [...block.sourceIds, sourceId] } : block),
+    sources: [...reviewed.content.sources, {
+      id: sourceId, kind: "record", recordId: "pitch-ai:" + c.taskId, label: "AI 修订 · 未核验",
+      locator: "用户确认的画布文字", version: String(c.expectedVersion + 1), dataAsOf: reviewed.content.dataAsOf,
+    }],
+  });
+  const theme = (await studioRegistry(ctx, page.scene.themeId, page.scene.themeVersion)).theme.definition;
+  const scenes = await layoutSlides(content, theme, page.scene.layoutId, page.scene.variant);
+  if (scenes.length !== 1) throw new Error("PITCH_CANVAS_REVISION_UNAVAILABLE");
+  const { mediaRowSchema } = await import("../data/store");
+  const { media: rows } = z.object({ media: z.array(mediaRowSchema) }).parse(await pitchRpc(ctx, {
+    action: "preview_context", projectId: c.projectId,
+  }));
+  const media = await loadMedia(ctx, rows, [page.scene, ...scenes]);
+  await assertSceneQuality(scenes[0], theme, media);
+  const scene = numberDeckPages([{ scene: scenes[0], theme }], current.slides.indexOf(page))[0].scene;
+  const fingerprint = hash([c.projectId, page.id, c.expectedVersion, c.revisionFingerprint, content, scene]);
+  return { current, page, updated: { ...page, content, scene }, setting, fingerprint, theme, media };
+}
+export async function previewCanvasRevision(ctx: PitchContext, c: Extract<CanvasRevision, { action: "preview_canvas_revision" }>) {
+  const prepared = await buildCanvasRevision(ctx, c);
+  const { renderSceneSvg } = await import("../render/svg");
+  const [before, after] = await Promise.all([
+    renderSceneSvg(prepared.page.scene, prepared.theme, prepared.media),
+    renderSceneSvg(prepared.updated.scene, prepared.theme, prepared.media),
+  ]);
+  if (Buffer.byteLength(before) + Buffer.byteLength(after) > 2_000_000)
+    throw new Error("PITCH_CANVAS_REVISION_UNAVAILABLE");
+  checkVersion(await getWorkspace(ctx, c.projectId), c.expectedVersion);
+  await pitchRpc(ctx, { action: "ai_result", taskId: c.taskId });
+  return { canvasFingerprint: prepared.fingerprint, before, after };
+}
+export async function applyCanvasRevision(ctx: PitchContext, c: Extract<CanvasRevision, { action: "apply_canvas_revision" }>) {
+  const prepared = await buildCanvasRevision(ctx, c);
+  if (prepared.fingerprint !== c.canvasFingerprint) throw new Error("PITCH_CONFLICT");
+  const { current, updated } = prepared;
+  const settings = { ...current.workspace.page_settings, [updated.id]: { ...prepared.setting, manual: true } };
+  const save = await commitPayload(ctx, current, current.slides.map(page => page.id === updated.id ? updated : page), settings);
+  await pitchRpc(ctx, { action: "workspace_ai_revision_apply", projectId: c.projectId, slideId: c.slideId,
+    taskId: c.taskId, expectedVersion: c.expectedVersion, save });
+  return getWorkspace(ctx, c.projectId);
 }
 export async function appendWorkspace(
   ctx: PitchContext,

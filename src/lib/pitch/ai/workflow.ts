@@ -270,6 +270,16 @@ export async function previewRevision(ctx: PitchContext, taskId: string, options
     beforeLanguage: redacted ? null : ready.original.locale, afterLanguage: content.locale,
   };
 }
+/** Only an owned review receipt can materialize text for an existing canvas. */
+export async function getReviewedCanvasText(ctx: PitchContext, taskId: string, fingerprint: string, selectedRefs?: string[]) {
+  const ready = await readyUnderstanding(ctx, taskId);
+  const preview = reviewedRevision(taskId, ready, selectedRefs);
+  if (preview.fingerprint !== fingerprint) throw new Error("PITCH_AI_PREVIEW_REQUIRED");
+  if (preview.redacted || !preview.changes.length) throw new Error("PITCH_CANVAS_REVISION_UNAVAILABLE");
+  return { ...preview, assetId: ready.task.asset_id, assetVersion: ready.task.asset_version,
+    original: ready.original, scope: ready.scope };
+}
+
 export async function adoptUnderstanding(
   ctx: PitchContext,
   c: Extract<AiCommand, { action: "materialize" | "candidate_materialize" }>,

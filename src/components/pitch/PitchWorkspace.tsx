@@ -1207,6 +1207,15 @@ function Studio({ session }: { session: AuthSessionResult }) {
                             scope: { organizationId: detail.project.organization_id, region: detail.project.region,
                               city: detail.project.city, businessLine: detail.project.business_line },
                           } : undefined}
+                      canvasTarget={page && active === page.id && page.content.disclosure === "internal" && !dirty && !saving &&
+                        !detail.workspace.page_settings[page.id]?.manual &&
+                        detail.workspace.page_settings[page.id]?.origin !== "data" &&
+                        !page.scene.elements.some(element => element.editorId) &&
+                        (page.scene.pagination?.count ?? 1) === 1 ? {
+                          projectId: detail.project.id, slideId: page.id, expectedVersion: detail.project.version,
+                          assetId: page.asset_id, assetVersion: page.asset_version,
+                        } : undefined}
+                      onCanvasSaved={result => accept(workspaceDetailSchema.parse(result))}
                       onGenerateOutline={startOutline}
                       onExport={() => setExportTrigger((v) => v + 1)}
                     />

@@ -10,7 +10,7 @@ import type { Generation } from "@/src/lib/pitch/business/protocol";
 import { outlineBuildingIds, outlineQuarter, outlinePartSchema, type OutlinePart } from "@/src/lib/pitch/workspace/protocol";
 import type { PreparedPitch } from "@/src/lib/pitch/ai/routing";
 import type { Call } from "./client";
-import { RevisionReview, type RevisionDestination } from "./RevisionReview";
+import { RevisionReview, type RevisionDestination, type CanvasRevisionTarget } from "./RevisionReview";
 import styles from "./workspace.module.css";
 type Asset = {
   id: string;
@@ -30,6 +30,8 @@ type DataReview = {
 type Section = { id: string; title: string; part: Generation["parts"][number]; materials: Material[]; review?: DataReview };
 type Task = {
   id: string;
+  asset_id?: string;
+  asset_version?: number;
   state: string;
   request: { task: AiTask };
   result: Understanding | null;
@@ -56,6 +58,8 @@ export function AiAssist({
   onGenerate,
   onGenerateOutline,
   revisionDestination,
+  canvasTarget,
+  onCanvasSaved,
   onExport,
 }: {
   call: Call;
@@ -69,6 +73,8 @@ export function AiAssist({
   onGenerate: (part: Generation["parts"][number]) => Promise<void>;
   onGenerateOutline: (outline: OutlinePart) => Promise<void>;
   revisionDestination?: RevisionDestination;
+  canvasTarget?: CanvasRevisionTarget & { assetId: string; assetVersion: number };
+  onCanvasSaved?: (result: unknown) => void;
   onExport: () => void;
 }) {
   const [question, setQuestion] = React.useState(initialQuestion),
@@ -677,7 +683,10 @@ export function AiAssist({
                   : ""}
               </p>
               {t.request.task === "revise-text" && t.state === "completed" && t.authorized && t.result &&
-                <RevisionReview call={call} taskId={t.id} disabled={busy || working} destination={revisionDestination} />}
+                <RevisionReview call={call} taskId={t.id} disabled={busy || working} destination={revisionDestination}
+                  canvasTarget={canvasTarget && canvasTarget.assetId === t.asset_id && canvasTarget.assetVersion === t.asset_version
+                    ? { projectId: canvasTarget.projectId, slideId: canvasTarget.slideId, expectedVersion: canvasTarget.expectedVersion } : undefined}
+                  onCanvasSaved={onCanvasSaved} />}
               {t.result && t.request.task !== "revise-text" && (
                 <>
                   <p>{t.result.purpose}</p>

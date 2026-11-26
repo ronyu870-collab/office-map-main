@@ -7,6 +7,7 @@ import {
 } from "../contracts/scene";
 import { objectMoveSchema, objectTextSchema, objectOrderSchema, objectGroupsSchema } from "./object-layout";
 import { dynamicParametersSchema, generationPartSchema } from "../business/protocol";
+import { revisionRefs } from "../ai/protocol";
 import { quarterSchema } from "@/src/lib/intelligence/query/contracts";
 const id = z.uuid(),
   title = z.string().trim().min(1).max(160);
@@ -111,6 +112,10 @@ export const outlinePartSchema = z.strictObject({
 export type OutlinePart = z.infer<typeof outlinePartSchema>;
 export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema,outlinePartSchema]);
 export type WorkspacePart=z.infer<typeof workspacePartSchema>;
+const revisionCanvasOptions = {
+  projectId: id, slideId: id, taskId: id, expectedVersion: z.number().int().positive(),
+  selectedRefs: revisionRefs.optional(), revisionFingerprint: outlineFingerprint,
+};
 export const workspaceCommandSchema = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("create"),
@@ -125,6 +130,8 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     action: z.literal("review_outline_data"), projectId: id,
     buildingIds: outlineBuildingIds, period: outlineQuarter, compareQuarters: z.literal(true).optional(),
   }),
+  z.strictObject({ action: z.literal("preview_canvas_revision"), ...revisionCanvasOptions }),
+  z.strictObject({ action: z.literal("apply_canvas_revision"), ...revisionCanvasOptions, canvasFingerprint: outlineFingerprint }),
   z.strictObject({ action: z.literal("get"), projectId: id }),
   saveSchema,
   z.strictObject({
