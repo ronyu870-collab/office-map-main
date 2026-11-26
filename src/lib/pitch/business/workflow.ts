@@ -15,7 +15,8 @@ import { assertSceneQuality } from '../layout/quality';
 import { inspectMedia, sceneMediaReferences, type SceneMedia } from '../render/media';
 import { businessProfileSchema, recipeSchema, type Generation, type BusinessProfile } from './protocol';
 import { assertBusinessScope, buildBusinessPages, caseDisplay, validateBusinessProfile, type BusinessAsset, type BusinessPage } from './content';
-import { runPitchDataAdapter, type PitchDataSnapshot } from './adapter';
+import { runPitchDataAdapter, type DataBinding, type PitchDataSnapshot } from './adapter';
+import { documentDataVersion } from './document-version';
 import { reviewedBuildingData } from './outline-data';
 const hash=(v:unknown)=>digest(new TextEncoder().encode(JSON.stringify(v)));
 const storedSchema=z.object({asset:z.object({id:z.uuid(),current_version:z.number(),organization_id:z.string(),region:z.string(),city:z.string(),business_line:z.string()}).passthrough(),version:z.object({content:slideContentSchema}),profile:businessProfileSchema,media:z.array(mediaRowSchema)});
@@ -37,18 +38,20 @@ export async function saveBusinessProfile(ctx:PitchContext,c:{assetId:string;exp
   asset.state='draft';asset.allowClientExport=false;asset.allowExternalAi=false;
   return pitchRpc(ctx,{action:'business_profile_save',assetId:c.assetId,expectedVersion:c.expectedVersion,profile,asset,sha256:hash(asset.content),tokens:documentTokens(JSON.stringify([asset.content,profile])),media:profileMedia(profile)});
 }
-export async function generateBusinessProject(ctx:PitchContext,command:Generation,expectedAssetVersions?:ReadonlyMap<string,number>, expectedDataFingerprint?:string, compareOutline = false,
-  verifyReviewedSources?: (snapshots: readonly PitchDataSnapshot[]) => void | Promise<void>) {
+export async function prepareBusinessProject(ctx:PitchContext,command:Generation,expectedAssetVersions?:ReadonlyMap<string,number>, expectedDataFingerprint?:string, compareOutline = false, preparedSnapshot?: PitchDataSnapshot, expectedBinding?: DataBinding & { dataVersion:string }) {
   const registry=z.object({theme:z.object({definition:designThemeSchema})}).parse(await pitchRpc(ctx,{action:'registry',templateId:'business-content',templateVersion:1,themeId:command.themeId,themeVersion:command.themeVersion}));
-  const theme=registry.theme.definition,bindings:{id:string;version:number}[]=[],snapshots:PitchDataSnapshot[]=[],recipes:{id:string;revision:number}[]=[],groups:BusinessPage[]=[],mediaRows:z.infer<typeof mediaRowSchema>[]=[];
+  const theme=registry.theme.definition,bindings:{id:string;version:number}[]=[],snapshots:PitchDataSnapshot[]=[],recipes:{id:string;revision:number}[]=[],groups:(BusinessPage & { capture?: { snapshotIndex:number; contentIndex:number } })[]=[],mediaRows:z.infer<typeof mediaRowSchema>[]=[];
   const currentPeriods=command.parts.filter(p=>p.mode==='dynamic'&&!p.parameters.templateId.endsWith('-trend')&&!p.parameters.templateId.startsWith('lease-')).map(p=>p.mode==='dynamic'?JSON.stringify(p.parameters.period):'');
   if(new Set(currentPeriods).size>1)throw new DocumentError('PITCH_PERIOD_MISMATCH','同一 Pitch 的项目对比页面需要采用同一正式季度。');
   for(const part of command.parts) {
     if(part.mode==='dynamic') {
-      const snapshot=await runPitchDataAdapter(ctx,part.parameters,command.language,compareOutline);
+      const snapshot=preparedSnapshot ?? await runPitchDataAdapter(ctx,part.parameters,command.language,compareOutline);
+      if (expectedBinding && (documentDataVersion(snapshot.results) !== expectedBinding.dataVersion || snapshot.binding.domain !== expectedBinding.domain ||
+        snapshot.binding.permissionRevision !== expectedBinding.permissionRevision || snapshot.binding.policyVersion !== expectedBinding.policyVersion))
+        throw new Error('PITCH_HANDOFF_CHANGED');
       if (expectedDataFingerprint && reviewedBuildingData(snapshot, command.language).fingerprint !== expectedDataFingerprint)
         throw new Error('PITCH_OUTLINE_DATA_CHANGED');
-      snapshots.push(snapshot);
+      const snapshotIndex=snapshots.push(snapshot)-1;
       if(part.researchAssetId) {
         const stored=storedSchema.parse(await pitchRpc(ctx,{action:'business_generation_asset',assetId:part.researchAssetId}));
         const a:BusinessAsset={id:part.researchAssetId,version:stored.asset.current_version,scope:{organizationId:stored.asset.organization_id,region:stored.asset.region,city:stored.asset.city,businessLine:stored.asset.business_line},profile:stored.profile,content:stored.version.content};
@@ -69,6 +72,7 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
             english ? 'Internal use only' : '仅限内部'].join(' · ')
           : content.subtitle;
         groups.push({
+          capture: { snapshotIndex, contentIndex: index },
           content: part.title ? { ...content, title: part.title, subtitle } : content,
           layoutId: compareOutline && index >= snapshot.content.length - 2 ? 'table-insight' : content.blocks.some(b => b.kind === 'chart') ? 'chart-insight' : content.blocks.some(b => b.kind === 'table') ? 'data-table' : 'two-columns',
           variant: 'standard',
@@ -90,13 +94,21 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
     for(const page of buildBusinessPages(recipe,assets,command.language,part.length,part.variant))groups.push({...page,content:part.title?{...page.content,title:part.title}:page.content});
   }
   const slides=[],generated=[];const changes:{group:number;reason:string}[]=[];
+  const capturedAssets: { assetId:string; snapshotIndex:number; contentIndex:number }[]=[];
   for(const [group,page]of groups.entries()) {
     const content=slideContentSchema.parse(page.content),assetId=randomUUID();
     let parts;
-    try{await layoutSlides(content,theme,page.layoutId,page.variant);parts=[page];}
-    catch(error){if(!(error instanceof LayoutError)||PATTERN_BY_ID.has(page.layoutId))throw error;parts=await normalizationPlan(content,theme);changes.push({group,reason:error.code});}
+    try { parts = [{ content, scenes: await layoutSlides(content, theme, page.layoutId, page.variant) }]; }
+    catch(error) {
+      if (!(error instanceof LayoutError) || PATTERN_BY_ID.has(page.layoutId)) throw error;
+      const normalized = await normalizationPlan(content, theme);
+      parts = [];
+      for (const part of normalized) parts.push({ content: part.content, scenes: await layoutSlides(part.content, theme, part.layoutId, part.variant) });
+      changes.push({ group, reason:error.code });
+    }
     generated.push({id:assetId,content,sha256:hash(content)});
-    for(const part of parts)for(const scene of await layoutSlides(part.content,theme,part.layoutId,part.variant))slides.push({slideId:randomUUID(),assetId,assetVersion:1,content:part.content,scene,theme});
+    if (page.capture) capturedAssets.push({ assetId, ...page.capture });
+    for(const part of parts)for(const scene of part.scenes)slides.push({slideId:randomUUID(),assetId,assetVersion:1,content:part.content,scene,theme});
     if(slides.length>50)throw new DocumentError('PITCH_PAGE_LIMIT','本次生成超过 50 页，请拆为多个 Pitch；未静默删减内容。');
   }
   const media:SceneMedia[]=[];
@@ -109,7 +121,16 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
   const requestKey=hash(command);
   const input={...command,action:'business_generate_commit',requestKey,bindings,snapshots,recipes,changes,generated,slides:numbered};
   if(Buffer.byteLength(JSON.stringify(input))>8*1024*1024)throw new DocumentError('PITCH_PAGE_LIMIT','本次内容超过生成容量，请缩小范围或拆分提案。');
-  if (verifyReviewedSources) await verifyReviewedSources(snapshots);
+  return { input, capturedAssets };
+}
+export async function generateBusinessProject(
+  ctx: PitchContext, command: Generation, expectedAssetVersions?: ReadonlyMap<string, number>,
+  expectedDataFingerprint?: string, compareOutline = false,
+  evidence?: (DataBinding & { dataVersion: string }) | ((snapshots: readonly PitchDataSnapshot[]) => void | Promise<void>),
+) {
+  const expectedBinding = typeof evidence === 'function' ? undefined : evidence;
+  const { input } = await prepareBusinessProject(ctx, command, expectedAssetVersions, expectedDataFingerprint, compareOutline, undefined, expectedBinding);
+  if (typeof evidence === 'function') await evidence(input.snapshots);
   return pitchRpc(ctx,input);
 }
 export async function restoreBusinessProject(ctx:PitchContext,command:{projectId:string;sourceProjectId:string;title:string}) {

@@ -68,6 +68,71 @@ try {
    const before=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});await db.setup.query('update building_metrics set net_effective_rent=net_effective_rent+10 where record_year=2026 and record_quarter=3');
    const next={...dynamicProject,projectId:randomUUID(),parentProjectId:dynamicProject.projectId};await workflow.generateBusinessProject(admin,next);const old=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});assert.deepEqual(old.slides,before.slides);const a=await db.rpc(ADMIN,{action:'business_generation',projectId:old.project.id}),b=await db.rpc(ADMIN,{action:'business_generation',projectId:next.projectId});assert.equal(workflow.compareBusinessSnapshots(a,b).changed,true);const id=randomUUID();await workflow.restoreBusinessProject(admin,{projectId:id,sourceProjectId:dynamicProject.projectId,title:'隔离历史恢复'});const restored=await db.rpc(ADMIN,{action:'get_project',projectId:id});assert.deepEqual(restored.slides.map(s=>s.content),old.slides.map(s=>s.content));
  });
+ await check('document refresh compares pinned data, rejects a stale review, saves one new revision, and restores the previous facts',async()=>{
+   const workspace=require('../../../src/lib/pitch/workspace/workflow.ts');
+   const bindings=require('../../../src/lib/pitch/workspace/documentBindings.ts');
+   const c=command([{mode:'dynamic',parameters:{...dynamicFixture,templateId:'building-profile',buildingIds:[BUILDINGS[0]],chart:'table'}}]);
+   await workflow.generateBusinessProject(admin,c);
+   const initial=await workspace.getWorkspace(admin,c.projectId);
+   const custom=await workspace.customWorkspace(admin,{action:'custom',projectId:c.projectId,expectedVersion:initial.project.version,
+     title:'人工说明',body:'此页由用户维护。'});
+   const page=custom.slides.find(s=>s.content.blocks.some(b=>b.kind==='table'));
+   const unrelated=custom.slides.at(-1);
+   const request={projectId:c.projectId,expectedVersion:custom.project.version,slideId:page.id};
+   const pinned=await bindings.readDocumentBindings(admin,c.projectId);
+   const table=pinned.pages.find(p=>p.id===page.id).objects.find(b=>b.kind==='table');
+   assert.equal(table.valueOrigin,'business');
+   assert.deepEqual(table.query.buildingIds,[BUILDINGS[0]]);
+   assert.equal(table.binding.dataAsOf,'2026-09-30');
+   assert.equal(pinned.pages.find(p=>p.id===unrelated.id).objects[0].valueOrigin,'manual');
+   assert.equal((await bindings.previewDataRefresh(admin,{...request,action:'preview_data_refresh'})).changed,false);
+   await assert.rejects(bindings.readDocumentBindings(ordinary,c.projectId),/PITCH_DENIED/);
+   const bump=()=>db.setup.query('update building_metrics set net_effective_rent=net_effective_rent+5 where building_id=$1 and record_year=2026 and record_quarter=3',[BUILDINGS[0]]);
+   await bump();
+   const first=await bindings.previewDataRefresh(admin,{...request,action:'preview_data_refresh'});
+   assert.equal(first.changed,true);
+   assert.notDeepEqual(first.changes[0].before.blocks,first.changes[0].after.blocks);
+   assert.deepEqual((await workspace.getWorkspace(admin,c.projectId)).slides.find(p=>p.id===page.id).content,page.content);
+   await bump();
+   await assert.rejects(bindings.applyDataRefresh(admin,{...request,action:'apply_data_refresh',fingerprint:first.fingerprint}),/PITCH_DATA_REFRESH_CHANGED/);
+   const fresh=await bindings.previewDataRefresh(admin,{...request,action:'preview_data_refresh'});
+   const updated=await bindings.applyDataRefresh(admin,{...request,action:'apply_data_refresh',fingerprint:fresh.fingerprint});
+   assert.equal(updated.project.version,custom.project.version+1);
+   const newPage=updated.slides.find(p=>p.id===page.id);
+   assert.notDeepEqual(newPage.content.blocks,page.content.blocks);
+   assert.equal(newPage.scene.layoutId,page.scene.layoutId);
+   assert.deepEqual(updated.slides.find(p=>p.id===unrelated.id).content,unrelated.content);
+   const previous=await workspace.restoreWorkspace(admin,{action:'restore',projectId:c.projectId,
+     expectedVersion:updated.project.version,revision:custom.project.version});
+   assert.deepEqual(previous.slides.find(p=>p.id===page.id).content,page.content);
+ });
+ await check('Add to Pitch validates formal project IDs and atomically creates and queues a private project',async()=>{
+   const workspace=require('../../../src/lib/pitch/workspace/workflow.ts');
+   const handoff=require('../../../src/lib/pitch/workspace/handoff.ts');
+   const input={source:{kind:'buildings',buildingIds:[BUILDINGS[0]]},period:'2026-Q3'};
+   assert.equal((await handoff.reviewHandoff(admin,{action:'review_handoff',handoff:{source:input.source}})).status,'period_required');
+   await assert.rejects(handoff.reviewHandoff(ordinary,{action:'review_handoff',handoff:input}),/QUERY_DENIED/);
+   const review=await handoff.reviewHandoff(admin,{action:'review_handoff',handoff:input});
+   assert.equal(review.status,'ready');
+   const c={action:'add_to_pitch',handoff:input,fingerprint:review.fingerprint,taskId:randomUUID(),
+     target:{mode:'create',projectId:randomUUID(),title:'业务模块交接',scope,themeId:'colliers-default-v1',themeVersion:2}};
+   await assert.rejects(handoff.startHandoff(admin,{...c,fingerprint:'0'.repeat(64)}),/PITCH_HANDOFF_CHANGED/);
+   assert.equal((await db.setup.query('select 1 from pitch_projects where id=$1',[c.target.projectId])).rowCount,0);
+   const queued=await handoff.startHandoff(admin,c);
+   await workspace.runWorkspaceTask(admin,c.target.projectId,c.taskId);
+   const complete=await handoff.startHandoff(admin,c);
+   assert.equal(complete.state,'completed');
+   assert.equal(complete.source_project_id,queued.source_project_id);
+   const opened=await workspace.getWorkspace(admin,c.target.projectId);
+   assert.equal(opened.project.version,2);
+   assert.ok(opened.slides.length>0);
+   const generated=await db.rpc(ADMIN,{action:'business_generation',projectId:queued.source_project_id});
+   assert.deepEqual(generated.snapshots[0].parameters.buildingIds,[BUILDINGS[0]]);
+   const bindings=require('../../../src/lib/pitch/workspace/documentBindings.ts');
+   const bound=await bindings.readDocumentBindings(admin,c.target.projectId);
+   assert.ok(bound.pages.some(page=>page.objects.some(object=>object.valueOrigin==='business')));
+   assert.deepEqual(opened.workspace.context.buildingIds,[BUILDINGS[0]]);
+ });
  await check('dynamic snapshots cannot be client-exported or reused after independent data permission revocation',async()=>{
    const c={action:'export_start',projectId:dynamicProject.projectId,exportId:randomUUID(),audience:'internal',format:'pptx'};await render.prepareRenderExport(admin,c);await render.runRenderExport(admin,c);const file=await render.downloadArtifact(admin,c);await writeFile('tmp/pitch-business-fixtures/隔离正式数据_原生趋势.pptx',file.bytes);const zip=await JSZip.loadAsync(file.bytes);const chart=Object.values(zip.files).find(f=>/^ppt\/charts\/chart\d+\.xml$/.test(f.name));assert.ok(chart);assert.match(await chart.async('string'),/lineChart/);await assert.rejects(render.prepareRenderExport(admin,{...c,exportId:randomUUID(),audience:'client'}),/PITCH_DENIED/);
    const p=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});await db.setup.query('update private.ai_query_grants set enabled=false where user_id=$1',[ADMIN]);await assert.rejects(render.downloadArtifact(admin,c),/PITCH_DENIED/);assert.equal((await db.asUser(ADMIN,'select * from pitch_business_generations')).rowCount,0);await assert.rejects(db.rpc(ADMIN,{action:'get_asset',assetId:p.slides[0].asset_id}),e=>e.code==='42501');

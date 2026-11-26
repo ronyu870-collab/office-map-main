@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { assetInputSchema, localizedTextSchema, scopeSchema } from './content';
 import { templateParametersSchema } from '../templates/registry';
 import { layoutIdSchema, variantSchema } from './scene';
-const formatSchema = z.enum(['pptx', 'png', 'svg', 'xlsx']);
+import { exportFormats } from '../render/format';
+const formatSchema = z.enum(exportFormats);
 export const compositionPartSchema = z.strictObject({ assetId: z.uuid(), layoutId: layoutIdSchema, variant: variantSchema.default('standard') });
 export const pitchCommandSchema = z.discriminatedUnion('action', [
   z.strictObject({ action: z.literal('sample_create'), requestId: z.uuid(), scope: scopeSchema, fixture: layoutIdSchema.optional(), language: z.enum(['zh', 'en']).optional() }),
@@ -21,6 +22,7 @@ export const pitchReadSchema = z.discriminatedUnion('action', [
   z.strictObject({ action: z.literal('list_projects'), before: z.uuid().optional() }),
   z.strictObject({ action: z.literal('list_assets'), before: z.uuid().optional() }),
   z.strictObject({ action: z.literal('get_project'), projectId: z.uuid() }),
+  z.strictObject({ action: z.literal('export_eligibility'), projectId: z.uuid(), audience: z.enum(['internal', 'client']) }),
   z.strictObject({ action: z.literal('export_status'), projectId: z.uuid(), exportId: z.uuid() }),
   z.strictObject({ action: z.literal('download'), projectId: z.uuid(), exportId: z.uuid(), audience: z.enum(['internal', 'client']) }),
 ]);

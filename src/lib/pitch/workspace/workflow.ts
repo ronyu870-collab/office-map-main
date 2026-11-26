@@ -18,6 +18,8 @@ import { reviewedBuildingData } from "../business/outline-data";
 import { outlineDataParameters, workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
 import { workspaceDetailSchema, type WorkspaceDetail } from "./protocol";
 import { applyObjectMoves, applyObjectTexts, applyObjectOrder, applyObjectGroups } from "./object-layout";
+import { captureKey, readCaptures, usesBusinessEvidence } from "./bindingStore";
+import type { DocumentModificationPlan } from "../integration-contracts";
 type Page = WorkspaceDetail["slides"][number];
 type Settings = WorkspaceDetail["workspace"]["page_settings"];
 export async function getWorkspace(ctx: PitchContext, id: string) {
@@ -28,7 +30,7 @@ export async function getWorkspace(ctx: PitchContext, id: string) {
 function checkVersion(current: WorkspaceDetail, expected: number) {
   if (current.project.version !== expected) throw new Error("PITCH_CONFLICT");
 }
-async function commitPayload(
+export async function commitPayload(
   ctx: PitchContext,
   current: WorkspaceDetail,
   pages: Page[],
@@ -92,6 +94,9 @@ async function commitPayload(
 }
 export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
   const current = await getWorkspace(ctx, command.projectId);
+  return saveCurrentWorkspace(ctx, current, command);
+}
+async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail, command: WorkspaceSave) {
   checkVersion(current, command.expectedVersion);
   if (new Set(command.pages.map((p) => p.id)).size !== command.pages.length)
     throw new Error("PITCH_INVALID");
@@ -108,6 +113,8 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
         projectId: command.projectId,
       }),
     );
+  const bindings = command.pages.some(edit => edit.paragraphs || edit.objectTexts)
+    ? await readCaptures(ctx, command.projectId, command.expectedVersion) : undefined;
   for (const edit of command.pages) {
     const original = current.slides.find(
       (p) => p.id === (edit.duplicateOf ?? edit.id),
@@ -118,6 +125,8 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
     )
       throw new Error("PITCH_INVALID");
     const prior = settings[original.id] ?? {};
+    const binding = bindings?.get(captureKey(original.asset_id, original.asset_version));
+    const changedParagraphs = new Set<number>();
     let content: SlideContent = structuredClone(original.content);
     if (edit.title) content.title = edit.title;
     if (edit.paragraphs) {
@@ -126,9 +135,14 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
       const count = content.blocks.filter((b) => b.kind === "paragraph").length;
       if (count !== edit.paragraphs.length) throw new Error("PITCH_INVALID");
       let n = 0;
-      content.blocks = content.blocks.map((b) =>
-        b.kind === "paragraph" ? { ...b, text: edit.paragraphs![n++] } : b,
-      );
+      content.blocks = content.blocks.map((block, index) => {
+        if (block.kind !== "paragraph") return block;
+        const text = edit.paragraphs![n++];
+        if (text === block.text) return block;
+        if (binding && usesBusinessEvidence(block, binding.content)) throw new Error("PITCH_BOUND_VALUE_EDIT");
+        changedParagraphs.add(index);
+        return { ...block, text };
+      });
     }
     if (edit.images) {
       if (
@@ -182,17 +196,19 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
     if ((objectEdit && (relayoutRequested || edit.resetObjectLayout)) ||
       (relayoutRequested && hasObjectLayout && !edit.resetObjectLayout))
       throw new Error("PITCH_OBJECT_LAYOUT_RESET_REQUIRED");
-    const textChange = edit.objectTexts ? applyObjectTexts(original.scene, content, edit.objectTexts, prior.origin !== "data") : null;
+    const textChange = edit.objectTexts ? applyObjectTexts(original.scene, content, edit.objectTexts, prior.origin !== "data" || Boolean(binding)) : null;
+    if (binding && textChange && [...textChange.changedBlocks].some(index => usesBusinessEvidence(original.content.blocks[index], binding.content)))
+      throw new Error("PITCH_BOUND_VALUE_EDIT");
     if (textChange) content = textChange.content;
     const manual =
       prior.manual ||
       !!textChange ||
       edit.images !== undefined ||
-      edit.paragraphs !== undefined ||
+      changedParagraphs.size > 0 ||
       content.title !== original.content.title;
     if (
       textChange ||
-      edit.paragraphs ||
+      changedParagraphs.size > 0 ||
       edit.images ||
       content.title !== original.content.title
     ) {
@@ -210,9 +226,9 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
         version: String(command.expectedVersion + 1),
         dataAsOf: content.dataAsOf,
       });
-      if (edit.paragraphs || textChange?.changedBlocks.size)
+      if (changedParagraphs.size || textChange?.changedBlocks.size)
         content.blocks = content.blocks.map((b, index) =>
-          b.kind === "paragraph" && (edit.paragraphs || textChange?.changedBlocks.has(index))
+          b.kind === "paragraph" && (changedParagraphs.has(index) || textChange?.changedBlocks.has(index))
             ? { ...b, sourceIds: [sourceId] } : b,
         );
       if (content.disclosure !== "restricted") content.disclosure = "internal";
@@ -277,6 +293,39 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
     ...(await commitPayload(ctx, current, pages, settings, command)),
   });
   return getWorkspace(ctx, command.projectId);
+}
+export async function applyDocumentModification(
+  ctx: PitchContext,
+  command: Extract<WorkspaceCommand, { action: "apply_modification" }>,
+) {
+  const plan: DocumentModificationPlan = command.plan;
+  if (plan.refresh) throw new Error("PITCH_DATA_REFRESH_REVIEW_REQUIRED");
+  const current = await getWorkspace(ctx, plan.projectId);
+  checkVersion(current, plan.expectedVersion);
+  const live = new Map(current.slides.map(page => [page.id, page.version]));
+  const base = new Map(plan.basePageVersions.map(page => [page.id, page.version]));
+  const edit = new Map(plan.pages.map(page => [page.id, page]));
+  if (base.size !== plan.basePageVersions.length || edit.size !== plan.pages.length)
+    throw new Error("PITCH_INVALID");
+  for (const [id, version] of base)
+    if (live.get(id) !== version) throw new Error("PITCH_CONFLICT");
+  if (command.scope === "document" && base.size !== live.size ||
+    plan.pages.some(page => !base.has(page.duplicateOf ?? page.id)))
+    throw new Error("PITCH_CONFLICT");
+  if (command.scope === "selected" && plan.pages.some(page => page.duplicateOf || !live.has(page.id)))
+    throw new Error("PITCH_INVALID");
+  const pages = command.scope === "document" ? plan.pages : current.slides.map(page => edit.get(page.id) ?? { id: page.id });
+  return saveCurrentWorkspace(ctx, current, {
+    action: "save",
+    projectId: plan.projectId,
+    expectedVersion: plan.expectedVersion,
+    title: current.project.title,
+    themeId: command.theme?.id ?? current.project.theme_id,
+    themeVersion: command.theme?.version ?? current.project.theme_version,
+    context: current.workspace.context,
+    activeSlide: current.workspace.active_slide,
+    pages,
+  });
 }
 function editableCanvasPage(current: WorkspaceDetail, slideId: string) {
   const page = current.slides.find(candidate => candidate.id === slideId);
@@ -722,11 +771,14 @@ export async function startWorkspaceTask(
   c: Extract<WorkspaceCommand, { action: "start" }>,
 ) {
   const current = await getWorkspace(ctx, c.projectId);
-  checkVersion(current, c.expectedVersion);
-  assertOutlineDataContext(current, c.part);
-  if ((c.part.mode === "outline" && c.replaceIds.length > 0) ||
-    c.replaceIds.some((id) => !current.slides.some((p) => p.id === id)))
-    throw new Error("PITCH_INVALID");
+  // The database checks the original command before comparing the current
+  // project version. A completed task can be replayed with its old version.
+  if (current.project.version === c.expectedVersion && !current.tasks.some(task => task.id === c.taskId)) {
+    assertOutlineDataContext(current, c.part);
+    if ((c.part.mode === "outline" && c.replaceIds.length > 0) ||
+      c.replaceIds.some((id) => !current.slides.some((p) => p.id === id)))
+      throw new Error("PITCH_INVALID");
+  }
   return pitchRpc(ctx, {
     action: "workspace_task_start",
     projectId: c.projectId,
@@ -747,6 +799,7 @@ export async function runWorkspaceTask(
     const receipt = z
       .object({
         claimed: z.boolean(),
+        sourceReady: z.boolean().optional(),
         task: z
           .object({
             source_project_id: z.uuid(),
@@ -775,25 +828,27 @@ export async function runWorkspaceTask(
         city: p.city,
         businessLine: p.business_line,
       },
-      language: current.workspace.context.language,
+      language: part.mode === 'handoff' ? part.language : current.workspace.context.language,
       themeId: p.theme_id,
       themeVersion: p.theme_version,
-      parts: part.mode === 'bundle' || part.mode === 'outline' ? part.parts : [part],
+      parts: part.mode === 'bundle' || part.mode === 'outline' ? part.parts :
+        part.mode === 'handoff' ? [{ mode: 'dynamic', parameters: part.parameters }] : [part],
     });
     if(part.mode==='bundle'){
       const kit=(await import('../templates/deckKits')).DECK_KIT_BY_ID.get(part.kit.id);
       if(!kit||kit.version!==part.kit.version||part.parts.some(p=>p.mode==='dynamic'||!kit.sections.some(s=>s.templateId===p.templateId)))throw new Error('PITCH_INVALID');
     }
-    if(part.mode==='example') {
+    if (!receipt.sourceReady && part.mode === "example") {
       await (await import('./examples')).generateExampleProject(ctx,{
         projectId:receipt.task.source_project_id,requestId:taskId,title:p.title,
         scope:{organizationId:p.organization_id,region:p.region,city:p.city,businessLine:p.business_line},
         language:current.workspace.context.language,themeId:p.theme_id,themeVersion:p.theme_version,part,
       });
-    } else await generateBusinessProject(ctx, command!, part.mode === 'outline'
+    } else if (part.mode === "outline" || part.mode === "handoff" || !receipt.sourceReady) await generateBusinessProject(ctx, command!, part.mode === 'outline'
       ? new Map(part.bindings.map(binding => [binding.id, binding.version])) : undefined,
       part.mode === "outline" ? part.dataFingerprint : undefined,
-      part.mode === "outline" && part.compareQuarters);
+      part.mode === "outline" && part.compareQuarters,
+      part.mode === "handoff" ? { ...part, domain: part.parameters.templateId.startsWith("lease-") ? "lease" : "quarter" } : undefined);
     await pitchRpc(ctx, { action: "workspace_task_check", ...args });
     const source = await getWorkspace(ctx, receipt.task.source_project_id),
       settings = { ...current.workspace.page_settings };
@@ -802,7 +857,7 @@ export async function runWorkspaceTask(
       settings[id] = {
         manual: false,
         // Keep every page in a mixed deck inside formal-data editing controls.
-        origin: part.mode === "dynamic" || (part.mode === "outline" && part.dataFingerprint) ? "data" : "asset",
+        origin: part.mode === "dynamic" || part.mode === "handoff" || (part.mode === "outline" && part.dataFingerprint) ? "data" : "asset",
         part,
         ...(part.mode === "example" ? {example:true,kit:part.kit} : part.mode==='bundle'?{kit:part.kit}:{}),
       };
