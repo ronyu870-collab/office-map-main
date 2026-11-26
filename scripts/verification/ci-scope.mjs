@@ -79,11 +79,19 @@ export function getScope(base, { cwd = process.cwd(), head = 'HEAD', quickReques
     }
     const docsOnly = !forceFull && classifyChanges(changes);
     const fullOnly = forceFull || (!docsOnly && !postMerge && !draft && (!changes.length || changes.some(change => isHighRiskChange(change, git, base, head))));
-    return { docsOnly, fullOnly, postMerge: postMerge && !fullOnly && !forceFull, draft, quickOnly: !docsOnly && quickRequested && isQuickChange(changes, git, base, head),
-      ...(!postMerge && !draft ? browserScopes(changes) : { mapBrowser: false, aiBrowser: false }), paths: changes.map(change => change.path) };
+    const quickOnly = !docsOnly && quickRequested && isQuickChange(changes, git, base, head);
+    const browser = !postMerge && !draft ? browserScopes(changes) : { mapBrowser: false, aiBrowser: false };
+    // The expensive global browser suite is never a PR merge requirement.
+    // Only scheduled/manual runs execute it; larger affected map/AI changes
+    // retain targeted functional coverage. Strict local UI uses related tests.
+    const browserMode = forceFull ? 'full' :
+      (!docsOnly && !postMerge && !draft && !(quickOnly && !fullOnly) &&
+        (browser.mapBrowser || browser.aiBrowser) ? 'targeted' : 'none');
+    return { docsOnly, fullOnly, postMerge: postMerge && !fullOnly && !forceFull, draft, quickOnly,
+      ...browser, browserMode, paths: changes.map(change => change.path) };
   } catch (error) {
     // A missing/shallow/invalid base must never skip runtime verification.
-    return { docsOnly: false, fullOnly: true, postMerge: false, draft, quickOnly: false, mapBrowser: false, aiBrowser: false, reason: error.message };
+    return { docsOnly: false, fullOnly: true, postMerge: false, draft, quickOnly: false, mapBrowser: false, aiBrowser: false, browserMode: forceFull ? 'full' : 'none', reason: error.message };
   }
 }
 
@@ -125,6 +133,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     const base = process.env.CI_COMPARISON_SHA || (forceFull ? execFileSync('git', ['rev-parse', 'HEAD^'], { encoding: 'utf8' }).trim() : '');
     const scope = getScope(base, { forceFull, quickRequested: true, postMerge: process.env.CI_POST_MERGE === 'true', draft: process.env.CI_DRAFT === 'true' });
     console.log(JSON.stringify(scope));
-    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `docs_only=${scope.docsOnly}\nfull_only=${scope.fullOnly}\nmap_browser=${scope.mapBrowser}\nai_browser=${scope.aiBrowser}\ncomparison_sha=${base}\naffected_only=${!scope.fullOnly && scope.quickOnly}\npost_merge=${scope.postMerge}\ndraft=${scope.draft}\n`);
+    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `docs_only=${scope.docsOnly}\nfull_only=${scope.fullOnly}\nmap_browser=${scope.mapBrowser}\nai_browser=${scope.aiBrowser}\nbrowser_mode=${scope.browserMode}\ncomparison_sha=${base}\naffected_only=${!scope.fullOnly && scope.quickOnly}\npost_merge=${scope.postMerge}\ndraft=${scope.draft}\n`);
   }
 }

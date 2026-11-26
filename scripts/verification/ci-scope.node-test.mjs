@@ -201,3 +201,38 @@ test('post-merge optimization only applies to a valid comparison without forced 
   assert.equal(getScope('invalid', {...f, postMerge:true}).postMerge, false);
   assert.equal(getScope(f.base, {...f, postMerge:true, forceFull:true}).postMerge, false);
 });
+
+test('full browser regression is reserved for explicitly scheduled/manual full runs', t => {
+  const f = fixture(t);
+  f.write('.github/workflows/verify.yml', 'changed');
+  f.commit();
+  const pr = getScope(f.base, f);
+  assert.equal(pr.fullOnly, true);
+  assert.equal(pr.browserMode, 'none');
+  assert.equal(getScope(f.base, { ...f, forceFull: true }).browserMode, 'full');
+  assert.equal(getScope('invalid', f).browserMode, 'none');
+  assert.equal(getScope('invalid', { ...f, forceFull: true }).browserMode, 'full');
+});
+test('targeted browser coverage follows affected modules, not generic full scope', t => {
+  const f = fixture(t);
+  f.write('src/components/map/Workspace.tsx', client('Map'));
+  f.write('src/components/home/Answer.tsx', client('Home'));
+  f.commit();
+  assert.equal(getScope(f.base, f).browserMode, 'targeted');
+  assert.equal(getScope(f.base, { ...f, draft: true }).browserMode, 'none');
+  assert.equal(getScope(f.base, { ...f, postMerge: true }).browserMode, 'none');
+  f.write('src/app/api/foo/route.ts', 'changed');
+  f.commit();
+  const sensitive = getScope(f.base, f);
+  assert.equal(sensitive.fullOnly, true);
+  assert.equal(sensitive.browserMode, 'targeted');
+  assert.equal(getScope(f.base, { ...f, forceFull: true }).browserMode, 'full');
+});
+test('strict low-risk UI uses related tests without launching the browser', t => {
+  const f = uiFixture(t);
+  f.commit();
+  const scope = getScope(f.base, { ...f, quickRequested: true });
+  assert.equal(scope.quickOnly, true);
+  assert.equal(scope.fullOnly, false);
+  assert.equal(scope.browserMode, 'none');
+});

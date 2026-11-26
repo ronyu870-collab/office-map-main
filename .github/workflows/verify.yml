@@ -35,6 +35,7 @@ jobs:
       full_only: ${{ steps.scope.outputs.full_only }}
       map_browser: ${{ steps.scope.outputs.map_browser }}
       ai_browser: ${{ steps.scope.outputs.ai_browser }}
+      browser_mode: ${{ steps.scope.outputs.browser_mode }}
       comparison_sha: ${{ steps.scope.outputs.comparison_sha }}
       affected_only: ${{ steps.scope.outputs.affected_only }}
       post_merge: ${{ steps.scope.outputs.post_merge }}
@@ -150,13 +151,13 @@ jobs:
         env:
           NEXT_PUBLIC_AMAP_KEY: syntheticfixture
       - name: Cache Playwright Chromium
-        if: ${{ runner.environment == 'github-hosted' && (needs.changes.outputs.map_browser == 'true' || needs.changes.outputs.ai_browser == 'true') }}
+        if: ${{ runner.environment == 'github-hosted' && needs.changes.outputs.browser_mode == 'targeted' }}
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-1.58.2-${{ runner.os }}-${{ runner.arch }}
       - name: Affected map and AI browser functional regressions
-        if: ${{ needs.changes.outputs.map_browser == 'true' || needs.changes.outputs.ai_browser == 'true' }}
+        if: ${{ needs.changes.outputs.browser_mode == 'targeted' }}
         shell: bash
         env:
           MAP_BROWSER: ${{ needs.changes.outputs.map_browser }}
@@ -474,7 +475,7 @@ jobs:
   full-app:
     needs: changes
     if: ${{ needs.changes.outputs.full_only == 'true' }}
-    name: Full application and browser regressions
+    name: Full-scope core application checks
     runs-on: >-
       ${{ github.event_name == 'pull_request'
           && github.event.pull_request.head.repo.full_name == github.repository
@@ -482,7 +483,7 @@ jobs:
           && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
           && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
           || 'ubuntu-24.04' }}
-    # Run independently of database regressions; browser suites use isolated fixtures.
+    # Run independently of database regressions; full browser regression is scheduled/manual only.
     timeout-minutes: 40
     steps:
       - name: Checkout repository
@@ -533,12 +534,13 @@ jobs:
           NEXT_PUBLIC_AMAP_KEY: syntheticfixture
 
       - name: Cache Playwright Chromium
-        if: ${{ runner.environment == 'github-hosted' }}
+        if: ${{ runner.environment == 'github-hosted' && needs.changes.outputs.browser_mode != 'none' }}
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-1.58.2-${{ runner.os }}-${{ runner.arch }}
       - name: Browser measurement calibration and anonymous production-build regression
+        if: ${{ needs.changes.outputs.browser_mode == 'full' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
         shell: bash
         run: |
           npm install --prefix "$RUNNER_TEMP/performance-browser" --no-save --ignore-scripts playwright-core@1.58.2
@@ -604,6 +606,33 @@ jobs:
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
           node scripts/verification/verify-lease-expiry.mjs http://127.0.0.1:3210
           node scripts/verification/lease-expiry-timeline-browser.mjs http://127.0.0.1:3210
+
+      - name: Affected map and AI browser functional regressions
+        if: ${{ needs.changes.outputs.browser_mode == 'targeted' }}
+        shell: bash
+        env:
+          MAP_BROWSER: ${{ needs.changes.outputs.map_browser }}
+          AI_BROWSER: ${{ needs.changes.outputs.ai_browser }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/performance-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/performance-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          export PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/performance-browser/node_modules/playwright-core"
+          export PERF_BROWSER_CHANNEL=chromium
+          node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3210 > "$RUNNER_TEMP/routine-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3210/login > /dev/null; then break; fi
+            sleep 1
+          done
+          if [ "$MAP_BROWSER" = true ]; then
+            node scripts/verification/verify-map-workspace.mjs http://127.0.0.1:3210
+            node scripts/verification/verify-map-continuity.mjs http://127.0.0.1:3210
+          fi
+          if [ "$AI_BROWSER" = true ]; then
+            node scripts/verification/home-entry-browser.mjs after http://127.0.0.1:3210
+            HOME_QUERY_P2_BUILD_MODE=production HOME_QUERY_P2_EVIDENCE_DIR="$RUNNER_TEMP/colliers-ai-experience-p2" node scripts/verification/home-query-experience-p2-browser.mjs after http://127.0.0.1:3210
+          fi
 
       - name: Retain Audit 2 execution evidence
         if: failure()
