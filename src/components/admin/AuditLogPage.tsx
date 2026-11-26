@@ -29,7 +29,7 @@ interface AuditLog {
 }
 interface AuditLogWithUser extends AuditLog { user_name?: string }
 interface UserOption { id: string; name: string; auditIds: string[]; role?: string }
-const LIST_FIELDS = 'id,user_id,action_type,created_at,occurred_at,actor_kind,actor_name,actor_role,request_source,module,target_table,target_id,target_name,error_message,photo_count:details->photo_count,material_count:details->material_count,parameter_and_note_count:details->parameter_and_note_count,operation:details->operation,table:details->table,table_label:details->table_label,outcome:details->outcome,business_outcome:details->business_outcome,count:details->count';
+const LIST_FIELDS = 'id,user_id,action_type,created_at,occurred_at,actor_kind,actor_name,actor_role,request_source,module,target_table,target_id,target_name,error_message,photo_count:details->photo_count,material_count:details->material_count,parameter_and_note_count:details->parameter_and_note_count,operation:details->operation,table:details->table,table_label:details->table_label,outcome:details->outcome,business_outcome:details->business_outcome,count:details->count,field_name:details->field_name';
 const EMPTY_TEXT_FILTERS = { object: '', ip: '', device: '', session: '', targetTable:'',targetId:'',operationId:'',from:'',to:'' };
 const SEARCH_SETTLE_MS = 280;
 const DEFAULT_EXCLUDE_CODEX = true;
@@ -40,7 +40,7 @@ const EXCLUSION_BUTTON = 'rounded-md border px-2.5 py-1.5 text-[13px] transition
 function exclusionClass(active: boolean) {
   return `${EXCLUSION_BUTTON} ${active ? 'border-[#24478f] bg-blue-50 text-[#24478f]' : 'border-zinc-200 text-zinc-600'}`;
 }
-const MODULE_NAMES: Record<string, string> = { 'stacking-plan':'Stacking Plan','quarterly-research':'季度研究','occupier-insights':'企业选址洞察',map:'楼宇地图', compare:'楼宇对比', admin:'管理后台', update:'季度填报', bi:'商业分析', intelligence:'业务智能', 'lease-submission':'租赁成交', oss:'研究资料库', login:'登录', home:'首页', settings:'修改密码' };
+const MODULE_NAMES: Record<string, string> = { building_data_ai_enrichment:'AI 楼宇数据补齐',building_photos:'楼宇图片', 'stacking-plan':'Stacking Plan','quarterly-research':'季度研究','occupier-insights':'企业选址洞察',map:'楼宇地图', compare:'楼宇对比', admin:'管理后台', update:'季度填报', bi:'商业分析', intelligence:'业务智能', 'lease-submission':'租赁成交', oss:'研究资料库', login:'登录', home:'首页', settings:'修改密码' };
 
 const AUTH_ACTIONS = ['LOGIN','LOGIN_FAILED','LOGOUT'];
 const HIGH_RISK_SET = new Set(HIGH_RISK_ACTIONS);
@@ -79,7 +79,7 @@ const DETAIL_LABELS: Record<string,string> = {
   model:'模型', candidate_count:'候选数', operation:'操作', access_method:'访问方式', source:'入口',
   report_name:'报告', report_type:'报告类型', export_method:'导出方式', outcome:'结果', authority:'审计来源',
   size:'文件大小', file_size_bytes:'文件大小（字节）', table_count:'数据表数量', blocked:'是否被阻止',
-  batch:'导入批次', review:'核验说明', executor:'执行工具', material_count:'资料数', policy_count:'佣金政策数', commission_policy_count:'佣金政策数', parameter_and_note_count:'参数与说明数', original_location:'原件位置',
+  batch_id:'批次编号', batch_ref:'批次引用', field_name:'补齐字段', provenance_id:'溯源记录 ID', source_name:'数据来源', source_table:'来源表', source_field:'来源字段', verification_status:'核验状态', batch:'导入批次', review:'核验说明', executor:'执行工具', material_count:'资料数', policy_count:'佣金政策数', commission_policy_count:'佣金政策数', parameter_and_note_count:'参数与说明数', original_location:'原件位置',
   tab:'填报分类', regular:'常规楼宇', future:'未来供应', settled:'最终状态',
 };
 
@@ -89,7 +89,7 @@ function formatFullTime(value: string) { return new Intl.DateTimeFormat('zh-CN',
 function isHighRisk(log: AuditLog) { return HIGH_RISK_SET.has(log.action_type) || Boolean(log.error_message) || isUnresolvedAuditActor(log); }
 function readable(value: unknown) { if (value == null || value === '') return '—'; if (typeof value === 'object') return JSON.stringify(value); return String(value); }
 function isReadableText(value: unknown): value is string { return typeof value === 'string' && value.trim().length > 0 && !/[\u0000-\u001F\uFFFD]/.test(value); }
-function sourceLabel(source?: string) { if (source === 'database_trigger') return '数据库触发器'; if (source === 'frontend') return '用户界面'; if (source === 'server') return '服务端'; return source || '来源未标记'; }
+function sourceLabel(source?: string, actorKind?: string) { if (source === 'chatgpt_mcp') return 'ChatGPT MCP'; if (source === 'frontend' && actorKind === 'tool') return '用户界面（历史来源标记）'; if (source === 'database_trigger') return '数据库触发器'; if (source === 'frontend') return '用户界面'; if (source === 'server') return '服务端'; return source || '来源未标记'; }
 function detailLabel(key: string) { return DETAIL_LABELS[key] || key; }
 function objectSummary(log: AuditLog) {
   const p = log.details || {};
@@ -143,7 +143,7 @@ function LogItem({ log, isDemo,onTimeline }: { log: AuditLogWithUser; isDemo: bo
       <div className="grid gap-x-8 gap-y-2 text-[13px] text-zinc-500 sm:grid-cols-2 lg:grid-cols-4">
         <span className="break-words sm:col-span-2"><b className="font-medium text-zinc-700">操作人：</b><MaskedText>{displayAuditActor(log)}</MaskedText></span><span className="break-words sm:col-span-2"><b className="font-medium text-zinc-700">操作内容：</b>{parseAuditLog(log.action_type,log.details)}</span>
         <span className="break-words sm:col-span-2"><b className="font-medium text-zinc-700">操作对象：</b>{objectSummary(log)}</span>
-        <span><b className="font-medium text-zinc-700">结果 / 级别：</b>{auditOutcome(log)} · {auditDefinition(log.action_type).tier}</span><span><b className="font-medium text-zinc-700">入库时角色：</b>{log.actor_role || '历史未记录'}</span><span><b className="font-medium text-zinc-700">发生时间：</b>{formatFullTime(when)}</span><span><b className="font-medium text-zinc-700">入库时间：</b>{formatFullTime(log.created_at)}</span><span><b className="font-medium text-zinc-700">模块：</b>{moduleName(log.module)}</span><span><b className="font-medium text-zinc-700">来源：</b>{sourceLabel(log.request_source)}</span>
+        <span><b className="font-medium text-zinc-700">结果 / 级别：</b>{auditOutcome(log)} · {auditDefinition(log.action_type).tier}</span><span><b className="font-medium text-zinc-700">入库时角色：</b>{log.actor_role || '历史未记录'}</span><span><b className="font-medium text-zinc-700">发生时间：</b>{formatFullTime(when)}</span><span><b className="font-medium text-zinc-700">入库时间：</b>{formatFullTime(log.created_at)}</span><span><b className="font-medium text-zinc-700">模块：</b>{moduleName(log.module)}</span><span><b className="font-medium text-zinc-700">来源：</b>{sourceLabel(log.request_source,log.actor_kind)}</span>
         <span><b className="font-medium text-zinc-700">IP：</b>{isDemo ? '***' : log.ip_address || '—'}</span><span><b className="font-medium text-zinc-700">地区：</b>{isDemo ? '***' : [log.ip_country,log.ip_region,log.ip_city].filter(Boolean).join(' / ') || '—'}</span><span><b className="font-medium text-zinc-700">设备：</b>{[log.os_name,log.os_version,log.browser_name,log.browser_version].filter(Boolean).join(' ') || '—'}</span><span><b className="font-medium text-zinc-700">类型：</b>{log.device_type || '—'}</span>
         <span className="sm:col-span-2"><b className="font-medium text-zinc-700">Device ID：</b><span className="font-mono">{isDemo ? '***' : log.client_device_id || '—'}</span></span><span className="sm:col-span-2"><b className="font-medium text-zinc-700">Auth Session：</b><span className="font-mono">{isDemo ? '***' : log.auth_session_id || '—'}</span></span>
       </div>
@@ -229,7 +229,7 @@ export function AuditLogPage() {
       const { data, error } = await query.order('id', { ascending:false }).limit(PAGE_SIZE + 1).abortSignal(controller.signal);
       if (controller.signal.aborted) return;
       if (error) throw error;
-      const rows = (data ?? []).slice(0,PAGE_SIZE).map((row:any) => ({...row,details:row.details || {photo_count:row.photo_count,material_count:row.material_count,parameter_and_note_count:row.parameter_and_note_count,operation:row.operation,table:row.table,table_label:row.table_label,outcome:row.outcome,business_outcome:row.business_outcome,count:row.count}}));
+      const rows = (data ?? []).slice(0,PAGE_SIZE).map((row:any) => ({...row,details:row.details || {photo_count:row.photo_count,material_count:row.material_count,parameter_and_note_count:row.parameter_and_note_count,operation:row.operation,table:row.table,table_label:row.table_label,outcome:row.outcome,business_outcome:row.business_outcome,count:row.count,field_name:row.field_name}}));
       setLogs(rows);
       setHasNext((data?.length || 0) > PAGE_SIZE);
       const last=rows.at(-1);
