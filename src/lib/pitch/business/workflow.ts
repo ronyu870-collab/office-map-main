@@ -19,6 +19,7 @@ import { runPitchDataAdapter, type DataBinding, type PitchDataSnapshot } from '.
 import { documentDataVersion } from './document-version';
 import { reviewedBuildingData } from './outline-data';
 const hash=(v:unknown)=>digest(new TextEncoder().encode(JSON.stringify(v)));
+type BusinessGenerationCommand = Generation & { expectedParentVersion?: number };
 const storedSchema=z.object({asset:z.object({id:z.uuid(),current_version:z.number(),organization_id:z.string(),region:z.string(),city:z.string(),business_line:z.string()}).passthrough(),version:z.object({content:slideContentSchema}),profile:businessProfileSchema,media:z.array(mediaRowSchema)});
 export function profileMedia(profile:BusinessProfile) {
   if(profile.kind==='team')return profile.photo?[profile.photo]:[];
@@ -38,7 +39,7 @@ export async function saveBusinessProfile(ctx:PitchContext,c:{assetId:string;exp
   asset.state='draft';asset.allowClientExport=false;asset.allowExternalAi=false;
   return pitchRpc(ctx,{action:'business_profile_save',assetId:c.assetId,expectedVersion:c.expectedVersion,profile,asset,sha256:hash(asset.content),tokens:documentTokens(JSON.stringify([asset.content,profile])),media:profileMedia(profile)});
 }
-export async function prepareBusinessProject(ctx:PitchContext,command:Generation,expectedAssetVersions?:ReadonlyMap<string,number>, expectedDataFingerprint?:string, compareOutline = false, preparedSnapshot?: PitchDataSnapshot, expectedBinding?: DataBinding & { dataVersion:string }) {
+export async function prepareBusinessProject(ctx:PitchContext,command:BusinessGenerationCommand,expectedAssetVersions?:ReadonlyMap<string,number>, expectedDataFingerprint?:string, compareOutline = false, preparedSnapshot?: PitchDataSnapshot, expectedBinding?: DataBinding & { dataVersion:string }) {
   const registry=z.object({theme:z.object({definition:designThemeSchema})}).parse(await pitchRpc(ctx,{action:'registry',templateId:'business-content',templateVersion:1,themeId:command.themeId,themeVersion:command.themeVersion}));
   const theme=registry.theme.definition,bindings:{id:string;version:number}[]=[],snapshots:PitchDataSnapshot[]=[],recipes:{id:string;revision:number}[]=[],groups:(BusinessPage & { capture?: { snapshotIndex:number; contentIndex:number } })[]=[],mediaRows:z.infer<typeof mediaRowSchema>[]=[];
   const currentPeriods=command.parts.filter(p=>p.mode==='dynamic'&&!p.parameters.templateId.endsWith('-trend')&&!p.parameters.templateId.startsWith('lease-')).map(p=>p.mode==='dynamic'?JSON.stringify(p.parameters.period):'');
@@ -124,7 +125,7 @@ export async function prepareBusinessProject(ctx:PitchContext,command:Generation
   return { input, capturedAssets };
 }
 export async function generateBusinessProject(
-  ctx: PitchContext, command: Generation, expectedAssetVersions?: ReadonlyMap<string, number>,
+  ctx: PitchContext, command: BusinessGenerationCommand, expectedAssetVersions?: ReadonlyMap<string, number>,
   expectedDataFingerprint?: string, compareOutline = false,
   evidence?: (DataBinding & { dataVersion: string }) | ((snapshots: readonly PitchDataSnapshot[]) => void | Promise<void>),
 ) {

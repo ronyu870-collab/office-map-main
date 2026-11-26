@@ -36,7 +36,7 @@ export async function generateConfirmedProposal(ctx: PitchContext, input: Confir
         title: reviewed.plan.title, scope: reviewed.snapshot.scope, language: reviewed.snapshot.brief.language,
         themeId: project.theme_id, themeVersion: project.theme_version, parts: reviewed.generation.map(entry => entry.part) });
       const expectedEvidence = reviewed.generation.map(item => item.evidenceVersion);
-      await generateBusinessProject(context, command, undefined, undefined, false, async snapshots => {
+      await generateBusinessProject(context, { ...command, expectedParentVersion: input.expectedVersion }, undefined, undefined, false, async snapshots => {
         if (JSON.stringify(snapshots.map(item => proposalEvidenceVersion(item.results))) !== JSON.stringify(expectedEvidence)) {
           throw new Error("PITCH_PROPOSAL_REVIEW_REQUIRED");
         }

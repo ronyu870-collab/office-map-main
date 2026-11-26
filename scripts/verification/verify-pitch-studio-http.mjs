@@ -60,6 +60,7 @@ try {
    '20261127090306_pitch_workspace_handoff_replay.sql',
    '20261127090406_pitch_workspace_shares.sql',
    '20261127090506_pitch_export_file_reuse.sql',
+   '20261127093008_pitch_proposal_parent_revision.sql',
  ]) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
  await db.query("notify pgrst,'reload schema'");
  const owner=await person('editor'),other=await person('editor'),viewer=await person('viewer'),admin=await person('admin');

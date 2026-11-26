@@ -123,7 +123,7 @@ export function leasingDrafts(data: ProposalData, target: BoundBuilding, period:
       subtitle: `已发布区域概况 · ${market.spotlight.sources[0].dataAsOf}`,
     } : null,
     history: history.length === 2 && history.every(item => item.block.block.kind === 'chart')
-      ? { title: `${marketTitle}的租金与空置率历史变化`, subtitle: history[0].coverage + ' ／ ' + history[1].coverage, composition: 'chart-stack', blocks: history.map(entry => entry.block) }
+      ? { title: `${marketTitle}的租金与空置率历史变化`, subtitle: [...new Set(history.map(item => item.coverage))].join(' ／ '), composition: 'chart-stack', blocks: history.map(entry => entry.block) }
       : history.map(entry => ({ title: entry.title, subtitle: entry.coverage, composition: entry.block.block.kind === 'chart' ? 'chart-insight' : 'data-table', blocks: [entry.block] })),
     'competition-map': peers.length ? location('目标项目与竞品区位', data.maps?.candidates, data.buildings) : null,
     'comparable-properties': [

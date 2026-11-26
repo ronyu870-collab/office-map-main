@@ -47,6 +47,7 @@ export async function createPitchDatabase() {
       '20261127090306_pitch_workspace_handoff_replay.sql',
       '20261127090406_pitch_workspace_shares.sql',
       '20261127090506_pitch_export_file_reuse.sql',
+      '20261127093008_pitch_proposal_parent_revision.sql',
     ]) await setup.query(await readFile(new URL('../../migrations/' + migration, import.meta.url), 'utf8'));
     return {setup,config,database,
       async grant(uid,region='test-region',extra={}) {
