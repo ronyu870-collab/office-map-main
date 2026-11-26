@@ -75,7 +75,7 @@ function ResultActions({ result, requestId, scope, internalExport, children, res
           {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('table', event.currentTarget)}>复制结果表格</Button>}
           {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('figures', event.currentTarget)}><Copy size={16} aria-hidden="true" />复制关键数字</Button>}
           <Button variant="ghost" size="sm" onClick={event => { summaryTrigger.current = event.currentTarget; showSummary(); }}><FileText size={16} aria-hidden="true" />生成分析摘要</Button>
-          {internalExport && ['list', 'fact', 'aggregate'].includes(result.operation) &&
+          {internalExport && ['list', 'compare', 'aggregate'].includes(result.operation) &&
             <PitchHandoffLink source={{ kind: 'analysis-result', id: requestId }}
               className={styles.handoffAction} label="将分析结果加入 Pitch" />}
           {responseActions}

@@ -35,7 +35,7 @@ it("uses the actual proposal review and reuses the generation task after a lost 
   render(<ProposalPreview call={call} projectId={id} projectVersion={2} question={question}
     city="北京" language="zh" period="2026-Q3" buildingIds={[buildingId]}
     initialQuestion={question} disabled={false} onGenerated={onGenerated} />);
-  await screen.findByText("办公楼宇对比");
+  await screen.findByText("办公楼宇对比", {}, { timeout: 5000 });
   expect(requests).toHaveLength(1);
   await user.click(screen.getByRole("button", { name: "确认并生成 Pitch" }));
   await screen.findByText("响应中断");

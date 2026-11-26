@@ -99,7 +99,7 @@ const inspectorTabs: { id: Inspector; label: string }[] = [
   { id: "assist", label: "AI" },
 ];
 type OutlineStart = Extract<WorkspaceCommand, { action: "start" }> & { part: OutlinePart };
-type TaskReceipt = { id: string; state: string; attempts?: number; error_code?: string };
+type TaskReceipt = { id: string; state: string; attempts?: number; error_code?: string; stage?: string };
 type WorkspaceTask = TaskReceipt & { outline?: boolean; unconfirmed?: OutlineStart };
 type SavedCanvasHistory = {
   projectId: string;
@@ -351,6 +351,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
       const receipt = work && {
         id: String(work.id), state: String(work.state), attempts: Number(work.attempts),
         error_code: typeof work.error_code === "string" ? work.error_code : undefined,
+        stage: typeof work.stage === "string" ? work.stage : undefined,
         outline: previous?.id === work.id && previous?.outline,
       };
       if (previous?.unconfirmed?.projectId === value.project.id && receipt?.id !== previous.id) return previous;
@@ -598,6 +599,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
           state: string;
           attempts: number;
           error_code?: string;
+          stage?: string;
         }>(
           { action: "status", projectId, taskId: id },
           true,
@@ -1274,7 +1276,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
                           ? "页面已生成，正在读取结果"
                           : task.state === "queued"
                             ? (task.outline ? "提纲已确认，正在排队" : "页面正在排队")
-                            : (task.outline ? "正在按已审阅提纲生成" : "正在生成页面，原页面可继续查看")}
+                            : task.stage === "preparing"
+                              ? "正在复核数据和素材"
+                              : task.stage === "assembling"
+                                ? "正在组装提案页面"
+                                : task.stage === "saved"
+                                  ? "已保存，正在准备页面"
+                                  : (task.outline ? "正在按已审阅提纲生成" : "正在生成页面，原页面可继续查看")}
                       </span>
                       {!readingResult && (
                         <Button
