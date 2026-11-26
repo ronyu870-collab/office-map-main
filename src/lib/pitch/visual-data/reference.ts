@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { sourceReferenceSchema } from '../contracts/content';
 import type { VisualAssetReference } from '../integration-contracts';
+import { marketVisualSelectionSchema } from './buildings';
 import { contentHash } from './photo-file';
 import { stackingSelectionSchema } from './stacking';
 
@@ -8,7 +9,7 @@ export const visualSha256 = z.string().regex(/^[a-f0-9]{64}$/);
 const originSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('building-photo'), buildingId: z.uuid(), photoId: z.uuid() }),
   z.strictObject({ type: z.literal('building-locations'), buildingIds: z.array(z.uuid()).min(1).max(20), targetId: z.uuid().optional() }),
-  z.strictObject({ type: z.literal('market-locations'), submarkets: z.array(z.string().trim().min(1).max(80)).min(1).max(8) }),
+  marketVisualSelectionSchema.safeExtend({ type: z.literal('market-locations') }),
   z.strictObject({ type: z.literal('stacking-snapshot'), buildingId: z.uuid(), selection: stackingSelectionSchema }),
 ]);
 export type VisualOrigin = z.infer<typeof originSchema>;

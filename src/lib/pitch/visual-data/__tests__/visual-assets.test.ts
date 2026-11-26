@@ -12,7 +12,7 @@ import { classifyBuildingPhoto, reusablePhotoLicense, selectBuildingPhotos, type
 import { readPitchLocation, readPitchStackingPlan } from '../derived-assets';
 import { createLocationSchematic, locationSchematicSvg } from '../location';
 import { createStackingVisual } from '../stacking';
-import { resolvePitchVisualAsset } from '../resolve';
+import { resolvePitchVisualAsset, resolveReferencedVisualMedia } from '../resolve';
 import type { PitchContext } from '../../data/store';
 import type { SlideContent } from '../../contracts/content';
 
@@ -20,7 +20,7 @@ const id = (i: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(i).padStart(12, '0')
 const buildingId = id(1), secondId = id(2), photoId = id(3), actor = id(4), session = id(5);
 const rights = { source_url: 'https://commons.wikimedia.org/wiki/File:Sample.jpg', source_name: 'Wikimedia Commons',
   license_url: 'https://creativecommons.org/licenses/by-sa/4.0/', attribution_text: 'Test Photographer' };
-const main = { id: buildingId, name: '测试楼宇', submarket: 'CBD', location_lat: 39.9111, location_lng: 116.456 };
+const main = { id: buildingId, name: '测试楼宇', submarket: 'CBD', location_lat: 39.9111, location_lng: 116.456, city: '北京市' };
 const competitor = { ...main, id: secondId, name: '测试竞品' };
 const source = { id: 'source-1', building_id: buildingId, title: '合成资料', source_as_of: '2026-11-18',
   as_of_kind: 'source_data_as_of', review_state: 'date_confirmed' };
@@ -45,10 +45,12 @@ const rowFor = (bytes: Uint8Array, photo = photoId, building = buildingId) => ({
 type PhotoRow = ReturnType<typeof rowFor>;
 
 function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array>; allowed?: boolean; stackingAdmin?: boolean;
-  stackingExport?: boolean; revoke?: boolean; incompatiblePhoto?: boolean } = {}) {
+  stackingExport?: boolean; revoke?: boolean; incompatiblePhoto?: boolean;
+  buildings?: typeof main[]; ignoreCityFilter?: boolean } = {}) {
   const calls: string[] = [];
   let authReads = 0;
   const rows = options.rows ?? [rowFor(jpeg)];
+  const catalog = options.buildings ?? [main, competitor];
   const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
     const path = url.pathname.split('/').at(-1)!;
@@ -64,13 +66,18 @@ function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array
     }
     if (path === 'ai_query_snapshot_read') {
       const input = JSON.parse(String(init?.body));
-      const selected = [main, competitor].filter(item => !input.p_building_ids || input.p_building_ids.includes(item.id));
+      const selected = catalog.filter(item => (!input.p_building_ids || input.p_building_ids.includes(item.id))
+        && (!input.p_submarkets || input.p_submarkets.includes(item.submarket)));
       return Response.json({ snapshot_id: id(7), database_snapshot: 'test', read_at: '2026-11-18T00:00:00Z', expected_count: selected.length,
         complete: true, periods: [], fields: [], inventory_time: 'current_catalog', brochure_selection: 'all_unresolved_record_candidates',
-        rows: selected.map(item => ({ id: item.id, name: item.name, submarket: 'CBD', grade: 'A', is_active: true,
+        rows: selected.map(item => ({ id: item.id, name: item.name, submarket: item.submarket, grade: 'A', is_active: true,
           tracking_scope: 'tracked', version: 'c'.repeat(64), metrics: [], brochures: [] })) });
     }
-    if (path === 'buildings') return Response.json([main, competitor].filter(item => url.searchParams.get('id')?.includes(item.id)));
+    if (path === 'buildings') {
+      const cities = url.searchParams.get('city');
+      return Response.json(catalog.filter(item => url.searchParams.get('id')?.includes(item.id)
+        && (!cities || options.ignoreCityFilter || cities.slice(4, -1).split(',').includes(item.city))));
+    }
     if (path === 'building_photos') {
       const scoped = rows.filter(row => url.searchParams.get('building_id')?.includes(row.building_id));
       const singleId = url.searchParams.get('id');
@@ -181,6 +188,37 @@ describe('building photo admission and actual scene bytes', () => {
 });
 
 describe('location and stacking service boundaries', () => {
+  it('resolves a whole-city quarterly map through the allowed catalog and excludes same-name submarkets in other cities', async () => {
+    const otherCity = { ...competitor, city: '上海' };
+    const { ctx } = fixture({ buildings: [main, otherCity] });
+    const map = await readPitchLocation(ctx, { city: 'Beijing', submarkets: [] });
+    expect(map?.scene.title).toBe('北京子市场项目分布');
+    expect(map?.reference.origin).toMatchObject({ type: 'market-locations', city: '北京' });
+    expect(map?.reference.buildingIds).toEqual([buildingId]);
+    expect((await resolvePitchVisualAsset(ctx, map?.reference, 'internal')).reference).toEqual(map?.reference);
+    await expect(readPitchLocation(ctx, { submarkets: [] })).rejects.toThrow();
+    expect(await readPitchLocation(ctx, { city: '北京', submarkets: ['缺少该子市场'] })).toBeNull();
+    const invalidBackend = fixture({ buildings: [main, otherCity], ignoreCityFilter: true });
+    await expect(readPitchLocation(invalidBackend.ctx, { city: '北京' })).rejects.toThrow('QUERY_DENIED');
+  });
+
+  it('resolves only referenced scene media, deduplicates repeated images, and rejects conflicting pins', async () => {
+    const { ctx, calls } = fixture();
+    const [choice] = await getBuildingPhotoChoices(ctx, { buildingIds: [buildingId], use: 'cover' });
+    const photo = choice.primary!;
+    const unused = (await readPitchLocation(ctx, { buildingIds: [buildingId] }))!.reference;
+    const storageCalls = () => calls.filter(path => path.startsWith('/storage/')).length;
+    const before = storageCalls();
+    const media = await resolveReferencedVisualMedia(ctx, [photo, unused, photo], [photo, photo], 'internal');
+    expect(media).toHaveLength(1);
+    expect(contentHash(media[0].bytes)).toBe(photo.contentHash);
+    expect(storageCalls()).toBe(before + 1);
+    await expect(resolveReferencedVisualMedia(ctx, [photo, { ...photo, versionHash: 'b'.repeat(64) }], [photo], 'internal'))
+      .rejects.toThrow('PITCH_SOURCE_CHANGED');
+    await expect(resolveReferencedVisualMedia(ctx, [photo], [photo], 'client')).rejects.toThrow('QUERY_DENIED');
+    expect(storageCalls()).toBe(before + 1);
+  });
+
   it('preserves matching coordinates, visually separates co-located numbers and accounts for missing points', async () => {
     const unlocated = { ...main, id: id(20), name: '缺坐标项目', location_lat: null };
     const scene = createLocationSchematic([main, competitor, unlocated], competitor.id)!;
@@ -219,5 +257,8 @@ describe('location and stacking service boundaries', () => {
     expect(plan?.reference.rights).toMatchObject({ externalAi: false, clientDistribution: false });
     expect(plan?.media).toMatchObject({ width: 2048, mime: 'image/png' });
     expect((await resolvePitchVisualAsset(ctx, plan?.reference, 'internal', { stackingImage: true })).reference).toEqual(plan?.reference);
+    const deniedNative = fixture({ stackingAdmin: false });
+    await expect(resolveReferencedVisualMedia(deniedNative.ctx, [plan?.reference], [], 'internal')).rejects.toThrow('QUERY_DENIED');
+    expect(deniedNative.calls.some(call => call.includes('/stacking_plan_spaces'))).toBe(false);
   });
 });

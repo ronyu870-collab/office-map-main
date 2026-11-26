@@ -3,7 +3,7 @@ import { loadBusinessSnapshot } from '@/src/lib/intelligence/business/research';
 import { readStackingSnapshot } from '@/src/lib/stacking-plan/readSnapshot';
 import type { PitchContext } from '../data/store';
 import type { SceneMedia } from '../render/media';
-import { authorizeVisualBuildings, recheckVisualBuildings, type VisualBuildingSelection } from './buildings';
+import { authorizeVisualBuildings, marketVisualSelection, recheckVisualBuildings, type VisualBuildingSelection } from './buildings';
 import { createLocationSchematic, locationSchematicSvg } from './location';
 import { contentHash } from './photo-file';
 import { pinVisual, stableVisualId, type PinnedVisualReference } from './reference';
@@ -24,17 +24,18 @@ function sceneMedia(reference: PinnedVisualReference, raster: Awaited<ReturnType
 
 /** Authorized current catalog coordinates. Historical market periods do not date this location asset. */
 export async function readPitchLocation(ctx: PitchContext, selection: VisualBuildingSelection, targetId?: string) {
-  const market = 'submarkets' in selection;
+  const market = 'buildingIds' in selection ? null : marketVisualSelection(selection);
   if (targetId !== undefined) z.uuid().parse(targetId);
   if (market && targetId) throw new Error('PITCH_LOCATION_SELECTION');
   const authorized = await authorizeVisualBuildings(ctx, selection);
-  const scene = authorized.buildings.length ? createLocationSchematic(authorized.buildings, targetId, market) : null;
+  const scene = authorized.buildings.length ? createLocationSchematic(authorized.buildings, targetId, Boolean(market)) : null;
   if (!scene) {
     await recheckVisualBuildings(ctx, authorized.authority);
     return null;
   }
-  const origin = market ? { type: 'market-locations' as const, submarkets: [...new Set(selection.submarkets)].sort() }
-    : { type: 'building-locations' as const, buildingIds: selection.buildingIds, targetId };
+  const origin = 'buildingIds' in selection ? { type: 'building-locations' as const, buildingIds: selection.buildingIds, targetId }
+    : { type: 'market-locations' as const, ...market };
+  if (market?.city) scene.title = `${market.city}子市场项目分布`;
   const id = stableVisualId(origin);
   const raster = await rasterizeSvg(await locationSchematicSvg(scene));
   const reference = pinVisual({
