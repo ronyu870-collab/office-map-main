@@ -4,6 +4,7 @@ import { pitchRpc, type PitchContext } from "../data/store";
 import { objectId, textAnchors } from "../workspace/object-layout";
 import { workspaceDetailSchema, type WorkspaceSave } from "../workspace/protocol";
 import { normalizeProposalQuestion, proposalRequestSchema, readProposalBrief } from "./proposal-brief";
+import type { ProposalScenario } from "../integration-contracts";
 import type { ProposalRevisionRequest } from "./proposal-edit-intent";
 import { prepareProposal } from "./proposal-runtime";
 import { previewProposalRevision, type ProposalRevisionPort } from "./proposal-workflow";
@@ -13,6 +14,13 @@ const versionedWorkspace = workspaceDetailSchema.extend({
 });
 const formattedNumber = /[-+]?[0-9]+(?:[,.][0-9]+)*/g;
 const numbers = (text: string) => JSON.stringify(text.normalize("NFKC").match(formattedNumber) ?? []);
+const scenarioQuestions: Record<Exclude<ProposalScenario, "analysis-briefing">, string> = {
+  "leasing-agency": "为所选楼宇制作招商代理提案",
+  "office-comparison": "对比所选写字楼",
+  "market-report": "制作写字楼市场报告",
+  "building-promotion": "为所选楼宇制作项目推介",
+  "site-selection": "为所选楼宇制作选址方案",
+};
 const quoted = /(?:改为|改成|换成|替换为|replace (?:it )?with|change (?:it )?to)\s*(?:《([^》]+)》|「([^」]+)」|[“"]([^”"]+)[”"])/i;
 
 export async function planProposalRevision(ctx: PitchContext, input: ProposalRevisionRequest) {
@@ -36,10 +44,11 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
         if (operation.kind === "set-period") {
           const projectQuestion = `${workspace.context.business} ${project.title}`.trim();
           const brief = readProposalBrief(proposalRequestSchema.parse({ question: projectQuestion }));
-          if (!brief.scenario) return null;
+          if (!brief.scenario || brief.scenario === "analysis-briefing") return null;
+          if (brief.scenario !== "market-report" && !workspace.context.buildingIds.length) return null;
           const period = operation.period;
-          const prior = projectQuestion.replace(/20\d{2}\s*(?:-?Q\s*[1-4]|年?\s*(?:第)?\s*[一二三四1234]季(?:度)?)/gi, "");
-          const question = ((period ?? "最新正式季度") + " " + prior.replace(/最新正式季度|最新季度|\blatest quarter\b/gi, "")).trim();
+          const location = brief.submarkets.join("、");
+          const question = [period ?? "最新正式季度", location, scenarioQuestions[brief.scenario]].filter(Boolean).join("，");
           const proposal = await prepareProposal(ctx, proposalRequestSchema.parse({ question, projectId: input.projectId,
             buildingIds: workspace.context.buildingIds, language: workspace.context.language, period: period ?? undefined }));
           if (proposal.status !== "ready") return null;
