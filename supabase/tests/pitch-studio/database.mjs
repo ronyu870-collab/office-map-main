@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { loadPitchMigrations } from './migrations.mjs';
 import pg from 'pg';
 export const OWNER='11111111-1111-4111-8111-111111111111', OTHER='22222222-2222-4222-8222-222222222222', ADMIN='33333333-3333-4333-8333-333333333333', VIEWER='44444444-4444-4444-8444-444444444444';
 export const sessionFor=uid=>uid.replace(/^[1-4]/,'a');
@@ -31,13 +31,7 @@ export async function createPitchDatabase() {
       await setup.query('insert into public.user_roles values($1,$2)',[id,role]);
       await setup.query("insert into auth.sessions values($1,$2,now()+interval '1 day')",[sessionFor(id),id]);
     }
-    for (const migration of ['20261125165826_pitch_studio_foundation.sql', '20261125174626_pitch_studio_render_engine.sql', '20261125182357_pitch_studio_material_library.sql', '20261125192547_pitch_studio_business_templates.sql', '20261125201503_pitch_studio_workspace.sql', '20261126083359_pitch_studio_template_ecosystem.sql', '20261126090000_pitch_studio_ai.sql', '20261126163000_pitch_workspace_revision_apply.sql']) await setup.query(await readFile(new URL('../../migrations/' + migration,import.meta.url),'utf8'));
-    await setup.query(await readFile(new URL('../../migrations/20261127090006_pitch_workspace_document_jobs.sql',import.meta.url),'utf8'));
-    await setup.query(await readFile(new URL('../../migrations/20261127090106_pitch_document_delivery.sql',import.meta.url),'utf8'));
-    await setup.query(await readFile(new URL('../../migrations/20261127090206_pitch_workspace_bindings.sql',import.meta.url),'utf8'));
-    await setup.query(await readFile(new URL('../../migrations/20261127090306_pitch_workspace_handoff_replay.sql',import.meta.url),'utf8'));
-    await setup.query(await readFile(new URL('../../migrations/20261127090406_pitch_workspace_shares.sql',import.meta.url),'utf8'));
-    await setup.query(await readFile(new URL('../../migrations/20261127090506_pitch_export_file_reuse.sql',import.meta.url),'utf8'));
+    await loadPitchMigrations(setup);
     return {setup,config,database,
       async grant(uid,region='test-region',extra={}) {
         await setup.query(`insert into private.pitch_grants(user_id,organization_id,region,city,business_line,can_generate,maintainer,can_client_export,can_external_ai,valid_until,granted_by)
