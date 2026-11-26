@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import JSZip from "jszip";
+import { PDFDocument } from "pdf-lib";
 import {
   createPitchDatabase,
   OWNER,
@@ -638,6 +639,76 @@ try {
     },
   );
   await check(
+    "accepted structured AI changes are scoped to selected versions and roll back together when a page edit fails",
+    async () => {
+      let isolated = await create();
+      for (const [title, body] of [["AI 目标页", "目标页原始说明。"], ["保留页", "旁边页面保持原样。"]])
+        isolated = await workspace.customWorkspace(ordinary, { action: "custom", projectId: isolated.project.id,
+          expectedVersion: isolated.project.version, title, body });
+      const [target, untouched] = isolated.slides;
+      const base = { id: randomUUID(), projectId: isolated.project.id, expectedVersion: isolated.project.version,
+        basePageVersions: [{ id: target.id, version: target.version }, { id: untouched.id, version: untouched.version }] };
+      await assert.rejects(workspace.applyDocumentModification(ordinary, { action: "apply_modification", scope: "selected",
+        plan: { ...base, pages: [{ id: target.id, title: "未提交更新" }, { id: untouched.id, paragraphs: ["一", "二"] }] },
+      }), /PITCH_INVALID/);
+      assert.equal((await workspace.getWorkspace(ordinary, isolated.project.id)).project.version, isolated.project.version);
+      const command = { action: "apply_modification", scope: "selected",
+        plan: { ...base, pages: [{ id: target.id, title: "采用的 AI 标题" }] } };
+      const result = await workspace.applyDocumentModification(ordinary, command);
+      assert.equal(result.slides[0].content.title, "采用的 AI 标题");
+      assert.deepEqual(result.slides[1].content, untouched.content);
+      assert.deepEqual(result.slides[1].scene, untouched.scene);
+      await assert.rejects(workspace.applyDocumentModification(ordinary, command), /PITCH_CONFLICT/);
+    },
+  );
+  await check(
+    "PDF and client eligibility honor explicit page selection and recheck pinned data and media at delivery",
+    async () => {
+      const approvedAsset = randomUUID(), sourceId = randomUUID();
+      const approvedContent = {
+        protocol: "colliers-pitch/1", locale: "zh", title: "对客批准测试页",
+        dataAsOf: "2026-09-30", disclosure: "client_approved", isTestData: false,
+        sources: [{ id: sourceId, kind: "record", label: "隔离审批夹具", locator: "测试记录",
+          version: "test-1", dataAsOf: "2026-09-30" }],
+        blocks: [{ kind: "paragraph", text: "已批准的文字内容。", sourceIds: [sourceId] }],
+      };
+      await db.rpc(OWNER, { action: "asset_save", assetId: approvedAsset, expectedVersion: 0,
+        sha256: digest(new TextEncoder().encode(JSON.stringify(approvedContent))), asset: {
+          scope, categoryId: category, tags: [], names: { zh: approvedContent.title }, content: approvedContent,
+          state: "published", visibility: "organization", allowInternalGeneration: true, allowClientExport: true,
+          allowExternalAi: false, validFrom: null, validUntil: null,
+        } });
+      const composedId = randomUUID();
+      await render.composeProject(ordinary, { action: "project_compose", projectId: composedId,
+        title: "页面披露隔离测试", themeId: "colliers-default-v1", themeVersion: 2,
+        parts: [{ assetId: approvedAsset, layoutId: "two-columns", variant: "standard" }] });
+      const mixed = await workspace.customWorkspace(ordinary, { action: "custom", projectId: composedId,
+        expectedVersion: 1, title: "仅内部说明", body: "这段内容属于另一页，仅限公司内部。" });
+      const command = { action: "export_start", projectId: composedId, exportId: randomUUID(), audience: "client", format: "pdf" };
+      const report = await db.rpc(OTHER, { action: "export_eligibility", projectId: composedId, audience: "client" });
+      assert.equal(report.projectVersion, mixed.project.version);
+      assert.deepEqual(report.pages[0].reasons, []);
+      assert.ok(report.pages[1].reasons.includes("internal_only"));
+      await assert.rejects(render.prepareRenderExport(ordinary, command), error => error.report.pages[1].id === mixed.slides[1].id);
+      assert.equal((await db.setup.query("select id from pitch_exports where id=$1", [command.exportId])).rowCount, 0);
+      const selected = { ...command, pages: [0] };
+      await render.prepareRenderExport(ordinary, selected);
+      await render.runRenderExport(ordinary, selected);
+      assert.equal((await db.rpc(OTHER, { action: "export_status", projectId: composedId, exportId: selected.exportId })).state, "ready");
+      const file = await render.downloadArtifact(ordinary, selected);
+      assert.equal(file.mime, "application/pdf");
+      const pdf = await PDFDocument.load(file.bytes);
+      assert.equal(pdf.getPageCount(), 1);
+      assert.ok(Math.abs(pdf.getPage(0).getWidth() / pdf.getPage(0).getHeight() - 16/9) < .01);
+      await mkdir("tmp/pitch-workspace-fixtures", { recursive: true });
+      await writeFile("tmp/pitch-workspace-fixtures/isolated-client-selection.pdf", file.bytes);
+      await assert.rejects(render.downloadArtifact(owner, selected), /PITCH_DENIED/);
+      await assert.rejects(render.downloadArtifact(ordinary, { ...selected, audience: "internal" }), /PITCH_DENIED/);
+      await db.setup.query("update pitch_content_assets set allow_client_export=false where id=$1", [approvedAsset]);
+      await assert.rejects(render.downloadArtifact(ordinary, selected), /PITCH_DENIED/);
+    },
+  );
+  await check(
     "legacy ready files freeze their original authorization before adoption and cannot acquire unrelated edited-page permissions",
     async () => {
       let legacy = await workspace.copyWorkspace(ordinary, {
@@ -653,7 +724,8 @@ try {
         format: "pptx",
         audience: "internal",
       };
-      await render.prepareRenderExport(ordinary, command);
+      // Use the pre-delivery RPC path to produce an actual legacy artifact.
+      await db.rpc(OTHER, { ...command, action: "export_prepare", asynchronous: true });
       await render.runRenderExport(ordinary, command);
       // Only the isolated fixture emulates a file produced before phase 05.
       await db.setup.query(
@@ -771,6 +843,35 @@ try {
         ),
         before,
       );
+    },
+  );
+  await check(
+    "lost generation acknowledgement replays the same completed receipt without regenerating or saving, and rejects changed intents",
+    async () => {
+      const input = {
+        action: "start",
+        projectId: deck.project.id,
+        expectedVersion: deck.project.version,
+        taskId: randomUUID(),
+        part: staticPart("corporate-overview", [ids.corporate]),
+        replaceIds: [deck.slides[0].id],
+      };
+      const queued = await workspace.startWorkspaceTask(ordinary, input);
+      await workspace.runWorkspaceTask(ordinary, input.projectId, input.taskId);
+      const saved = await workspace.getWorkspace(ordinary, input.projectId);
+      const replay = await workspace.startWorkspaceTask(ctx(OTHER), input);
+      assert.equal(replay.state, "completed");
+      assert.equal(replay.stage, "saved");
+      assert.equal(replay.source_project_id, queued.source_project_id);
+      assert.equal(replay.expected_version, input.expectedVersion);
+      assert.equal(replay.attempts, 1);
+      await workspace.runWorkspaceTask(ordinary, input.projectId, input.taskId);
+      assert.equal(saved.project.version, input.expectedVersion + 1);
+      assert.equal((await workspace.getWorkspace(ordinary, input.projectId)).project.version, saved.project.version);
+      await assert.rejects(workspace.startWorkspaceTask(ordinary, { ...input, replaceIds: [] }), /PITCH_CONFLICT/);
+      await assert.rejects(workspace.startWorkspaceTask(ordinary, { ...input, taskId: randomUUID() }), /PITCH_CONFLICT/);
+      await assert.rejects(workspace.startWorkspaceTask(owner, input), /PITCH_DENIED/);
+      deck = saved;
     },
   );
   await check(

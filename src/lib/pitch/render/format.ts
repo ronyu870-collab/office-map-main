@@ -1,6 +1,6 @@
-export const exportFormats = ['pptx', 'png', 'svg', 'xlsx'] as const;
+export const exportFormats = ['pptx', 'png', 'svg', 'xlsx', 'pdf'] as const;
 export type ExportFormat = typeof exportFormats[number];
-export const MIME: Record<ExportFormat, string> = { pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', png: 'image/png', svg: 'image/svg+xml', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+export const MIME: Record<ExportFormat, string> = { pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', png: 'image/png', svg: 'image/svg+xml', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', pdf: 'application/pdf' };
 export function artifactName(title: string, format: ExportFormat, page?: number) {
   const safe = title.normalize('NFC').replace(/[\u0000-\u001f\u007f\\/:*?"<>|\u202a-\u202e\u2066-\u2069]/g, '_').trim().slice(0, 90) || 'Pitch';
   return `${safe}${page === undefined ? '' : `-${String(page + 1).padStart(2, '0')}`}.${format}`;

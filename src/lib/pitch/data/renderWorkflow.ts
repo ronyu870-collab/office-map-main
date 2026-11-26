@@ -8,7 +8,7 @@ import { numberDeckPages } from '../layout/pagination';
 import { layoutSlides } from '../layout/engine';
 import { assertSceneQuality } from '../layout/quality';
 import { buildTemplateContent, templateConfigSchema } from '../templates/registry';
-import { artifactName, MIME, type ExportFormat } from '../render/format';
+import { artifactName, exportFormats, MIME } from '../render/format';
 import { inspectMedia, sceneMediaReferences, type SceneMedia } from '../render/media';
 import { makeFile, mediaRowSchema, pitchRpc, readFile, uploadFile, type PitchContext } from './store';
 
@@ -16,10 +16,14 @@ const pageSchema = z.object({ id: z.uuid(), content: slideContentSchema, scene: 
 const previewContextSchema = z.object({ slides: z.array(pageSchema).min(1).max(50), themes: z.array(z.object({ definition: designThemeSchema })), media: z.array(mediaRowSchema) });
 export async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>[], scenes: z.infer<typeof slideSceneSchema>[]) {
   const refs = sceneMediaReferences(scenes), files: SceneMedia[] = [];
+  const available = new Map(rows.map(row => [`${row.id}:${row.version}`, row]));
+  const seen = new Set<string>();
   for (const ref of refs) {
-    if (files.some(f => f.id === ref.id && f.version === ref.version)) continue;
-    const row = rows.find(m => m.id === ref.id && m.version === ref.version);
+    const key = `${ref.id}:${ref.version}`;
+    if (seen.has(key)) continue;
+    const row = available.get(key);
     if (!row) throw new Error('PITCH_MEDIA_UNAVAILABLE');
+    seen.add(key);
     files.push({ id: row.id, version: row.version, mime: row.mime, bytes: await readFile(ctx, { bucket: 'pitch-studio-private', path: row.storage_path, mime: row.mime, size: row.size_bytes, sha256: row.sha256 }) });
   }
   return inspectMedia(files);
@@ -75,7 +79,19 @@ export async function prepareRenderExport(ctx: PitchContext, command: Extract<Pi
   if (command.pages && (command.page !== undefined || ['png','svg'].includes(command.format))) throw new Error('PITCH_INVALID');
   if (['png', 'svg'].includes(command.format) && command.page === undefined) throw new Error('PITCH_SINGLE_PAGE_REQUIRED');
   const current = z.object({ project: z.object({ title: z.string() }) }).parse(await pitchRpc(ctx, { action: 'get_project', projectId: command.projectId }));
-  return pitchRpc(ctx, { ...command, action: 'export_prepare', asynchronous: true, filename: artifactName(current.project.title, command.format, command.page) });
+  const receipt = z.object({
+    blocked: z.object({
+      projectVersion: z.number().int(), audienceAllowed: z.boolean(),
+      pages: z.array(z.object({ id: z.uuid(), position: z.number().int(), reasons: z.array(z.string()) })),
+    }).optional(),
+  }).passthrough().parse(await pitchRpc(ctx, { ...command, action: 'export_prepare', asynchronous: true, pipeline: 'delivery/1', filename: artifactName(current.project.title, command.format, command.page) }));
+  if (receipt.blocked) throw new ExportEligibilityError(receipt.blocked);
+  return receipt;
+}
+export class ExportEligibilityError extends Error {
+  constructor(readonly report: { projectVersion: number; audienceAllowed: boolean; pages: { id: string; position: number; reasons: string[] }[] }) {
+    super('PITCH_DENIED');
+  }
 }
 /** Runs after the HTTP acknowledgement. Durable claim/progress/deadline permit
  * owner polling and explicit retry after a worker crash, without holding an API
@@ -85,22 +101,23 @@ export async function runRenderExport(ctx: PitchContext, command: Extract<PitchC
   try {
     const claim = z.object({ claimed: z.boolean() }).parse(await pitchRpc(ctx, { action: 'export_claim', ...args }));
     if (!claim.claimed) return;
-    const context = previewContextSchema.extend({ export: z.object({ storage_path: z.string(), format: z.enum(['pptx', 'png', 'svg', 'xlsx']), render_options: z.object({ page: z.number().optional(), pages: z.array(z.number()).optional() }) }), project: z.object({ title: z.string() }) }).parse(await pitchRpc(ctx, { action: 'export_context', ...args }));
+    const context = previewContextSchema.extend({ selected: z.literal(true).optional(), export: z.object({ storage_path: z.string(), format: z.enum(exportFormats), render_options: z.object({ page: z.number().optional(), pages: z.array(z.number()).optional() }) }), project: z.object({ title: z.string() }) }).parse(await pitchRpc(ctx, { action: 'export_context', ...args }));
     const selected = context.export.render_options.page;
-    const slides = context.export.render_options.pages ? context.export.render_options.pages.map(i => context.slides[i]) : selected === undefined ? context.slides : [context.slides[selected]];
+    const slides = context.selected ? context.slides : context.export.render_options.pages ? context.export.render_options.pages.map(i => context.slides[i]) : selected === undefined ? context.slides : [context.slides[selected]];
     if (!slides.length || slides.some(s => !s)) throw new Error('PITCH_INVALID');
     const media = await loadMedia(ctx, context.media, slides.map(s => s.scene)), pages = slides.map(s => ({ scene: s.scene, theme: pageTheme(s.scene, context.themes) }));
     await pitchRpc(ctx, { action: 'export_progress', ...args, progress: 30 });
     let bytes: Uint8Array; const format = context.export.format;
     if (format === 'pptx') bytes = await (await import('../render/pptx')).renderPitchPptx(context.project.title, pages, media);
     else if (format === 'xlsx') bytes = await (await import('../render/xlsx')).renderSceneXlsx(pages.map(p => p.scene));
+    else if (format === 'pdf') bytes = await (await import('../render/pdf')).renderScenePdf(pages, media, ctx.signal);
     else {
       if (pages.length !== 1) throw new Error('PITCH_SINGLE_PAGE_REQUIRED');
       const renderer = await import('../render/svg');
       bytes = format === 'png' ? await renderer.renderScenePng(pages[0].scene, pages[0].theme, media) : new TextEncoder().encode(await renderer.renderSceneSvg(pages[0].scene, pages[0].theme, media));
     }
     if (bytes.length > 16 * 1024 * 1024) throw new Error('PITCH_EXPORT_LIMIT');
-    await pitchRpc(ctx, { action: 'export_context', ...args });
+    await pitchRpc(ctx, { action: context.selected ? 'export_verify' : 'export_context', ...args });
     await pitchRpc(ctx, { action: 'export_progress', ...args, progress: 85 });
     const file = makeFile(context.export.storage_path, MIME[format], bytes);
     await uploadFile(ctx, file, bytes);
@@ -110,8 +127,8 @@ export async function runRenderExport(ctx: PitchContext, command: Extract<PitchC
   }
 }
 export async function downloadArtifact(ctx: PitchContext, input: { projectId: string; exportId: string; audience: 'internal' | 'client' }) {
-  const args = { ...input, action: 'export_download' }, current = z.object({ storage_path: z.string(), sha256: z.string(), size_bytes: z.coerce.number(), format: z.enum(['pptx', 'png', 'svg', 'xlsx']), filename: z.string().nullable().optional() }).parse(await pitchRpc(ctx, args));
+  const args = { ...input, action: 'export_download' }, current = z.object({ storage_path: z.string(), sha256: z.string(), size_bytes: z.coerce.number(), format: z.enum(exportFormats), filename: z.string().nullable().optional() }).parse(await pitchRpc(ctx, args));
   const bytes = await readFile(ctx, { bucket: 'pitch-studio-private', path: current.storage_path, mime: MIME[current.format], sha256: current.sha256, size: current.size_bytes });
   await pitchRpc(ctx, args);
-  return { bytes, mime: MIME[current.format], filename: current.filename ?? artifactName('Pitch', current.format as ExportFormat) };
+  return { bytes, mime: MIME[current.format], filename: current.filename ?? artifactName('Pitch', current.format) };
 }

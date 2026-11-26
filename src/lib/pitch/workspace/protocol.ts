@@ -59,6 +59,15 @@ export const saveSchema = z.strictObject({
   activeSlide: id.nullable(),
 });
 export type WorkspaceSave = z.infer<typeof saveSchema>;
+const documentModificationSchema = z.strictObject({
+  id, projectId: id, expectedVersion: z.number().int().positive(),
+  basePageVersions: z.array(z.strictObject({ id, version: z.number().int().positive() })).max(50),
+  pages: saveSchema.shape.pages,
+  refresh: z.strictObject({ id, version: z.number().int().positive(), contextFingerprint: z.string().regex(/^[a-f0-9]{64}$/) }).optional(),
+});
+const dataRefreshOptions = {
+  projectId: id, slideId: id, expectedVersion: z.number().int().positive(), period: quarterSchema.optional(),
+};
 export const preferencesSchema = z.strictObject({
   favorites: z.array(z.string().min(1).max(100)).max(100).default([]),
   recent: z.array(z.string().max(100)).max(20).default([]),
@@ -110,7 +119,24 @@ export const outlinePartSchema = z.strictObject({
   }
 });
 export type OutlinePart = z.infer<typeof outlinePartSchema>;
-export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema,outlinePartSchema]);
+const handoffPartSchema = z.strictObject({
+  mode: z.literal("handoff"), parameters: dynamicParametersSchema, language: z.enum(["zh", "en"]),
+  dataVersion: outlineFingerprint, permissionRevision: z.string().min(1).max(160), policyVersion: z.string().min(1).max(160),
+});
+export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema,outlinePartSchema,handoffPartSchema]);
+const handoffSchema = z.strictObject({
+  source: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("buildings"), buildingIds: z.array(id).min(1).max(20).refine(ids => new Set(ids).size === ids.length) }),
+    z.strictObject({ kind: z.literal("submarket"), key: z.string().trim().min(1).max(80) }),
+    z.strictObject({ kind: z.literal("analysis-result"), id }),
+  ]),
+  projectId: id.optional(), period: outlineQuarter.optional(), language: z.enum(["zh", "en"]).optional(),
+});
+const handoffTargetSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("append"), expectedVersion: z.number().int().positive() }),
+  z.strictObject({ mode: z.literal("create"), projectId: id, title, scope: scopeSchema,
+    themeId: z.string().min(1).max(100), themeVersion: z.number().int().positive() }),
+]);
 export type WorkspacePart=z.infer<typeof workspacePartSchema>;
 const revisionCanvasOptions = {
   projectId: id, slideId: id, taskId: id, expectedVersion: z.number().int().positive(),
@@ -135,6 +161,17 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("preview_canvas_revision"), ...revisionCanvasOptions }),
   z.strictObject({ action: z.literal("apply_canvas_revision"), ...revisionCanvasOptions, canvasFingerprint: outlineFingerprint }),
   z.strictObject({ action: z.literal("get"), projectId: id }),
+  z.strictObject({ action: z.literal("review_handoff"), handoff: handoffSchema }),
+  z.strictObject({ action: z.literal("add_to_pitch"), handoff: handoffSchema, target: handoffTargetSchema, fingerprint: outlineFingerprint, taskId: id })
+    .refine(c => Boolean(c.handoff.projectId) === (c.target.mode === "append"), "Append requires an owned Pitch ID"),
+  z.strictObject({ action: z.literal("preview_data_refresh"), ...dataRefreshOptions }),
+  z.strictObject({ action: z.literal("apply_data_refresh"), ...dataRefreshOptions, fingerprint: outlineFingerprint }),
+  z.strictObject({
+    action: z.literal("apply_modification"),
+    plan: documentModificationSchema,
+    scope: z.enum(["selected", "document"]).default("selected"),
+    theme: z.strictObject({ id: z.string().min(1).max(100), version: z.number().int().positive() }).optional(),
+  }),
   saveSchema,
   z.strictObject({
     action: z.literal("append"),
@@ -202,6 +239,7 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
 ]);
 export type WorkspaceCommand = z.infer<typeof workspaceCommandSchema>;
 export const workspaceReadSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("document_bindings"), projectId: id }),
   z.strictObject({
     action: z.literal("list"),
     q: z.string().max(120).default(""),
@@ -248,6 +286,7 @@ export const workspaceDetailSchema = z.object({
   slides: z.array(
     z.object({
       id: z.uuid(),
+      version: z.number().int().positive().optional(),
       asset_id: z.uuid(),
       asset_version: z.number(),
       template_id: z.string(),

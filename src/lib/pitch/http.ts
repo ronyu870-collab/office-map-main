@@ -5,7 +5,7 @@ import { authorizePitch, digest, pitchRpc, type PitchDependencies } from './data
 import { createProject, createSample, exportProject, upgradeProjectTheme } from './data/workflow';
 import { isQuerySameOrigin } from '@/src/lib/intelligence/query/sameOrigin';
 import { readQueryBody } from '@/src/lib/intelligence/query/httpBody';
-import { composeProject, downloadArtifact, prepareRenderExport, previewPage, runRenderExport } from './data/renderWorkflow';
+import { composeProject, downloadArtifact, ExportEligibilityError, prepareRenderExport, previewPage, runRenderExport } from './data/renderWorkflow';
 import { LayoutError } from './layout/metrics';
 const headers = { 'Cache-Control': 'private, no-store', Vary: 'Authorization, x-colliers-impersonate-user', 'X-Content-Type-Options': 'nosniff' };
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers });
@@ -38,9 +38,11 @@ export async function handlePitchRequest(request: Request, dependencies: PitchDe
     let result: unknown;
     if (command.action === 'export_start') {
       if (!schedule) throw new Error('PITCH_WORKER_UNAVAILABLE');
-      result = await prepareRenderExport(ctx, command);
-      schedule(() => runRenderExport({ ...ctx, signal: AbortSignal.timeout(45000) }, command));
-      return reply(result, 202);
+      const receipt = await prepareRenderExport(ctx, command);
+      if (receipt.state === 'pending' || receipt.state === undefined) {
+        schedule(() => runRenderExport({ ...ctx, signal: AbortSignal.timeout(45000) }, command));
+      }
+      return reply(receipt, 202);
     }
     if (command.action === 'sample_create') result = await createSample(ctx, command.requestId, command.scope, command.fixture, command.language);
     else if (command.action === 'project_compose') result = await composeProject(ctx, command);
@@ -53,6 +55,7 @@ export async function handlePitchRequest(request: Request, dependencies: PitchDe
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     if (error instanceof LayoutError) return reply({ error: error.detail, code: error.code }, 422);
+    if (error instanceof ExportEligibilityError) return reply({ error: '所选页面未通过披露检查。', ...error.report }, 403);
     if (message === 'QUERY_UNAUTHENTICATED') return reply({ error: '登录状态无效；模拟身份暂不支持 Pitch Studio。' }, 401);
     if (message === 'PITCH_DENIED') return reply({ error: '试点未开放，或当前身份、范围、素材权限已失效。' }, 403);
     if (message === 'PITCH_CONFLICT') return reply({ error: '记录已变化或重试内容不同，请重新读取。' }, 409);
