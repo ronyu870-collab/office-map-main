@@ -149,6 +149,24 @@ describe('P1 structured semantic conversation', () => {
 });
 
 describe('P1 available-business-period resolution', () => {
+  it('keeps verified composite filters and flags an unavailable optional building-area column', () => {
+    const result = ready(ask('2026Q3 CBD筛选净有效租金低于250元/㎡/月、空置率超过15%的楼宇，附上建筑面积'));
+    expect(result.plan).toMatchObject({ operation: 'list', period: { year: 2026, quarter: 3 },
+      filter: { operator: 'and', terms: [
+        { field: 'netEffectiveRent', operator: 'lt', value: '250' },
+        { field: 'vacancyRate', operator: 'gt', value: '0.15' },
+      ] } });
+    expect(result.interpretation).toHaveProperty('unavailableFields', ['建筑面积']);
+    expect(ask('2026Q3 CBD筛选建筑面积大于50000平方米、净有效租金低于250元/㎡/月的楼宇'))
+      .toMatchObject({ kind: 'clarification', clarification: { reason: 'unsupported' } });
+  });
+  it('keeps the formal quarter and rank limit for a strict-grade follow-up', () => {
+    const first = ready(ask('2026Q3 CBD净有效租金前两栋'));
+    expect(ready(ask('只保留甲级', first.context)).plan).toMatchObject({
+      operation: 'rank', period: { year: 2026, quarter: 3 }, field: 'netEffectiveRent', limit: 2,
+      scope: { inventory: 'tracked', submarkets: ['CBD'] }, filter: { field: 'grade', operator: 'eq', value: 'A' },
+    });
+  });
   it('uses the latest authorized period for formal-quarter ranking, without asking a provider to guess', () => {
     const availablePeriods = [{ year: 2026, quarter: 2 }];
     expect(ready(ask('CBD最新正式季度净有效租金前十栋', undefined, { availablePeriods })).plan)
@@ -215,9 +233,12 @@ describe('P1 bounded model intent and dynamic suggestions', () => {
     }
   });
   it('never allows a model to discard explicit unsupported filters, data domains or unresolved conditions', () => {
-    for (const suffix of ['但不要包含A楼', '仅限甲级', '季度总面积大约50000', '顺便提供业主联系方式', '楼龄5年以下']) {
+    for (const suffix of ['但不要包含A楼', '仅限待核验楼宇', '季度总面积大约50000', '顺便提供业主联系方式', '楼龄5年以下']) {
       expect(ask(`2026Q3CBD净有效租金${suffix}`, undefined, { modelIntent: intent }).kind).toBe('clarification');
     }
+    expect(ready(ask('2026Q3CBD净有效租金仅限甲级', undefined, { modelIntent: intent })).plan)
+      .toHaveProperty('filter', { field: 'grade', operator: 'eq', value: 'A' });
+    expect(ask('2026Q3 CBD筛选仅限甲级，或净有效租金低于250元/㎡/月').kind).toBe('clarification');
     expect(ask('2026Q3CBD净有效租金水平怎么样', undefined, { modelIntent: { ...intent, unresolvedConditions: ['样本类型'] } })).toMatchObject({ kind: 'clarification' });
     expect(ask('2026Q3CBD净有效租金约100', undefined, { modelIntent: intent })).toMatchObject({ kind: 'clarification', clarification: { reason: 'invalid_model_intent' } });
     expect(ask('2026Q3CBD净有效租金甲级', undefined, { modelIntent: intent })).toMatchObject({ kind: 'clarification', clarification: { reason: 'invalid_model_intent' } });

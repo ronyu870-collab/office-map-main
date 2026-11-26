@@ -17,6 +17,7 @@ export type TaskRoute = {
   reuseComparison?: boolean;
   catalogLocation?: boolean;
   planNotices?: string[];
+  unavailableFields?: string[];
   capabilities?: boolean;
   availablePeriods?: boolean;
   tableView?: ResultTableView;
@@ -134,7 +135,7 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
   const resolution = standalone.kind === 'plan' || !context ? standalone
     : resolveSemanticQuestion({ question: query, context, now: new Date(), availablePeriods: [] });
   if (resolution.kind === 'plan') return { route: 'deterministic_query', taskType: exportFormat ? 'artifact' : 'query',
-    question: query, plan: resolution.plan, planNotices: resolution.interpretation.notices, ...(exportFormat ? { exportFormat } : {}), ...(chartType ? { chartType } : {}) };
+    question: query, plan: resolution.plan, planNotices: resolution.interpretation.notices, unavailableFields: resolution.interpretation.unavailableFields, ...(exportFormat ? { exportFormat } : {}), ...(chartType ? { chartType } : {}) };
   // A narrow semantic extraction gets no domain tools and cannot recurse into
   // the Agent. Unknown conditions stay fail-closed in the formal planner.
   if (!/成交|租赁|楼书|文档|资料|报告|Stacking|供应|地图|图|横轴|纵轴|[xy]轴|原因|为什么|分析差异|核对|检查|并|综合|研究|lease|transaction|document|report|axis|why|research/i.test(query)

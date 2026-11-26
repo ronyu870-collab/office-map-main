@@ -1,3 +1,4 @@
+import { predicateInputFields } from './facts';
 import type { QueryPlan } from './plan';
 import { parseQueryPlan, planOutputFields } from './plan';
 import { numericFields, type NumericField } from './registry';
@@ -17,13 +18,7 @@ export type QueryAuthority = Readonly<{
 
 export function authorizePlan(plan: QueryPlan, authority: QueryAuthority): void {
   if (!authority.sessionActive || !authority.actorId || !authority.effectiveUserId || !authority.policyVersion || !authority.permissionRevision) throw new Error('QUERY_DENIED');
-  const fields = planOutputFields(plan);
-  const required = new Set<NumericField>(fields);
-  const visit = (filter: NonNullable<QueryPlan['filter']>) => {
-    if ('terms' in filter) filter.terms.forEach(visit);
-    else required.add(filter.field);
-  };
-  if (plan.filter) visit(plan.filter);
+  const required = new Set([...planOutputFields(plan), ...predicateInputFields(plan.filter)]);
   if (!authority.grants.includes('query:catalog')) throw new Error('QUERY_DENIED');
   for (const field of required) {
     const grant = numericFields[field].temporal === 'quarter' ? 'query:quarter' : 'query:brochure';

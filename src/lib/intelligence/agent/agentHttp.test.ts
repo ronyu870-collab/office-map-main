@@ -59,9 +59,10 @@ function fakeRequest(question = '你好') {
     body: JSON.stringify(input),
   }) };
 }
-function deps(allowed = true) {
+function deps(allowed = true, leaseSnapshot?: object) {
   const rpc = vi.fn((name: string) => {
     if(name==='ai_control_runtime')return {abortSignal:()=>Promise.resolve({data:null,error:{code:'PGRST202',message:'Could not find ai_control_runtime'}})};
+    if (name === 'ai_lease_research_snapshot' && leaseSnapshot) return { abortSignal: async () => ({ data: leaseSnapshot, error: null }) };
     expect(name).toBe('ai_query_model_budget');
     return { abortSignal: () => Promise.resolve({ data: { allowed }, error: null }) };
   });
@@ -84,6 +85,31 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it('requires the individual area ranking even when the provider first proposes building totals', async () => {
+    const tower = randomUUID();
+    const row = (area: string) => ({ id: 'live:' + randomUUID(), source: 'live', fingerprint: 'a'.repeat(64),
+      buildingId: tower, building: '合成楼宇', alias: null, match: 'exact', submarket: 'CBD', industry: '金融',
+      start: '2026-02-01', end: '2026-02-01', precision: 'date', area, quality: 'SYNTHETIC', financials: {} });
+    const lease = { allowed: true, version: 'lease-research/1', permission_revision: 'b'.repeat(64),
+      sources: ['live'], details: true, financials: false, export: false, minGroupSize: 3,
+      links: [], rows: [row('1200'), row('1800')] };
+    const base = { source: 'live', from: '2026-01-01', to: '2026-06-30', sort: 'area', direction: 'desc' };
+    const call = (id: string, args: object) => ({ model: 'deepseek-flash', inputTokens: 10, outputTokens: 10,
+      message: { role: 'assistant', content: null,
+        tool_calls: [{ id, type: 'function', function: { name: 'query_lease_transactions', arguments: JSON.stringify(args) } }] } });
+    state.provider.mockResolvedValueOnce(call('aggregate', { ...base, mode: 'aggregate', groupBy: 'building', topN: 2 }))
+      .mockResolvedValueOnce(call('details', { ...base, mode: 'details', topN: 2 }));
+    const response = await handleAgentSubmission(fakeRequest('查询2026年上半年成交面积最大的两笔单笔租赁成交').request, deps(true, lease));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.agent.executionStatus).toBe('completed');
+    expect(body.answerSelection.results).toHaveLength(1);
+    expect(body.result.parameters.leaseBindings[0].plan).toMatchObject({ mode: 'details', sort: 'area', topN: 2 });
+    expect(body.result.table.rows.map((row: { cells: { area: { value: { numeric: number } } } }) => row.cells.area.value.numeric))
+      .toEqual([1800, 1200]);
+    expect(JSON.stringify(state.provider.mock.calls)).not.toContain('合成楼宇');
+  });
+
   it('exports only the reauthorized comparison snapshots and avoids a fresh model or catalog query', async () => {
     const quarter = { year: 2026, quarter: 3 };
     const makeResult = (submarket: string) => {

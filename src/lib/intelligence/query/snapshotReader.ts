@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { assertComplete, quarterKey, quarterSchema, type FactSnapshot, type Quarter, type SourceRef } from './contracts';
-import { resolveNumericFact } from './facts';
+import { predicateInputFields, resolveNumericFact } from './facts';
 import { numericFields, type NumericField } from './registry';
 import { planOutputFields, planPeriods, type QueryPlan } from './plan';
 import { authorizePlan } from './admission';
@@ -24,11 +24,7 @@ type RawSnapshot=z.infer<typeof rawSchema>;
 
 export function describePlanRead(plan:QueryPlan):{fields:NumericField[];periods:Quarter[]} {
   const fields=new Set<NumericField>(planOutputFields(plan));
-  const visit=(filter:NonNullable<QueryPlan['filter']>)=>{
-    if ('terms' in filter) filter.terms.forEach(visit);
-    else fields.add(filter.field);
-  };
-  if(plan.filter)visit(plan.filter);
+  for (const field of predicateInputFields(plan.filter)) fields.add(field);
   const periods=planPeriods(plan).filter((p):p is Quarter=>p!==null);
   if([...fields].some(field=>numericFields[field].temporal==='quarter')&&!periods.length)throw new Error('QUERY_PERIOD_REQUIRED');
   const uniquePeriods=[...new Map(periods.map(period=>[quarterKey(period),period])).values()];

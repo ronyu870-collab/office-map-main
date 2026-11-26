@@ -10,7 +10,8 @@ const metricSelection = { metric: metricSchema, metrics: z.array(metricSchema).m
 export const CROSS_TREND_LIMITS = Object.freeze({ groups: 50, metricPoints: 1000 });
 const numericString = z.string().max(100).regex(/^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d{1,3})?$/);
 const predicateSchema: z.ZodType<Predicate> = z.lazy(() => z.union([
-  z.strictObject({ field: fieldSchema, operator: z.enum(['gt', 'gte', 'lt', 'lte', 'eq']), value: numericString }),
+  z.strictObject({ field: z.enum([...fieldSchema.options, 'vacancyRate']), operator: z.enum(['gt', 'gte', 'lt', 'lte', 'eq']), value: numericString }),
+  z.strictObject({ field: z.literal('grade'), operator: z.literal('eq'), value: z.enum(['A', 'B', 'P']) }),
   z.strictObject({ operator: z.enum(['and', 'or']), terms: z.array(predicateSchema).min(1).max(20) }),
 ]));
 const scopeSchema = z.strictObject({

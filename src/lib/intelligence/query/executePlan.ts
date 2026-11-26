@@ -1,5 +1,5 @@
 import { assertComplete, quarterKey, type FactSnapshot } from './contracts';
-import { assertFieldContext, evaluatePredicate, type Predicate } from './facts';
+import { assertFieldContext, evaluatePredicate, predicateFields, predicateInputFields } from './facts';
 import { parseQueryPlan, planMetrics, planOutputFields, planPeriods } from './plan';
 import { attachExecutedPlan, attachFilterEvidence, buildDistributionResult, buildRelationshipResult, buildCrossTabResult, buildCrossTrendResult, buildGroupedResult, buildTrendResult, buildAggregateResult, buildCompareResult, buildListResult, buildRankResult, type QueryResult } from './result';
 import type { NumericField } from './registry';
@@ -22,11 +22,9 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
   // Missing quarterly facts remain rows; a source must not silently drop them.
   const universe = snapshots[0].rows.map(row => row.id).sort().join(',');
   if (snapshots.some(snapshot => snapshot.rows.map(row => row.id).sort().join(',') !== universe)) throw new Error('QUERY_SNAPSHOT_UNIVERSE_MISMATCH');
-  const filterFields = new Set<NumericField>();
-  const visit = (predicate: Predicate) => { if ('terms' in predicate) predicate.terms.forEach(visit); else filterFields.add(predicate.field); };
-  if (plan.filter) visit(plan.filter);
-  const requiredFields = new Set<NumericField>(planOutputFields(plan));
-  for (const field of filterFields) requiredFields.add(field);
+  const filterFields = predicateInputFields(plan.filter);
+  const requiredFields = new Set<NumericField>([...planOutputFields(plan), ...filterFields]);
+  const filterInputs = predicateFields(plan.filter);
   for (const snapshot of snapshots) {
     const scope = snapshot.queryScope;
     if (!scope || scope.inventory !== plan.scope.inventory
@@ -37,7 +35,7 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
   }
   const evidence = snapshots.map(snapshot => {
     assertFieldContext(snapshot, [...filterFields]);
-    return { snapshot, fields: [...filterFields], decisions: snapshot.rows.map(row => ({ entityId: row.id, state: plan.filter ? evaluatePredicate(row, plan.filter) : 'true' as const })) };
+    return { snapshot, fields: filterFields, includeCatalogDimensions: filterInputs.includes('grade'), decisions: snapshot.rows.map(row => ({ entityId: row.id, state: plan.filter ? evaluatePredicate(row, plan.filter) : 'true' as const })) };
   });
   const selected = evidence.map(item => {
     const matching = new Set(item.decisions.filter(row => row.state === 'true').map(row => row.entityId));
@@ -54,7 +52,7 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
     ? buildGroupedResult(periods.map(find), periods.map(period => snapshots.find(snapshot => key(snapshot.period) === key(period))!), plan.groupBy, metric, plan.operation === 'group_trend' ? plan.mode : 'per_period')
     : plan.operation === 'trend' ? buildTrendResult(periods.map(find), metric, plan.mode)
     : plan.operation === 'compare' ? buildCompareResult(find(plan.base), find(plan.current), metric, plan.mode)
-    : plan.operation === 'list' ? buildListResult(find(plan.period), plan.fields, Boolean(plan.scope.buildingIds))
+    : plan.operation === 'list' ? buildListResult(find(plan.period), plan.fields, Boolean(plan.scope.buildingIds) || filterInputs.includes('vacancyRate'))
     : plan.operation === 'rank' ? buildRankResult(find(plan.period), plan.field, plan.limit, plan.direction)
     : buildAggregateResult(find(plan.period), metric);
   const result = metrics.length > 1 ? combineMetricResults(metrics.map(metric => ({ metric, result: build(metric) }))) : build(metrics[0]);

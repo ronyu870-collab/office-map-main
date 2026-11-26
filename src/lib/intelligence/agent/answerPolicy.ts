@@ -8,6 +8,32 @@ export const isLatestLeaseQuestion = (question: string) => /成交|租赁/.test(
   && /(?:最新|最近|最后).{0,8}(?:一笔|一条|一宗|成交)|(?:一笔|单笔|哪笔|哪一笔).{0,8}(?:成交|租赁)|(?:成交|租赁).{0,8}(?:哪笔|哪一笔)/.test(question);
 export const hasExplicitLeaseWindow = (question: string) => /\d{4}(?:年|[-/]\d{1,2}|\s*[Qq][1-4])|今年|本年|去年|本季度|上季度|本月|上月|(?:最近|过去|近)(?:一|两|二|三|四|五|六|七|八|九|十|\d+)(?:年|季度|个月|月|天)/.test(question);
 
+const leaseItemCount = (raw: string | undefined) => {
+  if (!raw) return undefined;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  const ones = '零一二三四五六七八九';
+  const normalized = raw.replace(/两/g, '二');
+  const [left, right] = normalized.split('十');
+  return right === undefined ? ones.indexOf(left) : 10 * (left ? ones.indexOf(left) : 1) + (right ? ones.indexOf(right) : 0);
+};
+
+export function assertLeaseDetailIntent(question: string, args: Record<string, unknown>) {
+  const text = question.normalize('NFKC').replace(/\s/g, '');
+  const itemCount = /(?:前|最大(?:的)?|最高(?:的)?|最近(?:的)?)([1-9]\d{0,2}|[一二两三四五六七八九十]{1,3})(?:笔|宗)/.exec(text);
+  if (!/成交|租赁/.test(text) || !(/单笔|逐笔|每笔|成交明细|大宗.*(?:成交|租赁)/.test(text) || itemCount)
+    || /(?:并|同时|以及).{0,8}(?:汇总|累计|合计)/.test(text)) return;
+  const count = leaseItemCount(itemCount?.[1]);
+  const rankByArea = /面积.{0,8}(?:最大|最小|最高|最低|排名|排行|前|升序|降序|大到小|小到大)|大宗.*(?:成交|租赁)/.test(text);
+  const direction = /面积.{0,12}(?:最小|最低|升序|小到大)/.test(text) ? 'asc' : 'desc';
+  const halfYears = [...text.matchAll(/((?:19|20|21)\d{2})年?([上下])半年/g)];
+  const halfYear = halfYears.length === 1 ? halfYears[0] : undefined;
+  if (args.mode !== 'details' || rankByArea && (args.sort !== 'area' || args.direction !== direction)
+    || count !== undefined && count > 0 && args.topN !== count
+    || halfYear && (args.from !== `${halfYear[1]}-${halfYear[2] === '上' ? '01-01' : '07-01'}`
+      || args.to !== `${halfYear[1]}-${halfYear[2] === '上' ? '06-30' : '12-31'}`))
+    throw new Error('LEASE_DETAIL_PLAN_REQUIRED');
+}
+
 export function answerTask(question: string, result: QueryResult): AnswerSelection['task'] {
   if (isLeaseResult(result) && isLatestLeaseQuestion(question)) return 'record';
   if (result.parameters.agentExport || result.parameters.agentReport || result.parameters.researchDeliverables) return 'file';
@@ -53,6 +79,11 @@ export function applyAnswerPolicy(question: string, selection: AnswerSelection,
         : '查询区间内最新成交日期存在并列，以下保留全部并列记录，不能指定唯一一笔。' };
   }
   if (resultAvailability(primary) && next.task !== 'record') next = { ...next, status: 'unavailable' };
+  const unavailableFields = (primary.parameters.interpretation as { unavailableFields?: string[] } | undefined)?.unavailableFields;
+  if (unavailableFields?.length && ['answered', 'partial'].includes(next.status)) {
+    const notice = `本轮未交付${unavailableFields.join('、')}，这些字段尚未纳入可信查数。下方是符合已核验条件的结果。`;
+    next = { ...next, status: 'partial', notice: [next.notice, notice].filter(Boolean).join(' ') };
+  }
   if (next.status === 'answered') {
     const issues = quarterlyAnswerIssues(question, primary);
     if (issues.length) next = { ...next, status: 'partial', notice: [next.notice, ...issues].filter(Boolean).join(' ') };

@@ -16,6 +16,31 @@ function snapshots(plan: QueryPlan) {
 const scope = { inventory: 'tracked', submarkets: ['CBD'] };
 
 describe('structured plan execution against one database snapshot', () => {
+  it('requires the quarter vacancy numerator and denominator and retains only strictly matching listed buildings', () => {
+    const plan = parseQueryPlan({ operation: 'list', fields: ['netEffectiveRent', 'totalArea', 'vacantArea'],
+      period: currentPeriod, scope, filter: { operator: 'and', terms: [
+        { field: 'netEffectiveRent', operator: 'lt', value: '250' },
+        { field: 'vacancyRate', operator: 'gt', value: '0.15' },
+      ] } });
+    const result = executeQueryPlan(plan, snapshots(plan));
+    expect(result.table.rows.map(row => row.entityId)).toEqual(['B']);
+    expect(result.table.rows[0].cells.vacancy).toMatchObject({ value: { numeric: .2 } });
+    expect(result.table.rows[0].cells.vacancy.sourceIds).toHaveLength(2);
+  });
+  it('ranks the entire strict-grade subset before applying Top N and keeps catalog sources', () => {
+    const plan = parseQueryPlan({ operation: 'rank', field: 'netEffectiveRent', period: currentPeriod,
+      scope, limit: 2, direction: 'desc', filter: { field: 'grade', operator: 'eq', value: 'A' } });
+    const snapshot = snapshots(plan)[0];
+    const rows = snapshot.rows.map(row => {
+      const grade = row.id === 'B' ? 'P' : 'A';
+      return { ...row, dimensions: { grade: { value: grade, source: {
+        ...row.nameSource, id: `grade/${row.id}`, field: 'grade', rawValue: grade,
+      } } } };
+    });
+    const result = executeQueryPlan(plan, [{ ...snapshot, rows }]);
+    expect(result.table.rows.map(row => row.entityId)).toEqual(['D', 'A']);
+    expect(result.sources.some(source => source.entityId === 'B' && source.field === 'grade' && source.rawValue === 'P')).toBe(true);
+  });
   it('archives the complete executed plan for structured requests and isolates it from caller mutations', () => {
     const input = { operation: 'aggregate', metric: 'rent', metrics: ['rent', 'vacancy'], period: { ...currentPeriod },
       scope: { inventory: 'tracked', submarkets: ['CBD'] }, filter: { operator: 'and', terms: [

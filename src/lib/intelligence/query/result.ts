@@ -374,7 +374,7 @@ export function attachExecutedPlan(result: QueryResult, plan: QueryPlan): QueryR
 
 /** Trusted executor adds the complete authorized filter decision trail, including
  * unknown candidates, without allowing a second query to change result values. */
-export function attachFilterEvidence(result: QueryResult, evidence: readonly { snapshot: FactSnapshot; fields: readonly NumericField[]; decisions: readonly { entityId: string; state: 'true' | 'false' | 'unknown' }[] }[]): QueryResult {
+export function attachFilterEvidence(result: QueryResult, evidence: readonly { snapshot: FactSnapshot; fields: readonly NumericField[]; includeCatalogDimensions?: boolean; decisions: readonly { entityId: string; state: 'true' | 'false' | 'unknown' }[] }[]): QueryResult {
   for (const item of evidence) {
     assertComplete(item.snapshot);
     assertFieldContext(item.snapshot, item.fields);
@@ -386,11 +386,12 @@ export function attachFilterEvidence(result: QueryResult, evidence: readonly { s
   return deepFreeze({ ...result,
     parameters: { ...result.parameters, filterEvaluation: evidence.map(item => ({
       snapshotId: item.snapshot.snapshotId, period: item.snapshot.period, fields: [...item.fields],
+      ...(item.includeCatalogDimensions ? { catalogGrade: 'current_catalog' } : {}),
       total: item.snapshot.expectedCount, matched: item.decisions.filter(row => row.state === 'true').length,
       notMatched: item.decisions.filter(row => row.state === 'false').length, unknown: item.decisions.filter(row => row.state === 'unknown').length,
       decisions: structuredClone(item.decisions),
     })) },
-    sources: mergeSources([result.sources, ...evidence.map(item => collectSources(item.snapshot, item.fields))]),
+    sources: mergeSources([result.sources, ...evidence.map(item => collectSources(item.snapshot, item.fields, item.includeCatalogDimensions))]),
     limitations: [...new Set([
       ...result.limitations,
       ...(evidence.some(item => item.snapshot.queryScope?.brochureSelection === 'all_unresolved_record_candidates'

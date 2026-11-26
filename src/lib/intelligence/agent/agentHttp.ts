@@ -55,7 +55,7 @@ import { AGENT_CONVERSATION_PROTOCOL, readAgentHistory, trimAgentHistory } from 
 import { responseBuildingLocation } from '../query/responsePresentation';
 import { resultAvailability } from '../query/resultAvailability';
 import { selectedAnswerResult, type AnswerSelection } from '../query/answerSelection';
-import { answerTask, applyAnswerPolicy, hasExplicitLeaseWindow, isLatestLeaseQuestion } from './answerPolicy';
+import { answerTask, applyAnswerPolicy, assertLeaseDetailIntent, hasExplicitLeaseWindow, isLatestLeaseQuestion } from './answerPolicy';
 
 const inputSchema = z.strictObject({
   idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(s => !!s.trim()),
@@ -420,6 +420,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return {...observed,content:JSON.stringify({...JSON.parse(observed.content),workset:manifest})};
           }
           if (name === 'query_lease_transactions') {
+            assertLeaseDetailIntent(valid.question, args);
             const observed = await queryLeaseResearch(client, actor, toolSignal, args);
             if (!observed.result) return observed;
             leaseResults.set(observed.result.resultId, observed.result);queriedIds.add(observed.result.resultId);
@@ -570,9 +571,11 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             observation = await executeStructuredDataTool({ client, keys, identity: actor, audit: audit!,
               requestId, authority, signal: toolSignal }, name as StructuredDataToolName, args);
           } else throw new Error('AGENT_UNREGISTERED_TOOL');
-          if (observation.result && name === 'execute_query_plan' && taskRoute.planNotices?.length) {
+          if (observation.result && name === 'execute_query_plan' && (taskRoute.planNotices?.length || taskRoute.unavailableFields?.length)) {
             observation.result = { ...observation.result,
-              limitations: [...new Set([...observation.result.limitations, ...taskRoute.planNotices])] };
+              ...(taskRoute.unavailableFields?.length ? { parameters: { ...observation.result.parameters,
+                interpretation: { unavailableFields: taskRoute.unavailableFields } } } : {}),
+              limitations: [...new Set([...observation.result.limitations, ...(taskRoute.planNotices ?? [])])] };
           }
           if (observation.result) {
             queriedIds.add(observation.result.resultId);

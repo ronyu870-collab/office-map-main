@@ -80,11 +80,12 @@ describe('AI5 chart bindings and coordinate geometry', () => {
     const result = view(buildRelationshipResult(fixture()));
     const chart = buildResultChart(result, { kind: 'plot', type: 'scatter', x: 'rent', y: ['vacancy'] });
     expect(chart.points.map(p => p.y)).toEqual([10, 20, null, null]);
-    expect(axisDomain(chart, 'y')).toEqual([0, 100]);
+    expect(axisDomain(chart, 'y')).toEqual([5, 25]);
     const g = cartesianGeometry(chart), circles = [...doc(renderChartSvg(chart)).querySelectorAll('circle')];
     expect(circles).toHaveLength(2);
-    expect(Number(circles[0].getAttribute('cy'))).toBeCloseTo(g.bottom - .1 * (g.bottom - g.top));
-    expect(Number(circles[1].getAttribute('cx'))).toBeCloseTo(g.right);
+    expect(axisDomain(chart, 'x')).toEqual([50, 250]);
+    expect(Number(circles[0].getAttribute('cy'))).toBeCloseTo(g.bottom - .25 * (g.bottom - g.top));
+    expect(Number(circles[1].getAttribute('cx'))).toBeCloseTo(g.left + .75 * (g.right - g.left));
     const c = structuredClone(result);
     c.table.columns.find(col => col.key === 'vacancy')!.unit = 'percentage_point';
     c.table.rows[0].cells.vacancy = { kind: 'number', value: { numeric: .05, exact: { numerator: '1', denominator: '20' } }, sourceIds: [] };

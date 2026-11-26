@@ -5,7 +5,7 @@ import { quarterSchema, type Quarter } from './contracts';
 import { parseQueryPlan, planPeriods, type QueryPlan } from './plan';
 import { QUESTION_SUBMARKETS, resolveBusinessQuestion } from './question';
 import { shanghaiQuarter, shiftQuarter } from './relativeQuarter';
-import type { Predicate } from './facts';
+import { predicateFields, predicateInputFields, type Predicate, type PredicateField } from './facts';
 import { numericFields, type NumericField } from './registry';
 import { distributionFields } from './distribution';
 
@@ -34,6 +34,7 @@ export type SemanticInterpretation = {
   unavailablePeriods: Quarter[];
   inherited: string[];
   notices: string[];
+  unavailableFields?: string[];
   buildingLocation?: { subject: string; submarket: string };
 };
 export type SemanticResolution =
@@ -161,7 +162,7 @@ function expandedPending(question: string, context: SemanticContext): string {
     || context.pending?.clarification.reason === 'period_required' && text === '最新季度' && option.id === 'latest_period'))?.question ?? question;
 }
 
-const filterFieldAliases: Record<string, NumericField> = { 季度总面积: 'totalArea', 空置面积: 'vacantArea', 建筑高度: 'height', 高度: 'height', 楼层数: 'floors', 总车位数: 'parking', 车位数: 'parking', 净有效租金: 'netEffectiveRent' };
+const filterFieldAliases: Record<string, Exclude<PredicateField, 'grade'>> = { 季度总面积: 'totalArea', 空置面积: 'vacantArea', 空置率: 'vacancyRate', 建筑高度: 'height', 高度: 'height', 楼层数: 'floors', 总车位数: 'parking', 车位数: 'parking', 净有效租金: 'netEffectiveRent' };
 const filterOperators: Record<string, 'gt' | 'gte' | 'lt' | 'lte' | 'eq'> = {
   大于等于: 'gte', 不少于: 'gte', 不低于: 'gte', 至少: 'gte', '>=': 'gte', '≥': 'gte',
   小于等于: 'lte', 不超过: 'lte', 不高于: 'lte', 至多: 'lte', '<=': 'lte', '≤': 'lte',
@@ -169,46 +170,57 @@ const filterOperators: Record<string, 'gt' | 'gte' | 'lt' | 'lte' | 'eq'> = {
 };
 function decimalMagnitude(raw: string, magnitude: string): string {
   if (raw.length > 70) throw new Error('FILTER_PRECISION_LIMIT');
-  const power = ({ 万: 4, 千: 3, 亿: 8 } as Record<string, number>)[magnitude] ?? 0;
+  const power = ({ 万: 4, 千: 3, 亿: 8, '%': -2 } as Record<string, number>)[magnitude] ?? 0;
   const negative = raw.startsWith('-');
   const [integer, fraction = ''] = raw.replace(/^[+-]/, '').split('.');
   const digits = `${integer}${fraction}`;
   const split = integer.length + power;
-  const integerResult = (digits.slice(0, split) + '0'.repeat(Math.max(0, split - digits.length))).replace(/^0+(?=\d)/, '');
-  const fractionResult = digits.slice(split).replace(/0+$/, '');
+  const integerResult = split <= 0 ? '0' : (digits.slice(0, split) + '0'.repeat(Math.max(0, split - digits.length))).replace(/^0+(?=\d)/, '');
+  const fractionResult = ('0'.repeat(Math.max(0, -split)) + digits.slice(Math.max(0, split))).replace(/0+$/, '');
   return `${negative ? '-' : ''}${integerResult}${fractionResult ? `.${fractionResult}` : ''}`;
 }
 function numericConditions(text: string): { text: string; filter?: Predicate; fields: NumericField[]; error?: string } {
   const terms: Predicate[] = [];
-  const fields: NumericField[] = [];
   const spans: { start: number; end: number }[] = [];
   let error: string | undefined;
-  const pattern = /(季度总面积|空置面积|建筑高度|高度|楼层数|总车位数|车位数|净有效租金)(大于等于|小于等于|不少于|不低于|不超过|不高于|至少|至多|超过|大于|高于|多于|小于|低于|少于|等于|>=|<=|[><=≥≤])([+-]?\d+(?:\.\d+)?)(万|千|亿)?(元\/(?:平方米|㎡|m2|m²)\/月|元每(?:平方米|平米)每月|平方米|平米|㎡|m2|m²|米|m|层|个)?/gi;
+  const pattern = /(季度总面积|空置面积|空置率|建筑高度|高度|楼层数|总车位数|车位数|净有效租金)(大于等于|小于等于|不少于|不低于|不超过|不高于|至少|至多|超过|大于|高于|多于|小于|低于|少于|等于|>=|<=|[><=≥≤])([+-]?\d+(?:\.\d+)?)(万|千|亿)?(元\/(?:平方米|㎡|m2|m²)\/月|元每(?:平方米|平米)每月|平方米|平米|㎡|m2|m²|米|m|层|个|%)?/gi;
   const rest = text.replace(pattern, (full: string, label: string, operator: string, value: string, magnitude: string | undefined, unit: string | undefined, offset: number) => {
     const field = filterFieldAliases[label];
     const allowed = field === 'height' ? ['米', 'm'] : field === 'floors' ? ['层'] : field === 'parking' ? ['个'] : field === 'netEffectiveRent' ? ['元/平方米/月', '元/㎡/月', '元/m2/月', '元/m²/月', '元每平方米每月', '元每平米每月'] : ['平方米', '平米', '㎡', 'm2', 'm²'];
-    if (unit && !allowed.includes(unit.toLowerCase())) error = '筛选条件的单位与指标口径不一致，不能自动换算或忽略。';
+    if (field === 'vacancyRate' && (unit !== '%' || magnitude || Number(value) < 0 || Number(value) > 100))
+      error = '空置率筛选请使用 0% 至 100% 的明确百分数。';
+    if (field !== 'vacancyRate' && unit && !allowed.includes(unit.toLowerCase())) error = '筛选条件的单位与指标口径不一致，不能自动换算或忽略。';
     if (/^(?:万|千|亿|w|k|米|平方|㎡|层|个|元|亩|公顷|英尺|m|\/|\d)/i.test(text.slice(offset + full.length))) error = '筛选数值或单位尚未可靠识别，请使用明确的米、平方米、层、个或元/㎡/月。';
-    try { terms.push({ field, operator: filterOperators[operator], value: decimalMagnitude(value, magnitude ?? '') }); }
+    try { terms.push({ field, operator: filterOperators[operator], value: decimalMagnitude(value, field === 'vacancyRate' ? '%' : magnitude ?? '') }); }
     catch { error = '筛选数值过长，无法可靠执行。'; }
-    fields.push(field); spans.push({ start: offset, end: offset + full.length });
+    spans.push({ start: offset, end: offset + full.length });
     return '';
   });
   if (terms.length > 12) error = '一次最多支持 12 项明确数值条件。';
   const connections = spans.slice(1).map((span, i) => text.slice(spans[i].end, span.start));
   const hasOr = connections.some(value => /或|\bor\b/i.test(value));
   if (hasOr && connections.some(value => /且|并|和|与|以及|同时|\band\b/i.test(value))) error = '混合“且／或”的条件需要明确括号分组；当前无法可靠确定优先级。';
-  return { text: rest, fields: unique(fields), ...(terms.length ? { filter: terms.length === 1 ? terms[0] : { operator: hasOr ? 'or' : 'and', terms } as Predicate } : {}), ...(error ? { error } : {}) };
+  const filter: Predicate | undefined = terms.length === 0 ? undefined : terms.length === 1 ? terms[0]
+    : { operator: hasOr ? 'or' : 'and', terms };
+  return { text: rest, fields: predicateInputFields(filter), filter, ...(error ? { error } : {}) };
 }
-function predicateFields(predicate?: Predicate): NumericField[] {
-  if (!predicate) return [];
-  return 'terms' in predicate ? unique(predicate.terms.flatMap(predicateFields)) : [predicate.field];
+function gradeConstraint(text: string): { text: string; filter?: Predicate; notice?: string } {
+  const match = /(?:只保留|仅保留|只看|仅限|仅看)(?:目录)?(超甲级|甲级(?:[（(]含超甲级[）)]|含超甲级)?|乙级|[APB]级)(?:楼宇|写字楼)?(?=$|[，,。！!？?])/.exec(text);
+  if (!match) return { text };
+  const label = match[1];
+  const grade = (value: 'A' | 'B' | 'P'): Predicate => ({ field: 'grade', operator: 'eq', value });
+  const filter: Predicate = label.includes('含超甲级') ? { operator: 'or', terms: [grade('A'), grade('P')] }
+    : grade(/^(超甲|P)/.test(label) ? 'P' : /^(乙|B)/.test(label) ? 'B' : 'A');
+  return { text: text.replace(match[0], ''), filter,
+    notice: `等级按当前楼宇目录筛选。范围为${label.includes('含超甲级') ? '甲级 A 与超甲级 P' : label}。` };
 }
+
 function inheritedFilter(prior: Predicate | undefined, next: Predicate | undefined): Predicate | undefined {
   if (!prior || !next) return next ?? prior;
   const replaced = new Set(predicateFields(next));
   const keep = (value: Predicate): Predicate | undefined => {
     if (!('terms' in value)) return replaced.has(value.field) ? undefined : value;
+    if (value.operator === 'or' && replaced.has('grade') && predicateFields(value).every(field => field === 'grade')) return undefined;
     if (value.operator === 'or' && predicateFields(value).some(field => replaced.has(field))) throw new Error('AMBIGUOUS_FILTER_REPLACEMENT');
     const terms = value.terms.map(keep).filter((value): value is Predicate => value !== undefined);
     return terms.length === 1 ? terms[0] : terms.length ? { operator: value.operator, terms } : undefined;
@@ -256,7 +268,7 @@ export function inferSemanticPeriodFields(question: string, contextInput?: Seman
   } else outputFields = (metrics.length ? metrics : model?.metrics ?? (metric ? [metric] : [])).flatMap(distributionFields);
   // A rent ranking/list consumes the observation itself; only weighted metrics
   // require totalArea. Adding that denominator would hide valid later periods.
-  return unique([...conditions.fields, ...predicateFields(prior?.filter), ...outputFields]).filter(value => numericFields[value].temporal === 'quarter');
+  return unique([...conditions.fields, ...predicateInputFields(prior?.filter), ...outputFields]).filter(value => numericFields[value].temporal === 'quarter');
 }
 
 /** Aggregate metrics have independent valid samples. Availability therefore
@@ -272,7 +284,7 @@ export function inferSemanticPeriodFieldGroups(question: string, contextInput?: 
   const actual = metrics.length ? metrics : model?.metrics ?? (model?.metric ? [model.metric] : []);
   if (actual.length < 2 || /最贵|最便宜|最高|最低|排名|排前|前\d+栋|前[二三四五六七八九十]栋|分布|分位数|直方图|箱线图|关系|相关性/.test(text) || requestsBuildingRows(text)
     || model && !aggregateOperations.some(operation => operation === model.operation)) return [fields];
-  const dependencies = [...conditions.fields, ...predicateFields(context.lastPlan?.filter)].filter(value => numericFields[value].temporal === 'quarter');
+  const dependencies = [...conditions.fields, ...predicateInputFields(context.lastPlan?.filter)].filter(value => numericFields[value].temporal === 'quarter');
   return actual.map(metric => unique([...dependencies, ...distributionFields(metric)]));
 }
 
@@ -328,12 +340,22 @@ export type ResolveSemanticInput = {
   modelIntent?: unknown;
 };
 
+function splitUnavailableProjection(text: string) {
+  // Only an explicit trailing display request may be omitted as partial.
+  // Any occurrence in a predicate, rank or ambiguous phrase stays in place.
+  const match = /(?:[，,、]|并)(?:请)?(?:附上|带上|补一列|加一列|同时展示|再加上?)(总?建筑面积|GFA|竣工日期|建成年份|楼龄)[。！!？?]?$/i.exec(text);
+  return match ? { text: text.slice(0, match.index), unavailableFields: [/建筑面积|GFA/i.test(match[1]) ? '建筑面积' : match[1]] }
+    : { text, unavailableFields: [] };
+}
+
 /** Conservative compositional interpretation. Unknown conditions are never silently discarded. */
 export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticResolution {
   const context = input.context ? parseSemanticContext(input.context) : emptyContext();
   const question = expandedPending(input.question, context);
   const originalText = normalize(question);
-  const conditions = numericConditions(originalText);
+  const projection = splitUnavailableProjection(originalText);
+  const grade = gradeConstraint(projection.text);
+  const conditions = numericConditions(grade.text);
   const text = conditions.text;
   const prior = context.lastPlan;
   const clarify = (reason: SemanticClarification['reason'], message: string, options: SemanticOption[] = []): SemanticResolution => {
@@ -342,6 +364,8 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   };
   if (!originalText || question.length > 6000 || /[\u0000-\u001f\u007f]/.test(question)) return clarify('unrecognized', '问题为空、过长或包含无效字符，请重新描述查询条件。');
   if (conditions.error) return clarify('unsupported', conditions.error);
+  if (grade.filter && /或|\bor\b/i.test(grade.text))
+    return clarify('unsupported', '等级与其他条件的并集需要明确范围。请拆成独立查询，或用明确的等级范围和交集条件。');
   if (/忽略.{0,6}(规则|指令|权限)|绕过|不受权限|SELECT\b|INSERT\b|UPDATE\b|DELETE\b|DROP\b|执行SQL|修改数据|删除数据/i.test(text)) return clarify('unsupported', '只支持经过授权的只读业务查询，不能执行 SQL、修改记录或绕过权限。');
   if (/建成|楼龄|竣工|投用年份/.test(text)) return clarify('unsupported', '竣工日期与楼龄尚未纳入当前 AI 的可信查询字段授权；现有“入市时间”也不能直接当作竣工日期。本次不会忽略楼龄条件继续查询。当前支持按子市场与等级比较净有效租金、空置率和季度总面积。');
   if (/建筑面积|总建筑面积|GFA/i.test(text)) return clarify('unsupported', '数据库已有建筑面积字段，但尚未纳入当前 AI 的可信查询字段授权。建筑面积与季度总面积不是同一口径，不能用季度总面积代替，也不会忽略这个条件执行。');
@@ -368,7 +392,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   const inherited: string[] = [];
   if (!explicitMarkets.length && !allScopePattern.test(text) && prior) inherited.push('子市场及楼宇范围');
   if (prior?.filter) inherited.push('筛选条件');
-  const notices: string[] = [];
+  const notices: string[] = grade.notice ? [grade.notice] : [];
   if (/市场存量/.test(text)) {
     if (/全市场|整个市场/.test(text)) return clarify('unsupported', '当前只能统计获权季度跟踪样本总面积，无法确认全市场存量。');
     notices.push('市场存量以获权季度跟踪样本总面积表示，覆盖范围以本次有效样本为准。');
@@ -556,7 +580,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     metric ??= model.metric; field ??= model.field;
   }
 
-  const temporal = Boolean(metric || relation || [...explicitFields, ...conditions.fields, ...predicateFields(prior?.filter)].some(value => ['totalArea', 'vacantArea', 'netEffectiveRent'].includes(value)));
+  const temporal = Boolean(metric || relation || [...explicitFields, ...conditions.fields, ...predicateInputFields(prior?.filter)].some(value => ['totalArea', 'vacantArea', 'netEffectiveRent'].includes(value)));
   if (requestedPeriods.length > 1 && (rank || isList || distribution || relation)
     && inferSemanticPeriodFields(question, context, input.modelIntent).length > 0) {
     const end = requestedPeriods.at(-1)!;
@@ -609,7 +633,9 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   }
 
   let filter: Predicate | undefined;
-  try { filter = inheritedFilter(prior?.filter, conditions.filter); }
+  const newFilter = grade.filter && conditions.filter
+    ? { operator: 'and' as const, terms: [conditions.filter, grade.filter] } : grade.filter ?? conditions.filter;
+  try { filter = inheritedFilter(prior?.filter, newFilter); }
   catch { return clarify('unrecognized', '上一轮含“或”组合筛选，本次修改的字段会影响组合含义。请在新查询中明确写出全部筛选条件。'); }
   const common = { scope: { ...scope, inventory: allScopePattern.test(text) ? 'all_authorized' : prior?.scope.inventory ?? (temporal ? 'tracked' : 'all_authorized') }, ...(filter ? { filter } : {}) };
   const first = requestedPeriods[0];
@@ -700,7 +726,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     if (plan.operation === 'cross_trend') limitations.push('跨季度子市场与等级分组采用当前目录分类，不代表楼宇在历史季度的分类；两项维度均保留在结果和来源中。');
     const comparisonSubmarkets = unique([...(context.comparisonSubmarkets ?? []), ...(plan.scope.submarkets ?? [])]).slice(-8);
     return { kind: 'plan', plan, context: { version: 'colliers-semantic-context/1', lastPlan: plan, comparisonSubmarkets },
-      interpretation: { version: SEMANTIC_PLANNER_VERSION, method, resolvedQuestion: formatPlan(plan), periodBasis, periods: resolvedPeriods, availableThrough: latest ?? null, unavailablePeriods, inherited: unique(inherited), notices }, limitations };
+      interpretation: { version: SEMANTIC_PLANNER_VERSION, method, resolvedQuestion: formatPlan(plan), periodBasis, periods: resolvedPeriods, availableThrough: latest ?? null, unavailablePeriods, inherited: unique(inherited), notices, ...(projection.unavailableFields.length ? { unavailableFields: projection.unavailableFields } : {}) }, limitations };
   }
 }
 

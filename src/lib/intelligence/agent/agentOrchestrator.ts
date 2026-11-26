@@ -96,6 +96,7 @@ function classifyToolError(error: unknown): string {
     if (error.message === 'LEASE_TOOL_REQUIRED') return 'lease_tool_required';
     if (error.message === 'LEASE_SNAPSHOT_LIMIT') return 'lease_scope_too_large';
     if (error.message === 'LEASE_PDF_UNSUPPORTED') return 'unsupported';
+    if (error.message === 'LEASE_DETAIL_PLAN_REQUIRED') return 'lease_detail_plan_required';
     if (error.message === 'LEASE_READ_UNAVAILABLE') return 'source_unavailable';
     if (error.message === 'AGENT_EXPORT_INCOMPATIBLE_DOMAIN') return 'incompatible_columns';
     if (error.message === 'AGENT_EXPORT_INCOMPATIBLE_COLUMNS') return 'incompatible_columns';
@@ -132,6 +133,7 @@ const errorHint: Record<string, string> = {
   knowledge_sensitive_content:'资料疑似包含凭据，未建立索引、未交付片段；请维护者先清理敏感内容。',
   knowledge_unsafe_document:'原件结构不安全，未执行或索引。',
   lease_tool_required: '成交请求必须调用query_lease_transactions独立工具，不得交给季度租金兼容引擎。请明确日期范围与当前/历史来源。',
+  lease_detail_plan_required: '用户要求逐笔成交。请设置 mode=details，保留已指定时间、区域与笔数；面积排名用 sort=area，按用户要求选择升序或降序。',
   lease_scope_too_large: '获权成交数据池超过20000条，未返回部分结果；须由授权维护者收窄正式研究范围后重试，不得声称已导出全部。',
   invalid_report_spec: '报告用途、结果或文件规模不受支持；仅允许内部研究，不包含对客发布。请缩小范围或修正正式结果，不能补造数据。',
   invalid_chart_spec: '图表规格与正式列、单位或合法范围不符；保留原值，修正字段、同单位系列或坐标范围后重试。',
