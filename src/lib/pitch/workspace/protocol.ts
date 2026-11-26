@@ -254,12 +254,21 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     state: z.enum(["draft", "archived", "deleted"]),
   }),
   z.strictObject({
+    action: z.literal("share_create"), projectId: id, shareId: id, expectedVersion: z.number().int().positive(),
+    recipientId: id, expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
+    slideIds: z.array(id).min(1).max(50).refine(ids => new Set(ids).size === ids.length).optional(),
+  }),
+  z.strictObject({ action: z.literal("share_revoke"), projectId: id, shareId: id }),
+  z.strictObject({
     action: z.literal("preferences"),
     value: preferencesSchema.optional(),
   }),
 ]);
 export type WorkspaceCommand = z.infer<typeof workspaceCommandSchema>;
 export const workspaceReadSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("shares"), projectId: id }),
+  z.strictObject({ action: z.literal("shared_presentation"), shareId: id }),
+  z.strictObject({ action: z.literal("shared_slide"), shareId: id, slideId: id }),
   z.strictObject({ action: z.literal("document_bindings"), projectId: id }),
   z.strictObject({
     action: z.literal("list"),

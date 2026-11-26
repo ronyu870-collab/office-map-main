@@ -10,6 +10,7 @@ import { readQueryBody } from "@/src/lib/intelligence/query/httpBody";
 import { isQuerySameOrigin } from "@/src/lib/intelligence/query/sameOrigin";
 import { LayoutError } from "../layout/metrics";
 import { DocumentError } from "@/src/lib/intelligence/knowledge/safeArchive";
+import { renderSharedSlide } from "./sharing";
 import { workspaceReadSchema, workspaceCommandSchema } from "./protocol";
 import { reviewHandoff, startHandoff } from "./handoff";
 import { applyDataRefresh, previewDataRefresh, readDocumentBindings } from "./documentBindings";
@@ -55,6 +56,7 @@ export async function handleWorkspaceRequest(
             await import("./thumbnail")
           ).templateThumbnail(ctx, c.templateId, c.theme),
         );
+      if (c.action === "shared_slide") return reply(await renderSharedSlide(ctx, c));
       if (c.action === "document_bindings") return reply(await readDocumentBindings(ctx, c.projectId));
       const value = await pitchRpc(ctx, {
         ...c,

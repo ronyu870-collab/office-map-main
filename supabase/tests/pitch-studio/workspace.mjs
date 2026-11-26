@@ -20,6 +20,7 @@ const require = createRequire(import.meta.url),
   render = require("../../../src/lib/pitch/data/renderWorkflow.ts"),
   { digest } = require("../../../src/lib/pitch/data/store.ts");
 const workspace = require("../../../src/lib/pitch/workspace/workflow.ts"),
+  { renderSharedSlide } = require("../../../src/lib/pitch/workspace/sharing.ts"),
   foundation = require("../../../src/lib/pitch/data/workflow.ts");
 const db = await createPitchDatabase(),
   files = new Map();
@@ -514,10 +515,43 @@ try {
           (s) => s.pageId === media.source_page_id,
         ),
       );
+      // Publish the synthetic original and replacement for this recipient. The
+      // sharing-specific test subsequently withdraws the same pinned image.
+      for (const sample of [first, second]) {
+        await db.setup.query("update pitch_content_assets set visibility='organization' where id=$1", [sample.assetId]);
+        await db.setup.query("update pitch_asset_versions set visibility='organization' where asset_id=$1", [sample.assetId]);
+      }
+      for (const source of own.slides[0].content.sources) {
+        if (source.documentId) await db.setup.query("update pitch_source_documents set visibility='organization' where id=$1", [source.documentId]);
+      }
+      const share = await db.rpc(OWNER, { action: "workspace_share_create", projectId: own.project.id,
+        expectedVersion: own.project.version, shareId: randomUUID(), recipientId: VIEWER });
+      const presentation = { shareId: share.id, slideId: page.id };
+      assert.match((await renderSharedSlide(ctx(VIEWER), presentation)).svg, /data:image\/png;base64,/);
+      const mediaDocument = (await db.setup.query("select document_id from pitch_source_pages where id=$1", [media.source_page_id])).rows[0];
+      await db.setup.query("update pitch_source_documents set valid_until=current_date-1 where id=$1", [mediaDocument.document_id]);
+      await assert.rejects(renderSharedSlide(ctx(VIEWER), presentation), /PITCH_DENIED/);
+      await db.setup.query("update pitch_source_documents set valid_until=null where id=$1", [mediaDocument.document_id]);
+
+      const concurrent = await db.rpc(OWNER, { action: "workspace_share_create", projectId: own.project.id,
+        expectedVersion: own.project.version, shareId: randomUUID(), recipientId: VIEWER });
+      const revocationRace = ctx(VIEWER);
+      const from = revocationRace.client.storage.from;
+      revocationRace.client.storage.from = () => {
+        const storage = from();
+        return { ...storage, async download(path) {
+          const bytes = await storage.download(path);
+          await db.rpc(OWNER, { action: "workspace_share_revoke", projectId: own.project.id, shareId: concurrent.id });
+          return bytes;
+        } };
+      };
+      await assert.rejects(renderSharedSlide(revocationRace, { ...presentation, shareId: concurrent.id }), /PITCH_DENIED/);
+
       await db.setup.query(
         "update pitch_media_assets set state='archived' where id=$1",
         [media.id],
       );
+      await assert.rejects(renderSharedSlide(ctx(VIEWER), presentation), /PITCH_DENIED/);
       await assert.rejects(
         render.previewPage(owner, {
           action: "preview",
@@ -526,6 +560,84 @@ try {
         }),
         /PITCH_DENIED/,
       );
+    },
+  );
+  await check(
+    "named recipients can present only the pinned pages through revision pruning, expiry, and revocation",
+    async () => {
+      let shared = await create(ordinary, "原共享提案");
+      for (const title of ["获准页", "个人草稿"]) {
+        shared = await workspace.customWorkspace(ordinary, {
+          action: "custom", projectId: shared.project.id, expectedVersion: shared.project.version,
+          title, body: "仅用于隔离环境的页面说明。",
+        });
+      }
+      const [allowed, privatePage] = shared.slides;
+      const request = { action: "workspace_share_create", projectId: shared.project.id,
+        shareId: randomUUID(), expectedVersion: shared.project.version, recipientId: VIEWER, slideIds: [allowed.id] };
+      await assert.rejects(db.rpc(OWNER, request), error => error.code === "42501");
+      const receipt = await db.rpc(OTHER, request);
+      assert.equal(receipt.version, shared.project.version);
+      assert.deepEqual(receipt.pageIds, [allowed.id]);
+      assert.deepEqual(await db.rpc(OTHER, request), receipt);
+      assert.deepEqual(await db.rpc(OTHER, { action: "workspace_shares", projectId: shared.project.id }), [receipt]);
+      await assert.rejects(db.rpc(OTHER, { ...request, recipientId: ADMIN }), error => error.code === "23505");
+      const lookup = { action: "workspace_shared_presentation", shareId: receipt.id };
+      await assert.rejects(db.rpc(ADMIN, lookup), error => error.code === "42501");
+      const opened = await db.rpc(VIEWER, lookup);
+      assert.deepEqual(opened.pages, [{ id: allowed.id, title: "获准页" }]);
+      const slide = await renderSharedSlide(ctx(VIEWER), { shareId: receipt.id, slideId: allowed.id });
+      assert.match(slide.svg, /^<svg/);
+      assert.deepEqual(Object.keys(slide), ["id", "svg"]);
+      await assert.rejects(renderSharedSlide(ctx(VIEWER), { shareId: receipt.id, slideId: privatePage.id }), /PITCH_DENIED/);
+      await assert.rejects(workspace.getWorkspace(ctx(VIEWER), shared.project.id), /PITCH_DENIED/);
+      assert.equal((await db.asUser(VIEWER, "select id from public.pitch_project_slides where project_id=$1", [shared.project.id])).rowCount, 0);
+      await assert.rejects(db.asUser(VIEWER, "select id from private.pitch_workspace_shares"), error => error.code === "42501");
+
+      const expired = await db.rpc(OTHER, { ...request, shareId: randomUUID(), expiresAt: "2099-01-01T00:00:00Z" });
+      await db.setup.query("update private.pitch_workspace_shares set expires_at=now()-interval '1 second' where id=$1", [expired.id]);
+      await assert.rejects(db.rpc(VIEWER, { ...lookup, shareId: expired.id }), error => error.code === "42501");
+      shared = await workspace.saveWorkspace(ordinary, save(shared, {
+        title: "新编辑版", pages: [{ id: allowed.id, title: "改名后的页面" }, { id: privatePage.id }],
+      }));
+      // Execute the actual workspace save and pruning, preserving a share
+      // on a revision older than the ordinary history limit.
+      for (let i = 0; i < 30; i++) shared = await workspace.saveWorkspace(ordinary, save(shared));
+      assert.deepEqual(await db.rpc(VIEWER, lookup), opened);
+      assert.deepEqual(await renderSharedSlide(ctx(VIEWER), { shareId: receipt.id, slideId: allowed.id }), slide);
+      assert.deepEqual(await db.rpc(OTHER, request), receipt);
+
+      await db.setup.query("update private.pitch_grants set enabled=false where user_id=$1", [VIEWER]);
+      await assert.rejects(db.rpc(VIEWER, lookup), error => error.code === "42501");
+      await db.setup.query("update private.pitch_grants set enabled=true where user_id=$1", [VIEWER]);
+      const revoke = { action: "workspace_share_revoke", projectId: shared.project.id, shareId: receipt.id };
+      await assert.rejects(db.rpc(VIEWER, revoke), error => error.code === "42501");
+      assert.ok((await db.rpc(OTHER, revoke)).revokedAt);
+      await assert.rejects(db.rpc(VIEWER, lookup), error => error.code === "42501");
+      await workspace.saveWorkspace(ordinary, save(shared));
+      assert.equal((await db.setup.query("select 1 from private.pitch_workspace_revisions where project_id=$1 and version=$2",
+        [shared.project.id, receipt.version])).rowCount, 0);
+    },
+  );
+  await check(
+    "a named presentation of a static recipe rechecks the reader's original published material",
+    async () => {
+      const page = (await db.setup.query(`
+        select s.id from public.pitch_project_slides s join public.pitch_content_assets a on a.id=s.asset_id
+        join public.pitch_business_generations g on g.project_id=a.generated_project_id
+        where s.project_id=$1 and g.bindings @> $2::jsonb order by s.position limit 1
+      `, [deck.project.id, JSON.stringify([{ id: ids.corporate }])])).rows[0];
+      assert.ok(page);
+      const receipt = await db.rpc(OTHER, { action: "workspace_share_create", projectId: deck.project.id,
+        expectedVersion: deck.project.version, shareId: randomUUID(), recipientId: VIEWER, slideIds: [page.id] });
+      const lookup = { action: "workspace_shared_presentation", shareId: receipt.id };
+      assert.deepEqual((await db.rpc(VIEWER, lookup)).pages.map(item => item.id), [page.id]);
+      await db.setup.query("update pitch_content_assets set state='archived' where id=$1", [ids.corporate]);
+      try {
+        await assert.rejects(db.rpc(VIEWER, lookup), error => error.code === "42501");
+      } finally {
+        await db.setup.query("update pitch_content_assets set state='published' where id=$1", [ids.corporate]);
+      }
     },
   );
   await check(
