@@ -14,7 +14,7 @@
 ## 设计输入
 
 - 业务组合方提供 `SlideContent` 和已注册的 `layoutId`。引擎以版本化主题运行 `layoutSlides`，可生成多页，再用 `numberDeckPages` 统一预览与导出页码。
-- 照片沿用 `mediaAssetId`、`mediaVersion`、`sourceIds`。Agent 02 服务端解析 `VisualAssetReference` 后，调用方通过 `imageFromResolvedVisual` 将同版本引用和媒体转为图像块及原始来源，并将媒体交给渲染器。该接缝把署名、原件链接和许可链接保留在页面，并对不可裁的照片及地图强制等比完整显示。引擎以固定 ID 和版本消费媒体字节，原件仍经现有服务端权限和摘要路径。照片可附 `caption`、`credit`、`aspectRatio`、`fit` 与归一化焦点 `focus`。比例用于候选构图，裁剪按实际解码尺寸执行。图文版式未提供照片时生成纯文字页。已引用却无法读取的图片继续报错。
+- 照片沿用 `mediaAssetId`、`mediaVersion`、`sourceIds`。Agent 02 服务端解析 `VisualAssetReference` 后，调用方通过 `imageFromResolvedVisual` 将同版本引用和媒体转为图像块及原始来源，并将媒体交给渲染器。该接缝把署名、原件链接和许可链接保留在页面，并对不可裁的照片及地图强制等比完整显示。引擎以固定 ID 和版本消费媒体字节，原件仍经现有服务端权限和摘要路径。照片可附 `caption`、`credit`、`aspectRatio`、`fit` 与归一化焦点 `focus`。旧业务配方只传素材引用时，真实图片默认完整等比显示。比例用于候选构图，裁剪按实际解码尺寸执行。图文版式未提供照片时生成纯文字页。已引用却无法读取的图片继续报错。
 - 排版沿用两档主体字号，封面有单独的大标题档，图注、来源和页脚共享 11 pt。图内刻度与图例共享 12 pt。标题、章节、数字、单位、次级标题、正文、图注、来源、页脚有独立语义。正文分页保留显式段落和完整文字。
 - 扩展场景使用 `designVersion: 1`，同时沿用公共 `rendererVersion: 'pitch-scene/2'` 和布局注册的版本 2。旧记录缺少 `designVersion` 仍使用原版坐标和主题。图片、表格、图表和文字在 PPTX 中均为原生对象。满版图片在 PPTX 中保留原图及可编辑裁剪。
 - 桌面浏览器预览使用捆绑字体，PPTX 声明同字体。Office 环境可替代字体，图表刻度和标签位置也由 Office 应用独立排版。

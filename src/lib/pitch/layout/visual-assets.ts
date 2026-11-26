@@ -29,8 +29,10 @@ export function imageFromResolvedVisual(asset: ResolvedVisual, placement?: { fit
   const { width, height } = reference.dimensions;
   const rights = reference.rights;
   const caption = reference.caption || reference.source.label;
+  const license = rights.licenseName && !rights.attribution.includes(rights.licenseName) ? rights.licenseName : null;
+  const attribution = [rights.attribution, license].filter(Boolean).join(' · ');
   const credit = [
-    [rights.attribution, rights.licenseName].filter(Boolean).join(' · '),
+    attribution === caption ? null : attribution,
     rights.sourceUrl,
     rights.licenseUrl,
   ].filter(Boolean).join('\n');

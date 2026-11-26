@@ -27,6 +27,10 @@ const insightText = (content: SlideContent, en: boolean) => requireBlocks(conten
 /** Business meaning -> layout, never a business-specific brand implementation. */
 export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, rawLayout: LayoutId, variant: 'standard' | 'alternate' = 'standard'): Promise<SlideScene[]> {
   const content = slideContentSchema.parse(raw), theme = designThemeSchema.parse(rawTheme), id = layoutIdSchema.parse(rawLayout);
+  if (theme.profile && !content.isTestData) {
+    // Approved references from older composers may lack placement metadata.
+    content.blocks = content.blocks.map(block => block.kind === 'image' && !block.fit ? { ...block, fit: 'contain' as const } : block);
+  }
   const definition = LAYOUTS.find(l => l.id === id)!;
   const unsupported = content.blocks.find(b => !definition.kinds.includes(b.kind));
   if (unsupported) throw new LayoutError('PITCH_UNSUPPORTED_CONTENT', `“${definition.zh}”不支持 ${unsupported.kind}，请更换布局；内容未被删除。`);
