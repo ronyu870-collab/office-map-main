@@ -45,8 +45,9 @@ function referenceFor(candidate: PhotoCandidate) {
 
 export type BuildingPhotoReference = ReturnType<typeof referenceFor>;
 
-export async function getBuildingPhotoChoices(ctx: PitchContext, input: z.input<typeof selectionSchema>) {
+export async function getBuildingPhotoChoices(ctx: PitchContext, input: z.input<typeof selectionSchema>, coverBuildingId?: string) {
   const { buildingIds, use, usedHashes } = selectionSchema.parse(input);
+  if (coverBuildingId !== undefined && !buildingIds.includes(coverBuildingId)) throw new Error('PITCH_VISUAL_SELECTION');
   const authorized = await authorizeVisualBuildings(ctx, { buildingIds });
   const { data, error } = await ctx.client.from(BUILDING_PHOTO_TABLE).select(select)
     .in('building_id', buildingIds).eq('status', 'ready').order('building_id').order('sort_order').order('id')
@@ -84,9 +85,12 @@ export async function getBuildingPhotoChoices(ctx: PitchContext, input: z.input<
     });
   }
   const choices = selectBuildingPhotos(buildingIds, verified, use, usedHashes);
+  const cover = coverBuildingId ? selectBuildingPhotos([coverBuildingId], verified, 'cover', usedHashes)[0] : undefined;
   await recheckVisualBuildings(ctx, authorized.authority);
   return choices.map(({ buildingId, primary, alternatives, placement }) => ({
     buildingId, primary: primary ? referenceFor(primary) : null, alternatives: alternatives.map(referenceFor), placement,
+    ...(cover?.buildingId === buildingId && cover.primary && cover.placement
+      ? { cover: { reference: referenceFor(cover.primary), placement: cover.placement } } : {}),
   }));
 }
 

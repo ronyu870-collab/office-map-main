@@ -6,12 +6,15 @@ import { STUDIO_THEME } from '../../design/theme';
 import { layoutSlides } from '../../layout/engine';
 import { renderPitchPptx } from '../../render/pptx';
 import { renderSceneSvg } from '../../render/svg';
+import { buildProposal } from '../../proposals';
+import { proposalFixture } from '../../proposals/__tests__/fixture';
 import { contentHash, inspectPhotoBytes } from '../photo-file';
 import { getBuildingPhotoChoices, loadBuildingPhotoMedia } from '../photos';
 import { classifyBuildingPhoto, reusablePhotoLicense, selectBuildingPhotos, type PhotoCandidate } from '../photo-selection';
 import { readPitchLocation, readPitchStackingPlan } from '../derived-assets';
 import { createLocationSchematic, locationSchematicSvg } from '../location';
 import { createStackingVisual } from '../stacking';
+import { readProposalVisualMaterials } from '../proposal-materials';
 import { resolvePitchVisualAsset, resolveReferencedVisualMedia } from '../resolve';
 import type { PitchContext } from '../../data/store';
 import type { SlideContent } from '../../contracts/content';
@@ -43,6 +46,8 @@ const rowFor = (bytes: Uint8Array, photo = photoId, building = buildingId) => ({
   photo_kind: 'exterior', caption: '测试外观', sort_order: 0, collected_at: '2026-11-18T00:00:00+00:00', ...rights,
 });
 type PhotoRow = Omit<ReturnType<typeof rowFor>, 'license_url'> & { license_url: string | null };
+
+const resolvedBuilding = ({ id, name }: typeof main) => ({ buildingId: id, name, static: {}, quarter: {} });
 
 function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array>; allowed?: boolean; stackingAdmin?: boolean;
   stackingExport?: boolean; revoke?: boolean; incompatiblePhoto?: boolean;
@@ -104,6 +109,60 @@ function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array
     expiresAt: Date.now() + 60_000 }, signal: new AbortController().signal };
   return { ctx, calls };
 }
+
+describe('authorized proposal visual materials', () => {
+  it('binds the verified cover and target map to the real proposal, then replays the selected media', async () => {
+    const { ctx, calls } = fixture();
+    const { snapshot, data } = proposalFixture('building-promotion');
+    const brief = { ...snapshot.brief, city: '北京', buildingIds: [buildingId] };
+    const projection = { buildings: [resolvedBuilding(main)] };
+    const materials = await readProposalVisualMaterials(ctx, brief, projection);
+    expect(calls.filter(path => path.startsWith('/storage/'))).toHaveLength(1);
+    const photo = materials.visuals.find(item => item.kind === 'photo')!;
+    expect(materials.coverPlacements[photo.id]).toMatchObject({ fit: 'contain', aspectRatio: 16 / 9 });
+    const proposed = buildProposal({ ...snapshot, brief, visuals: materials.visuals }, { maps: materials.maps,
+      buildings: [{ ...data.buildings[0], id: buildingId, ...materials.buildingMedia[buildingId] }] }, { theme: STUDIO_THEME });
+    expect(proposed.plan.slides.find(slide => slide.pageKind === 'cover')?.visuals).toEqual([photo]);
+    expect(proposed.plan.slides.find(slide => slide.pageKind === 'arrival')?.visuals[0]).toMatchObject({ kind: 'map', buildingIds: [buildingId] });
+    const pins = proposed.plan.slides.flatMap(slide => slide.visuals);
+    const images = proposed.pages.flatMap(page => page.content.blocks.flatMap(block => block.kind === 'image'
+      ? [{ id: block.mediaAssetId, version: block.mediaVersion }] : []));
+    const media = await resolveReferencedVisualMedia(ctx, pins, images, 'internal');
+    expect(media).toHaveLength(2);
+    expect(contentHash(media.find(item => item.id === photo.id)!.bytes)).toBe(contentHash(jpeg));
+    await expect(readProposalVisualMaterials(ctx, brief, projection, { targetBuildingId: secondId })).rejects.toThrow('PITCH_VISUAL_SELECTION');
+    await expect(readProposalVisualMaterials(ctx, { ...brief, audience: 'client' }, projection)).rejects.toThrow('QUERY_DENIED');
+  });
+
+  it('uses the resolved peers for the leasing comparison, honors missing photos, and keeps the historical plan restricted', async () => {
+    const { ctx } = fixture();
+    const { snapshot } = proposalFixture('leasing-agency');
+    const brief = { ...snapshot.brief, city: '北京', buildingIds: [buildingId] };
+    const projection = { buildings: [resolvedBuilding(main), resolvedBuilding(competitor)] };
+    const materials = await readProposalVisualMaterials(ctx, brief, projection, { stacking: { towerIds: [towers[1].id] } });
+    expect(materials.buildingMedia[secondId]?.photos).toEqual([]);
+    expect(materials.maps.candidates?.visual?.buildingIds).toEqual([buildingId, secondId]);
+    expect(materials.buildingMedia[buildingId]?.stackingPlan).toMatchObject({ disclosure: 'restricted', value: { businessDate: '2026-11-18' } });
+    const pin = materials.visuals.find(item => item.kind === 'stacking-plan')!;
+    expect(pin.rights).toMatchObject({ scope: 'admin-internal', clientDistribution: false, externalAi: false });
+    const denied = fixture({ stackingAdmin: false });
+    await expect(readProposalVisualMaterials(denied.ctx, brief, projection, { stacking: {} })).rejects.toThrow('QUERY_DENIED');
+    expect(denied.calls.some(call => call.includes('/stacking_plan_spaces'))).toBe(false);
+  });
+
+  it('provides a citywide quarterly report map without requesting building photos or assuming the coordinates are dated to the quarter', async () => {
+    const { ctx, calls } = fixture();
+    const { snapshot, data } = proposalFixture('market-report');
+    const brief = { ...snapshot.brief, city: '北京', buildingIds: [] };
+    const materials = await readProposalVisualMaterials(ctx, brief, { buildings: [] });
+    const proposal = buildProposal({ ...snapshot, brief, visuals: materials.visuals }, { buildings: [], maps: materials.maps,
+      market: { ...data.market!, city: '北京', name: '北京' } }, { theme: STUDIO_THEME });
+    const pin = materials.visuals[0];
+    expect(proposal.plan.slides.find(slide => slide.pageKind === 'spatial-distribution')?.visuals).toEqual([pin]);
+    expect(pin).toMatchObject({ businessDate: null, sourceDateBasis: 'catalog-observed', buildingIds: [buildingId, secondId] });
+    expect(calls.some(call => call.includes('/building_photos'))).toBe(false);
+  });
+});
 
 describe('building photo admission and actual scene bytes', () => {
   it('checks reuse permission and separates real, lobby, amenity and rendering classifications', () => {
