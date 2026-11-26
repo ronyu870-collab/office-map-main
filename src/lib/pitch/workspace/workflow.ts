@@ -9,7 +9,7 @@ import { numberDeckPages } from "../layout/pagination";
 import { assertSceneQuality } from "../layout/quality";
 import { generateBusinessProject } from "../business/workflow";
 import { generationSchema } from "../business/protocol";
-import { type WorkspaceCommand, type WorkspaceSave } from "./protocol";
+import { workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
 import { workspaceDetailSchema, type WorkspaceDetail } from "./protocol";
 type Page = WorkspaceDetail["slides"][number];
 type Settings = WorkspaceDetail["workspace"]["page_settings"];
@@ -577,7 +577,8 @@ export async function runWorkspaceTask(
     const current = await getWorkspace(ctx, projectId),
       p = current.project;
     checkVersion(current, receipt.task.expected_version);
-    const command = generationSchema.parse({
+    const part = workspacePartSchema.parse(receipt.task.command.part);
+    const command = part.mode === "example" ? undefined : generationSchema.parse({
       action: "generate",
       projectId: receipt.task.source_project_id,
       title: p.title,
@@ -590,9 +591,19 @@ export async function runWorkspaceTask(
       language: current.workspace.context.language,
       themeId: p.theme_id,
       themeVersion: p.theme_version,
-      parts: [receipt.task.command.part],
+      parts: part.mode==='bundle'?part.parts:[part],
     });
-    await generateBusinessProject(ctx, command);
+    if(part.mode==='bundle'){
+      const kit=(await import('../templates/deckKits')).DECK_KIT_BY_ID.get(part.kit.id);
+      if(!kit||kit.version!==part.kit.version||part.parts.some(p=>p.mode==='dynamic'||!kit.sections.some(s=>s.templateId===p.templateId)))throw new Error('PITCH_INVALID');
+    }
+    if(part.mode==='example') {
+      await (await import('./examples')).generateExampleProject(ctx,{
+        projectId:receipt.task.source_project_id,requestId:taskId,title:p.title,
+        scope:{organizationId:p.organization_id,region:p.region,city:p.city,businessLine:p.business_line},
+        language:current.workspace.context.language,themeId:p.theme_id,themeVersion:p.theme_version,part,
+      });
+    } else await generateBusinessProject(ctx, command!);
     await pitchRpc(ctx, { action: "workspace_task_check", ...args });
     const source = await getWorkspace(ctx, receipt.task.source_project_id),
       settings = { ...current.workspace.page_settings };
@@ -600,8 +611,9 @@ export async function runWorkspaceTask(
       const id = randomUUID();
       settings[id] = {
         manual: false,
-        origin: command.parts[0].mode === "dynamic" ? "data" : "asset",
-        part: command.parts[0],
+        origin: part.mode === "dynamic" ? "data" : "asset",
+        part,
+        ...(part.mode === "example" ? {example:true,kit:part.kit} : part.mode==='bundle'?{kit:part.kit}:{}),
       };
       return { ...p, id };
     });

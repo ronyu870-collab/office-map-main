@@ -1,5 +1,7 @@
 # Pitch Studio 工作台（阶段 05）
 
+1.1 扩建：参见[模板生态与验证](template-ecosystem.md)、[完整目录](template-catalog.md)及[许可迁移](template-sources.md)。以下阶段记录保留其历史范围。
+
 ## 基线与入口
 
 依赖阶段 04 提交 `d9912a4f467ea8b3c1ec993765f99465273b87c8`，保留 `colliers-pitch/1`、模板注册、原研究报告与既有 API。独立分支 `codex/pitch-studio-05-workspace`；依赖 PR #312，未合并 main，未执行生产迁移。

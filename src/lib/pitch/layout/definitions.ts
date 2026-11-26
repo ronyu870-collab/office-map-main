@@ -1,5 +1,6 @@
 import type { LayoutId } from '../contracts/scene';
 import type { SlideContent } from '../contracts/content';
+import { PATTERNS } from './patterns/catalog';
 type Block = SlideContent['blocks'][number];
 export const LAYOUTS: { id: LayoutId; zh: string; en: string; kinds: Block['kind'][]; pagination: string }[] = [
   { id: 'cover', zh: '封面', en: 'Cover', kinds: ['paragraph', 'image'], pagination: '正文超限时拒绝；可选配图' },
@@ -14,4 +15,5 @@ export const LAYOUTS: { id: LayoutId; zh: string; en: string; kinds: Block['kind
   { id: 'comparison', zh: '多项目对比', en: 'Comparison', kinds: ['table'], pagination: '指标行与项目列对比，按行高分页；可切换普通矩阵' },
   { id: 'map-analysis', zh: '地图分析', en: 'Map & Analysis', kinds: ['map', 'insight'], pagination: '固定地理范围；最多十二点，拥挤时拒绝' },
   { id: 'strategy-framework', zh: '策略框架', en: 'Strategy Framework', kinds: ['timeline'], pagination: '每页三个流程节点，保留日期与说明' },
+  ...PATTERNS.map(p => ({id:p.id,zh:p.zh,en:p.en,kinds:[...new Set(p.slots.map(s=>s.kind))],pagination:p.description})),
 ];

@@ -1,6 +1,7 @@
+import { ECOSYSTEM_TEMPLATES } from '../templates/ecosystem';
 import type { BusinessRecipe } from './protocol';
 type Seed = Omit<BusinessRecipe, 'revision'|'categoryId'|'enabled'>;
-export const BUSINESS_RECIPES: Seed[] = [
+export const LEGACY_BUSINESS_RECIPES: Seed[] = [
   ['corporate-overview','公司概览','Corporate overview','corporate','overview','two-columns',1],
   ['corporate-metrics','公司核心指标','Corporate metrics','corporate','metrics','kpi',1],
   ['corporate-capabilities','业务能力','Capabilities','corporate','capabilities','two-columns',1],
@@ -17,6 +18,8 @@ export const BUSINESS_RECIPES: Seed[] = [
   ['research-page','研究观点与资料','Research evidence','research','research','two-columns',10],
   ['custom-content','自定义内容板块','Custom content','custom','content','two-columns',10],
 ].map(([id,zh,en,kind,strategy,layoutId,maxAssets]) => ({ id, names:{zh,en}, description:`${zh}；保留经确认的事实、来源与业务日期。`, accepts:[kind], strategy,layoutId,maxAssets })) as Seed[];
+export const BUSINESS_RECIPES: Seed[] = [...LEGACY_BUSINESS_RECIPES, ...ECOSYSTEM_TEMPLATES.map(t=>({id:t.id,names:t.names,description:t.description,accepts:['custom'] as ['custom'],strategy:'content' as const,layoutId:t.patternId,maxAssets:1}))];
+
 export const DYNAMIC_CAPABILITIES = [
   ['building-profile','项目概况','available','可信楼宇目录与楼书参数；位置仅限已核验字段，照片可组合正式素材'],
   ['project-comparison','竞争项目横向对比','available','同一正式季度；自选获权参数'],

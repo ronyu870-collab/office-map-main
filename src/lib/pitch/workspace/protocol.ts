@@ -55,6 +55,13 @@ export const preferencesSchema = z.strictObject({
   favorites: z.array(z.string().min(1).max(100)).max(100).default([]),
   recent: z.array(z.string().max(100)).max(20).default([]),
 });
+export const examplePartSchema = z.strictObject({
+  mode:z.literal('example'), templateIds:z.array(z.string().regex(/^[a-z0-9-]+$/).max(100)).min(1).max(12).refine(v=>new Set(v).size===v.length),
+  kit:z.strictObject({id:z.string().max(100),version:z.number().int().positive()}).optional(),
+});
+export const bundlePartSchema=z.strictObject({mode:z.literal('bundle'),kit:z.strictObject({id:z.string().max(100),version:z.number().int().positive()}),parts:z.array(generationPartSchema).min(1).max(12)});
+export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema]);
+export type WorkspacePart=z.infer<typeof workspacePartSchema>;
 export const workspaceCommandSchema = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("create"),
@@ -92,7 +99,7 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     projectId: id,
     expectedVersion: z.number().int().positive(),
     taskId: id,
-    part: generationPartSchema,
+    part: workspacePartSchema,
     replaceIds: z.array(id).max(50).default([]),
   }),
   z.strictObject({

@@ -1,5 +1,7 @@
 import { slideContentSchema, type SlideContent, type PitchScope } from '../contracts/content';
 import type { LayoutId } from '../contracts/scene';
+import { ECOSYSTEM_BY_ID } from '../templates/ecosystem';
+import { PATTERN_BY_ID } from '../layout/patterns/catalog';
 import type { BusinessProfile, BusinessRecipe } from './protocol';
 import { DocumentError } from '@/src/lib/intelligence/knowledge/safeArchive';
 export type BusinessAsset = { id: string; version: number; scope: PitchScope; profile: BusinessProfile; content: SlideContent };
@@ -45,6 +47,14 @@ export function caseDisplay(asset: BusinessAsset,brief=false) {
 }
 export function buildBusinessPages(recipe: BusinessRecipe, assets: BusinessAsset[], language: 'zh'|'en', length: 'brief'|'detailed', variant: 'standard'|'alternate'): BusinessPage[] {
   if (!recipe.enabled || !assets.length || assets.length>recipe.maxAssets || assets.some(a=>!recipe.accepts.includes(a.profile.kind))) return fail('所选素材类型、数量或模板状态不匹配。');
+  const spec=ECOSYSTEM_BY_ID.get(recipe.id);
+  if(spec){
+    if(recipe.layoutId!==spec.patternId||recipe.strategy!=='content')return fail('业务模板与已验证布局版本不一致。');
+    const kinds=PATTERN_BY_ID.get(spec.patternId)!.slots.map(s=>s.kind);
+    for(const a of assets)for(const kind of new Set(kinds)){
+      if((a.profile.kind==='custom'?a.profile.content:a.content).blocks.filter(b=>b.kind===kind).length<kinds.filter(k=>k===kind).length)return fail('缺少模板所需内容：'+spec.fields.join('、'));
+    }
+  }
   const pages: BusinessPage[]=[];const en=language==='en';
   const add=(a:BusinessAsset,blocks:SlideContent['blocks'],title=localized(recipe.names,language),layoutId=recipe.layoutId)=>pages.push({content:envelope(a,blocks,title),layoutId,variant});
   const refs=(a:BusinessAsset)=>a.content.sources.map(s=>s.id);

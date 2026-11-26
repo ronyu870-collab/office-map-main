@@ -1,5 +1,6 @@
 import type { SlideContent } from "../contracts/content";
 import { CATEGORY_RULES } from "../library/extract";
+import { PATTERN_BY_ID } from '../layout/patterns/catalog';
 import { BUSINESS_RECIPES } from "../business/recipes";
 import {
   understandingSchema,
@@ -86,8 +87,11 @@ export function matchContent(content: SlideContent) {
               ? "image-text"
               : "two-columns";
   const templates = BUSINESS_RECIPES.filter((r) =>
-    r.accepts.includes(kind),
-  ).map((r) => ({
+    r.accepts.includes(kind) && (!PATTERN_BY_ID.has(r.layoutId) || (()=>{
+      const slots=PATTERN_BY_ID.get(r.layoutId)!.slots;
+      return b.every(block=>slots.some(s=>s.kind===block.kind))&&slots.every(slot=>b.filter(block=>block.kind===slot.kind).length>=slots.filter(s=>s.kind===slot.kind).length);
+    })()),
+  ).sort((a,b)=>Number(content.title.includes(b.names.zh))-Number(content.title.includes(a.names.zh))).slice(0,6).map((r) => ({
     id: r.id,
     reason:
       category === "unknown"

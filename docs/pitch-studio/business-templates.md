@@ -1,5 +1,7 @@
 # Pitch Studio 企业资产与动态业务模板
 
+1.1 扩建：参见[模板生态与验证](template-ecosystem.md)、[完整目录](template-catalog.md)及[许可迁移](template-sources.md)。以下阶段记录保留其历史范围。
+
 阶段 04 基于阶段 03 已验证提交 `8971268262efe3bb5d61c786f4a3ce3b552e2656`，保留 `colliers-pitch/1`、`pitch-layout/2` 和 `pitch-scene/2`。未部署生产迁移，未开放生产账号试点；前序 PR 未合并时以阶段 03 分支为 PR 基线。
 
 ## 生产入口和统一链路

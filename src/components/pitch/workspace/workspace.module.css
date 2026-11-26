@@ -651,3 +651,9 @@
     scroll-behavior: auto !important;
   }
 }
+
+.kitSections {padding:0;list-style:none;margin:16px 0;max-width:900px;}
+.kitSections li {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--pitch-border);}
+.kitSections label {display:flex;align-items:center;gap:12px;min-width:0;}
+.kitSections input {width:18px;height:18px;flex:none;}
+@media(max-width:640px){.kitSections li{align-items:flex-start;flex-wrap:wrap;}.kitSections label{flex:1 1 100%;}}
