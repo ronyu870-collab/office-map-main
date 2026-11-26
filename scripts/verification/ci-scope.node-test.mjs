@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, renameSync, rmSync, symlinkSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { checkResults, getScope } from './ci-scope.mjs';
+import { checkResults, getScope, hasAffectedTestCoverage } from './ci-scope.mjs';
 
 function fixture(t) {
   const cwd = mkdtempSync(join(tmpdir(), 'ci-scope-'));
@@ -62,27 +62,33 @@ test('missing, invalid, unavailable and empty comparison commits fall back to fu
   }
 });
 
-const jobs = ['search-focus', 'engineering', 'ai-query-auth', 'lease-expiry-auth'];
-function results(docsOnly = false) {
-  return { quick: { result: 'skipped' }, changes: { result: 'success', outputs: { docs_only: String(docsOnly) } },
-    ...Object.fromEntries(jobs.map(job => [job, { result: docsOnly ? 'skipped' : 'success' }])) };
+const jobs = ['search-focus', 'standard', 'engineering', 'full-app', 'ai-query-auth', 'lease-expiry-auth'];
+function results(mode) {
+  const required = mode === 'docs' ? [] : mode === 'full' ? ['search-focus', 'engineering', 'full-app', 'ai-query-auth', 'lease-expiry-auth'] : ['search-focus', 'standard'];
+  return { changes: { result: 'success', outputs: { docs_only: String(mode === 'docs'), full_only: String(mode === 'full'), draft: 'false' } },
+    ...Object.fromEntries(jobs.map(job => [job, { result: required.includes(job) ? 'success' : 'skipped' }])) };
 }
-
-test('required status passes only full success or an explicitly classified docs-only skip', () => {
-  assert.match(checkResults(results()), /passed/);
-  assert.match(checkResults(results(true)), /Documentation only/);
-  for (const docsOnly of [false, true]) {
+test('all three scopes require exactly their applicable jobs and reject missing, cancelled and failed jobs', () => {
+  for (const mode of ['docs', 'standard', 'full']) {
+    assert.match(checkResults(results(mode)), /passed|Documentation only/);
     for (const job of jobs) {
-      for (const result of ['failure', 'cancelled', undefined, ...(docsOnly ? [] : ['skipped'])]) {
-        const needs = results(docsOnly);
-        needs[job].result = result;
-        assert.throws(() => checkResults(needs), new RegExp(job));
+      const good = results(mode);
+      for (const result of ['failure', 'cancelled', undefined, good[job].result === 'success' ? 'skipped' : 'success']) {
+        const bad = structuredClone(good);
+        bad[job].result = result;
+        assert.throws(() => checkResults(bad), new RegExp(job));
       }
     }
-    const needs = results(docsOnly);
-    needs.changes.result = 'failure';
-    assert.throws(() => checkResults(needs), /classification/);
   }
+  const bad = results('standard');
+  delete bad.changes.outputs.full_only;
+  assert.throws(() => checkResults(bad), /scope/);
+  const conflict = results('full');
+  conflict.changes.outputs.docs_only = 'true';
+  assert.throws(() => checkResults(conflict), /Conflicting/);
+  const broken = results('standard');
+  broken.changes.result = 'failure';
+  assert.throws(() => checkResults(broken), /classification/);
 });
 
 const uiPath = 'src/components/home/Title.tsx';
@@ -127,24 +133,106 @@ test('deletion and symlink changes fall back to full even when quick was request
   f.commit();
   assert.equal(getScope(f.base, { ...f, quickRequested: true }).quickOnly, false);
 });
-test('quick summary requires its checks and rejects any failed, cancelled or missing job', () => {
-  const needs = results(true);
-  needs.changes.outputs = { docs_only: 'false', quick_only: 'true' };
-  needs.quick.result = 'success';
-  needs['search-focus'].result = 'success';
-  assert.match(checkResults(needs), /Quick update/);
-  for (const job of ['quick', ...jobs]) {
-    for (const result of ['failure', 'cancelled', undefined]) {
-      const bad = structuredClone(needs);
-      bad[job].result = result;
-      assert.throws(() => checkResults(bad), new RegExp(job));
-    }
-  }
-  for (const job of ['quick', 'search-focus']) {
-    const bad = structuredClone(needs);
-    bad[job].result = 'skipped';
-    assert.throws(() => checkResults(bad), new RegExp(job));
-  }
-  needs.changes.outputs.docs_only = 'true';
-  assert.throws(() => checkResults(needs), /Conflicting/);
+test('ordinary feature changes select standard CI, including large map and home updates', t => {
+  const f = fixture(t);
+  f.write('src/components/map/Workspace.tsx', client('Map'));
+  f.write('src/components/home/Answer.tsx', client('Home'));
+  f.commit();
+  const scope = getScope(f.base, f);
+  assert.equal(scope.docsOnly, false);
+  assert.equal(scope.fullOnly, false);
+  assert.equal(scope.mapBrowser, true);
+  assert.equal(scope.aiBrowser, true);
+});
+for (const path of ['supabase/migrations/change.sql', 'src/app/api/foo/route.ts', 'src/lib/permissions.ts', 'src/services/buildings.ts', 'src/lib/server/query.ts', 'src/components/ui/Overlay.tsx', 'src/lib/pitch/export.ts', 'package-lock.json', '.github/workflows/verify.yml', 'scripts/verification/ci-scope.mjs', 'unknown/path.txt']) {
+  test('full CI remains required for sensitive or unknown change: ' + path, t => {
+    const f = fixture(t);
+    f.write(path, 'changed');
+    f.commit();
+    assert.equal(getScope(f.base, f).fullOnly, true);
+  });
+}
+test('sensitive calls in otherwise ordinary components trigger full verification', t => {
+  const f = uiFixture(t);
+  f.write(uiPath, client('{supabase.rpc("change")}'));
+  f.commit();
+  assert.equal(getScope(f.base, f).fullOnly, true);
+});
+test('scheduled/manual runs are full, main pushes reuse the standard path, and invalid comparisons fail closed', t => {
+  const f = fixture(t);
+  f.write('src/app/api/foo/route.ts', 'changed');
+  f.commit();
+  assert.equal(getScope(f.base, { ...f, forceFull: true, postMerge: true }).fullOnly, true);
+  assert.equal(getScope(f.base, { ...f, postMerge: true }).fullOnly, false);
+  assert.equal(getScope('invalid', { ...f, postMerge: true }).fullOnly, true);
+  f.write('README.md', 'updated');
+  const last = f.git('rev-parse', 'HEAD');
+  f.commit();
+  assert.equal(getScope(last, { ...f, forceFull: true }).fullOnly, true);
+});
+
+test('draft uses routine checks; ready-for-review restores sensitive checks', t => {
+  const f = fixture(t);
+  f.write('src/app/api/foo/route.ts', 'changed');
+  f.commit();
+  assert.equal(getScope(f.base, { ...f, draft: true }).fullOnly, false);
+  assert.equal(getScope(f.base, f).fullOnly, true);
+});
+
+test('draft green checks cannot be reused for merging before ready-for-review', () => {
+  const needs = results('standard');
+  needs.changes.outputs.draft = 'true';
+  assert.throws(() => checkResults(needs), /mark ready for review/);
+});
+test('affected test coverage requires actual executed tests and all changed test files', () => {
+  const valid = { numTotalTests: 1, testResults: [{name:'src/example.test.ts', assertionResults:[{status:'passed'}]}] };
+  assert.equal(hasAffectedTestCoverage(valid, ['src/example.test.ts']), true);
+  assert.equal(hasAffectedTestCoverage(valid, ['src/other.test.ts']), false);
+  assert.equal(hasAffectedTestCoverage({...valid, numTotalTests:0}, []), false);
+  assert.equal(hasAffectedTestCoverage({...valid, testResults:[]}, []), false);
+  assert.equal(hasAffectedTestCoverage(undefined, []), false);
+  assert.equal(hasAffectedTestCoverage({numTotalTests:1,testResults:[{name:'src/example.test.ts',assertionResults:[{status:'skipped'}]}]}, []), false);
+});
+test('post-merge optimization only applies to a valid comparison without forced full regression', t => {
+  const f = fixture(t);
+  f.write('src/runtime.ts','export const value = 2;');
+  f.commit();
+  assert.equal(getScope(f.base, {...f, postMerge:true}).postMerge, true);
+  assert.equal(getScope('invalid', {...f, postMerge:true}).postMerge, false);
+  assert.equal(getScope(f.base, {...f, postMerge:true, forceFull:true}).postMerge, false);
+});
+
+test('full browser regression is reserved for explicitly scheduled/manual full runs', t => {
+  const f = fixture(t);
+  f.write('.github/workflows/verify.yml', 'changed');
+  f.commit();
+  const pr = getScope(f.base, f);
+  assert.equal(pr.fullOnly, true);
+  assert.equal(pr.browserMode, 'none');
+  assert.equal(getScope(f.base, { ...f, forceFull: true }).browserMode, 'full');
+  assert.equal(getScope('invalid', f).browserMode, 'none');
+  assert.equal(getScope('invalid', { ...f, forceFull: true }).browserMode, 'full');
+});
+test('targeted browser coverage follows affected modules, not generic full scope', t => {
+  const f = fixture(t);
+  f.write('src/components/map/Workspace.tsx', client('Map'));
+  f.write('src/components/home/Answer.tsx', client('Home'));
+  f.commit();
+  assert.equal(getScope(f.base, f).browserMode, 'targeted');
+  assert.equal(getScope(f.base, { ...f, draft: true }).browserMode, 'none');
+  assert.equal(getScope(f.base, { ...f, postMerge: true }).browserMode, 'none');
+  f.write('src/app/api/foo/route.ts', 'changed');
+  f.commit();
+  const sensitive = getScope(f.base, f);
+  assert.equal(sensitive.fullOnly, true);
+  assert.equal(sensitive.browserMode, 'targeted');
+  assert.equal(getScope(f.base, { ...f, forceFull: true }).browserMode, 'full');
+});
+test('strict low-risk UI uses related tests without launching the browser', t => {
+  const f = uiFixture(t);
+  f.commit();
+  const scope = getScope(f.base, { ...f, quickRequested: true });
+  assert.equal(scope.quickOnly, true);
+  assert.equal(scope.fullOnly, false);
+  assert.equal(scope.browserMode, 'none');
 });
