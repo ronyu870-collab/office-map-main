@@ -733,7 +733,7 @@ export function MapWorkbenchView({
       <header className="relative z-[500] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <div className="map-page-header">
           <BrokerSearchLink />
-          <div className="map-page-identity"><MapMarketDataDetails stats={stats} active={!isFullListVisible} /></div>
+          <div className="map-page-identity"><MapMarketDataDetails title="北京办公楼市场地图" stats={stats} active={!isFullListVisible} /></div>
           <MetricStrip stats={stats} busy={mapDataLoading || (!mapReady && !mapError)} />
           <div className="map-header-navigation">
             <Link href="/" className="workspace-header-link"><Home size={16} aria-hidden="true" />主页</Link>

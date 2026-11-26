@@ -11,12 +11,12 @@ export const marketDataLabel = '数据与统计口径';
 const latestMethod = '存量数据采用各楼宇最新已发布的季度观测，可能跨季度。净有效租金按有效观测面积加权。空置率为有效空置面积与对应总面积之比，当前存量可用已录空置率折算空置面积。缺失面积与指标不计入相应分母。';
 const formalSource = '来源为平台楼宇季度记录，须已锁定且非草稿。';
 
-export function MapMarketDataDetails({ stats, active }: { stats: MapStatsState; active: boolean }) {
+export function MapMarketDataDetails({ title, stats, active }: { title: string; stats: MapStatsState; active: boolean }) {
   const period = marketObservationLabel(stats.periods);
   const area = compactMarketArea(stats).exact;
   return <MapDisclosure className="map-context-disclosure" width={384} active={active} heading={marketDataLabel}
     label={<>
-      <h1 title="北京办公楼市场地图">北京办公楼市场地图</h1>
+      <h1 title={title}>{title}</h1>
       <span className="map-market-context" id="map-market-context">
         {Object.keys(stats.periods ?? {}).length > 1 ? '筛选存量 · 混合季度' : period}
       </span>
