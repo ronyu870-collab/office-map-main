@@ -1,7 +1,7 @@
 import * as React from "react";
-import { applyObjectMoves, applyObjectTexts, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
+import { applyObjectMoves, applyObjectTexts, objectId, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
 import { slideContentSchema } from "@/src/lib/pitch/contracts/content";
-import { slideSceneSchema } from "@/src/lib/pitch/contracts/scene";
+import { slideSceneSchema, type SlideScene } from "@/src/lib/pitch/contracts/scene";
 import { BUSINESS_RECIPES } from "@/src/lib/pitch/business/recipes";
 import { Manager } from "./workspace/Manager";
 import type { Catalog, Call } from "./workspace/client";
@@ -91,7 +91,7 @@ const content = {
   disclosure: "internal",
   isTestData: true,
 };
-const scene = {
+const scene: SlideScene = {
   protocol: "colliers-pitch/1",
   rendererVersion: "pitch-scene/2",
   width: 13.333333,
@@ -154,6 +154,7 @@ const initial = () => ({
 });
 let detail: ReturnType<typeof initial>,
   writes: Record<string, unknown>[],
+  revisions: Map<number, ReturnType<typeof initial>>,
   failTaskPoll = false,
   failCompletedRead = false,
   completedTask = false,
@@ -170,6 +171,7 @@ beforeEach(() => {
   completedTask = false;
   detail = clone(initial());
   writes = [];
+  revisions = new Map();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -216,15 +218,28 @@ beforeEach(() => {
       } else if (c.action === "preview")
         body = {
           svg: c.editorSlideId
-            ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect width="1280" height="720"/><g data-pitch-object="object-1"><text>实际测试场景</text></g></svg>'
+            ?  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect width="1280" height="720"/>${detail.slides[0].scene.elements.map((element, index) => `<g data-pitch-object="${objectId(element, index)}"/>`).join("")}</svg>`
             : '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><text>实际测试场景</text></svg>',
           scene: slideSceneSchema.parse(detail.slides[0].scene),
         };
+      else if (c.action === "restore_page") {
+        const old = revisions.get(c.revision)?.slides.find(slide => slide.id === c.slideId);
+        if (!old || c.expectedVersion !== detail.project.version) {
+          status = 409;
+          body = { error: "版本已变化" };
+        } else {
+          revisions.set(detail.project.version, clone(detail));
+          detail = { ...detail, project: { ...detail.project, version: detail.project.version + 1 },
+            slides: detail.slides.map(slide => slide.id === c.slideId ? clone(old) : slide) };
+          body = detail;
+        }
+      }
       else if (c.action === "save") {
         if (rejectSave) {
           status = 409;
           body = { error: "其他窗口已更新，编辑保留。" };
         } else {
+          revisions.set(detail.project.version, clone(detail));
           detail = {
             ...detail,
             project: {
@@ -254,7 +269,7 @@ beforeEach(() => {
                 return {
                   ...original,
                   id: p.id,
-                  scene: (p.objectMoves ? applyObjectMoves(patchedScene, p.objectMoves) : patchedScene) as typeof scene,
+                  scene: (p.objectMoves ? applyObjectMoves(patchedScene, p.objectMoves) : patchedScene),
                   content: {
                     ...original.content,
                     title: p.title ?? (patchedText ? patchedText.content.title : original.content.title),
@@ -369,6 +384,30 @@ describe("Pitch workspace continuous editing", () => {
     expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
       { id: pageId, objectTexts: [{ id: "object-1", text: "画布新标题" }] },
     ]);
+  });
+  it("rescales a shape in the canvas and saves proportional dimensions", async () => {
+    detail.slides[0].scene.elements.push({
+      kind: "shape", x: 2, y: 4, w: 3, h: 1, fill: "primary", background: false, shape: "rect",
+    });
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: "对象 2：形状" }));
+    await user.click(screen.getByRole("button", { name: "缩小所选" }));
+    expect(screen.getByLabelText("所选对象缩放")).toHaveTextContent("90%");
+    const control = screen.getByRole("button", { name: "缩放所选对象" });
+    fireEvent.keyDown(control, { key: "ArrowLeft", shiftKey: true });
+    expect(screen.getByLabelText("所选对象缩放")).toHaveTextContent("80%");
+    await user.click(screen.getByRole("button", { name: "应用位置" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[1].w).toBeCloseTo(2.4), { timeout: 3000 });
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectMoves: [{ id: "object-2", x: 2, y: 4, scale: .8 }] },
+    ]);
+    expect(detail.slides[0].scene.elements[1].h).toBeCloseTo(.8);
+    await user.click(await screen.findByRole("button", { name: "撤销已保存的调整" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[1].w).toBe(3));
+    await user.click(screen.getByRole("button", { name: "重做已保存的调整" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[1].w).toBeCloseTo(2.4));
+    expect(writes.filter(entry => entry.action === "restore_page").map(entry => entry.revision)).toEqual([1, 2]);
   });
   it("keeps project name focused through continuous typing and cursor edits", async () => {
     const user = await enter(),

@@ -67,6 +67,13 @@ const Manager = dynamic(
   { loading: () => <p>正在打开管理中心…</p> },
 );
 type Panel = "home" | "examples" | "quick" | "templates" | "assets" | "projects" | "admin";
+type SavedCanvasHistory = {
+  projectId: string;
+  slideId: string;
+  version: number;
+  undo: number[];
+  redo: number[];
+};
 const tabs: { id: Panel; label: string }[] = [
   { id: "home", label: "工作台" },
   { id: "projects", label: "我的 Pitch" },
@@ -166,7 +173,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [taskPollFailed, setTaskPollFailed] = React.useState(false),
     [readingResult, setReadingResult] = React.useState(false),
     [historyOpen, setHistoryOpen] = React.useState(false),
-    [objectPage, setObjectPage] = React.useState<string | null>(null);
+    [objectPage, setObjectPage] = React.useState<string | null>(null),
+    [savedCanvasHistory, setSavedCanvasHistory] = React.useState<SavedCanvasHistory | null>(null);
   const life = React.useRef(new AbortController()),
     current = React.useRef({ detail, draft, dirty }),
     pending = React.useRef<Promise<WorkspaceDetail> | null>(null),
@@ -362,6 +370,31 @@ function Studio({ session }: { session: AuthSessionResult }) {
       pending.current = work;
       try {
         const saved = await work;
+        const edited = value.draft.pages.filter(page => !!(page.objectMoves || page.objectTexts));
+        if (edited.length === 1 && !edited[0].duplicateOf) {
+          const slideId = edited[0].id, from = value.detail.project.version;
+          setSavedCanvasHistory(previous => ({
+            slideId, projectId: saved.project.id, version: saved.project.version,
+            undo: [
+              ...(previous?.projectId === saved.project.id && previous.slideId === slideId && previous.version === from
+                ? previous.undo : []),
+              from,
+            ].slice(-12),
+            redo: [],
+          }));
+        } else {
+          // Navigation and metadata saves can retain history; content/geometry changes
+          // on that page or an external version change invalidate it.
+          setSavedCanvasHistory(previous => {
+            if (!previous || previous.projectId !== saved.project.id || previous.version !== value.detail?.project.version)
+              return null;
+            const before = value.detail.slides.find(slide => slide.id === previous.slideId);
+            const after = saved.slides.find(slide => slide.id === previous.slideId);
+            return before && after && JSON.stringify(before) === JSON.stringify(after)
+              ? { ...previous, version: saved.project.version } : null;
+          });
+        }
+
         if (sequence === draftSequence.current) accept(saved);
         else {
           setDetail(saved);
@@ -572,6 +605,35 @@ function Studio({ session }: { session: AuthSessionResult }) {
     canGenerate = catalog?.scopes.some((s) => s.canGenerate) ?? false,
     canManage =
       catalog?.scopes.some((s) => s.canMaintain || s.canAdmin) ?? false;
+  const savedCanvas = savedCanvasHistory?.projectId === detail?.project.id &&
+    savedCanvasHistory?.version === detail?.project.version && savedCanvasHistory?.slideId === active
+    ? savedCanvasHistory : null;
+  async function restoreCanvas(direction: "undo" | "redo") {
+    if (!savedCanvas || !detail || current.current.dirty || saving || pending.current) return;
+    const revision = savedCanvas[direction].at(-1);
+    if (revision === undefined) return;
+    await run(async () => {
+      const base = detail.project.version, sequence = draftSequence.current;
+      const result = workspaceDetailSchema.parse(await call({
+        action: "restore_page", projectId: detail.project.id, slideId: savedCanvas.slideId,
+        expectedVersion: base, revision,
+      }, true));
+      if (current.current.detail?.project.id !== result.project.id) return;
+      if (draftSequence.current !== sequence || current.current.dirty) {
+        // Keep concurrent edits instead of replacing them with the response.
+        setSavedCanvasHistory(null);
+        setConflict(true);
+        setMessage("页面历史已更新。另有尚未保存的编辑，请重新读取或另存副本。");
+        return;
+      }
+      accept(result);
+      setSavedCanvasHistory({
+        ...savedCanvas, version: result.project.version,
+        undo: direction === "undo" ? savedCanvas.undo.slice(0, -1) : [...savedCanvas.undo, base].slice(-12),
+        redo: direction === "redo" ? savedCanvas.redo.slice(0, -1) : [...savedCanvas.redo, base].slice(-12),
+      });
+    });
+  }
   const grants =
     catalog?.scopes.filter(
       (s) => s.canGenerate && s.region && s.city && s.businessLine,
@@ -1158,6 +1220,12 @@ function Studio({ session }: { session: AuthSessionResult }) {
                             onClick={() => setObjectPage(active)}>
                             调整画布对象
                           </Button>
+                          {savedCanvas && <>
+                            <Button variant="ghost" disabled={busy || dirty || saving || conflict || rendering || !savedCanvas.undo.length}
+                              onClick={() => void restoreCanvas("undo")}>撤销已保存的调整</Button>
+                            <Button variant="ghost" disabled={busy || dirty || saving || conflict || rendering || !savedCanvas.redo.length}
+                              onClick={() => void restoreCanvas("redo")}>重做已保存的调整</Button>
+                          </>}
                           {(pageEdit?.objectMoves || pageEdit?.objectTexts) && (
                             <Button variant="ghost" disabled={saving} onClick={() => editPage({ objectMoves: undefined, objectTexts: undefined })}>
                               丢弃未保存的对象修改

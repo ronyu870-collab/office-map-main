@@ -112,6 +112,13 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     taskId: id,
   }),
   z.strictObject({
+    action: z.literal("restore_page"),
+    projectId: id,
+    slideId: id,
+    expectedVersion: z.number().int().positive(),
+    revision: z.number().int().positive(),
+  }),
+  z.strictObject({
     action: z.literal("restore"),
     projectId: id,
     expectedVersion: z.number().int().positive(),

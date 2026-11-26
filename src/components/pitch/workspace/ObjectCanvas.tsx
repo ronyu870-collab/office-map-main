@@ -4,12 +4,12 @@ import * as React from "react";
 import { Button } from "@/src/components/ui";
 import type { SlideContent } from "@/src/lib/pitch/contracts/content";
 import type { SlideScene } from "@/src/lib/pitch/contracts/scene";
-import { canMoveObject, constrainedPosition, objectId, textAnchors, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
+import { canMoveObject, canScaleObject, constrainedPosition, constrainedScale, objectId, textAnchors, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
 import type { Call } from "./client";
 import styles from "./workspace.module.css";
 
 type Layer = { id: string | null; url: string };
-type Position = Pick<ObjectMove, "x" | "y">;
+type Position = Pick<ObjectMove, "x" | "y" | "scale">;
 type Changes = { moves: ObjectMove[]; texts: ObjectText[] };
 type History = { past: Changes[]; present: Changes; future: Changes[] };
 type HistoryAction = { type: "record"; update: (value: Changes) => Changes } | { type: "undo" | "redo" };
@@ -63,7 +63,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   const [typing, setTyping] = React.useState<{ id: string; value: string } | null>(null);
   const [dragMove, setDragMove] = React.useState<ObjectMove | null>(null);
   const board = React.useRef<HTMLDivElement | null>(null);
-  const drag = React.useRef<{ id: string; pointer: number; startX: number; startY: number; origin: Position; rect: DOMRect } | null>(null);
+  const drag = React.useRef<{ id: string; pointer: number; startX: number; startY: number; origin: Position; rect: DOMRect; resizing?: boolean } | null>(null);
   const sceneKey = JSON.stringify(scene);
   const entries = scene.elements.map((element, i) => ({ element, id: objectId(element, i) }));
   const anchors = React.useMemo(() => textAnchors(scene, content, allowParagraphs), [scene, content, allowParagraphs]);
@@ -100,9 +100,20 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
     if (!entry) return;
     dispatch({ type: "record", update: previous => {
       const rest = previous.moves.filter(move => move.id !== id);
-      const moves = next.x === entry.element.x && next.y === entry.element.y ? rest : [...rest, { id, ...next }];
+      const { x, y, scale } = next;
+      const moves = x === entry.element.x && y === entry.element.y && (scale ?? 1) === 1
+        ? rest : [...rest, { id, x, y, ...(scale !== undefined && scale !== 1 ? { scale } : {}) }];
       return { ...previous, moves };
     } });
+  }
+  function moveFrom(at: Position, element: Pick<SlideScene["elements"][number], "w" | "h">, x: number, y: number) {
+    const scale = at.scale ?? 1;
+    return { ...constrainedPosition(scene, { w: element.w * scale, h: element.h * scale }, x, y),
+      ...(scale !== 1 ? { scale } : {}) };
+  }
+
+  function resizeFrom(at: Position, element: Pick<SlideScene["elements"][number], "w" | "h">, scale: number) {
+    return { x: at.x, y: at.y, scale: constrainedScale(scene, element, at, scale) };
   }
   function startTyping(id: string) {
     if (anchors.has(id)) setTyping({ id, value: texts.find(text => text.id === id)?.text ?? canonicalText(id) });
@@ -119,6 +130,17 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
     requestAnimationFrame(() => board.current?.querySelector<HTMLButtonElement>(`[data-canvas-id="${id}"]`)?.focus());
   }
   const picked = entries.find(entry => entry.id === selected);
+  const pickedPosition = picked ? position(picked.id, picked.element) : null;
+  const pickedScale = pickedPosition?.scale ?? 1;
+  function draggedScale(event: React.PointerEvent<HTMLButtonElement>, element: SlideScene["elements"][number]) {
+    const start = drag.current;
+    if (!start || !start.resizing || start.pointer !== event.pointerId || !start.rect.width || !start.rect.height)
+      return null;
+    const dx = element.w / scene.width * start.rect.width;
+    const dy = element.h / scene.height * start.rect.height;
+    const delta = ((event.clientX - start.startX) * dx + (event.clientY - start.startY) * dy) / (dx * dx + dy * dy);
+    return resizeFrom(start.origin, element, (start.origin.scale ?? 1) + delta);
+  }
   return (
     <section className={styles.objectEditor} aria-label="画布对象编辑" onKeyDown={event => {
       if (typing || event.nativeEvent.isComposing || !(event.metaKey || event.ctrlKey) ||
@@ -148,13 +170,15 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
               style={{ left: `${p.x / scene.width * 100}%`, top: `${p.y / scene.height * 100}%`,
                 width: `${element.w / scene.width * 100}%`, height: `${element.h / scene.height * 100}%` }}>{text}</div>;
           }
+          const scale = p?.scale ?? 1;
           return <img key={layer.id ?? "background"} draggable={false} alt="" src={layer.url}
-            style={p && element ? { transform: `translate(${(p.x - element.x) / scene.width * 100}%, ${(p.y - element.y) / scene.height * 100}%)` } : undefined} />;
+            style={p && element ? { transformOrigin: "0 0", transform: `translate(${(p.x - element.x * scale) / scene.width * 100}%, ${(p.y - element.y * scale) / scene.height * 100}%) scale(${scale})` } : undefined} />;
         })}
         {entries.filter(({ element }) => canMoveObject(element)).map(({ id, element }, index) => {
           const p = position(id, element);
+          const factor = p.scale ?? 1;
           const bounds = { left: `${p.x / scene.width * 100}%`, top: `${p.y / scene.height * 100}%`,
-            width: `${element.w / scene.width * 100}%`, height: `${element.h / scene.height * 100}%` };
+            width: `${element.w * factor / scene.width * 100}%`, height: `${element.h * factor / scene.height * 100}%` };
           if (typing?.id === id) return <textarea key={id} className={styles.objectTextInput}
             aria-label="画布文字" autoFocus style={bounds} maxLength={anchors.get(id)?.maxLength}
             value={typing.value} onChange={event => setTyping({ id, value: event.target.value })}
@@ -183,7 +207,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             onPointerMove={event => {
               const start = drag.current;
               if (!start || start.pointer !== event.pointerId || !start.rect.width || !start.rect.height) return;
-              setDragMove({ id, ...constrainedPosition(scene, element,
+              setDragMove({ id, ...moveFrom(start.origin, element,
                 start.origin.x + (event.clientX - start.startX) / start.rect.width * scene.width,
                 start.origin.y + (event.clientY - start.startY) / start.rect.height * scene.height) });
             }}
@@ -192,7 +216,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
               if (!start || start.pointer !== event.pointerId) return;
               const dx = event.clientX - start.startX, dy = event.clientY - start.startY;
               if (Math.hypot(dx, dy) >= 2 && start.rect.width && start.rect.height) {
-                place(id, constrainedPosition(scene, element, start.origin.x + dx / start.rect.width * scene.width, start.origin.y + dy / start.rect.height * scene.height));
+                place(id, moveFrom(start.origin, element, start.origin.x + dx / start.rect.width * scene.width, start.origin.y + dy / start.rect.height * scene.height));
               }
               drag.current = null;
               setDragMove(null);
@@ -206,15 +230,65 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
               if (!d) return;
               event.preventDefault();
               const step = event.shiftKey ? .25 : .05;
-              place(id, constrainedPosition(scene, element, p.x + d[0] * step, p.y + d[1] * step));
+              place(id, moveFrom(p, element, p.x + d[0] * step, p.y + d[1] * step));
             }}
           />;
         })}
+        {picked && pickedPosition && !typing && canScaleObject(picked.element) && (
+          <button type="button" aria-label="缩放所选对象"
+            className={styles.objectResize}
+            style={{
+              left: `${(pickedPosition.x + picked.element.w * pickedScale) / scene.width * 100}%`,
+              top: `${(pickedPosition.y + picked.element.h * pickedScale) / scene.height * 100}%`,
+            }}
+            onPointerDown={event => {
+              if (event.button !== 0 || drag.current || !board.current ||
+                typeof event.currentTarget.setPointerCapture !== "function") return;
+              drag.current = { id: picked.id, pointer: event.pointerId, startX: event.clientX,
+                startY: event.clientY, origin: pickedPosition, rect: board.current.getBoundingClientRect(), resizing: true };
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={event => {
+              const next = draggedScale(event, picked.element);
+              if (next) setDragMove({ id: picked.id, ...next });
+            }}
+            onPointerUp={event => {
+              const next = draggedScale(event, picked.element);
+              if (!next) return;
+              place(picked.id, next);
+              drag.current = null;
+              setDragMove(null);
+            }}
+            onLostPointerCapture={() => { drag.current = null; setDragMove(null); }}
+            onPointerCancel={() => { drag.current = null; setDragMove(null); }}
+            onKeyDown={event => {
+              const step = event.shiftKey ? .1 : .025;
+              const direction = ["ArrowLeft", "ArrowUp", "-"].includes(event.key) ? -1
+                : ["ArrowRight", "ArrowDown", "+"].includes(event.key) ? 1 : 0;
+              if (!direction) return;
+              event.preventDefault();
+              place(picked.id, resizeFrom(pickedPosition, picked.element, pickedScale + direction * step));
+            }}
+          />
+        )}
       </div>}
       {typing && <div className={styles.objectTools}>
         <Button variant="ghost" onClick={() => setTyping(null)}>取消文字修改</Button>
         <Button variant="secondary" disabled={!typing.value.trim()} onClick={commitText}>完成文字编辑</Button>
       </div>}
+      {picked && !typing && canScaleObject(picked.element) && (
+        <div className={styles.objectTools}>
+          <Button variant="ghost" onClick={() => {
+            const at = position(picked.id, picked.element);
+            place(picked.id, resizeFrom(at, picked.element, (at.scale ?? 1) - .1));
+          }}>缩小所选</Button>
+          <Button variant="ghost" onClick={() => {
+            const at = position(picked.id, picked.element);
+            place(picked.id, resizeFrom(at, picked.element, (at.scale ?? 1) + .1));
+          }}>放大所选</Button>
+          <output aria-label="所选对象缩放">{Math.round((position(picked.id, picked.element).scale ?? 1) * 100)}%</output>
+        </div>
+      )}
       {picked && <output aria-live="polite" className={styles.objectPosition}>
         横向 {position(picked.id, picked.element).x.toFixed(2)} 英寸 · 纵向 {position(picked.id, picked.element).y.toFixed(2)} 英寸
       </output>}

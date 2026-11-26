@@ -222,7 +222,7 @@ export async function verifyPitchWorkspace({
       assert.notEqual(targetIndex, -1);
       const target = before.scene.elements[targetIndex], id = `object-${targetIndex + 1}`;
       const move = { id, x: target.x - .05, y: target.y };
-      for (const invalid of [{ ...move, id: "object-999" }, { ...move, x: 13 }]) {
+      for (const invalid of [{ ...move, id: "object-999" }, { ...move, x: 13 }, { ...move, scale: .8 }]) {
         const rejected = await workspace(admin, { ...command, pages: command.pages.map((page, index) =>
           index ? page : { ...page, objectMoves: [invalid] },
         ) });
@@ -256,6 +256,19 @@ export async function verifyPitchWorkspace({
       assert.equal(detail.slides[0].content.disclosure, "internal");
       assert.equal(detail.slides[0].scene.elements[targetIndex].x, move.x);
       assert.ok(detail.slides[0].scene.elements.some(e => e.purpose === "source" && e.text.replace(/\s/g, "").includes("未经业务数据核验")));
+      const newVersion = detail.project.version;
+      const otherPages = detail.slides.slice(1).map(slide => ({ id: slide.id, content: slide.content, scene: slide.scene }));
+      const restore = { action: "restore_page", projectId: detail.project.id, slideId: before.id,
+        expectedVersion: newVersion, revision: textCommand.expectedVersion };
+      assert.equal((await workspace(admin, { ...restore, expectedVersion: newVersion - 1 })).status, 409);
+      const undone = await workspace(admin, restore);
+      assert.equal(undone.status, 200, JSON.stringify(undone.body));
+      assert.equal(undone.body.slides[0].content.title, before.content.title);
+      assert.deepEqual(undone.body.slides.slice(1).map(slide => ({ id: slide.id, content: slide.content, scene: slide.scene })), otherPages);
+      const redone = await workspace(admin, { ...restore, expectedVersion: undone.body.project.version, revision: newVersion });
+      assert.equal(redone.status, 200, JSON.stringify(redone.body));
+      detail = redone.body;
+      assert.equal(detail.slides[0].content.title, "画布内修改的标题");
     },
   );
   await check(

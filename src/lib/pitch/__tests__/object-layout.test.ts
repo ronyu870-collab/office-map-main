@@ -5,7 +5,7 @@ import { layoutSlides } from "../layout/engine";
 import { layoutFixture } from "../fixtures/layouts";
 import { renderPitchPptx } from "../render/pptx";
 import { renderSceneSvg } from "../render/svg";
-import { applyObjectMoves, applyObjectTexts, constrainedPosition, objectId, textAnchors } from "../workspace/object-layout";
+import { applyObjectMoves, applyObjectTexts, constrainedPosition, constrainedScale, objectId, textAnchors } from "../workspace/object-layout";
 import { pageEditSchema } from "../workspace/protocol";
 
 const page = async () => (await layoutSlides(layoutFixture("executive-summary"), STUDIO_THEME, "executive-summary"))[0];
@@ -36,6 +36,22 @@ describe("editable scene positions", () => {
     expect(deck.file("ppt/slides/slide2.xml")).toBeNull();
   });
 
+  it("scales visible graphic objects proportionally in saved scenes, SVG and native PPTX", async () => {
+    const element = { kind: "shape", x: 2, y: 3, w: 4, h: 2, fill: "primary", background: false, shape: "rect" } as const;
+    const scene = { ...await page(), elements: [element] };
+    const index = 0, id = objectId(element, index);
+    const scale = .75;
+    expect(constrainedScale(scene, element, element, scale)).toBe(scale);
+    const resized = applyObjectMoves(scene, [{ id, x: element.x, y: element.y, scale }]);
+    expect(resized.elements[index]).toEqual({ ...element, editorId: id, w: element.w * scale, h: element.h * scale });
+    const layers = await renderSceneSvg(resized, STUDIO_THEME, [], true);
+    expect(layers).toContain(`data-pitch-object="${id}"`);
+    const deck = await JSZip.loadAsync(await renderPitchPptx("图形缩放", [{ scene: resized, theme: STUDIO_THEME }], []));
+    const xml = await deck.file("ppt/slides/slide1.xml")!.async("string");
+    expect(xml).toContain(`cx="${Math.round(element.w * scale * 914400)}" cy="${Math.round(element.h * scale * 914400)}"`);
+    expect(xml).toContain("<a:prstGeom");
+  });
+
   it("updates canonical content and native text together without touching ambiguous or managed content", async () => {
     const baseline = layoutFixture("executive-summary");
     const scene = await page();
@@ -64,6 +80,7 @@ describe("editable scene positions", () => {
       [{ id: "object-999", x: 0, y: 0 }],
       [{ id: objectId(scene.elements[locked], locked), x: 0, y: 0 }],
       [{ id, x: 13, y: 0 }],
+      [{ id, x: 0, y: 0, scale: .8 }],
       [{ id, x: 0, y: 0 }, { id, x: 0, y: 0 }],
     ]) expect(() => applyObjectMoves(scene, moves)).toThrow("PITCH_OBJECT_LAYOUT_INVALID");
     expect(constrainedPosition(scene, scene.elements[idx], -2, -1)).toEqual({ x: 0, y: 0 });

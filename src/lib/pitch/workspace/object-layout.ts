@@ -5,6 +5,7 @@ export const objectMoveSchema = z.strictObject({
   id: z.string().regex(/^object-[0-9]{1,3}$/),
   x: z.number().min(0).max(13.334),
   y: z.number().min(0).max(7.5),
+  scale: z.number().min(.1).max(4).optional(),
 });
 export type ObjectMove = z.infer<typeof objectMoveSchema>;
 
@@ -12,6 +13,19 @@ export const canMoveObject = (element: SceneElement) =>
   (element.kind === "text" && (!element.purpose || element.purpose === "content")) ||
   (element.kind === "shape" && !element.background) ||
   ["image", "table", "chart", "map"].includes(element.kind);
+
+export const canScaleObject = (element: SceneElement) =>
+  element.kind === "image" || (element.kind === "shape" && !element.background);
+
+export function constrainedScale(
+  scene: Pick<SlideScene, "width" | "height">,
+  element: Pick<SceneElement, "w" | "h">,
+  at: Pick<ObjectMove, "x" | "y">,
+  scale: number,
+) {
+  const max = Math.min(4, (scene.width - at.x) / element.w, (scene.height - at.y) / element.h);
+  return Math.max(.1, Math.min(max, Math.round(scale * 10000) / 10000));
+}
 
 export const objectId = (element: SceneElement, index: number) =>
   element.editorId ?? `object-${index + 1}`;
@@ -43,10 +57,12 @@ export function applyObjectMoves(scene: SlideScene, value: ObjectMove[]): SlideS
       return element;
     }
     if (!move) return { ...element, editorId: id };
-    if (move.x + element.w > scene.width + .0001 || move.y + element.h > scene.height + .0001)
+    if (move.scale !== undefined && !canScaleObject(element)) throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
+    const w = element.w * (move.scale ?? 1), h = element.h * (move.scale ?? 1);
+    if (move.x + w > scene.width + .0001 || move.y + h > scene.height + .0001)
       throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
     pending.delete(id);
-    return { ...element, editorId: id, x: move.x, y: move.y };
+    return { ...element, editorId: id, x: move.x, y: move.y, w, h };
   });
   if (pending.size) throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
   return slideSceneSchema.parse({ ...scene, elements });

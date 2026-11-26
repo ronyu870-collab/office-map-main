@@ -475,13 +475,8 @@ export async function customWorkspace(
   });
   return getWorkspace(ctx, c.projectId);
 }
-export async function restoreWorkspace(
-  ctx: PitchContext,
-  c: Extract<WorkspaceCommand, { action: "restore" }>,
-) {
-  const current = await getWorkspace(ctx, c.projectId);
-  checkVersion(current, c.expectedVersion);
-  const snapshot = z
+async function readWorkspaceRevision(ctx: PitchContext, projectId: string, revision: number) {
+  return z
     .object({
       project: workspaceDetailSchema.shape.project,
       workspace: workspaceDetailSchema.shape.workspace,
@@ -490,10 +485,19 @@ export async function restoreWorkspace(
     .parse(
       await pitchRpc(ctx, {
         action: "workspace_revision",
-        projectId: c.projectId,
-        revision: c.revision,
+        projectId,
+        revision,
       }),
     );
+}
+
+export async function restoreWorkspace(
+  ctx: PitchContext,
+  c: Extract<WorkspaceCommand, { action: "restore" }>,
+) {
+  const current = await getWorkspace(ctx, c.projectId);
+  checkVersion(current, c.expectedVersion);
+  const snapshot = await readWorkspaceRevision(ctx, c.projectId, c.revision);
   await pitchRpc(ctx, {
     action: "workspace_save",
     ...(await commitPayload(
@@ -512,6 +516,33 @@ export async function restoreWorkspace(
   });
   return getWorkspace(ctx, c.projectId);
 }
+/** Restore only one page from an owned historical revision without rolling back the rest of the deck. */
+export async function restoreWorkspacePage(
+  ctx: PitchContext,
+  c: Extract<WorkspaceCommand, { action: "restore_page" }>,
+) {
+  const current = await getWorkspace(ctx, c.projectId);
+  checkVersion(current, c.expectedVersion);
+  const live = current.slides.find(page => page.id === c.slideId);
+  if (!live || c.revision >= current.project.version ||
+    !current.history.some(revision => revision.version === c.revision))
+    throw new Error("PITCH_OBJECT_HISTORY_UNAVAILABLE");
+  const snapshot = await readWorkspaceRevision(ctx, c.projectId, c.revision);
+  const restored = snapshot.slides.find(page => page.id === c.slideId);
+  if (!restored || live.asset_id !== restored.asset_id || live.asset_version !== restored.asset_version ||
+    live.template_id !== restored.template_id || live.template_version !== restored.template_version ||
+    live.scene.themeId !== restored.scene.themeId || live.scene.themeVersion !== restored.scene.themeVersion)
+    throw new Error("PITCH_OBJECT_HISTORY_UNAVAILABLE");
+  const settings = { ...current.workspace.page_settings };
+  if (snapshot.workspace.page_settings[c.slideId]) settings[c.slideId] = snapshot.workspace.page_settings[c.slideId];
+  else delete settings[c.slideId];
+  await pitchRpc(ctx, {
+    action: "workspace_save",
+    ...(await commitPayload(ctx, current, current.slides.map(page => page.id === c.slideId ? restored : page), settings)),
+  });
+  return getWorkspace(ctx, c.projectId);
+}
+
 export async function copyWorkspace(
   ctx: PitchContext,
   c: Extract<WorkspaceCommand, { action: "copy" }>,

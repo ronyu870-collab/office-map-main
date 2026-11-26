@@ -17,6 +17,7 @@ import {
   customWorkspace,
   copyWorkspace,
   restoreWorkspace,
+  restoreWorkspacePage,
   startWorkspaceTask,
   runWorkspaceTask,
 } from "./workflow";
@@ -86,6 +87,7 @@ export async function handleWorkspaceRequest(
     if (c.action === "custom") return reply(await customWorkspace(ctx, c));
     if (c.action === "copy") return reply(await copyWorkspace(ctx, c));
     if (c.action === "restore") return reply(await restoreWorkspace(ctx, c));
+    if (c.action === "restore_page") return reply(await restoreWorkspacePage(ctx, c));
     if (c.action === "start" || c.action === "retry") {
       if (!schedule) throw new Error("PITCH_WORKER_UNAVAILABLE");
       const receipt =
@@ -150,6 +152,8 @@ export async function handleWorkspaceRequest(
               ? "此内容已自动分页，请修改原素材后重新生成整组页面。"
               : code === "PITCH_OBJECT_LAYOUT_RESET_REQUIRED"
                 ? "此页已手动摆放对象。若要重新排版，请先明确恢复自动布局。"
+              : code === "PITCH_OBJECT_HISTORY_UNAVAILABLE"
+                ? "此页的原版本已不可恢复，请从项目历史核对。"
               : code === "PITCH_OBJECT_TEXT_INVALID"
                 ? "这段文字不能直接修改，请检查是否为跨页或受保护的内容。"
               : code === "PITCH_OBJECT_LAYOUT_INVALID"
