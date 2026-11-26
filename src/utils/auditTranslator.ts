@@ -68,6 +68,14 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
   const p = payload ?? {};
 
   switch (action) {
+    case 'AI_FIELD_FILL': {
+      const labels: Record<string, string> = { submarket:'所属子市场', building_floors:'楼层数', floors_above:'地上层数', floors_below:'地下层数', developer:'开发商', building_height:'建筑高度', gfa_total:'总建筑面积', parking_total:'停车位数量' };
+      const field = typeof p.field_name === 'string' ? p.field_name : '';
+      return field ? `补齐楼宇字段：${labels[field] ?? field}` : '补齐楼宇空字段';
+    }
+    case 'BUILDING_PHOTO_STORAGE_BACKFILL': return '迁移楼宇图片至私有存储';
+    case 'BUILDING_PHOTO_STORAGE_BACKFILL_RECEIPT': return '记录楼宇图片迁移凭据';
+    case 'BUILDING_PHOTO_STORAGE_BACKFILL_BACKUP': return '备份楼宇图片迁移前数据';
     case 'CLIENT_MUTATION_OBSERVED': return `客户端观察到写请求响应：${p.table || '未标记对象'}（不代表数据库变更证明）`;
     case 'AUDIT_EXPORT': return '导出了业务审计记录';
     case "LEASE_EXPIRY_REVIEW_SAVE":
@@ -301,6 +309,9 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
 
     // 数据操作（管理后台）
     case "ADMIN_DATA_OPERATION": {
+      if (p.operation === 'ai_public_source_backfill') return '补充子市场公开资料';
+      if (p.operation === 'ai_source_asof_correction') return '修正子市场资料来源日期';
+      if (p.operation === 'auto_publish_submarket_client_brief') return '发布子市场客户展示资料';
       const operationLabels: Record<string, string> = {
         INSERT: '新增',
         UPDATE: '更新',
