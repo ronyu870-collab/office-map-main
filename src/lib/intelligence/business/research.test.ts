@@ -20,7 +20,9 @@ describe('controlled business research',()=>{
  it('registers strict field/module plans without SQL, coordinates or sensitive fields',()=>{
   for(const fields of [['owner'],['contact_phone'],['tenant_name']])expect(()=>businessPlanSchema.parse({...plan,fields})).toThrow();
   expect(()=>businessPlanSchema.parse({...plan,sql:'select *'})).toThrow();
-  expect(businessPlanSchema.parse({...plan,fields:profileFieldNames})).toHaveProperty('fields',profileFieldNames);
+  const fields=profileFieldNames.filter(field=>field!=='availablePeriods');
+  expect(businessPlanSchema.parse({...plan,fields})).toHaveProperty('fields',fields);
+  expect(businessPlanSchema.parse({...plan,fields:['availablePeriods']})).toHaveProperty('fields',['availablePeriods']);
   expect(()=>businessPlanSchema.parse({...plan,fields:['address','address']})).toThrow();
   expect(()=>businessPlanSchema.parse({tool:'query_future_supply',source:'submitted_quarter',submarkets:['CBD']})).toThrow();
   expect(()=>businessPlanSchema.parse({tool:'query_stacking_plan',buildingIds:[id],patch:{tenant:'x'}})).toThrow();

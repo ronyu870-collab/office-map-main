@@ -8,7 +8,7 @@ export const leaseDetailFields = ['building', 'submarket', 'industry', 'period',
 export const leasePlanSchema = z.strictObject({
   source: z.enum(['live', 'history', 'combined']), from: day, to: day,
   mode: z.enum(['aggregate', 'details']).default('aggregate'),
-  groupBy: z.enum(['total', 'quarter', 'building', 'industry', 'submarket']).default('total'),
+  groupBy: z.enum(['total', 'quarter', 'building', 'industry', 'submarket', 'area_band']).default('total'),
   submarkets: z.array(z.string().trim().min(1).max(80)).min(1).max(30).optional(),
   buildingIds: z.array(z.uuid()).min(1).max(100).optional(),
   buildingName: z.string().trim().min(1).max(100).optional(),

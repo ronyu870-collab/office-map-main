@@ -3,6 +3,8 @@ import { quarterSchema } from '../query/contracts';
 export const BUSINESS_DOMAIN = 'business-research/1';
 // A field has exactly one physical source. No fallback across area or time bases.
 export const profileFields = {
+  nameEn: ['英文名称（楼书）', null, 'text'], brochureNameCn: ['中文名称（楼书）', null, 'text'],
+  brochureSubmarket: ['子市场（楼书）', null, 'text'], brochureGrade: ['等级（楼书）', null, 'text'],
   district: ['行政区（目录）', null, 'text'], submarket: ['子市场（目录）', null, 'text'], grade: ['等级（目录）', null, 'text'],
   completionYear: ['建成年份（目录）', null, 'text'], leasableArea: ['可租面积（目录，非实时空置）', 'm2', 'number'],
   address: ['地址（楼书）', null, 'text'], brochureDistrict: ['行政区（楼书）', null, 'text'],
@@ -20,7 +22,7 @@ export const profileFieldNames = Object.keys(profileFields) as [keyof typeof pro
 const names = z.array(z.string().trim().min(1).max(80)).min(1).max(8);
 const buildingIds = z.array(z.uuid()).min(1).max(20).refine(ids => new Set(ids).size === ids.length);
 export const BUSINESS_TOOL_SCHEMAS = {
-  query_building_dossier: z.strictObject({ buildingIds, fields: z.array(z.enum(profileFieldNames)).min(1).max(26).refine(fields => new Set(fields).size === fields.length)
+  query_building_dossier: z.strictObject({ buildingIds, fields: z.array(z.enum(profileFieldNames)).min(1).max(29).refine(fields => new Set(fields).size === fields.length)
     .default(['district','submarket','grade','completionYear','address','completionDate','gfaTotal','leasableArea','standardFloorArea','floors','height','parking','metro','leed','propertyManagement']) }),
   query_submarket_profile: z.strictObject({ submarkets: names }),
   query_future_supply: z.strictObject({ submarkets: names, source: z.enum(['catalog','submitted_quarter','latest_submitted']).default('catalog'), period: quarterSchema.optional() }).superRefine((p,c) => {
