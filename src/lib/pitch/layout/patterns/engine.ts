@@ -2,6 +2,7 @@ import type { SlideContent } from '../../contracts/content';
 import type { SceneElement } from '../../contracts/scene';
 import { sceneComponents } from '../components';
 import { LayoutError } from '../metrics';
+import { chartElement } from '../chart';
 import { tablePages } from '../table';
 import { cellText } from '../../render/format';
 import type { LayoutPattern, PatternSlot } from './catalog';
@@ -21,36 +22,11 @@ function textPages(text: string, box: Box, t: Tools): SceneElement[][] {
         return fail('PITCH_TEXT_CAPACITY', '插槽不足一行可读文字，请更换布局。');
     return chunk(t.lines(text, box.w), capacity).map(lines => [t.text(lines.join('\n'), box.x, box.y, box.w, box.h)]);
 }
-function chartPages(b: Extract<Block, {
-    kind: 'chart';
-}>, box: Box, t: Tools): SceneElement[][] {
-    if (b.chartType === 'scatter')
-        return fail('PITCH_CHART_UNSUPPORTED', '此图形尚未注册。');
-    if (!b.categories.length || b.categories.length > 12 || b.series.length > 4 || box.w < 3 || box.h < 1.8)
-        return fail('PITCH_CHART_LABELS', '图表区域或标签容量不足，请更换布局。');
-    if (new Set(b.series.map(s => s.unit)).size !== 1)
-        return fail('PITCH_CHART_UNITS', '不同单位需要拆图，不能混用单轴。');
-    if (!b.series.some(s => s.values.some(v => v !== null)))
-        return fail('PITCH_CHART_EMPTY', '图表没有已知数值。');
-    if (b.series.some(s => s.values.some(v => v !== null && Math.abs(v) > 1e15)))
-        return fail('PITCH_CHART_RANGE', '数值超过安全范围。');
-    if (b.chartType === 'pie' && (b.series.length !== 1 || b.series[0].values.some(v => v === null || v < 0) || !b.series[0].values.some(v => v! > 0)))
-        return fail('PITCH_PIE_VALUES', '饼图需要完整非负数值且总量大于零。');
-    if (b.chartType === 'combo' && b.series.length !== 2)
-        return fail('PITCH_COMBO_SERIES', '组合图需要两个同单位系列。');
-    const plot = box.h - 1.5;
-    if (b.series.some(s => t.lines(`${s.name}${s.unit ? ` (${s.unit})` : ''}`, box.w / b.series.length - .22).length > 1)
-        || b.categories.some(c => t.lines(c, b.chartType === 'bar' ? .9 : (box.w - 1.2) / b.categories.length).length > 2)
-        || b.chartType === 'bar' && b.categories.some(c => t.lines(c, .9).length * t.lh > plot / b.categories.length)
-        || b.chartType === 'pie' && (b.categories.length * .4 > plot || b.categories.some((c, i) => t.lines(`${c}: ${cellText(b.series[0].values[i])}`, (box.w - 1.2) * .33).length > 1)))
-        return fail('PITCH_CHART_LABELS', '图例或标签拥挤，请减少分类或使用更宽图形。');
-    return [[{ kind: 'chart', ...box, chartType: b.chartType, categories: b.categories, series: b.series }]];
-}
 function slotPages(b: Block, box: Box, t: Tools, pattern: LayoutPattern, en: boolean): SceneElement[][] {
     if (b.kind === 'paragraph')
         return textPages(b.text, box, t);
     if (b.kind === 'image')
-        return [[t.image(b, box.x, box.y, box.w, box.h)]];
+        return [t.imageWithCredit(b, box.x, box.y, box.w, box.h)];
     if (b.kind === 'metric') {
         const changes = [b.yoy === undefined ? '' : `${en ? 'YoY' : '同比'} ${cellText(b.yoy)}%`, b.qoq === undefined ? '' : `${en ? 'QoQ' : '环比'} ${cellText(b.qoq)}%`].filter(Boolean);
         return textPages([b.label, `${cellText(b.value)} ${b.unit}`, ...changes].join('\n'), box, t);
@@ -58,7 +34,7 @@ function slotPages(b: Block, box: Box, t: Tools, pattern: LayoutPattern, en: boo
     if (b.kind === 'table')
         return tablePages(b, t, box.x, box.y, box.w, box.h);
     if (b.kind === 'chart')
-        return chartPages(b, box, t);
+        return [[chartElement(b, box, t)]];
     if (b.kind === 'case')
         return textPages(`${b.title}\n${en ? 'Challenge' : '挑战'}：${b.challenge}\n${en ? 'Approach' : '方法'}：${b.approach}\n${en ? 'Outcome' : '成果'}：${b.outcome}`, box, t);
     if (b.kind === 'team') {

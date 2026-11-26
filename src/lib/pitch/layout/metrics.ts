@@ -16,15 +16,21 @@ export function assertText(value: string, font: Font) {
 export function textWidth(value: string, size: number, font: Font) {
   return font.layout(value).positions.reduce((s, p) => s + p.xAdvance, 0) / font.unitsPerEm * size / 72;
 }
+const graphemes = new Intl.Segmenter('zh', { granularity: 'grapheme' });
+
 /** Explicit line breaks shared by Office and SVG; no font shrinking or truncation. */
 export function wrapText(value: string, width: number, size: number, font: Font): string[] {
   assertText(value, font);
   const lines: string[] = [];
   for (const paragraph of value.replace(/\r\n?/g, '\n').split('\n')) {
+    if (textWidth(paragraph, size, font) <= width - .04) {
+      lines.push(paragraph);
+      continue;
+    }
     let line = '';
     // Segment words, CJK characters and punctuation. A long token may wrap at a
     // grapheme boundary; existing hard line breaks remain meaningful.
-    const segments = Array.from(new Intl.Segmenter('zh', { granularity: 'grapheme' }).segment(paragraph), s => s.segment);
+    const segments = Array.from(graphemes.segment(paragraph), s => s.segment);
     for (const c of segments) {
       if (textWidth(line + c, size, font) > width - .04 && line) {
         const boundary = line.lastIndexOf(' ');
