@@ -7,6 +7,7 @@ export type PresentationTower = { id: string; code: string; display_name: string
 export type PresentationInput<F extends PlanFloor = PlanFloor, S extends PlanSpace = PlanSpace> = {
   projectName: string;
   sourceDate: string | null;
+  sourceNotice?: string;
   towers: PresentationTower[];
   floors: F[];
   spaces: S[];
@@ -31,7 +32,7 @@ const rect = (x: number, y: number, w: number, h: number, fill: string, radius =
   '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + Math.max(0,w).toFixed(1) +
   '" height="' + Math.max(0,h).toFixed(1) + '" rx="' + radius +
   '" fill="' + fill + '"' + (stroke ? ' stroke="' + stroke + '"' : '') + '/>';
-const text = (x: number, y: number, value: unknown, size: number, ink: string, weight = 400, anchor = 'start') =>
+const svgText = (x: number, y: number, value: unknown, size: number, ink: string, weight = 400, anchor = 'start') =>
   '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" font-size="' + size +
   '" fill="' + ink + '" font-weight="' + weight + '" text-anchor="' + anchor +
   '" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, sans-serif">' + xml(value) + '</text>';
@@ -47,7 +48,7 @@ const ROW_HEIGHT = 37;
 const CARD_TOP = 174;
 
 function drawTower<F extends PlanFloor, S extends PlanSpace>(
-  tower: PresentationTower, input: PresentationInput<F, S>, x: number, height: number,
+  tower: PresentationTower, input: PresentationInput<F, S>, x: number, height: number, text: typeof svgText,
 ): string {
   const floors = input.floors.filter(f => f.tower_id === tower.id)
     .sort((a, b) => b.level_order - a.level_order);
@@ -111,19 +112,23 @@ function drawTower<F extends PlanFloor, S extends PlanSpace>(
   return elements.join('');
 }
 
+export function stackingPresentationSize(input: Pick<PresentationInput, 'towers' | 'floors'>) {
+  const maxFloors = Math.max(1, ...input.towers.slice(0, 2).map(tower =>
+    input.floors.filter(f => f.tower_id === tower.id).length));
+  const cardHeight = 131 + ROW_HEIGHT * maxFloors;
+  return { width: WIDTH, height: CARD_TOP + cardHeight + 88, cardHeight };
+}
+
 /**
  * Dynamic-height vector master. The PNG path rasterizes this at a bounded
  * high-density scale. The output height grows with the actual tower floors,
  * so no rows get squeezed into an arbitrary 1080px report frame.
  */
 export function createStackingPresentationSvg<F extends PlanFloor, S extends PlanSpace>(
-  input: PresentationInput<F, S>,
+  input: PresentationInput<F, S>, text = svgText,
 ): string {
   const towers = input.towers.slice(0, 2);
-  const maxFloors = Math.max(1, ...towers.map(tower =>
-    input.floors.filter(f => f.tower_id === tower.id).length));
-  const cardHeight = 131 + ROW_HEIGHT * maxFloors;
-  const height = CARD_TOP + cardHeight + 88;
+  const { cardHeight, height } = stackingPresentationSize(input);
   const subset = input.onlyMatching && (input.filter !== 'all' || input.search.trim().length > 0);
   const result = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="' + WIDTH + '" height="' + height +
@@ -132,11 +137,12 @@ export function createStackingPresentationSvg<F extends PlanFloor, S extends Pla
     rect(0, 0, WIDTH, 8, '#163E67'),
     text(52, 67, input.projectName + ' · Stacking Plan', 37, '#1A354F', 700),
     subset ? text(53, 105, '筛选结果', 15, '#64788A') : '',
+    input.sourceNotice ? text(53, 140, input.sourceNotice, 23, '#526779') : '',
   ];
   if (towers.length === 1) {
-    result.push(drawTower(towers[0], input, (WIDTH - CARD_WIDTH) / 2, cardHeight));
+    result.push(drawTower(towers[0], input, (WIDTH - CARD_WIDTH) / 2, cardHeight, text));
   } else {
-    towers.forEach((tower, i) => result.push(drawTower(tower, input, i ? 1044 : 36, cardHeight)));
+    towers.forEach((tower, i) => result.push(drawTower(tower, input, i ? 1044 : 36, cardHeight, text)));
   }
   const foot = CARD_TOP + cardHeight + 37;
   ([

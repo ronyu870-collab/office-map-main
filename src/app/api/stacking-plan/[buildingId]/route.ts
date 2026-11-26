@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { IMPERSONATION_REQUEST_HEADER, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { createAdminSessionGuard } from '@/src/lib/intelligence/adminSession';
+import { readStackingSnapshot } from '@/src/lib/stacking-plan/readSnapshot';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -110,46 +111,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (buildingError) return databaseUnavailable(buildingError);
     if (!building) return reply({ error: '楼宇不存在' }, 404);
 
-    const [towerResult, sourceResult] = await Promise.all([
-      client.from('stacking_plan_towers').select('id,building_id,code,display_name').eq('building_id', id).order('code'),
-      client.from('stacking_plan_sources').select('id,building_id,title,source_as_of,as_of_kind,review_state,source_note,evidence_storage_path,evidence_filename,evidence_mime,evidence_size_bytes,evidence_sha256,evidence_uploaded_at').eq('building_id', id),
-    ]);
-    // Preview may run before the additive production evidence migration. Keep
-    // existing source snapshots readable without claiming the original is archived.
-    let sources = sourceResult.data ?? [];
-    let sourceError = sourceResult.error;
-    let evidenceStorageReady = true;
-    if (sourceError?.code === '42703') {
-      evidenceStorageReady = false;
-      const legacy = await client.from('stacking_plan_sources')
-        .select('id,building_id,title,source_as_of,as_of_kind,review_state,source_note').eq('building_id', id);
-      sourceError = legacy.error;
-      sources = (legacy.data ?? []).map(item => ({
-        ...item, evidence_storage_path: null, evidence_filename: null,
-        evidence_mime: null, evidence_size_bytes: null, evidence_sha256: null,
-        evidence_uploaded_at: null,
-      }));
-    }
-    if (towerResult.error || sourceError) return databaseUnavailable(towerResult.error ?? sourceError);
-    const towers = towerResult.data ?? [];
-    let floors: Record<string, unknown>[] = [];
-    let spaces: Record<string, unknown>[] = [];
-    if (towers.length) {
-      const floorResult = await client.from('stacking_plan_floors')
-        .select('id,tower_id,floor_code,level_order,floor_area_sqm,zone,use_type,source_id')
-        .in('tower_id', towers.map(t => t.id)).order('level_order', { ascending: false }).limit(200);
-      if (floorResult.error) return databaseUnavailable(floorResult.error);
-      floors = floorResult.data ?? [];
-      if (floors.length) {
-        const spaceResult = await client.from('stacking_plan_spaces')
-          .select('id,floor_id,unit_code,occupancy_status,tenant_name,area_sqm,lease_steps,notes,verification_status,source_id,revision')
-          .in('floor_id', floors.map(f => f.id as string)).order('unit_code').limit(1000);
-        if (spaceResult.error) return databaseUnavailable(spaceResult.error);
-        spaces = spaceResult.data ?? [];
-      }
-    }
+    const snapshot = await readStackingSnapshot(client, id, request.signal);
     await guard();
-    return reply({ building, towers, floors, spaces, sources, evidence_storage_ready: evidenceStorageReady, basis: 'source_snapshot_unverified' });
+    return reply({ building, ...snapshot });
   } catch (error) {
     return databaseUnavailable(error);
   }
