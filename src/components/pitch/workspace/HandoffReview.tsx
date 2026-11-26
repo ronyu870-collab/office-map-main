@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
-import type { AddToPitch } from "@/src/lib/pitch/integration-contracts";
 import type { PitchScope } from "@/src/lib/pitch/contracts/content";
 import { outlineQuarter, workspaceDetailSchema } from "@/src/lib/pitch/workspace/protocol";
 import type { PitchHandoffNavigation } from "../PitchHandoffLink";
@@ -22,6 +21,7 @@ const readySchema = z.object({
 const reviewSchema = z.discriminatedUnion("status", [readySchema, z.object({ status: z.literal("period_required") })]);
 const receiptSchema = z.object({ state: z.enum(["queued", "processing", "completed", "failed", "cancelled"]) });
 type Ready = z.infer<typeof readySchema>;
+type AddToPitch = PitchHandoffNavigation & { projectId?: string };
 
 type Target = { mode: "append"; expectedVersion: number } | ({
   mode: "create"; projectId: string; title: string; scope: PitchScope; themeId: string; themeVersion: number;
@@ -40,6 +40,7 @@ export function HandoffReview({ source, call, grants, theme, onOpen, onClose }: 
   const [projectId, setProjectId] = useState("");
   const [scopeIndex, setScopeIndex] = useState(0);
   const [period, setPeriod] = useState(source.period ?? "");
+  const lease = source.source.kind === "lease-search" ? source.source : undefined;
   const [title, setTitle] = useState("");
   const [review, setReview] = useState<{ data: Ready; handoff: AddToPitch; version?: number }>();
   const [error, setError] = useState("");
@@ -142,7 +143,7 @@ export function HandoffReview({ source, call, grants, theme, onOpen, onClose }: 
     }
   }
 
-  const sourceLabel = source.source.kind === "buildings"
+  const sourceLabel = lease ? "成交库的代表成交" : source.source.kind === "buildings"
     ? `已选 ${source.source.buildingIds.length} 栋楼宇`
     : source.source.kind === "submarket" ? source.source.key : "Colliers AI 的获权分析结果";
 
@@ -155,7 +156,10 @@ export function HandoffReview({ source, call, grants, theme, onOpen, onClose }: 
         loading={busy === "review"} onClick={() => void checkSource()}>核对来源</Button>
     }>
     <div className={`${styles.studio} ${styles.form}`}>
-      <p>{sourceLabel}</p>
+      <div>
+        <p>{sourceLabel}</p>
+        {lease && <p>{lease.from} 至 {lease.to} · {lease.dataset === "live" ? "日常填报" : lease.dataset === "history" ? "历史导入" : "合并来源"}</p>}
+      </div>
       <label>
         目标项目
         <select value={projectId} disabled={!!busy || submitted}
@@ -176,12 +180,12 @@ export function HandoffReview({ source, call, grants, theme, onOpen, onClose }: 
         </select>
       </label>}
       {!projectId && !canCreate && <p>当前没有可创建提案的授权范围。</p>}
-      <label>
+      {!lease && <label>
         正式季度
         <input placeholder={projectId ? "默认沿用目标项目" : "例如 2026-Q3"} value={period} maxLength={7}
           aria-invalid={!validPeriod} disabled={!!busy || submitted}
           onChange={event => { resetReview(); setPeriod(event.target.value); }} />
-      </label>
+      </label>}
       {!validPeriod && <p role="alert">季度格式为 YYYY-Q1 至 YYYY-Q4。</p>}
       {error && <p role="alert">{error}</p>}
       {review && <>
@@ -189,7 +193,7 @@ export function HandoffReview({ source, call, grants, theme, onOpen, onClose }: 
           项目名称
           <input value={title} maxLength={160} disabled={!!busy || submitted} onChange={event => setTitle(event.target.value)} />
         </label>}
-        <p>{review.data.period} · {review.data.binding.dataAsOf} · 仅供内部使用</p>
+        <p>{review.data.period && `${review.data.period} · `}{review.data.binding.dataAsOf} · 仅供内部使用</p>
         <ol className={styles.handoffPages}>
           {review.data.pages.map((page, index) => <li key={index}>
             <strong>{page.title}</strong>

@@ -5,6 +5,7 @@ import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import { LeaseExpiryLink } from '@/src/components/lease/LeaseExpiryLink';
 import { ExportReview } from '@/src/components/ExportReview';
+import { PitchLeaseAction } from './PitchLeaseAction';
 import { logAction } from '@/src/utils/audit';
 import { brokerReturn, dealHistoryHref, mapBuildingHref } from '@/src/lib/broker/links';
 import { DEFAULT_FILTERS, historyContextHref, leaseFilterParams, readHistoryContext, readSavedHistory, type FilterState, type SourceFilter } from './filters';
@@ -449,6 +450,7 @@ export default function LeaseHistoryPage() {
           <LeaseExpiryLink />
           <Button type="button" variant="secondary" disabled={loading || Boolean(error) || !count || count > EXPORT_LIMIT}
             onClick={() => { setExportError(''); setExportReview(true); }}>导出筛选结果</Button>
+          {!loading && !error && records.length > 0 && <PitchLeaseAction filters={appliedFilters} source={effectiveSource} />}
           {count !== null && count > EXPORT_LIMIT && <span className="text-sm">请缩小到 {EXPORT_LIMIT} 笔以内。</span>}
         </div>}
         {exportReview && <ExportReview title="核对成交导出" scope={exportScope}

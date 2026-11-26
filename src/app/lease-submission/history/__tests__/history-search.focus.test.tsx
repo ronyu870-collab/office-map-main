@@ -18,6 +18,7 @@ vi.mock('@/src/components/ui', () => ({
     <button {...rest}>{children}</button>,
 }));
 import LeaseHistoryPage from '../page';
+import { PitchHandoffProvider, readPitchHandoff } from '@/src/components/pitch/PitchHandoffLink';
 
 const access = { canReadHistory: true, effectiveRole: 'admin', effectiveSource: 'all', impersonating: false };
 const records = [
@@ -110,4 +111,25 @@ it('records completed queries and selected detail, never count-only refreshes or
  const queries=()=>readingAudit.mock.calls.filter(call=>call[1]==='LEASE_HISTORY_QUERY');expect(queries()).toHaveLength(1);
  fireEvent.change(screen.getByRole('textbox',{name:'搜索公司名称'}),{target:{value:'未提交的条件'}});
  expect(queries()).toHaveLength(1);expect(JSON.stringify(readingAudit.mock.calls)).not.toContain('synthetic-token');
+});
+
+
+it('carries the applied time and source scope, and withholds handoff when a company filter cannot be preserved', async () => {
+  window.history.replaceState(null, '', '/lease-submission/history?resume=1&year_from=2020&year_to=2026&record_source=history');
+  render(<PitchHandoffProvider enabled><LeaseHistoryPage /></PitchHandoffProvider>);
+  const name = '将筛选范围的代表成交加入 Pitch';
+  const link = await screen.findByRole('link', { name });
+  const url = new URL(link.getAttribute('href')!, 'https://synthetic.invalid');
+  expect(readPitchHandoff(url.hash)).toEqual({ source: {
+    kind: 'lease-search', dataset: 'history', from: '2020-01-01', to: '2026-12-31',
+    buildingIds: [], submarkets: [], view: 'transactions', direction: 'desc',
+  } });
+
+  const input = screen.getByRole('textbox', { name: '搜索公司名称' });
+  fireEvent.change(input, { target: { value: '合成乙' } });
+  expect(screen.getByRole('link', { name })).toHaveAttribute('href', link.getAttribute('href'));
+  fireEvent.submit(input.closest('form')!);
+  await screen.findByText('合成乙企业');
+  expect(screen.queryByRole('link', { name })).toBeNull();
+  expect(screen.getByText('Pitch 支持的筛选')).toBeInTheDocument();
 });
