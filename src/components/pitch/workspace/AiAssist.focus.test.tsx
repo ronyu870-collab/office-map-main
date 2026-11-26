@@ -11,6 +11,7 @@ import {
 import { describe, it, expect, vi, afterEach } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { AiAssist } from "./AiAssist";
+import { outlineDataParameters } from "@/src/lib/pitch/workspace/protocol";
 import type { Call } from "./client";
 const id = "11111111-1111-4111-8111-111111111111";
 afterEach(cleanup);
@@ -228,6 +229,33 @@ describe("Pitch optional assistant behavior", () => {
     }));
     expect(screen.getByRole("button", { name: "确认生成 2 个板块" })).toBeDisabled();
     expect(call.mock.calls.some(([request]) => request.action === "start" || request.action === "status")).toBe(false);
+  });
+
+  it("reviews exact building names before permitting generation, and blocks if the selected quarter changes", async () => {
+    const parameters = outlineDataParameters([id], "2026-Q3");
+    const fingerprint = "b".repeat(64);
+    const call = vi.fn(async () => ({ parameters, fingerprint, buildings: [{ id, name: "合成甲座", facts: [{ label: "总面积（㎡）", value: "10,000" }] }] }));
+    const onGenerateOutline = vi.fn(async () => {});
+    const renderAt = (period: string) => <AiAssist call={call as Call} projectId={id}
+      buildingIds={[id]} period={period} language="zh" admin={false} busy={false}
+      onGenerate={async () => {}} onGenerateOutline={onGenerateOutline} onExport={() => {}} />;
+    const { rerender } = render(renderAt("2026-Q3"));
+    fireEvent.click(screen.getByText("提案结构建议"));
+    fireEvent.click(screen.getByRole("button", { name: "核对并加入正式数据" }));
+    await screen.findByText("合成甲座");
+    expect(screen.getByText("总面积（㎡）：10,000")).toBeInTheDocument();
+    expect(onGenerateOutline).not.toHaveBeenCalled();
+    expect(call).toHaveBeenCalledWith({ action: "review_outline_data", projectId: id,
+      buildingIds: [id], period: "2026-Q3" }, true, "workspace", expect.anything());
+    rerender(renderAt("2026-Q4"));
+    expect(screen.getByRole("button", { name: "确认生成 1 个板块" })).toBeDisabled();
+    expect(screen.getByText(/关联楼宇或季度已变化/)).toBeInTheDocument();
+    rerender(renderAt("2026-Q3"));
+    fireEvent.click(screen.getByRole("button", { name: "确认生成 1 个板块" }));
+    await waitFor(() => expect(onGenerateOutline).toHaveBeenCalledExactlyOnceWith({
+      mode: "outline", parts: [{ mode: "dynamic", title: "目标项目概况", parameters }],
+      bindings: [], dataFingerprint: fingerprint,
+    }));
   });
 
 });

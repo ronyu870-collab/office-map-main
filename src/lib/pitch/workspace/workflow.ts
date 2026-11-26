@@ -11,7 +11,9 @@ import { sceneFont } from "../layout/metrics";
 import { assertSceneQuality } from "../layout/quality";
 import { generateBusinessProject } from "../business/workflow";
 import { generationSchema } from "../business/protocol";
-import { workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
+import { runPitchDataAdapter } from "../business/adapter";
+import { reviewedBuildingData } from "../business/outline-data";
+import { outlineDataParameters, workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
 import { workspaceDetailSchema, type WorkspaceDetail } from "./protocol";
 import { applyObjectMoves, applyObjectTexts, applyObjectOrder, applyObjectGroups } from "./object-layout";
 type Page = WorkspaceDetail["slides"][number];
@@ -597,12 +599,32 @@ export async function copyWorkspace(
   });
   return getWorkspace(ctx, c.newProjectId);
 }
+export async function reviewOutlineData(
+  ctx: PitchContext,
+  c: Extract<WorkspaceCommand, { action: "review_outline_data" }>,
+) {
+  const current = await getWorkspace(ctx, c.projectId);
+  const parameters = outlineDataParameters(c.buildingIds, c.period);
+  const snapshot = await runPitchDataAdapter(ctx, parameters, current.workspace.context.language);
+  return { ...reviewedBuildingData(snapshot), parameters };
+}
+function assertOutlineDataContext(current: WorkspaceDetail, part: z.infer<typeof workspacePartSchema>) {
+  if (part.mode !== "outline" || !part.dataFingerprint) return;
+  const data = part.parts.find(section => section.mode === "dynamic");
+  if (!data) throw new Error("PITCH_INVALID");
+  const { period, buildingIds } = current.workspace.context;
+  if (!period || period !== data.parameters.period.year + "-Q" + data.parameters.period.quarter ||
+    buildingIds.length !== data.parameters.buildingIds.length ||
+    JSON.stringify([...buildingIds].sort()) !== JSON.stringify([...data.parameters.buildingIds].sort()))
+    throw new Error("PITCH_OUTLINE_DATA_CHANGED");
+}
 export async function startWorkspaceTask(
   ctx: PitchContext,
   c: Extract<WorkspaceCommand, { action: "start" }>,
 ) {
   const current = await getWorkspace(ctx, c.projectId);
   checkVersion(current, c.expectedVersion);
+  assertOutlineDataContext(current, c.part);
   if ((c.part.mode === "outline" && c.replaceIds.length > 0) ||
     c.replaceIds.some((id) => !current.slides.some((p) => p.id === id)))
     throw new Error("PITCH_INVALID");
@@ -643,6 +665,7 @@ export async function runWorkspaceTask(
       p = current.project;
     checkVersion(current, receipt.task.expected_version);
     const part = workspacePartSchema.parse(receipt.task.command.part);
+    assertOutlineDataContext(current, part);
     const command = part.mode === "example" ? undefined : generationSchema.parse({
       action: "generate",
       projectId: receipt.task.source_project_id,
@@ -669,7 +692,8 @@ export async function runWorkspaceTask(
         language:current.workspace.context.language,themeId:p.theme_id,themeVersion:p.theme_version,part,
       });
     } else await generateBusinessProject(ctx, command!, part.mode === 'outline'
-      ? new Map(part.bindings.map(binding => [binding.id, binding.version])) : undefined);
+      ? new Map(part.bindings.map(binding => [binding.id, binding.version])) : undefined,
+      part.mode === "outline" ? part.dataFingerprint : undefined);
     await pitchRpc(ctx, { action: "workspace_task_check", ...args });
     const source = await getWorkspace(ctx, receipt.task.source_project_id),
       settings = { ...current.workspace.page_settings };
@@ -677,7 +701,8 @@ export async function runWorkspaceTask(
       const id = randomUUID();
       settings[id] = {
         manual: false,
-        origin: part.mode === "dynamic" ? "data" : "asset",
+        // Keep every page in a mixed deck inside formal-data editing controls.
+        origin: part.mode === "dynamic" || (part.mode === "outline" && part.dataFingerprint) ? "data" : "asset",
         part,
         ...(part.mode === "example" ? {example:true,kit:part.kit} : part.mode==='bundle'?{kit:part.kit}:{}),
       };
@@ -700,7 +725,8 @@ export async function runWorkspaceTask(
         action: "workspace_task_fail",
         ...args,
         errorCode:
-          error instanceof Error ? error.message : "PITCH_GENERATION_FAILED",
+          error instanceof Error && "code" in error && typeof error.code === "string"
+            ? error.code : error instanceof Error ? error.message : "PITCH_GENERATION_FAILED",
       });
     } catch {
       /* A cancelled/revoked receipt cannot be committed; status expires a lost lease. */

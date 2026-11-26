@@ -16,6 +16,7 @@ import { inspectMedia, sceneMediaReferences, type SceneMedia } from '../render/m
 import { businessProfileSchema, recipeSchema, type Generation, type BusinessProfile } from './protocol';
 import { assertBusinessScope, buildBusinessPages, caseDisplay, validateBusinessProfile, type BusinessAsset, type BusinessPage } from './content';
 import { runPitchDataAdapter, type PitchDataSnapshot } from './adapter';
+import { reviewedBuildingData } from './outline-data';
 const hash=(v:unknown)=>digest(new TextEncoder().encode(JSON.stringify(v)));
 const storedSchema=z.object({asset:z.object({id:z.uuid(),current_version:z.number(),organization_id:z.string(),region:z.string(),city:z.string(),business_line:z.string()}).passthrough(),version:z.object({content:slideContentSchema}),profile:businessProfileSchema,media:z.array(mediaRowSchema)});
 export function profileMedia(profile:BusinessProfile) {
@@ -36,14 +37,17 @@ export async function saveBusinessProfile(ctx:PitchContext,c:{assetId:string;exp
   asset.state='draft';asset.allowClientExport=false;asset.allowExternalAi=false;
   return pitchRpc(ctx,{action:'business_profile_save',assetId:c.assetId,expectedVersion:c.expectedVersion,profile,asset,sha256:hash(asset.content),tokens:documentTokens(JSON.stringify([asset.content,profile])),media:profileMedia(profile)});
 }
-export async function generateBusinessProject(ctx:PitchContext,command:Generation,expectedAssetVersions?:ReadonlyMap<string,number>) {
+export async function generateBusinessProject(ctx:PitchContext,command:Generation,expectedAssetVersions?:ReadonlyMap<string,number>, expectedDataFingerprint?:string) {
   const registry=z.object({theme:z.object({definition:designThemeSchema})}).parse(await pitchRpc(ctx,{action:'registry',templateId:'business-content',templateVersion:1,themeId:command.themeId,themeVersion:command.themeVersion}));
   const theme=registry.theme.definition,bindings:{id:string;version:number}[]=[],snapshots:PitchDataSnapshot[]=[],recipes:{id:string;revision:number}[]=[],groups:BusinessPage[]=[],mediaRows:z.infer<typeof mediaRowSchema>[]=[];
   const currentPeriods=command.parts.filter(p=>p.mode==='dynamic'&&!p.parameters.templateId.endsWith('-trend')&&!p.parameters.templateId.startsWith('lease-')).map(p=>p.mode==='dynamic'?JSON.stringify(p.parameters.period):'');
   if(new Set(currentPeriods).size>1)throw new DocumentError('PITCH_PERIOD_MISMATCH','同一 Pitch 的项目对比页面需要采用同一正式季度。');
   for(const part of command.parts) {
     if(part.mode==='dynamic') {
-      const snapshot=await runPitchDataAdapter(ctx,part.parameters,command.language);snapshots.push(snapshot);
+      const snapshot=await runPitchDataAdapter(ctx,part.parameters,command.language);
+      if (expectedDataFingerprint && reviewedBuildingData(snapshot).fingerprint !== expectedDataFingerprint)
+        throw new Error('PITCH_OUTLINE_DATA_CHANGED');
+      snapshots.push(snapshot);
       if(part.researchAssetId) {
         const stored=storedSchema.parse(await pitchRpc(ctx,{action:'business_generation_asset',assetId:part.researchAssetId}));
         const a:BusinessAsset={id:part.researchAssetId,version:stored.asset.current_version,scope:{organizationId:stored.asset.organization_id,region:stored.asset.region,city:stored.asset.city,businessLine:stored.asset.business_line},profile:stored.profile,content:stored.version.content};
@@ -56,7 +60,17 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
         chart.blocks.push(...insight);chart.sources.push(...a.profile.content.sources.filter(s=>!chart.sources.some(r=>r.id===s.id)));chart.isTestData=chart.isTestData||a.content.isTestData;
         bindings.push({id:a.id,version:a.version});
       }
-      for(const content of snapshot.content)groups.push({content:part.title?{...content,title:part.title}:content,layoutId:content.blocks.some(b=>b.kind==='chart')?'chart-insight':content.blocks.some(b=>b.kind==='table')?'data-table':'two-columns',variant:'standard'});
+      for (const [index, content] of snapshot.content.entries()) {
+        const period = part.parameters.period;
+        const subtitle = expectedDataFingerprint
+          ? `${period.year} Q${period.quarter}${index ? (command.language === 'en' ? ' · Method and coverage' : ' · 口径与覆盖') : ''}`
+          : content.subtitle;
+        groups.push({
+          content: part.title ? { ...content, title: part.title, subtitle } : content,
+          layoutId: content.blocks.some(b => b.kind === 'chart') ? 'chart-insight' : content.blocks.some(b => b.kind === 'table') ? 'data-table' : 'two-columns',
+          variant: 'standard',
+        });
+      }
       continue;
     }
     if(part.mode==='static'&&part.assetIds.length!==1)throw new DocumentError('PITCH_BUSINESS_CONTENT','Static 模式只接受一份正式资产；多素材请选择 Semi-dynamic。');

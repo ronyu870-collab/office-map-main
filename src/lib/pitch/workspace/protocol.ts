@@ -6,7 +6,8 @@ import {
   slideSceneSchema,
 } from "../contracts/scene";
 import { objectMoveSchema, objectTextSchema, objectOrderSchema, objectGroupsSchema } from "./object-layout";
-import { generationPartSchema } from "../business/protocol";
+import { dynamicParametersSchema, generationPartSchema } from "../business/protocol";
+import { quarterSchema } from "@/src/lib/intelligence/query/contracts";
 const id = z.uuid(),
   title = z.string().trim().min(1).max(160);
 export const projectContextSchema = z.strictObject({
@@ -66,18 +67,43 @@ export const examplePartSchema = z.strictObject({
   kit:z.strictObject({id:z.string().max(100),version:z.number().int().positive()}).optional(),
 });
 export const bundlePartSchema=z.strictObject({mode:z.literal('bundle'),kit:z.strictObject({id:z.string().max(100),version:z.number().int().positive()}),parts:z.array(generationPartSchema).min(1).max(12)});
+export const outlineBuildingIds = z.array(id).min(1).max(5)
+  .refine(ids => new Set(ids).size === ids.length);
+export const outlineQuarter = z.string().regex(/^\d{4}-Q[1-4]$/).refine(value =>
+  quarterSchema.safeParse({ year: Number(value.slice(0, 4)), quarter: Number(value.at(-1)) }).success);
+export const outlineFingerprint = z.string().regex(/^[a-f0-9]{64}$/);
+export function outlineDataParameters(buildingIds: string[], period: string) {
+  const ids = outlineBuildingIds.parse(buildingIds), key = outlineQuarter.parse(period);
+  const quarter = quarterSchema.parse({ year: Number(key.slice(0, 4)), quarter: Number(key.at(-1)) });
+  return dynamicParametersSchema.parse({
+    templateId: ids.length === 1 ? "building-profile" : "project-comparison",
+    buildingIds: ids, inventory: "tracked", submarkets: [],
+    period: quarter, start: quarter, end: quarter,
+    fields: ["totalArea", "vacantArea", "netEffectiveRent"],
+    direction: "asc", chart: "table", from: quarter.year + "-01-01",
+    to: quarter.year + "-12-31", leaseSource: "combined", measure: "count",
+  });
+}
 export const outlinePartSchema = z.strictObject({
   mode: z.literal("outline"),
   parts: z.array(generationPartSchema).min(1).max(8),
-  bindings: z.array(z.strictObject({ id, version: z.number().int().positive() })).min(1).max(80),
+  bindings: z.array(z.strictObject({ id, version: z.number().int().positive() })).max(80),
+  dataFingerprint: outlineFingerprint.optional(),
 }).superRefine((outline, ctx) => {
+  const dynamic = outline.parts.filter(part => part.mode === "dynamic");
   const wanted = new Set(outline.parts.flatMap(part => part.mode === "dynamic" ? [] : part.assetIds));
   const pinned = new Set(outline.bindings.map(binding => binding.id));
-  if (outline.parts.some(part => part.mode === "dynamic" || !part.title || part.allowFallback ||
-    new Set(part.assetIds).size !== part.assetIds.length) ||
+  const invalidDynamic = dynamic.some(({ parameters, researchAssetId }) => {
+    const { year, quarter } = parameters.period;
+    if (researchAssetId || !outlineBuildingIds.safeParse(parameters.buildingIds).success) return true;
+    return JSON.stringify(parameters) !== JSON.stringify(outlineDataParameters(parameters.buildingIds, year + "-Q" + quarter));
+  });
+  if (dynamic.length > 1 || Boolean(dynamic.length) !== Boolean(outline.dataFingerprint) || invalidDynamic ||
+    outline.parts.some(part => !part.title || (part.mode !== "dynamic" &&
+      (part.allowFallback || new Set(part.assetIds).size !== part.assetIds.length))) ||
     pinned.size !== outline.bindings.length || pinned.size !== wanted.size ||
     [...wanted].some(assetId => !pinned.has(assetId))) {
-    ctx.addIssue({ code: "custom", message: "Outline must pin every reviewed asset; dynamic or partial sections are not supported" });
+    ctx.addIssue({ code: "custom", message: "Outline must pin every material and the explicitly reviewed building and quarter data" });
   }
 });
 export type OutlinePart = z.infer<typeof outlinePartSchema>;
@@ -92,6 +118,10 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     themeId: z.string().max(100),
     themeVersion: z.number().int().positive(),
     context: projectContextSchema,
+  }),
+  z.strictObject({
+    action: z.literal("review_outline_data"), projectId: id,
+    buildingIds: outlineBuildingIds, period: outlineQuarter,
   }),
   z.strictObject({ action: z.literal("get"), projectId: id }),
   saveSchema,

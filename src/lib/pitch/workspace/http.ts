@@ -18,6 +18,7 @@ import {
   copyWorkspace,
   restoreWorkspace,
   restoreWorkspacePage,
+  reviewOutlineData,
   startWorkspaceTask,
   runWorkspaceTask,
 } from "./workflow";
@@ -82,6 +83,7 @@ export async function handleWorkspaceRequest(
     }
     const c = workspaceCommandSchema.parse(raw);
     if (c.action === "get") return reply(await getWorkspace(ctx, c.projectId));
+    if (c.action === "review_outline_data") return reply(await reviewOutlineData(ctx, c));
     if (c.action === "save") return reply(await saveWorkspace(ctx, c));
     if (c.action === "append") return reply(await appendWorkspace(ctx, c));
     if (c.action === "custom") return reply(await customWorkspace(ctx, c));
@@ -148,7 +150,9 @@ export async function handleWorkspaceRequest(
         {
           code,
           error:
-            code === "PITCH_PAGINATED_EDIT"
+            code === "PITCH_OUTLINE_DATA_CHANGED"
+              ? "关联楼宇或季度已变化，请重新核对提纲里的正式数据。"
+              : code === "PITCH_PAGINATED_EDIT"
               ? "此内容已自动分页，请修改原素材后重新生成整组页面。"
               : code === "PITCH_OBJECT_LAYOUT_RESET_REQUIRED"
                 ? "此页已手动摆放对象。若要重新排版，请先明确恢复自动布局。"

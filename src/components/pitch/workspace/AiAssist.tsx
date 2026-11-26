@@ -7,7 +7,7 @@ import {
   type Understanding,
 } from "@/src/lib/pitch/ai/protocol";
 import type { Generation } from "@/src/lib/pitch/business/protocol";
-import { outlinePartSchema, type OutlinePart } from "@/src/lib/pitch/workspace/protocol";
+import { outlineBuildingIds, outlineQuarter, outlinePartSchema, type OutlinePart } from "@/src/lib/pitch/workspace/protocol";
 import type { PreparedPitch } from "@/src/lib/pitch/ai/routing";
 import type { Call } from "./client";
 import styles from "./workspace.module.css";
@@ -20,7 +20,12 @@ type Asset = {
   reasons: string[];
 };
 type Material = { id: string; version: number; title: string };
-type Section = { id: string; title: string; part: Generation["parts"][number]; materials: Material[] };
+type DataReview = {
+  fingerprint: string;
+  buildings: { id: string; name: string; facts: { label: string; value: string }[] }[];
+  parameters: Extract<Generation["parts"][number], { mode: "dynamic" }>["parameters"];
+};
+type Section = { id: string; title: string; part: Generation["parts"][number]; materials: Material[]; review?: DataReview };
 type Task = {
   id: string;
   state: string;
@@ -168,8 +173,32 @@ export function AiAssist({
       setItems(r.items);
       setSelected([]);
     });
+  const dataReview = sections.find(section => section.review)?.review;
+  const reviewMatches = !dataReview || (
+    period === dataReview.parameters.period.year + "-Q" + dataReview.parameters.period.quarter &&
+    buildingIds.length === dataReview.buildings.length &&
+    buildingIds.every(id => dataReview.buildings.some(building => building.id === id))
+  );
+  const reviewData = () => perform(async (signal) => {
+    const review = await call<DataReview>(
+      { action: "review_outline_data", projectId, buildingIds, period }, true, "workspace", signal,
+    );
+    if (signal.aborted) return;
+    const title = buildingIds.length === 1
+      ? (language === "en" ? "Building profile" : "目标项目概况")
+      : (language === "en" ? "Building comparison" : "所选项目横向对比");
+    const next: Section = { id: "reviewed-building-data", title, materials: [], review,
+      part: { mode: "dynamic", parameters: review.parameters } };
+    setSections(previous => {
+      const existing = previous.findIndex(section => section.id === next.id);
+      if (existing < 0) return [...previous, next];
+      return previous.map((section, i) => i === existing ? { ...next, title: section.title } : section);
+    });
+    setOutlineSent(false);
+  });
   const generateOutline = () =>
     perform(async () => {
+      if (!reviewMatches) throw new Error("关联楼宇或季度已变化，请重新核对正式数据。");
       const pinned = new Map<string, number>();
       for (const section of sections) for (const source of section.materials ?? []) {
         const prior = pinned.get(source.id);
@@ -181,6 +210,7 @@ export function AiAssist({
         mode: "outline",
         parts: sections.map(section => ({ ...section.part, title: section.title })),
         bindings: [...pinned].map(([id, version]) => ({ id, version })),
+        ...(dataReview ? { dataFingerprint: dataReview.fingerprint } : {}),
       });
       if (!result.success) throw new Error("请补全章节标题和对应素材，再重新确认。");
       await onGenerateOutline(result.data);
@@ -376,7 +406,7 @@ export function AiAssist({
                 "ai",
                 signal,
               );
-              setSections(r.sections);
+              setSections(previous => [...r.sections, ...previous.filter(section => section.review)]);
               setOutlineMissing(r.missing ?? []);
               setOutlineSent(false);
               if (!r.sections.length)
@@ -386,6 +416,16 @@ export function AiAssist({
         >
           推荐提纲
         </Button>
+        <p>可用「项目设置」中关联的 1–5 栋楼宇和默认季度，加入正式数据章节。仅限内部使用。</p>
+        <Button
+          variant="secondary"
+          disabled={working || busy || (!dataReview && sections.length >= 8) ||
+            !outlineBuildingIds.safeParse(buildingIds).success || !outlineQuarter.safeParse(period).success}
+          onClick={() => void reviewData()}
+        >
+          {dataReview ? "重新核对正式数据" : "核对并加入正式数据"}
+        </Button>
+        {!reviewMatches && <p role="status">关联楼宇或季度已变化，请重新核对或移除正式数据章节。</p>}
         <ol>
           {sections.map((s, i) => {
             const sectionPart = s.part;
@@ -405,6 +445,16 @@ export function AiAssist({
                   )
                 }
               />
+              {s.review && <div>
+                <p>正式季度：{s.review.parameters.period.year}-Q{s.review.parameters.period.quarter} · 仅限内部</p>
+                <p>缺失值原样标记；不替换楼宇或季度。</p>
+                <ul aria-label="已核对楼宇">
+                  {s.review.buildings.map(building => <li key={building.id}>
+                    <strong>{building.name}</strong>
+                    <ul>{building.facts.map(fact => <li key={fact.label}>{fact.label}：{fact.value}</li>)}</ul>
+                  </li>)}
+                </ul>
+              </div>}
               {s.materials?.length > 0 && <ul aria-label="已选素材">
                 {s.materials.map(material => <li key={material.id}>{material.title} · v{material.version}</li>)}
               </ul>}
@@ -468,7 +518,7 @@ export function AiAssist({
         {outlineSent && <p role="status">提纲已提交为一个生成任务，生成进度见工作区。</p>}
         {!!sections.length && (
           <Button
-            disabled={working || busy || outlineSent || sections.some(section => !section.title.trim())}
+            disabled={working || busy || outlineSent || !reviewMatches || sections.some(section => !section.title.trim())}
             onClick={() => void generateOutline()}
           >
             确认生成 {sections.length} 个板块

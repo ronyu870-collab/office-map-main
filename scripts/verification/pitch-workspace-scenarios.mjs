@@ -216,6 +216,67 @@ export async function verifyPitchWorkspace({
     assert.deepEqual([...new Set(titles)], ["公司资料之一", "市场研究章节"]);
     for (const page of generated.body.slides) assert.ok(page.content.sources.length);
   });
+  await check("mixed reviewed outline is atomic, uses the exact formal quarter and cannot be exported to clients", async () => {
+    const building = randomUUID(), projectId = randomUUID(), period = "2026-Q3";
+    await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,'提纲核对测试楼','CBD','A','tracked')", [building]);
+    await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft)
+      values($1,2026,3,10000,100,1000,false)`, [building]);
+    const created = await workspace(admin, {
+      action: "create", projectId, title: "隔离楼宇与素材混合提案", themeId: "colliers-default-v1",
+      themeVersion: 2, scope, context: { ...context, buildingIds: [building], period },
+    });
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    const command = { action: "review_outline_data", projectId, buildingIds: [building], period };
+    assert.equal((await workspace(other, command)).status, 403);
+    const missing = await workspace(admin, { ...command, period: "2026-Q2" });
+    assert.equal(missing.status, 422, JSON.stringify(missing.body));
+    assert.equal(missing.body.code, "PITCH_OUTLINE_DATA_CHANGED");
+    const review = await workspace(admin, command);
+    assert.equal(review.status, 200, JSON.stringify(review.body));
+    assert.equal(review.body.buildings[0].name, "提纲核对测试楼");
+    assert.ok(review.body.buildings[0].facts.some(fact => fact.value === "10,000"));
+    const version = (await db.query("select current_version from public.pitch_content_assets where id=$1", [ids.corporate])).rows[0].current_version;
+    const outline = { mode: "outline", dataFingerprint: review.body.fingerprint,
+      parts: [
+        { mode: "static", templateId: "corporate-overview", assetIds: [ids.corporate],
+          length: "brief", allowFallback: false, variant: "standard", title: "团队正式素材" },
+        { mode: "dynamic", parameters: review.body.parameters, title: "目标楼宇正式数据" },
+      ], bindings: [{ id: ids.corporate, version }] };
+    const start = { action: "start", projectId, expectedVersion: created.body.project.version, replaceIds: [] };
+    await db.query("update public.buildings set name='提纲换版测试楼' where id=$1", [building]);
+    const staleId = randomUUID();
+    const stale = await workspace(admin, { ...start, taskId: staleId, part: outline });
+    assert.equal(stale.status, 202, JSON.stringify(stale.body));
+    await until(async () => {
+      const r = await workspace(admin, { action: "status", projectId, taskId: staleId });
+      if (r.body.state === "failed") assert.equal(r.body.error_code, "PITCH_OUTLINE_DATA_CHANGED");
+      assert.notEqual(r.body.state, "completed");
+      return r.body.state === "failed";
+    }, "reject changed formal evidence");
+    assert.equal((await workspace(admin, { action: "get", projectId })).body.slides.length, 0);
+    const fresh = await workspace(admin, command);
+    assert.equal(fresh.status, 200, JSON.stringify(fresh.body));
+    assert.notEqual(fresh.body.fingerprint, review.body.fingerprint);
+    const taskId = randomUUID();
+    const begun = await workspace(admin, { ...start, taskId, part: { ...outline, dataFingerprint: fresh.body.fingerprint } });
+    assert.equal(begun.status, 202, JSON.stringify(begun.body));
+    await until(async () => {
+      const r = await workspace(admin, { action: "status", projectId, taskId });
+      assert.notEqual(r.body.state, "failed", JSON.stringify(r.body));
+      return r.body.state === "completed";
+    }, "append both chapters together");
+    const generated = (await workspace(admin, { action: "get", projectId })).body;
+    assert.equal(generated.project.version, created.body.project.version + 1);
+    assert.deepEqual([...new Set(generated.slides.map(slide => slide.content.title))],
+      ["团队正式素材", "目标楼宇正式数据"]);
+    const data = generated.slides.find(page => page.content.title === "目标楼宇正式数据");
+    assert.equal(data.content.dataAsOf, "2026-09-30");
+    assert.ok(data.content.sources.length);
+    assert.match(JSON.stringify(data.content.blocks), /提纲换版测试楼/);
+    assert.equal(generated.workspace.page_settings[data.id].origin, "data");
+    const gates = await db.query("select allow_client_export from public.pitch_content_assets where id=any($1::uuid[])", [generated.slides.map(p => p.asset_id)]);
+    assert.ok(gates.rows.length > 0 && gates.rows.every(asset => asset.allow_client_export === false));
+  });
   await check(
     "workspace HTTP saves configuration, content, order and active page across new requests; stale save returns 409",
     async () => {

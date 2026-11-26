@@ -1672,11 +1672,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
                           ? "项目已更新，请按最新参数重新生成。"
                           : task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED"
                             ? "素材版本已变化，请重新推荐并确认提纲。"
-                            : ""}
+                            : task.error_code === "PITCH_OUTLINE_DATA_CHANGED"
+                              ? "楼宇数据、季度或权限已变化，请重新核对正式数据。"
+                              : ""}
                       </span>
                       <Button
                         variant="secondary"
-                        disabled={(task.attempts ?? 0) >= 3 || task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED"}
+                        disabled={(task.attempts ?? 0) >= 3 || task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED" || task.error_code === "PITCH_OUTLINE_DATA_CHANGED"}
                         onClick={() =>
                           void run(async () => {
                             const r = await call<typeof task>(
