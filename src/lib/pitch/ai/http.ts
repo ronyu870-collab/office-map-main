@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   authorizePitch,
   pitchRpc,
+  type PitchContext,
   type PitchDependencies,
 } from "../data/store";
 import { readQueryBody } from "@/src/lib/intelligence/query/httpBody";
@@ -17,6 +18,7 @@ import {
 } from "./workflow";
 import { recommendAssets, preparePitch, suggestOutline } from "./routing";
 import type { PreviewProposalQuarter } from "./proposal-revision-runtime";
+import type { ProposalExecution } from "./proposal-workflow";
 const headers = {
   "Cache-Control": "private, no-store",
   Vary: "Authorization, x-colliers-impersonate-user",
@@ -29,6 +31,7 @@ export async function handleAiRequest(
   deps: PitchDependencies,
   schedule?: (work: () => Promise<void>) => void,
   previewProposalQuarter?: PreviewProposalQuarter,
+  proposalExecution?: (ctx: PitchContext) => ProposalExecution,
 ) {
   let ctx: Awaited<ReturnType<typeof authorizePitch>> | undefined;
   try {
@@ -76,9 +79,17 @@ export async function handleAiRequest(
     if (c.action === "proposal_plan") {
       const { prepareProposal } = await import("./proposal-runtime");
       const { authorizedProposalModel } = await import("./proposal-model");
-      return reply(await prepareProposal(ctx, c.input, await authorizedProposalModel(ctx, c.input)));
+      return reply(await prepareProposal(ctx, c.input, await authorizedProposalModel(ctx, c.input), proposalExecution?.(ctx).director));
     }
     if (c.action === "proposal_generate") {
+      if (proposalExecution) {
+        const { director, workflow } = proposalExecution(ctx);
+        const { submitConfirmedProposal } = await import("./proposal-workflow");
+        const { authorizedProposalModel } = await import("./proposal-model");
+        const actor = ctx;
+        return reply(await submitConfirmedProposal(c.confirmation, director, workflow, actor.signal,
+          () => authorizedProposalModel(actor, c.confirmation.request)));
+      }
       const { generateConfirmedProposal } = await import("./proposal-generation-runtime");
       return reply(await generateConfirmedProposal(ctx, c.confirmation));
     }
