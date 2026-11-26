@@ -60,7 +60,16 @@ beforeAll(async () => {
       await client.query('set local role authenticated');
       for (const [key, value] of url.searchParams) {
         if (['select', 'order', 'offset', 'limit'].includes(key)) continue;
-        if (key === 'or') { assert.equal(value, '(project_type.neq.future,project_type.is.null)'); filters.push("(project_type<>'future' or project_type is null)"); continue; }
+        if (key === 'or') {
+          if (table === 'building_metrics') {
+            assert.equal(value, '(is_draft.is.null,is_draft.eq.false)');
+            filters.push('(is_draft is null or is_draft=false)');
+          } else {
+            assert.equal(value, '(project_type.neq.future,project_type.is.null)');
+            filters.push("(project_type<>'future' or project_type is null)");
+          }
+          continue;
+        }
         if (value === 'is.null') filters.push(quote(key) + ' is null');
         else {
           assert.ok(value.startsWith('eq.'));
@@ -137,7 +146,9 @@ describe('real GridPanel -> shared Supabase SDK -> loopback Data API test adapte
     expect(response.status).toBe(200);
     const trend = await response.json();
     expect(trend.building_id).toBe('cccccccc-cccc-4ccc-8ccc-000000000002');
-    expect(trend.metrics).toHaveLength(2);
+    expect(trend.metrics).toHaveLength(1);
+    expect((await pool.query('select count(*)::int n from public.building_metrics where building_id=$1', [trend.building_id])).rows[0].n).toBe(2);
+    expect(trend.metrics.every((row: { is_locked: boolean; is_draft: boolean }) => row.is_locked && !row.is_draft)).toBe(true);
     expect(trend.metrics.some((row: { is_locked: boolean; record_quarter: number }) => row.is_locked && row.record_quarter === 2)).toBe(true);
   });
   it('edits the existing project and reads back both names, maps and original ID', async () => {

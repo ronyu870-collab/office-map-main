@@ -6,7 +6,7 @@ type Competitor = {
   name: string;
   location_lng: number;
   location_lat: number;
-  metrics: Array<{ record_year: number; record_quarter: number; vacancy_rate: number | null }>;
+  metrics: Array<{ is_locked: boolean; is_draft: boolean; record_year: number; record_quarter: number; vacancy_rate: number | null }>;
 };
 
 function sample(id: string, vacancy: number | null): Competitor {
@@ -15,7 +15,7 @@ function sample(id: string, vacancy: number | null): Competitor {
     name: id,
     location_lng: 116.45,
     location_lat: 39.91,
-    metrics: [{ record_year: 2026, record_quarter: 3, vacancy_rate: vacancy }],
+    metrics: [{ is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, vacancy_rate: vacancy }],
   };
 }
 

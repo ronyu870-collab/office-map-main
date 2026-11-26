@@ -281,6 +281,11 @@ it('keeps all four metrics visible and updates their values without opening a di
   expect(within(metrics).getByText('146.1')).toBeVisible();
   expect(within(metrics).getByText('601')).toBeVisible();
   expect(within(metrics).queryByText('188.0')).not.toBeInTheDocument();
+  view.update({ mapDataLoading: true });
+  expect(metrics).toHaveAttribute('aria-busy', 'true');
+  expect(within(metrics).getByText('更新中')).toBeVisible();
+  view.update({ mapDataLoading: false, mapReady: true });
+  expect(within(metrics).queryByText('更新中')).not.toBeInTheDocument();
 });
 
 it('explains the visible LEED aggregate colors instead of showing project certification levels at city zoom', async () => {

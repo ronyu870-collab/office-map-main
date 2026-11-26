@@ -32,6 +32,7 @@ type Props = {
   summary: SubmarketSummary;
   buildings: MarketBuilding[];
   futureCount: number;
+  futureArea?: number | null;
   canEdit: boolean;
   suspended?: boolean;
   mapLocationNotice?: string;
@@ -183,7 +184,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
 }
 
 export function SubmarketDetailPanel({
-  name, summary, buildings, futureCount, canEdit, suspended = false, mapLocationNotice, onExitGuardChange, onClose, onShowAll, onOpenBuilding,
+  name, summary, buildings, futureCount, futureArea, canEdit, suspended = false, mapLocationNotice, onExitGuardChange, onClose, onShowAll, onOpenBuilding,
 }: Props) {
   const workspace = React.useContext(WorkspacePanelContext);
   const [detail, setDetail] = React.useState<SubmarketDetailPayload | null>(null);
@@ -236,7 +237,7 @@ export function SubmarketDetailPanel({
   const profile = detail?.profilePublished ? detail.profile : null;
   const draftProfile = detail?.draftProfile ?? detail?.profile;
   const series = detail?.trends?.[grade] ?? [];
-  const { latest, previous, rentChange, vacancyChange, hasTrend } = summarizeSubmarketTrend(series);
+  const { latest, previous, latestRent, latestVacancy, rentChange, vacancyChange, hasTrend } = summarizeSubmarketTrend(series);
 
   const projects = React.useMemo(() => buildings
     .filter(building => normalizeMapSubmarket(building.submarket) === name
@@ -357,8 +358,8 @@ export function SubmarketDetailPanel({
               {currentSection === 'overview' ? (
                 <div className="space-y-4 sm:space-y-5">
                   <section data-workspace-summary aria-label="市场核心指标" className="submarket-core-metrics">
-                    {metric('平均净有效租金', number(summary.rent), '元/㎡/月', '有效样本 ' + summary.rentSampleCount + ' 个')}
-                    {metric('平均空置率', number(summary.vacancyPct), '%', '有效样本 ' + summary.vacancySampleCount + ' 个')}
+                    {metric('平均净有效租金', number(summary.rent), '元/㎡/月', '有效样本 ' + summary.rentSampleCount + ' 个 · 面积覆盖 ' + (summary.rentCoverage.area == null ? '—' : (summary.rentCoverage.area * 100).toFixed(0) + '%'))}
+                    {metric('平均空置率', number(summary.vacancyPct), '%', '有效样本 ' + summary.vacancySampleCount + ' 个 · 面积覆盖 ' + (summary.vacancyCoverage.area == null ? '—' : (summary.vacancyCoverage.area * 100).toFixed(0) + '%'))}
                     {metric('甲乙级项目', summary.officeCount.toLocaleString('zh-CN'), '个', '甲级 ' + summary.gradeACount + ' · 乙级 ' + summary.gradeBCount)}
                   </section>
 
@@ -372,7 +373,7 @@ export function SubmarketDetailPanel({
                       </p>
                     ) : (
                       <p className="mb-0 mt-1.5 text-[14px] leading-5 text-[#64748b]">
-                        聚焦已收录甲乙级写字楼的租金、空置率与楼宇构成。
+                        当前筛选内甲乙级项目的最新已发布状态，与地图气泡口径一致。
                       </p>
                     )}
                   </section>
@@ -453,7 +454,7 @@ export function SubmarketDetailPanel({
                     </section>
                   ) : null}
                   <p className="m-0 px-1 text-[14px] leading-5 text-[#64748b]">
-                    核心指标按各楼宇最新有效季度面积加权，趋势图按同季度样本计算；产业园另计 {summary.parkCount} 个，未来供应另计 {futureCount} 个，均不包含在甲乙级样本内。
+                    核心指标与地图气泡使用当前筛选范围，按各楼宇最新已发布记录面积加权；趋势图为完整授权子市场的同季度行情，不受当前筛选影响；产业园另计 {summary.parkCount} 个，未来供应另计 {futureCount} 个（收录面积 {futureArea == null ? '—' : number(futureArea, 0)} ㎡），均不包含在甲乙级样本内。
                   </p>
                 </div>
               ) : currentSection === 'trend' ? (
@@ -495,7 +496,7 @@ export function SubmarketDetailPanel({
                     {metric('最新有效样本', latest ? String(latest.rentSamples) : '—', '个（租金）', '空置样本 ' + (latest ? latest.vacancySamples : '—') + ' 个')}
                   </section> : null}
                   <p className="m-0 px-1 text-[14px] leading-5 text-[#64748b]">
-                    数据来自正式季度记录，按同季度有效面积加权；缺失不补零。各期样本可能不同，变化不代表同一楼宇的租金变动。
+                    完整授权子市场 · 已锁定且非草稿的同季度记录，缺失不补零；按当前楼宇归属及等级重算历史，未保存历史分类。各期样本可能不同。租金最新 {latestRent?.period ?? '未收录'}，空置率最新 {latestVacancy?.period ?? '未收录'}；单一样本不计算变化。
                   </p>
                 </div>
               ) : currentSection === 'profile' && profile ? (

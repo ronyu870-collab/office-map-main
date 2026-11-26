@@ -4,7 +4,7 @@ export async function verifyBubbleScope(page,{width,base}) {
   const rows=[['a','筛选甲楼',100,.1],['b','筛选乙楼',300,.3]].map(([id,name,rent,vacancy],index)=>({
     id:`scope-${id}`,name,submarket:'CBD',district:'朝阳区',grade:'A',leed_certification:'Gold',
     location_lng:116.46+index*.01,location_lat:39.91,
-    building_metrics:[{id:`scope-metric-${id}`,building_id:`scope-${id}`,record_year:2026,record_quarter:3,
+    building_metrics:[{id:`scope-metric-${id}`,building_id:`scope-${id}`,is_locked:true,is_draft:false,record_year:2026,record_quarter:3,
       net_effective_rent:rent,vacancy_rate:vacancy,total_area:100000,vacant_area:vacancy*100000}],
   }));
   await page.route('**/api/map/data?*',route=>{

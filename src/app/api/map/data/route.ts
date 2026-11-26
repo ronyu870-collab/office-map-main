@@ -1,3 +1,4 @@
+import { loadMapInventory, loadTrackedBuildings } from '@/src/lib/server/mapInventoryRead';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -7,6 +8,7 @@ import { parseUserRole, type UserRole } from '@/src/types/auth';
 import { resolveBuildingId } from '@/src/services/buildingIdentity';
 import { isEnteredFutureSupply, isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { readBuildingPhotoCatalog } from '@/src/lib/building-photos/catalog';
+import { latestFormalMetric, MARKET_CONTRACT_VERSION } from '@/src/app/map/model/quarterlyFacts';
 import { MAX_COMPARE_SELECTION } from '@/src/lib/compareReadContract';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +40,12 @@ const MAP_BUILDING_SELECT = `
     vacancy_rate,
     vacant_area,
     record_year,
-    record_quarter
+    record_quarter,
+    is_locked,
+    is_draft,
+    updated_at,
+    created_at,
+    data_source
   )
 `;
 
@@ -49,10 +56,15 @@ const COMPARE_BUILDING_SELECT = `
   submarket,
   district,
   building_metrics (
+    id,
     building_id,
     record_year,
     record_quarter,
     created_at,
+    updated_at,
+    is_locked,
+    is_draft,
+    data_source,
     total_area,
     asking_rent,
     management_fee,
@@ -88,28 +100,6 @@ function filterRowsForRole(rows: Row[] | null | undefined, role: UserRole): Row[
   return (rows ?? []).filter(row => rowVisibleForRole(row, role));
 }
 
-function loadTrackedBuildings(
-  admin: SupabaseClient,
-  selectClause: string,
-  latestMetricsOnly: boolean,
-) {
-  let query = admin
-    .from('buildings')
-    .select(selectClause)
-    .eq('is_active', true)
-    .eq('tracking_scope', 'tracked')
-    .or('project_type.neq.future,project_type.is.null');
-
-  if (latestMetricsOnly) {
-    query = query
-      .order('record_year', { referencedTable: 'building_metrics', ascending: false })
-      .order('record_quarter', { referencedTable: 'building_metrics', ascending: false })
-      .limit(1, { referencedTable: 'building_metrics' });
-  }
-
-  return query;
-}
-
 function noStoreJson(body: unknown, init?: ResponseInit) {
   const response = NextResponse.json(body, init);
   response.headers.set('Cache-Control', 'private, no-store, max-age=0');
@@ -135,7 +125,7 @@ export async function GET(request: NextRequest) {
     if (mode === 'map') {
       const latestMetricsOnly = params.get('metrics') !== 'all';
       const [buildingsResult, overridesResult, photos] = await Promise.all([
-        timing.measure('database', () => loadTrackedBuildings(admin, MAP_BUILDING_SELECT, latestMetricsOnly)),
+        timing.measure('database', () => loadMapInventory(admin, MAP_BUILDING_SELECT, latestMetricsOnly)),
         timing.measure('overrides', () => admin
           .from('building_display_overrides')
           .select('building_id, field_name, display_label, display_value')),
@@ -157,7 +147,7 @@ export async function GET(request: NextRequest) {
       const displayOverrides = (overridesResult.data ?? [])
         .filter(row => allowedIds.has(String(row.building_id)));
 
-      return success({ buildings, display_overrides: displayOverrides });
+      return success({ buildings, display_overrides: displayOverrides, marketContract: { version: MARKET_CONTRACT_VERSION, scope: 'authorized_market', method: 'latest_formal_per_building', membershipTime: 'current_catalog', source: 'building_metrics', publication: 'locked_non_draft' } });
     }
 
     if (mode === 'future') {
@@ -266,7 +256,9 @@ export async function GET(request: NextRequest) {
 
       const { data: metrics, error: metricError } = await admin
         .from('building_metrics')
-        .select('record_year, record_quarter, net_effective_rent, vacancy_rate')
+        .select('id,building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,vacancy_rate,is_locked,is_draft,updated_at,created_at,data_source')
+        .eq('is_locked', true)
+        .or('is_draft.is.null,is_draft.eq.false')
         .eq('building_id', buildingId)
         .order('record_year', { ascending: false })
         .order('record_quarter', { ascending: false });
@@ -277,7 +269,13 @@ export async function GET(request: NextRequest) {
       }
 
       timing.finish('database', databaseStarted);
-      return success({ building_id: buildingId, metrics: metrics ?? [] });
+      const byPeriod = new Map<string, Row>();
+      for (const metric of metrics ?? []) {
+        const key = `${metric.record_year}Q${metric.record_quarter}`;
+        const selected = latestFormalMetric([...(byPeriod.has(key) ? [byPeriod.get(key)!] : []), metric]);
+        if (selected) byPeriod.set(key, selected);
+      }
+      return success({ building_id: buildingId, metrics: [...byPeriod.values()] });
     }
 
     return noStoreJson({ error: 'Unsupported map data mode' }, { status: 400 });

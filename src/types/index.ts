@@ -27,6 +27,11 @@ export interface Building {
 }
 
 export interface BuildingMetric {
+  is_locked?: boolean | null;
+  is_draft?: boolean | null;
+  updated_at?: string | null;
+  created_at?: string | null;
+  data_source?: string | null;
   id: string;
   building_id: string;
 

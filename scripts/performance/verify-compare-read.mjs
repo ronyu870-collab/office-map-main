@@ -15,7 +15,7 @@ const expires_at = Math.floor(Date.now() / 1000) + 3600;
 const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
 const token = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: user.id, exp: expires_at, aud: 'authenticated', session_id: user.id })}.fixture`;
 const authSession = { user, expires_at, expires_in: 3600, token_type: 'bearer', refresh_token: 'synthetic', access_token: token };
-const project = (id, name) => ({ id, name, grade: 'A', submarket: 'CBD', building_metrics: [{ record_year: 2026, record_quarter: 3, vacancy_rate: 0.15 }] });
+const project = (id, name) => ({ id, name, grade: 'A', submarket: 'CBD', building_metrics: [{ is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, vacancy_rate: 0.15 }] });
 const buildings = [project('target', 'Target Tower'), project('peer', 'Peer Tower'), project('other', 'Other Plaza'),
   ...Array.from({ length: 619 }, (_, index) => ({ ...project(`candidate-${index}`, `Zed ${index}`), grade: 'B', submarket: 'Outer' }))];
 const catalog = buildings.map(({ id, name, grade, submarket }) => ({ id, name, grade, submarket }));

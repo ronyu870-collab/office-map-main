@@ -5,12 +5,12 @@ import { emptySubmarketProfile, submarketProfileSchema } from './submarketProfil
 
 describe('submarket office inventory and summary', () => {
   const buildings = [
-    { id: 'a', submarket: 'CBD', grade: 'A', metrics: [{ record_year: 2026, record_quarter: 3, total_area: 100, net_effective_rent: 100, vacancy_rate: .1 }] },
-    { id: 'b', submarket: 'CBD', grade: 'B', metrics: [{ record_year: 2026, record_quarter: 3, total_area: 300, net_effective_rent: 200, vacancy_rate: .3 }] },
-    { id: 'p', submarket: 'CBD', grade: 'P', metrics: [{ record_year: 2026, record_quarter: 3, total_area: 200, net_effective_rent: 150, vacant_area: 0 }] },
-    { id: 'bp', submarket: 'CBD', grade: 'BP', metrics: [{ record_year: 2026, record_quarter: 3, total_area: 400, net_effective_rent: 999, vacancy_rate: .9 }] },
+    { id: 'a', submarket: 'CBD', grade: 'A', metrics: [{ is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, total_area: 100, net_effective_rent: 100, vacancy_rate: .1 }] },
+    { id: 'b', submarket: 'CBD', grade: 'B', metrics: [{ is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, total_area: 300, net_effective_rent: 200, vacancy_rate: .3 }] },
+    { id: 'p', submarket: 'CBD', grade: 'P', metrics: [{ is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, total_area: 200, net_effective_rent: 150, vacant_area: 0 }] },
+    { id: 'bp', submarket: 'CBD', grade: 'BP', metrics: [{ is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, total_area: 400, net_effective_rent: 999, vacancy_rate: .9 }] },
     { id: 'n', submarket: 'CBD', grade: 'UNKNOWN', metrics: [] },
-    { id: 'null-rent', submarket: 'CBD', grade: 'B', metrics: [{ record_year: 2026, record_quarter: 3, total_area: 100, net_effective_rent: null, vacancy_rate: 0 }] },
+    { id: 'null-rent', submarket: 'CBD', grade: 'B', metrics: [{ is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, total_area: 100, net_effective_rent: null, vacancy_rate: 0 }] },
     { id: 'a', submarket: 'CBD', grade: 'A', metrics: [] },
   ];
 
@@ -52,12 +52,12 @@ describe('same-quarter historical trends', () => {
     { id: 'a', grade: 'A' }, { id: 'b', grade: 'B' }, { id: 'park', grade: 'BP' },
   ];
   const rows = [
-    { building_id: 'a', record_year: 2025, record_quarter: 1, total_area: 100, net_effective_rent: 100, vacancy_rate: .1 },
-    { building_id: 'b', record_year: 2025, record_quarter: 1, total_area: 300, net_effective_rent: 200, vacancy_rate: .2 },
-    { building_id: 'park', record_year: 2025, record_quarter: 1, total_area: 500, net_effective_rent: 1000, vacancy_rate: 1 },
-    { building_id: 'a', record_year: 2025, record_quarter: 2, total_area: 100, net_effective_rent: 110, vacancy_rate: 0 },
-    { building_id: 'b', record_year: 2025, record_quarter: 2, total_area: 300, net_effective_rent: 190, vacant_area: 60 },
-    { building_id: 'a', record_year: 2025, record_quarter: 3, total_area: 100, net_effective_rent: 0, is_draft: true },
+    { building_id: 'a', is_locked: true, is_draft: false, record_year: 2025, record_quarter: 1, total_area: 100, net_effective_rent: 100, vacancy_rate: .1 },
+    { building_id: 'b', is_locked: true, is_draft: false, record_year: 2025, record_quarter: 1, total_area: 300, net_effective_rent: 200, vacancy_rate: .2 },
+    { building_id: 'park', is_locked: true, is_draft: false, record_year: 2025, record_quarter: 1, total_area: 500, net_effective_rent: 1000, vacancy_rate: 1 },
+    { building_id: 'a', is_locked: true, is_draft: false, record_year: 2025, record_quarter: 2, total_area: 100, net_effective_rent: 110, vacancy_rate: 0 },
+    { building_id: 'b', is_locked: true, is_draft: false, record_year: 2025, record_quarter: 2, total_area: 300, net_effective_rent: 190, vacant_area: 60 },
+    { building_id: 'a', is_locked: true, record_year: 2025, record_quarter: 3, total_area: 100, net_effective_rent: 0, is_draft: true },
   ];
 
   it('uses a single common quarterly axis, never joins different latest periods', () => {
@@ -79,7 +79,7 @@ describe('same-quarter historical trends', () => {
   });
 
   it('returns no fake chart when only draft metrics exist', () => {
-    expect(computeSubmarketTrends(members, [{ building_id: 'a', record_year: 2026, record_quarter: 3, is_draft: true }]).all).toHaveLength(0);
+    expect(computeSubmarketTrends(members, [{ building_id: 'a', is_locked: true, record_year: 2026, record_quarter: 3, is_draft: true }]).all).toHaveLength(0);
   });
 });
 

@@ -50,7 +50,7 @@ const stock = [
   { id: 'other', name: '中关村楼·' + '超长项目名称及楼座信息'.repeat(6), submarket: '中关村', location_lng: 116.32, location_lat: 39.98 },
   { id: 'missing', name: '未定位楼', submarket: 'CBD', location_lng: null, location_lat: null },
   { id: 'invalid', name: '坐标越界楼', submarket: 'CBD', location_lng: 40, location_lat: 116 },
-].map(building => ({ ...building, grade: 'A', district: '朝阳区', building_metrics: [{ id: `m-${building.id}`, building_id: building.id, record_year: 2026, record_quarter: 3, total_area: 9019486, net_effective_rent: 146.1, vacancy_rate: .211 }] }));
+].map(building => ({ ...building, grade: 'A', district: '朝阳区', building_metrics: [{ id: `m-${building.id}`, building_id: building.id, is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, total_area: 9019486, net_effective_rent: 146.1, vacancy_rate: .211 }] }));
 // Unknown financial fields and an older period exercise reading/export semantics.
 Object.assign(stock[1].building_metrics[0], { total_area: null, net_effective_rent: null, face_rent: null,
   management_fee: null, record_year: 2025, record_quarter: 4 });
@@ -159,7 +159,7 @@ try {
       await page.locator('#map-container [data-building-id="10000000-1111-4111-8111-111111111111"]').first().waitFor();
       assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true');
       const liveStats = page.getByRole('region', { name: '市场实时指标', exact: true });
-      await liveStats.getByText('项目', { exact: true }).waitFor();
+      await liveStats.getByText('有坐标项目', { exact: true }).waitFor();
       assert.equal(await liveStats.locator('summary,button').count(), 0, 'metrics have no explanation trigger');
       const metricBounds = await liveStats.boundingBox();
       assert.ok(metricBounds.x >= 0 && metricBounds.x + metricBounds.width <= width, 'metrics fit the viewport');
@@ -535,7 +535,7 @@ try {
       await page.waitForFunction(() => document.querySelector('.map-selected-marker__badge')?.naturalWidth > 0);
       assert.ok(decodeURIComponent(await futureBadge.getAttribute('src')).includes('>F</text>'), 'selected future has a visible identity badge');
       assert.equal(await page.getByRole('tab',{name:'行情',exact:true}).count(),0);
-      assert.equal(await page.getByText('净有效租金',{exact:true}).count(),1,'only the global market metric remains, not a future project rent');
+      assert.equal(await page.getByText('筛选存量净有效租金',{exact:true}).count(),1,'only the global market metric remains, not a future project rent');
       assert.match(await page.getByRole('region',{name:'规划指标'}).locator('dd').innerText(),/^80,000\s*㎡$/);
       await page.getByRole('tab', { name: '概览',exact:true }).press('ArrowLeft');
       assert.equal(await page.getByRole('tab', { name: '项目资料' }).getAttribute('aria-selected'),'true');
@@ -610,7 +610,7 @@ try {
         await choices.getByRole('button', { name: '清空关键词', exact: true }).click();
         assert.equal(await search.inputValue(), '');
         assert.ok(await search.evaluate(el => el === document.activeElement));
-        await liveStats.getByText('项目', { exact: true }).waitFor();
+        await liveStats.getByText('有坐标项目', { exact: true }).waitFor();
         await page.keyboard.press('Escape');
         await page.setViewportSize({ width, height });
         await page.waitForTimeout(350);
