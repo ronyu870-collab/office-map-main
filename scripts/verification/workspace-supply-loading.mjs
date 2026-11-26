@@ -22,7 +22,7 @@ export async function verifySupplyLoading(page,{base,width,role=width===1024?'ad
     assert.equal(await supply.getAttribute('aria-busy'),'true','pending supply read is not an empty calendar');
     await supply.getByRole('status').filter({hasText:'正在读取未来供应'}).waitFor();
     assert.equal(await supply.getByText(/暂无已确认供应/).count(),0);
-    assert.equal(await supply.getByText(/0 个项目/).count(),0);
+    assert.equal(await supply.locator('.workspace-panel-subtitle').filter({hasText:/^0 个项目$/}).count(),0);
     assert.equal(await supply.getByText(/查看无项目年份/).count(),0);
     releaseFuture();
     await supply.getByRole('status').filter({hasText:'暂无已确认供应'}).waitFor();

@@ -20,7 +20,7 @@ export async function verifyProjectTrendReturn(page,{width,base}) {
   const chart=detail.getByRole('region',{name:'项目历史趋势',exact:true});
   await chart.locator('canvas').waitFor();
   await chart.getByRole('button',{name:'空置率',exact:true}).click();
-  const disclosure=chart.locator('details');await disclosure.locator('summary').click();
+  const disclosure=chart.locator('.workspace-trend-data');await disclosure.locator('summary').click();
   await chart.getByRole('table').getByRole('row').last().scrollIntoViewIfNeeded();
   const geometry=()=>{const root=document.querySelector('.workspace-building'),scroll=root.querySelector('.workspace-scroll'),host=root.querySelector('#info-chart-panel').parentElement;return {scrollHeight:scroll.scrollHeight,clientHeight:scroll.clientHeight,hostHeight:host.getBoundingClientRect().height,busy:host.getAttribute('aria-busy'),minHeight:host.style.minHeight};};
   const beforeGeometry=await page.evaluate(geometry);

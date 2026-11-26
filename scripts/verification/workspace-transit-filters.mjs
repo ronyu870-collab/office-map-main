@@ -110,7 +110,8 @@ export async function verifyTransitFilters(page, { width, height, stock }) {
     await all.check(); await all.uncheck();
     await count(0);
     await page.getByRole('button', { name: '项目列表', exact: true }).click();
-    await list.getByText('当前地图筛选无匹配项目，可调整筛选条件。', { exact: true }).waitFor();
+    await list.getByText('当前地图筛选无匹配项目', { exact: true }).waitFor();
+    await list.getByRole('button', { name: '调整地图筛选', exact: true }).waitFor();
     await list.getByRole('button', { name: '关闭列表', exact: true }).click();
     await showFilters(); await all.check(); await count(2);
     if (name !== '子市场') await toggleSection(name, false);
