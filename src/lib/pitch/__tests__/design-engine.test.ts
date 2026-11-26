@@ -79,6 +79,10 @@ describe('Pitch design candidates', () => {
     const input = imageFromResolvedVisual({ reference, media: file }, { fit: 'cover', focalX: .5, focalY: .1 });
     expect(input.block).toMatchObject({ fit: 'contain', sourceIds: [reference.source.id] });
     expect(input.block.focus).toBeUndefined();
+    const unspecifiedPlacement = { ...input.block, fit: undefined };
+    const unannotated = { ...content, isTestData: false, sources: [{ ...reference.source, kind: 'record' as const }], blocks: [unspecifiedPlacement] };
+    const [fallback] = await layoutSlides(unannotated, editorial, 'cover');
+    expect(fallback.elements.find(e => e.kind === 'image')).toMatchObject({ fit: 'contain' });
     const [scene] = await layoutSlides({ ...content, blocks: [input.block] }, editorial, 'cover');
     expect(scene.elements.find(e => e.kind === 'image')).toMatchObject({ fit: 'contain' });
     const svg = await renderSceneSvg(scene, editorial, [file]);
