@@ -217,5 +217,41 @@ try {
   const before=await db.rpc(OWNER,{action:'get_project',projectId:studioProject}),after=await db.rpc(OWNER,{action:'get_project',projectId:next});
   assert.equal(after.slides.length,12);assert.deepEqual(after.slides.map(s=>s.content),before.slides.map(s=>s.content));assert.equal(after.slides[11].scene.elements.find(e=>e.purpose==='footer').text,'12');assert.equal(after.project.parent_project_id,studioProject);
  });
+ await check('workspace save, reopen and revision retain the exact visual receipt in existing source snapshots',async()=>{
+  const {getWorkspace}=require('../../../src/lib/pitch/workspace/workflow.ts');
+  const {layoutSlides}=require('../../../src/lib/pitch/layout/engine.ts');
+  const {digest}=require('../../../src/lib/pitch/data/store.ts');
+  const {pinVisual}=require('../../../src/lib/pitch/visual-data/reference.ts');
+  const {getVisualPageReceipts}=require('../../../src/lib/pitch/visual-data/resolve.ts');
+  const project=randomUUID(),visualAsset=randomUUID();
+  await db.rpc(OWNER,{action:'workspace_create',projectId:project,title:'视觉引用往返',scope,context:{},
+   themeId:STUDIO_THEME.id,themeVersion:STUDIO_THEME.version});
+  const current=await getWorkspace(owner,project),buildingId=randomUUID();
+  const reference=pinVisual({id:randomUUID(),kind:'map',buildingIds:[buildingId],origin:{type:'building-locations',buildingIds:[buildingId]},
+   contentHash:'a'.repeat(64),dimensions:{width:1920,height:1080},businessDate:null,sourceDateBasis:'catalog-observed',disclosure:'internal',
+   rights:{scope:'internal',holder:null,attribution:'隔离楼宇目录',licenseName:null,sourceUrl:null,licenseUrl:null,
+    cropAllowed:false,clientDistribution:false,externalAi:false},
+   source:{kind:'record',recordId:buildingId,label:'隔离楼宇目录',locator:'来源测试',dataAsOf:'2026-11-27'}},'isolated-source');
+  const content={protocol:'colliers-pitch/1',locale:'zh',title:'区位图来源复核',disclosure:'internal',isTestData:true,
+   dataAsOf:reference.source.dataAsOf,sources:[reference.source],
+   blocks:[{kind:'paragraph',text:'隔离记录',sourceIds:[reference.source.id]}]};
+  await db.rpc(OWNER,{action:'workspace_custom',projectId:project,assetId:visualAsset,content,
+   sha256:digest(Buffer.from(JSON.stringify(content)))});
+  const [scene]=await layoutSlides(content,STUDIO_THEME,'two-columns');
+  const slideId=randomUUID();
+  const save=workspace=>db.rpc(OWNER,{action:'workspace_save',projectId:project,expectedVersion:workspace.project.version,
+   title:workspace.project.title,themeId:STUDIO_THEME.id,themeVersion:STUDIO_THEME.version,activeSlide:slideId,
+   context:workspace.workspace.context,settings:{},slides:[{id:slideId,assetId:visualAsset,assetVersion:1,
+    templateId:STUDIO_TEMPLATE.id,templateVersion:1,content,scene}]});
+  await save(current);
+  const reopened=await getWorkspace(owner,project);
+  assert.deepEqual(getVisualPageReceipts(reopened.slides.map(slide=>slide.content)),[reference.source.visual]);
+  const persisted=(await db.setup.query('select source_snapshot from pitch_project_slides where project_id=$1',[project])).rows[0].source_snapshot;
+  assert.deepEqual(persisted,[reference.source]);
+  await save(reopened);
+  const revision=await db.rpc(OWNER,{action:'workspace_revision',projectId:project,revision:reopened.project.version});
+  assert.deepEqual(revision.slides[0].source_snapshot,[reference.source]);
+  await assert.rejects(getWorkspace(ctx(OTHER),project),/PITCH_DENIED/);
+ });
  console.log(`PASS ${count} Pitch Studio PostgreSQL 17 and application workflow scenarios; synthetic isolated data only`);
 }finally{await db.close();}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { visualReferenceReceiptSchema } from './visual-reference';
 
 export const PROTOCOL = 'colliers-pitch/1' as const;
 export const lifecycleSchema = z.enum(['draft', 'pending_review', 'published', 'archived']);
@@ -10,8 +11,10 @@ export const sourceReferenceSchema = z.strictObject({
   id: z.uuid(), kind: z.enum(['document', 'record', 'synthetic']), label: z.string().min(1).max(300),
   documentId: z.uuid().optional(), pageId: z.uuid().optional(), recordId: z.string().max(200).optional(),
   locator: z.string().min(1).max(300), version: z.string().min(1).max(100), sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-  dataAsOf: z.iso.date(),
-}).refine(v => v.kind !== 'document' || Boolean(v.documentId), 'Document evidence requires documentId');
+  dataAsOf: z.iso.date(), visual: visualReferenceReceiptSchema.optional(),
+}).refine(v => v.kind !== 'document' || Boolean(v.documentId), 'Document evidence requires documentId')
+  .refine(v => !v.visual || v.kind === 'record' && v.sha256 === v.visual.contentHash && v.version === v.visual.versionHash,
+    { message: 'Visual receipt does not match its original source', path: ['visual'] });
 export type SourceReference = z.infer<typeof sourceReferenceSchema>;
 const text = z.string().min(1).max(4000);
 const refs = z.array(z.uuid()).min(1).max(30);
@@ -37,6 +40,10 @@ export const slideContentSchema = z.strictObject({
   const ids = new Set(v.sources.map(s => s.id));
   if (ids.size !== v.sources.length) ctx.addIssue({ code: 'custom', message: 'Duplicate evidence IDs' });
   if (!v.isTestData && v.sources.some(s => s.kind === 'synthetic')) ctx.addIssue({ code: 'custom', message: 'Synthetic evidence must be marked as test data' });
+  if (v.sources.some(s => s.visual && (v.disclosure === 'client_approved'
+    || (s.visual.kind === 'stacking-plan' || s.visual.origin.type === 'stacking-snapshot') && v.disclosure !== 'restricted'))) {
+    ctx.addIssue({ code: 'custom', path: ['sources'], message: 'Visual source requires its original disclosure level' });
+  }
   for (const b of v.blocks) {
     if (b.sourceIds.some(id => !ids.has(id))) ctx.addIssue({ code: 'custom', message: 'Missing source reference' });
     if (b.kind === 'table' && b.rows.some(r => r.length !== b.columns.length)) ctx.addIssue({ code: 'custom', message: 'Table shape mismatch' });
@@ -53,5 +60,6 @@ export const assetInputSchema = z.strictObject({
   validFrom: z.iso.date().nullable(), validUntil: z.iso.date().nullable(),
 }).refine(v => !v.validFrom || !v.validUntil || v.validFrom <= v.validUntil, 'Invalid validity period')
   .refine(v => !v.allowClientExport || v.content.disclosure === 'client_approved', 'Client disclosure requires approval')
+  .refine(v => !v.allowExternalAi || v.content.sources.every(source => !source.visual), 'Visual sources are limited to internal rendering')
   .refine(v => !v.content.isTestData || !v.allowClientExport && !v.allowExternalAi, 'Test data cannot be sent to clients or AI');
 export type ContentAssetInput = z.infer<typeof assetInputSchema>;

@@ -1,6 +1,6 @@
 # Pitch Studio 3.0 房地产视觉资产
 
-视觉资产以共同提交 `820a793a` 的 [VisualAssetReference](../../src/lib/pitch/integration-contracts.ts) 交接。视觉数据由服务端根据当前项目与来源授权取得。工作台保留完整 `PinnedVisualReference`，其中包括恢复查询所需的 `origin`、原内容摘要、尺寸、日期口径和使用许可。渲染界面与导出共用 [resolvePitchVisualAsset](../../src/lib/pitch/visual-data/resolve.ts)，并按 `id`／`version` 将返回的 `SceneMedia` 传给现有渲染器。解析使用当前服务端权限和真实来源，校验已锁定的版本和完整哈希。系统拒绝用新版本静默替换已确认的来源。
+视觉资产以共同提交 `820a793a` 的 [VisualAssetReference](../../src/lib/pitch/integration-contracts.ts) 交接。视觉数据由服务端根据当前项目与来源授权取得。页面现有的 `source_snapshot` 持久化 `SourceReference.visual`，其中包含原内容摘要、媒体 ID、版本和重新查询所需的 `origin`。当前授权下重新解析可取得完整 `PinnedVisualReference`，包括尺寸、日期口径和许可。渲染界面与导出共用 [resolvePitchVisualAsset](../../src/lib/pitch/visual-data/resolve.ts)，按 `id`／`version` 将实际需要的 `SceneMedia` 传给渲染器。系统拒绝用新版本静默替换已确认的来源。
 
 ## 服务端入口
 
@@ -12,6 +12,7 @@
 | `readProposalVisualMaterials` | 接受已确认的提案简报和获权业务上下文中的楼宇列表。按场景取得封面、楼宇照片、目标区位、竞品分布或市场区位。直接作为提案组装器的 `ProposalMaterials` 输入，同时按媒体 ID 提供封面及图组的适配参数。仅在调用方显式请求时读管理员历史堆叠图。 |
 | `readStackingAppendix` | 管理员专用。生成保留 `restricted` 披露等级、历史业务日期和来源的页面内容，附带完整适配的预览／导出场景。页面内容仅保存摘要及锁定的图片引用。 |
 | `withAuditedStackingDelivery` | 使用选定已保存页面或交付清单中的完整引用。按楼宇写入来源模块的关键审计，交付前后复核管理员和精确版本。审计完成未获确认时返回 503，权限撤回或引用失效时拒绝释放制品。 |
+| `getVisualPageReceipts` / `resolveVisualPageMedia` | 直接从选定的持久化页面来源抽取锁定引用，用同一权限入口解析，即使该来源只用于原生图形。历史租户数据和图片字节都留在服务端来源链路。 |
 | `resolveReferencedVisualMedia` | 工作流传入已获权页面保存的完整视觉引用，以及 `sceneMediaReferences` 列出的所需媒体。每个引用复核一次，包括没有图片对象的原生 Stacking Plan。返回实际需要的图片字节，普通素材库图片沿用原媒体读取。 |
 | `resolvePitchVisualAsset` | 在当前会话重读、复核并恢复用户已确认的引用。照片输出可直接嵌入 PPTX 的 JPEG／PNG 字节；区位图输出 PNG；历史堆叠图优先交付结构，可按需取同版本的 PNG。 |
 
@@ -25,7 +26,7 @@
 - 地图读取同一楼宇目录，沿用现有地图展示坐标并投影计算位置和近似图尺。来源日期字段记录目录观察日，业务日期保持未知。示意图仅画自有楼宇点位及目录中的子市场分组。高德静态底图商业嵌入权限和独立的子市场边界几何未获确认，图上明确标明无底图，子市场分布图明确标明无边界。见[高德静态地图文档](https://lbs.amap.com/api/webservice/guide/api/staticmaps/)和[开放平台服务协议](https://lbs.amap.com/pages/terms/)。
 - 霄云路33号 A/B 座资料使用来源日期和独立单元核验状态。面积与分配沿用 Stacking Plan 现有模型。历史来源的空置标记随图标注，不进入当前库存；缺日期或未通过来源审查的空置标记按待确认显示，结构仍保留原标记。源表缺少可核验行业字段，返回 `null`。原件路径、合同租金和内部备注不进入 Pitch 结构。
 
-旧版 `competition-map`、`stacking-plan` 在组合、保存及下载复核全部使用同一引用以前保留原可用性。通用提案和 AI 继续排除 `restricted`。管理员附页应在确认后的服务端阶段加入，随页面保存完整视觉引用，并在重开或预览时重新解析。发布候选的 `pitch_delivery_blockers` 当前会拒绝所有 `restricted` 页面。交付工作流需先绑定所选页的来源权限，再通过 `withAuditedStackingDelivery` 包装既有导出或下载准备过程。异步导出只有取得审计成功结果后才能标记制品为可下载。
+旧版 `competition-map`、`stacking-plan` 在组合、保存及下载复核全部使用同一引用以前保留原可用性。通用提案和 AI 继续排除 `restricted`。管理员附页应在确认后的服务端阶段加入，重开或预览时从页面来源读取和复核。专用视觉图片仍需在工作流的生成和交付阶段接入源解析。发布候选的 `pitch_delivery_blockers` 当前会拒绝所有 `restricted` 页面。交付工作流需先绑定所选页的来源权限，再通过 `withAuditedStackingDelivery` 包装既有导出或下载准备过程。异步导出只有取得审计成功结果后才能标记制品为可下载。
 
 ## 四项资料复验
 
@@ -37,3 +38,5 @@
 | 北京季度报告 | 正式目录只读复验全市 622 栋、621 个有效点位及 17 个子市场。锁定版本可重复解析，在发布候选渲染器中验证 PDF 嵌入。目录观察日与季度业务时间分别保留。 |
 
 照片和坐标使用有来源可追溯的本地证据。生产私有桶未访问，应用服务授权回归使用隔离会话与请求夹具。PostgreSQL 验证执行实际试点和日期迁移及原有角色、写入、审计回归。
+
+隔离 PostgreSQL 17 回归通过既有 `workspace_save`、`workspace_get` 和 `workspace_revision` 验证保存、重开及历史版本读取保留相同的区位视觉引用，未授权账号无法重开。独立的管理员附页授权回归覆盖仅有原生场景而无图片对象的 `restricted` 页面，权限撤回时在租户记录读取之前拒绝。

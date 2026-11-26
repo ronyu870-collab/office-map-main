@@ -3,15 +3,11 @@ import { parseQueryPlan } from '@/src/lib/intelligence/query/plan';
 import { readQuerySnapshots } from '@/src/lib/intelligence/query/snapshotReader';
 import { loadDataAuthority, type DataAuthority } from '@/src/lib/intelligence/query/serverAuthority';
 import { submarketDatabaseNames } from '@/src/app/map/model/marketIdentity';
+import { marketVisualSelectionSchema, visualBuildingIds } from '../contracts/visual-reference';
 import type { PitchContext } from '../data/store';
 import type { LocationBuilding } from './location';
+export { marketVisualSelectionSchema, visualBuildingIds } from '../contracts/visual-reference';
 
-export const visualBuildingIds = z.array(z.uuid()).min(1).max(20).refine(ids => new Set(ids).size === ids.length);
-const marketNames = z.array(z.string().trim().min(1).max(80)).max(8);
-export const marketVisualSelectionSchema = z.strictObject({
-  submarkets: marketNames.optional(),
-  city: z.string().trim().regex(/^[\p{L}\p{M}\p{N} ·-]{1,80}$/u).optional(),
-}).refine(selection => Boolean(selection.city || selection.submarkets?.length));
 const buildings = z.array(z.object({
   id: z.uuid(), name: z.string().min(1), submarket: z.string().nullable(),
   location_lat: z.number().nullable(), location_lng: z.number().nullable(), city: z.string().nullable().optional(),

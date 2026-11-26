@@ -15,10 +15,10 @@ import { readPitchLocation, readPitchStackingPlan } from '../derived-assets';
 import { createLocationSchematic, locationSchematicSvg } from '../location';
 import { createStackingVisual } from '../stacking';
 import { readProposalVisualMaterials } from '../proposal-materials';
-import { resolvePitchVisualAsset, resolveReferencedVisualMedia } from '../resolve';
+import { getVisualPageReceipts, resolvePitchVisualAsset, resolveReferencedVisualMedia, resolveVisualPageMedia } from '../resolve';
 import { readStackingAppendix, withAuditedStackingDelivery } from '../stacking-delivery';
 import type { PitchContext } from '../../data/store';
-import type { SlideContent } from '../../contracts/content';
+import { assetInputSchema, slideContentSchema, type SlideContent } from '../../contracts/content';
 
 const id = (i: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(i).padStart(12, '0')}`;
 const buildingId = id(1), secondId = id(2), photoId = id(3), actor = id(4), session = id(5);
@@ -137,6 +137,12 @@ describe('authorized proposal visual materials', () => {
     const media = await resolveReferencedVisualMedia(ctx, pins, images, 'internal');
     expect(media).toHaveLength(2);
     expect(contentHash(media.find(item => item.id === photo.id)!.bytes)).toBe(contentHash(jpeg));
+    const reopened = await Promise.all(proposed.pages.map(async page => {
+      const content = slideContentSchema.parse(JSON.parse(JSON.stringify(page.content)));
+      const [scene] = await layoutSlides(content, STUDIO_THEME, page.layoutId);
+      return { content, scene };
+    }));
+    expect((await resolveVisualPageMedia(ctx, reopened, 'internal')).map(item => item.id)).toEqual(media.map(item => item.id));
     await expect(readProposalVisualMaterials(ctx, brief, projection, { targetBuildingId: secondId })).rejects.toThrow('PITCH_VISUAL_SELECTION');
     await expect(readProposalVisualMaterials(ctx, { ...brief, audience: 'client' }, projection)).rejects.toThrow('QUERY_DENIED');
   });
@@ -228,6 +234,29 @@ describe('restricted Stacking Plan appendix and delivery', () => {
     await expect(withAuditedStackingDelivery(ctx, [pin], delivery, prepare)).rejects.toThrow('QUERY_DENIED');
     expect(prepare).toHaveBeenCalledTimes(1);
     expect(audit[1]).toMatchObject({ path: 'audit_complete_operation', body: { p_state: 'failed' } });
+  });
+
+  it('keeps the private source receipt through a page round trip and rechecks it even for a native scene', async () => {
+    const { ctx } = fixture();
+    const appendix = (await readStackingAppendix(ctx, buildingId, {}, 'internal', STUDIO_THEME))!;
+    const persisted = JSON.parse(JSON.stringify({ ...appendix.content,
+      blocks: [appendix.content.blocks.find(block => block.kind === 'paragraph')!] }));
+    const reopened = slideContentSchema.parse(persisted);
+    expect(getVisualPageReceipts([reopened])).toEqual([appendix.reference.source.visual]);
+    expect(() => getVisualPageReceipts([{ sources: [{ ...reopened.sources[0], id: id(39) }] }])).toThrow('PITCH_SOURCE_CHANGED');
+    expect(JSON.stringify(reopened.sources)).not.toContain('测试租户');
+    for (const disclosure of ['internal', 'client_approved']) {
+      expect(slideContentSchema.safeParse({ ...reopened, disclosure }).success).toBe(false);
+    }
+    expect(slideContentSchema.safeParse({ ...reopened, sources: [{ ...reopened.sources[0], sha256: 'e'.repeat(64) }] }).success).toBe(false);
+    expect(assetInputSchema.safeParse({ scope: { organizationId: 'test', region: 'test', city: '北京', businessLine: 'office' },
+      categoryId: id(33), tags: [], names: { zh: reopened.title }, content: reopened, state: 'draft', visibility: 'private',
+      allowInternalGeneration: true, allowClientExport: false, allowExternalAi: true, validFrom: null, validUntil: null }).success).toBe(false);
+    const scene = { ...appendix.scenes[0], elements: appendix.scenes[0].elements.filter(element => element.kind !== 'image') };
+    expect(await resolveVisualPageMedia(ctx, [{ content: reopened, scene }], 'internal')).toEqual([]);
+    const denied = fixture({ stackingAdmin: false });
+    await expect(resolveVisualPageMedia(denied.ctx, [{ content: reopened, scene }], 'internal')).rejects.toThrow('QUERY_DENIED');
+    expect(denied.calls.some(path => path.endsWith('/stacking_plan_spaces'))).toBe(false);
   });
 });
 
