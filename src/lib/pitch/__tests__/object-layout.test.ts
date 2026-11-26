@@ -7,7 +7,7 @@ import { layoutSlides } from "../layout/engine";
 import { layoutFixture } from "../fixtures/layouts";
 import { renderPitchPptx } from "../render/pptx";
 import { renderSceneSvg } from "../render/svg";
-import { applyObjectMoves, applyObjectOrder, applyObjectTexts, constrainedPosition, constrainedScale, objectId, textAnchors } from "../workspace/object-layout";
+import { applyObjectGroups, applyObjectMoves, applyObjectOrder, applyObjectTexts, constrainGroupDelta, constrainedPosition, constrainedScale, objectId, textAnchors } from "../workspace/object-layout";
 import { pageEditSchema } from "../workspace/protocol";
 
 const page = async () => (await layoutSlides(layoutFixture("executive-summary"), STUDIO_THEME, "executive-summary"))[0];
@@ -104,6 +104,23 @@ describe("editable scene positions", () => {
     const xml = await deck.file("ppt/slides/slide1.xml")!.async("string");
     expect(xml).toContain('prst="ellipse"');
     expect(xml.indexOf('prst="ellipse"')).toBeLessThan(xml.lastIndexOf('prst="rect"'));
+  });
+
+  it("keeps group memberships stable and constrains translation as a single unit", async () => {
+    const scene = await page();
+    const eligible = scene.elements.flatMap((el, i) => el.kind === "text" && !el.purpose ? [objectId(el, i)] : []);
+    const footer = scene.elements.findIndex(el => el.kind === "text" && el.purpose === "footer");
+    expect(eligible.length).toBeGreaterThanOrEqual(2);
+    expect(footer).toBeGreaterThanOrEqual(0);
+    const id = "11111111-1111-4111-8111-111111111111";
+    expect(() => applyObjectGroups(scene, [{ id, memberIds: [eligible[0], objectId(scene.elements[footer], footer)] }])).toThrow("PITCH_OBJECT_GROUP_INVALID");
+    expect(() => applyObjectGroups(scene, [{ id, memberIds: [eligible[0], eligible[0]] }])).toThrow("PITCH_OBJECT_GROUP_INVALID");
+    const grouped = applyObjectGroups(scene, [{ id, memberIds: eligible.slice(0, 2) }]);
+    expect(grouped.elements.filter(el => el.editorGroup === id).map(el => el.editorId)).toEqual(eligible.slice(0, 2));
+    expect(applyObjectGroups(grouped, []).elements.every(el => !el.editorGroup)).toBe(true);
+    expect(constrainGroupDelta(scene, [
+      { x: 1, y: 1, w: 2, h: 1 }, { x: 4, y: 1, w: 2, h: 2 },
+    ], -5, 0)).toEqual({ x: -1, y: 0 });
   });
 
   it("updates canonical content and native text together without touching ambiguous or managed content", async () => {

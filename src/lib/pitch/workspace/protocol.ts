@@ -5,7 +5,7 @@ import {
   variantSchema,
   slideSceneSchema,
 } from "../contracts/scene";
-import { objectMoveSchema, objectTextSchema, objectOrderSchema } from "./object-layout";
+import { objectMoveSchema, objectTextSchema, objectOrderSchema, objectGroupsSchema } from "./object-layout";
 import { generationPartSchema } from "../business/protocol";
 const id = z.uuid(),
   title = z.string().trim().min(1).max(160);
@@ -42,6 +42,7 @@ export const pageEditSchema = z.strictObject({
   objectMoves: z.array(objectMoveSchema).min(1).max(100).optional(),
   objectTexts: z.array(objectTextSchema).min(1).max(30).optional(),
   objectOrder: objectOrderSchema.optional(),
+  objectGroups: objectGroupsSchema.optional(),
   resetObjectLayout: z.literal(true).optional(),
 });
 export const saveSchema = z.strictObject({

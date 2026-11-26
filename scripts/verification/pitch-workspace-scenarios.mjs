@@ -285,6 +285,14 @@ export async function verifyPitchWorkspace({
       detail = layered.body;
       assert.deepEqual(detail.slides[0].scene.elements.flatMap(element => element.editorId ? [element.editorId] : []), expectedOrder);
       assert.equal(detail.slides[0].content.title, "画布内修改的标题");
+      const groupCommand = save(), groupId = randomUUID();
+      groupCommand.pages[0].objectGroups = [{ id: groupId, memberIds: [expectedOrder[0], "object-999"] }];
+      assert.equal((await workspace(admin, groupCommand)).status, 422);
+      groupCommand.pages[0].objectGroups = [{ id: groupId, memberIds: expectedOrder.slice(0, 2) }];
+      const grouped = await workspace(admin, groupCommand);
+      assert.equal(grouped.status, 200, JSON.stringify(grouped.body));
+      detail = (await workspace(admin, { action: "get", projectId: detail.project.id })).body;
+      assert.deepEqual(detail.slides[0].scene.elements.filter(element => element.editorGroup === groupId).map(element => element.editorId), expectedOrder.slice(0, 2));
     },
   );
   await check(

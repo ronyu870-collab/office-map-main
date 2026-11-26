@@ -156,6 +156,8 @@ export async function handleWorkspaceRequest(
                 ? "此页的原版本已不可恢复，请从项目历史核对。"
               : code === "PITCH_OBJECT_TEXT_INVALID"
                 ? "这段文字不能直接修改，请检查是否为跨页或受保护的内容。"
+              : code === "PITCH_OBJECT_GROUP_INVALID"
+                ? "组合只能包含当前页面的可编辑对象，每个对象最多属于一个组合。"
               : code === "PITCH_OBJECT_ORDER_INVALID"
                 ? "图层已变化，请重新打开页面后再调整顺序。"
               : code === "PITCH_OBJECT_LAYOUT_INVALID"

@@ -8,7 +8,7 @@ export const layoutIds = [...legacyLayoutIds, ...PATTERN_BY_ID.keys()];
 export const layoutIdSchema = z.string().min(1).max(100).refine(id => layoutIds.includes(id), 'Unregistered layout');
 export type LayoutId = z.infer<typeof layoutIdSchema>;
 export const variantSchema = z.enum(['standard', 'alternate']);
-const box = { editorId: z.string().regex(/^object-[0-9]{1,3}$/).optional(), x: z.number().min(0).max(13.334), y: z.number().min(0).max(7.5), w: z.number().positive().max(13.334), h: z.number().positive().max(7.5) };
+const box = { editorGroup: z.uuid().optional(), editorId: z.string().regex(/^object-[0-9]{1,3}$/).optional(), x: z.number().min(0).max(13.334), y: z.number().min(0).max(7.5), w: z.number().positive().max(13.334), h: z.number().positive().max(7.5) };
 const rotation = z.number().int().min(-180).max(179).optional();
 const allowOverlap = z.boolean().optional();
 const cell = z.union([z.string().max(4000), z.number().finite(), z.null()]);
@@ -32,6 +32,16 @@ export const slideSceneSchema = z.strictObject({
 }).superRefine((scene, ctx) => {
   const editorIds = scene.elements.flatMap(element => element.editorId ? [element.editorId] : []);
   if (new Set(editorIds).size !== editorIds.length) ctx.addIssue({ code: 'custom', message: 'Duplicate scene object identifier' });
+  const groupCounts = new Map<string, number>();
+  for (const element of scene.elements) {
+    if (!element.editorGroup) continue;
+    const locked = element.kind === 'brand' || element.kind === 'line' ||
+      (element.kind === 'shape' && element.background) ||
+      (element.kind === 'text' && !!element.purpose && element.purpose !== 'content');
+    if (locked || !element.editorId) ctx.addIssue({ code: 'custom', message: 'Managed scene layer cannot be grouped' });
+    groupCounts.set(element.editorGroup, (groupCounts.get(element.editorGroup) ?? 0) + 1);
+  }
+  if ([...groupCounts.values()].some(count => count < 2)) ctx.addIssue({ code: 'custom', message: 'A group needs two or more layers' });
   for (const b of scene.elements) {
     if (!boxFits(scene, b, .001)) ctx.addIssue({ code: 'custom', message: 'Scene element outside page' });
     if ((b.kind === 'image' || b.kind === 'shape') && (b.rotation || b.allowOverlap) && !scene.rendererVersion) ctx.addIssue({ code: 'custom', message: 'Rotation requires the current scene renderer' });

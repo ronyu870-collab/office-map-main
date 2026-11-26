@@ -1,5 +1,5 @@
 import * as React from "react";
-import { applyObjectMoves, applyObjectOrder, applyObjectTexts, objectId, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
+import { applyObjectMoves, applyObjectOrder, applyObjectGroups, applyObjectTexts, objectId, type ObjectMove, type ObjectText, type ObjectGroup } from "@/src/lib/pitch/workspace/object-layout";
 import { slideContentSchema } from "@/src/lib/pitch/contracts/content";
 import { slideSceneSchema, type SlideScene } from "@/src/lib/pitch/contracts/scene";
 import { BUSINESS_RECIPES } from "@/src/lib/pitch/business/recipes";
@@ -261,6 +261,7 @@ beforeEach(() => {
                 objectMoves?: ObjectMove[];
                 objectTexts?: ObjectText[];
                 objectOrder?: string[];
+                objectGroups?: ObjectGroup[];
               }) => {
                 const original = detail.slides.find(
                   (s) => s.id === (p.duplicateOf ?? p.id),
@@ -268,10 +269,11 @@ beforeEach(() => {
                 const patchedText = p.objectTexts && applyObjectTexts(slideSceneSchema.parse(original.scene), slideContentSchema.parse(original.content), p.objectTexts);
                 const patchedScene = patchedText ? patchedText.scene : slideSceneSchema.parse(original.scene);
                 const positioned = p.objectMoves ? applyObjectMoves(patchedScene, p.objectMoves) : patchedScene;
+                const ordered = p.objectOrder ? applyObjectOrder(positioned, p.objectOrder) : positioned;
                 return {
                   ...original,
                   id: p.id,
-                  scene: p.objectOrder ? applyObjectOrder(positioned, p.objectOrder) : positioned,
+                  scene: p.objectGroups ? applyObjectGroups(ordered, p.objectGroups) : ordered,
                   content: {
                     ...original.content,
                     title: p.title ?? (patchedText ? patchedText.content.title : original.content.title),
@@ -436,6 +438,32 @@ describe("Pitch workspace continuous editing", () => {
     await enter();
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
     expect(await screen.findByRole("button", { name: "对象 1：形状" })).toBeInTheDocument();
+  });
+  it("moves a persistent canvas group together and can dissolve it without moving any member", async () => {
+    detail.slides[0].scene.elements.push({
+      kind: "shape", x: 2, y: 4, w: 3, h: 1, fill: "primary", background: false, shape: "rect",
+    });
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await screen.findByRole("button", { name: "对象 2：形状" });
+    await user.click(screen.getByText("图层（从上到下）"));
+    await user.click(screen.getByRole("checkbox", { name: "选入组合：形状" }));
+    await user.click(screen.getByRole("checkbox", { name: "选入组合：隔离页面" }));
+    await user.click(screen.getByRole("button", { name: "组合所选对象" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "对象 2：形状" }), { key: "ArrowRight" });
+    await user.click(screen.getByRole("button", { name: "应用到页面" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[1].x).toBeCloseTo(2.05), { timeout: 3000 });
+    const saved = detail.slides[0].scene.elements;
+    expect(saved[0].x).toBeCloseTo(1.05);
+    expect(saved[0].editorGroup).toBeDefined();
+    expect(saved[0].editorGroup).toBe(saved[1].editorGroup);
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: "对象 2：形状" }));
+    await user.click(screen.getByText("图层（从上到下）"));
+    await user.click(screen.getByRole("button", { name: "取消所选组合" }));
+    await user.click(screen.getByRole("button", { name: "应用到页面" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements.every(el => !el.editorGroup)).toBe(true), { timeout: 3000 });
+    expect(detail.slides[0].scene.elements[1].x).toBeCloseTo(2.05);
   });
   it("keeps project name focused through continuous typing and cursor edits", async () => {
     const user = await enter(),

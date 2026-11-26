@@ -5,13 +5,13 @@ import { Button } from "@/src/components/ui";
 import type { SlideContent } from "@/src/lib/pitch/contracts/content";
 import { boxFits, normalizedRotation, rotateVector } from "@/src/lib/pitch/contracts/scene-geometry";
 import type { SlideScene, SceneElement } from "@/src/lib/pitch/contracts/scene";
-import { canMoveObject, canScaleObject, constrainedPosition, constrainedScale, objectId, objectOverlap, objectRotation, sceneLayerEntries, textAnchors, validObjectOrder, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
+import { canMoveObject, canScaleObject, constrainedScale, constrainGroupDelta, objectId, objectOverlap, objectRotation, sceneLayerEntries, sceneObjectGroups, textAnchors, validObjectOrder, type ObjectMove, type ObjectText, type ObjectGroup } from "@/src/lib/pitch/workspace/object-layout";
 import type { Call } from "./client";
 import styles from "./workspace.module.css";
 
 type Layer = { id: string | null; url: string };
 type Position = Pick<ObjectMove, "x" | "y" | "scale" | "rotation" | "allowOverlap">;
-type Changes = { moves: ObjectMove[]; texts: ObjectText[]; order?: string[] };
+type Changes = { moves: ObjectMove[]; texts: ObjectText[]; order?: string[]; groups?: ObjectGroup[] };
 type History = { past: Changes[]; present: Changes; future: Changes[] };
 type HistoryAction = { type: "record"; update: (value: Changes) => Changes } | { type: "undo" | "redo" };
 function editHistory(state: History, action: HistoryAction): History {
@@ -42,7 +42,7 @@ export function splitLayers(svg: string): Layer[] {
   });
 }
 
-export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, pendingMoves, pendingTexts, pendingOrder, onApply, onClose }: {
+export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onApply, onClose }: {
   call: Call;
   projectId: string;
   slideId: string;
@@ -52,6 +52,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   pendingMoves?: ObjectMove[];
   pendingTexts?: ObjectText[];
   pendingOrder?: string[];
+  pendingGroups?: ObjectGroup[];
   onApply: (changes: Changes) => void;
   onClose: () => void;
 }) {
@@ -60,21 +61,28 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   const [boundsMessage, setBoundsMessage] = React.useState("");
   const [angleInput, setAngleInput] = React.useState<{ id: string; value: string } | null>(null);
   const [selected, setSelected] = React.useState<string | null>(null);
+  const [marked, setMarked] = React.useState<string[]>([]);
   const [history, dispatch] = React.useReducer(editHistory, {
-    past: [], present: { moves: pendingMoves ?? [], texts: pendingTexts ?? [], order: pendingOrder }, future: [],
+    past: [], present: { moves: pendingMoves ?? [], texts: pendingTexts ?? [], order: pendingOrder, groups: pendingGroups }, future: [],
   });
-  const { moves, texts, order } = history.present;
+  const { moves, texts, order, groups: groupPatch } = history.present;
   const [typing, setTyping] = React.useState<{ id: string; value: string } | null>(null);
-  const [dragMove, setDragMove] = React.useState<ObjectMove | null>(null);
+  const [dragMoves, setDragMoves] = React.useState<ObjectMove[]>([]);
   const board = React.useRef<HTMLDivElement | null>(null);
-  const drag = React.useRef<{ id: string; pointer: number; startX: number; startY: number; origin: Position; rect: DOMRect; resizing?: boolean } | null>(null);
+  const drag = React.useRef<{ id: string; pointer: number; startX: number; startY: number; origin: Position; members?: ObjectMove[]; rect: DOMRect; resizing?: boolean } | null>(null);
   const sceneKey = JSON.stringify(scene);
-  const entries = scene.elements.map((element, i) => ({ element, id: objectId(element, i) }));
+  const entries = React.useMemo(() => scene.elements.map((element, i) => ({ element, id: objectId(element, i) })), [scene]);
   const originalOrder = entries.filter(entry => canMoveObject(entry.element)).map(entry => entry.id);
   const validOrder = !order || validObjectOrder(originalOrder, order);
   const orderedEntries = validOrder ? sceneLayerEntries(entries, order) : entries;
+  const originalGroups = React.useMemo(() => sceneObjectGroups(entries), [entries]);
+  const groups = groupPatch ?? originalGroups;
+  const memberGroups = React.useMemo(() => new Map(groups.flatMap(group =>
+    group.memberIds.map(id => [id, group] as const))), [groups]);
+  const groupFor = (id: string) => memberGroups.get(id);
+  const selectedGroup = selected ? groupFor(selected) : undefined;
   const currentOrder = validOrder && order ? order : originalOrder;
-  const layerById = new Map(layers.map(layer => [layer.id, layer]));
+  const layerById = React.useMemo(() => new Map(layers.map(layer => [layer.id, layer])), [layers]);
   const anchors = React.useMemo(() => textAnchors(scene, content, allowParagraphs), [scene, content, allowParagraphs]);
   const canonicalText = (id: string) => {
     const anchor = anchors.get(id);
@@ -82,7 +90,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
     const block = anchor?.kind === "paragraph" ? content.blocks[anchor.block] : undefined;
     return block?.kind === "paragraph" ? block.text : "";
   };
-  const hasChanges = !!(moves.length || texts.length || order);
+  const hasChanges = !!(moves.length || texts.length || order || groupPatch);
   React.useEffect(() => {
     const request = new AbortController();
     void call<{ svg: string; scene: SlideScene }>({
@@ -102,28 +110,56 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   }, [call, projectId, slideId, sceneKey]);
 
   function position(id: string, fallback: SceneElement): Position {
-    const local = dragMove?.id === id ? dragMove : moves.find(move => move.id === id);
+    const local = dragMoves.find(move => move.id === id) ?? moves.find(move => move.id === id);
     return { x: fallback.x, y: fallback.y, rotation: objectRotation(fallback), allowOverlap: objectOverlap(fallback), ...local };
   }
-  function place(id: string, next: Position) {
-    const entry = entries.find(value => value.id === id);
-    if (!entry) return;
+  function placeBatch(updates: ObjectMove[]) {
+    if (!updates.length) return;
     setBoundsMessage("");
     dispatch({ type: "record", update: previous => {
-      const rest = previous.moves.filter(move => move.id !== id);
-      const { x, y, scale } = next;
-      const angleChanged = next.rotation !== undefined && next.rotation !== objectRotation(entry.element);
-      const overlapChanged = next.allowOverlap !== undefined && next.allowOverlap !== objectOverlap(entry.element);
-      const moves = x === entry.element.x && y === entry.element.y && (scale ?? 1) === 1 && !angleChanged && !overlapChanged
-        ? rest : [...rest, { id, x, y, ...(scale !== undefined && scale !== 1 ? { scale } : {}),
-          ...(angleChanged ? { rotation: next.rotation } : {}), ...(overlapChanged ? { allowOverlap: next.allowOverlap } : {}) }];
-      return { ...previous, moves };
+      const targets = new Set(updates.map(update => update.id));
+      const rest = previous.moves.filter(move => !targets.has(move.id));
+      const changed = updates.flatMap(next => {
+        const entry = entries.find(value => value.id === next.id);
+        if (!entry) return [];
+        const { x, y, scale } = next;
+        const angleChanged = next.rotation !== undefined && next.rotation !== objectRotation(entry.element);
+        const overlapChanged = next.allowOverlap !== undefined && next.allowOverlap !== objectOverlap(entry.element);
+        return x === entry.element.x && y === entry.element.y && (scale ?? 1) === 1 && !angleChanged && !overlapChanged
+          ? [] : [{ id: next.id, x, y, ...(scale !== undefined && scale !== 1 ? { scale } : {}),
+            ...(angleChanged ? { rotation: next.rotation } : {}), ...(overlapChanged ? { allowOverlap: next.allowOverlap } : {}) }];
+      });
+      return { ...previous, moves: [...rest, ...changed] };
     } });
   }
-  function moveFrom(at: Position, element: Pick<SlideScene["elements"][number], "w" | "h">, x: number, y: number) {
-    const scale = at.scale ?? 1;
-    return { ...constrainedPosition(scene, { w: element.w * scale, h: element.h * scale }, x, y, at.rotation),
-      rotation: at.rotation, allowOverlap: at.allowOverlap, ...(scale !== 1 ? { scale } : {}) };
+  function place(id: string, next: Position) { placeBatch([{ id, ...next }]); }
+  function moveOrigins(id: string): ObjectMove[] {
+    return (groupFor(id)?.memberIds ?? [id]).flatMap(id => {
+      const entry = entries.find(item => item.id === id);
+      return entry ? [{ id, ...position(id, entry.element) }] : [];
+    });
+  }
+  function translate(members: ObjectMove[], dx: number, dy: number): ObjectMove[] {
+    const boxes = members.flatMap(member => {
+      const element = entries.find(item => item.id === member.id)?.element;
+      if (!element) return [];
+      return [{ ...member, w: element.w * (member.scale ?? 1), h: element.h * (member.scale ?? 1) }];
+    });
+    if (boxes.length !== members.length || !boxes.length) return [];
+    const delta = constrainGroupDelta(scene, boxes, dx, dy);
+    return members.map(member => ({ ...member, x: Math.max(0, member.x + delta.x), y: Math.max(0, member.y + delta.y) }));
+  }
+  function createGroup() {
+    if (marked.length < 2 || marked.length > 100 || marked.some(id => !originalOrder.includes(id) || groupFor(id))) return;
+    const group = { id: crypto.randomUUID(), memberIds: [...marked] };
+    dispatch({ type: "record", update: previous => ({ ...previous, groups: [...(previous.groups ?? originalGroups), group] }) });
+    setSelected(marked[0]);
+    setMarked([]);
+  }
+  function removeGroup(id: string) {
+    dispatch({ type: "record", update: previous => ({
+      ...previous, groups: (previous.groups ?? originalGroups).filter(group => group.id !== id),
+    }) });
   }
 
   function resizeFrom(at: Position, element: Pick<SlideScene["elements"][number], "w" | "h">, scale: number) {
@@ -192,7 +228,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
         {picked && anchors.has(picked.id) && !typing &&
           <Button variant="ghost" onClick={() => startTyping(picked.id)}>编辑所选文字</Button>}
         <Button disabled={!!error || !layers.length || !hasChanges || !!typing || !validOrder}
-          onClick={() => onApply(history.present)}>{texts.length || order ? "应用到页面" : "应用位置"}</Button>
+          onClick={() => onApply(history.present)}>{texts.length || order || groupPatch ? "应用到页面" : "应用位置"}</Button>
       </div>
       {error && <p role="alert">{error}</p>}
       {!validOrder && <p role="alert">图层已变化，请丢弃未应用的调整后重试。</p>}
@@ -235,6 +271,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
           return <button
             key={id} type="button" aria-label={`对象 ${index + 1}：${label}`} aria-pressed={selected === id}
             className={styles.objectTarget}
+            data-group-member={selectedGroup?.memberIds.includes(id) || undefined}
             data-canvas-id={id} style={{ ...bounds, transform: p.rotation ? `rotate(${p.rotation}deg)` : undefined }}
             onDoubleClick={() => startTyping(id)}
             onClick={() => setSelected(id)}
@@ -243,28 +280,28 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
               if (event.button !== 0 || drag.current || !board.current) return;
               setSelected(id);
               if (typeof event.currentTarget.setPointerCapture !== "function") return;
-              drag.current = { id, pointer: event.pointerId, startX: event.clientX, startY: event.clientY, origin: p, rect: board.current.getBoundingClientRect() };
+              drag.current = { id, pointer: event.pointerId, startX: event.clientX, startY: event.clientY, origin: p, members: moveOrigins(id), rect: board.current.getBoundingClientRect() };
               event.currentTarget.setPointerCapture(event.pointerId);
             }}
             onPointerMove={event => {
               const start = drag.current;
               if (!start || start.pointer !== event.pointerId || !start.rect.width || !start.rect.height) return;
-              setDragMove({ id, ...moveFrom(start.origin, element,
-                start.origin.x + (event.clientX - start.startX) / start.rect.width * scene.width,
-                start.origin.y + (event.clientY - start.startY) / start.rect.height * scene.height) });
+              setDragMoves(translate(start.members ?? [],
+                (event.clientX - start.startX) / start.rect.width * scene.width,
+                (event.clientY - start.startY) / start.rect.height * scene.height));
             }}
             onPointerUp={event => {
               const start = drag.current;
               if (!start || start.pointer !== event.pointerId) return;
               const dx = event.clientX - start.startX, dy = event.clientY - start.startY;
               if (Math.hypot(dx, dy) >= 2 && start.rect.width && start.rect.height) {
-                place(id, moveFrom(start.origin, element, start.origin.x + dx / start.rect.width * scene.width, start.origin.y + dy / start.rect.height * scene.height));
+                placeBatch(translate(start.members ?? [], dx / start.rect.width * scene.width, dy / start.rect.height * scene.height));
               }
               drag.current = null;
-              setDragMove(null);
+              setDragMoves([]);
             }}
-            onLostPointerCapture={() => { drag.current = null; setDragMove(null); }}
-            onPointerCancel={() => { drag.current = null; setDragMove(null); }}
+            onLostPointerCapture={() => { drag.current = null; setDragMoves([]); }}
+            onPointerCancel={() => { drag.current = null; setDragMoves([]); }}
             onKeyDown={event => {
               if (event.key === "F2" && anchors.has(id)) { event.preventDefault(); startTyping(id); return; }
               const offsets: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
@@ -272,7 +309,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
               if (!d) return;
               event.preventDefault();
               const step = event.shiftKey ? .25 : .05;
-              place(id, moveFrom(p, element, p.x + d[0] * step, p.y + d[1] * step));
+              placeBatch(translate(moveOrigins(id), d[0] * step, d[1] * step));
             }}
           />;
         })}
@@ -292,17 +329,17 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             }}
             onPointerMove={event => {
               const next = draggedScale(event, picked.element);
-              if (next) setDragMove({ id: picked.id, ...next });
+              if (next) setDragMoves([{ id: picked.id, ...next }]);
             }}
             onPointerUp={event => {
               const next = draggedScale(event, picked.element);
               if (!next) return;
               place(picked.id, next);
               drag.current = null;
-              setDragMove(null);
+              setDragMoves([]);
             }}
-            onLostPointerCapture={() => { drag.current = null; setDragMove(null); }}
-            onPointerCancel={() => { drag.current = null; setDragMove(null); }}
+            onLostPointerCapture={() => { drag.current = null; setDragMoves([]); }}
+            onPointerCancel={() => { drag.current = null; setDragMoves([]); }}
             onKeyDown={event => {
               const step = event.shiftKey ? .1 : .025;
               const direction = ["ArrowLeft", "ArrowUp", "-"].includes(event.key) ? -1
@@ -320,8 +357,13 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
           {[...orderedEntries].reverse().map(({ id, element }) => (
             <li key={id}>
               {canMoveObject(element)
-                ? <button type="button" aria-pressed={selected === id}
-                    onClick={() => setSelected(id)}>{layerName(id, element)}</button>
+                ? <div className={styles.layerRow}>
+                    {!groupFor(id) && <input type="checkbox" aria-label={`选入组合：${layerName(id, element)}`}
+                      checked={marked.includes(id)}
+                      onChange={event => setMarked(previous => event.target.checked ? [...previous, id] : previous.filter(item => item !== id))} />}
+                    <button type="button" aria-pressed={selected === id}
+                      onClick={() => setSelected(id)}>{layerName(id, element)}{groupFor(id) && " · 已组合"}</button>
+                  </div>
                 : <span>{element.kind === "text" && element.purpose
                     ? (element.purpose === "source" ? "来源" : "页脚") : layerName(id, element)}（受保护）</span>}
             </li>
@@ -332,6 +374,9 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             onClick={() => selected && changeLayer(selected, 1)}>上移一层</Button>
           <Button variant="ghost" disabled={!selected || !!typing || currentOrder.indexOf(selected) <= 0}
             onClick={() => selected && changeLayer(selected, -1)}>下移一层</Button>
+          <Button variant="ghost" disabled={!!typing || marked.length < 2 || marked.length > 100} onClick={createGroup}>组合所选对象</Button>
+          <Button variant="ghost" disabled={!!typing || !selectedGroup}
+            onClick={() => selectedGroup && removeGroup(selectedGroup.id)}>取消所选组合</Button>
         </div>
       </details>}
       {typing && <div className={styles.objectTools}>

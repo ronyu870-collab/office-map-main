@@ -13,7 +13,7 @@ import { generateBusinessProject } from "../business/workflow";
 import { generationSchema } from "../business/protocol";
 import { workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
 import { workspaceDetailSchema, type WorkspaceDetail } from "./protocol";
-import { applyObjectMoves, applyObjectTexts, applyObjectOrder } from "./object-layout";
+import { applyObjectMoves, applyObjectTexts, applyObjectOrder, applyObjectGroups } from "./object-layout";
 type Page = WorkspaceDetail["slides"][number];
 type Settings = WorkspaceDetail["workspace"]["page_settings"];
 export async function getWorkspace(ctx: PitchContext, id: string) {
@@ -173,7 +173,7 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
       original.scene.themeId !== theme.id || original.scene.themeVersion !== theme.version ||
       (edit.layoutId && edit.layoutId !== original.scene.layoutId) ||
       (edit.variant && edit.variant !== original.scene.variant);
-    const objectEdit = !!(edit.objectMoves || edit.objectTexts || edit.objectOrder);
+    const objectEdit = !!(edit.objectMoves || edit.objectTexts || edit.objectOrder || edit.objectGroups);
     const hasObjectLayout = original.scene.elements.some(element => element.editorId);
     if ((objectEdit && (relayoutRequested || edit.resetObjectLayout)) ||
       (relayoutRequested && hasObjectLayout && !edit.resetObjectLayout))
@@ -246,7 +246,8 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
       }
       content = slideContentSchema.parse(content);
       const positioned = edit.objectMoves ? applyObjectMoves(textScene, edit.objectMoves) : textScene;
-      const scene = edit.objectOrder ? applyObjectOrder(positioned, edit.objectOrder) : positioned;
+      const ordered = edit.objectOrder ? applyObjectOrder(positioned, edit.objectOrder) : positioned;
+      const scene = edit.objectGroups ? applyObjectGroups(ordered, edit.objectGroups) : ordered;
       const media = await loadMedia(ctx, mediaContext.media, [scene]);
       await assertSceneQuality(scene, theme, media);
       scenes = [scene];

@@ -116,6 +116,66 @@ export function applyObjectOrder(scene: SlideScene, value: string[]): SlideScene
   });
 }
 
+export const objectGroupSchema = z.strictObject({
+  id: z.uuid(),
+  memberIds: z.array(objectKeySchema).min(2).max(100),
+});
+export const objectGroupsSchema = z.array(objectGroupSchema).max(75);
+export type ObjectGroup = z.infer<typeof objectGroupSchema>;
+
+export function sceneObjectGroups(entries: { id: string; element: SceneElement }[]): ObjectGroup[] {
+  const groups = new Map<string, string[]>();
+  for (const { id, element } of entries) {
+    if (element.editorGroup) groups.set(element.editorGroup, [...(groups.get(element.editorGroup) ?? []), id]);
+  }
+  return [...groups].map(([id, memberIds]) => ({ id, memberIds }));
+}
+
+export function applyObjectGroups(scene: SlideScene, value: ObjectGroup[]): SlideScene {
+  const groups = objectGroupsSchema.parse(value);
+  const ids = new Set<string>(), membership = new Map<string, string>();
+  if (scene.rendererVersion !== "pitch-scene/2") throw new Error("PITCH_OBJECT_GROUP_INVALID");
+  const entries = scene.elements.map((element, index) => ({ element, id: objectId(element, index) }));
+  const editable = new Set(entries.filter(entry => canMoveObject(entry.element)).map(entry => entry.id));
+  for (const group of groups) {
+    if (ids.has(group.id)) throw new Error("PITCH_OBJECT_GROUP_INVALID");
+    ids.add(group.id);
+    for (const id of group.memberIds) {
+      if (!editable.has(id) || membership.has(id)) throw new Error("PITCH_OBJECT_GROUP_INVALID");
+      membership.set(id, group.id);
+    }
+  }
+  return slideSceneSchema.parse({
+    ...scene,
+    elements: entries.map(({ element, id }) => {
+      if (!canMoveObject(element)) return element;
+      const editorGroup = membership.get(id);
+      return { ...element, editorId: id, editorGroup };
+    }),
+  });
+}
+
+export function constrainGroupDelta(
+  scene: Pick<SlideScene, "width" | "height">,
+  boxes: { x: number; y: number; w: number; h: number; rotation?: number }[],
+  requestedX: number,
+  requestedY: number,
+) {
+  let minX = -Infinity, minY = -Infinity, maxX = Infinity, maxY = Infinity;
+  for (const base of boxes) {
+    const drawn = visualBounds(base);
+    minX = Math.max(minX, -Math.min(base.x, drawn.x));
+    minY = Math.max(minY, -Math.min(base.y, drawn.y));
+    maxX = Math.min(maxX, scene.width - Math.max(base.x + base.w, drawn.x + drawn.w));
+    maxY = Math.min(maxY, scene.height - Math.max(base.y + base.h, drawn.y + drawn.h));
+  }
+  const fixed = (number: number) => Math.round((number + Number.EPSILON) * 10000) / 10000;
+  return {
+    x: Math.min(maxX, Math.max(minX, fixed(requestedX))),
+    y: Math.min(maxY, Math.max(minY, fixed(requestedY))),
+  };
+}
+
 export const objectTextSchema = z.strictObject({
   id: objectKeySchema,
   text: z.string().trim().min(1).max(4000),
