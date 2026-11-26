@@ -134,6 +134,20 @@ describe("proposal edit intentions", () => {
     expect(revise("加一栋成交过的虚构楼宇")).toMatchObject({ kind: "clarification" });
   });
 
+  it("keeps a quoted title intact and distinguishes it from a data refresh", () => {
+    const question = "把标题改成《2026Q2 北京。并调整图表》";
+    expect(revise(question)).toMatchObject({
+      kind: "intent", target: { kind: "pages", pageIds: [pageId] }, verifyFacts: false,
+      operations: [{ kind: "revise-text", request: question }],
+    });
+    expect(revise("换成「2026Q2」")).toMatchObject({
+      kind: "intent", operations: [{ kind: "set-period", period: "2026-Q2" }], verifyFacts: true,
+    });
+    expect(revise("增加「国贸三期」作为竞品")).toMatchObject({
+      kind: "intent", operations: [{ kind: "add-competitor", buildingQuery: "国贸三期" }],
+    });
+  });
+
   it("keeps theme, page-count and retarget requests typed", () => {
     expect(revise("整套换成高端风格，并精简到8页")).toMatchObject({
       kind: "intent", operations: [{ kind: "set-style", style: "premium" }, { kind: "shorten", pages: 8 }],

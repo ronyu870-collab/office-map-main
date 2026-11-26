@@ -2,6 +2,12 @@ import { z } from "zod";
 import { normalizeProposalQuestion, proposalQuarters, proposalStyles } from "./proposal-brief";
 
 const pageIds = z.array(z.uuid()).max(50).refine(values => new Set(values).size === values.length);
+// Match complete quoted text before command separators. The original span is
+// retained for literal text edits, while intent checks only see the command.
+const quotedText = /《[^》]*》|「[^」]*」|“[^”]*”|"[^"]*"|＂[^＂]*＂/gu;
+const directiveSeparator = /[;；。]+|(?:，\s*)?(?:并且|并|然后|同时)(?=\s*(?:把|将|改|替换|换|加|补|更|精简|调整|翻译|切换))|\s+(?:and then|and)(?=\s+(?:change|update|switch|add|replace|shorten|translate|tailor))/gi;
+const maskQuotedText = (text: string) => text.replace(quotedText, match => " ".repeat(match.length));
+
 const objectIds = z.array(z.string().trim().min(1).max(160)).max(30).refine(values => new Set(values).size === values.length);
 export const proposalRevisionRequestSchema = z.strictObject({
   projectId: z.uuid(),
@@ -33,9 +39,11 @@ type EditRequest =
   | { kind: "clarification"; message: string }
   | { kind: "intent"; target: ProposalEditTarget; operations: ProposalEditIntent[]; verifyFacts: boolean };
 
-function editOperation(question: string): ProposalEditIntent | null {
+const reviseText = /改写|重写|润色|(?:调整|改)(?:标题|正文|文字|表达)|(?:标题|正文|文字|对象|\btitle\b|\bbody\b).{0,22}(?:改为|改成|替换为|replace|change)|改(?:这页|当前页|所选对象)|rewrite|rephrase|polish/i;
+
+function editOperation(question: string, literal: string): ProposalEditIntent | null {
   const periods = proposalQuarters(question);
-  if (periods.length === 1 || /(?:更新|改用|切到|换成|切换|update|switch).{0,20}(?:最新|latest).{0,10}(?:季度|quarter)/i.test(question)) {
+  if ((periods.length === 1 && /更新|改用|切到|换成|切换|改为|改成|update|switch/i.test(question)) || /(?:更新|改用|切到|换成|切换|update|switch).{0,20}(?:最新|latest).{0,10}(?:季度|quarter)/i.test(question)) {
     return { kind: "set-period", period: periods[0] ?? null };
   }
   const competitor = /(?:增加|添加|加入|补充|add)\s*(?:(?:一个|一栋|真实|real)\s*)?(?:(?:竞品|楼宇|competitor)\s*[为是:：]?\s*)?(.{2,80}?)\s*(?:(?:作为|为|到|加入)(?:竞品|对比)|(?:竞品|competitor)|$)/i.exec(question);
@@ -76,20 +84,21 @@ function editOperation(question: string): ProposalEditIntent | null {
   if (customer && /客户|企业|业主|投资方|银行|保险|券商|基金|client|customer|investor|bank/i.test(customer)) {
     return { kind: "retarget", targetClient: customer.replace(/^面向\s*/, "") };
   }
-  if (/改写|重写|润色|(?:调整|改)(?:标题|文字|表达)|(?:标题|文字|对象).{0,8}(?:改为|改成|替换为)|改(?:这页|当前页|所选对象)|rewrite|rephrase|polish/i.test(question)) {
-    return { kind: "revise-text", request: question };
+  if (reviseText.test(question)) {
+    return { kind: "revise-text", request: literal };
   }
   return null;
 }
 
 export function readProposalEdit(input: ProposalRevisionRequest): EditRequest {
-  const question = normalizeProposalQuestion(input.question);
+  const question = input.question.trim();
+  const intentText = normalizeProposalQuestion(maskQuotedText(question));
   const clarification = (zh: string, en: string): EditRequest => ({
     kind: "clarification",
     message: /[\p{Script=Han}]/u.test(question) ? zh : en,
   });
-  const deck = /整套|全套|整份|全部(?:页面|幻灯片)|整个(?:提案|文稿)|whole deck|entire (?:deck|presentation)|all slides/i.test(question);
-  const object = /对象|图形|selected objects?/i.test(question) || input.objectIds.length > 0;
+  const deck = /整套|全套|整份|全部(?:页面|幻灯片)|整个(?:提案|文稿)|whole deck|entire (?:deck|presentation)|all slides/i.test(intentText);
+  const object = /对象|图形|selected objects?/i.test(intentText) || input.objectIds.length > 0;
   if (deck && object) return clarification("请指定整套或所选对象。", "Choose the full deck or selected objects.");
   let target: ProposalEditTarget;
   if (object) {
@@ -100,13 +109,25 @@ export function readProposalEdit(input: ProposalRevisionRequest): EditRequest {
   else if (input.currentPageId) target = { kind: "pages", pageIds: [input.currentPageId] };
   else return clarification("请选择要修改的页，或明确修改整套。", "Select slides or specify the full deck.");
 
-  const directives = question.split(/[;；。]+|(?:，\s*)?(?:并且|并|然后|同时)(?=\s*(?:把|将|改|替换|换|加|补|更|精简|调整|翻译|切换))|\s+(?:and then|and)(?=\s+(?:change|update|switch|add|replace|shorten|translate|tailor))/i)
-    .map(part => part.trim()).filter(Boolean);
-  if (directives.length > 8) return clarification("请将修改拆成较少的步骤。", "Split the request into fewer changes.");
+  const directives = [];
+  let start = 0;
+  for (const separator of maskQuotedText(question).matchAll(directiveSeparator)) {
+    directives.push(question.slice(start, separator.index).trim());
+    start = separator.index + separator[0].length;
+  }
+  directives.push(question.slice(start).trim());
+  const instructions = directives.filter(Boolean);
+  if (instructions.length > 8) return clarification("请将修改拆成较少的步骤。", "Split the request into fewer changes.");
   const operations: ProposalEditIntent[] = [];
-  for (const part of directives) {
-    if (proposalQuarters(part).length > 1) return clarification("请确认本次要换用的季度。", "Specify one replacement quarter.");
-    const operation = editOperation(part);
+  for (const part of instructions) {
+    const masked = maskQuotedText(part);
+    if (part !== masked && reviseText.test(normalizeProposalQuestion(masked))) {
+      operations.push({ kind: "revise-text", request: part });
+      continue;
+    }
+    const normalized = normalizeProposalQuestion(part);
+    if (proposalQuarters(normalized).length > 1) return clarification("请确认本次要换用的季度。", "Specify one replacement quarter.");
+    const operation = editOperation(normalized, part);
     if (!operation) return clarification("请明确各项修改的目标，例如换用正式季度或所选楼宇的外立面照片。", "Specify each change, such as a formal quarter or an exterior photo.");
     operations.push(operation);
   }

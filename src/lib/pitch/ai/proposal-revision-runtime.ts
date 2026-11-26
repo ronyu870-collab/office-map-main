@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { quarterSchema } from "@/src/lib/intelligence/query/contracts";
 import { pitchRpc, type PitchContext } from "../data/store";
 import { objectId, textAnchors } from "../workspace/object-layout";
 import { workspaceDetailSchema, type WorkspaceSave } from "../workspace/protocol";
-import { normalizeProposalQuestion, proposalRequestSchema, readProposalBrief } from "./proposal-brief";
+import { proposalRequestSchema, readProposalBrief } from "./proposal-brief";
 import type { ProposalScenario } from "../integration-contracts";
 import type { ProposalRevisionRequest } from "./proposal-edit-intent";
 import { prepareProposal } from "./proposal-runtime";
@@ -21,9 +22,23 @@ const scenarioQuestions: Record<Exclude<ProposalScenario, "analysis-briefing">, 
   "building-promotion": "为所选楼宇制作项目推介",
   "site-selection": "为所选楼宇制作选址方案",
 };
-const quoted = /(?:改为|改成|换成|替换为|replace (?:it )?with|change (?:it )?to)\s*(?:《([^》]+)》|「([^」]+)」|[“"]([^”"]+)[”"])/i;
+const quoted = /(?:改为|改成|换成|替换为|replace (?:it )?with|change (?:it )?to)\s*(?:《([^》]+)》|「([^」]+)」|[“"＂]([^”"＂]+)[”"＂])/i;
 
-export async function planProposalRevision(ctx: PitchContext, input: ProposalRevisionRequest) {
+const quarterReviewSchema = z.object({
+  projectVersion: z.number().int().positive(),
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  changes: z.array(z.object({ slideId: z.uuid() }).passthrough()).min(1).max(50),
+  period: quarterSchema,
+  changed: z.boolean(),
+  needsConclusionReview: z.boolean(),
+});
+
+export type PreviewProposalQuarter = (ctx: PitchContext, command: {
+  action: "preview_data_refresh"; projectId: string; slideId: string; expectedVersion: number;
+  period: z.infer<typeof quarterSchema>;
+}) => Promise<unknown>;
+
+export async function planProposalRevision(ctx: PitchContext, input: ProposalRevisionRequest, previewQuarter?: PreviewProposalQuarter) {
   const current = versionedWorkspace.parse(await pitchRpc(ctx, { action: "workspace_get", projectId: input.projectId }));
   const { project, workspace, slides } = current;
   if (project.version !== input.expectedVersion) throw new Error("PITCH_CONFLICT");
@@ -31,6 +46,10 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   let scope: "selected" | "document" = "selected";
   let theme: { id: string; version: number } | undefined;
   let refreshPlan: Extract<Awaited<ReturnType<typeof prepareProposal>>, { status: "ready" }> | undefined;
+  let quarterTransaction: { review: z.infer<typeof quarterReviewSchema>; command: {
+    action: "apply_data_refresh"; projectId: string; slideId: string; expectedVersion: number;
+    period: z.infer<typeof quarterSchema>; fingerprint: string;
+  } } | undefined;
   const port: ProposalRevisionPort = {
     read: async () => ({ version: project.version, pages: slides.map(slide => ({ id: slide.id, version: slide.version,
       objectIds: slide.scene.elements.map(objectId), manual: workspace.page_settings[slide.id]?.manual === true
@@ -42,6 +61,24 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
       for (const operation of target.operations) {
         signal.throwIfAborted();
         if (operation.kind === "set-period") {
+          if (target.operations.length !== 1) return null;
+          if (previewQuarter && operation.period) {
+            const [year, quarter] = operation.period.split("-Q").map(Number);
+            const period = quarterSchema.parse({ year, quarter });
+            const requestedPages = scope === "document"
+              ? selected.filter(page => workspace.page_settings[page.id]?.origin === "data") : selected;
+            const slideId = requestedPages[0]?.id;
+            if (!slideId) return null;
+            const command = { action: "preview_data_refresh" as const, projectId: project.id, slideId, expectedVersion: project.version, period };
+            const review = quarterReviewSchema.parse(await previewQuarter(ctx, command));
+            if (review.projectVersion !== project.version) throw new Error("PITCH_CONFLICT");
+            if (review.period.year !== period.year || review.period.quarter !== period.quarter) return null;
+            const ids = new Set(review.changes.map(change => change.slideId));
+            if (ids.size !== review.changes.length || ids.size !== requestedPages.length || requestedPages.some(page => !ids.has(page.id))) return null;
+            const id = randomUUID();
+            quarterTransaction = { review, command: { ...command, action: "apply_data_refresh", fingerprint: review.fingerprint } };
+            return { id, pages: [...pageEdits.values()], refresh: { id, version: 1, contextFingerprint: review.fingerprint } };
+          }
           const projectQuestion = `${workspace.context.business} ${project.title}`.trim();
           const brief = readProposalBrief(proposalRequestSchema.parse({ question: projectQuestion }));
           if (!brief.scenario || brief.scenario === "analysis-briefing") return null;
@@ -75,14 +112,16 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
           continue;
         }
         if (operation.kind !== "revise-text") return null;
-        const match = quoted.exec(normalizeProposalQuestion(operation.request));
+        const match = quoted.exec(operation.request);
         const replacement = match && (match[1] ?? match[2] ?? match[3]).trim();
-        if (!replacement) return null;
+        if (!replacement || !match) return null;
+        const instruction = operation.request.slice(0, match.index);
         for (const page of selected) {
           const slide = slides.find(slide => slide.id === page.id)!;
           if (slide.content.disclosure === "restricted" || (slide.scene.pagination?.count ?? 1) !== 1) return null;
+          const boundDataPage = workspace.page_settings[page.id]?.origin === "data";
           if (target.target.kind === "objects") {
-            const anchors = textAnchors(slide.scene, slide.content);
+            const anchors = textAnchors(slide.scene, slide.content, !boundDataPage);
             const edits: NonNullable<WorkspaceSave["pages"][number]["objectTexts"]> = [];
             for (const id of target.target.objectIds) {
               const anchor = anchors.get(id);
@@ -94,9 +133,16 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
             }
             pageEdits.set(page.id, { id: page.id, objectTexts: edits });
           } else {
-            if (page.manual || replacement.length > 160 || !/标题|\btitle\b/i.test(operation.request)
-              || numbers(slide.content.title) !== numbers(replacement)) return null;
-            pageEdits.set(page.id, { id: page.id, title: replacement });
+            if (page.manual) return null;
+            if (/标题|\btitle\b/i.test(instruction)) {
+              if (replacement.length > 160 || numbers(slide.content.title) !== numbers(replacement)) return null;
+              pageEdits.set(page.id, { id: page.id, title: replacement });
+            } else {
+              const paragraphs = slide.content.blocks.filter(block => block.kind === "paragraph");
+              if (boundDataPage || !/正文|段落|\bbody\b|\bparagraph\b/i.test(instruction) || paragraphs.length !== 1
+                || replacement.length > 4000 || numbers(paragraphs[0].text) !== numbers(replacement)) return null;
+              pageEdits.set(page.id, { id: page.id, paragraphs: [replacement] });
+            }
           }
         }
       }
@@ -106,5 +152,11 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
     },
   };
   const outcome = await previewProposalRevision(input, port, ctx.signal);
-  return outcome.status === "ready" ? { ...outcome, scope, ...(theme ? { theme } : {}), ...(refreshPlan ? { refreshPlan } : {}) } : outcome;
+  if (outcome.status !== "ready") return outcome;
+  if (quarterTransaction) return { ...outcome, scope, ...quarterTransaction };
+  // Agent 06's document transaction accepts reviewed page edits. A refreshed
+  // proposal has its own source review and can't be applied as a page edit.
+  if (refreshPlan) return { ...outcome, status: "refresh-review" as const, scope, ...(theme ? { theme } : {}), refreshPlan };
+  const command = { action: "apply_modification" as const, plan: outcome.plan, scope, ...(theme ? { theme } : {}) };
+  return { ...outcome, scope, ...(theme ? { theme } : {}), command };
 }

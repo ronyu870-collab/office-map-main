@@ -48,7 +48,7 @@ export function createProposalDirectorPorts(ctx: PitchContext, overrides: Partia
       const fresh = await loadDataAuthority(ctx.client, ctx.identity, signal);
       if (fresh.permissionRevision !== authority.permissionRevision || fresh.policyVersion !== authority.policyVersion) throw new Error("QUERY_DENIED");
       return catalogue.rows.map(building => ({ id: building.id, name: building.name, city,
-        submarket: building.dimensions.submarket?.value, grade: building.dimensions.grade?.value }));
+        submarket: building.dimensions?.submarket?.value, grade: building.dimensions?.grade?.value }));
     },
     periods: async ({ city, submarkets, buildingIds, scenario }, signal) => {
       assertBeijingMarket(city);
