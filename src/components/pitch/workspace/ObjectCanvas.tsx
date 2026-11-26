@@ -3,13 +3,14 @@
 import * as React from "react";
 import { Button } from "@/src/components/ui";
 import type { SlideContent } from "@/src/lib/pitch/contracts/content";
-import type { SlideScene } from "@/src/lib/pitch/contracts/scene";
-import { canMoveObject, canScaleObject, constrainedPosition, constrainedScale, objectId, textAnchors, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
+import { boxFits, normalizedRotation, rotateVector } from "@/src/lib/pitch/contracts/scene-geometry";
+import type { SlideScene, SceneElement } from "@/src/lib/pitch/contracts/scene";
+import { canMoveObject, canScaleObject, constrainedPosition, constrainedScale, objectId, objectRotation, textAnchors, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
 import type { Call } from "./client";
 import styles from "./workspace.module.css";
 
 type Layer = { id: string | null; url: string };
-type Position = Pick<ObjectMove, "x" | "y" | "scale">;
+type Position = Pick<ObjectMove, "x" | "y" | "scale" | "rotation">;
 type Changes = { moves: ObjectMove[]; texts: ObjectText[] };
 type History = { past: Changes[]; present: Changes; future: Changes[] };
 type HistoryAction = { type: "record"; update: (value: Changes) => Changes } | { type: "undo" | "redo" };
@@ -55,6 +56,8 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
 }) {
   const [layers, setLayers] = React.useState<Layer[]>([]);
   const [error, setError] = React.useState("");
+  const [boundsMessage, setBoundsMessage] = React.useState("");
+  const [angleInput, setAngleInput] = React.useState<{ id: string; value: string } | null>(null);
   const [selected, setSelected] = React.useState<string | null>(null);
   const [history, dispatch] = React.useReducer(editHistory, {
     past: [], present: { moves: pendingMoves ?? [], texts: pendingTexts ?? [] }, future: [],
@@ -92,28 +95,40 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
     return () => request.abort();
   }, [call, projectId, slideId, sceneKey]);
 
-  function position(id: string, fallback: Position) {
-    return (dragMove?.id === id ? dragMove : moves.find(move => move.id === id)) ?? fallback;
+  function position(id: string, fallback: SceneElement): Position {
+    const local = dragMove?.id === id ? dragMove : moves.find(move => move.id === id);
+    return { x: fallback.x, y: fallback.y, rotation: objectRotation(fallback), ...local };
   }
   function place(id: string, next: Position) {
     const entry = entries.find(value => value.id === id);
     if (!entry) return;
+    setBoundsMessage("");
     dispatch({ type: "record", update: previous => {
       const rest = previous.moves.filter(move => move.id !== id);
       const { x, y, scale } = next;
-      const moves = x === entry.element.x && y === entry.element.y && (scale ?? 1) === 1
-        ? rest : [...rest, { id, x, y, ...(scale !== undefined && scale !== 1 ? { scale } : {}) }];
+      const angleChanged = next.rotation !== undefined && next.rotation !== objectRotation(entry.element);
+      const moves = x === entry.element.x && y === entry.element.y && (scale ?? 1) === 1 && !angleChanged
+        ? rest : [...rest, { id, x, y, ...(scale !== undefined && scale !== 1 ? { scale } : {}),
+          ...(angleChanged ? { rotation: next.rotation } : {}) }];
       return { ...previous, moves };
     } });
   }
   function moveFrom(at: Position, element: Pick<SlideScene["elements"][number], "w" | "h">, x: number, y: number) {
     const scale = at.scale ?? 1;
-    return { ...constrainedPosition(scene, { w: element.w * scale, h: element.h * scale }, x, y),
-      ...(scale !== 1 ? { scale } : {}) };
+    return { ...constrainedPosition(scene, { w: element.w * scale, h: element.h * scale }, x, y, at.rotation),
+      rotation: at.rotation, ...(scale !== 1 ? { scale } : {}) };
   }
 
   function resizeFrom(at: Position, element: Pick<SlideScene["elements"][number], "w" | "h">, scale: number) {
-    return { x: at.x, y: at.y, scale: constrainedScale(scene, element, at, scale) };
+    return { x: at.x, y: at.y, rotation: at.rotation, scale: constrainedScale(scene, element, at, scale, at.rotation) };
+  }
+  function changeRotation(id: string, element: SceneElement, angle: number) {
+    const at = position(id, element), rotation = normalizedRotation(angle), scale = at.scale ?? 1;
+    if (!boxFits(scene, { ...at, w: element.w * scale, h: element.h * scale, rotation })) {
+      setBoundsMessage("旋转后会超出页面。请先移动或缩小对象。");
+      return;
+    }
+    place(id, { ...at, rotation });
   }
   function startTyping(id: string) {
     if (anchors.has(id)) setTyping({ id, value: texts.find(text => text.id === id)?.text ?? canonicalText(id) });
@@ -132,18 +147,20 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   const picked = entries.find(entry => entry.id === selected);
   const pickedPosition = picked ? position(picked.id, picked.element) : null;
   const pickedScale = pickedPosition?.scale ?? 1;
+  const resizeCorner = picked ? rotateVector(picked.element.w * pickedScale / 2, picked.element.h * pickedScale / 2, pickedPosition?.rotation ?? 0) : null;
   function draggedScale(event: React.PointerEvent<HTMLButtonElement>, element: SlideScene["elements"][number]) {
     const start = drag.current;
     if (!start || !start.resizing || start.pointer !== event.pointerId || !start.rect.width || !start.rect.height)
       return null;
     const dx = element.w / scene.width * start.rect.width;
     const dy = element.h / scene.height * start.rect.height;
-    const delta = ((event.clientX - start.startX) * dx + (event.clientY - start.startY) * dy) / (dx * dx + dy * dy);
+    const axis = rotateVector(dx, dy, start.origin.rotation ?? 0);
+    const delta = ((event.clientX - start.startX) * axis.x + (event.clientY - start.startY) * axis.y) / (dx * dx + dy * dy);
     return resizeFrom(start.origin, element, (start.origin.scale ?? 1) + delta);
   }
   return (
     <section className={styles.objectEditor} aria-label="画布对象编辑" onKeyDown={event => {
-      if (typing || event.nativeEvent.isComposing || !(event.metaKey || event.ctrlKey) ||
+      if (typing || event.target instanceof HTMLInputElement || event.nativeEvent.isComposing || !(event.metaKey || event.ctrlKey) ||
         event.key.toLowerCase() !== "z") return;
       event.preventDefault();
       dispatch({ type: event.shiftKey ? "redo" : "undo" });
@@ -158,6 +175,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
           onClick={() => onApply(history.present)}>{texts.length ? "应用到页面" : "应用位置"}</Button>
       </div>
       {error && <p role="alert">{error}</p>}
+      {boundsMessage && <p role="status">{boundsMessage}</p>}
       {!layers.length && !error && <p role="status">正在读取页面对象…</p>}
       {layers.length > 0 && <div ref={board} className={styles.objectBoard}>
         {layers.map((layer, index) => {
@@ -171,8 +189,12 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
                 width: `${element.w / scene.width * 100}%`, height: `${element.h / scene.height * 100}%` }}>{text}</div>;
           }
           const scale = p?.scale ?? 1;
+          const fraction = (x: number, y: number) => `${x / scene.width * 100}%, ${y / scene.height * 100}%`;
+          const transform = p && element
+            ? `translate(${fraction(p.x + element.w * scale / 2, p.y + element.h * scale / 2)}) rotate(${(p.rotation ?? 0) - objectRotation(element)}deg) scale(${scale}) translate(${fraction(-element.x - element.w / 2, -element.y - element.h / 2)})`
+            : undefined;
           return <img key={layer.id ?? "background"} draggable={false} alt="" src={layer.url}
-            style={p && element ? { transformOrigin: "0 0", transform: `translate(${(p.x - element.x * scale) / scene.width * 100}%, ${(p.y - element.y * scale) / scene.height * 100}%) scale(${scale})` } : undefined} />;
+            style={transform ? { transformOrigin: "0 0", transform } : undefined} />;
         })}
         {entries.filter(({ element }) => canMoveObject(element)).map(({ id, element }, index) => {
           const p = position(id, element);
@@ -193,7 +215,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
           return <button
             key={id} type="button" aria-label={`对象 ${index + 1}：${label}`} aria-pressed={selected === id}
             className={styles.objectTarget}
-            data-canvas-id={id} style={bounds}
+            data-canvas-id={id} style={{ ...bounds, transform: p.rotation ? `rotate(${p.rotation}deg)` : undefined }}
             onDoubleClick={() => startTyping(id)}
             onClick={() => setSelected(id)}
             onFocus={() => setSelected(id)}
@@ -234,12 +256,12 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             }}
           />;
         })}
-        {picked && pickedPosition && !typing && canScaleObject(picked.element) && (
+        {picked && pickedPosition && resizeCorner && !typing && canScaleObject(picked.element) && (
           <button type="button" aria-label="缩放所选对象"
             className={styles.objectResize}
             style={{
-              left: `${(pickedPosition.x + picked.element.w * pickedScale) / scene.width * 100}%`,
-              top: `${(pickedPosition.y + picked.element.h * pickedScale) / scene.height * 100}%`,
+              left: `${(pickedPosition.x + picked.element.w * pickedScale / 2 + resizeCorner.x) / scene.width * 100}%`,
+              top: `${(pickedPosition.y + picked.element.h * pickedScale / 2 + resizeCorner.y) / scene.height * 100}%`,
             }}
             onPointerDown={event => {
               if (event.button !== 0 || drag.current || !board.current ||
@@ -287,6 +309,33 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             place(picked.id, resizeFrom(at, picked.element, (at.scale ?? 1) + .1));
           }}>放大所选</Button>
           <output aria-label="所选对象缩放">{Math.round((position(picked.id, picked.element).scale ?? 1) * 100)}%</output>
+          <Button variant="ghost" onClick={() => changeRotation(
+            picked.id, picked.element, (position(picked.id, picked.element).rotation ?? 0) - 15,
+          )}>左转 15°</Button>
+          <Button variant="ghost" onClick={() => changeRotation(
+            picked.id, picked.element, (position(picked.id, picked.element).rotation ?? 0) + 15,
+          )}>右转 15°</Button>
+          <Button variant="ghost" disabled={!position(picked.id, picked.element).rotation}
+            onClick={() => changeRotation(picked.id, picked.element, 0)}>角度归零</Button>
+          <label className={styles.rotationField}>
+            旋转角度
+            <input type="number" min={-180} max={180} step={1}
+              value={angleInput?.id === picked.id ? angleInput.value : position(picked.id, picked.element).rotation ?? 0}
+              onChange={event => setAngleInput({ id: picked.id, value: event.target.value })}
+              onBlur={() => {
+                if (angleInput?.id !== picked.id) return;
+                const angle = Number(angleInput.value);
+                if (angleInput.value.trim() && Number.isInteger(angle) && angle >= -180 && angle <= 180)
+                  changeRotation(picked.id, picked.element, angle);
+                else setBoundsMessage("请输入 -180° 到 180° 之间的整数。");
+                setAngleInput(null);
+              }}
+              onKeyDown={event => {
+                if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+              }}
+            />
+          </label>
+          <output aria-label="所选对象角度">{position(picked.id, picked.element).rotation ?? 0}°</output>
         </div>
       )}
       {picked && <output aria-live="polite" className={styles.objectPosition}>

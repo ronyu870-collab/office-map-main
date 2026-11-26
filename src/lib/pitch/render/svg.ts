@@ -5,7 +5,7 @@ import { sceneFont, wrapText, lineHeight } from '../layout/metrics';
 import { assertSceneQuality } from '../layout/quality';
 import { chartScale, mapGeometry } from './geometry';
 import { cellText } from './format';
-import { objectId } from '../workspace/object-layout';
+import { objectId, objectRotation } from '../workspace/object-layout';
 import { inspectMedia, type SceneMedia } from './media';
 const xml = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
 const px = (n: number) => n * 96;
@@ -67,7 +67,9 @@ export async function renderSceneSvg(raw: SlideScene, rawTheme: DesignTheme, raw
   };
   parts.push(rect(0, 0, scene.width, scene.height, theme.colors.background));
   for (const [index, el] of scene.elements.entries()) {
+    const rotation = objectRotation(el);
     if (editorLayers) parts.push(`<g data-pitch-object="${objectId(el, index)}">`);
+    if (rotation) parts.push(`<g transform="rotate(${rotation} ${px(el.x + el.w / 2)} ${px(el.y + el.h / 2)})">`);
     if (el.kind === 'text') parts.push(text(el.text, el.x, el.y, el.w, theme.typography[el.role], el.bold, el.purpose ? theme.colors.muted : el.role === 'title' ? theme.colors.primary : theme.colors.text));
     else if (el.kind === 'image') {
       const image = media.find(m => m.id === el.mediaAssetId && m.version === el.mediaVersion)!;
@@ -101,6 +103,7 @@ export async function renderSceneSvg(raw: SlideScene, rawTheme: DesignTheme, raw
       const map = mapGeometry(el); parts.push(rect(map.box.x, map.box.y, map.box.w, map.box.h, theme.colors.background, theme.table.border));
       for (const p of map.points) parts.push(`<circle cx="${px(p.x)}" cy="${px(p.y)}" r="5" fill="#${theme.colors.primary}"/>`, text(String(p.number), p.x + .08, p.y - .1, .5));
     }
+    if (rotation) parts.push('</g>');
     if (editorLayers) parts.push('</g>');
   }
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 ${px(scene.width)} ${px(scene.height)}" role="img">${parts.join('')}</svg>`;

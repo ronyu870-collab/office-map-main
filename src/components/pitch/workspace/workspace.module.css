@@ -743,3 +743,6 @@
   touch-action: none;
 }
 .objectResize::before { content: "↘"; color: white; line-height: 22px; }
+
+.rotationField { display: flex; align-items: center; gap: 6px; }
+.studio .rotationField input { width: 78px; }

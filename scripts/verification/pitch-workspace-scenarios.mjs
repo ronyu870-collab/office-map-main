@@ -222,7 +222,7 @@ export async function verifyPitchWorkspace({
       assert.notEqual(targetIndex, -1);
       const target = before.scene.elements[targetIndex], id = `object-${targetIndex + 1}`;
       const move = { id, x: target.x - .05, y: target.y };
-      for (const invalid of [{ ...move, id: "object-999" }, { ...move, x: 13 }, { ...move, scale: .8 }]) {
+      for (const invalid of [{ ...move, id: "object-999" }, { ...move, x: 13 }, { ...move, scale: .8 }, { ...move, rotation: 15 }]) {
         const rejected = await workspace(admin, { ...command, pages: command.pages.map((page, index) =>
           index ? page : { ...page, objectMoves: [invalid] },
         ) });

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import JSZip from "jszip";
+import { Resvg } from "@resvg/resvg-js";
+import { checkScene } from "../layout/quality";
 import { STUDIO_THEME } from "../design/theme";
 import { layoutSlides } from "../layout/engine";
 import { layoutFixture } from "../fixtures/layouts";
@@ -50,6 +52,31 @@ describe("editable scene positions", () => {
     const xml = await deck.file("ppt/slides/slide1.xml")!.async("string");
     expect(xml).toContain(`cx="${Math.round(element.w * scale * 914400)}" cy="${Math.round(element.h * scale * 914400)}"`);
     expect(xml).toContain("<a:prstGeom");
+  });
+
+  it("rotates real shape and image DrawingML objects, and checks visual page bounds", async () => {
+    const id = "b913b0b9-9512-4c5c-8456-f615edc4bc02";
+    const base = await page();
+    const shape = { kind: "shape", shape: "rect", fill: "primary", background: false, x: 2, y: 3, w: 4, h: 1 } as const;
+    const image = { kind: "image", mediaAssetId: id, mediaVersion: 1, alt: "隔离图片", fit: "contain", x: 9, y: 3, w: 2, h: 2 } as const;
+    const scene = { ...base, elements: [shape, image] };
+    const png = new Resvg('<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480"><rect width="480" height="480" fill="blue"/></svg>').render().asPng();
+    const media = [{ id, version: 1, mime: "image/png" as const, bytes: png }];
+    const edited = applyObjectMoves(scene, [
+      { id: "object-1", x: shape.x, y: shape.y, rotation: 90 },
+      { id: "object-2", x: image.x, y: image.y, rotation: 30 },
+    ]);
+    const rendered = await renderSceneSvg(edited, STUDIO_THEME, media);
+    expect(rendered).toContain("rotate(90 384 336)");
+    expect(rendered).toContain("rotate(30 960 384)");
+    const deck = await JSZip.loadAsync(await renderPitchPptx("原生旋转验证", [{ scene: edited, theme: STUDIO_THEME }], media));
+    const xml = await deck.file("ppt/slides/slide1.xml")!.async("string");
+    expect(xml).toMatch(/<p:sp>[\s\S]*?rot="5400000"[\s\S]*?<\/p:sp>/);
+    expect(xml).toMatch(/<p:pic>[\s\S]*?rot="1800000"[\s\S]*?<\/p:pic>/);
+    expect(() => applyObjectMoves(scene, [{ id: "object-1", x: 2, y: 0, rotation: 90 }])).toThrow("PITCH_OBJECT_LAYOUT_INVALID");
+    const neighbor = { ...shape, x: 3.8, y: 1.7, w: .5, h: .4 };
+    expect(await checkScene({ ...edited, elements: [edited.elements[0], neighbor] }, STUDIO_THEME))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ code: "ELEMENT_OVERLAP" })]));
   });
 
   it("updates canonical content and native text together without touching ambiguous or managed content", async () => {

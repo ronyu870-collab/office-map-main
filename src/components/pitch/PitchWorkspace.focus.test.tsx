@@ -397,12 +397,19 @@ describe("Pitch workspace continuous editing", () => {
     const control = screen.getByRole("button", { name: "缩放所选对象" });
     fireEvent.keyDown(control, { key: "ArrowLeft", shiftKey: true });
     expect(screen.getByLabelText("所选对象缩放")).toHaveTextContent("80%");
+    await user.click(screen.getByRole("button", { name: "右转 15°" }));
+    expect(screen.getByLabelText("所选对象角度")).toHaveTextContent("15°");
+    const angle = screen.getByRole("spinbutton", { name: "旋转角度" });
+    fireEvent.change(angle, { target: { value: "25" } });
+    fireEvent.blur(angle);
+    expect(screen.getByLabelText("所选对象角度")).toHaveTextContent("25°");
     await user.click(screen.getByRole("button", { name: "应用位置" }));
     await waitFor(() => expect(detail.slides[0].scene.elements[1].w).toBeCloseTo(2.4), { timeout: 3000 });
     expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
-      { id: pageId, objectMoves: [{ id: "object-2", x: 2, y: 4, scale: .8 }] },
+      { id: pageId, objectMoves: [{ id: "object-2", x: 2, y: 4, scale: .8, rotation: 25 }] },
     ]);
     expect(detail.slides[0].scene.elements[1].h).toBeCloseTo(.8);
+    expect(detail.slides[0].scene.elements[1]).toMatchObject({ rotation: 25 });
     await user.click(await screen.findByRole("button", { name: "撤销已保存的调整" }));
     await waitFor(() => expect(detail.slides[0].scene.elements[1].w).toBe(3));
     await user.click(screen.getByRole("button", { name: "重做已保存的调整" }));

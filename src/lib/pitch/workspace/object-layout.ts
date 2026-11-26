@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { boxFits, visualBounds } from "../contracts/scene-geometry";
 import { slideSceneSchema, type SceneElement, type SlideScene } from "../contracts/scene";
 
 export const objectMoveSchema = z.strictObject({
@@ -6,6 +7,7 @@ export const objectMoveSchema = z.strictObject({
   x: z.number().min(0).max(13.334),
   y: z.number().min(0).max(7.5),
   scale: z.number().min(.1).max(4).optional(),
+  rotation: z.number().int().min(-180).max(179).optional(),
 });
 export type ObjectMove = z.infer<typeof objectMoveSchema>;
 
@@ -17,13 +19,20 @@ export const canMoveObject = (element: SceneElement) =>
 export const canScaleObject = (element: SceneElement) =>
   element.kind === "image" || (element.kind === "shape" && !element.background);
 
+export const objectRotation = (element: SceneElement) =>
+  element.kind === "image" || element.kind === "shape" ? element.rotation ?? 0 : 0;
+
 export function constrainedScale(
   scene: Pick<SlideScene, "width" | "height">,
   element: Pick<SceneElement, "w" | "h">,
   at: Pick<ObjectMove, "x" | "y">,
   scale: number,
+  rotation = 0,
 ) {
-  const max = Math.min(4, (scene.width - at.x) / element.w, (scene.height - at.y) / element.h);
+  const box = visualBounds({ ...element, x: 0, y: 0, rotation });
+  const max = Math.min(4, (scene.width - at.x) / Math.max(element.w, box.x + box.w),
+    (scene.height - at.y) / Math.max(element.h, box.y + box.h),
+    box.x < 0 ? at.x / -box.x : Infinity, box.y < 0 ? at.y / -box.y : Infinity);
   return Math.max(.1, Math.min(max, Math.round(scale * 10000) / 10000));
 }
 
@@ -35,12 +44,15 @@ export function constrainedPosition(
   element: Pick<SceneElement, "w" | "h">,
   x: number,
   y: number,
+  rotation = 0,
 ) {
-  const coordinate = (value: number, room: number) => Math.min(
-    Math.max(0, room),
-    Math.max(0, Math.round(value * 10000) / 10000),
-  );
-  return { x: coordinate(x, scene.width - element.w), y: coordinate(y, scene.height - element.h) };
+  const box = visualBounds({ ...element, x: 0, y: 0, rotation });
+  const coordinate = (value: number, floor: number, ceiling: number) =>
+    Math.min(ceiling, Math.max(floor, Math.round(value * 10000) / 10000));
+  return {
+    x: coordinate(x, Math.max(0, -box.x), scene.width - Math.max(element.w, box.x + box.w)),
+    y: coordinate(y, Math.max(0, -box.y), scene.height - Math.max(element.h, box.y + box.h)),
+  };
 }
 
 /** The browser submits coordinates, never an arbitrary scene or replacement content. */
@@ -57,12 +69,16 @@ export function applyObjectMoves(scene: SlideScene, value: ObjectMove[]): SlideS
       return element;
     }
     if (!move) return { ...element, editorId: id };
-    if (move.scale !== undefined && !canScaleObject(element)) throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
+    if ((move.scale !== undefined || move.rotation !== undefined) && !canScaleObject(element)) throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
     const w = element.w * (move.scale ?? 1), h = element.h * (move.scale ?? 1);
-    if (move.x + w > scene.width + .0001 || move.y + h > scene.height + .0001)
+    const rotated = { x: move.x, y: move.y, w, h, rotation: move.rotation ?? objectRotation(element) };
+    if (!boxFits(scene, rotated))
       throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
     pending.delete(id);
-    return { ...element, editorId: id, x: move.x, y: move.y, w, h };
+    return {
+      ...element, editorId: id, x: move.x, y: move.y, w, h,
+      ...(move.rotation !== undefined ? { rotation: move.rotation } : {}),
+    };
   });
   if (pending.size) throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
   return slideSceneSchema.parse({ ...scene, elements });
