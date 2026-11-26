@@ -726,7 +726,8 @@ try {
         action: "export_start",
         projectId: deck.project.id,
         exportId: randomUUID(),
-        format: "pptx",
+        format: "png",
+        page: 0,
         audience: "internal",
       };
       await render.prepareRenderExport(ordinary, c);
@@ -770,13 +771,31 @@ try {
       assert.equal(new Set(reopened.slides.map(slide => slide.asset_id)).size, 1);
       const request = { action: "export_start", projectId: full.project.id, exportId: randomUUID(),
         format: "pptx", audience: "internal", pages: [49, 0] };
-      await render.prepareRenderExport(ordinary, request);
+      const queuedDuplicate = { ...request, exportId: randomUUID() };
+      assert.equal((await render.prepareRenderExport(ordinary, request)).state, "pending");
+      assert.equal((await render.prepareRenderExport(ordinary, queuedDuplicate)).state, "pending");
+      const packagesBefore = files.size;
       await render.runRenderExport(ordinary, request);
+      await render.runRenderExport(ordinary, queuedDuplicate);
+      const repeated = { ...request, exportId: randomUUID() };
+      const reused = await render.prepareRenderExport(ordinary, repeated);
+      assert.deepEqual(reused, { exportId: repeated.exportId, state: "ready", reused: true });
+      await render.runRenderExport(ordinary, repeated);
+      assert.equal(files.size, packagesBefore + 1);
+      for (const alias of [queuedDuplicate, repeated]) {
+        const [row] = (await db.setup.query("select file_export_id, state from pitch_exports where id=$1", [alias.exportId])).rows;
+        assert.deepEqual(row, { file_export_id: request.exportId, state: "ready" });
+        assert.deepEqual((await render.downloadArtifact(ordinary, alias)).bytes, (await render.downloadArtifact(ordinary, request)).bytes);
+      }
+      await assert.rejects(render.downloadArtifact(owner, repeated), /PITCH_DENIED/);
       const zip = await JSZip.loadAsync((await render.downloadArtifact(ordinary, request)).bytes);
       const exportedPages = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide[0-9]+\.xml$/.test(name));
       assert.equal(exportedPages.length, 2);
       assert.match(await zip.file("ppt/slides/slide1.xml").async("string"), /尾张说明/);
       assert.match(await zip.file("ppt/slides/slide2.xml").async("string"), /首张说明/);
+      assert.equal((await render.prepareRenderExport(ordinary, { ...request, exportId: randomUUID(), pages: [0, 49] })).state, "pending");
+      await workspace.saveWorkspace(ordinary, save(reopened, { title: "已修改的五十页项目" }));
+      assert.equal((await render.prepareRenderExport(ordinary, { ...request, exportId: randomUUID() })).state, "pending");
     },
   );
   await check(
@@ -845,8 +864,12 @@ try {
       await writeFile("tmp/pitch-workspace-fixtures/isolated-client-selection.pdf", file.bytes);
       await assert.rejects(render.downloadArtifact(owner, selected), /PITCH_DENIED/);
       await assert.rejects(render.downloadArtifact(ordinary, { ...selected, audience: "internal" }), /PITCH_DENIED/);
+      const cachedClient = { ...selected, exportId: randomUUID() };
+      assert.equal((await render.prepareRenderExport(ordinary, cachedClient)).reused, true);
+      assert.deepEqual((await render.downloadArtifact(ordinary, cachedClient)).bytes, file.bytes);
       await db.setup.query("update pitch_content_assets set allow_client_export=false where id=$1", [approvedAsset]);
       await assert.rejects(render.downloadArtifact(ordinary, selected), /PITCH_DENIED/);
+      await assert.rejects(render.downloadArtifact(ordinary, cachedClient), /PITCH_DENIED/);
     },
   );
   await check(
