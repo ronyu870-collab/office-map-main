@@ -520,6 +520,7 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
   .workspace-restore-filter { min-height: 44px; }
 }
 @media (max-width: 479px) {
+  .map-workspace-toolbar { column-gap: 4px; }
   .map-workspace-modes { display: none; }
   .map-mode-select { display: block; }
   .map-page-header { gap: 4px; }
