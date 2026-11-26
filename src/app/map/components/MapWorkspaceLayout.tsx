@@ -7,7 +7,7 @@ import { useSurfaceMotion, useSurfacePresence } from '../runtime/workspaceMotion
 
 type Props = {
   left: React.ReactNode; right: React.ReactNode; children: React.ReactNode;
-  leftOpen: boolean; rightOpen: boolean; focus: boolean; width: number; kind?: WorkspaceKind;
+  leftOpen: boolean; rightOpen: boolean; focus: boolean; width?: number; kind?: WorkspaceKind;
   onWidthChange: (width: number) => void; backLabel?: string | null; onBack?: () => void;
   contentKey?: string; contentPending?: boolean;
 };
@@ -47,9 +47,11 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   const columns = leftPriority && desired.leftCollapsed ? workspaceColumns(available.width, leftOpen && !focus, false, width, kind, available.height) : desired;
   const leftVisible = leftOpen && !focus && (columns.compact ? showLeftFirst : columns.left > 0);
   const rightVisible = rightOpen && !focus && (!columns.compact || !showLeftFirst) && !(leftPriority && desired.leftCollapsed);
-  const summaryKey = `${leftVisible ? 'left' : 'right'}:${contentKey}`;
   const modeKey = leftVisible && (columns.compact || !rightVisible) ? 'filters' : kind;
   const mode = modes[modeKey] ?? 'compact';
+  // Compact research/full research render different reading surfaces. Don't
+  // issue a camera target against the previous surface's mobile measurement.
+  const summaryKey = `${leftVisible ? 'left' : 'right'}:${contentKey}${modeKey === 'submarket' ? `:${mode}` : ''}`;
   const setMode = React.useCallback((next: SheetMode) => {
     if (next === 'full' && mode !== 'full') setPreviousModes(old => ({ ...old, [modeKey]: mode }));
     setModes(previous => ({ ...previous, [modeKey]: next }));
@@ -104,11 +106,16 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   const displayWidth = columns.right;
   // A wider right pane may temporarily yield the left pane; the user's width
   // should not be permanently capped by a filter that can be restored later.
-  const maxWidth = Math.min(range.max, Math.floor(available.width - mapCanvasMinimum(available.width)));
+  const maxWidth = kind === 'submarket' ? desired.maxRight : Math.min(range.max, Math.floor(available.width - mapCanvasMinimum(available.width)));
+  const resizeTo = (requested: number) => {
+    const next = Math.max(range.min, Math.min(maxWidth, requested));
+    // A no-op at the viewport limit must not replace a wider saved preference.
+    if (kind !== 'submarket' || Math.abs(next - displayWidth) >= 1) onWidthChange(next);
+  };
   const expanded = mode === 'full' && (rightVisible || leftVisible);
   const accessibleLeft = leftVisible && (!expanded || modeKey === 'filters');
   const accessibleRight = rightVisible && (!expanded || modeKey !== 'filters');
-  const lastGeometry = React.useRef({ right: width, left: 280, height: sheetHeight });
+  const lastGeometry = React.useRef({ right: width ?? range.initial, left: 280, height: sheetHeight });
   if (accessibleRight) lastGeometry.current.right = expanded ? available.width : displayWidth;
   if (accessibleLeft) lastGeometry.current.left = columns.left || 280;
   if (accessibleLeft || accessibleRight) lastGeometry.current.height = expanded ? available.height : sheetHeight;
@@ -166,7 +173,7 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
       </aside>
     </WorkspacePanelContext.Provider>
     {React.isValidElement(children) ? React.cloneElement(children as React.ReactElement<{ inert?: boolean; 'aria-hidden'?: boolean }>, { inert: expanded || undefined, 'aria-hidden': expanded || undefined }) : children}
-    <WorkspacePanelContext.Provider value={{ compact: columns.compact, mode, setMode, restore: restoreMode, backLabel, onBack }}>
+    <WorkspacePanelContext.Provider value={{ compact: columns.compact, mode: modes[kind] ?? 'compact', setMode, restore: restoreMode, active: accessibleRight, backLabel, onBack }}>
       <aside ref={rightRef} className="map-workspace-right" data-open={accessibleRight || undefined}
         data-map-focus-right={!columns.compact || undefined} data-map-focus-bottom={columns.compact || undefined}
         onFocusCapture={() => { panelFocused.current.right = true; }} onBlurCapture={event => blurPanel('right', event)}
@@ -176,13 +183,13 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
           aria-valuemin={range.min} aria-valuemax={Math.max(range.min, maxWidth)} aria-valuenow={Math.round(displayWidth)} className="map-workspace-resize"
           onKeyDown={event => {
             if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-              event.preventDefault(); onWidthChange(Math.min(maxWidth, Math.max(range.min, displayWidth + (event.key === 'ArrowLeft' ? 20 : -20))));
+              event.preventDefault(); resizeTo(displayWidth + (event.key === 'ArrowLeft' ? 20 : -20));
             } else if (event.key === 'Home' || event.key === 'End') {
-              event.preventDefault(); onWidthChange(event.key === 'Home' ? range.min : maxWidth);
+              event.preventDefault(); resizeTo(event.key === 'Home' ? range.min : maxWidth);
             }
           }}
           onPointerDown={event => { dragRef.current = { start: event.clientX, width: displayWidth }; setDragging(true); event.currentTarget.setPointerCapture(event.pointerId); }}
-          onPointerMove={event => { if (dragRef.current) onWidthChange(Math.min(maxWidth, Math.max(range.min, dragRef.current.width + dragRef.current.start - event.clientX))); }}
+          onPointerMove={event => { if (dragRef.current) resizeTo(dragRef.current.width + dragRef.current.start - event.clientX); }}
           onPointerUp={finishDrag} onPointerCancel={finishDrag} onLostPointerCapture={finishDrag} />
         {rightPresence.children}
       </aside>

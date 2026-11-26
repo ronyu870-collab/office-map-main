@@ -452,13 +452,22 @@ try {
       // filters, controller renderers and sidebar synchronization all remain real.
       await page.evaluate(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } })));
       await page.getByRole('region', { name: 'CBD', exact: true }).waitFor();
+      let resizedResearchWidth;
       if (width === 1536) {
-        await page.waitForTimeout(300);
-        assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 400, 'research has its own reading width');
-        await page.getByRole('separator', { name: '调整业务工作区宽度' }).press('End');
-        await page.waitForTimeout(300);
-        assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 520);
-        assert.ok((await page.locator('#map-container').boundingBox()).width >= width * .5, 'wide research preserves half the viewport for the map');
+        const separator = page.getByRole('separator', { name: '调整业务工作区宽度' });
+        const initialResearchWidth = Number(await separator.getAttribute('aria-valuenow'));
+        assert.ok(initialResearchWidth > 520, 'research gets the wider adaptive desktop split by default');
+        resizedResearchWidth = Number(await separator.getAttribute('aria-valuemax'));
+        assert.ok(resizedResearchWidth > initialResearchWidth, 'research can be widened beyond its default');
+        await separator.press('End');
+        await page.locator(`.map-workspace-right[data-open] [aria-valuenow="${resizedResearchWidth}"]`).waitFor();
+        const split = await page.locator('.map-workspace-layout').evaluate(el => {
+          const right = el.querySelector('.map-workspace-right[data-open]');
+          const left = el.querySelector('.map-workspace-left[data-open]');
+          return { width: el.clientWidth, right: right.offsetWidth, exposedMap: right.offsetLeft - (left ? left.offsetLeft + left.offsetWidth : 0) };
+        });
+        assert.equal(split.right, resizedResearchWidth);
+        assert.ok(split.exposedMap >= split.width * .5 - 1, 'wide research preserves half the stage as uncovered map');
       }
       if (width === 320 || width === 390) assert.ok((await page.getByRole('region', { name: 'CBD', exact: true }).locator('.workspace-scroll').boundingBox()).height >= 80, 'compact research retains a usable reading area');
       await page.screenshot({ path: `/tmp/map-layout-research-${width}.png` });
@@ -488,8 +497,8 @@ try {
       await page.getByRole('button', { name: '返回项目列表', exact: true }).click();
       await page.getByRole('button', { name: '返回子市场研究', exact: true }).click();
       if (width === 1536) {
-        await page.waitForTimeout(300);
-        assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 520, 'return restores research width');
+        await page.getByRole('region', { name: 'CBD', exact: true }).waitFor();
+        assert.equal(await page.locator('.map-workspace-right[data-open]').evaluate(el => el.offsetWidth), resizedResearchWidth, 'return restores the chosen research width');
       }
       await page.getByRole('button', { name: '关闭子市场介绍' }).click();
       assert.equal(await page.getByRole('button', { name: '保留该区域筛选', exact: true }).count(), 0, 'region is retained by default');
