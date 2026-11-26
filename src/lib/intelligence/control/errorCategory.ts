@@ -7,7 +7,7 @@ export function errorCategory(code:string) {
   if(/cancel/.test(key))return 'cancelled';
   if(/unauthorized|payment_required|model_not_found|rate_limited|timeout|provider_unavailable|invalid_response|stream_interrupted/.test(key))return 'provider';
   if(/tool/.test(key))return 'tool';
-  if(/query|snapshot|source|artifact|file|chart|xlsx|result|audit|recovery/.test(key))return 'data';
+  if(/query|snapshot|source|artifact|file|chart|xlsx|result|audit|recovery|answer_incomplete|answer_data_unavailable/.test(key))return 'data';
   if(/agent|round|progress|protocol/.test(key))return 'agent';
   return 'unknown';
 }

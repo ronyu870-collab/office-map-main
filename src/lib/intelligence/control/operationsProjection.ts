@@ -51,6 +51,14 @@ export function operationMetadata(kind:OperationMetadata['kind'],raw:unknown):Op
     if(typeof value.tool==='string' && /^[a-z_]{1,100}$/.test(value.tool)) {data.tool=value.tool; if(['tool_started','tool_finished'].includes(kind))data.type='tool';}
     if(['completed','partial','incomplete'].includes(String(value.executionStatus)))take('status',value,'executionStatus');
     if(value.executionStatus==='limited')data.status='incomplete';
+    // Report formal answer completion separately from provider execution. Reuse
+    // the deployed status/error-code whitelist; retain executionStatus in the
+    // encrypted audit. Never upgrade a technically partial execution.
+    if(kind==='succeeded' && value.provider==='server_policy' && value.executionStatus==='completed') {
+      if(value.answerStatus==='partial') {data.status='partial';data.errorCode='answer_incomplete';}
+      else if(value.answerStatus==='unavailable') {data.status='incomplete';data.errorCode='answer_data_unavailable';}
+      else if(value.answerStatus==='needs_conditions') data.status='clarification';
+    }
     if(kind==='correction'&&value.delivery==='not_sent'){data.status=/authorization_changed|not_granted|rejected/.test(String(value.reason))?'denied':value.status==='cancelled'?'cancelled':'failed';data.formalResult=false;data.filesCompleted=0;data.recoveryCompleted=false;}
     if(kind==='denied')data.status=value.reason==='clarification_required'?'clarification':'denied';
     if(kind==='cancelled'||kind==='failed')data.status=kind;

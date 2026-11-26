@@ -849,7 +849,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       history: trimAgentHistory(history, valid.question, execution.answer),
       memory: nextAgentMemory(history.memory, valid.question, execution.result), executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(),
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
-      executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
+      executionStatus: execution.executionStatus, ...(selectedAnswer ? { answerStatus: selectedAnswer.status } : {}), unresolvedFailures: execution.unresolvedFailures,
       ...(researchAnswer ? { researchContext: true, resolution: { protocol: 'deep-research/1' } } : {}),
       ...(researchFiles ? { researchFiles, researchFileState: 'server_generated' } : {}),
       ...(knowledgeResults.size ? {knowledgeContext:true}: {}),
@@ -875,7 +875,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     } });
     await audit.append(requestId, 'succeeded', { delivery: 'not_yet_sent',
       provider: 'server_policy', model: execution.model, toolCalls: execution.toolCalls,
-      executionStatus: execution.executionStatus, worksetCount: workset.manifest(worksetOwner).length });
+      executionStatus: execution.executionStatus, ...(selectedAnswer ? { answerStatus: selectedAnswer.status } : {}), worksetCount: workset.manifest(worksetOwner).length });
     completed = true;
     // History indexing is optional until the owner-only RPC is deployed.
     const historySaved = await recordHistorySubmission(client, keys, actor, valid.conversation.id, requestId);
