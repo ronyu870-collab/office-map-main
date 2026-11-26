@@ -37,15 +37,15 @@ export async function saveBusinessProfile(ctx:PitchContext,c:{assetId:string;exp
   asset.state='draft';asset.allowClientExport=false;asset.allowExternalAi=false;
   return pitchRpc(ctx,{action:'business_profile_save',assetId:c.assetId,expectedVersion:c.expectedVersion,profile,asset,sha256:hash(asset.content),tokens:documentTokens(JSON.stringify([asset.content,profile])),media:profileMedia(profile)});
 }
-export async function generateBusinessProject(ctx:PitchContext,command:Generation,expectedAssetVersions?:ReadonlyMap<string,number>, expectedDataFingerprint?:string) {
+export async function generateBusinessProject(ctx:PitchContext,command:Generation,expectedAssetVersions?:ReadonlyMap<string,number>, expectedDataFingerprint?:string, compareOutline = false) {
   const registry=z.object({theme:z.object({definition:designThemeSchema})}).parse(await pitchRpc(ctx,{action:'registry',templateId:'business-content',templateVersion:1,themeId:command.themeId,themeVersion:command.themeVersion}));
   const theme=registry.theme.definition,bindings:{id:string;version:number}[]=[],snapshots:PitchDataSnapshot[]=[],recipes:{id:string;revision:number}[]=[],groups:BusinessPage[]=[],mediaRows:z.infer<typeof mediaRowSchema>[]=[];
   const currentPeriods=command.parts.filter(p=>p.mode==='dynamic'&&!p.parameters.templateId.endsWith('-trend')&&!p.parameters.templateId.startsWith('lease-')).map(p=>p.mode==='dynamic'?JSON.stringify(p.parameters.period):'');
   if(new Set(currentPeriods).size>1)throw new DocumentError('PITCH_PERIOD_MISMATCH','同一 Pitch 的项目对比页面需要采用同一正式季度。');
   for(const part of command.parts) {
     if(part.mode==='dynamic') {
-      const snapshot=await runPitchDataAdapter(ctx,part.parameters,command.language);
-      if (expectedDataFingerprint && reviewedBuildingData(snapshot).fingerprint !== expectedDataFingerprint)
+      const snapshot=await runPitchDataAdapter(ctx,part.parameters,command.language,compareOutline);
+      if (expectedDataFingerprint && reviewedBuildingData(snapshot, command.language).fingerprint !== expectedDataFingerprint)
         throw new Error('PITCH_OUTLINE_DATA_CHANGED');
       snapshots.push(snapshot);
       if(part.researchAssetId) {
@@ -63,11 +63,11 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
       for (const [index, content] of snapshot.content.entries()) {
         const period = part.parameters.period;
         const subtitle = expectedDataFingerprint
-          ? `${period.year} Q${period.quarter}${index ? (command.language === 'en' ? ' · Method and coverage' : ' · 口径与覆盖') : ''}`
+          ? (content.subtitle ?? `${period.year} Q${period.quarter}${index ? (command.language === 'en' ? ' · Method and coverage' : ' · 口径与覆盖') : ''}`)
           : content.subtitle;
         groups.push({
           content: part.title ? { ...content, title: part.title, subtitle } : content,
-          layoutId: content.blocks.some(b => b.kind === 'chart') ? 'chart-insight' : content.blocks.some(b => b.kind === 'table') ? 'data-table' : 'two-columns',
+          layoutId: compareOutline && index >= snapshot.content.length - 2 ? 'table-insight' : content.blocks.some(b => b.kind === 'chart') ? 'chart-insight' : content.blocks.some(b => b.kind === 'table') ? 'data-table' : 'two-columns',
           variant: 'standard',
         });
       }

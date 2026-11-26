@@ -220,30 +220,32 @@ export async function verifyPitchWorkspace({
     const building = randomUUID(), projectId = randomUUID(), period = "2026-Q3";
     await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,'提纲核对测试楼','CBD','A','tracked')", [building]);
     await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft)
-      values($1,2026,3,10000,100,1000,false)`, [building]);
+      values($1,2026,3,10000,100,1000,false),($1,2026,2,10000,80,800,false),($1,2025,3,10000,0,null,false)`, [building]);
     const created = await workspace(admin, {
       action: "create", projectId, title: "隔离楼宇与素材混合提案", themeId: "colliers-default-v1",
       themeVersion: 2, scope, context: { ...context, buildingIds: [building], period },
     });
     assert.equal(created.status, 200, JSON.stringify(created.body));
-    const command = { action: "review_outline_data", projectId, buildingIds: [building], period };
+    const command = { action: "review_outline_data", projectId, buildingIds: [building], period, compareQuarters: true };
     assert.equal((await workspace(other, command)).status, 403);
-    const missing = await workspace(admin, { ...command, period: "2026-Q2" });
+    const missing = await workspace(admin, { ...command, period: "2025-Q2" });
     assert.equal(missing.status, 422, JSON.stringify(missing.body));
     assert.equal(missing.body.code, "PITCH_OUTLINE_DATA_CHANGED");
     const review = await workspace(admin, command);
     assert.equal(review.status, 200, JSON.stringify(review.body));
     assert.equal(review.body.buildings[0].name, "提纲核对测试楼");
     assert.ok(review.body.buildings[0].facts.some(fact => fact.value === "10,000"));
+    assert.deepEqual(review.body.comparisons[0].rows[0], ["提纲核对测试楼", "100", "+25%", "基期无有效值"]);
+    assert.deepEqual(review.body.comparisons[1].rows[0], ["提纲核对测试楼", "10", "+2 个百分点", "基期无有效值"]);
     const version = (await db.query("select current_version from public.pitch_content_assets where id=$1", [ids.corporate])).rows[0].current_version;
-    const outline = { mode: "outline", dataFingerprint: review.body.fingerprint,
+    const outline = { mode: "outline", dataFingerprint: review.body.fingerprint, compareQuarters: true,
       parts: [
         { mode: "static", templateId: "corporate-overview", assetIds: [ids.corporate],
           length: "brief", allowFallback: false, variant: "standard", title: "团队正式素材" },
         { mode: "dynamic", parameters: review.body.parameters, title: "目标楼宇正式数据" },
       ], bindings: [{ id: ids.corporate, version }] };
     const start = { action: "start", projectId, expectedVersion: created.body.project.version, replaceIds: [] };
-    await db.query("update public.buildings set name='提纲换版测试楼' where id=$1", [building]);
+    await db.query("update public.building_metrics set net_effective_rent=50 where building_id=$1 and record_year=2026 and record_quarter=2", [building]);
     const staleId = randomUUID();
     const stale = await workspace(admin, { ...start, taskId: staleId, part: outline });
     assert.equal(stale.status, 202, JSON.stringify(stale.body));
@@ -257,6 +259,7 @@ export async function verifyPitchWorkspace({
     const fresh = await workspace(admin, command);
     assert.equal(fresh.status, 200, JSON.stringify(fresh.body));
     assert.notEqual(fresh.body.fingerprint, review.body.fingerprint);
+    assert.equal(fresh.body.comparisons[0].rows[0][2], "+100%");
     const taskId = randomUUID();
     const begun = await workspace(admin, { ...start, taskId, part: { ...outline, dataFingerprint: fresh.body.fingerprint } });
     assert.equal(begun.status, 202, JSON.stringify(begun.body));
@@ -272,7 +275,10 @@ export async function verifyPitchWorkspace({
     const data = generated.slides.find(page => page.content.title === "目标楼宇正式数据");
     assert.equal(data.content.dataAsOf, "2026-09-30");
     assert.ok(data.content.sources.length);
-    assert.match(JSON.stringify(data.content.blocks), /提纲换版测试楼/);
+    assert.match(JSON.stringify(data.content.blocks), /提纲核对测试楼/);
+    const changes = generated.slides.find(page => page.content.subtitle?.includes("净有效租金 · 环比"));
+    assert.ok(changes?.content.blocks.some(block => block.kind === "table" && block.rows[0]?.includes("+100%")));
+    assert.equal(changes?.content.sources.length, 3);
     assert.equal(generated.workspace.page_settings[data.id].origin, "data");
     const gates = await db.query("select allow_client_export from public.pitch_content_assets where id=any($1::uuid[])", [generated.slides.map(p => p.asset_id)]);
     assert.ok(gates.rows.length > 0 && gates.rows.every(asset => asset.allow_client_export === false));

@@ -1,11 +1,12 @@
 import { DocumentError } from "@/src/lib/intelligence/knowledge/safeArchive";
 import { cellText, units } from "@/src/lib/intelligence/query/presentation";
 import type { PitchDataSnapshot } from "./adapter";
+import { quarterComparisons } from "./quarter-comparison";
 import { digest } from "../data/store";
 
 /** Snapshot and result IDs are fresh on every query. Bind what was actually
  * reviewed instead: the exact rows, missing states, records, and authority. */
-export function reviewedBuildingData(snapshot: PitchDataSnapshot) {
+export function reviewedBuildingData(snapshot: PitchDataSnapshot, language?: 'zh' | 'en') {
   const { parameters, binding, results: [result] } = snapshot;
   const key = parameters.period;
   const records = result.sources.filter(source =>
@@ -24,9 +25,13 @@ export function reviewedBuildingData(snapshot: PitchDataSnapshot) {
   const byId = <T extends { id: string }>(a: T, b: T) => a.id.localeCompare(b.id);
   return {
     buildings,
+    ...(snapshot.results.length > 1 && language
+      ? { comparisons: quarterComparisons(snapshot.results, key, parameters.buildingIds, language) } : {}),
     fingerprint: digest(new TextEncoder().encode(JSON.stringify([
-      parameters, binding, result.registryVersion, result.table.columns,
-      buildings.map(({ id }) => rows.get(id)), [...result.sources].sort(byId),
+      parameters, binding, ...(snapshot.results.length === 1
+        ? [result.registryVersion, result.table.columns, buildings.map(({ id }) => rows.get(id)), [...result.sources].sort(byId)]
+        : [language, ...snapshot.results.map(r => [r.registryVersion, r.table.columns,
+          [...r.table.rows].sort((a, b) => a.entityId.localeCompare(b.entityId)), [...r.sources].sort(byId)])]),
     ]))),
   };
 }

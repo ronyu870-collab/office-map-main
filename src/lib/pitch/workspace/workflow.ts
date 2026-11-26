@@ -605,8 +605,10 @@ export async function reviewOutlineData(
 ) {
   const current = await getWorkspace(ctx, c.projectId);
   const parameters = outlineDataParameters(c.buildingIds, c.period);
-  const snapshot = await runPitchDataAdapter(ctx, parameters, current.workspace.context.language);
-  return { ...reviewedBuildingData(snapshot), parameters };
+  const language = current.workspace.context.language;
+  if (c.compareQuarters && parameters.period.year < 1901) throw new Error("PITCH_INVALID");
+  const snapshot = await runPitchDataAdapter(ctx, parameters, language, c.compareQuarters);
+  return { ...reviewedBuildingData(snapshot, language), parameters };
 }
 function assertOutlineDataContext(current: WorkspaceDetail, part: z.infer<typeof workspacePartSchema>) {
   if (part.mode !== "outline" || !part.dataFingerprint) return;
@@ -693,7 +695,8 @@ export async function runWorkspaceTask(
       });
     } else await generateBusinessProject(ctx, command!, part.mode === 'outline'
       ? new Map(part.bindings.map(binding => [binding.id, binding.version])) : undefined,
-      part.mode === "outline" ? part.dataFingerprint : undefined);
+      part.mode === "outline" ? part.dataFingerprint : undefined,
+      part.mode === "outline" && part.compareQuarters);
     await pitchRpc(ctx, { action: "workspace_task_check", ...args });
     const source = await getWorkspace(ctx, receipt.task.source_project_id),
       settings = { ...current.workspace.page_settings };

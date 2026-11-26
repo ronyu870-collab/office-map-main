@@ -91,7 +91,7 @@ describe("Pitch optional assistant behavior", () => {
     );
     fireEvent.click(screen.getByText("查找适用素材"));
     await screen.findByText(/相同服务类型/);
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("checkbox", { name: /匿名隔离案例/ }));
     fireEvent.click(screen.getByText("用所选素材生成"));
     await waitFor(() =>
       expect(onGenerate).toHaveBeenCalledWith(
@@ -151,7 +151,7 @@ describe("Pitch optional assistant behavior", () => {
     );
     fireEvent.click(screen.getByText("查找适用素材"));
     await screen.findByText("隔离素材");
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("checkbox", { name: /隔离素材/ }));
     fireEvent.click(screen.getByText("辅助理解所选资料"));
     fireEvent.click(screen.getByText("开始整理"));
     await screen.findByText(/未获模型处理授权/);
@@ -256,6 +256,28 @@ describe("Pitch optional assistant behavior", () => {
       mode: "outline", parts: [{ mode: "dynamic", title: "目标项目概况", parameters }],
       bindings: [], dataFingerprint: fingerprint,
     }));
+  });
+
+  it("requires re-review after enabling comparisons and submits the confirmed rates", async () => {
+    const parameters = outlineDataParameters([id], "2026-Q3");
+    const fingerprint = "c".repeat(64), building = { id, name: "国贸测试楼", facts: [] };
+    const call = vi.fn(async (input: Record<string, unknown>) => ({
+      parameters, fingerprint, buildings: [building],
+      ...(input.compareQuarters ? { comparisons: [{ metric: "净有效租金", note: "基期为零时不计算。",
+        columns: ["楼宇", "本期", "环比", "同比"], rows: [["国贸测试楼", "100", "+25%", "基期为零"]] }] } : {}),
+    }));
+    const onGenerateOutline = vi.fn(async () => {});
+    render(<AiAssist call={call as Call} projectId={id} buildingIds={[id]} period="2026-Q3"
+      language="zh" admin={false} busy={false} onGenerate={async () => {}} onGenerateOutline={onGenerateOutline} onExport={() => {}} />);
+    fireEvent.click(screen.getByText("提案结构建议"));
+    fireEvent.click(screen.getByRole("button", { name: "核对并加入正式数据" }));
+    const submit = await screen.findByRole("button", { name: "确认生成 1 个板块" });
+    fireEvent.click(screen.getByRole("checkbox", { name: "同时核对租金和空置率的环比、同比" }));
+    expect(submit).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "重新核对正式数据" }));
+    expect(await screen.findByRole("cell", { name: "+25%" })).toBeInTheDocument();
+    fireEvent.click(submit);
+    await waitFor(() => expect(onGenerateOutline).toHaveBeenCalledWith(expect.objectContaining({ dataFingerprint: fingerprint, compareQuarters: true })));
   });
 
 });

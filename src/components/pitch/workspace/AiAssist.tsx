@@ -22,6 +22,7 @@ type Asset = {
 type Material = { id: string; version: number; title: string };
 type DataReview = {
   fingerprint: string;
+  comparisons?: { metric: string; note: string; columns: string[]; rows: string[][] }[];
   buildings: { id: string; name: string; facts: { label: string; value: string }[] }[];
   parameters: Extract<Generation["parts"][number], { mode: "dynamic" }>["parameters"];
 };
@@ -81,6 +82,7 @@ export function AiAssist({
     [tasks, setTasks] = React.useState<Task[]>([]),
     [sections, setSections] = React.useState<Section[]>([]),
     [outlineMissing, setOutlineMissing] = React.useState<string[]>([]),
+    [compareQuarters, setCompareQuarters] = React.useState(false),
     [outlineSent, setOutlineSent] = React.useState(false),
     [pollFailed, setPollFailed] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
@@ -175,13 +177,14 @@ export function AiAssist({
     });
   const dataReview = sections.find(section => section.review)?.review;
   const reviewMatches = !dataReview || (
+    Boolean(dataReview.comparisons?.length) === compareQuarters &&
     period === dataReview.parameters.period.year + "-Q" + dataReview.parameters.period.quarter &&
     buildingIds.length === dataReview.buildings.length &&
     buildingIds.every(id => dataReview.buildings.some(building => building.id === id))
   );
   const reviewData = () => perform(async (signal) => {
     const review = await call<DataReview>(
-      { action: "review_outline_data", projectId, buildingIds, period }, true, "workspace", signal,
+      { action: "review_outline_data", projectId, buildingIds, period, ...(compareQuarters ? { compareQuarters: true } : {}) }, true, "workspace", signal,
     );
     if (signal.aborted) return;
     const title = buildingIds.length === 1
@@ -210,7 +213,8 @@ export function AiAssist({
         mode: "outline",
         parts: sections.map(section => ({ ...section.part, title: section.title })),
         bindings: [...pinned].map(([id, version]) => ({ id, version })),
-        ...(dataReview ? { dataFingerprint: dataReview.fingerprint } : {}),
+        ...(dataReview ? { dataFingerprint: dataReview.fingerprint,
+          ...(dataReview.comparisons?.length ? { compareQuarters: true } : {}) } : {}),
       });
       if (!result.success) throw new Error("请补全章节标题和对应素材，再重新确认。");
       await onGenerateOutline(result.data);
@@ -417,6 +421,11 @@ export function AiAssist({
           推荐提纲
         </Button>
         <p>可用「项目设置」中关联的 1–5 栋楼宇和默认季度，加入正式数据章节。仅限内部使用。</p>
+        <label className={styles.check}>
+          <input type="checkbox" checked={compareQuarters} disabled={working || busy}
+            onChange={event => setCompareQuarters(event.target.checked)} />
+          同时核对租金和空置率的环比、同比
+        </label>
         <Button
           variant="secondary"
           disabled={working || busy || (!dataReview && sections.length >= 8) ||
@@ -425,7 +434,7 @@ export function AiAssist({
         >
           {dataReview ? "重新核对正式数据" : "核对并加入正式数据"}
         </Button>
-        {!reviewMatches && <p role="status">关联楼宇或季度已变化，请重新核对或移除正式数据章节。</p>}
+        {!reviewMatches && <p role="status">关联楼宇或季度已变化，或已切换对比方式。请重新核对或移除正式数据章节。</p>}
         <ol>
           {sections.map((s, i) => {
             const sectionPart = s.part;
@@ -454,6 +463,19 @@ export function AiAssist({
                     <ul>{building.facts.map(fact => <li key={fact.label}>{fact.label}：{fact.value}</li>)}</ul>
                   </li>)}
                 </ul>
+                {s.review.comparisons?.map(comparison => <div key={comparison.metric}>
+                  <div className={styles.tableScroll}>
+                  <table>
+                    <caption>{comparison.metric}</caption>
+                    <thead><tr>{comparison.columns.map(column => <th scope="col" key={column}>{column}</th>)}</tr></thead>
+                    <tbody>{comparison.rows.map((row, i) => <tr key={s.review?.buildings[i].id ?? i}>
+                      <th scope="row">{row[0]}</th>
+                      {row.slice(1).map((cell, j) => <td key={comparison.columns[j + 1]}>{cell}</td>)}
+                    </tr>)}</tbody>
+                  </table>
+                  </div>
+                  <p>{comparison.note}</p>
+                </div>)}
               </div>}
               {s.materials?.length > 0 && <ul aria-label="已选素材">
                 {s.materials.map(material => <li key={material.id}>{material.title} · v{material.version}</li>)}

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { parseQueryPlan, type QueryPlan } from '@/src/lib/intelligence/query/plan';
 import { readQuerySnapshots } from '@/src/lib/intelligence/query/snapshotReader';
 import { executeQueryPlan } from '@/src/lib/intelligence/query/executePlan';
+import { comparisonQuarters, quarterComparisons, quarterLabel } from './quarter-comparison';
 import { aggregateQuarter } from '@/src/lib/intelligence/query/analytics';
 import { loadDataAuthority } from '@/src/lib/intelligence/query/serverAuthority';
 import { resultViewSchema, cellText, units, resultSummary, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
@@ -80,7 +81,7 @@ function resultContent(r: QueryResultView, p: DynamicParameters, language: 'zh'|
   const data:SlideContent={protocol:'colliers-pitch/1',locale:language,title:index?title+' · 参考统计':title,subtitle:trend?`${p.start.year} Q${p.start.quarter} – ${p.end.year} Q${p.end.quarter}`:undefined,dataAsOf:asOf,disclosure:'internal',isTestData:false,sources:[provenance],blocks};
   return slideContentSchema.parse(data);
 }
-export async function runPitchDataAdapter(ctx:PitchContext,p:DynamicParameters,language:'zh'|'en'):Promise<PitchDataSnapshot> {
+export async function runPitchDataAdapter(ctx:PitchContext,p:DynamicParameters,language:'zh'|'en', compareOutline = false):Promise<PitchDataSnapshot> {
   const capability=DYNAMIC_CAPABILITIES.find(c=>c.id===p.templateId);
   if(capability?.status!=='available')return rejected(capability?.reason??'模板不存在。');
   const results:QueryResultView[]=[],plans:unknown[]=[];let binding:DataBinding;
@@ -94,7 +95,21 @@ export async function runPitchDataAdapter(ctx:PitchContext,p:DynamicParameters,l
     const fresh=await loadLeaseSnapshot(ctx.client,ctx.identity,ctx.signal);if(!fresh.export||fresh.permission_revision!==binding.permissionRevision)throw new Error('QUERY_DENIED');
   }else {
     const authority=await loadDataAuthority(ctx.client,ctx.identity,ctx.signal);if(!authority.grants.includes('export:internal'))throw new Error('QUERY_DENIED');
-    for(const plan of quarterPlans(p)){
+    if (compareOutline) {
+      const { previous, priorYear } = comparisonQuarters(p.period);
+      const scope = { inventory: p.inventory, buildingIds: p.buildingIds };
+      // Fetch the three periods from one DB snapshot so current values cannot drift between comparisons.
+      const capture = parseQueryPlan({ operation: 'trend', scope, metric: 'rent', metrics: ['rent', 'vacancy'],
+        mode: 'per_period', start: priorYear, end: p.period });
+      const snapshots = await readQuerySnapshots(ctx.client, ctx.identity, authority, capture, ctx.signal);
+      plans.push(capture);
+      for (const period of [p.period, previous, priorYear]) {
+        const plan = parseQueryPlan({ operation: 'list', scope, period, fields: p.fields });
+        const snapshot = snapshots.find(s => s.period && quarterLabel(s.period) === quarterLabel(period));
+        if (!snapshot) throw new Error('PITCH_OUTLINE_DATA_CHANGED');
+        results.push(resultViewSchema.parse(executeQueryPlan(plan, [snapshot])));
+      }
+    } else for(const plan of quarterPlans(p)){
       plans.push(plan);const snapshots=await readQuerySnapshots(ctx.client,ctx.identity,authority,plan,ctx.signal);
       let result=resultViewSchema.parse(executeQueryPlan(plan,snapshots));
       if(p.templateId==='vacancy-comparison'&&plan.operation==='list') {
@@ -111,11 +126,28 @@ export async function runPitchDataAdapter(ctx:PitchContext,p:DynamicParameters,l
     binding={domain:'quarter',permissionRevision:authority.permissionRevision,policyVersion:authority.policyVersion};
     const fresh=await loadDataAuthority(ctx.client,ctx.identity,ctx.signal);if(fresh.permissionRevision!==binding.permissionRevision||!fresh.grants.includes('export:internal'))throw new Error('QUERY_DENIED');
   }
-  const content=results.map((r,i)=>resultContent(r,p,language,asOf,i));
+  const core = compareOutline ? results.slice(0, 1) : results;
+  const content=core.map((r,i)=>resultContent(r,p,language,asOf,i));
   // Method, denominators, unknowns and dedup/period caveats survive as native text continuation pages.
-  for(const [i,r]of results.entries()) {
+  for(const [i,r]of core.entries()) {
     const base=content[i];const notes=[...resultSummary(r),...r.limitations];
     if(notes.length)content.push({...base,title:base.title+' · '+(language==='en'?'Method and coverage':'口径与覆盖'),subtitle:undefined,blocks:notes.flatMap(s=>(s.match(/[\s\S]{1,3900}/g)??[]).map(text=>({kind:'paragraph' as const,text,sourceIds:base.sources.map(v=>v.id)})))});
+  }
+  if (compareOutline) {
+    const baseline = comparisonQuarters(p.period);
+    const sources = [p.period, baseline.previous, baseline.priorYear].map((period, i) => ({
+      id: randomUUID(), kind: 'record' as const,
+      label: quarterLabel(period) + (language === 'en' ? ' · Official database' : ' · 已授权正式数据库'),
+      recordId: results[i].resultId, version: results[i].dataVersion, locator: `结果 ${results[i].resultId}`,
+      dataAsOf: quarterDate(period.year, period.quarter),
+    }));
+    const sourceIds = sources.map(source => source.id);
+    for (const { metric, columns, rows, note } of quarterComparisons(results, p.period, p.buildingIds, language))
+      content.push(slideContentSchema.parse({
+        ...content[0], title: metric,
+        subtitle: `${metric} · ${language === 'en' ? 'QoQ / YoY' : '环比 / 同比'}`, sources,
+        blocks: [{ kind: 'table', columns, rows, sourceIds }, { kind: 'paragraph', text: note, sourceIds }],
+      }));
   }
   return {adapter:'pitch-data/1',binding,parameters:p,plans,capturedAt:new Date().toISOString(),dataAsOf:asOf,dataVersion:hash(results.map(r=>r.dataVersion)),results,content};
 }

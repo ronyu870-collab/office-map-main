@@ -89,6 +89,7 @@ export const outlinePartSchema = z.strictObject({
   parts: z.array(generationPartSchema).min(1).max(8),
   bindings: z.array(z.strictObject({ id, version: z.number().int().positive() })).max(80),
   dataFingerprint: outlineFingerprint.optional(),
+  compareQuarters: z.literal(true).optional(),
 }).superRefine((outline, ctx) => {
   const dynamic = outline.parts.filter(part => part.mode === "dynamic");
   const wanted = new Set(outline.parts.flatMap(part => part.mode === "dynamic" ? [] : part.assetIds));
@@ -98,7 +99,8 @@ export const outlinePartSchema = z.strictObject({
     if (researchAssetId || !outlineBuildingIds.safeParse(parameters.buildingIds).success) return true;
     return JSON.stringify(parameters) !== JSON.stringify(outlineDataParameters(parameters.buildingIds, year + "-Q" + quarter));
   });
-  if (dynamic.length > 1 || Boolean(dynamic.length) !== Boolean(outline.dataFingerprint) || invalidDynamic ||
+  if ((outline.compareQuarters && (!dynamic.length || dynamic[0].parameters.period.year < 1901)) ||
+    dynamic.length > 1 || Boolean(dynamic.length) !== Boolean(outline.dataFingerprint) || invalidDynamic ||
     outline.parts.some(part => !part.title || (part.mode !== "dynamic" &&
       (part.allowFallback || new Set(part.assetIds).size !== part.assetIds.length))) ||
     pinned.size !== outline.bindings.length || pinned.size !== wanted.size ||
@@ -121,7 +123,7 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
   }),
   z.strictObject({
     action: z.literal("review_outline_data"), projectId: id,
-    buildingIds: outlineBuildingIds, period: outlineQuarter,
+    buildingIds: outlineBuildingIds, period: outlineQuarter, compareQuarters: z.literal(true).optional(),
   }),
   z.strictObject({ action: z.literal("get"), projectId: id }),
   saveSchema,
