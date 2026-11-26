@@ -22,7 +22,10 @@ const EMPTY:SalesMaterial[]=[];
 const tabs = [{key:'availability',label:'房源'}, {key:'commission',label:'佣金政策'}, {key:'brochure',label:'项目资料'}] as const;
 type Entry = {material:SalesMaterial;access:MaterialAccess};
 function dateLabel(entry:Entry) {
-  if (entry.material.historical_context) return `历史资料 · ${entry.material.historical_context.period_label}`;
+  if (entry.material.historical_context) {
+    const period=entry.material.historical_context.period_label;
+    return period.startsWith('历史资料') ? period : `历史资料 · ${period}`;
+  }
   const dates = entry.access.details.map(row=>rowAsOf(row,entry.material,entry.access.provenance));
   const shared = dates.length && dates.every(event=>event?.value === dates[0]?.value) ? dates[0]?.value : null;
   if (dates.length && dates.some(event=>event?.value !== dates[0]?.value)) return '数据日期见各房源';
@@ -131,6 +134,7 @@ export default function SalesMaterialsPanel({ buildingId, buildingName, initialC
   const manyTypes=records.some(record=>materialCategories(record).some(kind=>kind!=='availability'));
   const backLabel=category==='commission'?'返回佣金政策':category==='brochure'?'返回项目资料':'返回房源';
   const headerDate=first && entries.every(entry=>dateLabel(entry)===dateLabel(first))?dateLabel(first):'数据日期见各份资料';
+  const historicalOnly=entries.length>0 && entries.every(entry=>!!entry.material.historical_context);
   return <Dialog open onOpenChange={open=>{if(!open)onClose();}} title={<span className={styles.title}>{buildingName}</span>} size="xl" layer="map" closeLabel="关闭销控">
     <div data-sales-materials>
       <div className={styles.toolbar}>
@@ -150,14 +154,14 @@ export default function SalesMaterialsPanel({ buildingId, buildingName, initialC
         : !records.length ? <p className={styles.empty}>{requested==='brochure'?'暂无项目资料':'暂无销控资料'}</p>
         : !entries.length ? <p className={styles.empty}>{category==='commission'?'暂无佣金政策':category==='brochure'?'暂无项目资料':'暂无房源资料'}</p>
         : original && first ? <SalesMaterialViewer key={`${first.material.id}:${original.page || 1}`} buildingId={buildingId} context={context} material={first.material} access={original.page && first.material.mime_type==='application/pdf' && first.access.preview_url?{...first.access,preview_url:`${first.access.preview_url}#page=${original.page}`} : first.access} onRetry={()=>setRefresh(value=>value+1)}/>
-        : entries.map(entry=><section key={entry.material.id} className={styles.materialSection} aria-label={entry.material.scope_label || entry.material.title}>
+        : <>{historicalOnly ? <p className={styles.historyNote}>历史参考，当前适用条件请向业主确认。</p> : null}{entries.map(entry=><section key={entry.material.id} className={styles.materialSection} aria-label={entry.material.scope_label || entry.material.title}>
           {entries.length>1 ? <div className={styles.sectionHeader}><h3>{entry.material.scope_label || entry.material.title}</h3>{headerDate!==dateLabel(entry) ? <span>{dateLabel(entry)}</span> : null}{entry.access.preview_url ? <button type="button" onClick={()=>showOriginal(entry.material)}>查看原件</button> : null}</div> : null}
-          {entry.material.historical_context ? <p className={styles.historyNote}>历史参考 · {entry.material.historical_context.period_label}。当前适用条件请向业主确认。</p> : null}
+          {entry.material.historical_context && !historicalOnly ? <p className={styles.historyNote}>历史参考，当前适用条件请向业主确认。</p> : null}
           {entry.material.association_status==='unconfirmed' ? <p className={styles.associationNote}><strong>楼宇归属未确认</strong></p> : null}
           {category==='availability' ? <SalesMaterialDetails rows={entry.access.details} material={entry.material} provenance={entry.access.provenance} onViewOriginal={()=>showOriginal(entry.material)}/>
             : category==='commission' ? <SalesCommissionPolicies policies={entry.access.commission_policies || []} historical={!!entry.material.historical_context}/>
             : <SalesProjectFacts facts={entry.access.project_facts || []} showSources={!entry.access.preview_url}/>}
-        </section>)}
+        </section>)}</>}
     </div>
   </Dialog>;
 }

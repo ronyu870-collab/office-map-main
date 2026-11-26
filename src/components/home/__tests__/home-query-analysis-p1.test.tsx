@@ -14,6 +14,7 @@ describe('P1 source-backed research result presentation', () => {
     const snapshots = [fixture({ year: 2026, quarter: 2 }), fixture()];
     const result = resultViewSchema.parse(attachResearchAnalysis(buildTrendResult(snapshots, 'rent', 'per_period'), snapshots));
     render(<HomeQueryResult result={result} />);
+    fireEvent.click(screen.getByText('分析与样本核查'));
     expect(screen.getByText(/2026-Q2 为.*2026-Q3 为.*绝对变化/)).toBeInTheDocument();
     expect(screen.getByText(/两期共同有效 3 栋/)).toBeInTheDocument();
     expect(screen.getByText(/样本构成不同，均值变化不能直接解释为市场真实变化/)).toBeInTheDocument();
@@ -34,6 +35,7 @@ describe('P1 source-backed research result presentation', () => {
     }));
     const result = resultViewSchema.parse(attachResearchAnalysis(buildTrendResult(snapshots, 'rent', 'per_period'), snapshots));
     render(<HomeQueryResult result={result} />);
+    fireEvent.click(screen.getByText('分析与样本核查'));
     expect(screen.getByText(/A座 从 2026-Q2 的 180 变为 2026-Q3 的 80/)).toBeInTheDocument();
     expect(screen.getByText(/提醒不代表数据错误/)).toBeInTheDocument();
     fireEvent.click(screen.getByText('计算明细、共同样本与异常规则'));
@@ -49,9 +51,9 @@ describe('P1 source-backed research result presentation', () => {
     const plan = { operation: 'aggregate', metric: 'rent', period: { year: 2026, quarter: 3 }, scope: { inventory: 'tracked', submarkets: ['CBD'] } };
     const result = resultViewSchema.parse({ ...raw, parameters: { ...raw.parameters, scope: plan.scope, executedPlan: plan, semanticContext: { hidden: 'internal-context-marker' } } });
     render(<HomeQueryResult result={result} />);
-    expect(screen.getByRole('region', { name: '数据依据摘要' })).toHaveTextContent('2026 Q3 季度跟踪样本');
-    expect(screen.getByRole('region', { name: '数据依据摘要' })).toHaveTextContent('有效样本：3 栋');
-    fireEvent.click(screen.getByText('来源、口径与结果版本')); fireEvent.click(screen.getByText('实际执行条件'));
+    expect(screen.getByRole('region', { name: '数据依据摘要' })).toHaveTextContent('2026 Q3，季度跟踪样本');
+    expect(screen.getByLabelText('重要数据限制')).toHaveTextContent('有效样本 3/4 栋');
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' })); fireEvent.click(screen.getByText('高级技术信息')); fireEvent.click(screen.getByText('实际执行条件'));
     expect(JSON.parse(screen.getByText(/"operation": "aggregate"/).textContent!)).toEqual(plan);
     expect(screen.getByText(/使用的数据表与字段/)).toHaveTextContent('building_metrics.net_effective_rent');
     expect(screen.queryByText(/internal-context-marker/)).not.toBeInTheDocument();
@@ -66,10 +68,12 @@ describe('P1 source-backed research result presentation', () => {
     } })) };
     const result = resultViewSchema.parse(attachResearchAnalysis(buildAggregateResult(snapshot, 'rent'), [snapshot]));
     render(<HomeQueryResult result={result} />);
-    expect(screen.getByRole('region', { name: '核心指标' })).toHaveTextContent('未知：无有效样本');
-    expect(screen.getByText(/没有足够的有效数据/)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '查询数据状态' })).toHaveTextContent('没有可用的指标数值');
+    expect(screen.queryByRole('region', { name: '核心指标' })).not.toBeInTheDocument();
     expect(screen.queryByText('加权与简单平均')).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '数据依据摘要' })).toHaveTextContent('0 栋');
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' }));
+    fireEvent.click(screen.getByText('统计口径与限制'));
+    expect(screen.getByRole('region', { name: '统计口径与限制' })).toHaveTextContent('有效 0 栋');
   });
 
   it('discloses server-side anomaly truncation even when no individual records fit the response', async () => {
@@ -78,6 +82,7 @@ describe('P1 source-backed research result presentation', () => {
     const supplement = raw.parameters.researchAnalysis as { series: { anomalyCoverage?: unknown }[] };
     supplement.series[0].anomalyCoverage = { complete: false, detected: 12, returned: 0, omitted: 12, iqrDetected: 12, quarterOnQuarterDetected: 0 };
     render(<HomeQueryResult result={resultViewSchema.parse(raw)} />);
+    fireEvent.click(screen.getByText('分析与样本核查'));
     fireEvent.click(screen.getByText('计算明细、共同样本与异常规则'));
     expect(await screen.findByText(/检测到 12 条异常提醒，已列举 0 条，另有 12 条因单次结果容量限制未列举/)).toBeInTheDocument();
   });

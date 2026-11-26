@@ -1,0 +1,142 @@
+{
+  "baseHead": "79859c917f2614d0bbe10395c489fa6969235ff7",
+  "before": {
+    "controlled20Inputs": {
+      "documentVisibilityListeners": [
+        10,
+        30
+      ],
+      "status": "fail"
+    },
+    "clean12Cycles": {
+      "documentVisibilityListeners": [
+        33,
+        222
+      ],
+      "documentListenersIncreaseBySource": {
+        "Next bundled web-vitals visibilitychange": 189
+      },
+      "windowAndDOMTreeListenerCountsStable": true
+    },
+    "sourceEvidence": "Actual event registration stacks h -> W -> input callback in the Next bundled web-vitals chunk; public framework documentation and installed bundle inspected. No attribution to AMap."
+  },
+  "implementation": {
+    "publicDependency": "web-vitals@6.2.3",
+    "perDocumentSubscription": true,
+    "legacyFID": "one-shot native first-input observer where supported; disconnect after report",
+    "existingLongTaskEvents": "retained with component-local observer cleanup",
+    "businessDataPermissionsAndAudit": "unchanged"
+  },
+  "after": {
+    "controlled20Inputs": {
+      "documentVisibilityListeners": [
+        3,
+        3
+      ],
+      "status": "pass"
+    },
+    "unit": {
+      "files": 1,
+      "passed": 1,
+      "scope": "metric delivery, rerender/remount deduplication, legacy FID and local observer cleanup"
+    },
+    "typecheck": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "productionBuild": "pass",
+    "fullWorkspace": {
+      "widths": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "records": 74,
+      "status": "pass",
+      "newCIListenerChecks": [
+        1536,
+        390,
+        320
+      ]
+    },
+    "realSDK": {
+      "widths": [
+        1536,
+        390,
+        844
+      ],
+      "status": "pass",
+      "sdkResponses": [
+        1,
+        1,
+        1
+      ],
+      "tileResponses": [
+        189,
+        106,
+        84
+      ]
+    },
+    "resourceDiagnostic": {
+      "width": 1536,
+      "cycles": 36,
+      "mapInstancesAndRoots": 1,
+      "blobUrlsCreated": 36,
+      "blobUrlsRevoked": 36,
+      "postCloseInFlightBusinessRequests": 0,
+      "postCloseSelectedMarkersChartCanvasesOpenModalsImages": 0,
+      "heapUsedMiB": {
+        "0": 22.93,
+        "1": 38.78,
+        "12": 42.22,
+        "24": 42.72,
+        "30": 42.9,
+        "36": 42.93
+      },
+      "nodesFromCycle3Through36": 891,
+      "documentsAfterWarmup": 6,
+      "longTasksOver50ms": 0,
+      "sdk": 1,
+      "tiles": 136,
+      "method": "serial diagnostic CPU/trace capture with explicit forced GC and no Debugger source cache; no overlapping local build/test/browser workload",
+      "traceAndProfile": "sanitized and gzip-compressed; provider query strings removed",
+      "listenersCycles1Through36": {
+        "range": [
+          638,
+          639
+        ],
+        "transient": {
+          "cycle": 21,
+          "count": 639,
+          "nextCycle": 638
+        },
+        "final": 638,
+        "persistentAccumulationObserved": false
+      }
+    }
+  },
+  "driverCorrections": [
+    "Initial repeated-reading helper checked image visibility before restored image decoded and accidentally closed the already-open gallery; use aria-expanded, then await decoded visible image. No product defect inferred from this locator/state error.",
+    "Final reusable driver writes separate files per viewport and also counts native open dialogs; these output/check-only adjustments followed the 36-cycle sample.",
+    "Initial exploratory capture overlapped a brief local unit run and is excluded from reported CPU/session conclusions. Clean source census, 12- and 36-cycle captures were serial.",
+    "Initial prose summary missed a single transient 639 listener count at cycle21; corrected to 638–639 with next cycle and final back at638. Full source checkpoints retained."
+  ],
+  "limitations": [
+    "Real SDK/tiles with isolated business and administrator identity; preview bytes from an existing public application WebP asset, not production project photo",
+    "Forced-GC/inspector diagnostics are not a normal-use or production timing benchmark",
+    "Heap warms from 38.78 MiB at cycle1 to 42.93 MiB at cycle36; late six cycles increase 0.03 MiB. This is not a claim of zero allocation or permanent freedom from leaks",
+    "No >50ms long task reproduced in this sample; no permanent elimination or unsampled CPU attribution",
+    "Exact-head necessary CI and main merge pending"
+  ],
+  "resolution": {
+    "pr": 293,
+    "head": "7dc2e64562360b82b836242c596fc4298cc37a50",
+    "verifyRun": "45262191884",
+    "necessaryCI": "all pass including engineering, search and both real Auth jobs",
+    "mergedAt": "2026-11-23T21:07:18Z",
+    "main": "69050dc19b26496cd7161f0d243c74ddd3063790",
+    "mainTreeMatchesTestedHead": "991d664287f37d18d97ce8c2a00c86042db8c910"
+  }
+}

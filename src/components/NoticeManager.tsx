@@ -7,16 +7,22 @@ import { publishNotice, deactivateNotice } from '@/src/services/adminApi';
 import type { NoticeSummary } from '@/src/services/apiClient';
 import { MaskedText } from '@/src/components/demo';
 import { Button } from '@/src/components/ui';
+import { useAdminEditProtection } from '@/src/components/admin/AdminEditProtection';
+import { readNoticeDrafts, writeNoticeDrafts } from '@/src/components/admin/noticeDraftStorage';
 
 type NoticeDetail = { id: string; state: 'loading' | 'error' } | { id: string; state: 'ready'; content: string };
 
 interface Props {
   adminEmail: string;
+  draftStorageKey?: string | null;
 }
 
-export function NoticeManager({ adminEmail }: Props) {
+const noticeSlots = (texts: string[] = []) => Array.from({ length: MAX_ACTIVE_NOTICES }, (_, id) => ({ id, text: texts[id] ?? '' }));
+
+export function NoticeManager({ adminEmail, draftStorageKey = null }: Props) {
   const [notices, setNotices] = React.useState<NoticeSummary[] | null>(null);
-  const [drafts, setDrafts] = React.useState(() => Array.from({ length: MAX_ACTIVE_NOTICES }, (_, id) => ({ id, text: '' })));
+  const [drafts, setDrafts] = React.useState(() => noticeSlots(readNoticeDrafts(draftStorageKey, MAX_ACTIVE_NOTICES)));
+  const latestDrafts = React.useRef(drafts);
   const nextDraftId = React.useRef(MAX_ACTIVE_NOTICES);
   const [loading, setLoading] = React.useState(true);
   const [listError, setListError] = React.useState(false);
@@ -29,6 +35,32 @@ export function NoticeManager({ adminEmail }: Props) {
   const [deleting, setDeleting] = React.useState(false);
   const [saving, setSaving] = React.useState<number | null>(null);
   const [toast, setToast] = React.useState<{ msg: string; ok: boolean } | null>(null);
+  const { register } = useAdminEditProtection();
+  const draftGuard = React.useRef(Symbol('notice-drafts'));
+  const dirty = drafts.some(draft => draft.text.length > 0);
+
+  const updateDrafts = React.useCallback((next: typeof drafts) => {
+    latestDrafts.current = next;
+    setDrafts(next);
+    writeNoticeDrafts(draftStorageKey, next.map(draft => draft.text));
+  }, [draftStorageKey]);
+
+  React.useEffect(() => {
+    if (!dirty) return;
+    const unregister = register(draftGuard.current, async () => {
+      if (!latestDrafts.current.some(draft => draft.text.length > 0)) return true;
+      if (mutationInFlight.current || !window.confirm('还有未发布的公告草稿。要放弃草稿并离开吗？')) return false;
+      updateDrafts(latestDrafts.current.map(draft => ({ ...draft, text: '' })));
+      return true;
+    });
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!latestDrafts.current.some(draft => draft.text.length > 0)) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => { unregister(); window.removeEventListener('beforeunload', warnBeforeUnload); };
+  }, [dirty, register, updateDrafts]);
 
   const showToast = (msg: string, ok = true) => {
     if (!mounted.current) return;
@@ -110,7 +142,7 @@ export function NoticeManager({ adminEmail }: Props) {
       if (!mounted.current) return;
       // Compact the remaining drafts before the number of visible slots shrinks.
       const blankDraft = { id: nextDraftId.current++, text: '' };
-      setDrafts(current => [...current.filter(draft => draft.id !== draftId), blankDraft]);
+      updateDrafts([...latestDrafts.current.filter(draft => draft.id !== draftId), blankDraft]);
       setNotices(current => [...(current ?? []).filter(notice => notice.id !== published.id), toNoticeSummary(published)].slice(0, MAX_ACTIVE_NOTICES));
       showToast('公告已发布');
       await fetchNotices();
@@ -145,7 +177,7 @@ export function NoticeManager({ adminEmail }: Props) {
   };
 
   const setDraft = (id: number, text: string) =>
-    setDrafts(prev => prev.map(draft => draft.id === id ? { id, text } : draft));
+    updateDrafts(latestDrafts.current.map(draft => draft.id === id ? { id, text } : draft));
 
   const emptySlots = notices ? MAX_ACTIVE_NOTICES - notices.length : 0;
   const actionsDisabled = saving !== null || deleting || loading || listError;

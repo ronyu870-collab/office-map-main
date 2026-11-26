@@ -11,6 +11,8 @@ export function buildArtifactFilename(result: QueryResultView, format: 'xlsx' | 
     const labels = (key: string) => [...new Set(result.table.rows.flatMap(row => row.cells[key]?.kind === 'text' ? [row.cells[key].value] : []))].join('与');
     object = labels('name') || object; metric = labels('metric') || metric; period = labels('period') || period;
   }
+  const selection = result.parameters.tableSelection as { kind?: string; exportedRows?: number } | undefined;
+  if (selection) metric = `${selection.kind === 'selected' ? '已选' : '筛选'}${selection.exportedRows}条-${metric}`;
   const extension = ['xlsx', 'pdf', 'docx', 'pptx'].includes(format) ? format : 'zip';
   return `ColliersAI_${part(object, 20)}_${part(metric, 20)}_${part(period, 40)}_${format}_${result.resultId.slice(0, 8)}.${extension}`;
 }

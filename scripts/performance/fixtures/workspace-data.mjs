@@ -9,7 +9,7 @@ export const stock = [
   { id: 'cbd-b', name: 'CBD乙楼', submarket: 'CBD', location_lng: 116.48, location_lat: 39.92 },
   { id: 'other', name: '中关村楼·' + '超长项目名称及楼座信息'.repeat(6), submarket: '中关村', location_lng: 116.32, location_lat: 39.98 },
   { id: 'missing', name: '未定位楼', submarket: 'CBD', location_lng: null, location_lat: null },
-].map(building => ({ ...building, grade: 'A', district: '朝阳区', building_metrics: [{ id: `m-${building.id}`, building_id: building.id, record_year: 2026, record_quarter: 3, total_area: 9019486, net_effective_rent: 146.1, vacancy_rate: .211 }] }));
+].map(building => ({ ...building, grade: 'A', district: '朝阳区', building_metrics: [{ id: `m-${building.id}`, building_id: building.id, is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, total_area: 9019486, net_effective_rent: 146.1, vacancy_rate: .211 }] }));
 export const future = [{ id: 'future-cbd', building_id: 'master-cbd', name: 'CBD未来楼', type: '办公', district: '朝阳区', submarket: 'CBD', launch_year: 2027, launch_quarter: 'Q2', total_area: 80000, location_lng: 116.47, location_lat: 39.92 }];
 export const project = stock[0].id;
 export const stacking = { building: { id: project, name: 'CBD甲楼' }, towers: [{id:'tower-A',code:'A',display_name:'A 座'}],

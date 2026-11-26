@@ -13,9 +13,10 @@ function Harness({ update = 0, transitioning = false }: { update?: number; trans
   return <>
     <button onClick={scroll.toLatest}>最新消息</button>
     <button onClick={scroll.followNext}>继续跟随</button>
+    <button onClick={scroll.revealNextAnswer}>准备显示正式结果</button>
     <button onClick={scroll.preserveBeforePrepend}>准备加载更早问答</button>
     <div ref={scroller} data-testid="scroller" onScroll={scroll.onScroll}><div>
-      <article data-query-turn="first">第一轮</article><article data-query-turn="second">第二轮</article>
+      <article data-query-turn="first">第一轮<button>查看第一轮来源</button></article><article data-query-turn="second" aria-label="本次问答">第二轮</article>
     </div></div>
     {scroll.unseen && <span>有新回答</span>}
   </>;
@@ -68,6 +69,36 @@ describe('conversation scroll after asynchronous rendering', () => {
     fireEvent.click(screen.getByRole('button', { name: '最新消息' }));
     expect(view.node.scrollTop).toBe(1100); expect(screen.queryByText('有新回答')).toBeNull();
   });
+  it('reveals a newly completed structured answer from its lead and keeps that lead through lazy chart layout', () => {
+    const rendered = render(<Harness />); const view = geometry(1200);
+    fireEvent.click(screen.getByRole('button', { name: '最新消息' }));
+    fireEvent.click(screen.getByRole('button', { name: '准备显示正式结果' }));
+    rendered.rerender(<Harness update={1} />);
+    expect(view.node.scrollTop).toBe(484);
+    expect(screen.queryByText('有新回答')).toBeNull();
+    view.resize(1700); notifyLayout();
+    expect(view.node.scrollTop).toBe(484);
+    view.userScroll(650); view.resize(1900); notifyLayout();
+    expect(view.node.scrollTop).toBe(650);
+  });
+  it('never reveals a structured result over a reader who has scrolled back', () => {
+    const rendered = render(<Harness />); const view = geometry(1200);
+    fireEvent.click(screen.getByRole('button', { name: '最新消息' }));
+    view.userScroll(100);
+    fireEvent.click(screen.getByRole('button', { name: '准备显示正式结果' }));
+    rendered.rerender(<Harness update={1} />);
+    expect(view.node.scrollTop).toBe(100);
+    expect(screen.getByText('有新回答')).toBeInTheDocument();
+  });
+  it('cancels a pending lead reveal when the reader moves before the result commits', () => {
+    const rendered = render(<Harness />); const view = geometry(1200);
+    fireEvent.click(screen.getByRole('button', { name: '最新消息' }));
+    fireEvent.click(screen.getByRole('button', { name: '准备显示正式结果' }));
+    view.userScroll(100);
+    rendered.rerender(<Harness update={1} />);
+    expect(view.node.scrollTop).toBe(100);
+    expect(screen.getByText('有新回答')).toBeInTheDocument();
+  });
   it('retains the same turn offset through prepending and later lazy rendering until the reader scrolls', () => {
     render(<Harness />); const view = geometry(1200);
     view.userScroll(550);
@@ -89,4 +120,16 @@ describe('conversation scroll after asynchronous rendering', () => {
     fireEvent.click(screen.getByRole('button', { name: '继续跟随' }));
     view.resize(1100); notifyLayout(); expect(view.node.scrollTop).toBe(900);
   });
+});
+
+it.each(['focusin','keydown'] as const)('releases result following on %s before a delayed native scroll event',event=>{
+  render(<Harness />);const view=geometry(1200);
+  fireEvent.click(screen.getByRole('button',{name:'最新消息'}));
+  // Focus revelation writes the reading position before the browser emits scroll.
+  // A lazy chart can resize in that interval; it must not reclaim the tail.
+  const control=screen.getByRole('button',{name:'查看第一轮来源'});
+  if(event==='focusin')fireEvent.focusIn(control);else fireEvent.keyDown(control,{key:'Tab'});
+  view.node.scrollTop=100;
+  view.resize(1700);notifyLayout();
+  expect(view.node.scrollTop).toBe(100);
 });

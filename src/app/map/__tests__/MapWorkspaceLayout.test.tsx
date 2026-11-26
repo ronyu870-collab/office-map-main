@@ -42,3 +42,27 @@ it('keeps hidden filters current and restores fresh state during a rapid full-li
     Reflect.deleteProperty(HTMLElement.prototype, 'animate');
   }
 });
+
+
+it('waits for fresh final geometry after a pending region refresh, including reopening the same region', () => {
+  const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 390, 600));
+  let frames: FrameRequestCallback[] = [];
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  const flush = () => { const current = frames; frames = []; current.forEach(callback => callback(0)); };
+  const layout = (contentPending: boolean) => <MapWorkspaceLayout left={null} right={<><header className="workspace-panel-header">CBD</header><div className="workspace-scroll"><section data-workspace-summary>核心指标</section></div></>}
+    leftOpen={false} rightOpen focus={false} kind="submarket" contentKey="CBD" contentPending={contentPending} width={400} onWidthChange={() => {}}><main /></MapWorkspaceLayout>;
+  const size = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(390);
+  const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(52);
+  const view = render(layout(false));
+  try {
+    React.act(flush); React.act(flush);
+    expect(view.container.firstElementChild).toHaveAttribute('data-map-layout-ready', 'true');
+    view.rerender(layout(true));
+    expect(view.container.firstElementChild).toHaveAttribute('data-map-layout-ready', 'false');
+    view.rerender(layout(false));
+    expect(view.container.firstElementChild).toHaveAttribute('data-map-layout-ready', 'false');
+    React.act(flush); React.act(flush);
+    expect(view.container.firstElementChild).toHaveAttribute('data-map-layout-ready', 'true');
+  } finally { view.unmount(); bounds.mockRestore(); size.mockRestore(); height.mockRestore(); vi.unstubAllGlobals(); }
+});

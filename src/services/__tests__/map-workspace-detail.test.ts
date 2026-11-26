@@ -1,3 +1,4 @@
+import { within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../supabaseClient', () => ({ supabase: {} }));
 vi.mock('../Auth', () => ({ getSessionFast: vi.fn() }));
@@ -21,8 +22,18 @@ function fixture() {
   controller.setWorkspaceDetailHandler(detail);
   return { controller, detail, markers, nativePopup };
 }
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
 describe('real MapController workspace adapter', () => {
+  it.each([[0, 0], [40, 116], [181, 39], [116, 86]])('reads invalid-coordinate records without rendering a selection at %s/%s', (lng, lat) => {
+    const { controller, detail, markers } = fixture();
+    const invalid = { id: 'invalid', name: '坐标待核查楼', location_lng: lng, location_lat: lat, metrics: [] };
+    (controller as any)._allBuildingsCache.push(invalid);
+    controller.openBuildingInfoWindow('a');
+    controller.openBuildingInfoWindow('invalid');
+    expect(detail.mock.lastCall?.[0].building.id).toBe('invalid');
+    expect(markers).toHaveLength(1);
+    expect((controller as any).map.remove).toHaveBeenCalledTimes(1);
+  });
   it('publishes each selection immediately, replaces its marker and never constructs a native popup', () => {
     const { controller, detail, markers, nativePopup } = fixture();
     controller.openBuildingInfoWindow('a');
@@ -58,7 +69,7 @@ describe('real MapController workspace adapter', () => {
     controller.setWorkspaceSelectionRenderer(building => futureSupplyImage(building, mode));
     mode = 'leed';
     controller.refreshWorkspaceSelection();
-    expect(decodeURIComponent(image.src)).toContain('>N</text>');
+    expect(decodeURIComponent(image.src)).toContain('>–</text>');
     expect(markers).toHaveLength(1); // A mode update must not replace the marker/camera.
     controller.closeWorkspaceBuilding();
     expect((controller as any).map.remove).toHaveBeenCalledTimes(1);
@@ -83,4 +94,57 @@ describe('real MapController workspace adapter', () => {
     controller.runWorkspaceBuildingAction('edit', building);
     expect(edit).toHaveBeenCalledTimes(1);
   });
+});
+
+it('never opens a stock quarterly-metrics editor with a future-supply identity', () => {
+  const { controller } = fixture(); const edit = vi.fn();
+  Object.assign(controller,{_isAdmin:true,_onEditBuildingMetrics:edit});
+  const future = {id:'future-row',building_id:'master',name:'未来楼',_dataType:'future' as const};
+  expect(controller.getWorkspaceBuildingDetail(future).canEdit).toBe(false);
+  controller.runWorkspaceBuildingAction('edit',future);
+  expect(edit).not.toHaveBeenCalled();
+});
+
+it('bridges trend reading with its project identity without reinterpreting it as business data', () => {
+  const {controller}=fixture();const toggle=vi.fn();
+  Object.assign(window,{__colliers_toggleTrend:toggle});
+  try {
+    const reading={value:{metric:'vac' as const,tableOpen:true},onChange:vi.fn()};
+    controller.runWorkspaceBuildingAction('trend',{id:'a',_dataType:'existing'},reading);
+    expect(toggle).toHaveBeenCalledExactlyOnceWith('a',reading);
+  } finally { delete (window as any).__colliers_toggleTrend; }
+});
+
+
+it('reselects the current map badge through the camera owner without reopening or resetting detail', () => {
+  const {controller,detail,markers}=fixture();
+  const move=vi.fn(),setZoomAndCenter=vi.fn();
+  Object.assign((controller as any).map,{getZoom:()=>15,setZoomAndCenter});
+  controller.setWorkspaceCameraHandler(move);
+  controller.openBuildingInfoWindow('a');detail.mockClear();
+  const content=(markers[0] as {content:HTMLElement}).content;
+  const button=within(content).getByRole('button',{name:'定位当前项目：甲楼'});
+  button.click();
+  expect(move).toHaveBeenCalledOnce();expect(detail).not.toHaveBeenCalled();
+  expect(setZoomAndCenter).not.toHaveBeenCalled();
+  move.mock.calls[0][0](true);
+  expect(setZoomAndCenter).toHaveBeenCalledExactlyOnceWith(15,[116.4,39.9],true,0);
+  button.click();const delayed=move.mock.calls[1][0];
+  controller.openBuildingInfoWindow('b');
+  delayed(true);button.click();
+  expect(setZoomAndCenter).toHaveBeenCalledOnce();
+  expect(move).toHaveBeenCalledTimes(2);
+});
+
+it('keeps a future badge action and focus while its mode changes, then releases it on close', () => {
+  const {controller,markers}=fixture();const move=vi.fn();
+  controller.setWorkspaceCameraHandler(move);
+  controller.openFutureSupplyInfoWindow({id:'future',building_id:'master',name:'未来楼',location_lng:116.4,location_lat:39.9});
+  const content=(markers[0] as {content:HTMLElement}).content;document.body.append(content);
+  const button=within(content).getByRole('button',{name:'定位当前项目：未来楼'});button.focus();
+  controller.setWorkspaceSelectionRenderer(building=>futureSupplyImage(building,'leed'));
+  expect(document.activeElement).toBe(button);
+  button.click();expect(move).toHaveBeenCalledOnce();
+  controller.closeWorkspaceBuilding();button.click();expect(move).toHaveBeenCalledOnce();
+  content.remove();
 });

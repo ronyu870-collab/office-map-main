@@ -38,7 +38,7 @@ describe('final HTTP delivery boundary', () => {
       keys: { keyId: 'test', encryptionKey: new Uint8Array(32).fill(1), digestKey: new Uint8Array(32).fill(2) } });
     expect(response.status).toBe(status);
     expect(await response.json()).not.toHaveProperty('result');
-    expect(rpc).toHaveBeenCalledWith('ai_query_audit_append', expect.objectContaining({ p_kind: 'correction' }));
+    expect(rpc).toHaveBeenCalledWith('ai_query_audit_append_operational', expect.objectContaining({ p_kind: 'correction' }));
   });
   it.each([
     { error: 'QUERY_SCOPE_REQUIRES_BACKGROUND_JOB', status: 413, reason: 'scope_limit' },

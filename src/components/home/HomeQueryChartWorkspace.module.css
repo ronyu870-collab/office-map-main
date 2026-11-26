@@ -1,6 +1,6 @@
-.workspace { display: grid; gap: var(--cd-space-3, 12px); margin-block: 16px; font-size: 14px; }
+.workspace { display: grid; gap: var(--cd-space-3, 12px); margin-block: 16px; font-size: var(--cd-ai-body-size); }
 .figure { margin: 0; display: grid; gap: 12px; }
-.figure figcaption { font-size: 16px; font-weight: 500; }
+.figure figcaption { font-size: var(--cd-ai-heading-size); font-weight: 600; }
 .canvas { max-width: 100%; overflow: auto; max-height: 720px; border: 1px solid var(--cd-color-border); border-radius: 6px; }
 .canvas svg { display: block; min-width: 640px; max-width: none; }
 .controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding-block: 16px; }
@@ -9,3 +9,5 @@
 .controls input[type="checkbox"] { width: 24px; }
 .controls input:focus-visible, .controls select:focus-visible, .canvas:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
 @media (max-width: 639px) { .controls { grid-template-columns: minmax(0, 1fr); } }
+.advanced { grid-column: 1 / -1; }
+.advanced > summary { cursor: pointer; min-height: 44px; padding-block: var(--cd-space-2); color: var(--cd-color-text-secondary); }

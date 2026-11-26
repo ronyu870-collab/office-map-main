@@ -43,4 +43,3 @@ export async function loadMapInventory(admin: SupabaseClient, selectClause: stri
   }
   throw new Error('MAP_INVENTORY_TOO_LARGE');
 }
-

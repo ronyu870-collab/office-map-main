@@ -56,11 +56,19 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     const signal=AbortSignal.any([request.signal,AbortSignal.timeout(30000)]),verified=identity;
     const authority=await loadDataAuthority(client,verified,signal);
     if((input.action==='export'||input.action==='copy')&&!authority.grants.includes('export:internal'))throw new Error('QUERY_DENIED');
-    await audit.append(attemptId,'running',{authority,sourceRequestId:input.requestId,action:input.action});
+    await audit.append(attemptId,'running',{authority,sourceRequestId:input.requestId,action:input.action,...(mode==='recover'&&input.action==='recover'?{phase:'result_recovery',recoveryRequested:true}:{})});
     const record=await readOwnResult(client,verified,input.requestId,input.action!=='status'?'archive':'status',signal);
     if(record.permission_revision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
     const restored=input.action!=='status'&&record.state==='succeeded'
       ?await recoverOwnResult(client,verified,keys,input.requestId,record,signal,{reauthorizedHistory:mode!=='recover',exporting:mode==='artifact'&&(input.action==='export'||input.action==='copy')}):null;
+    if (restored?.answerSelection && 'resultId' in input) {
+      const entry = restored.answerSelection.results.find(item => item.result.resultId === input.resultId);
+      if (!entry) throw new Error('QUERY_DENIED');
+      // The entire selected set has already passed current source checks.
+      // Local operations choose the requested exact snapshot, never the last.
+      restored.result = entry.result;
+      restored.resultId = entry.result.resultId;
+    }
     let artifact=mode==='artifact'&&restored?await buildResultArtifact(restored.result,input as ArtifactInput):null;
     if(mode==='document'){
       const p=documentInputSchema.parse(input);if(!restored || !(isKnowledgeResult(restored.result as {parameters:Record<string,unknown>}) || isResearchResult(restored.result as {parameters:Record<string,unknown>})) || restored.resultId!==p.resultId)throw new Error('QUERY_DENIED');
@@ -89,7 +97,8 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     }
     const responseBody=buildingContext?{attemptId,...buildingContext}:artifact?.type==='chart'?{attemptId,requestId:input.requestId,status:'ready',chart:artifact.chart,resultDigest:artifact.resultDigest}
       :artifact?.type==='copy'?{attemptId,requestId:input.requestId,status:'ready',resultId:artifact.resultId,format:artifact.format,text:artifact.text,resultDigest:artifact.resultDigest}
-      :restored?{attemptId,requestId:input.requestId,status:'ready',result:restored.result,redactionTypes:restored.redactionTypes}
+      :restored?{attemptId,requestId:input.requestId,status:'ready',result:restored.result,
+        ...(restored.answerSelection?{answerSelection:restored.answerSelection}:{}),redactionTypes:restored.redactionTypes}
       :{attemptId,requestId:input.requestId,status:record.state};
     const bodySha256=artifact?.type==='download'?artifact.sha256:createHash('sha256').update(JSON.stringify(responseBody)).digest('hex');
     await audit.append(attemptId,'response_generated',{result:{kind:'recovery_reference',sourceRequestId:input.requestId,
@@ -102,7 +111,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
       ...(artifact?{artifact:artifact.type==='chart'?{kind:'chart',spec:artifact.chart,resultDigest:artifact.resultDigest}
         :artifact.type==='copy'?{kind:'copy',format:artifact.format,text:artifact.text,resultDigest:artifact.resultDigest,rendererVersion:'result-copy/1'}
         :{kind:'download',format:mode==='document'?'document_original':(input as ArtifactInput & {format:string}).format,filename:artifact.filename,bytes:artifact.bytes.byteLength,resultDigest:artifact.resultDigest,rendererVersion:mode==='document'?'document-original/1':'result-chart/1',chart:'chart' in input?input.chart:null}}:{})}});
-    await audit.append(attemptId,'succeeded',{delivery:'not_yet_sent'});terminal=true;
+    await audit.append(attemptId,'succeeded',{delivery:'not_yet_sent',...(mode==='recover'&&input.action==='recover'&&restored?{recoveryCompleted:true}:{})});terminal=true;
     const deliveryHeaders=await prepareDelivery(audit,keys,verified,{requestId:attemptId,bodySha256,
       kind:artifact?.type==='download'?'download':artifact?.type==='chart'?'chart':artifact?.type==='copy'?'copy':restored?'result':'status',
       resultId:restored?.resultId??null,itemCount:artifact?.type==='chart'?artifact.chart.points.length:restored?(restored.result as {table:{rows:unknown[]}}).table.rows.length:0},

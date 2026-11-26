@@ -1,0 +1,48 @@
+{
+  "base": "0cfe15f9ca028588b2e7507fdaa4b1526d9af7db",
+  "applicationSha256": {
+    "src/app/map/components/MapWorkbenchView.tsx": "9792933cf1e1dea123ce89f6168e6352b9ba122eb24e2455688ffb804b5a19bf",
+    "src/app/map/map-workbench.css": "6f5e11a492fc1dc02957c07bf1823db0ea16e3ed37002a91f7257c2e5b3969b8"
+  },
+  "unit": {
+    "files": 5,
+    "passed": 30
+  },
+  "typecheck": "pass",
+  "lint": {
+    "errors": 0,
+    "warnings": 6
+  },
+  "scriptLintAndSyntax": "pass",
+  "productionBuild": "pass",
+  "browser": {
+    "fullFiveViewports": [
+      1536,
+      1024,
+      390,
+      320,
+      844
+    ],
+    "records": 71,
+    "result": "pass",
+    "scope": "Full task paths ran before the final mode width and short-landscape caption gap tweaks; unaffected business checks reused. Final four-viewports checked layout/touch/hover/focus, real SDK 390/844 reran on the final build. Exact-head full CI still required."
+  },
+  "realSDK": "topbar-real-sdk.json",
+  "limits": [
+    "Business/auth remain isolated fixtures, not new production account evidence",
+    "Viewport touch sizing is not native mobile keyboard or gesture verification",
+    "No new CPU sampling or long-session resource growth conclusion",
+    "A temporary hover assertion initially sampled the beginning of its color transition; it now waits for the actual final computed color, without changing the application transition"
+  ],
+  "resolution": {
+    "pr": 290,
+    "head": "521d25f66787324938d90380af1b947cdef3791a",
+    "verifyRun": "45245473300",
+    "necessaryChecks": "all pass; quick UI correctly skipped",
+    "mergedAt": "2026-11-23T19:29:45Z",
+    "main": "a17f78cd4e6389dc6beaa8bb75559307bb8cfb14",
+    "fullTreeMatchesTestedHead": true,
+    "tree": "2539cc8156d22adee671d1716e0b1a67f44f7571",
+    "productionVerification": "not claimed"
+  }
+}

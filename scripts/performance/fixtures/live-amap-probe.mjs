@@ -10,7 +10,7 @@ export async function waitForLiveAmapTiles(page, network) {
 }
 
 export function installLiveAmapProbe() {
-  const probe = window.__liveAmapProbe = { created: 0, events: [], calls: [], stages: [], initialCameras: [] };
+  const probe = window.__liveAmapProbe = { created: 0, events: [], calls: [], stages: [], initialCameras: [], markerCalls: [] };
   window.__colliersNavigationProbe = {
     recordMapStage(stage) { probe.stages.push({ stage, at: performance.now() }); },
   };
@@ -29,6 +29,7 @@ export function installLiveAmapProbe() {
           if (typeof method !== 'function') continue;
           map[name] = function (...values) {
             probe.calls.push({ name, at: performance.now() });
+            if(name==='setZoomAndCenter' && Array.isArray(values[1]))probe.lastCamera={revision:(probe.lastCamera?.revision??0)+1,zoom:Number(values[0]),center:[...values[1]]};
             return Reflect.apply(method, this, values);
           };
         }
@@ -37,6 +38,26 @@ export function installLiveAmapProbe() {
         }
         return map;
       },
+    });
+    const wrapLabel = Constructor => typeof Constructor !== 'function' ? Constructor : new Proxy(Constructor, {
+      construct(target, args, newTarget) {
+        const marker = Reflect.construct(target, args, newTarget);
+        for (const methodName of ['setzIndex', 'setOpacity']) {
+          const method = marker[methodName];
+          if (typeof method !== 'function') continue;
+          marker[methodName] = function (...values) {
+            probe.markerCalls.push({ name: args[0]?.name, method: methodName, values, at: performance.now() });
+            return Reflect.apply(method, this, values);
+          };
+        }
+        return marker;
+      },
+    });
+    let labelConstructor = wrapLabel(namespace.LabelMarker);
+    Object.defineProperty(namespace, 'LabelMarker', {
+      configurable: true,
+      get() { return labelConstructor; },
+      set(value) { labelConstructor = wrapLabel(value); },
     });
     let constructor = wrap(namespace.Map);
     Object.defineProperty(namespace, 'Map', {
@@ -87,4 +108,16 @@ export function finishLiveAmapSample() {
     resizeCalls: calls.filter(x=>x.name==='resize').length, newMapInstances: p.created-s.created,
     cameraEndMs: end ? end.at-s.start : null,
     cameraAfterLastCommandMs: end && command && end.at >= command.at ? end.at-command.at : null };
+}
+
+
+// An artificial CPU limit can outlast a nominal animation observation window.
+// Wait for the actual public SDK values to reach its last public target.
+export async function waitForLiveCamera(page, afterRevision=0) {
+  await page.waitForFunction(after=>{
+    const map=window.__workspaceMap,target=window.__liveAmapProbe?.lastCamera;
+    if(!map||!target||target.revision<=after)return false;
+    const center=map.getCenter();
+    return Math.abs(map.getZoom()-target.zoom)<.01 && Math.abs(center.lng-target.center[0])<.000001 && Math.abs(center.lat-target.center[1])<.000001;
+  },afterRevision,{timeout:15000});
 }

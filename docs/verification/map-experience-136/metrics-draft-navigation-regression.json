@@ -1,0 +1,74 @@
+{
+  "capturedAt": "2026-11-23T22:39:42.243114+00:00",
+  "before": {
+    "realBrowser": "viewport 1536\nmetrics refresh {\"width\":1536,\"dialogs\":[],\"editStillVisible\":0,\"writes\":0}\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: metric edits must be protected from browser refresh\n+ actual - expected\n\n+ []\n- [\n-   'beforeunload'\n- ]\n\n    at file:///private/tmp/map-metrics-draft-navigation-before.mjs:164:14\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at process.processImmediate (node:internal/timers:459:9)\n    at process.callbackTrampoline (node:internal/async_hooks:130:17) {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: [],\n  expected: [ 'beforeunload' ],\n  operator: 'deepStrictEqual'\n}\n\nNode.js v22.13.0\n",
+    "unit": "\n> office-map-main@0.1.0 test\n> vitest --run src/components/map/__tests__/BuildingMetricsEditModal.navigation.test.tsx\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.6 /private/tmp/colliers-map-workspace-v2\n\n ❯ src/components/map/__tests__/BuildingMetricsEditModal.navigation.test.tsx (2 tests | 2 failed) 147ms\n   × protects actual metric edits from unload and releases the guard on revert, closed state and unmount 118ms\n   × cancels navigation while preserving the metric draft without saving 28ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  src/components/map/__tests__/BuildingMetricsEditModal.navigation.test.tsx > protects actual metric edits from unload and releases the guard on revert, closed state and unmount\nAssertionError: expected false to be true // Object.is equality\n\n- Expected\n+ Received\n\n- true\n+ false\n\n ❯ src/components/map/__tests__/BuildingMetricsEditModal.navigation.test.tsx:35:20\n     33|   expect(unload()).toBe(false);\n     34|   fireEvent.change(input, { target: { value: '9' } });\n     35|   expect(unload()).toBe(true);\n       |                    ^\n     36|   fireEvent.change(input, { target: { value: '8' } });\n     37|   expect(unload()).toBe(false);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  src/components/map/__tests__/BuildingMetricsEditModal.navigation.test.tsx > cancels navigation while preserving the metric draft without saving\nAssertionError: expected \"bound \" to be called 2 times, but got 0 times\n ❯ src/components/map/__tests__/BuildingMetricsEditModal.navigation.test.tsx:54:19\n     52|   const event = new Event('navigate', { cancelable: true }); Object.as…\n     53|   window.navigation.dispatchEvent(event);\n     54|   expect(confirm).toHaveBeenCalledTimes(2);\n       |                   ^\n     55|   expect(event.defaultPrevented).toBe(true);\n     56|   expect(screen.getAllByRole('textbox')[0]).toHaveValue('9');\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed (1)\n      Tests  2 failed (2)\n   Start at  06:35:22\n   Duration  1.25s (transform 87ms, setup 72ms, import 207ms, tests 147ms, environment 708ms)\n\n",
+    "exitCodes": {
+      "realBrowser": 1,
+      "unit": 1
+    },
+    "coveredDiscardDialog": "viewport 1536\nmetrics draft 1536 opening\nmetrics draft 1536 loaded original\nmetrics draft 1536 refresh cancelled\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\nlocator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('dialog', { name: '未保存的更改', exact: true }).getByRole('button', { name: '继续编辑', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" class=\"inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--cd-radius-md)] border font-medium transition-colors duration-[var(--cd-motion-fast)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50 border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] text-[var(--cd-color-text-primary)] hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline-[var(--cd-color-brand)] h-[var(--cd-co…>继续编辑</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"grid grid-cols-2 gap-4\">…</div> from <div data-building-metrics-edit=\"true\" class=\"fixed inset-0 z-[1000] flex items-center justify-center bg-black/50\">…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"grid grid-cols-2 gap-4\">…</div> from <div data-building-metrics-edit=\"true\" class=\"fixed inset-0 z-[1000] flex items-center justify-center bg-black/50\">…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    58 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div class=\"grid grid-cols-2 gap-4\">…</div> from <div data-building-metrics-edit=\"true\" class=\"fixed inset-0 z-[1000] flex items-center justify-center bg-black/50\">…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\n    at verifyMetricsDraftNavigation (/private/tmp/colliers-map-workspace-v2/scripts/verification/workspace-metrics-draft-navigation.mjs:43:70)\n    at async file:///private/tmp/map-metrics-draft-navigation-focused.mjs:148:25 {\n  name: 'TimeoutError'\n}\n\nNode.js v22.13.0\n",
+    "refreshObservationLimit": "The initial browser refresh proof typed into the rendered form after the isolated identity RPC was missing. It demonstrates that entered draft disappearing on reload, but does not prove a normal existing metric read. Both old component failures use loaded original metric8. The corrected browser fixture subsequently loads8 and separately exposes the covered-dialog defect."
+  },
+  "implementation": "Reuse the existing shared navigation guard only while the metrics modal is open and its actual form differs from original data. Existing custom discard/save dialogs, persistence and audit are unchanged. The existing shared Dialog map layer raises both confirmation dialogs above the legacy metrics overlay, so real pointer actions are reachable.",
+  "after": {
+    "combinedUnit": {
+      "files": 4,
+      "tests": 32,
+      "exitCode": 0,
+      "result": "\n> office-map-main@0.1.0 test\n> vitest --run src/components/map/__tests__/BuildingMetricsEditModal.navigation.test.tsx src/app/map/__tests__/SubmarketDetailPanel.test.tsx src/lib/broker/useUnsavedNavigation.test.tsx src/components/stacking-plan/__tests__/StackingPlanWorkspace.focus.test.tsx\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.6 /private/tmp/colliers-map-workspace-v2\n\n\n Test Files  4 passed (4)\n      Tests  32 passed (32)\n   Start at  06:43:40\n   Duration  3.27s (transform 1.11s, setup 391ms, import 2.04s, tests 2.75s, environment 4.38s)\n\n"
+    },
+    "typecheck": {
+      "exitCode": 0
+    },
+    "changedLint": {
+      "exitCode": 0,
+      "errors": 0,
+      "warnings": 10
+    },
+    "productionBuild": {
+      "exitCode": 0,
+      "buildId": "Cz47a0kDbzulNwcN95bf6"
+    },
+    "focused": {
+      "exitCode": 0,
+      "widths": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "writes": 0,
+      "record": "metrics-draft-navigation-focused.json"
+    },
+    "finalWorkspace": {
+      "scenarioAssertions": "pass",
+      "records": 21,
+      "width": 390,
+      "runnerExit": 0,
+      "record": "editor-navigation-browser.json"
+    }
+  },
+  "productFilesSha256": {
+    "src/app/map/components/SubmarketDetailPanel.tsx": "17b303d45fbe850633df31e88593c88acca70b05eae250b66f3b7b5d281f48ee",
+    "src/components/map/BuildingMetricsEditModal.tsx": "18b25aebeea9315ae93d1193c008df522dac5dedc90812c4678ee485d7668b8c",
+    "scripts/verification/workspace-profile-draft-navigation.mjs": "9fca44bd82f6ef930ae4a495bd2d373cf958d5aa0083525917d3863019b5ca8d",
+    "scripts/verification/workspace-metrics-draft-navigation.mjs": "22796749d35eed185f7bf87addd13b1a0840892e7e9d445913883f205640ff8e",
+    "scripts/verification/verify-map-workspace.mjs": "0650b98b8a041f5c43fa6f9520e7b7c67e1c098c7d881204313b43dcb08b3fe0"
+  },
+  "limits": [
+    "Isolated administrator/data/SDK browser execution; no production business writes."
+  ],
+  "runnerCorrections": [
+    "Add the existing resolve_building_id RPC read to isolated transport; assert original metric8 before typing. Prior timeout runs exit1 and are not passes."
+  ],
+  "resolution": {
+    "pr": 297,
+    "testedHead": "cc3095262d11f08e832513c41afb2b9ecb05832c",
+    "verifyRun": "45283656287",
+    "necessaryChecks": "success: search, engineering, both real Auth and summary",
+    "mergedAtUtc": "2026-11-23T23:19:19Z",
+    "main": "9ca5dd8f786fbd6843f3fdf3b07c4d676206280f",
+    "testedAndMainTree": "62457659dac673d3402521330a1459f3613034eb"
+  }
+}

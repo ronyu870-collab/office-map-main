@@ -1,0 +1,444 @@
+{
+  "status": "pass",
+  "environment": "production app, isolated SDK and authorized data fixtures",
+  "observations": [
+    {
+      "width": 1536,
+      "validDisplayedProjects": 5,
+      "stockOnlyProjects": 3,
+      "invalidOrMissingStockReadable": 2,
+      "futureLayerCountFollowsVisibility": true
+    },
+    {
+      "width": 1536,
+      "longConditionsWrap": true,
+      "explicitClosePreservesFilters": true,
+      "clearAllResetsConditions": true,
+      "singleAndFinalRemovalFocus": true,
+      "inputCaretPreserved": true,
+      "emptyListAdjustFilters": true,
+      "filterScrollBefore": 0,
+      "filterScrollAfter": 0
+    },
+    {
+      "width": 1536,
+      "metricWidth": 332.609375,
+      "canvasWidth": 936,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "name": "distinct supply identity in all four modes",
+      "results": [
+        {
+          "id": "future-cbd",
+          "mode": "default",
+          "glyph": "F",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "rent",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "vacancy",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "leed",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "default",
+          "glyph": "?",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "rent",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "vacancy",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "leed",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        }
+      ],
+      "legendMatches": true
+    },
+    {
+      "width": 1536,
+      "metricVariant": "three-digits",
+      "values": [
+        "146.1",
+        "21.1",
+        "128",
+        "1,154,494,208"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "width": 1536,
+      "metricVariant": "zero",
+      "values": [
+        "—",
+        "—",
+        "0",
+        "—"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "width": 1536,
+      "metricVariant": "missing",
+      "values": [
+        "—",
+        "—",
+        "1",
+        "—"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "width": 390,
+      "validDisplayedProjects": 5,
+      "stockOnlyProjects": 3,
+      "invalidOrMissingStockReadable": 2,
+      "futureLayerCountFollowsVisibility": true
+    },
+    {
+      "width": 390,
+      "longConditionsWrap": true,
+      "explicitClosePreservesFilters": true,
+      "clearAllResetsConditions": true,
+      "singleAndFinalRemovalFocus": true,
+      "inputCaretPreserved": true,
+      "emptyListAdjustFilters": true,
+      "filterScrollBefore": 211,
+      "filterScrollAfter": 211
+    },
+    {
+      "width": 390,
+      "metricWidth": 366,
+      "canvasWidth": 390,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "name": "distinct supply identity in all four modes",
+      "results": [
+        {
+          "id": "future-cbd",
+          "mode": "default",
+          "glyph": "F",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "rent",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "vacancy",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "leed",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "default",
+          "glyph": "?",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "rent",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "vacancy",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "leed",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        }
+      ],
+      "legendMatches": true
+    },
+    {
+      "width": 320,
+      "validDisplayedProjects": 5,
+      "stockOnlyProjects": 3,
+      "invalidOrMissingStockReadable": 2,
+      "futureLayerCountFollowsVisibility": true
+    },
+    {
+      "width": 320,
+      "longConditionsWrap": true,
+      "explicitClosePreservesFilters": true,
+      "clearAllResetsConditions": true,
+      "singleAndFinalRemovalFocus": true,
+      "inputCaretPreserved": true,
+      "emptyListAdjustFilters": true,
+      "filterScrollBefore": 207,
+      "filterScrollAfter": 207
+    },
+    {
+      "width": 320,
+      "metricWidth": 296,
+      "canvasWidth": 320,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "name": "distinct supply identity in all four modes",
+      "results": [
+        {
+          "id": "future-cbd",
+          "mode": "default",
+          "glyph": "F",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "rent",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "vacancy",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-cbd",
+          "mode": "leed",
+          "glyph": "–",
+          "shape": "hexagon",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "default",
+          "glyph": "?",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "rent",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "vacancy",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        },
+        {
+          "id": "future-pending",
+          "mode": "leed",
+          "glyph": "–",
+          "shape": "diamond",
+          "browserDecoded": true,
+          "selectedCenterVerified": true,
+          "selectedWithinCanvas": false
+        }
+      ],
+      "legendMatches": true
+    },
+    {
+      "width": 320,
+      "metricVariant": "three-digits",
+      "values": [
+        "146.1",
+        "21.1",
+        "128",
+        "1,154,494,208"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "width": 320,
+      "metricVariant": "zero",
+      "values": [
+        "—",
+        "—",
+        "0",
+        "—"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "width": 320,
+      "metricVariant": "missing",
+      "values": [
+        "—",
+        "—",
+        "1",
+        "—"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    }
+  ]
+}

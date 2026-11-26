@@ -1,0 +1,86 @@
+{
+  "status": "pass",
+  "environment": "production app; isolated SDK/data/administrator",
+  "observations": [
+    {
+      "width": 1536,
+      "trendLoadingLayout": {
+        "requestActuallyDelayed": true,
+        "before": {
+          "height": 519.171875,
+          "sourceTop": 1029.46875,
+          "dataHeight": 44,
+          "scrollHeight": 907,
+          "scrollTop": 0
+        },
+        "after": {
+          "height": 519.171875,
+          "sourceTop": 1029.46875,
+          "dataHeight": 44,
+          "scrollHeight": 907,
+          "scrollTop": 0
+        }
+      }
+    },
+    {
+      "width": 390,
+      "trendLoadingLayout": {
+        "requestActuallyDelayed": true,
+        "before": {
+          "height": 527.171875,
+          "sourceTop": 1168.171875,
+          "dataHeight": 44,
+          "scrollHeight": 939,
+          "scrollTop": 0
+        },
+        "after": {
+          "height": 527.171875,
+          "sourceTop": 1168.171875,
+          "dataHeight": 44,
+          "scrollHeight": 939,
+          "scrollTop": 0
+        }
+      }
+    },
+    {
+      "width": 320,
+      "trendLoadingLayout": {
+        "requestActuallyDelayed": true,
+        "before": {
+          "height": 527.171875,
+          "sourceTop": 1164.171875,
+          "dataHeight": 44,
+          "scrollHeight": 939,
+          "scrollTop": 0
+        },
+        "after": {
+          "height": 527.171875,
+          "sourceTop": 1164.171875,
+          "dataHeight": 44,
+          "scrollHeight": 939,
+          "scrollTop": 0
+        }
+      }
+    },
+    {
+      "width": 844,
+      "trendLoadingLayout": {
+        "requestActuallyDelayed": true,
+        "before": {
+          "height": 504.78125,
+          "sourceTop": 828.46875,
+          "dataHeight": 44,
+          "scrollHeight": 917,
+          "scrollTop": 227
+        },
+        "after": {
+          "height": 504.78125,
+          "sourceTop": 828.46875,
+          "dataHeight": 44,
+          "scrollHeight": 917,
+          "scrollTop": 227
+        }
+      }
+    }
+  ]
+}

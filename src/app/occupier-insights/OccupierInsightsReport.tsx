@@ -4,7 +4,7 @@ import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef, useSyncExternalStore, type CSSProperties } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { mountReportNavigation } from './reportNavigation';
@@ -14,6 +14,7 @@ import {
   type SurveyPlot,
 } from './reportContent';
 import styles from './report.module.css';
+import { isEditorialVisualPreview } from '@/src/utils/visualPreview';
 
 const chapters = [
   ['factors', '调查与策略'],
@@ -193,6 +194,7 @@ function SurveyScene({ scene }: { scene: ChartScene }) {
 export function OccupierInsightsReport() {
   const { status, session } = useAppSession();
   const canNavigateInternally = status === 'authenticated' && session !== null;
+  const editorialPreview = useSyncExternalStore(() => () => {}, () => isEditorialVisualPreview(window.location.href), () => false);
   const reportRef = useRef<HTMLDivElement>(null);
   useEffect(()=>{
     if(!canNavigateInternally || !reportRef.current)return;
@@ -207,7 +209,7 @@ export function OccupierInsightsReport() {
     root.addEventListener('click',click);return()=>root.removeEventListener('click',click);
   },[canNavigateInternally]);
   useEffect(() => { if (reportRef.current) return mountReportNavigation(reportRef.current); }, []);
-  return <div className={styles.report} ref={reportRef}>
+  return <div className={styles.report} data-visual-preview={editorialPreview ? 'editorial' : undefined} ref={reportRef}>
     <a className={styles.skipLink} href="#factors">跳至研究内容</a>
     <header className={styles.masthead} data-report-header>
       <div className={styles.brand}><a href="#report-top" aria-label="回到报告开头"><Image src="/colliers-logo.png" alt="Colliers 高力国际" width={592} height={337} className={styles.logo} unoptimized /></a><span>企业选址洞察</span></div>
@@ -219,7 +221,7 @@ export function OccupierInsightsReport() {
     </header>
     <main>
       <section id="report-top" className={styles.cover} aria-labelledby="report-title" data-report-chapter="cover">
-        <Background src="/occupier-insights/office-cover.webp" eager />
+        <Background src={editorialPreview ? "/occupier-insights/office-district.webp" : "/occupier-insights/office-cover.webp"} eager />
         <div className={styles.coverShade} />
         <div className={[styles.frame,styles.coverInner].join(' ')}>
           <p className={styles.coverKicker}>高力国际 · 2026 年 11 月</p>

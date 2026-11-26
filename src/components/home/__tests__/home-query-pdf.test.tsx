@@ -29,19 +29,19 @@ it('delivers a real download operation beside a collapsed answer; reports dispat
   render(<HomeQueryResult result={value} presentation="compact" requestId={requestId} scope={scope} internalExport />);
   expect(screen.queryByRole('table')).not.toBeInTheDocument();
   expect(client.download).not.toHaveBeenCalled();
-  expect(screen.getByText(/本次内部 PDF 包含 3 个研究部分/)).toHaveTextContent('保留 40 条原表记录');
+  expect(screen.getByRole('region', { name: '本条回答生成的 PDF 报告' })).toHaveTextContent('PDF');
   expect(screen.queryByText(/符合条件的楼宇共/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: '下载 PDF 研究报告' }));
   await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce());
   expect(client.download).toHaveBeenCalledWith(scope, { requestId, resultId: value.resultId, action: 'export', format: 'pdf' }, expect.any(AbortSignal));
   expect(client.reportDelivery).toHaveBeenCalledWith(scope, file, 'browser_download_dispatched');
-  expect(screen.getByText(/浏览器已发起下载/)).toHaveTextContent('尚未确认文件已实际保存');
+  expect(screen.getByText('已发起下载')).not.toHaveTextContent('已保存');
 });
 it('keeps the server-generated state and allows retry when the download is denied or fails', async () => {
   client.download.mockRejectedValue(new Error('无法访问此请求。'));
   render(<HomeQueryResult result={result()} presentation="compact" requestId={requestId} scope={scope} internalExport />);
   fireEvent.click(screen.getByRole('button', { name: '下载 PDF 研究报告' }));
-  await screen.findByText('无法访问此请求。');
+  await screen.findByText('文件暂不可用或下载失败，请重试。');
   expect(client.reportDelivery).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), 'browser_download_dispatched');
   expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: '下载 PDF 研究报告' })).toBeEnabled();

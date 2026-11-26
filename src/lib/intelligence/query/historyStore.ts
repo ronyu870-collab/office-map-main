@@ -235,7 +235,8 @@ async function restoreHistorySnapshot(context: Context, conversationId: string, 
   const restored = !question.agent && record.state === 'succeeded'
     ? await recoverOwnResult(context.client, context.identity, context.keys, requestId, record, context.signal, { reauthorizedHistory: true }) : null;
   const reply = agentAnswer ? { requestId, status: agentAnswer.result ? 'ready' : 'assistant', isNativeAgent: true,
-    message: agentAnswer.message, ...(agentAnswer.result ? { result: agentAnswer.result } : {}) }
+    message: agentAnswer.message, ...(agentAnswer.result ? { result: agentAnswer.result } : {}),
+    ...(agentAnswer.answerSelection ? { answerSelection: agentAnswer.answerSelection } : {}) }
     : { requestId, status: restored ? 'ready' : question.clarification ? 'clarification' : record.state,
       ...(restored ? { result: resultViewSchema.parse(restored.result) } : question.clarification ?? { message: '此轮未生成可恢复的结果，可重新发起查询。' }) };
   const resumable = !!(agentAnswer || (restored && question.semantic));

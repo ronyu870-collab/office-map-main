@@ -2,6 +2,8 @@ import {fireEvent,render,screen} from '@testing-library/react';
 import{afterEach,beforeEach,describe,expect,it,vi}from'vitest';
 import FloatingBuildingList from '../components/FloatingBuildingList';
 import{MapSalesMaterialsBridge}from'../MapSalesMaterialsBridge';
+vi.mock('@/src/components/SessionProvider',()=>({useAppSession:()=>({status:'authenticated',session:{user:{id:'reader'},role:'admin',sessionId:'list-materials'}})}));
+vi.mock('@/src/contexts/ImpersonationContext',()=>({useImpersonation:()=>({targetUserId:null,targetRole:null})}));
 vi.mock('next/dynamic',()=>({default:()=>function Panel({buildingId,buildingName,onClose}:{buildingId:string;buildingName:string;onClose:()=>void}){return <div role="dialog" aria-modal="true" aria-label={buildingName} data-building-id={buildingId} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();onClose();}}}><button onClick={onClose}>关闭资料</button></div>;}}));
 vi.mock('../components/BuildingBasicCard',()=>({BuildingBasicCard:({building,onClick}:{building:{name:string};onClick:()=>void})=><button onClick={onClick}>{building.name}详情卡</button>}));
 beforeEach(()=>{vi.stubGlobal('IntersectionObserver',class{observe(){}disconnect(){}});});

@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
     const profile = profileRead.status === 'fulfilled'
       ? profileRead.value
       : { available: false, published: false, profile: readSubmarketProfileRow(null, name) };
-    const approved = profile.published && publicBriefReviewErrors(profile.profile).length === 0;
+    const visibleToClients = profile.published && publicBriefReviewErrors(profile.profile).length === 0;
     const canEdit = result.identity.callerRole === 'admin' && result.identity.effectiveRole === 'admin'
       && !result.identity.isImpersonating;
     const trend = trendRead.status === 'fulfilled' ? trendRead.value
@@ -125,9 +125,9 @@ export async function GET(request: NextRequest) {
           quarterMethod: 'same_quarter_area_weighted', source: 'building_metrics' };
     return json({
       submarket: name, ...trend, trendError: trendRead.status === 'rejected',
-      profile: visibleSubmarketProfile(profile.profile, approved),
+      profile: visibleSubmarketProfile(profile.profile, visibleToClients),
       profileAvailable: profile.available,
-      profilePublished: approved,
+      profilePublished: visibleToClients,
       ...(canEdit ? { draftProfile: profile.profile } : {}),
     });
   } catch (error) {
@@ -167,7 +167,7 @@ export async function PUT(request: NextRequest) {
     const publish = publicationIntent === 'publish';
     if (publish) {
       const problems = publicBriefReviewErrors(parsed.data);
-      if (problems.length) return json({ error: '对外发布校验未通过：' + problems.join('；') }, 422);
+      if (problems.length) return json({ error: '内容无法直接展示，请修改不完整字段和内部标记：' + problems.join('；') }, 422);
     }
 
     const before = await readProfile(client, name);

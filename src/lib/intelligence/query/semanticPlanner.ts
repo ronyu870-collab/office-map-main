@@ -273,7 +273,7 @@ export function inferSemanticScope(question: string, contextInput?: SemanticCont
   const prior = context.lastPlan?.scope;
   const markets = detectedMarkets(text);
   // Explicit scope replacement retains building IDs/inventory/filter in the planner.
-  if (allScopePattern.test(text)) return { inventory: prior?.inventory ?? 'tracked', ...(prior?.buildingIds ? { buildingIds: prior.buildingIds } : {}) };
+  if (allScopePattern.test(text)) return { inventory: 'all_authorized' };
   if (markets.length) return { ...prior, inventory: prior?.inventory ?? 'tracked', submarkets: markets };
   if (pairReferencePattern.test(text) || manyReferencePattern.test(text)) {
     return { ...prior, inventory: prior?.inventory ?? 'tracked', ...(context.comparisonSubmarkets.length ? { submarkets: context.comparisonSubmarkets } : {}) };
@@ -558,6 +558,10 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
 
   // Every condition must be consumed by a supported slot. Negations and
   // unsupported filters remain here and therefore cannot disappear silently.
+  // A parent-bound correction may replace its period without restating the
+  // metric or scope. Consume only this leading verb after one explicit quarter
+  // has already been parsed; all remaining conditions still require validation.
+  if (prior && absolute.length === 1) consume(/^(?:请)?(?:改到|换成|改成|改为)/);
   for (const market of QUESTION_SUBMARKETS) remaining = remaining.replaceAll(market, '');
   consume(/望京|全部获权楼宇|全部获权范围|全部有权访问的楼宇/g);
   consume(/净有效租金|季度总面积|空置面积|空置率|建筑高度|楼层数|总车位数|租金/g);
@@ -587,7 +591,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   let filter: Predicate | undefined;
   try { filter = inheritedFilter(prior?.filter, conditions.filter); }
   catch { return clarify('unrecognized', '上一轮含“或”组合筛选，本次修改的字段会影响组合含义。请在新查询中明确写出全部筛选条件。'); }
-  const common = { scope: { ...scope, inventory: prior?.scope.inventory ?? (temporal ? 'tracked' : 'all_authorized') }, ...(filter ? { filter } : {}) };
+  const common = { scope: { ...scope, inventory: allScopePattern.test(text) ? 'all_authorized' : prior?.scope.inventory ?? (temporal ? 'tracked' : 'all_authorized') }, ...(filter ? { filter } : {}) };
   const first = requestedPeriods[0];
   const last = requestedPeriods.at(-1);
   let candidate: unknown;

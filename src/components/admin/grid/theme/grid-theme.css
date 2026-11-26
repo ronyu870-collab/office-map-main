@@ -47,12 +47,12 @@
   justify-content: center;
   min-height: var(--cd-control-height-sm);
   padding: 0 8px;
-  border-radius: 5px;
+  border-radius: var(--cd-radius-md);
   font-size: 12px;
   font-weight: 500;
-  border: 1px solid rgb(229 231 235);
-  background: white;
-  color: rgb(75 85 99);
+  border: 1px solid var(--cd-color-border);
+  background: var(--cd-color-surface);
+  color: var(--cd-color-text-secondary);
   cursor: pointer;
   transition: color var(--cd-motion-fast), background-color var(--cd-motion-fast), border-color var(--cd-motion-fast);
   white-space: nowrap;
@@ -93,7 +93,7 @@
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: rgb(156 163 175);
+  color: var(--cd-color-text-secondary);
   font-size: 14px;
 }
 
@@ -107,22 +107,22 @@
 }
 
 /* 滚动条美化 */
-::-webkit-scrollbar {
+.grid-panel-container ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-::-webkit-scrollbar-track {
+.grid-panel-container ::-webkit-scrollbar-track {
   background: rgb(243 244 246);
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb {
+.grid-panel-container ::-webkit-scrollbar-thumb {
   background: rgb(209 213 219);
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+.grid-panel-container ::-webkit-scrollbar-thumb:hover {
   background: rgb(156 163 175);
 }
 
@@ -167,3 +167,8 @@
   .admin-grid-workspace .ag-cell input,
   .admin-grid-workspace .ag-cell select { min-height: 44px; font-size: 16px; }
 }
+
+.grid-action-btn:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: -2px; }
+.grid-action-btn svg { width: var(--cd-icon-sm); height: var(--cd-icon-sm); stroke-width: var(--cd-icon-stroke); }
+.ag-cell[col-id*="area"], .ag-cell[col-id*="rent"], .ag-cell[col-id*="rate"] { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .grid-action-btn { transition: none; } }

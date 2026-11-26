@@ -1,3 +1,5 @@
+import { verifyAiControlCenter } from './ai-control-center-scenarios.mjs';
+import { verifyAi6Runtime } from './ai6-runtime-scenarios.mjs';
 import { verifyAi5ModelOperations } from './ai5-model-operations-scenarios.mjs';
 import { verifyAi5FinalHardening } from './ai5-final-hardening-scenarios.mjs';
 import { verifyAi5Knowledge } from './ai5-knowledge-scenarios.mjs';
@@ -34,6 +36,7 @@ import { verifyQuarterTrend } from './ai-query-trend-scenarios.mjs';
 import { verifyResearchAnalysis } from './ai-query-research-scenarios.mjs';
 import { verifyConversation } from './ai-query-conversation-scenarios.mjs';
 import { verifyQueryHomeDependencies } from './ai-query-home-dependencies.mjs';
+import { waitForPostgrestAuth } from './postgrest-auth-readiness.mjs';
 import { verifyMultiMetricAnalysis } from './ai-query-multi-metric-scenarios.mjs';
 import { verifyP2Outputs } from './ai-query-p2-output-scenarios.mjs';
 import { setupP2Buildings, verifyP2Buildings } from './ai-query-p2-building-scenarios.mjs';
@@ -83,6 +86,7 @@ async function person(role,label){
   const signed=await entry.client.auth.signInWithPassword({email,password});assert.equal(signed.error,null);entry.token=signed.data.session.access_token;
   entry.sessionId=JSON.parse(Buffer.from(entry.token.split('.')[1],'base64url')).session_id;
   assert.ok((await db.query('select id from auth.sessions where id=$1 and user_id=$2',[entry.sessionId,entry.id])).rowCount);
+  await waitForPostgrestAuth(() => entry.client.from('user_roles').select('role').eq('user_id',entry.id).limit(1));
   return entry;
 }
 const rank={operation:'rank',scope:{inventory:'tracked',submarkets:['CBD']},field:'height',period:null,direction:'desc',limit:1};
@@ -138,6 +142,7 @@ try{
   await installLeaseResearchFixture(db);
   await installBusinessFixture(db);
   await installKnowledgeFixture(db);
+  if(!(await db.query("select to_regclass('private.ai_control_state') r")).rows[0].r)await db.query(await load('20261125152942_ai_control_center.sql'));
   companyFixture = await setupCompanyAdmin(db, load);
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
@@ -157,7 +162,7 @@ try{
   const build=spawn('npm',['run','build'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
   assert.equal((await once(build,'exit'))[0],0,'Actual Next production build must pass');
   const startApp=async()=>{
-    server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3289'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
+    server=spawn(process.execPath,['--require',path.join(root,'scripts/verification/synthetic-provider-preload.cjs'),'node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3289'],{cwd:root,env:{...env,AI_QUERY_TEST_PROVIDER_TARGET:companyFixture.providerTarget},stdio:['ignore',log.fd,log.fd]});
     await until(async()=>{try{return (await fetch(app+'/api/intelligence/query')).status===405;}catch{return false;}},'Next route startup');
   };
   await startApp();
@@ -604,6 +609,8 @@ try{
   await verifyP2Buildings({db,app,check,person,call,recover,events,decrypt,exportCaps});
   await verifyConversation({db,check,person,call,recover,events,decrypt,exportCaps,fixture:companyFixture});
   await verifyP2History({db,app,check,person,call,recover,artifact,events,decrypt,exportCaps});
+  await verifyAiControlCenter({db,app,check,person});
+  await verifyAi6Runtime({db,app,fixture:companyFixture,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps});
   await verifyAi5Exports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Charts({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Reports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});

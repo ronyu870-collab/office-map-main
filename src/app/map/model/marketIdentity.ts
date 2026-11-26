@@ -11,12 +11,7 @@ export function officeGrade(input: unknown): OfficeGrade {
   return grades[String(input ?? '').trim().replace(/\s+/g, ' ').toUpperCase()] ?? 'other';
 }
 
-export function normalizeLeed(input: unknown): string {
-  const value = String(input ?? '').trim().toUpperCase();
-  const aliases: Record<string, string> = { PLATINUM: 'Platinum', '铂金级': 'Platinum', '白金级': 'Platinum',
-    GOLD: 'Gold', '金级': 'Gold', SILVER: 'Silver', '银级': 'Silver', '': 'NULL', NULL: 'NULL', '无': 'NULL', '-': 'NULL' };
-  return aliases[value] ?? value;
-}
+export { leedFilterValue as normalizeLeed } from '@/src/lib/leed-display';
 
 export function normalizeMapSubmarket(value: unknown): string {
   const raw = String(value ?? '').trim();
@@ -35,8 +30,4 @@ export function submarketDatabaseNames(name: string): string[] {
   return [canonical];
 }
 
-export function hasMarketCoordinates(building: { location_lng?: unknown; location_lat?: unknown }): boolean {
-  const { location_lng: lng, location_lat: lat } = building;
-  return typeof lng === 'number' && Number.isFinite(lng) && Math.abs(lng) <= 180
-    && typeof lat === 'number' && Number.isFinite(lat) && Math.abs(lat) <= 90;
-}
+export { hasMapCoordinates as hasMarketCoordinates } from '@/src/lib/map-coordinates';

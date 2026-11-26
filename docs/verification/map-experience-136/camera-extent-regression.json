@@ -1,0 +1,26 @@
+{
+  "old": {
+    "unit": "1 failed, 6 passed",
+    "liveDesktop": "same target and 1136x744 canvas restarted at 49.2ms and 72.6ms; actual assertion failed"
+  },
+  "after": {
+    "files": 5,
+    "tests": 68,
+    "passed": 68,
+    "typecheck": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 26
+    },
+    "scriptLint": "pass",
+    "productionBuild": "pass",
+    "realSDK": "camera-extent-real-sdk.json",
+    "fullWorkspaceRecords": 68
+  },
+  "limits": [
+    "800ms duplicate-target observation window",
+    "No new native touch or CPU sampling",
+    "Canvas dimensions still switch during opening/closing; whole-motion acceptance remains partial",
+    "The earlier final map screenshot caught a closing legend; it is not accepted as a settled visual image"
+  ]
+}

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { HomeQueryMenu } from './HomeQueryMenu';
 import { Archive, ArchiveRestore, ArrowLeft, ChevronLeft, ChevronRight, CircleHelp, History, MoreHorizontal, Pencil, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
 import { IconButton } from '@/src/components/ui/IconButton';
@@ -251,52 +252,9 @@ function HistoryEntryActions({ entry, open, disabled, onToggle, onRename, onArch
   entry: HistoryEntry; open: boolean; disabled: boolean;
   onToggle: (open: boolean) => void; onRename: () => void; onArchive: () => void;
 }) {
-  const id = React.useId();
-  const trigger = React.useRef<HTMLButtonElement>(null), root = React.useRef<HTMLDivElement>(null), menu = React.useRef<HTMLDivElement>(null);
-  const [above, setAbove] = React.useState(false);
-  const onToggleRef = React.useRef(onToggle);
-  React.useLayoutEffect(() => { onToggleRef.current = onToggle; }, [onToggle]);
-  React.useEffect(() => {
-    if (!open) return;
-    menu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
-    const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !root.current?.contains(event.target)) onToggleRef.current(false);
-    };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [open]);
-  function toggle(next: boolean) {
-    if (next) {
-      const box = trigger.current?.getBoundingClientRect(), viewport = root.current?.closest('[data-history-scroll]')?.getBoundingClientRect();
-      const panelBox = root.current?.closest('aside')?.getBoundingClientRect();
-      const bottom = Math.min(viewport?.bottom ?? window.innerHeight, panelBox?.bottom ?? window.innerHeight);
-      const top = Math.max(viewport?.top ?? 0, panelBox?.top ?? 0);
-      setAbove(!!box && box.bottom + 112 > bottom && box.top - 112 >= top);
-    }
-    onToggle(next);
-  }
-  function close() { onToggle(false); trigger.current?.focus({ preventScroll: true }); }
-  return <div ref={root} className={styles.entryActions} onBlur={event => {
-    if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) onToggle(false);
-  }} onKeyDown={event => {
-    if (!open) return;
-    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); return; }
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault(); event.stopPropagation();
-    const items = Array.from(menu.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? []);
-    const index = items.indexOf(document.activeElement as HTMLButtonElement);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
-      : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
-    items[next]?.focus({ preventScroll: true });
-  }}>
-    <IconButton ref={trigger} className={styles.more} variant="ghost" label={`对话操作：${entry.title}`} title="更多操作"
-      data-history-actions={entry.conversationId} disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined}
-      onClick={() => toggle(!open)} onKeyDown={event => {
-        if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) { event.preventDefault(); toggle(true); }
-      }}><MoreHorizontal size={16} aria-hidden="true" /></IconButton>
-    {open && <div ref={menu} id={id} className={styles.entryMenu} data-above={above} role="menu" aria-label={`对话操作：${entry.title}`}>
-      <Button variant="ghost" role="menuitem" tabIndex={-1} disabled={disabled} onClick={onRename}><Pencil size={14} aria-hidden="true" />重命名</Button>
-      <Button variant="ghost" role="menuitem" tabIndex={-1} disabled={disabled} onClick={onArchive}>{entry.archived ? <ArchiveRestore size={14} aria-hidden="true" /> : <Archive size={14} aria-hidden="true" />}{entry.archived ? '移回工作记录' : '归档'}</Button>
-    </div>}
-  </div>;
+  return <HomeQueryMenu label={<MoreHorizontal size={16} aria-hidden="true" />} ariaLabel={`对话操作：${entry.title}`}
+    triggerClassName={styles.more} historyId={entry.conversationId} disabled={disabled} commandMenu open={open} onOpenChange={onToggle}>
+    <Button variant="ghost" role="menuitem" tabIndex={-1} disabled={disabled} onClick={onRename}><Pencil size={14} aria-hidden="true" />重命名</Button>
+    <Button variant="ghost" role="menuitem" tabIndex={-1} disabled={disabled} onClick={onArchive}>{entry.archived ? <ArchiveRestore size={14} aria-hidden="true" /> : <Archive size={14} aria-hidden="true" />}{entry.archived ? '移回工作记录' : '归档'}</Button>
+  </HomeQueryMenu>;
 }

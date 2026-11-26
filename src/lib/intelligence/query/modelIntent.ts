@@ -7,29 +7,11 @@ export const MODEL_INTENT_LIMITS = { maxQuestionCharacters: 3000, maxInputCharac
 export type ModelIntentUsage = { model: string; inputTokens: number | null; outputTokens: number | null; calls: 1 };
 export function semanticModelConfigured(): boolean { return Boolean(process.env.DEEPSEEK_API_KEY?.trim()); }
 
-async function boundedJson(response: Response): Promise<unknown> {
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('MODEL_EMPTY_RESPONSE');
-  const decoder = new TextDecoder('utf-8', { fatal: true }); let text = '', bytes = 0;
-  try {
-    while (true) {
-      const part = await reader.read(); if (part.done) break;
-      bytes += part.value.byteLength;
-      if (bytes > MODEL_INTENT_LIMITS.maxResponseBytes) throw new Error('MODEL_RESPONSE_TOO_LARGE');
-      text += decoder.decode(part.value, { stream: true });
-    }
-    return JSON.parse(text + decoder.decode());
-  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
-}
+export type SemanticModelInvoke = (messages: import('../agent/modelProtocol').AgentMessage[], signal: AbortSignal) => Promise<import('../agent/modelProtocol').AgentCompletion>;
 
 /** Exactly one extraction call. No data rows, raw sources, SQL or tool execution are sent to the provider. */
-export async function understandWithModel(question: string, context: SemanticContext | undefined, allowedSubmarkets: readonly string[], signal: AbortSignal): Promise<{ intent: SemanticIntent; usage: ModelIntentUsage }> {
-  const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
-  if (!apiKey) throw new Error('MODEL_NOT_CONFIGURED');
+export async function understandWithModel(question: string, context: SemanticContext | undefined, allowedSubmarkets: readonly string[], signal: AbortSignal, invoke?: SemanticModelInvoke): Promise<{ intent: SemanticIntent; usage: ModelIntentUsage }> {
   if (question.length > MODEL_INTENT_LIMITS.maxQuestionCharacters) throw new Error('MODEL_INPUT_LIMIT');
-  const base = new URL(process.env.DEEPSEEK_API_BASE_URL?.trim() || 'https://api.deepseek.com');
-  if (base.username || base.password || base.search || base.hash || (base.protocol !== 'https:' && !(base.protocol === 'http:' && ['127.0.0.1','localhost'].includes(base.hostname)))) throw new Error('MODEL_CONFIGURATION_INVALID');
-  const model = process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-v4-flash';
   const safeContext = context ? { lastPlan: context.lastPlan, comparisonSubmarkets: context.comparisonSubmarkets } : null;
   const input = JSON.stringify({ question: redactSubmittedCredentials(question).text, context: safeContext,
     allowedSubmarkets: QUESTION_SUBMARKETS.filter(market => allowedSubmarkets.includes(market)) });
@@ -50,21 +32,15 @@ export async function understandWithModel(question: string, context: SemanticCon
     JSON.stringify(z.toJSONSchema(semanticIntentSchema)),
   ].join('\n');
   if (instructions.length + input.length > MODEL_INTENT_LIMITS.maxInputCharacters) throw new Error('MODEL_INPUT_LIMIT');
-  const timeout = AbortSignal.timeout(MODEL_INTENT_LIMITS.timeoutMs);
-  const requestSignal = AbortSignal.any([signal, timeout]);
-  const response = await fetch(`${base.toString().replace(/\/$/, '')}/chat/completions`, {
-    method: 'POST', cache: 'no-store', redirect: 'error', signal: requestSignal,
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }],
-      response_format: { type: 'json_object' }, max_tokens: MODEL_INTENT_LIMITS.maxOutputTokens, temperature: 0, stream: false }),
-  });
-  if (!response.ok) { await response.body?.cancel(); throw new Error('MODEL_PROVIDER_UNAVAILABLE'); }
-  const payload = z.object({ model: z.string().max(200).optional(), choices: z.array(z.object({
-    finish_reason: z.literal('stop'), message: z.object({ content: z.string().min(2).max(12000) }),
-  })).length(1), usage: z.object({ prompt_tokens: z.number().int().nonnegative().optional(), completion_tokens: z.number().int().nonnegative().optional() }).optional() }).parse(await boundedJson(response));
-  requestSignal.throwIfAborted();
-  const intent = parseSemanticIntent(JSON.parse(payload.choices[0].message.content));
+  // Only a trusted caller holding the current identity/control binding may invoke.
+  // No standalone escape hatch around emergency control, audit or admission.
+  if (!invoke) throw new Error('MODEL_INVOKER_REQUIRED');
+  const complete = invoke;
+  const response = await complete([{ role: 'system', content: instructions }, { role: 'user', content: input }], signal);
+  signal.throwIfAborted();
+  if (response.message.calls?.length || !response.message.content) throw new Error('MODEL_EMPTY_RESPONSE');
+  const intent = parseSemanticIntent(JSON.parse(response.message.content));
   if (intent.submarkets?.some(market => !allowedSubmarkets.includes(market))) throw new Error('MODEL_SCOPE_REJECTED');
-  return { intent, usage: { model: payload.model || model, inputTokens: payload.usage?.prompt_tokens ?? null,
-    outputTokens: payload.usage?.completion_tokens ?? null, calls: 1 } };
+  return { intent, usage: { model: response.model, inputTokens: response.inputTokens,
+    outputTokens: response.outputTokens, calls: 1 } };
 }

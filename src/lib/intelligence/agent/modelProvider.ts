@@ -13,6 +13,8 @@ export type ModelCompletion = {
   message: ModelMessage;
   inputTokens: number | null;
   outputTokens: number | null;
+  cachedInputTokens?: number | null;
+  reasoningTokens?: number | null;
   providerRequestId?: string;
 };
 
@@ -54,13 +56,13 @@ const responseSchema = z.object({
     }),
   })).length(1),
   usage: z.object({ prompt_tokens: z.number().int().nonnegative().optional(),
-    completion_tokens: z.number().int().nonnegative().optional() }).optional(),
+    completion_tokens: z.number().int().nonnegative().optional(),prompt_cache_hit_tokens:z.number().int().nonnegative().optional(),completion_tokens_details:z.object({reasoning_tokens:z.number().int().nonnegative().optional()}).optional() }).optional(),
 });
 
 export class ModelProviderError extends Error {
   constructor(public readonly code: 'not_configured' | 'invalid_configuration' | 'unauthorized' | 'payment_required'
     | 'model_not_found' | 'rate_limited' | 'timeout' | 'provider_unavailable' | 'invalid_response' | 'stream_interrupted'
-    | 'budget_exceeded' | 'disclosure_denied') {
+    | 'budget_exceeded' | 'disclosure_denied', public readonly budgetReason?: 'global_daily' | 'global_monthly' | 'provider_daily' | 'provider_monthly' | 'model_daily' | 'model_monthly' | 'test_daily' | 'account_admission' | 'admission_service_unavailable' | 'attempt_limit' | 'token_reservation' | 'cost_reservation' | 'actual_token_limit' | 'actual_cost_limit') {
     super('AGENT_MODEL_' + code.toUpperCase());
   }
 }
@@ -107,14 +109,16 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
   onDelta?: (delta: string) => Promise<void>, options?: import('./modelProtocol').AdapterOptions): Promise<ModelCompletion> {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   if (!key) throw new ModelProviderError('not_configured');
-  const model = configuredModel();
+  const model = options?.model ?? configuredModel();
+  if (!SUPPORTED_AGENT_MODELS.has(model)) throw new ModelProviderError('invalid_configuration');
   const url = providerUrl();
   const deadline = AbortSignal.any([signal, AbortSignal.timeout(options?.timeoutMs ?? 18000)]);
   let response: Response;
   try {
     response = await fetch(url, { method: 'POST', cache: 'no-store', redirect: 'error', signal: deadline,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-      body: JSON.stringify({ model, messages, tools: options?.tools?.map(tool => ({ type: 'function', function: tool })) ?? AGENT_TOOLS, tool_choice: 'auto',
+      body: JSON.stringify({ model, messages, ...(!options?.tools || options.tools.length ? { tools: options?.tools?.map(tool => ({ type: 'function', function: tool })) ?? AGENT_TOOLS, tool_choice: 'auto' } : {}),
+        ...(options?.responseFormat ? { response_format: { type: options.responseFormat }, temperature: 0 } : {}),
         thinking: { type: 'disabled' }, stream: !!onDelta,
         ...(onDelta ? { stream_options: { include_usage: true } } : {}), max_tokens: options?.maxOutputTokens ?? 1800 }),
     });
@@ -134,7 +138,7 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
     const { parseDeepSeekStream } = await import('./modelStream');
     return parseDeepSeekStream(response, model, onDelta, deadline);
   }
-  const parsed = responseSchema.safeParse(await boundedJson(response));
+  const parsed = responseSchema.safeParse(await boundedJson(response, options?.maxResponseBytes));
   if (!parsed.success) throw new ModelProviderError('invalid_response');
   const choice = parsed.data.choices[0], message = choice.message;
   if (!['stop', 'tool_calls'].includes(choice.finish_reason)
@@ -145,6 +149,8 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
       ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) },
     inputTokens: parsed.data.usage?.prompt_tokens ?? null,
     outputTokens: parsed.data.usage?.completion_tokens ?? null,
+    ...(parsed.data.usage?.prompt_cache_hit_tokens!==undefined?{cachedInputTokens:parsed.data.usage.prompt_cache_hit_tokens}:{}),
+    ...(parsed.data.usage?.completion_tokens_details?.reasoning_tokens!==undefined?{reasoningTokens:parsed.data.usage.completion_tokens_details.reasoning_tokens}:{}),
     ...(parsed.data.id ? { providerRequestId: parsed.data.id } : {}),
   };
 }

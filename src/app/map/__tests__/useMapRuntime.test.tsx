@@ -33,7 +33,7 @@ function createReadyMapInstance() {
   };
 }
 
-function installHealthyMapDom() {
+function installHealthyMapDom(width=1280,height=720) {
   document.body.innerHTML = `
     <div id="map-container">
       <div class="amap-maps"><div class="amap-layer"></div></div>
@@ -43,12 +43,12 @@ function installHealthyMapDom() {
   const container = document.getElementById('map-container') as HTMLElement;
   const amapRoot = container.querySelector('.amap-maps') as HTMLElement;
   container.getBoundingClientRect = () => ({
-    x: 0, y: 0, left: 0, top: 0, right: 1280, bottom: 720,
-    width: 1280, height: 720, toJSON() {},
+    x: 0, y: 0, left: 0, top: 0, right: width, bottom: height,
+    width, height, toJSON() {},
   } as DOMRect);
   amapRoot.getBoundingClientRect = () => ({
-    x: 0, y: 0, left: 0, top: 0, right: 1280, bottom: 720,
-    width: 1280, height: 720, toJSON() {},
+    x: 0, y: 0, left: 0, top: 0, right: width, bottom: height,
+    width, height, toJSON() {},
   } as DOMRect);
 }
 
@@ -62,6 +62,64 @@ describe('useMapRuntime', () => {
 
   afterEach(() => {
     document.body.innerHTML = '';
+  });
+
+  it('applies and revokes admin actions independently of a pending SDK initialization',async()=>{
+    controllerMocks.initMap.mockImplementationOnce(()=>new Promise<void>(()=>{}));
+    const onReady=vi.fn(),onEdit=vi.fn();
+    const options={enabled:true,containerId:'map-container',currentUserId:'user-1',onEditBuildingMetrics:onEdit,onReady,onError:vi.fn()};
+    const {result,rerender,unmount}=renderHook(({role})=>useMapRuntime({...options,userRole:role}),{initialProps:{role:'admin'}});
+    await waitFor(()=>expect(onReady).toHaveBeenCalledTimes(1));
+    expect(result.current.mapReady).toBe(false);
+    expect(controllerMocks.setAdminMode).toHaveBeenLastCalledWith(true,'user-1',expect.any(Function));
+    rerender({role:'viewer'});
+    expect(controllerMocks.setAdminMode).toHaveBeenLastCalledWith(false,'user-1',undefined);
+    expect(controllerMocks.initMap).toHaveBeenCalledTimes(1);unmount();
+  });
+
+  it('waits while full reading intentionally hides the map, then validates the revealed surface',async()=>{
+    const container=document.getElementById('map-container')!;
+    const root=container.querySelector<HTMLElement>('.amap-maps')!;
+    container.setAttribute('aria-hidden','true');root.style.visibility='hidden';
+    const onReady=vi.fn(),onError=vi.fn();
+    const {result}=renderHook(()=>useMapRuntime({enabled:true,containerId:'map-container',userRole:'viewer',currentUserId:'user-1',onEditBuildingMetrics:vi.fn(),onReady,onError}));
+    await waitFor(()=>expect(controllerMocks.initMap).toHaveBeenCalled());
+    await new Promise(resolve=>setTimeout(resolve,2000));
+    expect(result.current.mapStage).toBe('tiles');expect(onReady).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenLastCalledWith(null);
+    root.style.visibility='';container.removeAttribute('aria-hidden');
+    await waitFor(()=>expect(result.current.mapReady).toBe(true),{timeout:1000});
+  });
+
+  it('disconnects the visibility observer when the hidden map is unmounted',async()=>{
+    document.getElementById('map-container')!.setAttribute('aria-hidden','true');
+    const observe=vi.spyOn(MutationObserver.prototype,'observe');
+    const disconnect=vi.spyOn(MutationObserver.prototype,'disconnect');
+    const {unmount}=renderHook(()=>useMapRuntime({enabled:true,containerId:'map-container',userRole:'viewer',currentUserId:'user-1',onEditBuildingMetrics:vi.fn(),onReady:vi.fn(),onError:vi.fn()}));
+    await waitFor(()=>expect(observe.mock.calls.some(([,options])=>options?.attributeFilter?.includes('inert'))).toBe(true));
+    const before=disconnect.mock.calls.length;unmount();
+    expect(disconnect.mock.calls.length).toBeGreaterThan(before);
+    expect(controllerMocks.destroy).toHaveBeenCalledTimes(1);
+    observe.mockRestore();disconnect.mockRestore();
+  });
+
+  it.each([80,92])('accepts a rendered short-stage map %spx high without a false recovery or error',async height=>{
+    installHealthyMapDom(320,height);
+    const onError=vi.fn();
+    const {result}=renderHook(()=>useMapRuntime({enabled:true,containerId:'map-container',userRole:'viewer',currentUserId:'user-1',onEditBuildingMetrics:vi.fn(),onReady:vi.fn(),onError}));
+    await waitFor(()=>expect(result.current.mapReady).toBe(true),{timeout:2200});
+    expect(onError).toHaveBeenLastCalledWith(null);
+    expect(controllerMocks.getMapInstance().setMapStyle).not.toHaveBeenCalled();
+  });
+
+  it.each(['zero','no-layer'])('still rejects an unusable %s map surface',async failure=>{
+    installHealthyMapDom(320,failure==='zero'?0:80);
+    if(failure==='no-layer') document.querySelector('.amap-layer')?.remove();
+    const onError=vi.fn();
+    const {result}=renderHook(()=>useMapRuntime({enabled:true,containerId:'map-container',userRole:'viewer',currentUserId:'user-1',onEditBuildingMetrics:vi.fn(),onReady:vi.fn(),onError}));
+    await waitFor(()=>expect(result.current.mapStage).toBe('error'),{timeout:3000});
+    expect(result.current.mapReady).toBe(false);
+    expect(onError).toHaveBeenLastCalledWith(expect.stringContaining('渲染层初始化异常'));
   });
 
   it('does not initialize the imperative map runtime while disabled', () => {
@@ -98,9 +156,11 @@ describe('useMapRuntime', () => {
     await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
     expect(controllerMocks.initMap).toHaveBeenCalledTimes(1);
     expect(result.current.mapReady).toBe(false);
+    expect(result.current.mapStage).toBe('sdk');
 
     resolveInit();
     await waitFor(() => expect(result.current.mapReady).toBe(true), { timeout: 2000 });
+    expect(result.current.mapStage).toBe('ready');
   });
 
   it('initializes once, applies role mode and delegates ready work', async () => {

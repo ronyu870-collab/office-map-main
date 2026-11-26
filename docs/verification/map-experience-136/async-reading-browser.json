@@ -1,0 +1,1402 @@
+{
+  "status": "pass",
+  "environment": "production app; isolated SDK/data; viewer except 1024 admin",
+  "observations": [
+    {
+      "width": 1536,
+      "photo": {
+        "frames": 40,
+        "geometryStates": [
+          {
+            "at": 1066.1999999284744,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1160,
+                "y": 114,
+                "w": 376,
+                "h": 839.9,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1161,
+                "y": 114,
+                "w": 375,
+                "h": 73.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 114,
+                "w": 1536,
+                "h": 886,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1161,
+                "y": 187.3,
+                "w": 375,
+                "h": 765.6,
+                "scroll": 0
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 1177,
+                "y": 674.6,
+                "w": 343,
+                "h": 214.4,
+                "scroll": 0
+              },
+              null
+            ]
+          },
+          {
+            "at": 1099.7999999523163,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1160,
+                "y": 114,
+                "w": 376,
+                "h": 797.1,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1161,
+                "y": 114,
+                "w": 375,
+                "h": 73.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 114,
+                "w": 1536,
+                "h": 886,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1161,
+                "y": 187.3,
+                "w": 375,
+                "h": 722.8,
+                "scroll": 0
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 1177,
+                "y": 674.6,
+                "w": 343,
+                "h": 171.5,
+                "scroll": 0
+              },
+              null
+            ]
+          }
+        ],
+        "stableTail": 615.8999999761581
+      },
+      "portrait": {
+        "frames": 40,
+        "geometryStates": [
+          {
+            "at": 1781.8999999761581,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1160,
+                "y": 114,
+                "w": 376,
+                "h": 797.1,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1161,
+                "y": 114,
+                "w": 375,
+                "h": 73.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 114,
+                "w": 1536,
+                "h": 886,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1161,
+                "y": 187.3,
+                "w": 375,
+                "h": 722.8,
+                "scroll": 0
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 1177,
+                "y": 674.6,
+                "w": 343,
+                "h": 171.5,
+                "scroll": 0
+              },
+              null
+            ]
+          },
+          {
+            "at": 1817.0999999046326,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1160,
+                "y": 114,
+                "w": 376,
+                "h": 862,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1161,
+                "y": 114,
+                "w": 375,
+                "h": 73.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 114,
+                "w": 1536,
+                "h": 886,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1161,
+                "y": 187.3,
+                "w": 375,
+                "h": 787.7,
+                "scroll": 0
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 1177,
+                "y": 674.6,
+                "w": 312,
+                "h": 520,
+                "scroll": 0
+              },
+              null
+            ]
+          }
+        ],
+        "stableTail": 616.7000000476837
+      },
+      "materialIndex": {
+        "frames": 40,
+        "geometryStates": [
+          {
+            "at": 2567.399999976158,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1160,
+                "y": 114,
+                "w": 376,
+                "h": 499.1,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1161,
+                "y": 114,
+                "w": 375,
+                "h": 73.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 114,
+                "w": 1536,
+                "h": 886,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1161,
+                "y": 187.3,
+                "w": 375,
+                "h": 424.8,
+                "scroll": 0
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 192,
+                "y": 392,
+                "w": 1152,
+                "h": 216,
+                "scroll": 0
+              }
+            ]
+          },
+          {
+            "at": 2617,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1160,
+                "y": 114,
+                "w": 376,
+                "h": 499.1,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1161,
+                "y": 114,
+                "w": 375,
+                "h": 73.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 114,
+                "w": 1536,
+                "h": 886,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1161,
+                "y": 187.3,
+                "w": 375,
+                "h": 424.8,
+                "scroll": 0
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 192,
+                "y": 361,
+                "w": 1152,
+                "h": 278,
+                "scroll": 0
+              }
+            ]
+          }
+        ],
+        "stableTail": 599.3999999761581
+      },
+      "materialDetails": {
+        "frames": 38,
+        "geometryStates": [
+          {
+            "at": 3252,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1160,
+                "y": 114,
+                "w": 376,
+                "h": 499.1,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1161,
+                "y": 114,
+                "w": 375,
+                "h": 73.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 114,
+                "w": 1536,
+                "h": 886,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1161,
+                "y": 187.3,
+                "w": 375,
+                "h": 424.8,
+                "scroll": 0
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 192,
+                "y": 342.5,
+                "w": 1152,
+                "h": 315,
+                "scroll": 0
+              }
+            ]
+          }
+        ],
+        "stableTail": 615
+      }
+    },
+    {
+      "width": 390,
+      "photo": {
+        "frames": 40,
+        "geometryStates": [
+          {
+            "at": 1704.5999999046326,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 579,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 240,
+                "w": 390,
+                "h": 604,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 294,
+                "w": 390,
+                "h": 526,
+                "scroll": 181
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 16,
+                "y": 596,
+                "w": 358,
+                "h": 223.8,
+                "scroll": 0
+              },
+              null
+            ]
+          },
+          {
+            "at": 1740,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 579,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 240,
+                "w": 390,
+                "h": 604,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 294,
+                "w": 390,
+                "h": 526,
+                "scroll": 181
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 16,
+                "y": 596,
+                "w": 358,
+                "h": 179,
+                "scroll": 0
+              },
+              null
+            ]
+          }
+        ],
+        "stableTail": 613.7999999523163
+      },
+      "portrait": {
+        "frames": 40,
+        "geometryStates": [
+          {
+            "at": 2420.5999999046326,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 579,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 240,
+                "w": 390,
+                "h": 604,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 294,
+                "w": 390,
+                "h": 526,
+                "scroll": 181
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 16,
+                "y": 596,
+                "w": 358,
+                "h": 179,
+                "scroll": 0
+              },
+              null
+            ]
+          },
+          {
+            "at": 2455.7999999523163,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 579,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 240,
+                "w": 390,
+                "h": 604,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 294,
+                "w": 390,
+                "h": 526,
+                "scroll": 181
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 16,
+                "y": 596,
+                "w": 263.3,
+                "h": 438.8,
+                "scroll": 0
+              },
+              null
+            ]
+          }
+        ],
+        "stableTail": 614.5
+      },
+      "materialIndex": {
+        "frames": 39,
+        "geometryStates": [
+          {
+            "at": 3218.7999999523163,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 579,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 240,
+                "w": 390,
+                "h": 604,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 294,
+                "w": 390,
+                "h": 526,
+                "scroll": 0
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 16,
+                "y": 313,
+                "w": 358,
+                "h": 218,
+                "scroll": 0
+              }
+            ]
+          },
+          {
+            "at": 3255.5,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 579,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 240,
+                "w": 390,
+                "h": 604,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 294,
+                "w": 390,
+                "h": 526,
+                "scroll": 0
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 16,
+                "y": 282,
+                "w": 358,
+                "h": 280,
+                "scroll": 0
+              }
+            ]
+          }
+        ],
+        "stableTail": 598
+      },
+      "materialDetails": {
+        "frames": 37,
+        "geometryStates": [
+          {
+            "at": 3870.5,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 579,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 241,
+                "w": 390,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 240,
+                "w": 390,
+                "h": 604,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 294,
+                "w": 390,
+                "h": 526,
+                "scroll": 0
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 16,
+                "y": 258.6,
+                "w": 358,
+                "h": 326.8,
+                "scroll": 0
+              }
+            ]
+          }
+        ],
+        "stableTail": 599.6999999284744
+      }
+    },
+    {
+      "width": 320,
+      "photo": {
+        "frames": 40,
+        "geometryStates": [
+          {
+            "at": 1415.7999999523163,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 583,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 236,
+                "w": 320,
+                "h": 608,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 290,
+                "w": 320,
+                "h": 530,
+                "scroll": 153
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 16,
+                "y": 640.3,
+                "w": 288,
+                "h": 180,
+                "scroll": 0
+              },
+              null
+            ]
+          },
+          {
+            "at": 1450,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 583,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 236,
+                "w": 320,
+                "h": 608,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 290,
+                "w": 320,
+                "h": 530,
+                "scroll": 153
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 16,
+                "y": 640.3,
+                "w": 288,
+                "h": 144,
+                "scroll": 0
+              },
+              null
+            ]
+          }
+        ],
+        "stableTail": 615.2999999523163
+      },
+      "portrait": {
+        "frames": 40,
+        "geometryStates": [
+          {
+            "at": 2148.5,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 583,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 236,
+                "w": 320,
+                "h": 608,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 290,
+                "w": 320,
+                "h": 530,
+                "scroll": 161
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 16,
+                "y": 632.3,
+                "w": 288,
+                "h": 144,
+                "scroll": 0
+              },
+              null
+            ]
+          },
+          {
+            "at": 2184.2999999523163,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 583,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 236,
+                "w": 320,
+                "h": 608,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 290,
+                "w": 320,
+                "h": 530,
+                "scroll": 161
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 16,
+                "y": 632.3,
+                "w": 263.3,
+                "h": 438.8,
+                "scroll": 0
+              },
+              null
+            ]
+          }
+        ],
+        "stableTail": 614.1000000238419
+      },
+      "materialIndex": {
+        "frames": 39,
+        "geometryStates": [
+          {
+            "at": 2915.5,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 583,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 236,
+                "w": 320,
+                "h": 608,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 290,
+                "w": 320,
+                "h": 530,
+                "scroll": 0
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 16,
+                "y": 313,
+                "w": 288,
+                "h": 218,
+                "scroll": 0
+              }
+            ]
+          },
+          {
+            "at": 2950,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 583,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 236,
+                "w": 320,
+                "h": 608,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 290,
+                "w": 320,
+                "h": 530,
+                "scroll": 0
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 16,
+                "y": 282,
+                "w": 288,
+                "h": 280,
+                "scroll": 0
+              }
+            ]
+          }
+        ],
+        "stableTail": 598.5
+      },
+      "materialDetails": {
+        "frames": 38,
+        "geometryStates": [
+          {
+            "at": 3582.5,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 583,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 0,
+                "y": 237,
+                "w": 320,
+                "h": 53,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 236,
+                "w": 320,
+                "h": 608,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 0,
+                "y": 290,
+                "w": 320,
+                "h": 530,
+                "scroll": 0
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 16,
+                "y": 258.6,
+                "w": 288,
+                "h": 326.8,
+                "scroll": 0
+              }
+            ]
+          }
+        ],
+        "stableTail": 616
+      }
+    },
+    {
+      "width": 844,
+      "photo": {
+        "frames": 40,
+        "geometryStates": [
+          {
+            "at": 1467.6999999284744,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 262,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 77.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 104,
+                "w": 844,
+                "h": 286,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1,
+                "y": 181.3,
+                "w": 843,
+                "h": 184.7,
+                "scroll": 463
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 17,
+                "y": 181,
+                "w": 324.5,
+                "h": 202.8,
+                "scroll": 0
+              },
+              null
+            ]
+          },
+          {
+            "at": 1500.1999999284744,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 262,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 77.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 104,
+                "w": 844,
+                "h": 286,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1,
+                "y": 181.3,
+                "w": 843,
+                "h": 184.7,
+                "scroll": 472
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 17,
+                "y": 172,
+                "w": 405.6,
+                "h": 202.8,
+                "scroll": 0
+              },
+              null
+            ]
+          }
+        ],
+        "stableTail": 615.7000000476837
+      },
+      "portrait": {
+        "frames": 40,
+        "geometryStates": [
+          {
+            "at": 2183.899999976158,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 262,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 77.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 104,
+                "w": 844,
+                "h": 286,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1,
+                "y": 181.3,
+                "w": 843,
+                "h": 184.7,
+                "scroll": 544
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 17,
+                "y": 100,
+                "w": 405.6,
+                "h": 202.8,
+                "scroll": 0
+              },
+              null
+            ]
+          },
+          {
+            "at": 2216.7999999523163,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 262,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 77.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 104,
+                "w": 844,
+                "h": 286,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1,
+                "y": 181.3,
+                "w": 843,
+                "h": 184.7,
+                "scroll": 544
+              },
+              {
+                "selector": ".building-pilot-photo-stage",
+                "x": 17,
+                "y": 100,
+                "w": 121.7,
+                "h": 202.8,
+                "scroll": 0
+              },
+              null
+            ]
+          }
+        ],
+        "stableTail": 616.6000000238419
+      },
+      "materialIndex": {
+        "frames": 39,
+        "geometryStates": [
+          {
+            "at": 3000.1999999284744,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 262,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 77.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 104,
+                "w": 844,
+                "h": 286,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1,
+                "y": 181.3,
+                "w": 843,
+                "h": 184.7,
+                "scroll": 272
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 16,
+                "y": 87,
+                "w": 812,
+                "h": 216,
+                "scroll": 0
+              }
+            ]
+          },
+          {
+            "at": 3032,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 262,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 77.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 104,
+                "w": 844,
+                "h": 286,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1,
+                "y": 181.3,
+                "w": 843,
+                "h": 184.7,
+                "scroll": 272
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 16,
+                "y": 56,
+                "w": 812,
+                "h": 278,
+                "scroll": 0
+              }
+            ]
+          }
+        ],
+        "stableTail": 601.3999999761581
+      },
+      "materialDetails": {
+        "frames": 38,
+        "geometryStates": [
+          {
+            "at": 3667.399999976158,
+            "geometry": [
+              {
+                "selector": ".workspace-building",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 262,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building .workspace-panel-header",
+                "x": 1,
+                "y": 104,
+                "w": 843,
+                "h": 77.3,
+                "scroll": 0
+              },
+              {
+                "selector": "#map-container",
+                "x": 0,
+                "y": 104,
+                "w": 844,
+                "h": 286,
+                "scroll": 0
+              },
+              {
+                "selector": ".workspace-building-scroll",
+                "x": 1,
+                "y": 181.3,
+                "w": 843,
+                "h": 184.7,
+                "scroll": 272
+              },
+              null,
+              {
+                "selector": "[role=\"dialog\"]",
+                "x": 16,
+                "y": 37.5,
+                "w": 812,
+                "h": 315,
+                "scroll": 0
+              }
+            ]
+          }
+        ],
+        "stableTail": 616
+      }
+    }
+  ]
+}

@@ -59,7 +59,7 @@ describe('P2 compact research result actions', () => {
     const summary = screen.getByRole('region', { name: '市场分析摘要' });
     expect(summary).toHaveTextContent('170'); expect(summary).toHaveTextContent('统计口径与来源限制');
     expect(client.copy).not.toHaveBeenCalled(); expect(clipboard).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: '收起摘要' })); expect(button).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: '收起摘要' })); expect(screen.getByRole('button', { name: '更多操作' })).toHaveFocus();
   });
   it('rejects different-snapshot text even when the returned result ID was copied', async () => {
     open(); client.copy.mockResolvedValue({ text: '新的市场数据', resultId: result.resultId, format: 'conclusion' });
@@ -74,7 +74,7 @@ describe('P2 compact research result actions', () => {
     const action = screen.getByRole('button', { name: '复制关键数字' });
     action.focus();
     fireEvent.keyDown(action, { key: 'Escape' });
-    expect(trigger.closest('details')).not.toHaveAttribute('open');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveFocus();
     expect(leaveWorkspace).not.toHaveBeenCalled();
     expect(client.copy).not.toHaveBeenCalled();

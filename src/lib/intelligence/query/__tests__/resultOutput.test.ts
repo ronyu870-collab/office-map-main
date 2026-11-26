@@ -56,6 +56,16 @@ describe('P2 snapshot-bound research outputs', () => {
     const text = renderResultCopy(result, 'figures');
     expect(text.match(/A座\t210/g)).toHaveLength(20); expect(text).toContain('前 20 行，共 60 行');
   });
+  it('copies the complete table beyond the displayed page with units and spreadsheet formula protection', () => {
+    const original = resultViewSchema.parse(buildListResult(current(), ['height']));
+    const rows = Array.from({ length: 60 }, (_, index) => ({ ...original.table.rows[0], entityId: String(index),
+      cells: { ...original.table.rows[0].cells, name: { kind: 'text' as const, value: index === 59 ? '=HYPERLINK("unsafe")' : `楼宇${index}`, sourceIds: [] } } }));
+    const text = renderResultCopy({ ...original, table: { ...original.table, rows } }, 'table');
+    expect(text.split('\n')).toHaveLength(61);
+    expect(text).toContain('建筑高度（米）');
+    expect(text).toContain(`'=HYPERLINK("unsafe")`);
+    expect(text).not.toContain('前 20 行');
+  });
   it('T09 names exports for actual object, metric and historical period and decodes UTF-8 safely', () => {
     const result = resultViewSchema.parse(buildAggregateResult(current(), 'rent'));
     const filename = buildArtifactFilename(result, 'xlsx'), header = artifactContentDisposition(filename);

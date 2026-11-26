@@ -13,9 +13,15 @@ import { perfStart, perfEnd, perfMark } from '@/src/utils/performanceLogger';
 import { setTrustedDevice } from '@/src/services/trustedDevice';
 import { hasPasswordChangeNotice, setPasswordChangeNotice, subscribeToPasswordChangeNotice } from '@/src/services/passwordChangeNotice';
 import { Button, IconButton, Input } from '@/src/components/ui';
+import { isEditorialVisualPreview } from '@/src/utils/visualPreview';
 
 export default function LoginPage() {
   const { t } = useLanguage();
+  const editorialPreview = React.useSyncExternalStore(
+    React.useCallback(() => () => {}, []),
+    () => isEditorialVisualPreview(window.location.href),
+    () => false,
+  );
   const router = useRouter();
   const { session } = useAppSession();
   const [email, setEmail] = React.useState('');
@@ -68,8 +74,19 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--cd-color-workspace)] px-4 py-8">
-      <div className="w-full max-w-[400px]">
+    <main className={editorialPreview
+      ? "grid min-h-[100dvh] bg-[var(--cd-color-workspace)] lg:grid-cols-[minmax(0,1fr)_minmax(440px,42%)]"
+      : "flex min-h-screen items-center justify-center bg-[var(--cd-color-workspace)] px-4 py-8"}>
+      {editorialPreview ? (
+        <div aria-hidden="true" className="relative hidden min-h-[100dvh] overflow-hidden bg-[var(--cd-color-brand)] lg:block">
+          <Image src="/occupier-insights/office-district.webp" alt="" fill sizes="(min-width: 1024px) 58vw, 1px" className="object-cover object-center" />
+          <span className="absolute inset-0 bg-[color:rgb(0_47_97_/_0.1)]" />
+        </div>
+      ) : null}
+      <div className={editorialPreview
+        ? "flex min-h-[100dvh] w-full items-center justify-center px-4 py-8 lg:bg-[var(--cd-color-surface)] lg:px-10"
+        : "contents"}>
+        <div className="w-full max-w-[400px]">
         <div className="mb-5 flex items-center justify-center gap-4 text-left">
           <Image
             src="/colliers-logo.png"
@@ -178,15 +195,16 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              disabled={submitting}
+              loading={submitting} loadingLabel={t('登录中…')}
               className="mt-1 w-full"
             >
-              {submitting ? t('登录中…') : <>{t('登录')} <ArrowRight size={15} strokeWidth={1.5} /></>}
+              {t('登录')} <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />
             </Button>
           </form>
         </div>
 
         <p className="mt-4 text-center text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-muted)]">{t('高力国际内部系统 · 仅限授权用户访问')}</p>
+      </div>
       </div>
     </main>
   );

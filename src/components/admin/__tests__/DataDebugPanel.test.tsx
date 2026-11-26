@@ -13,6 +13,9 @@ vi.mock('@/src/services/supabaseClient', () => ({
           fields.includes('*') ? row : Object.fromEntries(Object.entries(row).filter(([field]) => fields.includes(field)));
         const query = {
           eq: () => query,
+          or: () => query,
+          order: () => query,
+          limit: () => query,
           abortSignal: () => query,
           then: (resolve: (value: unknown) => void, reject: (reason: unknown) => void) =>
             Promise.resolve(readBuildings()).then(({ data, error }) => ({

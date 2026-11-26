@@ -7,6 +7,8 @@ export function ModelOperationsSummary({ documents, label }: { documents: unknow
   return <section aria-label="模型成本与故障统计" className={styles.detail}>
     <h2>模型成本与故障统计</h2><p className={styles.muted}>{label}。仅统计新协议的实际尝试；旧记录缺失不能视为零调用。</p>
     <p>{summary.calls} 次尝试，{summary.failures} 次失败，{summary.fallbackCalls} 次回退路径调用。费用估算／未知用量预留合计 ${summary.estimatedUsd.toFixed(6)} USD；实际账单尚未核对。</p>
+    {summary.execution.requests > 0 && <p>当前请求样本 {summary.execution.requests} 项，完成 {summary.execution.completed} 项，快速路径 {summary.execution.fast} 项；平均 {Math.round(summary.execution.averageMs!)} ms，P95 {Math.round(summary.execution.p95Ms!)} ms。路径：{summary.execution.routes.map(r => `${r.value}（${r.count}）`).join('、')}。</p>}
+    {!!summary.execution.budgetReasons.length && <p>预算限制原因：{summary.execution.budgetReasons.map(r => `${r.value}（${r.count}）`).join('、')}。</p>}
     {summary.unknownUsage > 0 && <p>{summary.unknownUsage} 次未取得完整供应商用量，按保守预留计入预算；token 总数保持未知。</p>}
     {summary.groups.map(g => <p key={g.provider}>{g.provider}：{g.calls} 次，失败 {g.failures} 次；输入 {g.inputTokens ?? '未知'} / 输出 {g.outputTokens ?? '未知'} token；累计 {Math.round(g.durationMs)} ms；估算 ${g.estimatedUsd.toFixed(6)} USD。</p>)}
     {!!summary.errors.length && <p>错误类别：{summary.errors.map(e => `${e.code}（${e.count}）`).join('、')}。</p>}

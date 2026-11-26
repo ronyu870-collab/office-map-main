@@ -1,0 +1,45 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.6 <worktree>
+
+ ❯ src/lib/intelligence/agent/agentHttp.test.ts (58 tests | 2 failed | 56 skipped) 325ms
+     × prefers this turn chart over the restored chart for implicit export_chart 316ms
+     × prefers this turn chart over the restored chart for implicit modify_chart 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/intelligence/agent/agentHttp.test.ts > AI5 chart creation, same-snapshot modification and image delivery > prefers this turn chart over the restored chart for implicit export_chart
+AssertionError: expected 'a0061214-a6da-419d-9652-cd32ea6c8a4d' to be '1eaef4f8-c782-4f4e-9ac7-98961b778abc' // Object.is equality
+
+Expected: "1eaef4f8-c782-4f4e-9ac7-98961b778abc"
+Received: "a0061214-a6da-419d-9652-cd32ea6c8a4d"
+
+ ❯ src/lib/intelligence/agent/agentHttp.test.ts:839:34
+    837|     const body = await response.json();
+    838|     expect(response.status, JSON.stringify(body)).toBe(200); expect(bo…
+    839|     expect(body.result.resultId).toBe(fresh.resultId);
+       |                                  ^
+    840|     expect(body.result.parameters.agentChart.request).toEqual(nextSpec…
+    841|     expect(body.result.table).toEqual(fresh.table); expect(body.result…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/intelligence/agent/agentHttp.test.ts > AI5 chart creation, same-snapshot modification and image delivery > prefers this turn chart over the restored chart for implicit modify_chart
+TypeError: Cannot read properties of undefined (reading 'request')
+ ❯ src/lib/intelligence/agent/agentHttp.test.ts:840:46
+    838|     expect(response.status, JSON.stringify(body)).toBe(200); expect(bo…
+    839|     expect(body.result.resultId).toBe(fresh.resultId);
+    840|     expect(body.result.parameters.agentChart.request).toEqual(nextSpec…
+       |                                              ^
+    841|     expect(body.result.table).toEqual(fresh.table); expect(body.result…
+    842|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 56 skipped (58)
+   Start at  00:09:26
+   Duration  1.65s (transform 484ms, setup 60ms, import 624ms, tests 325ms, environment 525ms)

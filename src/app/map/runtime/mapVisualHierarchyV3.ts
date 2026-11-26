@@ -1,4 +1,6 @@
 'use client';
+import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
+import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
 import { mapBuildingLabel } from './mapMarkerLabel';
@@ -25,6 +27,7 @@ type LayerSet = {
   labels: Map<string, any>;
   ranks: Map<string, number>;
   future: any[];
+  futureLabels: Map<string, any>;
   futureSignature: string;
 };
 
@@ -67,9 +70,6 @@ function smoothStep(start: number, end: number, value: number): number {
   return t * t * (3 - 2 * t);
 }
 
-function finite(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -131,7 +131,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
       text = '·';
     }
   } else if (mode === 'rent') {
-    const rent = Number(metric?.net_effective_rent);
+    const rent = mapOptionalNumber(metric?.net_effective_rent);
     const hasValue = Number.isFinite(rent) && rent >= 0;
     text = hasValue ? String(Math.round(rent)) : '–';
     fontSize = text.length > 4 ? 10.5 : 12;
@@ -152,7 +152,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     } else if (leed.includes('SILVER')) {
       background = '#e7ebef'; border = '#9ca8b3'; textColor = '#52606d'; text = 'S';
     } else {
-      background = '#eef1f4'; border = '#bdc6ce'; textColor = '#6f7c89'; text = 'N';
+      background = '#eef1f4'; border = '#bdc6ce'; textColor = '#6f7c89'; text = leedFallbackBadge(leed);
     }
   }
 
@@ -339,7 +339,7 @@ export function installMapVisualHierarchyV3(
   const showSelection = (building: any) => {
     clearSelection();
     if (c.isWorkspaceActive?.()) return;
-    if (!building || !finite(building.location_lng) || !finite(building.location_lat)) return;
+    if (!building || !hasMapCoordinates(building)) return;
     const element = createSelectionMarker(detailImage(visualFor(building, lastMode, lastGroups)));
     selectedMarker = new Marker({
       position: [building.location_lng, building.location_lat],
@@ -367,6 +367,7 @@ export function installMapVisualHierarchyV3(
     if (set.futureSignature === nextSignature) return;
     if (set.future.length) set.detail.remove?.(set.future);
     set.future = [];
+    set.futureLabels.clear();
     set.futureSignature = nextSignature;
     if (nextSignature === 'hidden' || !futureArgs) return;
 
@@ -374,7 +375,7 @@ export function installMapVisualHierarchyV3(
     for (const [index, supply] of futureArgs.supplies.entries()) {
       const lng = supply?.location_lng == null ? Number.NaN : Number(supply.location_lng);
       const lat = supply?.location_lat == null ? Number.NaN : Number(supply.location_lat);
-      if (!finite(lng) || !finite(lat)) continue;
+      if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
       const marker = new LabelMarker({
         name: `future:${String(supply?.id ?? supply?.building_id ?? index)}:${index}`,
         position: [lng, lat],
@@ -399,6 +400,7 @@ export function installMapVisualHierarchyV3(
         c.openFutureSupplyInfoWindow?.(supply);
       });
       markers.push(marker);
+      set.futureLabels.set(String(supply.id), marker);
     }
     if (markers.length) set.detail.add?.(markers);
     set.future = markers;
@@ -419,13 +421,12 @@ export function installMapVisualHierarchyV3(
         aggregates.set(name, aggregate);
       }
       aggregate.count += 1;
-      if (finite(building.location_lng) && finite(building.location_lat)) {
+      if (hasMapCoordinates(building)) {
         aggregate.lng += building.location_lng;
         aggregate.lat += building.location_lat;
         aggregate.coords += 1;
       }
-      const leed = String(building?.leed_certification ?? '').trim().toUpperCase();
-      if (leed && leed !== 'NULL' && leed !== '无' && leed !== '-') aggregate.leed += 1;
+      if (hasLeedCertification(building?.leed_certification)) aggregate.leed += 1;
     }
 
     const submarkets: any[] = [];
@@ -505,7 +506,7 @@ export function installMapVisualHierarchyV3(
     const styleIndices = new Map<string, number>();
     const massData: any[] = [];
     for (const building of buildings) {
-      if (!finite(building?.location_lng) || !finite(building?.location_lat)) continue;
+      if (!hasMapCoordinates(building)) continue;
       const visual = visualFor(building, mode, groups);
       const key = `${visual.background}|${visual.border}`;
       let styleIndex = styleIndices.get(key);
@@ -577,7 +578,7 @@ export function installMapVisualHierarchyV3(
     const detailItems: any[] = [];
     const nameItems: any[] = [];
     for (const building of buildings) {
-      if (!finite(building?.location_lng) || !finite(building?.location_lat)) continue;
+      if (!hasMapCoordinates(building)) continue;
       const visual = visualFor(building, mode, groups);
       const metric = latestMetric(building);
       const area = Number(metric?.total_area);
@@ -657,7 +658,7 @@ export function installMapVisualHierarchyV3(
 
     detail.add?.(detailItems);
     names.add?.(nameItems);
-    const set: LayerSet = { submarkets, mass, detail, names, labels, ranks, future: [], futureSignature: '' };
+    const set: LayerSet = { submarkets, mass, detail, names, labels, ranks, future: [], futureLabels: new Map(), futureSignature: '' };
     syncFutureLayer(set, mode, tierForZoom(map.getZoom?.() ?? 11) === 'building');
     map.add?.(detail);
     map.add?.(names);
@@ -748,19 +749,19 @@ export function installMapVisualHierarchyV3(
 
   c.updateVisibilityByZoom = (() => apply()) as ControllerInternals['updateVisibilityByZoom'];
 
-  c.bounceMarker = ((id: string) => {
-    const label = current?.labels.get(id);
-    if (!label || currentTier !== 'building') return originalBounce?.(id);
+  c.bounceMarker = ((id: string, type: 'existing' | 'future' = 'existing') => {
+    const label = type === 'future' ? current?.futureLabels.get(id) : current?.labels.get(id);
+    if (!label || currentTier !== 'building') return originalBounce?.(id, type);
     label.setOpacity?.(0.72);
     label.setzIndex?.(999999);
     requestAnimationFrame(() => label.setOpacity?.(1));
   }) as ControllerInternals['bounceMarker'];
 
-  c.stopBounceMarker = ((id: string) => {
-    const label = current?.labels.get(id);
-    if (!label) return originalStop?.(id);
+  c.stopBounceMarker = ((id: string, type: 'existing' | 'future' = 'existing') => {
+    const label = type === 'future' ? current?.futureLabels.get(id) : current?.labels.get(id);
+    if (!label) return originalStop?.(id, type);
     label.setOpacity?.(1);
-    const rank = current?.ranks.get(id);
+    const rank = type === 'future' ? 3100 : current?.ranks.get(id);
     if (rank !== undefined) label.setzIndex?.(rank);
   }) as ControllerInternals['stopBounceMarker'];
 

@@ -270,3 +270,15 @@ body {
   border-top: 1px solid #e4e4e7;
   margin: 1.25rem 0;
 }
+
+/* Native controls keep native keyboard semantics and share the interface accent. */
+:where(input[type="checkbox"], input[type="radio"]) { accent-color: var(--cd-color-brand); }
+:where(button, a[href], input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--cd-color-brand);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.animate-spin, .animate-pulse, .animate-bounce) { animation: none; }
+  #nprogress .bar { transition: none !important; }
+  #nprogress .peg { display: none; }
+}

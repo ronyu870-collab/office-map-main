@@ -13,9 +13,9 @@ const closeIcon = arrow('m6 6 12 12M18 6 6 18');
 const downloadIcon = arrow('M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4');
 const externalIcon = arrow('M13 5h6v6m0-6-9 9m7-1v6H5V7h6');
 
-export function buildPhotoTrigger(galleryId: string): string {
+export function buildPhotoTrigger(galleryId: string, count?: number): string {
   return `<button type="button" class="building-pilot-photo-trigger" data-building-photo-trigger aria-expanded="false" aria-controls="${galleryId}">
-    <span>${photoIcon}看图</span>
+    <span>${photoIcon}看图${count ? ` · ${count}张` : ''}</span>
   </button>`;
 }
 
@@ -25,7 +25,7 @@ export function buildPhotoGallery(galleryId: string, name: string, photos: reado
     <figure class="building-photo-figure">
     <div class="building-pilot-photo-stage">
       ${photos.map(photo => `<img data-building-photo hidden alt="${name}：${escapeHtml(photo.caption)}" decoding="async" referrerpolicy="no-referrer">`).join('')}
-      <button type="button" class="building-photo-enlarge" data-building-photo-enlarge aria-label="查看大图" title="双击查看大图" aria-haspopup="dialog" aria-controls="${galleryId}-viewer" hidden></button>
+      <button type="button" class="building-photo-enlarge" data-building-photo-enlarge aria-label="查看大图" title="单击查看大图" aria-haspopup="dialog" aria-controls="${galleryId}-viewer" hidden><span>查看大图</span></button>
       <div class="building-pilot-photo-message">
         <span data-building-photo-status role="status"></span>
         <button type="button" class="building-pilot-photo-control" data-building-photo-retry hidden>重试</button>
@@ -59,7 +59,7 @@ export function buildPhotoGallery(galleryId: string, name: string, photos: reado
   </div>`;
 }
 
-export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, photos: readonly GalleryPhoto[]): (() => void) | null {
+export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, photos: readonly GalleryPhoto[], reading?: { initial?: { open: boolean; index: number }; onChange: (state: { open: boolean; index: number }) => void }): (() => void) | null {
   const trigger = root.querySelector<HTMLButtonElement>('[data-building-photo-trigger]');
   const gallery = root.querySelector<HTMLElement>('[data-building-photo-gallery]');
   const figure = gallery?.querySelector<HTMLElement>('figure');
@@ -119,7 +119,8 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
       else license.removeAttribute('href');
     }
   };
-  let index = 0;
+  let index = Math.max(0, Math.min(images.length - 1, reading?.initial?.index ?? 0));
+  const remember = () => reading?.onChange({ open: !gallery.hidden, index });
   const showViewerAction = () => {
     const ready = loaded.has(index);
     const externalUrl = externalPhotos.get(index);
@@ -129,7 +130,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     else originalLink.removeAttribute('href');
   };
   let touchStart: { x: number; y: number } | null = null;
-  let pending: { controller: AbortController; image: HTMLImageElement } | null = null;
+  let pending: { controller: AbortController; image: HTMLImageElement; timer?: ReturnType<typeof setTimeout> } | null = null;
   const objectUrls = new Map<HTMLImageElement, string>();
   const releaseObjectUrl = (image: HTMLImageElement) => {
     const url = objectUrls.get(image);
@@ -139,6 +140,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   const cancel = () => {
     if (!pending) return;
     pending.controller.abort();
+    clearTimeout(pending.timer);
     pending.image.onload = pending.image.onerror = null;
     pending.image.removeAttribute('src');
     releaseObjectUrl(pending.image);
@@ -147,6 +149,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   const fitViewer = (image: HTMLImageElement) => {
     if (image.naturalWidth && image.naturalHeight) {
       viewer.style.setProperty('--building-photo-ratio', String(image.naturalWidth / image.naturalHeight));
+      stage.style.setProperty('--building-photo-ratio', String(image.naturalWidth / image.naturalHeight));
     }
   };
 
@@ -172,14 +175,17 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     status.textContent = '正在加载图片…';
     const isCurrent = () => pending?.controller === controller && !controller.signal.aborted
       && !gallery.hidden && root.isConnected;
-    const fail = () => {
+    const fail = (reason?: unknown) => {
       if (!isCurrent()) return;
       cancel();
-      status.textContent = '图片加载失败';observe('failed',selected);
+      const http = reason instanceof Error && 'status' in reason ? reason.status : null;
+      status.textContent = http === 401 ? '登录状态已失效，请重新登录后重试' : http === 403 ? '当前身份无权查看此图片' : http === 404 ? '图片资料已不可用，请重试或联系管理员' : '图片加载失败';observe('failed',selected);
       retry.hidden = false;
     };
+    pending.timer = setTimeout(() => fail(), 20000);
     image.onload = () => {
       if (!isCurrent()) return;
+      clearTimeout(pending?.timer);
       pending = null;
       image.onload = image.onerror = null;
       loaded.add(selected);observe('displayed',selected);
@@ -248,6 +254,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   const close = () => {
     closeViewer(false);
     gallery.hidden = true;
+    remember();
     trigger.setAttribute('aria-expanded', 'false');
     cancel();
   };
@@ -257,12 +264,14 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     cancel();
     cancelDownload();
     index = target;
+    remember();
     show();
   };
   trigger.addEventListener('click', event => {
     event.stopPropagation();
     if (gallery.hidden) {
       gallery.hidden = false;
+      remember();
       trigger.setAttribute('aria-expanded', 'true');
       const summary = gallery.closest('.building-popup__summary');
       if (summary) summary.scrollTop = 0;
@@ -282,15 +291,9 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     viewer.showModal();observe('enlarged',index);
     viewer.scrollTop = 0;
   };
-  // Some touch browsers report click as a MouseEvent. Keep the pointer type from the same tap.
-  let previewPointer = '';
-  enlarge.addEventListener('pointerdown', event => { previewPointer = event.pointerType; }, eventOptions);
-  enlarge.addEventListener('pointercancel', () => { previewPointer = ''; }, eventOptions);
   enlarge.addEventListener('click', event => {
     event.stopPropagation();
-    const pointer = ('pointerType' in event && event.pointerType) || previewPointer;
-    previewPointer = '';
-    if (event.detail === 0 || pointer === 'touch' || pointer === 'pen') openViewer();
+    openViewer();
   }, eventOptions);
   enlarge.addEventListener('dblclick', event => {
     event.stopPropagation();
@@ -362,6 +365,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
       trigger.focus();
     } else move(event.key === 'ArrowLeft' ? -1 : 1);
   }, eventOptions);
+  if (reading?.initial?.open) { gallery.hidden = false; trigger.setAttribute('aria-expanded', 'true'); show(); }
   return () => {
     closeViewer(false);
     listeners.abort();

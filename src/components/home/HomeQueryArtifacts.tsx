@@ -1,5 +1,7 @@
 'use client';
 
+import { HomeQueryChartFrame } from './HomeQueryChartFrame';
+import { HomeQueryMenu } from './HomeQueryMenu';
 import { HomeQueryKnowledge } from './HomeQueryKnowledge';
 import * as React from 'react';
 import { createPortal } from 'react-dom';
@@ -7,30 +9,34 @@ import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { agentChartDescriptorSchema } from '@/src/lib/intelligence/query/chartProtocol';
 import { chartBounds, distributionGeometry, chartFacets, heatmapFill, heatmapLegend, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
+import { defaultResultChartRequest, resultChartEligibility, resultNumericColumns } from '@/src/lib/intelligence/query/resultEligibility';
 import { distributionStatLabels } from '@/src/lib/intelligence/query/distribution';
 import { formatExact, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
-import { metricLabels, resultMetrics, resultMetricColumns, type ResultMetric } from '@/src/lib/intelligence/query/multiMetricView';
+import { metricLabels, resultMetrics, type ResultMetric } from '@/src/lib/intelligence/query/multiMetricView';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryResultActions } from './HomeQueryResultActions';
 import styles from './HomeQuery.module.css';
 import experienceStyles from './HomeQueryResultExperience.module.css';
 
 type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean; visible?: boolean;
-  actionContainer?: HTMLElement | null;
+  actionContainer?: HTMLElement | null; responseActions?: React.ReactNode;
   onSource: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void };
-export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource, visible = true, actionContainer }: Props) {
-  const numeric = React.useMemo(() => result.table.columns.filter(c => c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text')), [result]);
-  const [field, setField] = React.useState(numeric[0]?.key ?? '');
+export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource, visible = true, actionContainer, responseActions }: Props) {
+  const numeric = React.useMemo(() => resultNumericColumns(result), [result]);
+  const [field, setField] = React.useState(typeof result.parameters.field === 'string' && numeric.some(column => column.key === result.parameters.field) ? result.parameters.field : numeric[0]?.key ?? '');
   const metrics = React.useMemo(() => resultMetrics(result), [result]);
   const multipleMetrics = metrics.length > 1;
   const [metric, setMetric] = React.useState<ResultMetric>(metrics[0] ?? 'rent');
   const selectedMetric = metrics.includes(metric) ? metric : metrics[0];
-  const metricColumns = React.useMemo(() => multipleMetrics && selectedMetric ? resultMetricColumns(result, selectedMetric) : null, [result, multipleMetrics, selectedMetric]);
-  const selectedField = metricColumns?.value ?? metricColumns?.base ?? field;
   const [chart, setChart] = React.useState<ResultChart | null>(null);
   const [message, setMessage] = React.useState('');
   const [messageTarget, setMessageTarget] = React.useState<'chart' | 'download'>('chart');
   const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => {
+    if (!message.startsWith('已发起下载')) return;
+    const timer = window.setTimeout(() => setMessage(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
   const [page, setPage] = React.useState(0);
   useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'histogram'?'histogram_all':chart.kind === 'box_plot'?'box_plot_all':chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null, visible);
   const active = React.useRef<AbortController | null>(null);
@@ -64,7 +70,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
         void trustedQueryClient.reportDelivery(scope, file, 'browser_download_dispatched');
         // Give the browser time to take ownership of the download, then release it.
         window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-        setMessage('文件已交给浏览器下载；包含原结果与来源。尚未确认本机保存完成，仅供内部分析。');
+        setMessage('已发起下载 · 仅供内部分析');
       } else {
         const next = await trustedQueryClient.chart(scope, requestId, result, input, controller.signal);
         if (controller.signal.aborted) return;
@@ -79,8 +85,10 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   // Charts use the same authorized result; exports always require a user action.
   const automaticKey = `${requestId}:${result.resultId}:${multipleMetrics ? selectedMetric : field}`;
   const started = React.useRef<string | null>(null);
-  const canAuto = !result.parameters.agentChart && result.operation !== 'aggregate' && result.operation !== 'list' && numeric.length > 0
-    && (multipleMetrics ? result.table.rows.length > 0 : result.table.rows.some(row => row.cells[selectedField]?.kind === 'number'));
+  const eligible = resultChartEligibility(result, request).eligible;
+  const canVisualize = eligible && result.operation !== 'aggregate' && (result.table.rows.length > 1 || result.operation === 'compare');
+  const canConfigure = canVisualize || multipleMetrics && result.operation !== 'aggregate' && metrics.some(metric => defaultResultChartRequest(result, metric));
+  const canAuto = !result.parameters.agentChart && !!defaultResultChartRequest(result, selectedMetric) && eligible;
   React.useEffect(() => {
     let disposed = false;
     if (canAuto && visible) queueMicrotask(() => {
@@ -94,48 +102,52 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const [min, max] = chart ? chartBounds(chart, 'y') : [0, 0];
   const span = max - min || 1;
   const position = (value: number) => (value - min) / span * 100;
+  const tableDownloads = ['list', 'rank'].includes(result.operation) || !!result.parameters.agentExport;
   const actions = <div hidden={!visible} role="group" aria-label="结果操作与反馈">
-    {!result.parameters.researchTask && <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport}>
-      {internalExport && result.parameters.domain!=='knowledge-research/1' && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>
-        <Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
-        <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button>
-        {numeric.length > 0 && <><Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button><Button variant="ghost" disabled={busy} onClick={() => void run('png_zip')}>PNG 图与来源</Button></>}
-      </div></details>}
+    {!result.parameters.researchTask && <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport} responseActions={responseActions}>
+      {internalExport && (!tableDownloads || chart) && result.parameters.domain!=='knowledge-research/1' && <HomeQueryMenu label={tableDownloads ? '下载图表' : '下载本次结果'}>
+        {!tableDownloads && <><Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
+        <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button></>}
+        {canVisualize && <><Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button><Button variant="ghost" disabled={busy} onClick={() => void run('png_zip')}>PNG 图与来源</Button></>}
+      </HomeQueryMenu>}
     </HomeQueryResultActions>}
-    <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{messageTarget === 'download' ? message : ''}</p>
+    {messageTarget === 'download' && message && <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{message}</p>}
   </div>;
   return <div className={styles.artifacts}>
     {(result.parameters.domain==='knowledge-research/1' || result.parameters.dataDomain==='deep-research/1') && <HomeQueryKnowledge result={result} requestId={requestId} scope={scope} visible={visible} />}
-    {!result.parameters.agentChart && <div className={`${styles.actions} ${experienceStyles.chartTools}`}>
-      {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
-        const chosen = metrics.find(item => item === event.target.value);
-        if (!chosen || active.current) return;
-        setChart(null); completedRequest.current = null; setMessage(''); setPage(0); setMetric(chosen);
-      }}>{metrics.map(item => <option key={item} value={item}>{metricLabels[item]}</option>)}</select></label>
-        : !multipleMetrics && numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
-      {numeric.length > 0 && result.operation !== 'aggregate' && <Button variant="ghost" disabled={busy} onClick={() => void run(request)}>{isDistribution?'查看直方图':isRelationship?'查看散点图':isCross?'查看热力表':isTrend?'查看折线图':'查看柱状图'}</Button>}
-      {isDistribution && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'box_plot'})}>查看箱线图</Button>}
-      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value', ...(multipleMetrics ? { metric: selectedMetric } : {})})}>查看柱状图</Button>}
-      {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
-      {chart && <Button variant="ghost" onClick={() => { setChart(null); completedRequest.current = null; }}>收起图表</Button>}
-    </div>}
-    <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{messageTarget === 'chart' ? message : ''}</p>
-    {chart && <figure className={styles.chart} aria-label="同源查询图表">
+    {chart && <HomeQueryChartFrame id={`${result.resultId}-statistics-chart`} title={chart.title}><figure className={styles.chart} aria-label="同源查询图表">
       <figcaption className={experienceStyles.chartCaption}>
         <span>{chart.distribution ? `${chart.distribution.label}（${units[chart.distribution.unit] ?? chart.distribution.unit}）` : chart.kind === 'scatter' ? `${chart.xLabel}（${units[chart.xUnit ?? ''] ?? chart.xUnit}）与${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）` : `${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）`}</span>
-        <span className={experienceStyles.chartNote}>{chart.distribution ? `有效样本 ${chart.distribution.validCount} 栋，排除 ${chart.distribution.excludedCount} 栋。` : `有效图示 ${chart.renderedCount} 项，未知 ${chart.unknownCount} 项；未知不画成零。`}</span>
+        {chart.distribution ? <span className={experienceStyles.chartNote}>有效样本 {chart.distribution.validCount} 栋，排除 {chart.distribution.excludedCount} 栋。</span>
+          : chart.unknownCount > 0 && <span className={experienceStyles.chartNote}>{chart.kind === 'line' || chart.kind === 'faceted_line' ? `${chart.unknownCount} 项缺失，缺期保留缺口。` : `${chart.unknownCount} 项未知，未按零绘制。`}</span>}
       </figcaption>
       {chart.kind === 'histogram'||chart.kind === 'box_plot' ? <DistributionPlot chart={chart} onSource={onSource}/> : chart.kind === 'heatmap' ? <Heatmap chart={chart} onSource={onSource}/> : chart.kind === 'bar' ? <>
-        <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>
         <div>{shown.map((point, i) => <div className={styles.barRow} key={`${point.yCell.entityId}:${point.yCell.key}:${i}`}>
           <span>{point.label}</span><div className={styles.barTrack} aria-hidden="true"><i className={styles.zero} style={{ left: `${position(0)}%` }} />{point.y !== null && <i className={styles.bar} style={{ left: `${Math.min(position(0), position(point.y))}%`, width: `${Math.abs(position(point.y) - position(0))}%` }} />}</div>
           <button type="button" className={styles.cell} onClick={event => onSource(point.yCell.sourceIds, `${point.label}：${point.yText}`, event.currentTarget)}>{point.yText}</button>
         </div>)}</div>
         {chart.points.length > 25 && <div className={styles.tableFooter}><p>图示第 {page * 25 + 1}–{Math.min((page + 1) * 25, chart.points.length)} 条，共 {chart.points.length} 条；分页不改变统计范围。</p><div className={styles.actions}><Button variant="ghost" disabled={page === 0} onClick={() => setPage(p => p - 1)}>上一页图示</Button><Button variant="ghost" disabled={(page + 1) * 25 >= chart.points.length} onClick={() => setPage(p => p + 1)}>下一页图示</Button></div></div>}
-      </> : chart.kind==='faceted_line'?<><p className={styles.notice}>各组共用相同纵轴范围 {min}–{max}，缺期断线。数值和来源见下方原表。</p>{chartFacets(chart).map((part,i)=><div key={chart.facets![i].key}><p>{part.title}</p><TrendLine chart={part} height={250} bounds={[min,max]}/></div>)}</>:chart.kind==='line'?<TrendLine chart={chart}/>:<Scatter chart={chart} />}
-      {(chart.kind==='line'||chart.kind==='faceted_line') && <p className={styles.notice}>季度连续排列，缺数据处断线；数值与来源见下方原表。横向滚动可查看全部季度。</p>}
-      {chart.kind === 'scatter' && <p className={styles.notice}>仅绘制两个字段都有有效值的联合样本，不代表因果关系。各楼数值和可点选来源见下方原表。</p>}
-    </figure>}
+      </> : chart.kind==='faceted_line'?<>{chartFacets(chart).map((part,i)=><div key={chart.facets![i].key}><p>{part.title}</p><TrendLine chart={part} onSource={onSource} height={250} bounds={[min,max]}/></div>)}</>:chart.kind==='line'?<TrendLine chart={chart} onSource={onSource}/>:<Scatter chart={chart} onSource={onSource} />}
+      {chart.kind === 'scatter' && <p className={styles.notice}>仅含两个字段均有效的联合样本，不代表因果关系。</p>}
+    </figure></HomeQueryChartFrame>}
+    {!result.parameters.agentChart && canConfigure && <details className={experienceStyles.chartSettings}><summary>图表设置</summary>
+      {chart?.kind === 'bar' && <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>}
+      {chart?.kind === 'faceted_line' && <p className={styles.notice}>各组共用相同纵轴范围 {min}–{max}，不连接不同组。</p>}
+      {(chart?.kind === 'line' || chart?.kind === 'faceted_line') && <p className={styles.notice}>季度连续排列，可横向滚动查看全部季度；点选图元查看数值与来源。</p>}
+      <div className={`${styles.actions} ${experienceStyles.chartTools}`}>
+      {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
+        const chosen = metrics.find(item => item === event.target.value);
+        if (!chosen || active.current) return;
+        setChart(null); completedRequest.current = null; started.current = null; setMessage(''); setPage(0); setMetric(chosen);
+      }}>{metrics.map(item => <option key={item} value={item}>{metricLabels[item]}{defaultResultChartRequest(result, item) ? '' : '（暂无可绘图数据）'}</option>)}</select></label>
+        : !multipleMetrics && numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => { setChart(null); completedRequest.current = null; started.current = null; setField(e.target.value); }}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
+      {eligible && result.operation !== 'aggregate' && <Button variant="ghost" disabled={busy} onClick={() => void run(request)}>{isDistribution?'查看直方图':isRelationship?'查看散点图':isCross?'查看热力表':isTrend?'查看折线图':'查看柱状图'}</Button>}
+      {isDistribution && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'box_plot'})}>查看箱线图</Button>}
+      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value', ...(multipleMetrics ? { metric: selectedMetric } : {})})}>查看柱状图</Button>}
+            {chart && <Button variant="ghost" onClick={() => { setChart(null); completedRequest.current = null; }}>收起图表</Button>}
+    </div></details>}
+    {canConfigure && !eligible && <p role="status" className={styles.notice}>该指标暂无可绘图的有效数据；原始状态与来源仍可查看。</p>}
+    {messageTarget === 'chart' && message && <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{message}</p>}
     {actionContainer === undefined ? actions : actionContainer ? createPortal(actions, actionContainer) : null}
   </div>;
 }
@@ -146,30 +158,33 @@ function ChartGrid({ left, right, top, bottom }: { left: number; right: number; 
   </g>;
 }
 
-function Scatter({ chart }: { chart: ResultChart }) {
+function Scatter({ chart, onSource }: { chart: ResultChart; onSource: Props['onSource'] }) {
+  const [selected, setSelected] = React.useState<number | null>(null);
   const valid = chart.points.filter(p => p.state === 'valid');
   const [xmin, xmax] = chartBounds(chart, 'x'), [ymin, ymax] = chartBounds(chart, 'y');
-  return <div className={styles.scatterScroll} tabIndex={0} aria-label="散点图，可横向滚动；明细见原表"><svg width="640" height="380" role="img" aria-label={`${chart.xLabel}与${chart.yLabel}，有效联合样本 ${valid.length}`}>
+  return <><div className={styles.scatterScroll} tabIndex={0} aria-label="散点图，可横向滚动；明细见原表"><svg width="640" height="380" role="img" aria-label={`${chart.xLabel}与${chart.yLabel}，有效联合样本 ${valid.length}`}>
     <ChartGrid left={70} right={600} top={30} bottom={320} />
     <path d="M70 30 V320 H600" fill="none" stroke="var(--cd-color-border-strong)" />
-    {valid.map((p, i) => <circle key={i} cx={70 + ((p.x as number) - xmin) / (xmax - xmin || 1) * 530} cy={320 - (p.y! - ymin) / (ymax - ymin || 1) * 290} r="4" fill="var(--cd-color-brand)"><title>{p.label}：{p.xText}，{p.yText}</title></circle>)}
+    {valid.map((p, i) => <circle key={i} tabIndex={0} role="button" aria-label={`${p.label}：${p.xText}，${p.yText}`} onClick={() => setSelected(i)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(i); } }} cx={70 + ((p.x as number) - xmin) / (xmax - xmin || 1) * 530} cy={320 - (p.y! - ymin) / (ymax - ymin || 1) * 290} r="4" fill="var(--cd-color-brand)"><title>{p.label}：{p.xText}，{p.yText}</title></circle>)}
     <text x="60" y="35" textAnchor="end">{ymax}</text><text x="60" y="320" textAnchor="end">{ymin}</text><text x="70" y="344">{xmin}</text><text x="600" y="344" textAnchor="end">{xmax}</text>
     <text x="70" y="370">{chart.xLabel}（{units[chart.xUnit ?? ''] ?? chart.xUnit}）</text>
-  </svg></div>;
+  </svg></div>{selected !== null && <ChartPoint point={valid[selected]} onSource={onSource} />}</>;
 }
 
-function TrendLine({chart,height=380,bounds}:{chart:ResultChart;height?:number;bounds?:[number,number]}) {
+function TrendLine({chart,onSource,height=380,bounds}:{chart:ResultChart;onSource:Props['onSource'];height?:number;bounds?:[number,number]}) {
+  const [selected, setSelected] = React.useState<number | null>(null);
   const plot=lineGeometry(chart,undefined,height,bounds);
-  return <div className={styles.scatterScroll} tabIndex={0} aria-label="季度趋势图，可横向滚动；缺期断线，来源见原表">
+  return <><div className={styles.scatterScroll} tabIndex={0} aria-label="季度趋势图，可横向滚动；缺期断线，来源见原表">
     <svg width={plot.width} height={plot.height} role="img" aria-label={`${chart.title}，${chart.yLabel}季度趋势，${chart.points.length}个季度，${chart.unknownCount}个季度未知`}>
       <ChartGrid left={plot.left} right={plot.right} top={plot.top} bottom={plot.bottom} />
       <path d={`M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}`} fill="none" stroke="var(--cd-color-border-strong)"/>
       {plot.segments.map((segment,i)=><polyline key={i} points={segment} fill="none" stroke="var(--cd-color-brand)" strokeWidth="2" strokeLinejoin="round"/>)}
-      {plot.points.map(p=><g key={p.point.label}>{p.y!==null&&<circle cx={p.x} cy={p.y} r="4" fill="var(--cd-color-brand)"><title>{p.point.label}：{p.point.yText}</title></circle>}<text x={p.x} y={plot.bottom+26} textAnchor="middle">{p.point.label}</text></g>)}
+      {plot.points.map((p,index)=><g key={p.point.label}>{p.y!==null&&<circle tabIndex={0} role="button" aria-label={`${p.point.label}：${p.point.yText}`} onClick={() => setSelected(index)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(index); } }} cx={p.x} cy={p.y} r="4" fill="var(--cd-color-brand)"><title>{p.point.label}：{p.point.yText}</title></circle>}<text x={p.x} y={plot.bottom+26} textAnchor="middle">{p.point.label}</text></g>)}
+      {[.25, .5, .75].map(fraction => <text key={fraction} x={plot.left-10} y={plot.bottom-(plot.bottom-plot.top)*fraction+5} textAnchor="end">{new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(plot.min+(plot.max-plot.min)*fraction)}</text>)}
       <text x={plot.left-10} y={plot.top+5} textAnchor="end">{plot.max}</text><text x={plot.left-10} y={plot.bottom} textAnchor="end">{plot.min}</text>
       <text x={plot.left} y={plot.height-8}>季度；{chart.yLabel}（{units[chart.yUnit]??chart.yUnit}）</text>
     </svg>
-  </div>;
+  </div>{selected !== null && <ChartPoint point={chart.points[selected]} onSource={onSource} />}</>;
 }
 
 function Heatmap({chart,onSource}:{chart:ResultChart;onSource:Props['onSource']}) {
@@ -191,6 +206,7 @@ function Heatmap({chart,onSource}:{chart:ResultChart;onSource:Props['onSource']}
 }
 
 function DistributionPlot({chart,onSource}:{chart:ResultChart;onSource:Props['onSource']}) {
+  const [selected, setSelected] = React.useState<number | null>(null);
   const d=chart.distribution!;
   if(!d.stats)return <p>没有有效样本，无法绘制分布；未知未按零绘制。</p>;
   const g=distributionGeometry(chart),maxCount=Math.max(1,...chart.points.map(p=>p.y??0));
@@ -201,7 +217,11 @@ function DistributionPlot({chart,onSource}:{chart:ResultChart;onSource:Props['on
       {chart.kind==='histogram'?<svg width="640" height="320" role="img" aria-label={`${d.label}直方图，${d.validCount}栋有效样本`}>
         <ChartGrid left={50} right={620} top={20} bottom={260} />
         <path d="M50 20 V260 H620" fill="none" stroke="var(--cd-color-border-strong)"/>
-        {chart.points.map((p,i)=>{const width=560/chart.points.length,left=55+i*width,height=(p.y??0)/maxCount*210;return <g key={p.yCell.entityId}><rect x={left} y={260-height} width={Math.max(1,width-2)} height={height} fill="var(--cd-color-ai-chart-fill, #bacfe5)"><title>{p.label}：{p.yText}栋</title></rect><text x={left+width/2} y={250-height} textAnchor="middle">{p.yText}</text><text x={left+width/2} y="284" textAnchor="middle">{i+1}</text></g>;})}
+        {chart.points.map((p,i)=>{const width=560/chart.points.length,left=55+i*width,height=(p.y??0)/maxCount*210;return <g key={p.yCell.entityId}><rect
+          tabIndex={height > 0 ? 0 : undefined} role={height > 0 ? 'button' : undefined} aria-label={`${p.label}：${p.yText} 栋`} aria-pressed={height > 0 ? selected === i : undefined}
+          onClick={() => setSelected(i)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(i); } }}
+          x={left} y={260-height} width={Math.max(1,width-2)} height={height} fill="var(--cd-color-ai-chart-fill, #bacfe5)"
+          stroke={selected === i ? 'var(--cd-color-brand)' : 'none'} strokeWidth="2"><title>{p.label}：{p.yText}栋</title></rect><text x={left+width/2} y={250-height} textAnchor="middle">{p.yText}</text><text x={left+width/2} y="284" textAnchor="middle">{i+1}</text></g>;})}
         <text x="50" y="310">区间编号（边界见下方）；纵向为楼宇数量</text>
       </svg>:<svg width="100%" height="200" role="img" aria-label={`${d.label}箱线图，${d.validCount}栋有效样本`}>
         <line x1={percent(x('lowerWhisker'))} x2={percent(x('upperWhisker'))} y1="80" y2="80" stroke="var(--cd-color-border-strong)"/>
@@ -211,7 +231,19 @@ function DistributionPlot({chart,onSource}:{chart:ResultChart;onSource:Props['on
         <text x={percent(70)} y="145">{g.min}</text><text x={percent(600)} y="145" textAnchor="end">{g.max}</text><text x={percent(70)} y="180">{d.label}（{units[d.unit]??d.unit}）</text>
       </svg>}
     </div>
+    {chart.kind === 'histogram' && selected !== null && chart.points[selected] && <div className={styles.actions} role="status" aria-label="区间读数">
+      <span>{chart.points[selected].label}：{chart.points[selected].yText} 栋</span>
+      <button type="button" className={styles.cell} onClick={event => {
+        const point = chart.points[selected];
+        onSource(point.yCell.sourceIds, `${point.label}：${point.yText} 栋`, event.currentTarget);
+      }}>数据依据</button>
+    </div>}
     <details className={styles.trace}><summary>分位数与箱线数值</summary><div className={styles.tableScroll} tabIndex={0} aria-label="分布统计数值，可滚动"><table><caption className="sr-only">分位算法Type 7，数值与来源来自本次结果</caption><thead><tr><th>统计量</th><th>数值（{units[d.unit]??d.unit}）</th></tr></thead><tbody>{(Object.keys(distributionStatLabels) as (keyof typeof distributionStatLabels)[]).map(key=><tr key={key}><th scope="row">{distributionStatLabels[key]}</th><td className={styles.number}><button type="button" className={styles.cell} onClick={event=>onSource(d.sourceIds,`${distributionStatLabels[key]}：${formatExact(d.stats![key],d.unit)}`,event.currentTarget)}>{formatExact(d.stats![key],d.unit)}</button></td></tr>)}</tbody></table></div></details>
     {chart.kind==='histogram'?<div className={styles.tableScroll} tabIndex={0} aria-label="分箱边界与数量，可滚动"><table><caption className="sr-only">分箱边界与数量</caption><thead><tr><th>区间（{units[d.unit]??d.unit}）</th><th>楼宇数量</th></tr></thead><tbody>{chart.points.map(p=><tr key={p.yCell.entityId}><th scope="row">{p.label}</th><td className={styles.number}><button type="button" className={styles.cell} onClick={event=>onSource(p.yCell.sourceIds,`${p.label}：${p.yText}栋`,event.currentTarget)}>{p.yText} 栋</button></td></tr>)}</tbody></table></div>:<p>箱体为P25–P75，中线为中位数；须线到围栏内的实际记录，点为围栏外记录。{d.assessment==='insufficient_sample'?'不足4栋未判定离群，须线使用最小/最大值。':'离群值仍参与全部统计。'}</p>}
   </>;
+}
+
+function ChartPoint({ point, onSource }: { point: ResultChart['points'][number] | undefined; onSource: Props['onSource'] }) {
+  if (!point) return null;
+  return <div className={styles.actions} role="status"><span>{point.label}：{point.xCell ? `${point.xText}，` : ''}{point.yText}</span><button type="button" className={styles.cell} onClick={event => onSource([...new Set([...point.yCell.sourceIds, ...(point.xCell?.sourceIds ?? [])])], `${point.label}：${point.yText}`, event.currentTarget)}>数据依据</button></div>;
 }

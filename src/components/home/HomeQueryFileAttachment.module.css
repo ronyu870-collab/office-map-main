@@ -1,0 +1,12 @@
+.attachment { display: flex; align-items: center; gap: var(--cd-space-3); padding: var(--cd-space-4); margin-block: var(--cd-space-4); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-lg); background: var(--cd-color-surface-alt); font-size: var(--cd-font-size-md); line-height: 1.6; max-width: var(--cd-ai-reading-width); }
+.attachment > svg { flex-shrink: 0; color: var(--cd-color-brand); }
+.description { min-width: 0; flex: 1; }
+.description strong { display: block; overflow-wrap: anywhere; font-size: inherit; font-weight: 600; }
+.description p { color: var(--cd-color-text-secondary); margin: 0; }
+.description .error { color: var(--cd-color-danger); }
+.attachment button { flex-shrink: 0; min-height: 36px; font-size: inherit; }
+@media (max-width: 639px), (pointer: coarse) { .attachment button { min-height: 44px; } }
+@media (max-width: 399px) { .attachment { flex-wrap: wrap; } .attachment button { margin-left: auto; } }
+.attachment { padding: var(--cd-space-3) 0; border: 0; border-block: 1px solid var(--cd-color-border); border-radius: 0; background: transparent; }
+.description strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+@media (hover: none) { .description strong { white-space: normal; } }

@@ -22,8 +22,9 @@ export function installSyntheticMap() {
     setzIndex() {}
   }
   class MapFixture extends Events {
-    constructor(id) {
+    constructor(id, options = {}) {
       super();
+      this.features = options.features ?? ['bg', 'point', 'road', 'building'];
       this.root = document.createElement('div');
       this.root.className = 'amap-maps';
       this.root.style.cssText = 'position:absolute;inset:0';
@@ -33,10 +34,17 @@ export function installSyntheticMap() {
       document.getElementById(id).append(this.root);
       setTimeout(() => { this.layer.classList.add('fixture-tile-ready'); this.emit('complete'); }, 40);
     }
+    getFeatures() { return [...this.features]; }
+    setFeatures(features) { this.features = [...features]; }
     getZoom() { return this.zoom ?? 15; }
     getCenter() {
       const [lng, lat] = this.center ?? [116.46, 39.9];
       return { lng, lat, getLng: () => lng, getLat: () => lat };
+    }
+    lngLatToContainer([lng,lat]) {
+      const center=this.getCenter(),box=this.root.getBoundingClientRect(),scale=256*2**this.getZoom();
+      const mercator=value=>Math.log(Math.tan(Math.PI/4+value*Math.PI/360))/(2*Math.PI);
+      return {x:box.width/2+(lng-center.lng)/360*scale,y:box.height/2-(mercator(lat)-mercator(center.lat))*scale};
     }
     setZoomAndCenter(zoom, center) { this.zoom = zoom; this.center = center; }
     getLayers() { return [this.layer]; }

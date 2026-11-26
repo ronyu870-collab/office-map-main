@@ -51,7 +51,7 @@ export function Toolbar({
               </span>
               <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--cd-color-border)]">
                 <div
-                  className="h-full bg-[var(--cd-color-brand)] transition-all duration-300"
+                  className="h-full bg-[var(--cd-color-brand)] transition-[width] duration-[var(--cd-motion-normal)] motion-reduce:transition-none duration-300"
                   style={{
                     width: `${Math.round((taskStats.completed / taskStats.total) * 100)}%`,
                   }}

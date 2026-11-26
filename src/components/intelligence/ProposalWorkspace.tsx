@@ -418,9 +418,9 @@ function ScopedProposalWorkspace({ scope, session }: { scope: ProposalDraftScope
                     </div>
 
                     <div className="mt-4 flex items-center justify-end gap-1.5 print:hidden">
-                      <button type="button" disabled={index === 0} onClick={() => setDraft(moveProposalCandidate(scope, candidate.id, -1))} className="flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-[11px] text-slate-500 disabled:opacity-30"><ArrowUp size={12} />上移</button>
-                      <button type="button" disabled={index === scored.length - 1} onClick={() => setDraft(moveProposalCandidate(scope, candidate.id, 1))} className="flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-[11px] text-slate-500 disabled:opacity-30"><ArrowDown size={12} />下移</button>
-                      <button type="button" onClick={() => setDraft(removeProposalCandidate(scope, candidate.id))} className="flex h-8 items-center gap-1 rounded-md border border-red-100 px-2.5 text-[11px] text-red-500"><Trash2 size={12} />移除</button>
+                      <Button type="button" disabled={index === 0} onClick={() => setDraft(moveProposalCandidate(scope, candidate.id, -1))} variant="ghost" size="sm"><ArrowUp size={16} strokeWidth={1.75} aria-hidden="true" />上移</Button>
+                      <Button type="button" disabled={index === scored.length - 1} onClick={() => setDraft(moveProposalCandidate(scope, candidate.id, 1))} variant="ghost" size="sm"><ArrowDown size={16} strokeWidth={1.75} aria-hidden="true" />下移</Button>
+                      <Button type="button" onClick={() => setDraft(removeProposalCandidate(scope, candidate.id))} variant="ghost" size="sm" className="text-[var(--cd-color-danger)]"><Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />移除</Button>
                     </div>
                   </article>
                 );

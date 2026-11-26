@@ -1,0 +1,372 @@
+// Real Auth sessions, production Next handlers, PostgreSQL and private Storage.
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import JSZip from "jszip";
+import { dynamicFixture } from "../../supabase/tests/pitch-studio/business-fixtures.mjs";
+export async function verifyPitchWorkspace({
+  app,
+  db,
+  other,
+  admin,
+  scope,
+  call,
+  check,
+  until,
+  ids,
+}) {
+  const workspace = async (who, input, write = true) => {
+    const response = await fetch(
+      app +
+        "/api/intelligence/pitch/workspace" +
+        (write ? "" : "?" + new URLSearchParams(input)),
+      {
+        method: write ? "POST" : "GET",
+        headers: {
+          Authorization: "Bearer " + who.token,
+          ...(write ? { "Content-Type": "application/json" } : {}),
+        },
+        ...(write ? { body: JSON.stringify(input) } : {}),
+      },
+    );
+    return { status: response.status, body: await response.json() };
+  };
+  const context = {
+    language: "zh",
+    buildingIds: [],
+    client: "隔离客户",
+    business: "测试业务",
+    period: "2026-Q3",
+    notes: "",
+  };
+  let detail;
+  const save = () => ({
+    action: "save",
+    projectId: detail.project.id,
+    expectedVersion: detail.project.version,
+    title: detail.project.title,
+    themeId: detail.project.theme_id,
+    themeVersion: detail.project.theme_version,
+    context: detail.workspace.context,
+    pages: detail.slides.map((p) => ({ id: p.id })),
+    activeSlide: detail.slides[0]?.id ?? null,
+  });
+  await check(
+    "workspace HTTP has feature gate, fresh owner identity, hidden dynamic capabilities and real preview thumbnails",
+    async () => {
+      const caps = await workspace(other, { action: "capabilities" }, false);
+      assert.equal(caps.status, 200);
+      assert.deepEqual(caps.body.allowedDynamic, []);
+      const thumb = await workspace(
+        other,
+        { action: "thumbnail", templateId: "team-multiple" },
+        false,
+      );
+      assert.equal(thumb.status, 200);
+      assert.match(thumb.body.svg, /<svg/);
+      assert.equal(thumb.body.example, true);
+      const bad = await workspace(
+        other,
+        { action: "thumbnail", templateId: "stacking-plan" },
+        false,
+      );
+      assert.equal(bad.status, 422);
+      assert.equal(
+        (await workspace(other, { action: "admin" }, false)).status,
+        403,
+      );
+      const created = await workspace(admin, {
+        action: "create",
+        projectId: randomUUID(),
+        title: "隔离完整工作台 HTTP",
+        scope,
+        context,
+        themeId: "colliers-default-v1",
+        themeVersion: 2,
+      });
+      assert.equal(created.status, 200, JSON.stringify(created.body));
+      detail = created.body;
+      assert.equal(
+        (
+          await workspace(other, {
+            action: "get",
+            projectId: detail.project.id,
+          })
+        ).status,
+        403,
+      );
+    },
+  );
+  await db.query(
+    "update private.ai_query_grants set enabled=true where user_id=$1",
+    [admin.id],
+  );
+  await check(
+    "workspace HTTP executor appends corporate, team, cases, research and authorized market/building pages",
+    async () => {
+      const part = (templateId, assetIds) => ({
+        mode: assetIds.length > 1 ? "semi-dynamic" : "static",
+        templateId,
+        assetIds,
+        length: "detailed",
+        allowFallback: false,
+        variant: "standard",
+      });
+      const parts = [
+        part("corporate-overview", [ids.corporate]),
+        part("team-multiple", [ids.team, ids.team2]),
+        part("case-portfolio", [ids.case, ids.case2]),
+        part("research-page", [ids.research]),
+        { mode: "dynamic", parameters: dynamicFixture },
+        {
+          mode: "dynamic",
+          parameters: {
+            ...dynamicFixture,
+            templateId: "rent-comparison",
+            buildingIds: [],
+            chart: "bar",
+          },
+        },
+      ];
+      // Comparison requires explicitly selected real fixture IDs, not a fabricated building.
+      const buildings = await db.query(
+        "select id from buildings order by id limit 2",
+      );
+      parts.at(-1).parameters.buildingIds = buildings.rows.map((r) => r.id);
+      for (const input of parts) {
+        const taskId = randomUUID();
+        const started = await workspace(admin, {
+          action: "start",
+          projectId: detail.project.id,
+          expectedVersion: detail.project.version,
+          taskId,
+          part: input,
+          replaceIds: [],
+        });
+        assert.equal(started.status, 202, JSON.stringify(started.body));
+        await until(async () => {
+          const state = await workspace(admin, {
+            action: "status",
+            projectId: detail.project.id,
+            taskId,
+          });
+          assert.equal(state.status, 200);
+          assert.notEqual(
+            state.body.state,
+            "failed",
+            JSON.stringify(state.body),
+          );
+          return state.body.state === "completed";
+        }, "workspace generation");
+        detail = (
+          await workspace(admin, {
+            action: "get",
+            projectId: detail.project.id,
+          })
+        ).body;
+      }
+      assert.ok(detail.slides.length >= 9);
+      assert.ok(
+        detail.slides.some(
+          (p) => detail.workspace.page_settings[p.id]?.origin === "data",
+        ),
+      );
+    },
+  );
+  await check(
+    "workspace HTTP saves configuration, content, order and active page across new requests; stale save returns 409",
+    async () => {
+      const before = detail,
+        command = save();
+      command.pages.reverse();
+      command.pages[0].title = "用户编辑市场页面标题";
+      command.activeSlide = command.pages[0].id;
+      command.context.notes = "重新进入后必须恢复";
+      const saved = await workspace(admin, command);
+      assert.equal(saved.status, 200, JSON.stringify(saved.body));
+      detail = saved.body;
+      const reopened = await workspace(admin, {
+        action: "get",
+        projectId: detail.project.id,
+      });
+      assert.equal(reopened.body.workspace.active_slide, command.activeSlide);
+      assert.equal(reopened.body.workspace.context.notes, "重新进入后必须恢复");
+      assert.equal(
+        reopened.body.slides[0].content.title,
+        command.pages[0].title,
+      );
+      assert.equal(
+        (
+          await workspace(admin, {
+            ...command,
+            expectedVersion: before.project.version,
+          })
+        ).status,
+        409,
+      );
+      const theme = await workspace(admin, {
+        ...save(),
+        themeId: "colliers-render-verification",
+        themeVersion: 1,
+      });
+      assert.equal(theme.status, 200, JSON.stringify(theme.body));
+      detail = theme.body;
+    },
+  );
+  await check(
+    "workspace HTTP selected PPTX, full PPTX, PNG, SVG and data Excel return actual private downloadable bytes",
+    async () => {
+      for (const [format, pages] of [
+        ["pptx", [0, 1]],
+        ["pptx", undefined],
+        ["png", [0]],
+        ["svg", [0]],
+        ["xlsx", undefined],
+      ]) {
+        const exportId = randomUUID(),
+          command = {
+            action: "export_start",
+            projectId: detail.project.id,
+            exportId,
+            audience: "internal",
+            format,
+            ...(["png", "svg"].includes(format)
+              ? { page: 0 }
+              : pages
+                ? { pages }
+                : {}),
+          };
+        assert.equal((await call(admin, command, true)).status, 202);
+        await until(async () => {
+          const state = await call(admin, {
+            action: "export_status",
+            projectId: detail.project.id,
+            exportId,
+          });
+          assert.notEqual(
+            state.body.state,
+            "failed",
+            JSON.stringify(state.body),
+          );
+          return state.body.state === "ready";
+        }, "workspace " + format);
+        const file = await call(admin, {
+          action: "download",
+          projectId: detail.project.id,
+          exportId,
+          audience: "internal",
+        });
+        assert.equal(file.status, 200);
+        assert.ok(file.body.length > 100);
+        if (format === "pptx") {
+          const zip = await JSZip.loadAsync(file.body);
+          assert.equal(
+            Object.keys(zip.files).filter((p) =>
+              /^ppt\/slides\/slide\d+\.xml$/.test(p),
+            ).length,
+            pages?.length ?? detail.slides.length,
+          );
+        }
+        if (format === "png")
+          assert.equal(Buffer.from(file.body.subarray(1, 4)).toString(), "PNG");
+        if (format === "svg")
+          assert.match(Buffer.from(file.body).toString(), /<svg/);
+        if (format === "xlsx")
+          assert.ok((await JSZip.loadAsync(file.body)).file("xl/workbook.xml"));
+      }
+    },
+  );
+  if (process.env.PITCH_WORKSPACE_BROWSER === "true")
+    await check(
+      "automated desktop and mobile editor persists actual HTTP changes and exports downloadable files",
+      async () => {
+        await (
+          await import("./pitch-workspace-browser.mjs")
+        ).verifyPitchWorkspaceBrowser({
+          app,
+          who: admin,
+          projectId: detail.project.id,
+          projectTitle: detail.project.title,
+        });
+        detail = (
+          await workspace(admin, {
+            action: "get",
+            projectId: detail.project.id,
+          })
+        ).body;
+      },
+    );
+  await check(
+    "workspace HTTP restoration, project copy, private preferences and original data revocation stay enforced",
+    async () => {
+      const history = detail.history[0];
+      assert.ok(history);
+      const restored = await workspace(admin, {
+        action: "restore",
+        projectId: detail.project.id,
+        expectedVersion: detail.project.version,
+        revision: history.version,
+      });
+      assert.equal(restored.status, 200, JSON.stringify(restored.body));
+      detail = restored.body;
+      const copy = await workspace(admin, {
+        action: "copy",
+        projectId: detail.project.id,
+        newProjectId: randomUUID(),
+        title: "隔离副本",
+      });
+      assert.equal(copy.status, 200);
+      assert.equal(copy.body.slides.length, detail.slides.length);
+      assert.equal(
+        (
+          await workspace(admin, {
+            action: "preferences",
+            value: { favorites: ["team-multiple"], recent: ["rent-trend"] },
+          })
+        ).status,
+        200,
+      );
+      assert.deepEqual(
+        (await workspace(other, { action: "preferences" }, false)).body,
+        {},
+      );
+      await db.query(
+        "update private.ai_query_grants set enabled=false where user_id=$1",
+        [admin.id],
+      );
+      assert.equal(
+        (
+          await workspace(admin, {
+            action: "get",
+            projectId: detail.project.id,
+          })
+        ).status,
+        403,
+      );
+      assert.equal(
+        (
+          await call(
+            admin,
+            {
+              action: "export_start",
+              projectId: detail.project.id,
+              exportId: randomUUID(),
+              audience: "internal",
+              format: "pptx",
+            },
+            true,
+          )
+        ).status,
+        403,
+      );
+      assert.equal(
+        (
+          await admin.client
+            .from("pitch_workspace_states")
+            .select("project_id")
+            .eq("project_id", detail.project.id)
+        ).data.length,
+        0,
+      );
+    },
+  );
+}

@@ -3,7 +3,6 @@
 import * as React from 'react';
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
 import rehypeSanitize from 'rehype-sanitize';
 import styles from './HomeQueryMarkdown.module.css';
 
@@ -15,8 +14,21 @@ type Props = {
   'aria-label'?: string;
 };
 type Section = { line: number; label: string };
-const remarkPlugins = [remarkGfm, remarkBreaks];
+const remarkPlugins = [remarkGfm];
 const rehypePlugins = [rehypeSanitize];
+
+function revealSection(target: HTMLElement) {
+  target.focus({ preventScroll: true });
+  // Native scrollIntoView also scrolls overflow:hidden workspace ancestors,
+  // moving the composer. A directory jump owns only the nearest reading pane.
+  for (let parent = target.parentElement; parent; parent = parent.parentElement) {
+    if (!/(auto|scroll)/.test(getComputedStyle(parent).overflowY)) continue;
+    const margin = Number.parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+    parent.scrollTop += target.getBoundingClientRect().top - parent.getBoundingClientRect().top - parent.clientTop - margin;
+    return;
+  }
+  target.scrollIntoView({ block: 'start', behavior: 'auto' });
+}
 
 /** A small optional reading aid. Code fences and indented code are not headings.
  * IDs use source lines, so repeated titles never collide within an answer. */
@@ -57,13 +69,13 @@ function useStreamingText(text: string, streaming: boolean) {
 
 const MarkdownBody = React.memo(function MarkdownBody({ text, prefix }: { text: string; prefix: string }) {
   const components = React.useMemo<Components>(() => {
-    const heading = (tag: 'h3' | 'h4' | 'h5' | 'h6'): Components['h2'] => function AnswerHeading({ children, node }) {
+    const heading = (tag: 'h2' | 'h3' | 'h4' | 'h5' | 'h6'): Components['h2'] => function AnswerHeading({ children, node }) {
       return React.createElement(tag, { id: `${prefix}-section-${node?.position?.start.line ?? 0}`, tabIndex: -1 }, children);
     };
     return {
       // The workspace owns its page/dialog heading; generated content cannot
       // introduce another top-level application heading.
-      h1: heading('h3'), h2: heading('h3'), h3: heading('h4'), h4: heading('h5'), h5: heading('h6'), h6: heading('h6'),
+      h1: heading('h2'), h2: heading('h3'), h3: heading('h4'), h4: heading('h5'), h5: heading('h6'), h6: heading('h6'),
       a: ({ href, children, title }) => href
         ? <a href={href} title={title} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{children}</a>
         : <span>{children}</span>,
@@ -92,7 +104,7 @@ export const HomeQueryMarkdown = React.memo(function HomeQueryMarkdown({ text, s
       <summary>回答目录</summary>
       <nav aria-label="回答目录">{sections.map(section => <button key={section.line} type="button" onClick={() => {
         const target = document.getElementById(`${prefix}-section-${section.line}`);
-        target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'start', behavior: 'auto' });
+        if (target) revealSection(target);
       }}>{section.label}</button>)}</nav>
     </details>}
     <MarkdownBody text={rendered} prefix={prefix} />

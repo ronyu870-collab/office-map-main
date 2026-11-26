@@ -1,0 +1,253 @@
+{
+  "artificialCpuRate": 1,
+  "frameStallMs": 0,
+  "reducedMotion": false,
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [
+    {
+      "width": 626,
+      "height": 328,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 46
+      },
+      "scenes": [
+        {
+          "name": "CBD",
+          "width": 626,
+          "height": 176,
+          "zoom": 10.11,
+          "center": [
+            116.495,
+            39.894838
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 285.51684337030747,
+              "y": 72.48000000001048,
+              "edge": 27.519999999989523
+            },
+            {
+              "id": "cbd-b",
+              "x": 301.22150430158945,
+              "y": 62.242243529937696,
+              "edge": 37.757756470062304
+            },
+            {
+              "id": "future-cbd",
+              "x": 340.48315662975074,
+              "y": 31.519999999989523,
+              "edge": 31.519999999989523
+            },
+            {
+              "id": "pending-map-project",
+              "x": 316.9261652328714,
+              "y": 46.882805114553776,
+              "edge": 46.882805114553776
+            }
+          ],
+          "cameraCalls": 1,
+          "visible": {
+            "left": 0,
+            "right": 626,
+            "top": 152,
+            "bottom": 252,
+            "width": 626,
+            "height": 100
+          }
+        },
+        {
+          "name": "望京",
+          "width": 626,
+          "height": 176,
+          "zoom": 11.31,
+          "center": [
+            116.46,
+            39.997276
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 113.7599999998929,
+              "y": 57.91220400464951,
+              "edge": 42.08779599535049
+            },
+            {
+              "id": "long-east",
+              "x": 512.2400000001071,
+              "y": 46.08779599523404,
+              "edge": 46.087795995234046
+            }
+          ],
+          "cameraCalls": 2,
+          "visible": {
+            "left": 0,
+            "right": 626,
+            "top": 152,
+            "bottom": 252,
+            "width": 626,
+            "height": 100
+          }
+        },
+        {
+          "name": "丽泽",
+          "width": 626,
+          "height": 176,
+          "zoom": 16,
+          "center": [
+            116.35,
+            39.869407
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 312.99999999813735,
+              "y": 51.999999998137355,
+              "edge": 48.000000001862645
+            },
+            {
+              "id": "same",
+              "x": 312.99999999813735,
+              "y": 51.999999998137355,
+              "edge": 48.000000001862645
+            }
+          ],
+          "cameraCalls": 3,
+          "visible": {
+            "left": 0,
+            "right": 626,
+            "top": 152,
+            "bottom": 252,
+            "width": 626,
+            "height": 100
+          }
+        }
+      ],
+      "scope": "three region camera commands, actual SDK pixel edges and settled camera"
+    },
+    {
+      "width": 320,
+      "height": 360,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 24
+      },
+      "scenes": [
+        {
+          "name": "CBD",
+          "width": 320,
+          "height": 176,
+          "zoom": 10.11,
+          "center": [
+            116.495,
+            39.894838
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 132.51684337030747,
+              "y": 72.48000000001048,
+              "edge": 27.519999999989523
+            },
+            {
+              "id": "cbd-b",
+              "x": 148.22150430158945,
+              "y": 62.242243529937696,
+              "edge": 37.757756470062304
+            },
+            {
+              "id": "future-cbd",
+              "x": 187.48315662975074,
+              "y": 31.519999999989523,
+              "edge": 31.519999999989523
+            },
+            {
+              "id": "pending-map-project",
+              "x": 163.92616523287143,
+              "y": 46.882805114553776,
+              "edge": 46.882805114553776
+            }
+          ],
+          "cameraCalls": 1,
+          "visible": {
+            "left": 0,
+            "right": 320,
+            "top": 184,
+            "bottom": 284,
+            "width": 320,
+            "height": 100
+          }
+        },
+        {
+          "name": "望京",
+          "width": 320,
+          "height": 176,
+          "zoom": 10.25,
+          "center": [
+            116.46,
+            39.980634
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 64.79999999995925,
+              "y": 54.824943893007,
+              "edge": 45.175056106993
+            },
+            {
+              "id": "long-east",
+              "x": 255.20000000004075,
+              "y": 49.17505610693479,
+              "edge": 49.17505610693479
+            }
+          ],
+          "cameraCalls": 2,
+          "visible": {
+            "left": 0,
+            "right": 320,
+            "top": 184,
+            "bottom": 284,
+            "width": 320,
+            "height": 100
+          }
+        },
+        {
+          "name": "丽泽",
+          "width": 320,
+          "height": 176,
+          "zoom": 16,
+          "center": [
+            116.35,
+            39.869407
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 159.99999999813735,
+              "y": 51.999999998137355,
+              "edge": 48.000000001862645
+            },
+            {
+              "id": "same",
+              "x": 159.99999999813735,
+              "y": 51.999999998137355,
+              "edge": 48.000000001862645
+            }
+          ],
+          "cameraCalls": 3,
+          "visible": {
+            "left": 0,
+            "right": 320,
+            "top": 184,
+            "bottom": 284,
+            "width": 320,
+            "height": 100
+          }
+        }
+      ],
+      "scope": "three region camera commands, actual SDK pixel edges and settled camera"
+    }
+  ],
+  "status": "pass"
+}

@@ -1,8 +1,9 @@
+import { hasLeedCertification } from '@/src/lib/leed-display';
 import type { BuildingWithMetrics } from '@/src/types';
 import { getLatestMetric } from './filterBuildings';
 import { aggregateMarket } from '@/src/app/map/model/marketStatistics';
 import { mapOptionalNumber, observedVacantArea } from '@/src/app/map/model/vacancyMetrics';
-import { normalizeLeed, normalizeMapSubmarket } from '@/src/app/map/model/marketIdentity';
+import { normalizeMapSubmarket } from '@/src/app/map/model/marketIdentity';
 
 export interface BuildingContribution {
   id: string;
@@ -73,7 +74,7 @@ export function computeDebugStats(buildings: BuildingWithMetrics[]): DebugStatsR
   let leedCount = 0;
   const leedBuildings: BuildingContribution[] = [];
 
-  const isLeed = (cert: string) => normalizeLeed(cert) !== 'NULL';
+  const isLeed = hasLeedCertification;
 
   const uniqueBuildings = [...new Map(buildings.filter(b => b.id).map(b => [b.id, b])).values()];
   for (const b of uniqueBuildings) {

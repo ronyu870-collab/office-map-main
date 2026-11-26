@@ -103,3 +103,13 @@ selector 必须按实际页面校准：目标内容不能在源页已经可见�
 查询、恢复和图表成功 JSON 在客户端接受时对 ≥16 KiB 正文协商 gzip，原 JSON、来源、归档和交付摘要仍按解压后的完整字节校验，最后实时权限检查在压缩完成后执行。浏览器资源时序分别保留 encoded／decoded 字节，不能把传输压缩当作来源删减，或把解压前到达作为可操作终点。当前全量 HTTP 持续回归验证 gzip／identity 恢复相等及原 SHA-256 交付关系；性能配置、采样数和阈值不变。
 
 按需 Performance benchmarks 的 `Real Auth trusted query HTTP integration` 使用 `AI_QUERY_PERFORMANCE_SUITE=regression`，完整保留原 640＋80；新增 `Real Auth cross-trend HTTP and browser integration` 使用 `cross_trend`，在另一 GitHub runner 的独立 Auth/Data API/PostgreSQL/Next 栈执行新增 80。两个 job 都执行全部新旧 HTTP 场景，均保留 40 分钟时限，不在同一机器争用浏览器资源。suite 只接受这两个值，默认 regression，未知值立即失败；日志及全部报告记录 suite、精确 head SHA 和实际测试的 merge SHA。两份 artifact 分别为 `ai-query-real-auth`、`ai-query-cross-trend-auth`，均不含凭据，保留 7 天。手动运行这两个套件时，三个性能报告保留完整性、来源、零失败、零模型及预算断言，总样本仍为 800；普通合并不要求执行这些专项。
+
+## 地图连续阅读资源诊断
+
+在具有可用高德配置的本地生产构建上运行 `node scripts/performance/verify-map-reading-session.mjs http://127.0.0.1:3210 /tmp/map-reading.json`。真实SDK与瓦片保留，业务、管理员身份、WebP预览和资料响应隔离；默认每档12轮，`MAP_LIVE_WIDTHS=1536` 可选择单档，`MAP_READING_CYCLES=36` 可延长到36轮。CPU采样期间串行运行，避免构建或其他浏览器污染。
+
+每轮实际打开子市场、全部项目、详情、解码预览/大图、季度趋势/期间表及原图资料，再返回地图；每3轮切换一次全屏。关闭后检查地图实例、标记/图表/弹层、Blob分配与撤销，显式GC后记录堆、DOM、监听及在途请求。该GC/检查器条件是诊断，不能作为无采样性能基准。每档输出独立的脱敏CPU profile及主线程trace；汇总保留长任务对应栈和动作，不能根据来源名称推测未采到的成本。默认不启用Debugger脚本缓存；`MAP_READING_SOURCES=1` 可在定位监听来源时开启且缓存上限为0。
+
+无论本次是否出现增长，都不能据短时视口会话宣称生产长期永久无泄漏。旧输入监听累积的功能回归已接既有工作区CI，不将固定36轮或真实SDK网络变为每次PR的新性能门槛。
+
+地图联合动效的功能专项使用 `node scripts/verification/verify-map-region-live.mjs http://127.0.0.1:3210 /tmp/map-motion.json`，可用 `MAP_LIVE_WIDTHS=390 MAP_LIVE_CPU_RATE=6` 对页面施加Chrome公开CDP的6倍CPU限速，或 `MAP_LIVE_REDUCED_MOTION=1` 检查减少动态效果。`MAP_LIVE_FRAME_STALL_MS=80` 仅在关闭/反向录帧期间施加每帧80ms主线程测试负载，并要求实际采到延迟帧；结束立即取消，不改应用代码或SDK。该人工条件串行运行；仍检查可见区真实投影、一次目标及关闭/反向期间的画布和地理锚点，不把限速数字等同于某台手机，也不将短时行为通过当作性能预算或原生手势验证。

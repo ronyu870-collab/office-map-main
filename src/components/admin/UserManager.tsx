@@ -57,6 +57,12 @@ type OneTimeCredential = {
   password: string
 }
 
+type CreateUserResult = {
+  success: boolean
+  message: string
+  userId: string
+}
+
 const EMPTY_FORM: UserForm = {
   role: 'user',
   chinese_name: '',
@@ -137,7 +143,7 @@ async function authFetch(path: string, options: RequestInit = {}) {
   return data
 }
 
-async function createUser(form: UserForm, password: string) {
+async function createUser(form: UserForm, password: string): Promise<CreateUserResult> {
   return authFetch('/api/admin/create-user', {
     method: 'POST',
     body: JSON.stringify({ ...form, password }),
@@ -328,12 +334,19 @@ export function UserManager() {
     }
     setBusy('create')
     try {
-      await createUser({ ...createForm, phone }, createPassword)
+      const result = await createUser({ ...createForm, phone }, createPassword)
       setShowCreate(false)
       setOneTimeCredential({ email: createForm.email.trim(), phone, password: createPassword })
       setCreateForm(EMPTY_FORM)
       setCreatePassword('')
-      await fetchUsers()
+
+      const refreshedUsers = await fetchUsers()
+      const createdUser = refreshedUsers.find((row) => row.user_id === result.userId)
+      if (!createdUser) {
+        showNotice('用户已创建，但列表刷新失败，请点击刷新后核对', false)
+      } else {
+        showNotice('用户创建成功', true)
+      }
     } catch (createError) {
       showNotice(createError instanceof Error ? createError.message : '创建失败', false)
     } finally {

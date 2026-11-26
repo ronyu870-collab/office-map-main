@@ -1,0 +1,849 @@
+{
+  "artificialCpuRate": 1,
+  "frameStallMs": 80,
+  "reducedMotion": false,
+  "environment": "real AMap SDK/tiles; isolated business and administrator identity",
+  "viewports": [
+    {
+      "width": 390,
+      "height": 844,
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 117
+      },
+      "scenes": [
+        {
+          "name": "CBD",
+          "width": 390,
+          "height": 552,
+          "zoom": 11.79,
+          "center": [
+            116.495,
+            39.883188
+          ],
+          "points": [
+            {
+              "id": "9ee3e3ff-4845-41a1-a78f-390c11b1917a",
+              "x": 106.96801392058842,
+              "y": 188.09999999997672,
+              "edge": 52.90000000002328
+            },
+            {
+              "id": "cbd-b",
+              "x": 157.27200596604962,
+              "y": 155.3071863068035,
+              "edge": 85.69281369319651
+            },
+            {
+              "id": "future-cbd",
+              "x": 283.0319860796444,
+              "y": 56.899999999906896,
+              "edge": 56.89999999990687
+            },
+            {
+              "id": "pending-map-project",
+              "x": 207.57599801162723,
+              "y": 106.1089851326542,
+              "edge": 106.1089851326542
+            }
+          ],
+          "cameraCalls": 1,
+          "visible": {
+            "left": 0,
+            "right": 390,
+            "top": 292,
+            "bottom": 533,
+            "width": 390,
+            "height": 241
+          }
+        },
+        {
+          "name": "望京",
+          "width": 390,
+          "height": 552,
+          "zoom": 10.57,
+          "center": [
+            116.46,
+            39.903739
+          ],
+          "points": [
+            {
+              "id": "long-west",
+              "x": 75.99999999994179,
+              "y": 126.03117986628786,
+              "edge": 75.99999999994179
+            },
+            {
+              "id": "long-east",
+              "x": 314.0000000000582,
+              "y": 118.96882013368304,
+              "edge": 75.99999999994179
+            }
+          ],
+          "cameraCalls": 2,
+          "visible": {
+            "left": 0,
+            "right": 390,
+            "top": 292,
+            "bottom": 533,
+            "width": 390,
+            "height": 241
+          }
+        },
+        {
+          "name": "丽泽",
+          "width": 390,
+          "height": 552,
+          "zoom": 16,
+          "center": [
+            116.35,
+            39.867472
+          ],
+          "points": [
+            {
+              "id": "single",
+              "x": 194.99999999813735,
+              "y": 122.5,
+              "edge": 118.5
+            },
+            {
+              "id": "same",
+              "x": 194.99999999813735,
+              "y": 122.5,
+              "edge": 118.5
+            }
+          ],
+          "cameraCalls": 3,
+          "visible": {
+            "left": 0,
+            "right": 390,
+            "top": 292,
+            "bottom": 533,
+            "width": 390,
+            "height": 241
+          }
+        },
+        {
+          "name": "locate current project after real pointer drag",
+          "id": "single",
+          "moved": [
+            116.345949,
+            39.869528
+          ],
+          "target": [
+            116.35,
+            39.87
+          ],
+          "projection": {
+            "point": [
+              199.87708231806755,
+              454.7433390878141
+            ],
+            "canvas": {
+              "left": 0,
+              "top": 292,
+              "width": 390,
+              "height": 552
+            },
+            "visible": {
+              "left": 0,
+              "right": 390,
+              "top": 292,
+              "bottom": 609,
+              "width": 390,
+              "height": 317
+            },
+            "center": [
+              195,
+              450.5
+            ],
+            "centered": true
+          },
+          "nativeTouch": false
+        },
+        {
+          "name": "current marker recenter after real pointer drag",
+          "width": 390,
+          "id": "single",
+          "moved": [
+            116.349077,
+            39.868435
+          ],
+          "keyboardMoved": [
+            116.349023,
+            39.868456
+          ],
+          "target": [
+            116.35,
+            39.87
+          ],
+          "recentered": [
+            116.35,
+            39.868098
+          ],
+          "projection": {
+            "point": [
+              199.34446396306157,
+              454.57510926760733
+            ],
+            "canvas": {
+              "left": 0,
+              "top": 292,
+              "width": 390,
+              "height": 552
+            },
+            "visible": {
+              "left": 0,
+              "right": 390,
+              "top": 292,
+              "bottom": 609,
+              "width": 390,
+              "height": 317
+            },
+            "center": [
+              195,
+              450.5
+            ],
+            "centered": true
+          },
+          "sharedCoordinateIdentityRetained": true,
+          "readingTabRetained": "概览",
+          "keyboardAction": true,
+          "nativeTouch": false
+        },
+        {
+          "name": "independent list selection for same-coordinate buildings",
+          "selections": [
+            {
+              "id": "single",
+              "center": [
+                116.35,
+                39.868098
+              ],
+              "projection": {
+                "point": [
+                  194.99999999813735,
+                  452.49999999813735
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 292,
+                  "width": 390,
+                  "height": 552
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 390,
+                  "top": 292,
+                  "bottom": 609,
+                  "width": 390,
+                  "height": 317
+                },
+                "center": [
+                  195,
+                  450.5
+                ],
+                "centered": true
+              }
+            },
+            {
+              "id": "same",
+              "center": [
+                116.35,
+                39.868098
+              ],
+              "projection": {
+                "point": [
+                  194.99999999813735,
+                  452.49999999813735
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 292,
+                  "width": 390,
+                  "height": 552
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 390,
+                  "top": 292,
+                  "bottom": 609,
+                  "width": 390,
+                  "height": 317
+                },
+                "center": [
+                  195,
+                  450.5
+                ],
+                "centered": true
+              }
+            }
+          ]
+        },
+        {
+          "name": "rapid A B C",
+          "width": 390,
+          "height": 552,
+          "zoom": 16,
+          "center": [
+            116.32,
+            39.977476
+          ],
+          "points": [
+            {
+              "id": "other",
+              "x": 195,
+              "y": 122.5,
+              "edge": 118.5
+            }
+          ],
+          "cameraCalls": 12,
+          "visible": {
+            "left": 0,
+            "right": 390,
+            "top": 292,
+            "bottom": 533,
+            "width": 390,
+            "height": 241
+          }
+        },
+        {
+          "width": 390,
+          "observationMs": 800,
+          "regionCameraHasNoDuplicateTarget": true,
+          "commands": [
+            {
+              "layoutReady": "true",
+              "sheet": "287px",
+              "pane": {
+                "height": 287,
+                "top": 241
+              },
+              "at": 46.10000002384186,
+              "zoom": 11.7883102755691,
+              "center": [
+                116.49499999999995,
+                39.8831881450356
+              ],
+              "immediately": false,
+              "duration": 240,
+              "width": 390,
+              "height": 552
+            }
+          ],
+          "center": [
+            116.495,
+            39.883188
+          ],
+          "zoom": 11.79
+        },
+        {
+          "name": "distinct supply identity in all four modes",
+          "results": [
+            {
+              "id": "future-cbd",
+              "mode": "default",
+              "glyph": "F",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "future-cbd",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "hexagon",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 390,
+              "id": "future-cbd",
+              "moved": [
+                116.526251,
+                39.946201
+              ],
+              "keyboardMoved": [
+                116.52609,
+                39.946288
+              ],
+              "target": [
+                116.53,
+                39.95
+              ],
+              "recentered": [
+                116.53,
+                39.944242
+              ],
+              "projection": {
+                "point": [
+                  199.3466873364523,
+                  483.4661444108933
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 292,
+                  "width": 390,
+                  "height": 552
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 390,
+                  "top": 292,
+                  "bottom": 665,
+                  "width": 390,
+                  "height": 373
+                },
+                "center": [
+                  195,
+                  478.5
+                ],
+                "centered": true
+              },
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "default",
+              "glyph": "?",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "rent",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "vacancy",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "id": "pending-map-project",
+              "mode": "leed",
+              "glyph": "–",
+              "shape": "diamond",
+              "browserDecoded": true,
+              "selectedCenterVerified": true,
+              "selectedWithinCanvas": true,
+              "listHoverPublicSDKVerified": false
+            },
+            {
+              "name": "current marker recenter after real pointer drag",
+              "width": 390,
+              "id": "pending-map-project",
+              "moved": [
+                116.496188,
+                39.931236
+              ],
+              "keyboardMoved": [
+                116.496213,
+                39.931217
+              ],
+              "target": [
+                116.5,
+                39.935
+              ],
+              "recentered": [
+                116.5,
+                39.929241
+              ],
+              "projection": {
+                "point": [
+                  199.20995011320338,
+                  483.36439523939043
+                ],
+                "canvas": {
+                  "left": 0,
+                  "top": 292,
+                  "width": 390,
+                  "height": 552
+                },
+                "visible": {
+                  "left": 0,
+                  "right": 390,
+                  "top": 292,
+                  "bottom": 665,
+                  "width": 390,
+                  "height": 373
+                },
+                "center": [
+                  195,
+                  478.5
+                ],
+                "centered": true
+              },
+              "sharedCoordinateIdentityRetained": true,
+              "readingTabRetained": "概览",
+              "keyboardAction": true,
+              "nativeTouch": false
+            }
+          ],
+          "legendMatches": true
+        },
+        {
+          "name": "base places via keyboard legend control",
+          "width": 390,
+          "quietDefault": true,
+          "roadsAndBuildingsRemain": true,
+          "enabledFeatures": [
+            "bg",
+            "building",
+            "point",
+            "road"
+          ],
+          "cameraAndProjectContextUnchanged": true,
+          "mapInstanceRetained": true,
+          "leaveVisible": false
+        },
+        {
+          "width": 390,
+          "surfaceCloseAndReverse": true,
+          "frameStallMs": 80,
+          "frameGaps": [
+            83.40000000000146,
+            66.70000000000073,
+            83.29999999999927,
+            83.40000000000146,
+            83.29999999999927,
+            83.29999999999927
+          ],
+          "traces": [
+            {
+              "action": "close",
+              "time": -1,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607,
+              "width": 390,
+              "height": 213,
+              "opacity": 1,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 13.599999999998545,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607,
+              "width": 390,
+              "height": 213,
+              "opacity": 1,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "none"
+            },
+            {
+              "action": "close",
+              "time": 80.20000000000073,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 624.1236572265625,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.143816,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 163.59999999999854,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 626.809814453125,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.00950787,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 246.90000000000146,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 626.9999389648438,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.00000242632,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 330.2000000000007,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 627,
+              "width": 390,
+              "height": 213,
+              "opacity": 0,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 413.59999999999854,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "close",
+              "time": 496.90000000000146,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": -1,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 0,
+              "open": false,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 0.40000007152411854,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 608.7674560546875,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.955813,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 83.80000007152557,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 608.7674560546875,
+              "width": 390,
+              "height": 213.00006103515625,
+              "opacity": 0.955813,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 150.5000000715263,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 608.7674560546875,
+              "width": 390,
+              "height": 213.00006103515625,
+              "opacity": 0.955813,
+              "open": false,
+              "exiting": true,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 233.80000007152557,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 608.7674560546875,
+              "width": 390,
+              "height": 213.00006103515625,
+              "opacity": 0.955813,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 317.20000007152703,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 608.7674560546875,
+              "width": 390,
+              "height": 213.00006103515625,
+              "opacity": 0.955813,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 400.5000000715263,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607.1554565429688,
+              "width": 390,
+              "height": 213,
+              "opacity": 0.996114,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            },
+            {
+              "action": "reverse",
+              "time": 483.8000000715256,
+              "anchor": [
+                106.96801392058842,
+                188.09999999997672
+              ],
+              "x": 0,
+              "y": 607.0081787109375,
+              "width": 390,
+              "height": 212.99993896484375,
+              "opacity": 0.999796,
+              "open": true,
+              "exiting": false,
+              "canvasWidth": 390,
+              "canvasHeight": 552,
+              "clip": "inset(0px)"
+            }
+          ]
+        }
+      ],
+      "emptyAndClose": "pass"
+    }
+  ],
+  "status": "pass"
+}

@@ -1,0 +1,382 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.6 /private/tmp/colliers-ai-delivery-baseline
+
+ ❯ src/components/home/__tests__/home-query-workspace.test.tsx (40 tests | 3 failed | 37 skipped) 210ms
+     × retains the streamed request reference for recovery after disconnect 135ms
+     × retains the streamed request reference for recovery after stop 40ms
+     × retains the streamed request reference for recovery after reload 34ms
+ ❯ src/lib/intelligence/agent/agentHttp.test.ts (56 tests | 3 failed | 53 skipped) 1437ms
+     × retains both generated Excel and CSV snapshots in the final answer and archive 137ms
+     × retains source-bound trend analysis alongside Excel without trusting supplier explanations 37ms
+     × retains the first real file when individually valid snapshots exceed the combined archive limit 1262ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/home/__tests__/home-query-workspace.test.tsx > Conversational Experience P1 shared workspace lifecycle > retains the streamed request reference for recovery after disconnect
+ FAIL  src/components/home/__tests__/home-query-workspace.test.tsx > Conversational Experience P1 shared workspace lifecycle > retains the streamed request reference for recovery after stop
+ FAIL  src/components/home/__tests__/home-query-workspace.test.tsx > Conversational Experience P1 shared workspace lifecycle > retains the streamed request reference for recovery after reload
+AssertionError: expected null to be 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' // Object.is equality
+
+- Expected:
+"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
++ Received:
+null
+
+ ❯ src/components/home/__tests__/home-query-workspace.test.tsx:172:48
+    170|     await screen.findByText('正在研究你的问题…');
+    171|     const storageKey = `trusted-query:last:${JSON.stringify(scope)}`;
+    172|     expect(sessionStorage.getItem(storageKey)).toBe(requestIds[0]);
+       |                                                ^
+    173|     if (mode === 'disconnect') await act(async () => terminal.resolve(…
+    174|     else if (mode === 'stop') fireEvent.click(screen.getByRole('button…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  src/lib/intelligence/agent/agentHttp.test.ts > AI 5.0 natural-language export through the authenticated Agent handler > retains both generated Excel and CSV snapshots in the final answer and archive
+AssertionError: expected 'partial' to be 'completed' // Object.is equality
+
+Expected: "completed"
+Received: "partial"
+
+ ❯ src/lib/intelligence/agent/agentHttp.test.ts:641:75
+    639|     const response = await handleAgentSubmission(fakeRequest('把结果导出 Ex…
+    640|     const body = await response.json();
+    641|     expect(response.status).toBe(200); expect(body.agent.executionStat…
+       |                                                                           ^
+    642|     expect(body.answerSelection.results).toHaveLength(2);
+    643|     const archive = state.append.mock.calls.find(x => x[1] === 'respon…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  src/lib/intelligence/agent/agentHttp.test.ts > AI 5.0 natural-language export through the authenticated Agent handler > retains source-bound trend analysis alongside Excel without trusting supplier explanations
+AssertionError: expected undefined to deeply equal { metric: 'rent', …(4) }
+
+- Expected:
+{
+  "formulaVersion": "area-weighted-positive-net-effective-rent/1",
+  "metric": "rent",
+  "mode": "per_period",
+  "pairedIds": [
+    "A",
+    "B",
+    "D",
+  ],
+  "periods": [
+    {
+      "availableCoverage": {
+        "conflict": 0,
+        "invalid": 0,
+        "missing": 0,
+        "total": 4,
+        "unverified": 0,
+        "valid": 4,
+      },
+      "contributions": [
+        {
+          "denominator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "10000",
+            },
+            "numeric": 10000,
+          },
+          "entityId": "A",
+          "numerator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "900000",
+            },
+            "numeric": 900000,
+          },
+          "sourceIds": [
+            "A/netEffectiveRent/2/",
+            "A/totalArea/2/",
+          ],
+        },
+        {
+          "denominator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "30000",
+            },
+            "numeric": 30000,
+          },
+          "entityId": "B",
+          "numerator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "5400000",
+            },
+            "numeric": 5400000,
+          },
+          "sourceIds": [
+            "B/netEffectiveRent/2/",
+            "B/totalArea/2/",
+          ],
+        },
+        {
+          "denominator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "20000",
+            },
+            "numeric": 20000,
+          },
+          "entityId": "C",
+          "numerator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "3200000",
+            },
+            "numeric": 3200000,
+          },
+          "sourceIds": [
+            "C/netEffectiveRent/2/",
+            "C/totalArea/2/",
+          ],
+        },
+        {
+          "denominator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "10000",
+            },
+            "numeric": 10000,
+          },
+          "entityId": "D",
+          "numerator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "1400000",
+            },
+            "numeric": 1400000,
+          },
+          "sourceIds": [
+            "D/netEffectiveRent/2/",
+            "D/totalArea/2/",
+          ],
+        },
+      ],
+      "denominator": {
+        "exact": {
+          "denominator": "1",
+          "numerator": "70000",
+        },
+        "numeric": 70000,
+      },
+      "excluded": [],
+      "excludedByPairing": [],
+      "numerator": {
+        "exact": {
+          "denominator": "1",
+          "numerator": "10900000",
+        },
+        "numeric": 10900000,
+      },
+      "period": {
+        "quarter": 2,
+        "year": 2026,
+      },
+      "snapshotId": "fixture-2026-2",
+      "sourceIds": [
+        "A/netEffectiveRent/2/",
+        "A/totalArea/2/",
+        "B/netEffectiveRent/2/",
+        "B/totalArea/2/",
+        "C/netEffectiveRent/2/",
+        "C/totalArea/2/",
+        "D/netEffectiveRent/2/",
+        "D/totalArea/2/",
+      ],
+      "usedEntityIds": [
+        "A",
+        "B",
+        "C",
+        "D",
+      ],
+      "value": {
+        "exact": {
+          "denominator": "7",
+          "numerator": "1090",
+        },
+        "numeric": 155.71428571428572,
+      },
+    },
+    {
+      "availableCoverage": {
+        "conflict": 0,
+        "invalid": 0,
+        "missing": 1,
+        "total": 4,
+        "unverified": 0,
+        "valid": 3,
+      },
+      "contributions": [
+        {
+          "denominator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "10000",
+            },
+            "numeric": 10000,
+          },
+          "entityId": "A",
+          "numerator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "1000000",
+            },
+            "numeric": 1000000,
+          },
+          "sourceIds": [
+            "A/netEffectiveRent/3/",
+            "A/totalArea/3/",
+          ],
+        },
+        {
+          "denominator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "30000",
+            },
+            "numeric": 30000,
+          },
+          "entityId": "B",
+          "numerator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "6000000",
+            },
+            "numeric": 6000000,
+          },
+          "sourceIds": [
+            "B/netEffectiveRent/3/",
+            "B/totalArea/3/",
+          ],
+        },
+        {
+          "denominator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "10000",
+            },
+            "numeric": 10000,
+          },
+          "entityId": "D",
+          "numerator": {
+            "exact": {
+              "denominator": "1",
+              "numerator": "1500000",
+            },
+            "numeric": 1500000,
+          },
+          "sourceIds": [
+            "D/netEffectiveRent/3/",
+            "D/totalArea/3/",
+          ],
+        },
+      ],
+      "denominator": {
+        "exact": {
+          "denominator": "1",
+          "numerator": "50000",
+        },
+        "numeric": 50000,
+      },
+      "excluded": [
+        {
+          "entityId": "C",
+          "reason": "not_recorded",
+          "sourceIds": [
+            "C/netEffectiveRent/3/",
+            "C/totalArea/3/",
+          ],
+          "state": "missing",
+        },
+      ],
+      "excludedByPairing": [],
+      "numerator": {
+        "exact": {
+          "denominator": "1",
+          "numerator": "8500000",
+        },
+        "numeric": 8500000,
+      },
+      "period": {
+        "quarter": 3,
+        "year": 2026,
+      },
+      "snapshotId": "fixture-2026-3",
+      "sourceIds": [
+        "A/netEffectiveRent/3/",
+        "A/totalArea/3/",
+        "B/netEffectiveRent/3/",
+        "B/totalArea/3/",
+        "D/netEffectiveRent/3/",
+        "D/totalArea/3/",
+      ],
+      "usedEntityIds": [
+        "A",
+        "B",
+        "D",
+      ],
+      "value": {
+        "exact": {
+          "denominator": "1",
+          "numerator": "170",
+        },
+        "numeric": 170,
+      },
+    },
+  ],
+}
+
++ Received:
+undefined
+
+ ❯ src/lib/intelligence/agent/agentHttp.test.ts:678:39
+    676|     expect(body.agent.executionStatus).toBe('completed');
+    677|     const analysis = body.answerSelection.results.find((entry: { resul…
+    678|     expect(analysis?.result.analysis).toEqual(formal.analysis);
+       |                                       ^
+    679|     expect(analysis?.result.parameters.researchAnalysis).toEqual(raw.p…
+    680|     expect(analysis?.result.sources).toEqual(formal.sources);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  src/lib/intelligence/agent/agentHttp.test.ts > AI 5.0 natural-language export through the authenticated Agent handler > retains the first real file when individually valid snapshots exceed the combined archive limit
+AssertionError: expected [ { tool: 'export_table', …(1) } ] to deep equally contain { tool: 'export_table', …(1) }
+
+- Expected:
+{
+  "code": "delivery_limit",
+  "tool": "export_table",
+}
+
++ Received:
+[
+  {
+    "code": "not_generated",
+    "tool": "export_table",
+  },
+]
+
+ ❯ src/lib/intelligence/agent/agentHttp.test.ts:743:43
+    741|     expect(body.agent.executionStatus).toBe('partial');
+    742|     expect(body.answerSelection.results).toHaveLength(1);
+    743|     expect(body.agent.unresolvedFailures).toContainEqual({ tool: 'expo…
+       |                                           ^
+    744|     expect(body.message).toContain('未生成 Excel');
+    745|     const archive = state.append.mock.calls.find(entry => entry[1] ===…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  6 failed | 90 skipped (96)
+   Start at  23:14:51
+   Duration  2.99s (transform 981ms, setup 131ms, import 1.45s, tests 1.65s, environment 1.23s)

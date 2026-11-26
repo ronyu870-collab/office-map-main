@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {stock,project} from '../performance/fixtures/workspace-data.mjs';
+import {clickWorkspaceAction} from './workspace-actions.mjs';
+export async function verifyContactReading(page,{width,base}) {
+  const name='国际商务中心长项目名称及楼座信息'.repeat(3),phone='010-12345678 转 8001 / 010-87654321';
+  await page.route('**/api/map/data?*',route=>new URL(route.request().url()).searchParams.get('mode')==='future'?route.fulfill({json:{future_supplies:[]}}):route.fulfill({json:{buildings:stock.map(row=>row.id===project?{...row,name,contact_phone:phone}:row),display_overrides:[]}}));
+  await page.goto(new URL(`/map?building=${project}`,base).href);
+  const detail=page.getByRole('region',{name:`${name}楼宇详情`,exact:true});await detail.waitFor();
+  if(width<640||width===844)await clickWorkspaceAction(page,'全屏阅读工作区');
+  await detail.getByRole('tab',{name:'成交与资料',exact:true}).click();
+  const trigger=detail.getByRole('button',{name:'联系方式',exact:true});await trigger.click();
+  const immediateDialog=page.getByRole('dialog',{name,exact:true});
+  await immediateDialog.waitFor();
+  assert.equal(await immediateDialog.getByRole('button',{name:'关闭联系方式',exact:true}).evaluate(node=>node===document.activeElement),true,'visible modal already owns keyboard before another frame');
+  await page.keyboard.press('Escape');await immediateDialog.waitFor({state:'detached'});
+  assert.equal(await trigger.evaluate(node=>node===document.activeElement),true);
+  await trigger.click();
+  await page.locator('#__colliers_contact_modal_overlay').waitFor({state:'attached'});
+  await page.screenshot({animations:'disabled',path:`/tmp/map-contact-${width}.png`});
+  const dialog=page.getByRole('dialog',{name,exact:true});await dialog.waitFor();
+  assert.equal(await dialog.getByText(phone,{exact:true}).count(),1);
+  assert.equal(await dialog.getByRole('link',{name:'拨打 010-12345678 转 8001',exact:true}).getAttribute('href'),'tel:01012345678;ext=8001');
+  assert.equal(await dialog.getByRole('link',{name:'拨打 010-87654321',exact:true}).getAttribute('href'),'tel:01087654321');
+  const close=dialog.getByRole('button',{name:'关闭联系方式',exact:true});
+  await close.focus();await page.keyboard.press('Shift+Tab');assert.equal(await dialog.getByRole('link',{name:'拨打 010-87654321',exact:true}).evaluate(node=>node===document.activeElement),true);
+  await page.keyboard.press('Tab');assert.equal(await close.evaluate(node=>node===document.activeElement),true);
+  assert.ok(await dialog.evaluate(node=>node.scrollWidth<=node.clientWidth+1));
+  await page.screenshot({animations:'disabled',path:`/tmp/map-contact-${width}.png`});
+  await page.keyboard.press('Escape');await dialog.waitFor({state:'detached'});
+  assert.equal(await trigger.evaluate(node=>node===document.activeElement),true);
+  assert.equal(await detail.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true');
+  await trigger.click();await dialog.waitFor();await dialog.getByRole('button',{name:'关闭联系方式',exact:true}).click();await dialog.waitFor({state:'detached'});
+  return {width,namedModal:true,immediateEscape:true,longNameAndPhoneReadable:true,tabLoop:true,escapeClosesOnlyContact:true,focusReturnsToContact:true};
+}

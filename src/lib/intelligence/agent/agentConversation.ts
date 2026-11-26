@@ -13,6 +13,7 @@ import type { QueryResult } from '../query/result';
 import { exportContextSchema } from './toolRegistry';
 import { authorizeConversationPlan } from '../query/conversationStore';
 import { agentMemorySchema, type AgentMemory } from './agentMemory';
+import type { AnswerSelection } from '../query/answerSelection';
 
 export const AGENT_CONVERSATION_PROTOCOL = 'colliers-agent-conversation/1';
 const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequence: z.number().int().positive(),
@@ -20,7 +21,7 @@ const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequenc
 const historySchema = z.array(z.strictObject({
   user: z.string().min(1).max(1800), assistant: z.string().min(1).max(3000),
 })).max(8);
-export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextRecheck?: () => Promise<void> };
+export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextResults?: QueryResult[]; contextRecheck?: () => Promise<void> };
 
 /** Load only server-side encrypted previous answers from the existing owner/session-bound
  * RPC; never accept arbitrary client-provided history text as context. */
@@ -31,6 +32,7 @@ export async function readAgentHistory(
   if (!conversation.parentRequestId) return [];
   const requestId = conversation.parentRequestId;
   const resuming = Boolean(conversation.resumeToken);
+  let restored: Awaited<ReturnType<typeof restoreOwnAgentAnswer>> | undefined;
   if (resuming) {
     const resume = unsealHistoryToken(conversation.resumeToken!, identity, authority.permissionRevision,
       'history-resume', keys);
@@ -38,7 +40,7 @@ export async function readAgentHistory(
       throw new Error('QUERY_DENIED');
     // Never feed decrypted old business claims back to a model until the current
     // source ACL has been rechecked. Text-only answers are owner-bound too.
-    await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
+    restored = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
   }
   const { data, error } = await client.rpc('ai_query_context_read', {
     p_actor: identity.actorId, p_effective: identity.effectiveUserId,
@@ -83,19 +85,19 @@ export async function readAgentHistory(
     context.plans.forEach(raw => authorizeConversationPlan(parseQueryPlan(raw), authority));
     history.contextExport = context;
   }
-  if (prior.leaseContext === true || prior.businessContext === true || prior.knowledgeContext === true || prior.researchContext === true) {
-    const restored = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
-    if (!restored.result) throw new Error('QUERY_DENIED');
+  const chartContext = prior.chartContext ? chartContextSchema.parse(prior.chartContext) : undefined;
+  if (prior.answerContext === true || prior.leaseContext === true || prior.businessContext === true
+    || prior.knowledgeContext === true || prior.researchContext === true || chartContext) {
+    // Answer and chart metadata describe the same archived snapshot graph.
+    // Recover once so the workset receives the exact same sealed object for
+    // the primary entry and its selection, including resumed/chart-only turns.
+    restored ??= await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
+    if (!restored.result || chartContext && restored.result.resultId !== chartContext.resultId
+      && !restored.answerSelection?.results.some(item => item.result.resultId === chartContext.resultId)) throw new Error('QUERY_DENIED');
     history.contextResult = restored.result as QueryResult;
+    history.contextResults = restored.answerSelection?.results.map(item => item.result as QueryResult);
     history.contextRecheck = restored.recheck;
-  }
-  if (prior.chartContext) {
-    const context = chartContextSchema.parse(prior.chartContext);
-    const restored = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
-    if (!restored.result || restored.result.resultId !== context.resultId) throw new Error('QUERY_DENIED');
-    history.contextChart = context;
-    history.contextResult = restored.result as QueryResult;
-    history.contextRecheck = restored.recheck;
+    if (chartContext) history.contextChart = chartContext;
   }
   return history;
 }
@@ -143,6 +145,7 @@ export async function restoreOwnAgentAnswer(
   if (!generated) throw new Error('QUERY_HISTORY_UNAVAILABLE');
   const output = decrypt(generated)?.result;
   let message: string, result: ReturnType<typeof resultViewSchema.parse> | undefined;
+  let answerSelection: AnswerSelection | undefined;
   let recheck: () => Promise<void>;
   if (output?.version === 'agent-message/1') {
     message = z.string().min(1).max(12000).parse(output.text);
@@ -157,12 +160,14 @@ export async function restoreOwnAgentAnswer(
   } else {
     const restored = await recoverOwnResult(client, identity, keys, requestId, read, signal,
       { reauthorizedHistory: true });
-    result = resultViewSchema.parse(restored.result);
+    resultViewSchema.parse(restored.result);
+    result = restored.result as ReturnType<typeof resultViewSchema.parse>;
+    answerSelection = restored.answerSelection;
     message = lastAnswer.assistant;
     recheck = restored.recheck;
   }
   await recheck();
-  return { message, ...(result ? { result } : {}), recheck, headHash: read.head_hash,
+  return { message, ...(result ? { result } : {}), ...(answerSelection ? { answerSelection } : {}), recheck, headHash: read.head_hash,
     headSequence: read.head_sequence,
     parentRequestId: z.uuid().optional().parse(receipt?.metadata?.conversation?.parentRequestId) };
 }

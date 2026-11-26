@@ -20,7 +20,7 @@ const scopeSchema = z.strictObject({
   inventory: z.enum(['tracked', 'all_authorized']),
 });
 const common = { scope: scopeSchema, filter: predicateSchema.optional() };
-const planSchema = z.discriminatedUnion('operation', [
+export const planSchema = z.discriminatedUnion('operation', [
   z.strictObject({ ...common, operation: z.literal('list'), fields: z.array(fieldSchema).max(6), period: quarterSchema.nullable() }),
   z.strictObject({ ...common, operation: z.literal('rank'), field: fieldSchema, period: quarterSchema.nullable(), direction: z.enum(['asc', 'desc']), limit: z.number().int().min(1).max(1000) }),
   z.strictObject({ ...common, operation: z.literal('aggregate'), ...metricSelection, period: quarterSchema }),

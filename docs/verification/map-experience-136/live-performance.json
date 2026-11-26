@@ -1,0 +1,2307 @@
+{
+  "cpuProfilingEnabled": true,
+  "profileMode": "timeline",
+  "actionRounds": 1,
+  "timingScope": "diagnostic sampling; not comparable to unprofiled benchmark",
+  "schema": 1,
+  "environment": "production React + real AMap 2.0/tiles + isolated business/auth fixtures",
+  "collectedAt": "2026-11-23T09:01:10.912Z",
+  "applicationCommit": "63e62e3+map-experience-136-working-tree",
+  "browser": "158.0.8127.36",
+  "locatedProjects": 601,
+  "scenarios": [
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "stack-return-0",
+      "startTime": 2293.7000000476837,
+      "endTime": 3811,
+      "elapsedMs": 1517.2999999523163,
+      "frames": 85,
+      "frameP95Ms": 33.19999999999982,
+      "firstSecondFrameP95Ms": 33.30000000000018,
+      "intervalsOver33Ms": 1,
+      "longestFrameMs": 33.40000000000009,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 1,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573854.491953,
+      "cpuMs": {
+        "LayoutDuration": 3.1710000000000003,
+        "RecalcStyleDuration": 24.845999999999993,
+        "ScriptDuration": 333.65500000000003,
+        "TaskDuration": 552.494
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json"
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "history-return",
+      "startTime": 4228.399999976158,
+      "endTime": 5641.800000071526,
+      "elapsedMs": 1413.4000000953674,
+      "frames": 81,
+      "frameP95Ms": 16.800000000000182,
+      "firstSecondFrameP95Ms": 33.30000000000018,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.399999999999636,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 1,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573854.491953,
+      "cpuMs": {
+        "LayoutDuration": 3.040999999999995,
+        "RecalcStyleDuration": 21.504999999999995,
+        "ScriptDuration": 360.2320000000001,
+        "TaskDuration": 565.6470000000003
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json"
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "filter-toggle-0",
+      "startTime": 5647,
+      "endTime": 7071.800000071526,
+      "elapsedMs": 1424.8000000715256,
+      "frames": 84,
+      "frameP95Ms": 16.800000000000182,
+      "firstSecondFrameP95Ms": 16.800000000000182,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.800000000000182,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573854.491953,
+      "cpuMs": {
+        "LayoutDuration": 0.8230000000000043,
+        "RecalcStyleDuration": 13.215000000000005,
+        "ScriptDuration": 168.8909999999999,
+        "TaskDuration": 218.3919999999997
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json"
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "panel-close-0",
+      "startTime": 7074,
+      "endTime": 8346.100000023842,
+      "elapsedMs": 1272.1000000238419,
+      "frames": 76,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.700000000000728,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.800000000000182,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573854.491953,
+      "cpuMs": {
+        "LayoutDuration": 0.4720000000000002,
+        "RecalcStyleDuration": 4.23599999999999,
+        "ScriptDuration": 74.49700000000004,
+        "TaskDuration": 100.21499999999995
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json"
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "panel-open-0",
+      "startTime": 8348.300000071526,
+      "endTime": 10061,
+      "elapsedMs": 1712.6999999284744,
+      "frames": 101,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.700000000000728,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.799999999999272,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573854.491953,
+      "cpuMs": {
+        "LayoutDuration": 3.594,
+        "RecalcStyleDuration": 20.294000000000008,
+        "ScriptDuration": 183.85300000000004,
+        "TaskDuration": 261.736
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json"
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "rapid-switch-0",
+      "startTime": 10063.600000023842,
+      "endTime": 12858.700000047684,
+      "elapsedMs": 2795.100000023842,
+      "frames": 164,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.73400000000038,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.30000000000109,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 1665.3999999761581,
+      "cameraAfterLastCommandMs": 301,
+      "navigationStart": 573854.491953,
+      "cpuMs": {
+        "LayoutDuration": 14.431999999999993,
+        "RecalcStyleDuration": 46.654,
+        "ScriptDuration": 771.3140000000001,
+        "TaskDuration": 994.6289999999998
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json"
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "display-mode-租金",
+      "startTime": 12862.600000023842,
+      "endTime": 14106.5,
+      "elapsedMs": 1243.8999999761581,
+      "frames": 73,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.799999999999272,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.799999999999272,
+      "longTasksMs": [],
+      "resizeCalls": 0,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573854.491953,
+      "cpuMs": {
+        "LayoutDuration": 0.26800000000000435,
+        "RecalcStyleDuration": 7.314999999999988,
+        "ScriptDuration": 159.02499999999975,
+        "TaskDuration": 190.87200000000058
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json"
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "display-mode-空置",
+      "startTime": 14193.700000047684,
+      "endTime": 15439.600000023842,
+      "elapsedMs": 1245.8999999761581,
+      "frames": 74,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.700000000000728,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.799999999999272,
+      "longTasksMs": [],
+      "resizeCalls": 0,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573854.491953,
+      "cpuMs": {
+        "LayoutDuration": 0.2349999999999991,
+        "RecalcStyleDuration": 6.847999999999993,
+        "ScriptDuration": 153.6710000000001,
+        "TaskDuration": 187.13800000000003
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json"
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "display-mode-LEED",
+      "startTime": 15544.700000047684,
+      "endTime": 16789.899999976158,
+      "elapsedMs": 1245.1999999284744,
+      "frames": 74,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.700000000000728,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.80000000000109,
+      "longTasksMs": [],
+      "resizeCalls": 0,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573854.491953,
+      "cpuMs": {
+        "LayoutDuration": 0.2530000000000032,
+        "RecalcStyleDuration": 7.510000000000017,
+        "ScriptDuration": 163.54999999999987,
+        "TaskDuration": 202.14599999999993
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json"
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "display-mode-项目",
+      "startTime": 16907.800000071526,
+      "endTime": 18153,
+      "elapsedMs": 1245.1999999284744,
+      "frames": 74,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.700000000000728,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.80000000000291,
+      "longTasksMs": [],
+      "resizeCalls": 0,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573854.491953,
+      "cpuMs": {
+        "LayoutDuration": 0.24199999999999222,
+        "RecalcStyleDuration": 7.087999999999983,
+        "ScriptDuration": 151.173,
+        "TaskDuration": 182.60699999999997
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json"
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "startup-and-network",
+      "startup": [
+        {
+          "stage": "authorized",
+          "at": 444.39999997615814
+        },
+        {
+          "stage": "controller_ready",
+          "at": 463.39999997615814
+        },
+        {
+          "stage": "stock_read_start",
+          "at": 463.5
+        },
+        {
+          "stage": "sdk_start",
+          "at": 464
+        },
+        {
+          "stage": "stock_data_ready",
+          "at": 480.3000000715256
+        },
+        {
+          "stage": "sdk_ready",
+          "at": 774.1000000238419
+        },
+        {
+          "stage": "tiles_complete",
+          "at": 899.3999999761581
+        },
+        {
+          "stage": "visual_ready",
+          "at": 962.1000000238419
+        },
+        {
+          "stage": "stock_render_start",
+          "at": 989.3000000715256
+        },
+        {
+          "stage": "stock_render_returned",
+          "at": 990.5
+        }
+      ],
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 68,
+        "providerHTTPFailures": 0,
+        "failedRequests": 0,
+        "abortedRequests": 27,
+        "blockedHosts": []
+      },
+      "errors": [],
+      "readingScroll": 0
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "context-cpu-capture",
+      "profileFile": "1536-motion-context-0.cpuprofile",
+      "traceFile": "1536-motion-context.trace.json",
+      "profileStats": {
+        "nodes": 8843,
+        "samples": 130087
+      },
+      "tasks": [
+        {
+          "startTime": 997.5,
+          "duration": 60,
+          "actions": []
+        }
+      ],
+      "longTaskDetails": [
+        {
+          "startTime": 997.5,
+          "duration": 60,
+          "topStacks": [
+            {
+              "cpuMs": 12.390000000000004,
+              "stack": [
+                {
+                  "function": "d.Se",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "d.createProgram",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "d",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "e.Bn",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "e.Hn",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "NZ",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "Ys.RZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "e.renderFrame",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "x.Yf",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 9.356000000000002,
+              "stack": [
+                {
+                  "function": "(program)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 9.327,
+              "stack": [
+                {
+                  "function": "(garbage collector)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 5.377,
+              "stack": [
+                {
+                  "function": "A._getContentSize",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "A._setStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "A.updateOverlay",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "C.updateOverlay",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "A.add",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "ke.add",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "S.add",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 4.662,
+              "stack": [
+                {
+                  "function": "I.XD",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "I.setStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "I",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 4.016,
+              "stack": [
+                {
+                  "function": "baseAssignValue",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "assignValue",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "arrayEach",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "baseClone",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "arrayEach",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "baseClone",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "cloneDeep",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "L.nY",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "L",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "I.XD",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "I.setStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "I",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 2.47,
+              "stack": [
+                {
+                  "function": "es",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 2.131,
+              "stack": [
+                {
+                  "function": "Q",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.293,
+              "stack": [
+                {
+                  "function": "L",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.786,
+              "stack": [
+                {
+                  "function": "initCloneObject",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "baseClone",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "cloneDeep",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "L.nY",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "L",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.772,
+              "stack": [
+                {
+                  "function": "d.createProgram",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "d",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "e.Bn",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "e.Hn",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "NZ",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "Ys.RZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "e.renderFrame",
+                  "source": "runtime",
+                  "line": 1
+                },
+                {
+                  "function": "x.Yf",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.685,
+              "stack": [
+                {
+                  "function": "L.Cs",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "M._add",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "M.add",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.67,
+              "stack": [
+                {
+                  "function": "baseIsMap",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "baseClone",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "cloneDeep",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "L.nY",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "L",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.555,
+              "stack": [
+                {
+                  "function": "initCloneArray",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "baseClone",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "arrayEach",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "baseClone",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "cloneDeep",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "L.nY",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "L",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.473,
+              "stack": [
+                {
+                  "function": "eP",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "application:/_next/static/chunks/5215.4821dc053cb397d2.js",
+                  "line": 38
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "name": "FireAnimationFrame",
+              "durationMs": 41.929,
+              "offsetMs": 15.926
+            },
+            {
+              "name": "FunctionCall",
+              "durationMs": 41.846,
+              "offsetMs": 15.928
+            },
+            {
+              "name": "FireAnimationFrame",
+              "durationMs": 15.964,
+              "offsetMs": -0.058
+            },
+            {
+              "name": "FunctionCall",
+              "durationMs": 15.878,
+              "offsetMs": -0.053
+            },
+            {
+              "name": "MinorGC",
+              "durationMs": 6.657,
+              "offsetMs": 30.232
+            },
+            {
+              "name": "V8.GC_SCAVENGER",
+              "durationMs": 6.577,
+              "offsetMs": 30.284
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE",
+              "durationMs": 6.56,
+              "offsetMs": 30.293
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+              "durationMs": 6.28,
+              "offsetMs": 30.435
+            },
+            {
+              "name": "MinorGC",
+              "durationMs": 2.541,
+              "offsetMs": 53.599
+            },
+            {
+              "name": "V8.GC_SCAVENGER",
+              "durationMs": 2.321,
+              "offsetMs": 53.788
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE",
+              "durationMs": 2.31,
+              "offsetMs": 53.792
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+              "durationMs": 2.058,
+              "offsetMs": 53.861
+            },
+            {
+              "name": "UpdateLayoutTree",
+              "durationMs": 2.011,
+              "offsetMs": 17.509
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "stack-return-0",
+      "startTime": 2603.2000000476837,
+      "endTime": 4222,
+      "elapsedMs": 1618.7999999523163,
+      "frames": 92,
+      "frameP95Ms": 16.800000000000182,
+      "firstSecondFrameP95Ms": 33.30000000000018,
+      "intervalsOver33Ms": 2,
+      "longestFrameMs": 33.40000000000009,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 1,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573874.263995,
+      "cpuMs": {
+        "LayoutDuration": 2.575999999999995,
+        "RecalcStyleDuration": 20.005000000000003,
+        "ScriptDuration": 271.324,
+        "TaskDuration": 463.768
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-motion-context-0.cpuprofile",
+      "traceFile": "390-motion-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "history-return",
+      "startTime": 4593.200000047684,
+      "endTime": 5957,
+      "elapsedMs": 1363.7999999523163,
+      "frames": 79,
+      "frameP95Ms": 16.800000000000182,
+      "firstSecondFrameP95Ms": 16.800000000000182,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.30000000000018,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 1,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573874.263995,
+      "cpuMs": {
+        "LayoutDuration": 2.9960000000000058,
+        "RecalcStyleDuration": 18.713999999999995,
+        "ScriptDuration": 214.78200000000004,
+        "TaskDuration": 378.02099999999973
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-motion-context-0.cpuprofile",
+      "traceFile": "390-motion-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "filter-toggle-0",
+      "startTime": 5959,
+      "endTime": 7325,
+      "elapsedMs": 1366,
+      "frames": 81,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.700000000000728,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.800000000000182,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573874.263995,
+      "cpuMs": {
+        "LayoutDuration": 1.6459999999999946,
+        "RecalcStyleDuration": 11.196000000000012,
+        "ScriptDuration": 98.42499999999998,
+        "TaskDuration": 142.31000000000017
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-motion-context-0.cpuprofile",
+      "traceFile": "390-motion-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "panel-close-0",
+      "startTime": 7327.200000047684,
+      "endTime": 8720.299999952316,
+      "elapsedMs": 1393.0999999046326,
+      "frames": 81,
+      "frameP95Ms": 16.799999999999272,
+      "firstSecondFrameP95Ms": 16.799999999999272,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.30000000000018,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573874.263995,
+      "cpuMs": {
+        "LayoutDuration": 0.3180000000000058,
+        "RecalcStyleDuration": 4.094,
+        "ScriptDuration": 212.7699999999999,
+        "TaskDuration": 279.4719999999997
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-motion-context-0.cpuprofile",
+      "traceFile": "390-motion-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "panel-open-0",
+      "startTime": 8818.899999976158,
+      "endTime": 10819.399999976158,
+      "elapsedMs": 2000.5,
+      "frames": 120,
+      "frameP95Ms": 16.799999999999272,
+      "firstSecondFrameP95Ms": 16.700000000000728,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.80000000000109,
+      "longTasksMs": [],
+      "resizeCalls": 3,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573874.263995,
+      "cpuMs": {
+        "LayoutDuration": 5.719999999999996,
+        "RecalcStyleDuration": 19.77799999999999,
+        "ScriptDuration": 202.14599999999993,
+        "TaskDuration": 304.786
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-motion-context-0.cpuprofile",
+      "traceFile": "390-motion-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "rapid-switch-0",
+      "startTime": 10824,
+      "endTime": 13533.5,
+      "elapsedMs": 2709.5,
+      "frames": 160,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.799999999999272,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.20000000000073,
+      "longTasksMs": [],
+      "resizeCalls": 6,
+      "newMapInstances": 0,
+      "cameraEndMs": 1584.1000000238419,
+      "cameraAfterLastCommandMs": 304.2000000476837,
+      "navigationStart": 573874.263995,
+      "cpuMs": {
+        "LayoutDuration": 15.564999999999996,
+        "RecalcStyleDuration": 46.354000000000006,
+        "ScriptDuration": 486.69399999999996,
+        "TaskDuration": 706.5059999999996
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-motion-context-0.cpuprofile",
+      "traceFile": "390-motion-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "startup-and-network",
+      "startup": [
+        {
+          "stage": "authorized",
+          "at": 433.60000002384186
+        },
+        {
+          "stage": "controller_ready",
+          "at": 445.10000002384186
+        },
+        {
+          "stage": "stock_read_start",
+          "at": 445.2000000476837
+        },
+        {
+          "stage": "sdk_start",
+          "at": 445.5
+        },
+        {
+          "stage": "stock_data_ready",
+          "at": 460.89999997615814
+        },
+        {
+          "stage": "sdk_ready",
+          "at": 706.7999999523163
+        },
+        {
+          "stage": "tiles_complete",
+          "at": 962
+        },
+        {
+          "stage": "visual_ready",
+          "at": 982
+        },
+        {
+          "stage": "stock_render_start",
+          "at": 1000.6000000238419
+        },
+        {
+          "stage": "stock_render_returned",
+          "at": 1001.6000000238419
+        }
+      ],
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 44,
+        "providerHTTPFailures": 0,
+        "failedRequests": 0,
+        "abortedRequests": 14,
+        "blockedHosts": []
+      },
+      "errors": [],
+      "readingScroll": 190
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "context-cpu-capture",
+      "profileFile": "390-motion-context-0.cpuprofile",
+      "traceFile": "390-motion-context.trace.json",
+      "profileStats": {
+        "nodes": 8060,
+        "samples": 86100
+      },
+      "tasks": [],
+      "longTaskDetails": []
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "stack-return-0",
+      "startTime": 1874.1999999284744,
+      "endTime": 3463.7999999523163,
+      "elapsedMs": 1589.6000000238419,
+      "frames": 94,
+      "frameP95Ms": 16.799999999999727,
+      "firstSecondFrameP95Ms": 16.800000000000182,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.29999999999973,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 1,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573889.013093,
+      "cpuMs": {
+        "LayoutDuration": 2.2709999999999955,
+        "RecalcStyleDuration": 15.917,
+        "ScriptDuration": 267.665,
+        "TaskDuration": 439.05799999999994
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-reduced-context-0.cpuprofile",
+      "traceFile": "390-reduced-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "history-return",
+      "startTime": 3865.2999999523163,
+      "endTime": 5252.399999976158,
+      "elapsedMs": 1387.1000000238419,
+      "frames": 79,
+      "frameP95Ms": 16.800000000000182,
+      "firstSecondFrameP95Ms": 16.800000000000182,
+      "intervalsOver33Ms": 2,
+      "longestFrameMs": 49.90000000000009,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 1,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573889.013093,
+      "cpuMs": {
+        "LayoutDuration": 2.0830000000000015,
+        "RecalcStyleDuration": 10.577000000000004,
+        "ScriptDuration": 279.582,
+        "TaskDuration": 434.318
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-reduced-context-0.cpuprofile",
+      "traceFile": "390-reduced-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "filter-toggle-0",
+      "startTime": 5254.199999928474,
+      "endTime": 6597.799999952316,
+      "elapsedMs": 1343.6000000238419,
+      "frames": 80,
+      "frameP95Ms": 16.799999999999272,
+      "firstSecondFrameP95Ms": 16.799999999999272,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.800000000000182,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573889.013093,
+      "cpuMs": {
+        "LayoutDuration": 1.5359999999999956,
+        "RecalcStyleDuration": 8.165000000000006,
+        "ScriptDuration": 100.56100000000012,
+        "TaskDuration": 137.86500000000012
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-reduced-context-0.cpuprofile",
+      "traceFile": "390-reduced-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "panel-close-0",
+      "startTime": 6599.799999952316,
+      "endTime": 7842.199999928474,
+      "elapsedMs": 1242.3999999761581,
+      "frames": 73,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.700000000000728,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.800000000000182,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573889.013093,
+      "cpuMs": {
+        "LayoutDuration": 0.2510000000000012,
+        "RecalcStyleDuration": 1.7049999999999983,
+        "ScriptDuration": 203.70899999999992,
+        "TaskDuration": 252.44599999999994
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-reduced-context-0.cpuprofile",
+      "traceFile": "390-reduced-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "panel-open-0",
+      "startTime": 7844,
+      "endTime": 9990,
+      "elapsedMs": 2146,
+      "frames": 128,
+      "frameP95Ms": 16.799999999999272,
+      "firstSecondFrameP95Ms": 16.799999999999272,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.80000000000109,
+      "longTasksMs": [],
+      "resizeCalls": 3,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cameraAfterLastCommandMs": null,
+      "navigationStart": 573889.013093,
+      "cpuMs": {
+        "LayoutDuration": 3.375000000000003,
+        "RecalcStyleDuration": 13.468999999999994,
+        "ScriptDuration": 188.55200000000005,
+        "TaskDuration": 267.9100000000001
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-reduced-context-0.cpuprofile",
+      "traceFile": "390-reduced-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "rapid-switch-0",
+      "startTime": 9992.799999952316,
+      "endTime": 11604.5,
+      "elapsedMs": 1611.7000000476837,
+      "frames": 95,
+      "frameP95Ms": 16.700000000000728,
+      "firstSecondFrameP95Ms": 16.799999999999272,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.29999999999927,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 452.8000000715256,
+      "cameraAfterLastCommandMs": 69.90000009536743,
+      "navigationStart": 573889.013093,
+      "cpuMs": {
+        "LayoutDuration": 7.024000000000003,
+        "RecalcStyleDuration": 29.319,
+        "ScriptDuration": 206.57999999999998,
+        "TaskDuration": 327.6859999999999
+      },
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      },
+      "longTaskDetails": [],
+      "profileFile": "390-reduced-context-0.cpuprofile",
+      "traceFile": "390-reduced-context.trace.json"
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "startup-and-network",
+      "startup": [
+        {
+          "stage": "authorized",
+          "at": 454.89999997615814
+        },
+        {
+          "stage": "controller_ready",
+          "at": 469.1999999284744
+        },
+        {
+          "stage": "stock_read_start",
+          "at": 469.2999999523163
+        },
+        {
+          "stage": "sdk_start",
+          "at": 469.6999999284744
+        },
+        {
+          "stage": "stock_data_ready",
+          "at": 484.2999999523163
+        },
+        {
+          "stage": "sdk_ready",
+          "at": 616.3999999761581
+        },
+        {
+          "stage": "tiles_complete",
+          "at": 729.2999999523163
+        },
+        {
+          "stage": "visual_ready",
+          "at": 764.5
+        },
+        {
+          "stage": "stock_render_start",
+          "at": 783.6999999284744
+        },
+        {
+          "stage": "stock_render_returned",
+          "at": 784.6999999284744
+        }
+      ],
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 34,
+        "providerHTTPFailures": 0,
+        "failedRequests": 0,
+        "abortedRequests": 14,
+        "blockedHosts": []
+      },
+      "errors": [],
+      "readingScroll": 190
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "context-cpu-capture",
+      "profileFile": "390-reduced-context-0.cpuprofile",
+      "traceFile": "390-reduced-context.trace.json",
+      "profileStats": {
+        "nodes": 8071,
+        "samples": 83675
+      },
+      "tasks": [
+        {
+          "startTime": 831.5,
+          "duration": 51,
+          "actions": []
+        }
+      ],
+      "longTaskDetails": [
+        {
+          "startTime": 831.5,
+          "duration": 51,
+          "topStacks": [
+            {
+              "cpuMs": 15.019000000000004,
+              "stack": [
+                {
+                  "function": "Gn.decodeStyleList",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 8.611999999999995,
+              "stack": [
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 5.44,
+              "stack": [
+                {
+                  "function": "(garbage collector)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 2.8150000000000004,
+              "stack": [
+                {
+                  "function": "t.G9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 2.655,
+              "stack": [
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.914,
+              "stack": [
+                {
+                  "function": "Gn.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.decodeStyleList",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.5839999999999994,
+              "stack": [
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.426,
+              "stack": [
+                {
+                  "function": "IQ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "IQ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "decodeStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.422,
+              "stack": [
+                {
+                  "function": "(program)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.9710000000000001,
+              "stack": [
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.879,
+              "stack": [
+                {
+                  "function": "t.normalize",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t._8t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.R9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.6779999999999999,
+              "stack": [
+                {
+                  "function": "t.send",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "arrayEach",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "forEach",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "g.Ka",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.wn",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.664,
+              "stack": [
+                {
+                  "function": "getTypeByKey",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.U9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.606,
+              "stack": [
+                {
+                  "function": "t._8t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.R9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.606,
+              "stack": [
+                {
+                  "function": "t.send",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "g.Ka",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.wn",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "name": "XHRReadyStateChange",
+              "durationMs": 51.62,
+              "offsetMs": 0.185
+            },
+            {
+              "name": "FunctionCall",
+              "durationMs": 51.396,
+              "offsetMs": 0.188
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Mobile is a desktop Chrome viewport, not an iOS/Android device.",
+    "No production authentication, database, business records or writes are exercised.",
+    "Frame intervals describe this machine/sample; CPU paint trace time is not GPU execution time.",
+    "Each route transition creates its own map; panel transitions must retain that route map."
+  ],
+  "gpu": {
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Version 26.3.1 (a) (Build 25D771280a))",
+    "features": {
+      "2d_canvas": "enabled",
+      "direct_rendering_display_compositor": "disabled_off_ok",
+      "gpu_compositing": "enabled",
+      "multiple_raster_threads": "enabled_on",
+      "opengl": "enabled_on",
+      "rasterization": "enabled",
+      "skia_graphite": "enabled_on",
+      "trees_in_viz": "disabled_off",
+      "video_decode": "enabled",
+      "video_encode": "enabled",
+      "webgl": "enabled",
+      "webgpu": "enabled",
+      "webnn": "disabled_off"
+    }
+  },
+  "status": "passed"
+}

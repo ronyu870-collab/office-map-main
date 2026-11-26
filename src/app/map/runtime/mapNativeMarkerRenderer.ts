@@ -1,4 +1,6 @@
 'use client';
+import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
+import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { futureSupplyImage } from './mapSelectionMarker';
 import { mapBuildingLabel } from './mapMarkerLabel';
@@ -85,8 +87,8 @@ export type ControllerInternals = {
   setWorkspaceSelectionRenderer?: (renderer: ((building: any) => string) | null) => void;
   refreshWorkspaceSelection?: () => void;
   openBuildingInfoWindow?: (buildingId: string) => void;
-  bounceMarker?: (buildingId: string) => void;
-  stopBounceMarker?: (buildingId: string) => void;
+  bounceMarker?: (buildingId: string, type?: 'existing' | 'future') => void;
+  stopBounceMarker?: (buildingId: string, type?: 'existing' | 'future') => void;
   refreshBuildingData?: (buildingId: string) => Promise<void>;
   showHoverTooltip?: (building: any, x: number, y: number) => void;
   showFutureSupplyHoverTooltip?: (supply: any, x: number, y: number) => void;
@@ -139,10 +141,6 @@ function escapeHtml(input: unknown): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-function isFiniteCoordinate(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
 }
 
 function clamp(value: number, min = 0, max = 1): number {
@@ -250,7 +248,7 @@ function buildingVisual(
       text = '·';
     }
   } else if (mode === 'rent') {
-    const rent = Number(metric?.net_effective_rent);
+    const rent = mapOptionalNumber(metric?.net_effective_rent);
     const hasRent = Number.isFinite(rent) && rent >= 0;
     text = hasRent ? String(Math.round(rent)) : '–';
     background = scaleColor(rent, hasRent);
@@ -283,7 +281,7 @@ function buildingVisual(
       background = '#eef1f4';
       border = '#bdc6ce';
       textColor = '#6f7c89';
-      text = 'N';
+      text = leedFallbackBadge(leed);
     }
   }
 
@@ -597,17 +595,13 @@ export function installNativeMarkerRenderer(
       }
 
       item.count += 1;
-      if (
-        isFiniteCoordinate(building?.location_lng) &&
-        isFiniteCoordinate(building?.location_lat)
-      ) {
+      if (hasMapCoordinates(building)) {
         item.lngSum += building.location_lng;
         item.latSum += building.location_lat;
         item.coordCount += 1;
       }
 
-      const leed = String(building?.leed_certification ?? '').trim().toUpperCase();
-      if (leed && leed !== 'NULL' && leed !== '无' && leed !== '-') {
+      if (hasLeedCertification(building?.leed_certification)) {
         item.leedCount += 1;
       }
     }
@@ -681,8 +675,7 @@ export function installNativeMarkerRenderer(
     if (controller.isWorkspaceActive?.()) { controller.openBuildingInfoWindow?.(building?.id); return; }
     if (
       !building ||
-      !isFiniteCoordinate(building.location_lng) ||
-      !isFiniteCoordinate(building.location_lat)
+      !hasMapCoordinates(building)
     ) return;
 
     const center: [number, number] = [
@@ -723,10 +716,7 @@ export function installNativeMarkerRenderer(
     const data: Array<Record<string, unknown>> = [];
 
     for (const building of buildings) {
-      if (
-        !isFiniteCoordinate(building?.location_lng) ||
-        !isFiniteCoordinate(building?.location_lat)
-      ) continue;
+      if (!hasMapCoordinates(building)) continue;
 
       const visual = buildingVisual(
         building,
@@ -823,10 +813,7 @@ export function installNativeMarkerRenderer(
     const nameItems: LabelMarkerLike[] = [];
 
     for (const building of buildings) {
-      if (
-        !isFiniteCoordinate(building?.location_lng) ||
-        !isFiniteCoordinate(building?.location_lat)
-      ) continue;
+      if (!hasMapCoordinates(building)) continue;
 
       const metric = latestMetric(building, metricCache);
       const visual = buildingVisual(building, mode, metric, groups);
@@ -1013,7 +1000,8 @@ export function installNativeMarkerRenderer(
     applyLayerOpacity();
   }) as ControllerInternals['updateVisibilityByZoom'];
 
-  controller.bounceMarker = ((buildingId: string) => {
+  controller.bounceMarker = ((buildingId: string, type: 'existing' | 'future' = 'existing') => {
+    if (type === 'future') return originalBounce?.(buildingId, type);
     const label = labels.get(buildingId);
     if (!label) return originalBounce?.(buildingId);
     label.setOpacity?.(0.62);
@@ -1021,7 +1009,8 @@ export function installNativeMarkerRenderer(
     requestAnimationFrame(() => label.setOpacity?.(1));
   }) as ControllerInternals['bounceMarker'];
 
-  controller.stopBounceMarker = ((buildingId: string) => {
+  controller.stopBounceMarker = ((buildingId: string, type: 'existing' | 'future' = 'existing') => {
+    if (type === 'future') return originalStopBounce?.(buildingId, type);
     const label = labels.get(buildingId);
     if (!label) return originalStopBounce?.(buildingId);
     label.setOpacity?.(1);
@@ -1054,7 +1043,7 @@ export function installNativeMarkerRenderer(
     ) => {
       const supplies = Array.isArray(input) ? input : [];
       const signature =
-        `${mode}:` + supplies.map(supply => String(supply?.id ?? '')).join('|');
+        JSON.stringify([mode, supplies]);
       if (signature === futureSignature) return;
       futureSignature = signature;
       originalFutureRender(supplies, mode);

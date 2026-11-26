@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { useBodyScrollLock } from "@/src/hooks/useBodyScrollLock";
+
+import styles from "./Dialog.module.css";
 
 import { IconButton } from "./IconButton";
 
@@ -78,18 +80,17 @@ export function Dialog({
     };
   }, [open, presentation]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!mounted || !open || inactive) return;
 
     const previousFocus = returnFocusTo ?? document.activeElement as HTMLElement | null;
 
-    const frame = window.requestAnimationFrame(() => {
-      const firstFocusable = panelRef.current?.querySelector<HTMLElement>(focusableSelector);
-      (firstFocusable ?? panelRef.current)?.focus();
-    });
+    // The visible modal must own the keyboard before its first paint. Deferring
+    // to a frame leaves Escape on the underlying trigger during fast actions.
+    const firstFocusable = panelRef.current?.querySelector<HTMLElement>(focusableSelector);
+    (firstFocusable ?? panelRef.current)?.focus({ preventScroll: true });
 
     return () => {
-      window.cancelAnimationFrame(frame);
       if (drawer) previousFocus?.focus({ preventScroll: true });
       else previousFocus?.focus();
     };
@@ -99,7 +100,7 @@ export function Dialog({
 
   return createPortal(
     <div
-      className={`fixed inset-0 flex bg-[var(--cd-color-overlay)] ${drawer ? 'items-stretch justify-end' : `items-center justify-center ${presentation === 'fullscreen' ? 'p-0' : 'p-4'}`}`}
+      className={`${styles.backdrop} fixed inset-0 flex bg-[var(--cd-color-overlay)] ${drawer ? 'items-stretch justify-end' : `items-center justify-center ${presentation === 'fullscreen' ? 'p-0' : 'p-4'}`}`}
       style={{ zIndex: layer === 'map' ? 1100 : layer === 'child' ? 62 : drawer ? 50 : 'var(--cd-z-modal)', ...(presentation === 'fullscreen' && viewport ? { top: viewport.top, bottom: 'auto', height: viewport.height } : {}) }}
       inert={inactive || undefined}
       aria-hidden={inactive || undefined}
@@ -114,7 +115,8 @@ export function Dialog({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className={`flex w-full flex-col overflow-hidden shadow-[var(--cd-shadow-overlay)] outline-none ${drawer ? 'max-w-xl bg-[color-mix(in_srgb,var(--cd-color-surface)_65%,var(--cd-color-workspace))]' : `border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] ${presentation === 'fullscreen' ? 'h-full max-h-full rounded-none' : `max-h-[min(88dvh,760px)] rounded-[var(--cd-radius-lg)] ${sizeClass[size]}`}`}`}
+        data-presentation={presentation}
+        className={`${styles.panel} flex w-full flex-col overflow-hidden shadow-[var(--cd-shadow-overlay)] outline-none ${drawer ? 'max-w-xl bg-[color-mix(in_srgb,var(--cd-color-surface)_65%,var(--cd-color-workspace))]' : `border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] ${presentation === 'fullscreen' ? 'h-full max-h-full rounded-none' : `max-h-[min(88dvh,760px)] rounded-[var(--cd-radius-lg)] ${sizeClass[size]}`}`}`}
         onKeyDown={(event) => {
           if (event.defaultPrevented || inactive) return;
           if (event.key === "Escape" && dismissible) {
@@ -146,7 +148,7 @@ export function Dialog({
       >
         <div className={`flex shrink-0 items-start gap-4 border-b border-[var(--cd-color-border)] ${drawer ? 'pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))] pt-[max(20px,env(safe-area-inset-top))] pb-5 sm:px-7' : 'px-5 py-4'}`}>
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className={`font-semibold text-[var(--cd-color-text-primary)] ${drawer ? 'text-[22px] leading-tight [overflow-wrap:anywhere]' : 'text-[var(--cd-font-size-lg)]'}`}>
+            <h2 id={titleId} className={`font-semibold text-[var(--cd-color-text-primary)] ${drawer ? 'text-[var(--cd-font-size-lg)] leading-tight [overflow-wrap:anywhere]' : 'text-[var(--cd-font-size-lg)]'}`}>
               {title}
             </h2>
             {description ? (

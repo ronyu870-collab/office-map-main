@@ -136,6 +136,15 @@ export function DataDebugPanel() {
             rent_free_period, net_effective_rent, vacancy_rate, vacant_area, record_year, record_quarter, is_locked, is_draft, updated_at, created_at)`)
         .eq('is_active', true)
         .eq('tracking_scope', 'tracked')
+        .or('project_type.neq.future,project_type.is.null')
+        .eq('building_metrics.is_locked', true)
+        .or('is_draft.is.null,is_draft.eq.false', { referencedTable: 'building_metrics' })
+        .order('record_year', { referencedTable: 'building_metrics', ascending: false })
+        .order('record_quarter', { referencedTable: 'building_metrics', ascending: false })
+        .order('updated_at', { referencedTable: 'building_metrics', ascending: false, nullsFirst: false })
+        .order('created_at', { referencedTable: 'building_metrics', ascending: false, nullsFirst: false })
+        .order('id', { referencedTable: 'building_metrics', ascending: false })
+        .limit(1, { referencedTable: 'building_metrics' })
         .abortSignal(controller.signal);
       if (controller.signal.aborted) return;
       if (error) {

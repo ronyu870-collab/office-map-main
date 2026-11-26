@@ -1,0 +1,30 @@
+{
+  "status": "pass",
+  "environment": "production app, isolated SDK and authorized data fixtures",
+  "observations": [
+    {
+      "width": 1536,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6
+    },
+    {
+      "width": 390,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6
+    },
+    {
+      "width": 320,
+      "defaultIncludesUncertified": true,
+      "negativeOnly": 2,
+      "unavailableOnly": 3,
+      "currentExclusionRetained": 4,
+      "legacyFullCatalogUpgraded": 6
+    }
+  ]
+}

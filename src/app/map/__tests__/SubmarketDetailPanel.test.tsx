@@ -1,3 +1,5 @@
+import * as React from 'react';
+import { MapReadingContext } from '../workspace/continuity';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -103,6 +105,27 @@ afterEach(() => {
 });
 
 describe('submarket research workspace', () => {
+  it('keeps the overview all-grade trend after visiting a grade with no observations', async () => {
+    const point={period:'2026Q3',year:2026,quarter:3,rent:180,vacancyPct:10,rentSamples:1,vacancySamples:1,rentArea:100,vacancyArea:100};
+    api.read.mockResolvedValueOnce({...payload,trends:{all:[point],a:[point],b:[]}});
+    render(<SubmarketDetailPanel {...props} />);
+    await screen.findByTestId('trend-chart');
+    fireEvent.click(screen.getByRole('tab',{name:'行情趋势'}));
+    fireEvent.click(screen.getByRole('button',{name:'乙级'}));
+    expect(screen.queryByTestId('trend-chart')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab',{name:'市场概览'}));
+    expect(screen.getByTestId('trend-chart')).toBeInTheDocument();
+  });
+
+  it('falls back to building composition when a published profile has only introduction copy', async () => {
+    api.read.mockResolvedValueOnce({...payload,profile:{...profile,industries:'',transport:''}});
+    render(<SubmarketDetailPanel {...props} />);
+    await screen.findByText(profile.headline);
+    expect(screen.getByRole('region',{name:'楼宇结构'})).toHaveTextContent('甲级写字楼');
+    expect(screen.queryByRole('region',{name:'区域特点'})).not.toBeInTheDocument();
+    expect(screen.getByRole('tab',{name:'区域画像'})).toBeInTheDocument();
+  });
+
   it('opens a nonmodal workspace with top project action and preserves market metrics and editorial chapters', async () => {
     const { unmount } = render(<SubmarketDetailPanel {...props} />);
     const dialog = screen.getByRole('region', { name: 'CBD' });
@@ -208,15 +231,17 @@ describe('submarket research workspace', () => {
     expect(screen.getByDisplayValue('客户研究（研究草案）')).toBeInTheDocument();
   });
 
-  it('publishes only after an explicit admin confirmation', async () => {
-    const approve = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('saves and publishes clean submarket copy without a separate approval step', async () => {
+    const confirm = vi.spyOn(window, 'confirm');
     api.save.mockResolvedValue({ profile, profilePublished: true });
     render(<SubmarketDetailPanel {...props} />);
     await waitFor(() => expect(screen.getByRole('button', { name: '维护资料' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
-    fireEvent.click(screen.getByRole('button', { name: '核验并发布' }));
+    expect(screen.queryByRole('button', { name: '核验并发布' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '保存并展示' }));
     await waitFor(() => expect(api.save).toHaveBeenCalledWith('CBD', expect.objectContaining({ headline: profile.headline }), true));
-    expect(approve).toHaveBeenCalledOnce();
+    expect(confirm).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('tab', { name: '区域画像' })).toBeInTheDocument());
   });
 
   it('retains the unsaved-edit confirmation when Escape closes the full-screen dialog', async () => {
@@ -283,4 +308,56 @@ it('observes displayed research sections and suppresses hidden retained views',a
  fireEvent.click(screen.getByRole('tab',{name:'行情趋势'}));
  expect(api.audit).toHaveBeenLastCalledWith(undefined,'VIEW_SUBMARKET',expect.objectContaining({section:'trend'}));
  api.audit.mockClear();view.rerender(<SubmarketDetailPanel {...props} suspended/>);expect(api.audit).not.toHaveBeenCalled();
+});
+
+it('restores submarket section, grade and reading position independently after remount', async () => {
+  const store = { submarkets: { CBD: { section: 'trend', grade: 'a', scrollTop: 120 } } };
+  const first = render(<MapReadingContext.Provider value={store}><SubmarketDetailPanel {...props} /></MapReadingContext.Provider>);
+  await waitFor(() => expect(api.read).toHaveBeenCalledWith('CBD'));
+  expect(screen.getByRole('tab', { name: '行情趋势' })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('button', { name: /^甲级$/ })).toHaveAttribute('aria-pressed', 'true');
+  const scroll = screen.getByRole('tabpanel');
+  scroll.scrollTop = 215; fireEvent.scroll(scroll);
+  first.unmount();
+  render(<MapReadingContext.Provider value={store}><SubmarketDetailPanel {...props} /></MapReadingContext.Provider>);
+  expect(screen.getByRole('tabpanel').scrollTop).toBe(215);
+  expect(screen.getByRole('tab', { name: '行情趋势' })).toHaveAttribute('aria-selected', 'true');
+});
+
+it('protects a changed research form on browser unload, then clears the guard on revert and unmount', async () => {
+  vi.stubGlobal('navigation', new EventTarget());
+  const view = render(<SubmarketDetailPanel {...props} />);
+  const unload = () => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; };
+  try {
+    fireEvent.click(await screen.findByRole('button', { name: '维护资料' }));
+    const input = screen.getByLabelText('一句话定位');
+    expect(unload()).toBe(false);
+    fireEvent.change(input, { target: { value: '未保存的刷新保护回归' } });
+    expect(unload()).toBe(true);
+    expect(input).toHaveValue('未保存的刷新保护回归');
+    fireEvent.change(input, { target: { value: profile.headline } });
+    expect(unload()).toBe(false);
+    fireEvent.change(input, { target: { value: '另一份未保存的编辑' } });
+    view.unmount();
+    expect(unload()).toBe(false);
+    expect(api.save).not.toHaveBeenCalled();
+  } finally { view.unmount(); vi.unstubAllGlobals(); }
+});
+
+it('cancels real research-form route and history events without saving or losing its draft', async () => {
+  const navigation = new EventTarget(); vi.stubGlobal('navigation', navigation);
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const view = render(<><a href="/home" onClick={event => event.preventDefault()}>返回首页回归</a><SubmarketDetailPanel {...props} /></>);
+  try {
+    fireEvent.click(await screen.findByRole('button', { name: '维护资料' }));
+    fireEvent.change(screen.getByLabelText('一句话定位'), { target: { value: '导航取消后仍需保留的草稿' } });
+    fireEvent.click(screen.getByRole('link', { name: '返回首页回归' }));
+    expect(confirm).toHaveBeenCalledOnce();
+    const event = new Event('navigate', { cancelable: true }); Object.assign(event, { navigationType: 'traverse' });
+    navigation.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(screen.getByLabelText('一句话定位')).toHaveValue('导航取消后仍需保留的草稿');
+    expect(api.save).not.toHaveBeenCalled();
+  } finally { view.unmount(); vi.unstubAllGlobals(); }
 });

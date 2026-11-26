@@ -137,10 +137,13 @@ describe('bounded routing, fallback and model cost governance', () => {
     vi.stubEnv('AI_AGENT_MAX_TOKENS', '1000'); await expect(runtime({ deepseek }).invoke(messages, signal())).rejects.toMatchObject({ code: 'budget_exceeded' }); expect(deepseek).not.toHaveBeenCalled();
     vi.stubEnv('AI_AGENT_MAX_TOKENS', '60000'); vi.stubEnv('AI_AGENT_MAX_ESTIMATED_USD', '.000001');
     await expect(runtime({ deepseek }).invoke(messages, signal())).rejects.toMatchObject({ code: 'budget_exceeded' }); expect(deepseek).not.toHaveBeenCalled();
-    vi.stubEnv('AI_AGENT_MAX_ESTIMATED_USD', '.25'); vi.stubEnv('AI_AGENT_MAX_TOKENS', '25000');
+    const reservation = Buffer.byteLength(JSON.stringify(messages))
+      + Buffer.byteLength(JSON.stringify(modelToolCatalogue('你好', 'quick', messages))) + 1024 + 1800;
+    vi.stubEnv('AI_AGENT_MAX_ESTIMATED_USD', '.25'); vi.stubEnv('AI_AGENT_MAX_TOKENS', String(Math.floor(reservation * 1.5)));
     deepseek.mockResolvedValue({ ...success('deepseek'), inputTokens: null, outputTokens: null });
     const run = runtime({ deepseek }); await run.invoke(messages, signal());
-    await expect(run.invoke(messages, signal())).rejects.toMatchObject({ code: 'budget_exceeded' }); expect(run.records[0].chargedTokens).toBeGreaterThan(10000);
+    await expect(run.invoke(messages, signal())).rejects.toMatchObject({ code: 'budget_exceeded' });
+    expect(run.records[0].chargedTokens).toBe(reservation); expect(deepseek).toHaveBeenCalledOnce();
   });
   it.each(['', ' ', 'NaN', '-1', 'Infinity'])('rejects invalid configured prices %j before sending or falling back', async price => {
     setup(); vi.stubEnv('AI_PROVIDER_QUICK', 'openai'); vi.stubEnv('OPENAI_AGENT_INPUT_USD_PER_MILLION', price);
@@ -156,7 +159,9 @@ describe('bounded routing, fallback and model cost governance', () => {
       calls: [{ id: 'tool1', name: 'get_data_capabilities', arguments: JSON.stringify({ question: '当前数据权限' }) }] } }).mockResolvedValue(success('openai'));
     const run = runtime({ openai }); const runTool = vi.fn().mockResolvedValue({ content: '{"status":"ready"}' });
     const result = await runAgentLoop({ question: '你好', invoke: run.invoke, limits: run.limits, signal: signal(), runTool });
-    expect(result.toolCalls).toBe(1); expect(runTool.mock.calls[0][0]).toBe('get_data_capabilities');
+    expect(result.toolCalls).toBe(0); expect(runTool).not.toHaveBeenCalled();
+    expect(result.answer.length).toBeLessThanOrEqual(40);
+    expect(modelToolCatalogue('你好', 'quick', messages)).toEqual([]);
     vi.stubEnv('AI_OPENAI_ACTOR_IDS', 'someone-else'); const deepseek = vi.fn().mockResolvedValue(success('deepseek'));
     expect((await runtime({ deepseek, openai }).invoke(messages, signal())).provider).toBe('deepseek');
     const names = modelToolCatalogue('CBD研究Word报告', 'deep', messages).map(t => t.name);
@@ -167,6 +172,10 @@ describe('bounded routing, fallback and model cost governance', () => {
     expect(names('最近一年 TMT 行业主要租在哪些楼？')).toContain('query_lease_transactions');
     expect(names('国贸的空调系统和绿色认证是什么？')).toContain('query_building_dossier');
     expect(names('按租金从高到低排列。', true)).toContain('modify_chart');
+    expect(names('把 CBD 和金融街放到同一张图。')).toContain('compare_market_segments');
+    expect(modelToolCatalogue('把刚才结果导出 Excel', 'professional', messages, false, ['lease']).map(t => t.name)).toContain('query_lease_transactions');
+    expect(modelToolCatalogue('再看层数', 'professional', messages, false, ['business']).map(t => t.name)).toContain('query_building_dossier');
+    expect(modelToolCatalogue('比较刚才两份', 'professional', messages, false, ['knowledge']).map(t => t.name)).toContain('search_internal_documents');
     expect(names('按租金从高到低排列。')).not.toContain('modify_chart');
   });
   it('packages an existing chart as PDF within the unchanged budget, while keeping explicit chart edits available', async () => {
@@ -183,6 +192,27 @@ describe('bounded routing, fallback and model cost governance', () => {
     expect(tools.map(t => t.name)).not.toContain('modify_chart');
     expect(modelToolCatalogue('把刚才的柱状图导出 PDF。', 'deep', history, true).map(t => t.name)).not.toContain('modify_chart');
     expect(modelToolCatalogue('调整散点图坐标并生成 PDF。', 'deep', history, true).map(t => t.name)).toContain('modify_chart');
+  });
+  it('admits the final Excel round after four production-sized completions without increasing the token budget', async () => {
+    setup();
+    const question = '把 CBD 在 2026Q2 净有效租金最高的 10 栋楼导出 Excel。';
+    const history: AgentMessage[] = [{ role: 'system', content: agentInstructions() },
+      { role: 'system', content: '正式结果引用与工作集：' + 'x'.repeat(4000) }, { role: 'user', content: question }];
+    const deepseek = vi.fn().mockResolvedValue({ ...success('deepseek'), inputTokens: 8227, outputTokens: 105 });
+    const run = createModelRuntime({ actorId, question, adapters: { deepseek },
+      revalidate: vi.fn().mockResolvedValue(undefined), onAttempt: vi.fn().mockResolvedValue(undefined) });
+    for (let i = 0; i < 5; i++) await run.invoke(history, signal());
+    expect(deepseek).toHaveBeenCalledTimes(5); expect(run.summary().maxTokens).toBe(60000);
+    const catalogue = modelToolCatalogue(question, 'professional', history);
+    expect(Buffer.byteLength(JSON.stringify(catalogue))).toBeLessThan(12000);
+    expect(catalogue.map(t => t.name)).toEqual(expect.arrayContaining(['rank_buildings', 'export_table', 'get_data_capabilities']));
+    expect(catalogue.map(t => t.name)).not.toContain('analyze_distribution');
+    const chartExport = modelToolCatalogue('生成租金排名 PNG 柱状图', 'professional', history).find(t => t.name === 'export_chart')!;
+    expect(chartExport.parameters.properties).not.toHaveProperty('chart');
+    expect(modelToolCatalogue('把刚才的结果生成 PDF', 'deep', history, true).find(t => t.name === 'generate_pdf_report')!.parameters.properties).not.toHaveProperty('charts');
+    const followup = [...history, { role: 'assistant' as const, content: null,
+      calls: [{ id: 'prior', name: 'query_lease_transactions', arguments: '{}' }] }];
+    expect(modelToolCatalogue('按季度再比较', 'professional', followup).map(t => t.name)).toContain('query_lease_transactions');
   });
   it('compresses many turns without model costs or private facts, and separates unknown usage from actual invoice totals', () => {
     let memory; for (let i = 0; i < 24; i++) memory = nextAgentMemory(memory, '比较租金与空置率，生成Word；合成保密租户=987654，API_KEY=synthetic');

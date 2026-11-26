@@ -9,13 +9,13 @@ ModuleRegistry.registerModules([AllCommunityModule])
 
 // 自定义主题
 const adminTheme = themeQuartz.withParams({
-  backgroundColor: '#ffffff',
-  foregroundColor: '#374151',
-  headerBackgroundColor: '#f9fafb',
-  headerTextColor: '#6b7280',
-  borderColor: '#e5e7eb',
-  rowHoverColor: '#f9fafb',
-  selectedRowBackgroundColor: '#eff6ff',
+  backgroundColor: 'var(--cd-color-surface)',
+  foregroundColor: 'var(--cd-color-text-primary)',
+  headerBackgroundColor: 'var(--cd-color-surface-alt)',
+  headerTextColor: 'var(--cd-color-text-secondary)',
+  borderColor: 'var(--cd-color-border)',
+  rowHoverColor: 'var(--cd-color-surface-alt)',
+  selectedRowBackgroundColor: 'var(--cd-color-brand-soft)',
   fontSize: 13,
   rowHeight: 40,
   headerHeight: 44,
@@ -62,7 +62,7 @@ function ProgressRenderer(params: any) {
     <div className="flex items-center gap-2 h-full w-full pr-4">
       <div className="flex-1 h-2 bg-zinc-100 rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full transition-all"
+          className="h-full rounded-full transition-[width] duration-[var(--cd-motion-normal)] motion-reduce:transition-none"
           style={{ width: `${Math.min(100, num)}%`, backgroundColor: bgColor }}
         />
       </div>

@@ -1,0 +1,39 @@
+{
+  "capturedAt": "2026-11-23T23:40:45.722778+00:00",
+  "productCommit": "d9dcc5aa",
+  "buildId": "lfTYLgmMdkW3Nm9Oe0uow",
+  "implementation": "Verification only: native browser back/forward twice after a live CBD filter -> project -> image -> original material -> Stacking -> return; no product fix claimed.",
+  "execution": {
+    "exit": 0,
+    "conditions": [
+      "1536 normal",
+      "390x560 normal",
+      "390x560 reduced motion"
+    ],
+    "nativeHistoryRoundTripsPerCondition": 2,
+    "assertions": [
+      "Back reaches the actual Stacking route",
+      "Forward retains exact project, materials tab, scroll and camera",
+      "Map initializes at the saved camera, no default-city reset",
+      "Closing detail and listing projects retains CBD; outside-region sentinel absent"
+    ],
+    "phoneScroll": 369,
+    "lintExit": 0,
+    "lintErrors": 0,
+    "lintWarnings": 1,
+    "record": "regional-history-browser.json"
+  },
+  "limits": [
+    "Production build with isolated business, administrator identity and SDK transport; no production/native-phone claim.",
+    "Motion timings in the shared runner were not CPU-isolated; no new performance conclusion.",
+    "Existing modal Escape/fullscreen/panel back behavior reused from passed same-path coverage.",
+    "Exact-head CI/main pending."
+  ],
+  "scriptSha256": "680476d0dfb2dcb6c202a4a93b98e63f8bc7a14d7a1ef76d2a73433bf616a418",
+  "latestCombinedValidation": {
+    "exit": 0,
+    "record": "content-height-combined-browser.json",
+    "records": 60,
+    "scope": "Final visible-card styling and retained logical focus column; production build with isolated SDK/data/identity."
+  }
+}

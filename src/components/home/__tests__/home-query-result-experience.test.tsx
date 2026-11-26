@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildAggregateResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
+import { buildAggregateResult, buildTrendResult, buildListResult } from '@/src/lib/intelligence/query/result';
 import { buildResultChart } from '@/src/lib/intelligence/query/charts';
 import { resultViewSchema, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import * as presentation from '@/src/lib/intelligence/query/presentation';
@@ -34,11 +34,19 @@ describe('progressive research result in one retained workspace', () => {
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus();
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveTextContent('net_effective_rent');
   });
+  it('keeps material unknown values visible while source details start folded', () => {
+    const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
+    render(<HomeQueryResult result={result} presentation="compact" />);
+    expect(screen.getByLabelText('重要数据限制')).toHaveTextContent('有效样本');
+    expect(screen.queryByRole('region', { name: '来源详情' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '数据依据' })).toBeEnabled();
+  });
   it('opens nearby source metadata, returns focus, and keeps full sample exclusions visible', () => {
     const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
     render(<HomeQueryResult result={result} />);
     const summary = screen.getByRole('region', { name: '数据依据摘要' });
-    const source = within(summary).getByRole('button', { name: /季度数据/ });
+    expect(summary).toHaveTextContent('季度数据');
+    const source = screen.getByRole('button', { name: '数据依据' });
     fireEvent.click(source);
     const panel = screen.getByRole('region', { name: '来源详情' });
     expect(panel).toHaveFocus();
@@ -46,27 +54,52 @@ describe('progressive research result in one retained workspace', () => {
     expect(panel).toHaveTextContent('记录版本');
     fireEvent.click(screen.getByRole('button', { name: '关闭来源' }));
     expect(source).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' }));
+    fireEvent.click(screen.getByText('统计口径与限制'));
     const limitations = screen.getByRole('region', { name: '统计口径与限制' });
     expect(limitations).toHaveTextContent('缺失');
     expect(limitations).toHaveTextContent('未核验');
-    expect(limitations.closest('details')).toBeNull();
+    expect(limitations.closest('details')).toBeInTheDocument();
   });
   it('keeps results, evidence and the footer actions available when chart generation fails', async () => {
     client.chart.mockRejectedValueOnce(new Error('synthetic chart unavailable'));
     const result = longResult();
     render(<HomeQueryResult result={result} requestId={requestId} scope={scope} internalExport />);
     await screen.findByText('synthetic chart unavailable');
-    expect(screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' })).toBeVisible();
+    fireEvent.click(screen.getByText(/查看数据明细/));
+    await waitFor(() => expect(screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' })).toBeVisible());
     const sources = screen.getByRole('region', { name: '数据来源' });
+    fireEvent.click(screen.getByRole('button', { name: '数据依据' }));
+    fireEvent.click(screen.getByText('统计口径与限制'));
     const limitations = screen.getByRole('region', { name: '统计口径与限制' });
     const copy = screen.getByRole('button', { name: '复制结论' });
     expect(copy).toBeEnabled();
     expect(sources.compareDocumentPosition(limitations) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(limitations.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    fireEvent.click(within(sources).getByRole('button', { name: /获权来源/ }));
+    expect(copy).toBeEnabled();
+    fireEvent.click(within(sources).getByRole('button', { name: '数据依据' }));
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus();
     expect(client.chart).toHaveBeenCalledOnce();
     expect(client.download).not.toHaveBeenCalled();
+  });
+  it('keeps PNG and SVG export for an optional list chart after table downloads move into the table', async () => {
+    const result = resultViewSchema.parse(buildListResult(fixture(), ['height', 'netEffectiveRent']));
+    vi.stubGlobal('URL', class extends URL { static createObjectURL = vi.fn(() => 'blob:list-chart'); static revokeObjectURL = vi.fn(); });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    try {
+      client.download.mockResolvedValue({ blob: new Blob(['chart transport']), filename: 'chart.zip' });
+      render(<HomeQueryResult result={result} requestId={requestId} scope={scope} internalExport />);
+      expect(screen.queryByText('下载本次结果')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText('图表设置'));
+      fireEvent.click(screen.getByRole('button', { name: '查看柱状图' }));
+      await screen.findByRole('figure', { name: '同源查询图表' });
+      fireEvent.click(screen.getByText('下载图表'));
+      expect(screen.getByRole('button', { name: 'SVG 图与来源' })).toBeEnabled();
+      fireEvent.click(screen.getByRole('button', { name: 'PNG 图与来源' }));
+      await waitFor(() => expect(click).toHaveBeenCalledOnce());
+      expect(client.download).toHaveBeenCalledWith(scope, { requestId, resultId: result.resultId, action: 'export', format: 'png_zip',
+        chart: { kind: 'bar', field: 'height' } }, expect.any(AbortSignal));
+      expect(client.chart).toHaveBeenCalledOnce();
+    } finally { click.mockRestore(); vi.unstubAllGlobals(); }
   });
   it('shows download progress and failure beside the footer controls without losing the current chart', async () => {
     let rejectDownload!: (reason: Error) => void;
@@ -87,36 +120,32 @@ describe('progressive research result in one retained workspace', () => {
     expect(client.download).toHaveBeenCalledWith(scope, { requestId, resultId: result.resultId, action: 'export', format: 'xlsx' }, expect.any(AbortSignal));
     expect(client.chart).toHaveBeenCalledOnce();
   });
-  it('defers a long result, then retains the chart, page, source selection and receipt across mode switches', async () => {
-    const result = longResult(), delivery = { status: 'ready', requestId, result }, onExpand = vi.fn();
-    const props = { result, delivery, requestId, scope, onExpand, internalExport: true };
+  it('shows the main trend immediately and preserves optional table, chart and evidence state across mode switches', async () => {
+    const result = longResult(), delivery = { status: 'ready', requestId, result };
+    const props = { result, delivery, requestId, scope, internalExport: true };
     const view = render(<HomeQueryResult {...props} presentation="compact" />);
-    expect(screen.getByRole('region', { name: '查询结果' })).toHaveTextContent('各季度参与楼宇可能不同');
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(client.chart).not.toHaveBeenCalled(); await ticks(); expect(client.reportDelivery).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: '在全屏中查看完整分析' })); expect(onExpand).toHaveBeenCalledOnce();
-    view.rerender(<HomeQueryResult {...props} presentation="expanded" />);
     const figure = await screen.findByRole('figure', { name: '同源查询图表' });
-    const copy = screen.getByRole('button', { name: '复制结论' });
-    const table = screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' });
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    const disclosure = screen.getByText(/查看数据明细/);
+    fireEvent.click(disclosure);
+    const table = await screen.findByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' });
     fireEvent.click(screen.getByRole('button', { name: '下一页' }));
     expect(table.querySelectorAll('tbody tr')).toHaveLength(3);
     const sourceButton = within(table).getAllByRole('button', { name: /查看来源/ })[1];
     fireEvent.click(sourceButton);
     const source = screen.getByRole('region', { name: '来源详情' });
     await waitFor(() => expect(client.reportDelivery.mock.calls.some(call => call[3]?.sourceIds?.length)).toBe(true));
-    const receipts = client.reportDelivery.mock.calls.length;
-    view.rerender(<HomeQueryResult {...props} presentation="compact" />);
-    expect(figure).not.toBeVisible(); expect(table).not.toBeVisible();
-    expect(copy).not.toBeVisible();
-    expect(source).toBeVisible();
-    view.rerender(<HomeQueryResult {...props} presentation="expanded" />); await ticks();
+    view.rerender(<HomeQueryResult {...props} presentation="expanded" />);
     expect(screen.getByRole('figure', { name: '同源查询图表' })).toBe(figure);
-    expect(screen.getByRole('button', { name: '复制结论' })).toBe(copy);
-    expect(table.querySelectorAll('tbody tr')).toHaveLength(3);
+    expect(screen.getByRole('table')).toBe(table);
     expect(screen.getByRole('region', { name: '来源详情' })).toBe(source);
-    expect(client.chart).toHaveBeenCalledOnce(); expect(client.reportDelivery).toHaveBeenCalledTimes(receipts);
     fireEvent.click(screen.getByRole('button', { name: '关闭来源' })); expect(sourceButton).toHaveFocus();
+    fireEvent.click(disclosure);
+    await waitFor(() => expect(table).not.toBeVisible());
+    fireEvent.click(disclosure);
+    await waitFor(() => expect(table).toBeVisible());
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(3);
+    expect(client.chart).toHaveBeenCalledOnce();
   });
   it('keeps an in-flight chart alive while contracted and reports it only after a real reveal', async () => {
     let finish!: (value: unknown) => void;
@@ -125,7 +154,7 @@ describe('progressive research result in one retained workspace', () => {
     const props = { result, delivery, requestId, scope };
     const view = render(<HomeQueryResult {...props} presentation="expanded" />);
     await waitFor(() => expect(client.chart).toHaveBeenCalledOnce());
-    view.rerender(<HomeQueryResult {...props} presentation="compact" />);
+    view.rerender(<HomeQueryResult {...props} presentation="compact" visible={false} />);
     expect(client.chart.mock.calls[0][4].aborted).toBe(false);
     await act(async () => finish(buildResultChart(result, { kind: 'time_series' })));
     await ticks(); expect(client.reportDelivery.mock.calls.some(call => call[3]?.surface === 'chart')).toBe(false);
@@ -136,7 +165,7 @@ describe('progressive research result in one retained workspace', () => {
   });
   it('offers all source details from a compact preview without generating or querying results again', () => {
     const result = longResult(); render(<HomeQueryResult result={result} presentation="compact" />);
-    fireEvent.click(within(screen.getByRole('region', { name: '数据来源' })).getByRole('button', { name: /获权来源/ }));
+    fireEvent.click(within(screen.getByRole('region', { name: '数据来源' })).getByRole('button', { name: '数据依据' }));
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveTextContent('全部获权候选来源');
     expect(client.chart).not.toHaveBeenCalled(); expect(client.download).not.toHaveBeenCalled();
   });
@@ -144,17 +173,19 @@ describe('progressive research result in one retained workspace', () => {
     const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
     const onClose = vi.fn(); render(<HomeQueryResearchPanel result={result} onClose={onClose} />);
     expect(screen.getByRole('complementary', { name: '研究资料与口径' })).toHaveTextContent('季度指标');
-    expect(screen.getByRole('region', { name: '当前分析范围' })).toHaveTextContent('2026 年第 3 季度');
+    expect(screen.getByRole('region', { name: '当前分析范围' })).toHaveTextContent('2026 Q3');
     expect(screen.getByRole('region', { name: '结果时间' })).toHaveTextContent('不代表最新市场数据');
     expect(screen.getByRole('region', { name: '统计口径' })).toHaveTextContent('按有效总面积加权');
     expect(screen.queryByText(result.resultId)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '关闭研究资料' })); expect(onClose).toHaveBeenCalledOnce();
     expect(client.chart).not.toHaveBeenCalled(); expect(client.reportDelivery).not.toHaveBeenCalled();
   });
-  it('does not recompute a retained large result for each draft edit in its parent', () => {
+  it('does not recompute a retained large result for each draft edit in its parent', async () => {
     const summary = vi.spyOn(presentation, 'resultSummary');
     try {
       render(<ResultWithDraft result={longResult()} />);
+      fireEvent.click(screen.getByText(/查看数据明细/));
+      await screen.findByRole('table');
       const table = screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' });
       fireEvent.click(screen.getByRole('button', { name: '下一页' }));
       expect(table.querySelectorAll('tbody tr')).toHaveLength(3);

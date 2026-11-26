@@ -1,0 +1,66 @@
+{
+  "status": "pass",
+  "environment": "production app, isolated SDK and authorized data fixtures",
+  "observations": [
+    {
+      "width": 1536,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 33709,
+        "restored": 33709
+      },
+      "fullFutureAreaNamed": true
+    },
+    {
+      "width": 390,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 34771,
+        "restored": 34771
+      },
+      "fullFutureAreaNamed": true
+    },
+    {
+      "width": 320,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 34786,
+        "restored": 34786
+      },
+      "fullFutureAreaNamed": true
+    },
+    {
+      "width": 844,
+      "planningCardOwnValues": true,
+      "stockRentOneDecimal": true,
+      "leedExplicitState": true,
+      "keyboardComparisonScope": true,
+      "removedOnlyOutsideSelection": true,
+      "selectionSurvivesListQuery": true,
+      "sameIdCurrentTypeUnique": true,
+      "retainedListScroll": {
+        "saved": 32373,
+        "restored": 32373
+      },
+      "fullFutureAreaNamed": true
+    }
+  ]
+}

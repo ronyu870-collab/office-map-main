@@ -56,7 +56,7 @@ beforeEach(() => {
   mocks.from.mockReset();
 });
 
-it('keeps the legacy fallback F marker a round green badge with dashed border', () => {
+it('uses distinct future and pending SVG badges in the legacy fallback and clears both', () => {
   const controller = new MapController();
   const points = new Set<unknown>();
   const map = {
@@ -69,24 +69,17 @@ it('keeps the legacy fallback F marker a round green badge with dashed border', 
     on() {}
   }
   Object.assign(controller, { map, AMap: { Marker, Pixel: class {} } });
-  controller.renderFutureMarkers([future]);
-  expect(points.size).toBe(1);
-  const marker = Array.from(points)[0] as Marker;
-  const host = document.createElement('div');
-  host.innerHTML = marker.content;
-  const badge = host.querySelector<HTMLElement>('.map-future-supply-marker');
-  expect(badge).not.toBeNull();
-  expect(badge?.textContent?.trim()).toBe('F');
-  expect(badge?.style.width).toBe('26px');
-  expect(badge?.style.height).toBe('26px');
-  expect(badge?.style.borderRadius).toBe('50%');
-  expect(badge?.style.borderTopStyle).toBe('dashed');
-  expect(badge?.style.backgroundColor).toBe('rgb(79, 121, 104)');
-  fireEvent.mouseOver(badge!);
-  fireEvent.mouseOut(badge!);
-  expect(badge?.style.borderRadius).toBe('50%');
-  controller.clearFutureMarkers();
-  expect(points.size).toBe(0);
+  controller.renderFutureMarkers([future, { ...future, id: 'pending', status: 'pending' }]);
+  expect(points.size).toBe(2);
+  const badges = Array.from(points).map(marker => {
+    const host = document.createElement('div'); host.innerHTML = (marker as Marker).content;
+    return host.querySelector<HTMLElement>('.map-future-supply-marker')!;
+  });
+  expect(badges.map(badge => badge.getAttribute('aria-label'))).toEqual(['商业未来供应', '待核实项目']);
+  const images = badges.map(badge => decodeURIComponent(badge.querySelector('img')!.src.split(',')[1]));
+  expect(images[0]).toContain('>F</text>'); expect(images[1]).toContain('>?</text>');
+  expect(images[0]).not.toBe(images[1]);
+  controller.clearFutureMarkers(); expect(points.size).toBe(0);
 });
 
 it('shows a pending project area and omits an empty remarks row', () => {
@@ -315,4 +308,13 @@ describe('地图项目预览仅按需加载', () => {
     await waitFor(() => expect(images[1]).toHaveAttribute('src', interiorUrl));
     expect(mocks.loadPhoto.mock.calls.map(args => args[1])).toEqual([0, 1, 1]);
   });
+});
+
+it('keeps pending identity in its hover reading even when unverified launch fields exist', () => {
+  const controller=new MapController();
+  controller.showFutureSupplyHoverTooltip({...future,status:'pending',launch_year:2030,launch_quarter:'Q1'},100,100);
+  expect(document.body).toHaveTextContent('待核实项目');
+  expect(document.body).not.toHaveTextContent('预计入市');
+  expect(document.body).not.toHaveTextContent('2030');
+  controller.destroy();
 });

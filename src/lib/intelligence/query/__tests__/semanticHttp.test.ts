@@ -53,7 +53,9 @@ function harness() {
     config.afterAppend?.(kind);
     return receipt(event);
   }
-  const rpc = vi.fn((name: string, args: RpcArgs) => ({ abortSignal: async (signal: AbortSignal) => {
+  const rpc = vi.fn((rawName: string, args: RpcArgs) => ({ abortSignal: async (signal: AbortSignal) => {
+    const name=rawName.replace(/_operational$/, '');
+    if(name==='ai_control_runtime')return {data:null,error:{code:'PGRST202',message:'Could not find ai_control_runtime'}};
     signal.throwIfAborted();
     if (name === config.failRpc || (name === 'ai_query_audit_append' && args.p_kind === config.failKind)) return failure();
     if (name === 'ai_query_record_intake' || name === 'ai_query_record_ingress') return result({});
@@ -131,7 +133,7 @@ function harness() {
     const decodedBytes = response.headers.get('content-encoding') === 'gzip' ? gunzipSync(wire) : wire;
     return { status: response.status, headers: response.headers, body: JSON.parse(new TextDecoder().decode(decodedBytes)), wire, decodedBytes };
   };
-  const calls = (name: string) => rpc.mock.calls.filter(([rpcName]) => rpcName === name);
+  const calls = (name: string) => rpc.mock.calls.filter(([rpcName]) => rpcName.replace(/_operational$/, '') === name);
   const decoded = (requestId: string, kind: string) => {
     const stream = streams.get(requestId)!;
     return stream.events.filter(event => event.kind === kind).map(event => JSON.parse(decryptAuditContent(event.cipher,
@@ -312,7 +314,7 @@ describe('P1 actual semantic HTTP and encrypted-context integration', () => {
     const response = await h.submit(input('2026Q3CBD净有效租金水平怎么样'));
     expect(response.status).toBe(422);
     expect(response.body).toMatchObject({ status: 'clarification', reason: 'unrecognized' });
-    expect(response.body.message).toContain('DeepSeek 语义解析暂不可用');
+    expect(response.body.message).toContain('模型语义解析暂不可用');
     expect(queryReplySchema.parse(response.body).status).toBe('clarification');
     expect(understandWithModel).toHaveBeenCalledOnce();
     expect(h.calls('ai_query_snapshot_read')).toHaveLength(0);

@@ -1,0 +1,68 @@
+{
+  "environment": "production React + real controller + isolated SDK/data transport",
+  "observations": [
+    {
+      "width": 1536,
+      "reduced": false,
+      "roundTrip": true,
+      "keyboardTaskChain": true,
+      "regionPreservedAfterChain": true,
+      "regionHistoryRoundTrips": 2,
+      "regionHistoryReadingScroll": 0,
+      "readingScroll": 0,
+      "sameProjectRefocus": true,
+      "refreshRetainsContent": true,
+      "dirtyCancel": true,
+      "resizeCalls": 0,
+      "dense600ReadyMs": 904,
+      "dense600FilterMs": 40,
+      "motion": {
+        "frameP95Ms": 16.700000000000728,
+        "longTasks": []
+      },
+      "errors": []
+    },
+    {
+      "width": 390,
+      "reduced": false,
+      "roundTrip": true,
+      "keyboardTaskChain": true,
+      "regionPreservedAfterChain": true,
+      "regionHistoryRoundTrips": 2,
+      "regionHistoryReadingScroll": 369,
+      "readingScroll": 369,
+      "sameProjectRefocus": true,
+      "refreshRetainsContent": true,
+      "dirtyCancel": true,
+      "resizeCalls": 0,
+      "dense600ReadyMs": 151,
+      "dense600FilterMs": 40,
+      "motion": {
+        "frameP95Ms": 16.700000000000728,
+        "longTasks": []
+      },
+      "errors": []
+    },
+    {
+      "width": 390,
+      "reduced": true,
+      "roundTrip": true,
+      "keyboardTaskChain": true,
+      "regionPreservedAfterChain": true,
+      "regionHistoryRoundTrips": 2,
+      "regionHistoryReadingScroll": 369,
+      "readingScroll": 369,
+      "sameProjectRefocus": true,
+      "refreshRetainsContent": true,
+      "dirtyCancel": true,
+      "resizeCalls": 0,
+      "dense600ReadyMs": 159,
+      "dense600FilterMs": 36,
+      "motion": {
+        "frameP95Ms": 16.700000000000728,
+        "longTasks": []
+      },
+      "errors": []
+    }
+  ]
+}

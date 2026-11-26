@@ -28,9 +28,12 @@ it('shows the requested chart and PNG/SVG download beside a collapsed result, re
   const result = formal();
   render(<HomeQueryResult result={result} presentation="compact" requestId={requestId} scope={scope} internalExport />);
   await waitFor(() => expect(document.querySelectorAll('rect[data-entity]')).toHaveLength(30));
+  fireEvent.click(screen.getByText('下载图表'));
   expect(screen.getByRole('button', { name: '下载 PNG 与来源' })).toBeEnabled();
   expect(screen.getByRole('button', { name: '下载 SVG 与来源' })).toBeEnabled();
-  expect(screen.queryByText('本次结果的完整表格，分页不改变统计范围')).not.toBeInTheDocument();
+  expect(screen.queryByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('查看数据明细（40 行）'));
+  expect((await screen.findByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' })).querySelectorAll('tbody tr')).toHaveLength(25);
   expect(client.download).not.toHaveBeenCalled();
   const file = { blob: new Blob(['verified transport bytes'], { type: 'application/zip' }), filename: 'chart_png_zip.zip' };
   client.download.mockResolvedValue(file);
@@ -38,7 +41,7 @@ it('shows the requested chart and PNG/SVG download beside a collapsed result, re
   await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce());
   expect(client.download).toHaveBeenCalledWith(scope, expect.objectContaining({ requestId, resultId: result.resultId, action: 'export', format: 'png_zip', chart: result.parameters.agentChart && (result.parameters.agentChart as { request: unknown }).request }), expect.any(AbortSignal));
   expect(client.reportDelivery).toHaveBeenCalledWith(scope, file, 'browser_download_dispatched');
-  expect(screen.getByText(/浏览器已发起/)).toHaveTextContent('尚未确认文件已实际保存');
+  expect(screen.getByText(/已发起图片与来源包下载/)).not.toHaveTextContent('已保存');
 });
 it('keeps inputs stable and applies field, orientation, sort and legitimate range without altering the source table', async () => {
   const result = formal(), original = structuredClone(result.table), onSource = vi.fn();
@@ -47,6 +50,7 @@ it('keeps inputs stable and applies field, orientation, sort and legitimate rang
   const details = screen.getByText('调整图表').closest('details')!; details.open = true;
   fireEvent.change(screen.getByLabelText('图表类型'), { target: { value: 'bar' } });
   fireEvent.change(screen.getByLabelText('排序'), { target: { value: 'netEffectiveRent:desc' } });
+  fireEvent.click(screen.getByText('高级坐标设置'));
   const input = screen.getByLabelText('数值轴最大值'); input.focus();
   for (const value of ['3', '30', '300']) { fireEvent.change(input, { target: { value } }); expect(document.activeElement).toBe(input); }
   fireEvent.click(screen.getByRole('button', { name: '应用图表配置' }));
@@ -60,11 +64,13 @@ it('keeps inputs stable and applies field, orientation, sort and legitimate rang
 });
 it('does not report a saved file or dispatch when a download is revoked and permits retry', async () => {
   render(<HomeQueryChartWorkspace result={formal()} requestId={requestId} scope={scope} internalExport onSource={vi.fn()} />);
+  fireEvent.click(screen.getByText('下载图表'));
   await waitFor(() => expect(screen.getByRole('button', { name: '下载 PNG 与来源' })).toBeEnabled());
   client.download.mockRejectedValue(new Error('当前导出资格已撤回。'));
   fireEvent.click(screen.getByRole('button', { name: '下载 PNG 与来源' }));
   await screen.findByText('当前导出资格已撤回。');
   expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
   expect(client.reportDelivery.mock.calls.some(call => call[2] === 'browser_download_dispatched')).toBe(false);
+  fireEvent.click(screen.getByText('下载图表'));
   expect(screen.getByRole('button', { name: '下载 PNG 与来源' })).toBeEnabled();
 });

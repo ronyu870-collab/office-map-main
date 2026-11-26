@@ -15,6 +15,7 @@ vi.mock('@/src/app/map/MapQuerySelection', () => ({
 
 const controller = vi.hoisted(() => ({
   setWorkspaceDetailHandler: vi.fn(),
+  setBaseMapPointsVisible: vi.fn(),
   fetchMapData: vi.fn(),
   fetchFutureSupplies: vi.fn(),
   getDisplayOverridesCache: vi.fn(() => new Map()),
@@ -40,12 +41,12 @@ const controllerRef = vi.hoisted(() => ({ current: controller }));
 
 vi.mock('next/dynamic', () => ({
   default: () => function MockDynamicComponent({
-    name, suspended, onOpenBuilding,
-  }: { name?: string; suspended?: boolean; onOpenBuilding?: (id: string) => void }) {
+    name, suspended, onOpenBuilding, onClose,
+  }: { name?: string; suspended?: boolean; onOpenBuilding?: (id: string) => void; onClose?: () => void }) {
     if (!name || !onOpenBuilding) return null;
-    return <button type="button" disabled={suspended} onClick={() => onOpenBuilding('building-1')}>
+    return <><button type="button" onClick={onClose}>close-submarket</button><button type="button" disabled={suspended} onClick={() => onOpenBuilding('building-1')}>
       open-submarket-test-building
-    </button>;
+    </button></>;
   },
 }));
 
@@ -92,8 +93,10 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
     buildingDetailPanel, rightKind, backLabel, onWorkspaceBack,
     onRenderModeChange,
     onSearch, onOpenList,
-    onFilterChange,
+    onFilterChange, stats, futureSupplies,
   }: {
+    stats: {visibleProjectCount:string; totalArea:string};
+    futureSupplies: {id:string}[];
     queryPanel?: React.ReactNode;
     submarketDetailPanel?: React.ReactNode;
     buildingDetailPanel?: React.ReactNode; rightKind?: string; backLabel?: string; onWorkspaceBack?: () => void;
@@ -103,6 +106,9 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
   }) => (
     <>
       {queryPanel}
+      <output aria-label="current-map-projects">{stats.visibleProjectCount}</output>
+      <output aria-label="supply-calendar-projects">{futureSupplies.map(row=>row.id).join(',')}</output>
+      <output aria-label="current-market-area">{stats.totalArea}</output>
       {submarketDetailPanel}
       {rightKind === 'building' ? buildingDetailPanel : null}
       {backLabel ? <button type="button" onClick={onWorkspaceBack}>返回{backLabel}</button> : null}
@@ -113,6 +119,12 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
       <button type="button" onClick={() => onFilterChange({
         ...createDefaultFilterState(), districts: ['海淀区'], showFutureSupply: false, futureSupplyGrades: [], futureSupplyYears: [],
       })}>close-layer-with-district-filter</button>
+      <button type="button" onClick={() => onFilterChange({
+        ...createDefaultFilterState(), numericFilters:[{id:'owner',field:'owner',operator:'=',value:'华润'},{id:'area',field:'total_area',operator:'>=',value:50000}],
+      })}>apply-owner-and-area</button>
+      <button type="button" onClick={() => onFilterChange({
+        ...createDefaultFilterState(), numericFilters:[{id:'rent',field:'net_effective_rent',operator:'>=',value:0}],
+      })}>apply-rent-condition</button>
       <button type="button" onClick={() => onSearch('玉渊潭 640')}>search-commercial</button>
       <button type="button" onClick={() => onSearch('华润')}>
         search-owner
@@ -136,7 +148,7 @@ const BUILDINGS = [
     location_lat: 39.91,
     metrics: [
       {
-        record_year: 2026,
+        is_locked: true, is_draft: false, record_year: 2026,
         record_quarter: 3,
         total_area: 100000,
         vacant_area: 12000,
@@ -161,6 +173,19 @@ describe('MapClient render mode synchronization', () => {
       if (building) publish?.({ building, metric: null, photos: [], isDemo: false, canEdit: false, overrides: {} });
     });
     queryBridge.selection = null; queryBridge.publish = undefined;
+  });
+
+  it('keeps the latest region and displayed projects when closing research', async () => {
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    act(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } })));
+    await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(1));
+    act(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: '中关村' } })));
+    await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(0));
+    fireEvent.click(screen.getByRole('button', { name: 'close-submarket' }));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+    expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(0);
+    expect(controller.resetToDefaultView).not.toHaveBeenCalled();
   });
 
   it('cancels queued project focus when switching to a list and can refocus the same project later', async () => {
@@ -249,6 +274,39 @@ describe('MapClient render mode synchronization', () => {
     });
   });
 
+
+  it('counts valid displayed stock and future projects and follows hidden layers and competitor scope', async () => {
+    const bad = {...BUILDINGS[0],id:'bad',location_lat:116};
+    controller.fetchMapData.mockResolvedValue([...BUILDINGS,bad]);
+    controller.fetchFutureSupplies.mockResolvedValue([{id:'future',name:'未来楼',grade:'A',type:'办公',district:'朝阳区',submarket:'CBD',launch_year:2027,location_lng:116.47,location_lat:39.92}]);
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(()=>expect(controller.renderFutureMarkers).toHaveBeenCalled());
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^2$/));
+    expect(screen.getByLabelText('current-market-area')).toHaveTextContent('200,000');
+    fireEvent(window,new CustomEvent('competitors-found',{detail:{buildings:BUILDINGS,targetBuildingId:BUILDINGS[0].id}}));
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^1$/));
+    fireEvent(window,new Event('competitors-cleared'));
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^2$/));
+    fireEvent.click(screen.getByRole('button',{name:'close-layer-with-district-filter'}));
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^0$/));
+  });
+
+  it('applies the same active conditions to stock and supplies, rendering and counting only matches', async () => {
+    const supply={id:'future',name:'未来楼',grade:'A',type:'办公',district:'朝阳区',submarket:'CBD',launch_year:2027,location_lng:116.47,location_lat:39.92,owner:'华润置地',total_area:80000};
+    controller.fetchFutureSupplies.mockResolvedValue([supply,{...supply,id:'missing-owner',owner:null},{...supply,id:'small',total_area:1000}]);
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^4$/));
+    fireEvent.click(screen.getByRole('button',{name:'apply-owner-and-area'}));
+    await waitFor(()=>expect(controller.renderFutureMarkers).toHaveBeenLastCalledWith([supply],'default'));
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^2$/));
+    expect(screen.getByLabelText('current-market-area')).toHaveTextContent('100,000');
+    expect(screen.getByLabelText('supply-calendar-projects')).toHaveTextContent(/^future$/);
+    fireEvent.click(screen.getByRole('button',{name:'apply-rent-condition'}));
+    await waitFor(()=>expect(controller.renderFutureMarkers).toHaveBeenLastCalledWith([],'default'));
+    await waitFor(()=>expect(screen.getByLabelText('current-map-projects')).toHaveTextContent(/^1$/));
+    expect(screen.getByLabelText('current-market-area')).toHaveTextContent('100,000');
+    expect(screen.getByLabelText('supply-calendar-projects')).toBeEmptyDOMElement();
+  });
 
   it('excludes hidden commercial projects from search when future supply is off', async () => {
     const supply = { id: 'supply-640', name: '玉渊潭640地块商业项目', type: '商业', grade: null, submarket: null,

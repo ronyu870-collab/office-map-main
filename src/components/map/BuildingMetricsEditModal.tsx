@@ -8,6 +8,7 @@ import { logAction } from '@/src/utils/audit';
 import { getSession } from '@/src/services/Auth';
 import { AuditService } from '@/src/services/auditService';
 import { Button, Dialog, LoadingState } from '@/src/components/ui';
+import { useUnsavedNavigation } from '@/src/lib/broker/useUnsavedNavigation';
 
 // ─── 类型定义 ─────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ function ConfirmDialog({
   return (
     <Dialog
       open={isOpen}
+      layer="map"
       onOpenChange={(open) => { if (!open && !isLoading) onCancel(); }}
       title={title}
       description={message}
@@ -134,6 +136,7 @@ export function BuildingMetricsEditModal({
   onClose,
   onSave,
 }: BuildingMetricsEditModalProps) {
+  const formId = React.useId();
   // 状态
   const [year, setYear] = React.useState(new Date().getFullYear());
   const [quarter, setQuarter] = React.useState(Math.ceil((new Date().getMonth() + 1) / 3));
@@ -169,6 +172,7 @@ export function BuildingMetricsEditModal({
       return formData[key as keyof MetricFormData] !== originalData[key as keyof MetricFormData];
     });
   }, [formData, originalData]);
+  useUnsavedNavigation(isOpen && isDirty);
 
   const isFormDisabled = isLoadingData || saving;
 
@@ -522,6 +526,7 @@ export function BuildingMetricsEditModal({
             </div>
             <button
               onClick={handleClose}
+              aria-label="关闭指标编辑"
               className="p-2 text-zinc-400 hover:text-zinc-600 rounded-lg hover:bg-zinc-200 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -536,12 +541,13 @@ export function BuildingMetricsEditModal({
           {/* 年份/季度选择器 */}
           <div className="flex items-center gap-4 mb-6">
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-zinc-700">年份</label>
+              <label htmlFor={`${formId}-year`} className="text-sm font-medium text-zinc-700">年份</label>
               <select
+                id={`${formId}-year`}
                 value={year}
                 onChange={(e) => handleYearChange(Number(e.target.value))}
                 disabled={isFormDisabled}
-                className="px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50"
+                className="px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50"
               >
                 {years.map(y => (
                   <option key={y} value={y}>{y}年</option>
@@ -549,12 +555,13 @@ export function BuildingMetricsEditModal({
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-zinc-700">季度</label>
+              <label htmlFor={`${formId}-quarter`} className="text-sm font-medium text-zinc-700">季度</label>
               <select
+                id={`${formId}-quarter`}
                 value={quarter}
                 onChange={(e) => handleQuarterChange(Number(e.target.value))}
                 disabled={isFormDisabled}
-                className="px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50"
+                className="px-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50"
               >
                 {quarters.map(q => (
                   <option key={q} value={q}>Q{q}</option>
@@ -595,76 +602,81 @@ export function BuildingMetricsEditModal({
               <div className="grid grid-cols-2 gap-4">
                 {/* 报价租金 */}
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                  <label htmlFor={`${formId}-asking_rent`} className="block text-sm font-medium text-zinc-700 mb-1.5">
                     报价租金
                   </label>
                   <input
                     type="text"
+                    id={`${formId}-asking_rent`}
                     value={formData.asking_rent}
                     onChange={(e) => handleInputChange('asking_rent', e.target.value)}
                     disabled={isFormDisabled}
                     placeholder="元/m²/天"
-                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50 disabled:bg-zinc-50"
+                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50 disabled:bg-zinc-50"
                   />
                 </div>
 
                 {/* 物业费 */}
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                  <label htmlFor={`${formId}-management_fee`} className="block text-sm font-medium text-zinc-700 mb-1.5">
                     物业费
                   </label>
                   <input
                     type="text"
+                    id={`${formId}-management_fee`}
                     value={formData.management_fee}
                     onChange={(e) => handleInputChange('management_fee', e.target.value)}
                     disabled={isFormDisabled}
                     placeholder="元/m²/月"
-                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50 disabled:bg-zinc-50"
+                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50 disabled:bg-zinc-50"
                   />
                 </div>
 
                 {/* 表面租金 */}
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                  <label htmlFor={`${formId}-face_rent`} className="block text-sm font-medium text-zinc-700 mb-1.5">
                     表面租金
                   </label>
                   <input
                     type="text"
+                    id={`${formId}-face_rent`}
                     value={formData.face_rent}
                     onChange={(e) => handleInputChange('face_rent', e.target.value)}
                     disabled={isFormDisabled}
                     placeholder="元/m²/天"
-                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50 disabled:bg-zinc-50"
+                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50 disabled:bg-zinc-50"
                   />
                 </div>
 
                 {/* 免租期 */}
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                  <label htmlFor={`${formId}-rent_free_period`} className="block text-sm font-medium text-zinc-700 mb-1.5">
                     免租期（月）
                   </label>
                   <input
                     type="text"
+                    id={`${formId}-rent_free_period`}
                     value={formData.rent_free_period}
                     onChange={(e) => handleInputChange('rent_free_period', e.target.value)}
                     disabled={isFormDisabled}
                     placeholder="0-36"
-                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50 disabled:bg-zinc-50"
+                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50 disabled:bg-zinc-50"
                   />
                 </div>
 
                 {/* 空置面积 */}
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                  <label htmlFor={`${formId}-vacant_area`} className="block text-sm font-medium text-zinc-700 mb-1.5">
                     空置面积
                   </label>
                   <input
                     type="text"
+                    id={`${formId}-vacant_area`}
                     value={formData.vacant_area}
                     onChange={(e) => handleInputChange('vacant_area', e.target.value)}
                     disabled={isFormDisabled}
                     placeholder="m²"
-                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all disabled:opacity-50 disabled:bg-zinc-50"
+                    className="w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none disabled:opacity-50 disabled:bg-zinc-50"
                   />
                 </div>
               </div>
@@ -672,17 +684,17 @@ export function BuildingMetricsEditModal({
               {/* 计算字段（只读） */}
               <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-zinc-200">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-500 mb-1.5">
+                  <div className="block text-sm font-medium text-zinc-500 mb-1.5">
                     净有效租金（自动计算）
-                  </label>
+                  </div>
                   <div className="px-3 py-2.5 text-sm border border-zinc-100 rounded-lg bg-zinc-50 text-zinc-800 font-semibold">
                     {calculatedNetRent !== null ? `¥${calculatedNetRent.toFixed(2)}` : '-'}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-500 mb-1.5">
+                  <div className="block text-sm font-medium text-zinc-500 mb-1.5">
                     空置率（自动计算）
-                  </label>
+                  </div>
                   <div className="px-3 py-2.5 text-sm border border-zinc-100 rounded-lg bg-zinc-50 text-zinc-800 font-semibold">
                     {calculatedVacancyRate !== null ? `${calculatedVacancyRate.toFixed(1)}%` : '-'}
                   </div>

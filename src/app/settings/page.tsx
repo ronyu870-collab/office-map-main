@@ -114,10 +114,10 @@ export default function SettingsPage() {
                 </div>
               )}
               <Button
-                type="submit" disabled={submitting}
+                type="submit" loading={submitting} loadingLabel={t('保存中…')}
                 className="w-full"
               >
-                {submitting ? t('保存中…') : t('确认修改')}
+                {t('确认修改')}
               </Button>
             </form>
           </Panel>

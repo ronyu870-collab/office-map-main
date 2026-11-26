@@ -325,7 +325,7 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
           <button
             onClick={openNew}
             disabled={loading || listError || saving}
-            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50 lg:min-h-0"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-[var(--cd-color-brand)] px-3 py-1.5 text-xs font-medium text-white transition-[color,background-color,border-color,opacity] motion-reduce:transition-none hover:bg-[var(--cd-color-brand-hover)] disabled:opacity-50 lg:min-h-0"
           >
             <Plus size={14} strokeWidth={2} />
             新增
@@ -345,7 +345,7 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
               <button
                 key={key}
                 onClick={() => setFilterStatus(key)}
-                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-[color,background-color,border-color,opacity] motion-reduce:transition-none ${
                   filterStatus === key
                     ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
                     : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700'
@@ -416,7 +416,7 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
                         <div
                           key={entry.id}
                           data-changelog-id={entry.id}
-                          className={`rounded-lg border px-3.5 py-2.5 transition-all group ${
+                          className={`rounded-lg border px-3.5 py-2.5 transition-[color,background-color,border-color,opacity] motion-reduce:transition-none group ${
                             isActive
                               ? 'border-primary bg-primary/5 shadow-sm'
                               : 'border-zinc-200/80 bg-white hover:border-zinc-300 hover:shadow-sm'
@@ -463,7 +463,7 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
                                 disabled={saving || isActive}
                                 onChange={e => { e.stopPropagation(); quickChangeStatus(entry, e.target.value as ChangelogEntry['status']); }}
                                 onClick={e => e.stopPropagation()}
-                                className={`min-h-11 rounded border-0 px-1.5 py-0.5 text-[10px] font-semibold cursor-pointer ring-1 ring-inset ${staCfg.color} transition-all hover:brightness-95 lg:min-h-0`}
+                                className={`min-h-11 rounded border-0 px-1.5 py-0.5 text-[10px] font-semibold cursor-pointer ring-1 ring-inset ${staCfg.color} transition-[color,background-color,border-color,opacity] motion-reduce:transition-none hover:brightness-95 lg:min-h-0`}
                               >
                                 <option value="planned">即将更新</option>
                                 <option value="in_progress">开发中</option>
@@ -644,7 +644,7 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
               <button
                 onClick={handleSave}
                 disabled={saving || !form.title.trim()}
-                className="flex min-h-11 items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50 lg:min-h-0"
+                className="flex min-h-11 items-center gap-1.5 rounded-md bg-[var(--cd-color-brand)] px-4 py-1.5 text-xs font-medium text-white transition-[color,background-color,border-color,opacity] motion-reduce:transition-none hover:bg-[var(--cd-color-brand-hover)] disabled:opacity-50 lg:min-h-0"
               >
                 <Save size={13} />
                 {saving ? '保存中…' : '保存'}

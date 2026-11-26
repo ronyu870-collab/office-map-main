@@ -3,6 +3,13 @@
  */
 
 "use client";
+import { mountBuildingContactDialog } from "./map/buildingContactDialog";
+import type { TrendChartReadingOptions } from "./map/trendChartReading";
+import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
+import { hasMapCoordinates } from '@/src/lib/map-coordinates';
+import { coordinateIssue, fitMapExtent } from '@/src/app/map/runtime/mapExtent';
+
+import { WORKSPACE_MOTION } from '@/src/app/map/runtime/workspaceMotion';
 import {beginBuildingReading,type ReadingEntry} from '@/src/utils/readingAuditContext';
 import { createSelectionMarker, markerBadgeImage, futureSupplyImage } from '@/src/app/map/runtime/mapSelectionMarker';
 import { markerTextColor } from '@/src/app/map/runtime/mapMarkerContrast';
@@ -16,9 +23,9 @@ import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
 import { recordMapStartup } from "@/src/utils/mapStartupProbe";
 import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
-import { panMapFocusIntoAvailableArea } from "@/src/app/map/runtime/mapFocusViewport";
+import { readMapVisibleArea, visibleMapRect, visibleProjectCenter } from "@/src/app/map/runtime/mapFocusViewport";
 import { mapOptionalNumber, observedVacantArea } from "@/src/app/map/model/vacancyMetrics";
-import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
+import { futureSupplyDate, isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
 import { latestFormalMetric } from "@/src/app/map/model/quarterlyFacts";
 import { clearMapReadCache } from "./mapReadCache";
@@ -28,7 +35,6 @@ import { normalizeMapSubmarket } from "@/src/app/map/model/mapDomain";
 import { getBuildingMediaPilot } from "@/src/lib/sales-materials/building-media-pilot";
 import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger, type GalleryPhoto } from "./map/buildingPhotoGallery";
 import { photoSummaries } from "@/src/lib/building-photos/model";
-import { attachTitleTooltip } from "@/src/utils/titleTooltip";
 
 import type { BuildingMetric, BuildingWithMetrics } from "@/src/types";
 import type {
@@ -280,7 +286,7 @@ function getMarkerStyle(
       bgColor = "#eef1f4";
       borderColor = "#bdc6ce";
       textColor = "#6f7c89";
-      text = "N"; // 无认证
+      text = leedFallbackBadge(leed); // 缺失与明确未认证分开
     }
   }
 
@@ -327,6 +333,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private AMap: any | null = null;
   private map: any | null = null;
   private initialTilesReady = false;
+  private baseMapPointsVisible = false;
   private infoWindow: any | null = null;
   private workspaceDetailHandler: ((detail: WorkspaceBuildingDetail) => void) | null = null;
   private workspaceBuilding: WorkspaceBuilding | null = null;
@@ -358,18 +365,52 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     if (image.getAttribute('src') !== next) image.src = next;
   }
 
+  /** Public base-layer features only; project overlays and camera are independent. */
+  setBaseMapPointsVisible(visible: boolean): void {
+    this.baseMapPointsVisible = visible;
+    this.map?.setFeatures?.(this.baseMapFeatures());
+  }
+  private baseMapFeatures(): string[] {
+    return this.baseMapPointsVisible ? ['bg', 'road', 'building', 'point'] : ['bg', 'road', 'building'];
+  }
+
   setWorkspaceSubmarket(name: string | null): void { this.workspaceSubmarket = name; }
   isWorkspaceActive(): boolean { return Boolean(this.workspaceDetailHandler); }
   setWorkspaceSelection(building: WorkspaceBuilding | null): void {
+    const previousAction = this.workspaceSelectionContent?.querySelector<HTMLButtonElement>('button');
+    if (previousAction) previousAction.onclick = null;
     if (this.workspaceSelectionMarker) this.map?.remove?.(this.workspaceSelectionMarker);
     this.workspaceSelectionMarker = null;
     this.workspaceSelectionContent = null;
     this.workspaceSelectedBuilding = building;
-    if (!building || !Number.isFinite(building.location_lng) || !Number.isFinite(building.location_lat) || !this.AMap?.Marker) return;
-    const content = createSelectionMarker(this.workspaceSelectionImage(building), building._dataType === 'future');
+    if (!this.map || !building || !hasMapCoordinates(building) || !this.AMap?.Marker) return;
+    const content = createSelectionMarker(this.workspaceSelectionImage(building), building._dataType === 'future', {
+      name: building.name || '未命名项目', onLocate: () => this.locateWorkspaceSelection(building),
+    });
     this.workspaceSelectionContent = content;
     this.workspaceSelectionMarker = new this.AMap.Marker({ position: [building.location_lng, building.location_lat], content, anchor: 'center', zIndex: 999999, bubble: true });
     this.map.add(this.workspaceSelectionMarker);
+  }
+
+  private locateWorkspaceSelection(building: WorkspaceBuilding): void {
+    const current = () => !this._destroyed && this.workspaceSelectedBuilding === building && hasMapCoordinates(building);
+    if (!current()) return;
+    const move = (immediately = false) => {
+      if (!current() || !this.map) return;
+      const zoom = Number(this.map.getZoom?.());
+      const reduced = immediately || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+      const targetZoom = Math.max(14, Math.min(18, Number.isFinite(zoom) ? zoom : 14));
+      let center: [number, number] = [building.location_lng!, building.location_lat!];
+      const container = this.map.getContainer?.() ?? document.getElementById('map-container');
+      if (container) {
+        const { rect, reserved } = readMapVisibleArea(container), visible = visibleMapRect(rect, reserved);
+        if (visible.width < 16 || visible.height < 16) return;
+        center = visibleProjectCenter(center, targetZoom, rect, visible);
+      }
+      this.map.setZoomAndCenter(targetZoom, center, reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
+    };
+    if (this.workspaceCameraHandler) this.workspaceCameraHandler(move);
+    else move();
   }
 
   /** React owns detail rendering; the controller retains existing authorized data/actions. */
@@ -381,17 +422,17 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const future = building._dataType === 'future';
     return { building, metric: future ? null : pickLatestMetric(building.metrics ?? []),
       photos: this.getPhotoSet(future ? building.building_id ?? undefined : building.id, building.photos)?.photos ?? [],
-      isDemo: this._isDemo, canEdit: this._isAdmin && !this._isDemo,
+      isDemo: this._isDemo, canEdit: this._isAdmin && !this._isDemo && !future,
       overrides: Object.fromEntries(this._displayOverridesCache.get(building.id) ?? []) };
   }
 
-  runWorkspaceBuildingAction(action: 'nearby' | 'contact' | 'trend' | 'edit', building: WorkspaceBuilding): void {
-    if (action === 'edit') { if (this._isAdmin && !this._isDemo) this._onEditBuildingMetrics?.(building.id, building.name ?? ''); }
-    if (action === 'nearby' && Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat)) {
+  runWorkspaceBuildingAction(action: 'nearby' | 'contact' | 'trend' | 'edit', building: WorkspaceBuilding, trendReading?: TrendChartReadingOptions): void {
+    if (action === 'edit') { if (this._isAdmin && !this._isDemo && building._dataType !== 'future') this._onEditBuildingMetrics?.(building.id, building.name ?? ''); }
+    if (action === 'nearby' && hasMapCoordinates(building)) {
       (window as any).__colliers_analyzeCompetitors?.(building.id, building.location_lng, building.location_lat, Number(pickLatestMetric(building.metrics ?? [])?.net_effective_rent ?? 0));
     }
     if (action === 'contact') (window as any).__colliers_showContactModal?.(this._isDemo ? '***' : building.name, this._isDemo ? '***' : building.contact_phone || '', building.id);
-    if (action === 'trend') (window as any).__colliers_toggleTrend?.(building.id);
+    if (action === 'trend') (window as any).__colliers_toggleTrend?.(building.id, trendReading);
   }
 
   disposeWorkspaceTrend(): void { this.clearBuildingPopupTrend(); }
@@ -411,7 +452,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   private markers: any[] = [];
   private dotMarkers: any[] = []; // Level 3: 小圆点标记
+  private closeContactDialog?: () => void;
   private futureMarkers: any[] = [];
+  private futureMarkersById = new Map<string, any>();
   private _cachedFutureSuppliesPromise: Promise<any[]> | null = null;
   private submarketMarkers: any[] = [];
   private currentRenderMode: "submarket" | "dot" | "building" | null = null;
@@ -429,7 +472,6 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private compCenterMarker: any | null = null;
   private compExitButton: HTMLDivElement | null = null;
   private _isClearingCompetitor = false;
-  private _competitorNavigationVersion = 0;
 
   // 🌟 CL-010: 周边项目对比状态
   private _compCenterPoint: [number, number] | null = null;
@@ -537,160 +579,16 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         buildingId?: string,
       ) => {
         try {
-          // 创建遮罩层
-          const overlay = document.createElement("div");
-          overlay.id = "__colliers_contact_modal_overlay";
-          overlay.style.cssText = `
-            position: fixed;
-            inset: 0;
-            z-index: 99999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-          `;
-
-          // 创建弹窗内容
-          const hasPhone = contactPhone && contactPhone.trim() !== "";
-          const modalContent = `
-            <div style="
-              position: relative;
-              width: 90%;
-              max-width: 420px;
-              background: #ffffff;
-              border-radius: 12px;
-              border: 1px solid #e2e8f0;
-              box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-              padding: 24px;
-              font-family: ui-sans-serif, system-ui, -apple-system;
-            ">
-              <!-- 关闭按钮 -->
-              <button 
-                onclick="document.getElementById('__colliers_contact_modal_overlay').remove()"
-                style="
-                  position: absolute;
-                  top: 16px;
-                  right: 16px;
-                  width: 32px;
-                  height: 32px;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  border-radius: 50%;
-                  border: none;
-                  background: transparent;
-                  color: #94a3b8;
-                  cursor: pointer;
-                  transition: all 0.2s;
-                "
-                onmouseover="this.style.background='#f1f5f9'; this.style.color='#475569';"
-                onmouseout="this.style.background='transparent'; this.style.color='#94a3b8';"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-              
-              <!-- 标题 -->
-              <div style="margin-bottom: 20px;">
-                <h3 style="font-size: 18px; font-weight: 900; color: #0f172a; margin: 0 0 4px 0;">${escapeHtml(buildingName)}</h3>
-                <p style="font-size: 14px; color: #64748b; margin: 0;">联系方式</p>
-              </div>
-              
-              <!-- 内容区域 -->
-              <div style="
-                border-radius: 8px;
-                border: 1px solid #e2e8f0;
-                background: #f8fafc;
-                padding: 20px;
-              ">
-                ${
-                  hasPhone
-                    ? `
-                  <div style="display: flex; align-items: center; gap: 16px;">
-                    <div style="
-                      flex-shrink: 0;
-                      width: 48px;
-                      height: 48px;
-                      display: flex;
-                      align-items: center;
-                      justify-content: center;
-                      border-radius: 50%;
-                      background: #dbeafe;
-                    ">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                      </svg>
-                    </div>
-                    <div style="flex: 1; min-width: 0;">
-                      <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">联系电话</div>
-                      <div style="font-size: 20px; font-weight: 900; color: #0f172a;">${escapeHtml(contactPhone)}</div>
-                    </div>
-                    <a 
-                      href="tel:${escapeHtml(contactPhone)}"
-                      style="
-                        flex-shrink: 0;
-                        background: #3b82f6;
-                        color: #ffffff;
-                        border: none;
-                        border-radius: 8px;
-                        padding: 10px 20px;
-                        font-size: 14px;
-                        font-weight: 700;
-                        text-decoration: none;
-                        cursor: pointer;
-                        transition: all 0.2s;
-                      "
-                      onmouseover="this.style.background='#2563eb';"
-                      onmouseout="this.style.background='#3b82f6';"
-                    >
-                      拨打
-                    </a>
-                  </div>
-                `
-                    : `
-                  <div style="
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 32px 16px;
-                    text-align: center;
-                  ">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="8" x2="12" y2="12"></line>
-                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <p style="font-size: 15px; font-weight: 700; color: #475569; margin: 0 0 8px 0;">暂无联系方式数据</p>
-                    <p style="font-size: 13px; color: #94a3b8; margin: 0;">该楼宇尚未录入联系电话</p>
-                  </div>
-                `
-                }
-              </div>
-            </div>
-          `;
-
-          overlay.innerHTML = modalContent;
-
-          // 点击遮罩层关闭弹窗
-          overlay.addEventListener("click", (e) => {
-            if (e.target === overlay) {
-              overlay.remove();
-            }
+          this.closeContactDialog = mountBuildingContactDialog(buildingName, contactPhone, () => {
+            if (buildingId && !this._destroyed) auditBuildingReading('VIEW_BUILDING_CONTACT', { id: buildingId, name: buildingName }, undefined, this._isDemo);
           });
-
-          document.body.appendChild(overlay);
-          if (buildingId) auditBuildingReading('VIEW_BUILDING_CONTACT', { id: buildingId, name: buildingName }, undefined, this._isDemo);
         } catch (error) {
           console.error("[Action Module] Failed to show contact modal", error);
           alert("联系方式弹窗加载失败，请稍后再试。");
         }
       };
 
-      (window as any).__colliers_toggleTrend = (buildingId: string) => {
+      const toggleTrend = (window as any).__colliers_toggleTrend = (buildingId: string, reading?: TrendChartReadingOptions) => {
         const panel = document.getElementById("info-chart-panel");
         if (!panel) return;
         const trend = (window as any).__colliers_trend;
@@ -699,6 +597,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         // 切换面板显示
         panel.style.display = showing ? "block" : "none";
         if (!showing) {
+          trend.readRequest = null;
           // 隐藏时销毁图表
           if (trend?.chart) {
             trend.chart.dispose();
@@ -716,6 +615,38 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           "info-chart-container",
         ) as HTMLElement;
         if (!chartDom) return;
+        const readRequest = Symbol('trend-read');
+        trend.readRequest = readRequest;
+        const isCurrentRead = () => !this._destroyed && trend.readRequest === readRequest &&
+          trend.buildingId === buildingId && panel.isConnected && panel.style.display !== 'none';
+        const showStatus = (state: 'loading' | 'empty' | 'error', message: string) => {
+          const hadFocus = chartDom.contains(document.activeElement);
+          panel.dataset.trendState = state;
+          chartDom.hidden = false;
+          const status = document.createElement('div');
+          status.className = 'workspace-trend-status';
+          const text = document.createElement('span');
+          text.setAttribute('role', 'status');
+          text.textContent = message;
+          status.append(text);
+          if (state === 'error') {
+            const retry = document.createElement('button');
+            retry.type = 'button';
+            retry.className = 'workspace-business-action';
+            retry.textContent = '重试读取历史数据';
+            retry.addEventListener('click', () => {
+              if (!isCurrentRead()) return;
+              panel.style.display = 'none';
+              toggleTrend(buildingId, reading);
+            });
+            status.append(retry);
+          }
+          chartDom.replaceChildren(status);
+          if (hadFocus) {
+            status.tabIndex = -1;
+            (status.querySelector('button') ?? status).focus({ preventScroll: true });
+          }
+        };
         // 重置状态
         trend.buildingId = buildingId;
         trend.data = null;
@@ -724,8 +655,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           trend.chart = null;
         }
         // 显示加载状态
-        chartDom.innerHTML =
-          '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:12px;">加载中...</div>';
+        showStatus('loading', '加载中...');
         // 用户已明确打开 Trend：让图表运行时和历史数据请求并行，消除串行 waterfall。
         // 仍然保持在 Trend 点击之后才加载，因此不会进入 Map 首屏 bundle。
         const trendRuntimePromise = import("./map/trendChartRuntime");
@@ -734,10 +664,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         fetchBuildingTrendPayload(buildingId)
           .then((data) => {
             // 竞态保护：如果用户已切换到其他楼宇，跳过渲染
-            if (trend.buildingId !== buildingId || !panel.isConnected) return;
+            if (!isCurrentRead()) return;
             if (!data?.length) {
-              chartDom.innerHTML =
-                '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:12px;">暂无历史数据</div>';
+              showStatus('empty', '暂无历史数据');
+              reading?.onReady?.();
               return;
             }
 
@@ -758,6 +688,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             // 转换为图表数据，X轴标签：最新显示"年份+季度"，其他只显示"年份"
             const chartData = result.map(r => ({
               year: r.record_year,
+              period: `${r.record_year}Q${r.record_quarter}`,
               quarter: r.record_year === latestYear && r.record_quarter === latestQuarter
                 ? `Q${r.record_quarter}`  // 最新季度显示季度
                 : '',                       // 其他只显示年份
@@ -771,46 +702,41 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             // 动态模块加载期间用户可能关闭面板或切换楼宇，因此渲染前后都做竞态保护。
             void trendRuntimePromise
               .then(({ initTrendChart }) => {
-                if (
-                  trend.buildingId !== buildingId || !panel.isConnected ||
-                  panel.style.display === "none"
-                ) {
+                if (!isCurrentRead()) {
                   return;
                 }
 
                 requestAnimationFrame(() => {
-                  if (
-                    trend.buildingId !== buildingId || !panel.isConnected ||
-                    panel.style.display === "none"
-                  ) {
+                  if (!isCurrentRead()) {
                     return;
                   }
 
+                  const restoreFocus = chartDom.contains(document.activeElement);
+                  panel.dataset.trendState = 'ready';
                   chartDom.innerHTML = "";
                   const building = this.workspaceBuilding?.id === buildingId ? this.workspaceBuilding : this._allBuildingsCache.find(item => item.id === buildingId);
                   const chart = initTrendChart(chartDom, chartData, metric => {
                     auditBuildingReading('VIEW_BUILDING_TREND', { id: buildingId, name: building?.name }, { metric }, this._isDemo);
-                  });
+                  }, reading);
                   if (chart) trend.chart = chart;
+                  if (restoreFocus) panel.querySelector<HTMLElement>('.workspace-trend-switch [aria-pressed="true"]')?.focus({ preventScroll: true });
+                  reading?.onReady?.();
                 });
               })
               .catch((error) => {
-                if (
-                  trend.buildingId !== buildingId || !panel.isConnected ||
-                  panel.style.display === "none"
-                ) {
+                if (!isCurrentRead()) {
                   return;
                 }
                 console.error("[MapController] 趋势图运行时加载失败:", error);
-                chartDom.innerHTML =
-                  '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:12px;">趋势图加载失败，请稍后重试</div>';
+                showStatus('error', '趋势图加载失败，请稍后重试');
+                reading?.onReady?.();
               });
           })
           .catch((error) => {
-            if (trend.buildingId !== buildingId || !panel.isConnected || panel.style.display === "none") return;
+            if (!isCurrentRead()) return;
             console.error("[MapController] 历史趋势读取失败:", error);
-            chartDom.innerHTML =
-              '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:12px;">历史数据读取失败，请稍后重试</div>';
+            showStatus('error', '历史数据读取失败，请稍后重试');
+            reading?.onReady?.();
           });
       };
     }
@@ -865,6 +791,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         center: [resolvedCenter.lng, resolvedCenter.lat],
         viewMode: options?.viewMode ?? "2D",
         mapStyle: options?.mapStyle ?? "amap://styles/whitesmoke",
+        features: this.baseMapFeatures(),
       });
       const initialMap = this.map;
       // A warm map can complete before the runtime resumes after awaiting initMap.
@@ -919,7 +846,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     lat: number,
     currentRent: number,
   ) {
-    if (!this.map || !this.AMap || !this._allBuildingsCache.length) return;
+    if (!this.map || !this.AMap || !this._allBuildingsCache.length || !hasMapCoordinates({ location_lng: lng, location_lat: lat })) return;
 
     this._isClearingCompetitor = true;
     this.infoWindow?.close?.();
@@ -964,7 +891,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const competitors = this._allBuildingsCache.filter((b) => {
       if (this.workspaceSubmarket && normalizeMapSubmarket(b.submarket) !== this.workspaceSubmarket) return false;
       if (b.id === buildingId) return false;
-      if (b.location_lng == null || b.location_lat == null) return false;
+      if (!hasMapCoordinates(b)) return false;
       const dist = this.calculateDistance(
         [b.location_lng, b.location_lat],
         centerPoint,
@@ -1054,16 +981,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       : competitors;
     this._renderDistanceMarkers(markersToRender);
 
-    const navigationVersion = ++this._competitorNavigationVersion;
-    this.map.setFitView([this.compRadiusCircle]);
-    setTimeout(() => {
-      if (
-        navigationVersion !== this._competitorNavigationVersion ||
-        this._compBuildingId !== buildingId ||
-        !this.map
-      ) return;
-      if (this.map.getZoom() < 13.5) this.map.setZoom(13.6);
-    }, 100);
+    this.fitToBuildings(markersToRender);
 
     this.showCompExitButton();
 
@@ -1082,7 +1000,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     for (const building of buildings) {
       const lng = building.location_lng;
       const lat = building.location_lat;
-      if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+      if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
 
       const dist = this._compDistances.get(building.id);
       const isCenter = building.id === this._compBuildingId;
@@ -1097,8 +1015,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const markerEl = `
         <div class="map-competitor-marker" data-building-id="${building.id}" style="
           display:flex;flex-direction:column;align-items:center;gap:2px;
-          transition: transform 0.2s;
-        " onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+        ">
           <div class="map-competitor-marker__core" style="
             width:26px;height:26px;border-radius:50%;
             background:${bgColor};border:2px solid #fff;
@@ -1142,7 +1059,6 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   private clearCompetitorElements() {
-    this._competitorNavigationVersion += 1;
     if (this.map) {
       if (this.compRadiusCircle) this.map.remove(this.compRadiusCircle);
       if (this.compCenterMarker) this.map.remove(this.compCenterMarker);
@@ -1211,7 +1127,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                 color:${km === currentRadiusKm ? "#f59e0b" : "#64748b"};
                 background:${km === currentRadiusKm ? "#fffbeb" : "transparent"};
                 border:1px solid ${km === currentRadiusKm ? "#f59e0b" : "#e2e8f0"};
-                border-radius:6px;padding:3px 8px;cursor:pointer;transition:all 0.15s;
+                border-radius:6px;padding:3px 8px;cursor:pointer;
               ">${km < 1 ? "500m" : km + "km"}</button>
             `,
               )
@@ -1231,7 +1147,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         <div class="comp-filter-panel" style="display:none; border-top:1px solid #f1f5f9; padding:10px 16px; max-height:260px; overflow-y:auto;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <div style="font-size:10px;font-weight:700;color:#94a3b8;">项目等级</div>
-            <span class="comp-filter-collapse" style="font-size:11px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;gap:2px;padding:2px 6px;border-radius:4px;transition:all 0.15s;" title="收起筛选面板">
+            <span class="comp-filter-collapse" style="font-size:11px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;gap:2px;padding:2px 6px;border-radius:4px;" title="收起筛选面板">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
               收起
             </span>
@@ -1406,34 +1322,39 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   // 🌟 CL-013: marker 弹跳动画
-  public bounceMarker(buildingId: string) {
+  public bounceMarker(buildingId: string, type: 'existing' | 'future' = 'existing') {
     if (!this.map) return;
+    if (type === 'future') {
+      const marker = this.futureMarkersById.get(buildingId);
+      if (!marker) return;
+      marker.setOpacity?.(0.72); marker.setzIndex?.(999999);
+      requestAnimationFrame(() => { if (this.futureMarkersById.get(buildingId) === marker) marker.setOpacity?.(1); });
+      return;
+    }
     const el = this.map
       .getContainer()
       ?.querySelector(
         `[data-building-id="${buildingId}"]`,
       ) as HTMLElement | null;
     if (!el) return;
-    if (!document.getElementById("marker-bounce-style")) {
-      const style = document.createElement("style");
-      style.id = "marker-bounce-style";
-      style.textContent = `@keyframes markerBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}`;
-      document.head.appendChild(style);
-    }
-    // 先清除再强制回流，确保重复触发也能播放动画
-    el.style.animation = "none";
-    el.offsetHeight; // force reflow
-    el.style.animation = "markerBounce 0.22s ease-out";
+    // List hover identifies the same geographic point without moving it or
+    // forcing layout on every repeated pointer entry.
+    el.classList.add('map-marker-linked');
   }
 
-  public stopBounceMarker(buildingId: string) {
+  public stopBounceMarker(buildingId: string, type: 'existing' | 'future' = 'existing') {
     if (!this.map) return;
+    if (type === 'future') {
+      const marker = this.futureMarkersById.get(buildingId);
+      marker?.setOpacity?.(1); marker?.setzIndex?.(110);
+      return;
+    }
     const el = this.map
       .getContainer()
       ?.querySelector(
         `[data-building-id="${buildingId}"]`,
       ) as HTMLElement | null;
-    if (el) el.style.animation = "";
+    if (el) el.classList.remove('map-marker-linked');
   }
 
   private restoreAllMarkers() {
@@ -1454,21 +1375,17 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const area = supply.total_area
       ? `${Number(supply.total_area).toLocaleString()} ㎡`
       : "-";
-    const time =
-      supply.launch_year && supply.launch_quarter
-        ? `${supply.launch_year} ${supply.launch_quarter}`
-        : supply.launch_year
-          ? `${supply.launch_year}年`
-          : "待定";
+    const pending = isPendingFutureSupply(supply);
+    const time = futureSupplyDate(supply);
 
     tooltip.innerHTML = `
       <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 6px; line-height: 1.3;">
-        <span style="background:#d1fae5; color:#047857; font-size:9px; padding:1px 4px; border-radius:3px; font-weight:bold; margin-right:4px;">未来</span>
+        <span style="background:#d1fae5; color:#047857; font-size:9px; padding:1px 4px; border-radius:3px; font-weight:bold; margin-right:4px;">${futureSupplyDisplayLabel(supply)}</span>
         ${this._mask(name)}
       </div>
       <div style="display: flex; gap: 16px;">
         <div>
-          <div style="font-size: 10px; color: #94a3b8; margin-bottom: 2px;">预计入市</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-bottom: 2px;">${pending ? '时间状态' : '预计入市'}</div>
           <div style="font-size: 13px; font-weight: 700; color: #10b981;">${time}</div>
         </div>
         <div style="border-left: 1px solid #e2e8f0; padding-left: 12px;">
@@ -1606,44 +1523,45 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     }
   }
 
-  fitToBuildings(buildingsData: BuildingWithMetrics[]) {
-    if (!this.map || !this.AMap || buildingsData.length === 0) return;
+  private workspaceCameraHandler: ((move: (immediately?: boolean) => void) => void) | null = null;
+  setWorkspaceCameraHandler(handler: ((move: (immediately?: boolean) => void) => void) | null) { this.workspaceCameraHandler = handler; }
 
-    // Fitting results must not exit a separate, explicitly selected competitor session.
-    const withCoords = buildingsData.filter(b => Number.isFinite(b.location_lng) && Number.isFinite(b.location_lat));
-    if (withCoords.length === 0) return;
-
-    if (withCoords.length === 1 && withCoords[0]) {
-      this.map.setZoomAndCenter(16, [
-        withCoords[0].location_lng,
-        withCoords[0].location_lat,
-      ]);
-      panMapFocusIntoAvailableArea(this.map);
-    } else {
-      let minLng = 180,
-        maxLng = -180,
-        minLat = 90,
-        maxLat = -90;
-      withCoords.forEach((b) => {
-        if (b.location_lng < minLng) minLng = b.location_lng;
-        if (b.location_lng > maxLng) maxLng = b.location_lng;
-        if (b.location_lat < minLat) minLat = b.location_lat;
-        if (b.location_lat > maxLat) maxLat = b.location_lat;
-      });
-      const bounds = new this.AMap.Bounds([minLng, minLat], [maxLng, maxLat]);
-      // Do not override the fitted extent with a forced minimum zoom: scattered
-      // search matches would be pushed out of the viewport after 50ms.
-      this.map.setBounds(bounds);
+  fitToBuildings(buildingsData: BuildingWithMetrics[], coordinated = false, immediately = false): boolean {
+    if (!coordinated && this.workspaceCameraHandler) {
+      this.workspaceCameraHandler(immediate => this.fitToBuildings(buildingsData, true, immediate));
+      return false;
     }
+    if (!this.map || !this.AMap || buildingsData.length === 0) return false;
+
+    const container = this.map.getContainer?.() ?? document.getElementById('map-container');
+    if (!container) return false;
+    const { rect, reserved } = readMapVisibleArea(container);
+    const camera = fitMapExtent(buildingsData, rect, visibleMapRect(rect, reserved));
+    // Diagnose invalid coordinates without correcting production records or
+    // excluding a geographically distant but valid business project.
+    const invalid = buildingsData.flatMap(building => {
+      const issue = coordinateIssue(building);
+      return issue && issue !== 'missing' ? [{ id: building.id, issue }] : [];
+    });
+    if (invalid.length) console.warn('[MapController] Unlocatable project coordinates', invalid);
+    if (!camera) return false;
+    const reduced = immediately || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+    this.map.setZoomAndCenter(camera.zoom, camera.center, reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
+    return true;
   }
 
   /** 恢复地图工作台的初始总览视野（大气泡层级）。 */
-  resetToDefaultView() {
+  resetToDefaultView(coordinated = false, immediately = false) {
+    if (!coordinated && this.workspaceCameraHandler) {
+      this.workspaceCameraHandler(immediate => this.resetToDefaultView(true, immediate));
+      return;
+    }
     if (!this.map) return;
+    const reduced = immediately || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
     this.map.setZoomAndCenter(DEFAULT_MAP_ZOOM, [
       DEFAULT_MAP_CENTER.lng,
       DEFAULT_MAP_CENTER.lat,
-    ]);
+    ], reduced, reduced ? 0 : WORKSPACE_MOTION.spatial);
   }
 
   /**
@@ -1774,7 +1692,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         lineJoin: "round",
       });
       this.map.add(this.subwayPolyline);
-      this.map.setFitView([this.subwayPolyline]);
+      // Completing an asynchronous layer read does not own the workspace camera.
+      if (!this.isWorkspaceActive()) this.map.setFitView([this.subwayPolyline]);
       return subwayData.stations;
     } catch (error) {
       if (renderVersion === this._subwayRenderVersion) {
@@ -1808,7 +1727,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       zIndex: 50,
     });
     this.map.add([this.stationMarker, this.radiusCircle]);
-    this.map.setFitView([this.radiusCircle]);
+    if (!this.isWorkspaceActive()) this.map.setFitView([this.radiusCircle]);
   }
 
   private _clearSubwayElementsNow() {
@@ -1831,7 +1750,12 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     lngLat1: [number, number],
     lngLat2: [number, number],
   ): number {
-    if (!this.AMap || !this.AMap.GeometryUtil) return 999999;
+    if (!this.AMap?.GeometryUtil) {
+      const rad = Math.PI / 180;
+      const lat = (lngLat2[1] - lngLat1[1]) * rad, lng = (lngLat2[0] - lngLat1[0]) * rad;
+      const arc = Math.sin(lat / 2) ** 2 + Math.cos(lngLat1[1] * rad) * Math.cos(lngLat2[1] * rad) * Math.sin(lng / 2) ** 2;
+      return 6378137 * 2 * Math.asin(Math.sqrt(Math.max(0, Math.min(1, arc))));
+    }
     return this.AMap.GeometryUtil.distance(lngLat1, lngLat2);
   }
 
@@ -1914,28 +1838,14 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     for (const supply of supplies) {
       const lng = toNullableFiniteNumber(supply.location_lng);
       const lat = toNullableFiniteNumber(supply.location_lat);
-      if (lng === null || lat === null) continue;
+      if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
 
-      const style = getMarkerStyle(supply, null, renderMode, true);
-      const borderStyle = renderMode === "default" ? "dashed" : "solid";
-
-      const markerEl = `
-        <div class="map-future-supply-marker" style="
-          width:26px;height:26px;border-radius:50%;
-          background:${style.bgColor};border:2px ${borderStyle} ${style.borderColor};
-          box-shadow:0 6px 14px rgba(0,0,0,0.18);
-          display:flex;align-items:center;justify-content:center;
-          color:${style.textColor};font-weight:800;font-size:${style.fontSize};
-          transition: transform 0.2s, background-color 0.3s;
-        " onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
-          ${style.text}
-        </div>
-      `;
+      const markerEl = `<div class="map-future-supply-marker" data-future-supply-id="${escapeHtml(supply.id)}" role="img" aria-label="${futureSupplyDisplayLabel(supply)}"><img src="${futureSupplyImage(supply, renderMode)}" width="34" height="34" alt="" /></div>`;
 
       const marker = new AMap.Marker({
         position: [lng, lat],
         content: markerEl,
-        offset: new AMap.Pixel(-13, -13),
+        offset: new AMap.Pixel(-17, -17),
         zooms: [MAP_BUILDING_TIER_MIN_ZOOM, 20],
         zIndex: 110,
       });
@@ -1960,6 +1870,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       });
 
       this.futureMarkers.push(marker);
+      this.futureMarkersById.set(String(supply.id), marker);
     }
 
     this.map.add(this.futureMarkers);
@@ -1970,7 +1881,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   private removeFutureMarkerOverlays(): void {
-    if (!this.map) return;
+    this.futureMarkersById.clear();
+    if (!this.map) { this.futureMarkers = []; return; }
     if (this.futureMarkers.length > 0) {
       try {
         this.map.remove(this.futureMarkers);
@@ -1980,12 +1892,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   openFutureSupplyInfoWindow(supply: any, entry:ReadingEntry='map_marker'): void {
-    if (!this.map || !this.AMap || !supply) return;
+    if (!supply || this._destroyed) return;
     beginBuildingReading(supply.id,entry,supply.building_id);
     if (this.publishWorkspaceBuilding({ ...supply, _dataType: 'future' })) return;
+    if (!this.map || !this.AMap) return;
     const lng = toNullableFiniteNumber(supply.location_lng);
     const lat = toNullableFiniteNumber(supply.location_lat);
-    if (lng === null || lat === null) return;
+    if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) return;
 
     if (this.buildingPopupBinding) {
       this.infoWindow?.close?.();
@@ -2084,7 +1997,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     for (const building of items) {
       const lng = building.location_lng;
       const lat = building.location_lat;
-      if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+      if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
 
       const latestMetric = pickLatestMetric(building.metrics);
       const groupColor = comparisonGroups
@@ -2105,8 +2018,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           box-shadow:0 6px 14px rgba(0,0,0,0.18);
           display:flex;align-items:center;justify-content:center;
           color:${style.textColor};font-weight:800;font-size:${style.fontSize};
-          transition: transform 0.2s, background-color 0.3s;
-        " onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+        ">
           ${style.text}
         </div>
       `;
@@ -2141,7 +2053,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
     const submarketMap = new Map<string, any>();
     const visibleSubmarkets = new Set(items.map(b => normalizeMapSubmarket(b.submarket)));
-    const fullSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? items);
+    const scopedSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? items);
     for (const b of overviewBuildings ?? items) {
       const sub = normalizeMapSubmarket(b.submarket);
       if (!visibleSubmarkets.has(sub)) continue;
@@ -2162,7 +2074,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       }
       const agg = submarketMap.get(sub);
       if (officeGrade(b.grade) === 'a' || officeGrade(b.grade) === 'b') agg.count += 1;
-      if (Number.isFinite(b.location_lng) && Number.isFinite(b.location_lat)) {
+      if (hasMapCoordinates(b)) {
         agg.lngSum += b.location_lng;
         agg.latSum += b.location_lat;
         agg.coordCount += 1;
@@ -2207,8 +2119,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         distData.totalCount += 1;
 
         // 检查是否有 LEED 认证
-        const leed = (b.leed_certification || "").trim().toUpperCase();
-        if (leed && leed !== "NULL" && leed !== "") {
+        if (hasLeedCertification(b.leed_certification)) {
           distData.leedCount += 1;
         }
       }
@@ -2221,7 +2132,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const centerLat = agg.latSum / agg.coordCount;
 
       // 计算用于数值比较的纯数字
-      const fullSummary = fullSubmarketSummaries.get(agg.name);
+      const fullSummary = scopedSubmarketSummaries.get(agg.name);
       const avgRentNum = fullSummary?.rent ?? 0;
       const vacRateNum = fullSummary?.vacancyPct ?? Number.NaN;
 
@@ -2292,7 +2203,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         let leedCount = 0;
 
         for (const b of buildingsInSubmarket) {
-          if (b.leed_certification && b.leed_certification !== '无' && b.leed_certification !== '-') {
+          if (hasLeedCertification(b.leed_certification)) {
             leedCount++;
           }
           totalCount++;
@@ -2332,8 +2243,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           width: 102px; height: 102px; border-radius: 50%;
           background: ${bgColor}; border: 2px solid rgba(255,255,255,0.9);
           box-shadow: 0 8px 24px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center;
-          color: #ffffff; cursor: pointer; backdrop-filter: blur(4px); transition: transform 0.2s ease, background 0.2s;
-        " onmouseover="this.style.transform='scale(1.05)'; this.style.background='${hoverColor}';" onmouseout="this.style.transform='scale(1)'; this.style.background='${bgColor}';">
+          color: #ffffff; cursor: pointer; transition: background-color 120ms;
+        " onmouseover="this.style.background='${hoverColor}';" onmouseout="this.style.background='${bgColor}';">
           <div style="font-size: 13px; font-weight: 900; margin-bottom: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.4); line-height:1.2; text-align:center;">${agg.name.length > 5 ? escapeHtml(agg.name.slice(0, Math.ceil(agg.name.length / 2))) + "<br>" + escapeHtml(agg.name.slice(Math.ceil(agg.name.length / 2))) : escapeHtml(agg.name)}</div>
           ${extraContent}
         </div>
@@ -2356,7 +2267,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     for (const building of items) {
       const lng = building.location_lng;
       const lat = building.location_lat;
-      if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+      if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) continue;
 
       const latestMetric = pickLatestMetric(building.metrics);
       const groupColor = comparisonGroups
@@ -2380,11 +2291,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           background: ${style.bgColor};
           opacity: 0.85;
           cursor: pointer;
-          transition: transform 0.15s ease-out, opacity 0.15s ease-out;
+          transition: opacity 120ms;
           box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         "
-        onmouseover="this.style.transform='scale(1.8)'; this.style.opacity='1';"
-        onmouseout="this.style.transform='scale(1)'; this.style.opacity='0.85';"
+        onmouseover="this.style.opacity='1';"
+        onmouseout="this.style.opacity='0.85';"
         title="${escapeHtml(building.name)}"
         aria-label="${escapeHtml(building.name)}"
         ></div>
@@ -2655,9 +2566,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   private showBuildingPopup(building: BuildingWithMetrics, metric: BuildingMetric | null, entry:ReadingEntry='map_marker') {
-    if (!this.map || !this.AMap || this._destroyed) return;
+    if (this._destroyed) return;
     beginBuildingReading(building.id,entry);
     if (this.publishWorkspaceBuilding({ ...building, _dataType: 'existing' })) return;
+    if (!this.map || !this.AMap) return;
     this.hideHoverTooltip();
     // Replacing the card must not clear an active nearby comparison.
     this._isClearingCompetitor = true;
@@ -2755,7 +2667,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
    * 🌟 打开指定楼宇的信息窗口
    */
   openBuildingInfoWindow(buildingId: string, entry:ReadingEntry='map_list'): void {
-    if (!this.map || !this.AMap || !buildingId) return;
+    if (this._destroyed || !buildingId) return;
 
     // 从缓存中查找楼宇
     const building = this._allBuildingsCache.find((b) => b.id === buildingId);
@@ -2765,10 +2677,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     }
 
     if (this.workspaceDetailHandler) { this.showBuildingPopup(building, pickLatestMetric(building.metrics),entry); return; }
+    if (!this.map || !this.AMap) return;
     const lng = building.location_lng;
     const lat = building.location_lat;
 
-    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    if (!hasMapCoordinates({ location_lng: lng, location_lat: lat })) {
       console.warn(
         "[MapController] Invalid building coordinates:",
         building.name,
@@ -2898,6 +2811,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   destroy(): void {
     this._destroyed = true;
+    this.closeContactDialog?.();
+    this.closeContactDialog = undefined;
     this.initialTilesReady = false;
     this.releaseBuildingPopup();
     this.releaseFuturePhotoGallery();

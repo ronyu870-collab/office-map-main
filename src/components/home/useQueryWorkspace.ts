@@ -48,6 +48,25 @@ function visibleControls(surface: HTMLElement): HTMLElement[] {
   });
 }
 
+/** Native focus scrolling can leave a target clipped in nested scrollports.
+ * Correct only the workspace's scrollable ancestors; never move the page. */
+function revealControl(control: HTMLElement, surface: HTMLElement) {
+  for (let parent = control.parentElement; parent && parent !== surface; parent = parent.parentElement) {
+    const style = getComputedStyle(parent), box = parent.getBoundingClientRect();
+    const target = control.getBoundingClientRect();
+    if (/(auto|scroll)/.test(style.overflowY) && parent.clientHeight > 0 && parent.scrollHeight > parent.clientHeight) {
+      const top = box.top + parent.clientTop, bottom = top + parent.clientHeight;
+      if (target.bottom > bottom) parent.scrollTop += target.bottom - bottom;
+      else if (target.top < top) parent.scrollTop += target.top - top;
+    }
+    if (/(auto|scroll)/.test(style.overflowX) && parent.clientWidth > 0 && parent.scrollWidth > parent.clientWidth) {
+      const left = box.left + parent.clientLeft, right = left + parent.clientWidth;
+      if (target.right > right) parent.scrollLeft += target.right - right;
+      else if (target.left < left) parent.scrollLeft += target.left - left;
+    }
+  }
+}
+
 /** A single DOM/React tree changes its bounds. No portal, router, query or session
  * key participates in a mode switch. The placeholder preserves the homepage. */
 export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
@@ -155,7 +174,8 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     const editor = composer.current?.querySelector('textarea') ?? null;
     resizeEditor(editor, mode);
     const destination = node.getBoundingClientRect();
-    const destinationRadius = getComputedStyle(node).borderRadius;
+    const destinationStyle = getComputedStyle(node);
+    const destinationRadius = destinationStyle.borderRadius;
     restorePosition(scroller.current, transition.reading);
     if (mode === 'compact' && anchor.current) anchor.current.style.height = `${destination.height}px`;
     const finish = () => {
@@ -183,7 +203,8 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     }
     const bounds = (rect: DOMRect) => ({ top: `${rect.top}px`, left: `${rect.left}px`,
       width: `${rect.width}px`, height: `${rect.height}px` });
-    const timing = { duration: DURATION, easing: 'cubic-bezier(.22, 1, .36, 1)' };
+    const timing = { duration: Number.parseFloat(destinationStyle.getPropertyValue('--cd-motion-workspace')) || DURATION,
+      easing: destinationStyle.getPropertyValue('--cd-ease-out').trim() || 'cubic-bezier(.16, 1, .3, 1)' };
     const inputSurface = composer.current, slot = composerSlot.current;
     if (inputSurface?.animate && slot && transition.composer?.width) {
       const target = inputSurface.getBoundingClientRect();
@@ -291,7 +312,27 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
       if (item.reserveGutter) item.node.style.scrollbarGutter = 'stable';
       item.node.style.setProperty('overflow', 'hidden');
     });
+    // Keyboard reading remains attached to its focused control across delayed
+    // Markdown/chart layout. A later reader gesture releases that ownership.
+    let keyboardControl: HTMLElement | null = null;
+    const releaseKeyboardControl = () => { keyboardControl = null; };
+    const revealKeyboardControl = () => {
+      if (!keyboardControl?.isConnected || keyboardControl !== document.activeElement || !node.contains(keyboardControl)) return;
+      revealControl(keyboardControl, node);
+    };
+    const mutations = typeof MutationObserver === 'undefined' ? null : new MutationObserver(revealKeyboardControl);
+    mutations?.observe(node, { childList: true, characterData: true, subtree: true });
+    const sizes = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(revealKeyboardControl);
+    sizes?.observe(node);
+    if (scroller.current) {
+      sizes?.observe(scroller.current);
+      if (scroller.current.firstElementChild) sizes?.observe(scroller.current.firstElementChild);
+    }
+    node.addEventListener('pointerdown', releaseKeyboardControl, true);
+    node.addEventListener('wheel', releaseKeyboardControl, true);
+    node.addEventListener('touchstart', releaseKeyboardControl, true);
     const keydown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') releaseKeyboardControl();
       const activeComposition = surfaceComposition.current;
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || composingRef.current
         || (activeComposition?.isConnected && node.contains(activeComposition))) return;
@@ -314,16 +355,23 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
         next = (active && node.contains(active)
           ? ordered.find(control => active.compareDocumentPosition(control) & direction) : undefined) ?? ordered[0];
       }
-      // Let the browser reveal a target inside a long answer/history scroller.
-      // Suppressing scrolling here would leave a valid keyboard focus offscreen.
-      next.focus();
+      // Reveal only workspace scrollports after transferring focus. Native focus
+      // scrolling can also move overflow-hidden layout ancestors.
+      next.focus({ preventScroll: true });
+      keyboardControl = next;
+      revealControl(next, node);
     };
     const focusin = (event: FocusEvent) => {
+      if (event.target !== keyboardControl) releaseKeyboardControl();
       if (event.target instanceof Node && !node.contains(event.target)) toggle.current?.focus({ preventScroll: true });
     };
     document.addEventListener('keydown', keydown); document.addEventListener('focusin', focusin);
     return () => {
       document.removeEventListener('keydown', keydown); document.removeEventListener('focusin', focusin);
+      mutations?.disconnect(); sizes?.disconnect();
+      node.removeEventListener('pointerdown', releaseKeyboardControl, true);
+      node.removeEventListener('wheel', releaseKeyboardControl, true);
+      node.removeEventListener('touchstart', releaseKeyboardControl, true);
       outside.forEach(item => { item.node.inert = item.inert; });
       scrollContainers.forEach(item => {
         item.node.style.overflow = item.overflow;
@@ -353,10 +401,12 @@ export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | nul
   const deferredLayout = React.useRef(false);
   const prependPosition = React.useRef<ReadingPosition | null>(null);
   const expectedScrollTop = React.useRef<number | null>(null);
+  const revealNext = React.useRef(false);
+  const answerAnchor = React.useRef<HTMLElement | null>(null);
   const transitionRef = React.useRef(transitioning);
   React.useLayoutEffect(() => { transitionRef.current = transitioning; }, [transitioning]);
   const toLatest = React.useCallback(() => {
-    following.current = true; prependPosition.current = null; setUnseen(false);
+    following.current = true; prependPosition.current = null; answerAnchor.current = null; revealNext.current = false; setUnseen(false);
     const node = scrollerRef.current;
     if (node) {
       node.scrollTop = node.scrollHeight;
@@ -374,7 +424,7 @@ export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | nul
       expectedScrollTop.current = null;
       return;
     }
-    expectedScrollTop.current = null; prependPosition.current = null;
+    expectedScrollTop.current = null; prependPosition.current = null; answerAnchor.current = null; revealNext.current = false;
     following.current = node.scrollHeight - node.clientHeight - node.scrollTop < 72;
     if (following.current) setUnseen(false);
   }, [scrollerRef]);
@@ -382,7 +432,16 @@ export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | nul
     if (transitionRef.current) { deferredLayout.current = true; return; }
     const node = scrollerRef.current;
     if (!node) return;
-    if (prependPosition.current) {
+    if (revealNext.current) {
+      revealNext.current = false;
+      answerAnchor.current = node.querySelector<HTMLElement>('[aria-label="本次问答"]');
+      if (answerAnchor.current) { following.current = false; setUnseen(false); }
+    }
+    if (answerAnchor.current?.isConnected) {
+      const position = node.scrollTop + answerAnchor.current.getBoundingClientRect().top - node.getBoundingClientRect().top - 16;
+      node.scrollTop = Math.max(0, position);
+      expectedScrollTop.current = node.scrollTop;
+    } else if (prependPosition.current) {
       const previousTop = node.scrollTop;
       restorePosition(node, prependPosition.current);
       if (node.scrollTop !== previousTop) expectedScrollTop.current = node.scrollTop;
@@ -394,29 +453,44 @@ export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | nul
     const node = scrollerRef.current;
     if (!node || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(applyLayout);
+    // User interaction ends the initial answer reveal; local details and chart
+    // settings must keep their own reading position after this point.
+    const releaseAnswer = () => {
+      answerAnchor.current = null; revealNext.current = false;
+      // Focus can reveal an older control before the browser dispatches scroll.
+      // A ResizeObserver in that interval must not follow the result tail again.
+      following.current = false; prependPosition.current = null; expectedScrollTop.current = null;
+    };
+    node.addEventListener('pointerdown', releaseAnswer); node.addEventListener('keydown', releaseAnswer); node.addEventListener('focusin', releaseAnswer);
     observer.observe(node);
     if (node.firstElementChild) observer.observe(node.firstElementChild);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); node.removeEventListener('pointerdown', releaseAnswer); node.removeEventListener('keydown', releaseAnswer); node.removeEventListener('focusin', releaseAnswer); };
   }, [scrollerRef, applyLayout]);
   React.useLayoutEffect(() => {
     if (transitionRef.current) { deferredUpdate.current = true; return; }
-    if (following.current) toLatest();
+    if (revealNext.current || answerAnchor.current) applyLayout();
+    else if (following.current) toLatest();
     else setUnseen(true);
-  }, [update, toLatest]);
+  }, [update, toLatest, applyLayout]);
   React.useLayoutEffect(() => {
     if (transitioning) return;
     const updated = deferredUpdate.current, resized = deferredLayout.current;
     deferredUpdate.current = false;
     deferredLayout.current = false;
     if (updated || resized) applyLayout();
-    if (updated && !following.current) setUnseen(true);
+    if (updated && !following.current && !answerAnchor.current) setUnseen(true);
   }, [transitioning, applyLayout]);
   const followNext = React.useCallback(() => {
-    following.current = true; prependPosition.current = null; expectedScrollTop.current = null; setUnseen(false);
+    following.current = true; prependPosition.current = null; expectedScrollTop.current = null; answerAnchor.current = null; revealNext.current = false; setUnseen(false);
   }, []);
   const preserveBeforePrepend = React.useCallback(() => {
     prependPosition.current = readPosition(scrollerRef.current);
-    following.current = false; expectedScrollTop.current = null;
+    following.current = false; expectedScrollTop.current = null; answerAnchor.current = null; revealNext.current = false;
   }, [scrollerRef]);
-  return { onScroll, toLatest, followNext, preserveBeforePrepend, unseen };
+  const revealNextAnswer = React.useCallback(() => {
+    // Explicit terminal result insertion may reveal its lead only while the
+    // reader is following this request. Scrolling back always takes priority.
+    if (following.current) revealNext.current = true;
+  }, []);
+  return { onScroll, toLatest, followNext, preserveBeforePrepend, revealNextAnswer, unseen };
 }

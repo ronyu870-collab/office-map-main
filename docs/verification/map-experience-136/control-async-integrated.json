@@ -1,0 +1,10 @@
+{
+  "status": "pass",
+  "records": 27,
+  "widths": [
+    390
+  ],
+  "fullRecord": "control-async-integrated-full.json",
+  "sha256": "72cd687907c5de5d0862e8574ceff344182de6f9b4f4ee21fd806fda0b1edc84",
+  "exit": 0
+}

@@ -19,6 +19,7 @@ import type { QueryPlan } from './plan';
 import { decodeGeneratedArchive } from './resultArchive';
 import { FIELD_REGISTRY_VERSION } from './registry';
 import { loadDataAuthority, type DataAuthority, type VerifiedQueryIdentity } from './serverAuthority';
+import { answerSelectionSchema, selectedAnswerResult, type AnswerSelection } from './answerSelection';
 
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
 const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequence: z.number().int().positive().safe(),
@@ -61,6 +62,7 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
   let researchProtocol=false;
   let businessProtocol=false;
   let leaseProtocol = false;
+  let answerProtocol = false;
   let planInput = receipt?.content?.plan;
   if (planInput?.resolution === 'server_semantic/1' || planInput?.resolution === 'server_agent/1') {
     // History calls this only after owner-checked archive access in the current
@@ -69,13 +71,29 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     const resolvedToolEvents = read.events.filter(event => event.kind === 'tool_finished').map(event =>
       JSON.parse(decryptAuditContent(event.cipher, { ...context, eventId: event.event_id }, new Map([[keys.keyId, keys.encryptionKey]]))).content);
     const resolved = (planInput?.resolution === 'server_agent/1' ? resolvedToolEvents.reverse() : resolvedToolEvents)
-      .find(value => (value?.resolution?.protocol === 'research-conversation/1' && value?.plan) || value?.resolution?.protocol === 'lease-research/1' || value?.resolution?.protocol === 'business-research/1' || value?.resolution?.protocol === 'knowledge-research/1' || value?.resolution?.protocol === 'deep-research/1');
+      .find(value => (value?.resolution?.protocol === 'research-conversation/1' && value?.plan) || value?.resolution?.protocol === 'lease-research/1' || value?.resolution?.protocol === 'business-research/1' || value?.resolution?.protocol === 'knowledge-research/1' || value?.resolution?.protocol === 'deep-research/1' || value?.resolution?.protocol === 'answer-selection/1');
     if (!resolved) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     knowledgeProtocol=resolved.resolution.protocol==='knowledge-research/1';
     researchProtocol=resolved.resolution.protocol==='deep-research/1';
     businessProtocol=resolved.resolution.protocol==='business-research/1';
     leaseProtocol = resolved.resolution.protocol === 'lease-research/1';
+    answerProtocol = resolved.resolution.protocol === 'answer-selection/1';
     planInput = resolved.plan;
+  }
+  if (answerProtocol) {
+    const archive = decodeGeneratedArchive(read.events.filter(event => event.kind === 'response_generated'), context, new Map([[keys.keyId, keys]]));
+    answerSelectionSchema.parse(archive.result);
+    // Return original serialized snapshot objects, preserving generated-file
+    // digests. Schema parsing above only validates, it is not the archive.
+    const selection = archive.result as AnswerSelection;
+    const recheck = async () => {
+      for (const entry of selection.results) await recheckSelectedSnapshot(client, identity, signal,
+        requestId, entry.result, read.permission_revision, options);
+    };
+    await recheck();
+    const result = selectedAnswerResult(selection);
+    return { result, resultId: result.resultId, answerSelection: selection,
+      redactionTypes: archive.redactionTypes, recheck };
   }
   if (researchProtocol) {
     const archive = decodeGeneratedArchive(read.events.filter(e => e.kind === 'response_generated'), context, new Map([[keys.keyId, keys]]));
@@ -135,4 +153,43 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
   await recheck();
   // Return the exact decoded archive, not the narrowed schema projection above.
   return {result:archive.result,resultId:result.resultId,redactionTypes:archive.redactionTypes,recheck};
+}
+
+/** A selected answer has no new authority. Reuse the original domain checks
+ * for every full snapshot, including both sides of comparisons. */
+async function recheckSelectedSnapshot(client: SupabaseClient, identity: VerifiedQueryIdentity, signal: AbortSignal,
+  requestId: string, raw: unknown, revision: string, options: { exporting?: boolean }) {
+  const result = resultViewSchema.parse(raw);
+  const authority = await loadDataAuthority(client, identity, signal);
+  if (authority.permissionRevision !== revision || !authority.grants.includes('query:catalog')
+    || options.exporting && !authority.grants.includes('export:internal')) throw new Error('QUERY_DENIED');
+  if (isResearchResult(result)) {
+    await recheckResearchResult(client, identity, signal, requestId, result, revision,
+      { archived: true, exporting: options.exporting });
+    return;
+  }
+  if (isLeaseResult(result) || isBusinessResult(result) || isKnowledgeResult(result)) {
+    if (result.parameters.leaseBindings) await recheckLeaseResult(client, identity, signal, result, options.exporting);
+    await recheckBusinessResults(client, identity, signal, [result], options.exporting);
+    await recheckKnowledgeResults(client, identity, signal, [result], options.exporting);
+    return;
+  }
+  resultSchema.parse(raw);
+  const plans = [parseQueryPlan(result.parameters.executedPlan),
+    ...z.array(z.unknown()).max(64).parse(result.parameters.exportPlans ?? []).map(parseQueryPlan)];
+  plans.forEach(plan => authorizeRecoveryPlan(plan, authority));
+  const sources = result.sources.map(ref => ({ entity_id: ref.entityId, record_id: ref.recordId,
+    source_table: ref.table, field: ref.field, year: ref.period?.year ?? null, quarter: ref.period?.quarter ?? null }));
+  const { data, error } = await client.rpc('ai_query_result_sources_allowed', {
+    p_actor: identity.actorId, p_effective: identity.effectiveUserId, p_session: identity.sessionId,
+    p_request_id: requestId, p_permission_revision: revision, p_sources: sources,
+  }).abortSignal(signal);
+  signal.throwIfAborted();
+  if (error) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
+  if (data?.allowed !== true || data.permission_revision !== revision
+    || plans.some(plan => ['group_aggregate', 'group_trend', 'cross_aggregate', 'cross_trend'].includes(plan.operation))
+      && data.source_policy !== 'catalog-dimensions/1') throw new Error('QUERY_DENIED');
+  if (result.parameters.leaseBindings) await recheckLeaseResult(client, identity, signal, result, options.exporting);
+  await recheckBusinessResults(client, identity, signal, [result], options.exporting);
+  await recheckKnowledgeResults(client, identity, signal, [result], options.exporting);
 }

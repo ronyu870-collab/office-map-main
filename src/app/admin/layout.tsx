@@ -2,12 +2,14 @@
 
 import * as React from 'react';
 import { GRID_DRAFT_PREFIX } from '@/src/components/admin/grid/useGridRecovery';
+import { NOTICE_DRAFT_PREFIX } from '@/src/components/admin/noticeDraftStorage';
 import { AdminEditProtection, useAdminEditProtection } from '@/src/components/admin/AdminEditProtection';
 import { useRouter } from 'next/navigation';
 import { getSession, signOut } from '@/src/services/Auth';
 import { isDemoMode } from '@/src/config/demoMode';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { canAccessAdminConsole } from '@/src/utils/adminAccess';
+import { getSessionIdFromAccessToken } from '@/src/utils/authSession';
 import { AppHeader, Button, LoadingState } from '@/src/components/ui';
 import { AdminOperatorContext, type AdminOperator } from './adminOperatorEmail';
 
@@ -48,7 +50,7 @@ function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        setVerifiedOperator({ userId: session.user.id, email: session.user.email ?? '' });
+        setVerifiedOperator({ userId: session.user.id, email: session.user.email ?? '', sessionId: getSessionIdFromAccessToken(session.session.access_token) });
       } catch {
         if (!cancelled) router.replace('/');
       }
@@ -64,8 +66,8 @@ function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
       try {
       const session = await getSession();
       if (session?.user?.id) {
-        const prefix = `${GRID_DRAFT_PREFIX}${session.user.id}:`;
-        for (const key of Object.keys(sessionStorage)) if (key.startsWith(prefix)) sessionStorage.removeItem(key);
+          const prefixes = [GRID_DRAFT_PREFIX, NOTICE_DRAFT_PREFIX].map(prefix => `${prefix}${session.user.id}:`);
+          for (const key of Object.keys(sessionStorage)) if (prefixes.some(prefix => key.startsWith(prefix))) sessionStorage.removeItem(key);
       }
       } catch { /* Storage availability must not prevent sign-out. */ }
       await signOut();

@@ -54,6 +54,7 @@ next-env.d.ts
 
 /verification/lease-expiry-auth/
 /verification/ai-query-auth/
+/verification/ai-evaluation/
 
 # Private local pilot: authorized samples, credentials, database config and runtime snapshot.
 /.local/f6-admin-pilot/
@@ -76,3 +77,7 @@ next-env.d.ts
 /verification/ai-audit-people/
 
 /verification/ai-audit-export/
+
+# Disposable Pitch Studio database, build logs and verification artifacts.
+/tmp/
+/verification/ai-control-center/

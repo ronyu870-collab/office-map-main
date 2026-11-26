@@ -37,7 +37,7 @@ try {
       `export {${names.join(',')}} from ${JSON.stringify(root + '/src/lib/intelligence/query/' + file + '.ts')};`).join('\n'); },
   }] });
   let compiled;
-  try { compiled = (await bundle.generate({ format: 'cjs' })).output.find(file => file.type === 'chunk').code; }
+  try { compiled = (await bundle.generate({ format: 'cjs', codeSplitting: false })).output.find(file => file.type === 'chunk').code; }
   finally { await bundle.close(); }
   const modulePath = path.join(temporary, 'actual-history.cjs'); await writeFile(modulePath, compiled);
   const api = createRequire(import.meta.url)(modulePath);

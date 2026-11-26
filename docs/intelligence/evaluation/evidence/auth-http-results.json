@@ -1,0 +1,964 @@
+{
+  "suite": "regression",
+  "testedCommit": "working_tree_not_release_evidence",
+  "testedMergeSha": null,
+  "headSha": null,
+  "revisionBasis": "Local working tree; no release-commit claim",
+  "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+  "scenarios": [
+    {
+      "scenario": "真实Auth创建、密码登录和会话落库",
+      "status": "passed"
+    },
+    {
+      "scenario": "主页依赖旧夹具复现：三个真实Data API读取404，原审计HTTP写入500",
+      "status": "passed"
+    },
+    {
+      "scenario": "主页依赖原始迁移补齐：同一真实请求200，审计持久化/重试幂等和原身份保留",
+      "status": "passed"
+    },
+    {
+      "scenario": "主页依赖保留原RLS：普通用户只见自己反馈和提醒，不能读取其他会话审计",
+      "status": "passed"
+    },
+    {
+      "scenario": "企业AI：viewer/editor拒绝发起和缓存提示，普通成交检索仍可用",
+      "status": "passed"
+    },
+    {
+      "scenario": "企业AI：当前admin正常异步执行一次，自模拟/空模拟头均拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "企业AI：当前角色、停用及会话删除复查，旧JWT不能继续启动",
+      "status": "passed"
+    },
+    {
+      "scenario": "企业AI：已排队请求在claim等待期间降权，释放锁后不调用模型",
+      "status": "passed"
+    },
+    {
+      "scenario": "企业AI：模型响应等待期间降权，结果不写入共享提示缓存",
+      "status": "passed"
+    },
+    {
+      "scenario": "企业AI：实际缓存读取期间降权，返回前丢弃关系提示及AI按钮",
+      "status": "passed"
+    },
+    {
+      "scenario": "企业AI：授权服务故障时关闭AI，普通企业检索可继续",
+      "status": "passed"
+    },
+    {
+      "scenario": "匿名请求不伪造身份，留有界入口事件且不进入业务查询",
+      "status": "passed"
+    },
+    {
+      "scenario": "总开关关闭和无资格管理员仍记录正式问题后拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "主页能力清单遵守真实身份、独立资格与当前字段权限",
+      "status": "passed"
+    },
+    {
+      "scenario": "纯问题通过完整语法查目录/最高楼/季度170和17.5%，同一结果可恢复",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实浏览器同源Origin可提交和恢复，跨源及伪造转发主机均拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "不明确或额外条件全量审计后澄清，重试不查数且无权者不走澄清能力",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读",
+      "status": "passed"
+    },
+    {
+      "scenario": "季度170/17.5%及名称目录通过真实HTTP读取",
+      "status": "passed"
+    },
+    {
+      "scenario": "非法字段、伪造身份和畸形JSON均保留实际提交内容",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实管理员也不能通过模拟身份使用AI或恢复他人结果",
+      "status": "passed"
+    },
+    {
+      "scenario": "问题和原始JSON中的明确凭证均脱敏，保留业务文字",
+      "status": "passed"
+    },
+    {
+      "scenario": "同请求并发/新登录重试不重复执行，冲突问题也单独留痕",
+      "status": "passed"
+    },
+    {
+      "scenario": "历史结果状态及恢复保持原结果ID、数值和来源，不重跑最新数据",
+      "status": "passed"
+    },
+    {
+      "scenario": "恢复接口拒绝跨人、管理员借模拟读他人、未知ID、匿名与伪造身份",
+      "status": "passed"
+    },
+    {
+      "scenario": "历史结果恢复复查字段、全集记录、市场和当前楼宇来源权限",
+      "status": "passed"
+    },
+    {
+      "scenario": "季度来源转草稿后拒绝历史统计；恢复权限后原快照仍为170",
+      "status": "passed"
+    },
+    {
+      "scenario": "空结果仍检查原始查询范围，不能通过无来源绕过撤权",
+      "status": "passed"
+    },
+    {
+      "scenario": "审计链损坏与恢复读取留痕故障均关闭恢复，不返回部分结果",
+      "status": "passed"
+    },
+    {
+      "scenario": "恢复响应准备后来源撤回仍阻止交付，追加未发送修正",
+      "status": "passed"
+    },
+    {
+      "scenario": "失败和拒绝终态可查但没有结果，状态字段篡改不能伪装成功",
+      "status": "passed"
+    },
+    {
+      "scenario": "状态轮询期间事件追加不误报撤权，恢复期间变化则409重试",
+      "status": "passed"
+    },
+    {
+      "scenario": "超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整",
+      "status": "passed"
+    },
+    {
+      "scenario": "跨源请求和不获权范围拒绝，用户metadata不能提权",
+      "status": "passed"
+    },
+    {
+      "scenario": "入口与问答存储故障分别阻止新查询，失败不返回结果",
+      "status": "passed"
+    },
+    {
+      "scenario": "查询在途时撤权等待快照锁，最终HTTP仍拒绝交付",
+      "status": "passed"
+    },
+    {
+      "scenario": "响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果",
+      "status": "passed"
+    },
+    {
+      "scenario": "响应准备后权限服务故障明确为无法确认，不误报撤权",
+      "status": "passed"
+    },
+    {
+      "scenario": "制图不重查最新数值，记录完整图表绑定；导出没有独立资格默认拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实下载XLSX/CSV/SVG回读与同一170快照一致，来源和文件摘要可核对",
+      "status": "passed"
+    },
+    {
+      "scenario": "导出及图表拒绝跨人、未知请求、伪造结果编号/数值/字段与跨源调用",
+      "status": "passed"
+    },
+    {
+      "scenario": "模拟身份不能导出，管理员仍须独立导出权且撤权后不能下载旧快照",
+      "status": "passed"
+    },
+    {
+      "scenario": "文件准备后撤回导出权或候选来源仍不交付，记录未发送修正",
+      "status": "passed"
+    },
+    {
+      "scenario": "明确季度双字段清单可转联合有效散点，不把未知高度当零",
+      "status": "passed"
+    },
+    {
+      "scenario": "两期空置水平图与差值Excel都明确百分点，图不以基期名冒充指标",
+      "status": "passed"
+    },
+    {
+      "scenario": "制图和导出审计故障时不返回图或文件，权限写入保留变更记录",
+      "status": "passed"
+    },
+    {
+      "scenario": "交付挑战绑定原响应；收到、DOM页与下载分发分别审计，不冒称用户已读",
+      "status": "passed"
+    },
+    {
+      "scenario": "伪造摘要/签名、跨人/会话、假模拟、跨Origin与非法页不能登记有效呈现",
+      "status": "passed"
+    },
+    {
+      "scenario": "回执审计失败不报成功，撤权与旧JWT不得绕过身份检查",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实请求接收后进程SIGKILL，保留原问题与未确认状态，重启不重跑原查询",
+      "status": "passed"
+    },
+    {
+      "scenario": "并发重试和同键冲突每次均保存独立入口正文，业务只执行一次",
+      "status": "passed"
+    },
+    {
+      "scenario": "恢复/图表/下载/回执入口同时留存，技术回执不会复制可用令牌",
+      "status": "passed"
+    },
+    {
+      "scenario": "审计默认拒绝无资格管理员/匿名，未知与存在的目标没有泄漏差异",
+      "status": "passed"
+    },
+    {
+      "scenario": "审计检索接口的限额内非法控制字符正文也完整加密留痕",
+      "status": "passed"
+    },
+    {
+      "scenario": "明确审计资格独立于AI使用权，真实API可读他人原文、回答快照和交付事件",
+      "status": "passed"
+    },
+    {
+      "scenario": "孤立入口可按原文检索及展开，原文检索条件加密记录，不假装已经查询成功",
+      "status": "passed"
+    },
+    {
+      "scenario": "原文凭证保持脱敏，旧无入口问答也能检索，模拟/跨源/越界条件均拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "关键词分页允许首批零命中，继续查找不会漏掉后续原文；游标不能换条件或伪造",
+      "status": "passed"
+    },
+    {
+      "scenario": "读取后撤销审计资格不交付正文，查看凭据写入失败同样拒绝返回",
+      "status": "passed"
+    },
+    {
+      "scenario": "审计链或入口密文受损不冒称可信正文，真实注销和停用账号不能继续查看",
+      "status": "passed"
+    },
+    {
+      "scenario": "审计按当前中英文姓名找人，同名账号分别保留；非admin仍不能提问或取得目录信息",
+      "status": "passed"
+    },
+    {
+      "scenario": "改名和目录删除不覆盖原始操作账号；未知身份保留UUID且不从metadata猜测",
+      "status": "passed"
+    },
+    {
+      "scenario": "姓名过滤与签名游标绑定，超过一页的同名人员记录按稳定ID完整分页",
+      "status": "passed"
+    },
+    {
+      "scenario": "旧数据库没有人员检索协议时新应用拒绝返回，不能静默忽略姓名条件",
+      "status": "passed"
+    },
+    {
+      "scenario": "审计查看资格不能自动导出，匿名/普通角色/模拟与跨源都不返回审计文件",
+      "status": "passed"
+    },
+    {
+      "scenario": "完整批量JSON保留精确原文、原始账号、关联回答快照/来源/事件，导出字节与准备凭据一致",
+      "status": "passed"
+    },
+    {
+      "scenario": "浏览器发起下载回执校验签名、账号/会话、文件摘要并去重；不把软件事件说成磁盘保存",
+      "status": "passed"
+    },
+    {
+      "scenario": "重复/超限/恶意选择拒绝，缺失目标整份失败而不偷偷导出部分记录",
+      "status": "passed"
+    },
+    {
+      "scenario": "导出读取后撤销任一资格或记录准备凭据失败，均不交付文件",
+      "status": "passed"
+    },
+    {
+      "scenario": "审计证据无法解码时不交付文件；恢复证据后可重新导出",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实注销后的旧JWT不能下载已有审计或上报旧文件回执",
+      "status": "passed"
+    },
+    {
+      "scenario": "viewer/editor即使持全部AI查询、导出和审计资格仍拒绝，旧公开开关不能放行",
+      "status": "passed"
+    },
+    {
+      "scenario": "admin降级后旧JWT/旧快照/作图/下载/交付回执/审计均拒绝，重新成为admin仍沿用独立资格",
+      "status": "passed"
+    },
+    {
+      "scenario": "多季度真实SQL完整保留缺期，三项指标按各期与全期间共同样本确定性计算",
+      "status": "passed"
+    },
+    {
+      "scenario": "趋势折线、柱图、Excel及CSV/SVG回读绑定同一个结果和原始来源",
+      "status": "passed"
+    },
+    {
+      "scenario": "趋势恢复不悄悄重算；任一历史参与来源撤回后拒绝恢复、作图和下载",
+      "status": "passed"
+    },
+    {
+      "scenario": "连续40期完整读取；过大或反向区间与额外未支持条件不会被忽略",
+      "status": "passed"
+    },
+    {
+      "scenario": "同一真实快照按区域/等级分组：独立权重、未知分类和指定空区域",
+      "status": "passed"
+    },
+    {
+      "scenario": "分组趋势图与真实XLSX/SVG/CSV均保留全部组、空值和分组字段来源",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实SQL旧来源白名单拒绝分组字段；升级后仅允许指定目录字段并保留审计/角色限制",
+      "status": "passed"
+    },
+    {
+      "scenario": "区域资格收紧不泄漏其他组；组成员移出当前权限后旧分组恢复/作图/下载拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实交叉查询保留全部9格、空组合、缺失分类及每格独立分母",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实交叉热力表、回执和XLSX/SVG/CSV共用完整快照与分类来源",
+      "status": "passed"
+    },
+    {
+      "scenario": "交叉轴只来自获权区域；普通角色与撤权后的旧交叉结果均拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "旧来源协议不能放行交叉图表或下载；参与季度撤回后旧快照不可恢复",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实联合关系查询区分候选与各指标有效数；不足3栋不报告系数",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实同季度联合样本使用未舍入矩计算Pearson；恢复保持旧快照",
+      "status": "passed"
+    },
+    {
+      "scenario": "联合散点、回执与XLSX/CSV/SVG均保持原结果及参与来源",
+      "status": "passed"
+    },
+    {
+      "scenario": "联合关系必须同时获准全部输入字段；普通角色和来源撤回拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实分布查询使用完整有效样本与Type7，楼书未知/冲突和季度无效分开",
+      "status": "passed"
+    },
+    {
+      "scenario": "离群值仍参与分箱/均值；数据改变后恢复保留旧分布",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实直方/箱线、回执和XLSX/CSV/SVG保持同一完整分布及成员来源",
+      "status": "passed"
+    },
+    {
+      "scenario": "分布权限先过滤全集，缺字段/普通角色与来源撤回不能绕过",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实相对季度按北京时间解析，明示日历结束不代表填报/审定并保留明确季度",
+      "status": "passed"
+    },
+    {
+      "scenario": "明确滚动窗口含本季与已结束季度分开，缺期不回退且每期完整保留",
+      "status": "passed"
+    },
+    {
+      "scenario": "相对季度原结果恢复/重试/图表与真实文件沿用初次解析，不重新读取最新期间",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1最新期与滚动四季使用真实有效数据，同比保留明确日历季度及各期样本",
+      "status": "passed"
+    },
+    {
+      "scenario": "不支持的条件仍澄清，客户端改日期无效；普通角色和撤权不能靠相对问题绕过",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1研究计算：真实SQL趋势同时保留各期/共同样本、分母和未舍入变化",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1可信来源：研究结论、原记录、恢复与CSV归档为同一不可变快照",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1质量提醒：同楼180→80触发30%规则，来源能定位且记录未被删除",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1缺数保护：缺期不伪造数值或同比，分类和市场全集限制保留",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1多指标：同一获权快照按子市场同时计算租金和空置率，与独立SQL逐组核对",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1多指标：恢复、图表和CSV保存两项完整来源，不把空置率图绑定到租金列",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1多指标：共同样本按指标分别配对，缺期和百分点不被另一指标覆盖",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1多指标最新期：不同楼宇各自提供有效指标时仍使用真实共同季度，不强求同楼联合有效",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1多指标真实父轮：改分组与共同/各期样本保留指标和季度，每轮只读取一次事实快照",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1范围限制：真实网关54000错误保留失败审计并返回可缩小范围的413，不伪造结果或后台任务",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1多指标权限：缺少任一指标字段则整体拒绝，旧结果撤权恢复同样拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "交叉趋势：一至三指标各期/共同样本对照独立SQL，每次只读一次，伪造轴拒绝且零事实读取",
+      "status": "passed"
+    },
+    {
+      "scenario": "交叉趋势：缺期、空组合与未知分类保留未知；共同样本不得跳过无记录季度",
+      "status": "passed"
+    },
+    {
+      "scenario": "交叉趋势：原双维跨季问题现在执行，单季父轮追问保留双维、三指标及期间并保持幂等",
+      "status": "passed"
+    },
+    {
+      "scenario": "交叉趋势：恢复、三指标同源分面图及真实CSV/XLSX/SVG保存完整长表和来源",
+      "status": "passed"
+    },
+    {
+      "scenario": "交叉趋势：普通角色和缺少任一次指标字段都不能扩大数据读取",
+      "status": "passed"
+    },
+    {
+      "scenario": "交叉趋势：参与楼宇移出当前权限、资格撤回及历史季度草稿均阻止旧结果恢复和图表导出",
+      "status": "passed"
+    },
+    {
+      "scenario": "交叉趋势：旧来源协议拒绝恢复/图表/导出，恢复当前协议后原快照可用",
+      "status": "passed"
+    },
+    {
+      "scenario": "交叉趋势：真实50组合与1000指标点容量拒绝，不截断；旧单季度56格仍可执行",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T18 复制同样要求独立导出资格，禁止通过本机复制动作绕过后端",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T08/T17 复制结论、数字与摘要保留原季度、单位和样本；业务数据修改不替换快照",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T09 下载名显示真实分析对象、指标与季度，历史结果不改名为当前季度",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T12/T18 复制拒绝跨账号、模拟身份、跨源、伪造结果和客户端正文",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T12 复制生成后撤回资格或候选来源，最终响应不泄露已生成正文",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T01/T03/T17 楼宇介绍按主键绑定已有可信字段及真实季度，不生成缺失参数或效果图照片",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T02 同名与项目别名必须确认候选，确认后只有所选主键且不会使用模糊同名跳转",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T04/T05/T06 多项目地图补充保持原身份、分页与未知坐标，不携带重新查询的季度指标",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T07 地图传入明确ID且重审当前范围，问题/动作不符时澄清，趋势沿用P1同一快照",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T12/T18 卡片/地图拒绝他人记录、伪造主键、效果图、跨源、模拟身份及撤销字段资格",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1 T01-T02：CBD→金融街→两者比较继承季度、指标、获权楼宇范围",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1 T03/T05/T06/T07：真实最新期、连续四季、样本差异与180→80异常",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1 T04/T08：最贵澄清可以短回复，多维缺口不被静默丢弃",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1 T09/T10：实际执行条件、原记录、生成快照和空季度可复核",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1 T11：其他账号、其他conversation、其他真实登录session拒绝继承",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1 T13/T14：原请求重试只执行一次，建议保留已审计的条件与父节点",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1 T15：真实HTTP模型候选经校验，非法计划不进入数据执行",
+      "status": "passed"
+    },
+    {
+      "scenario": "P1 撤权：已形成对话仍逐次复查，不返回旧条件或数值",
+      "status": "passed"
+    },
+    {
+      "scenario": "Experience P0 问候有真实审计、可恢复本人历史且不能读取他人问候",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T10/T17 正式问答自动关联本人历史，对话恢复原始快照且不执行新查询",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T10 新会话显式重新授权历史，原恢复边界不变，继续分析与复制仍使用真实来源",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T10/T13 明确重查沿用原已执行绝对计划，重试复用请求且不会再次平移去年同期",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T10 澄清也恢复原回答和选项，不伪装为已完成的数值结果",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T11 搜索与加密重命名仅整理本人工作记录，归档及恢复不删除正式审计",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T11/T12 历史查询、按请求定位、修改和模拟身份不能突破本人边界",
+      "status": "passed"
+    },
+    {
+      "scenario": "P2 T12/T18 已保存历史逐次复查字段、来源和角色撤销，不通过旧快照继续交付数值",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 Agent / 真实Auth与下载回读：把 CBD 所有楼导出 Excel。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 Agent / 真实Auth与下载回读：把 CBD 净有效租金最高的 10 栋楼导出 Excel。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 Agent / 真实Auth与下载回读：按照建筑高度排序，导出前 20 栋楼。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 Agent / 真实Auth与下载回读：把刚才的结果导出 CSV。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 Agent / 真实Auth与下载回读：只保留楼宇名称、子市场、租金和面积。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 Agent / 真实Auth与下载回读：导出全部结果，不只是当前显示的第一页。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 Agent / 真实Auth与下载回读：合并2026Q2和Q3的楼宇结果导出Excel。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 已生成文件仍受跨用户隔离、独立导出资格和撤权约束",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 下载前来源撤回拒绝派生文件",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 生成中撤权拒绝最终文件和成功交付",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 图表 / 真实Auth、PNG/SVG回读：CBD 楼宇租金 Top 10 横向柱状图并导出 PNG。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 图表 / 真实Auth、PNG/SVG回读：CBD 近四季度租金趋势折线图并导出 PNG（2026Q1至Q4逐期样本）。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 图表 / 真实Auth、PNG/SVG回读：CBD 与金融街空置率对比并导出 PNG。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 图表 / 真实Auth、PNG/SVG回读：净有效租金为 X 轴、空置率为 Y 轴的散点图并导出 PNG。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 对话修改坐标与排序复用原快照、数据和来源",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 绘图和PNG导出不能获取未获权字段，且隔离跨用户与撤权",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 已生成PNG在来源撤回后拒绝下载和跨轮修改",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 PDF / CBD 四季度租金、空置率和面积合成真实中文多页报告、图表及表格回读",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 PDF / 连续对话中多个已完成查询经来源重新授权组合原快照",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 PDF / 无有效数据保留限制与未知，不编造指标",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 PDF / 内部查询不等于导出或对客发布授权，跨用户及撤权拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5 PDF / 生成后来源撤回及生成中撤权阻止敏感文件交付",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 有AI资格但无独立成交研究资格拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 当前、历史、两表合并覆盖与人工核验去重",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 当前对话恢复获权结果继续导出，显式复用续轮仍绑定成交权限",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 楼宇别名、记录级映射、行业分组、楼宇排名及季度低精度",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 聚合专用资格抑制小样本，明细和财务分别拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 获权财务明细分表保留原始租金，不发送模型；分页亦不发送明细",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 完整脱敏Excel真实HTTP下载回读、选择字段、来源不含客户",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / CSV中文与来源ZIP真实回读，延续原有公式防护",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 同源聚合趋势图和PNG来源文件可用",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 下载跨用户隔离、客户端RPC禁止及服务身份会话不匹配拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 独立导出撤权、研究撤权及历史恢复均拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 生成途中撤权不能交付文件，审计标记拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 文件已生成后最终回答前撤权仍不交付",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 混合季度和成交研究的最终档案仍复核成交权限",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5成交 / 原记录或映射变更阻止旧文件并将过期去重关联明确保留为两条",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 独立默认关闭，现有AI管理员资格不自动开放业务模块",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 完整楼宇参数区分GFA、可租面积与两种日期，零和缺失保留",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 楼书多候选不取最新覆盖，冲突明确未知",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 卡片与地图基于正式ID，单栋定位与多栋只看均保留真实身份",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 子市场仅已发布且通过完整编辑校验的资料，草稿不交付",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 未来供应目录、明确季度提交、最新所属季度分离，不带提交人",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 普通角色不能经AI读取Stacking，管理员读真实楼座层单元但不向模型发送明细",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 单独字段与模块资格限制，未获权联系方式不能请求",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / Excel真实生成下载回读，中文、数值、来源审计保留",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 导出资格撤销、业务撤权、历史及跨用户恢复均拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 生成后最终回答前撤权不交付文件，真实审计拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 混合季度与资料任务的最终档案保留业务撤权约束",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5业务 / 来源变化使旧文件失效，客户端不能直调业务RPC或跨会话",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 默认关闭，不因现有AI资格开放私有文档",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 楼书原文、PDF真实页码与Word段落，多资料并列比较且模型不接收私有内容",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 原件真实HTTP回读PDF字节、哈希、下载头与审计绑定",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 目录来源、Top片段总数、未命中不伪造事实，私有文本不经分页/来源工具泄露给模型",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 同权限跨用户仍不能恢复别人的引用或原件，伪造sourceId拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 文档范围与账号隔离，撤权后拒绝历史恢复/原件/续问",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 更新使旧索引/历史引用失效，新检索重新解析；撤回和删除拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 执行中撤权在响应与模型下一轮之前阻断",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 未配置联网明确报未启用，网络请求数为零",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 公开搜索仅发送批准公开词，内部与外部来源/时间分离",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 恶意额外查询词和私有来源路径被严格协议拒绝，不对外传送",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5知识 / 文档查询不会自动取得表格导出权，敏感原文不混入通用Excel",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5专题研究 / 四季度多指标真实工具编排、审查及四种成果下载回读，数值与来源一致",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5专题研究 / CBD与金融街比较及租赁成交、未来供应和子市场同一工作集保持各自口径",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5专题研究 / 中断后恢复全部已有合法结果，不重复查询已完成步骤",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5模型运营 / 供应商故障保存有界研究检查点，恢复复用正式步骤并保留失败预留",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5专题研究 / 研究恢复与文件下载拒绝跨用户、撤权、查询无导出资格及对客用途",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5专题研究 / 来源身份撤回和生成后即时撤权阻止研究文件交付",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5专题研究 / 获权文档证据可追溯原件，私有正文不送模型、无再导出资格且撤权立即拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5模型运营 / DeepSeek与OpenAI官方协议通过相同真实授权工具且逐调用审计",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5模型运营 / 幂等复用不重复付费，历史摘要与跨账号引用受控",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5模型运营 / 限流与缺少密钥只在明确启用回退后切换，权限错误不切换",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5模型运营 / 真实HTTP流有可信完成凭据，流中断无完成事件与混合输出",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5模型运营 / token与估算费用上限在付费前拒绝，取消和撤权不回退",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5模型运营 / 历史权限撤销后摘要不能恢复业务数据或再次调用供应商",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / A 基础交互路由：你好。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / A 基础交互路由：你会做什么？",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / A 基础交互路由：你的数据来自哪里？",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / A4 数据权限通过真实能力工具而非模型声明",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / A5 错别字或模糊租金口径必须澄清而非编造",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI评测 / 单季度报告走真实授权快照与正式聚合而非非法趋势",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / B6 多轮获权查询：把 CBD 所有楼列出来。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / B7 多轮获权查询：CBD 最高的五栋楼。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / B9 多轮获权查询：换成 2026Q2 的净有效租金。",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / B8 未指定租金口径的排名先澄清",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / B10 建筑面积与等级使用独立楼宇资料口径，不替代季度面积",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / D15 上轮范围与期间重新鉴权生成Excel，逐单元格回读且重复提交不重调模型",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / D16 生成PNG必须真实文件，中文图表、尺寸及来源回读",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / D17 坐标缺字段时合法新查，同源散点图保留原数值",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / D18 同一对话生成中文PDF，表格精确值、来源、分页及历史恢复一致",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / 缺少真实成果时拒绝模型虚构链接，回答、成本及历史审计状态一致",
+      "status": "passed"
+    },
+    {
+      "scenario": "AI5收口 / 请求CSV却只生成Excel时仅标部分完成，真实Excel仍可下载回读",
+      "status": "passed"
+    },
+    {
+      "scenario": "撤销资格和真实注销后旧JWT/重复请求均不返回历史结果",
+      "status": "passed"
+    },
+    {
+      "scenario": "已认证客户端无法直读审计/入口表或直接调用服务端RPC",
+      "status": "passed"
+    }
+  ],
+  "production": false,
+  "modelCalls": false,
+  "modelProvider": "isolated_synthetic_fixture",
+  "browserValidation": false,
+  "browserVisualReview": false,
+  "realDeviceReview": false
+}

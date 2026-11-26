@@ -14,10 +14,10 @@ export function requestedArtifactFormats(question: string): Format[] {
     .some(match => !/(?:不要|不用|不需要|无需|不必|而非|不是|别)(?:生成|导出|下载|制作)?\s*$/.test(question.slice(0, match.index))));
 }
 
-export function artifactFulfillment(question: string, result: QueryResult | undefined) {
+export function artifactFulfillment(question: string, result: QueryResult | undefined, deliveries: readonly QueryResult[] = []) {
   const requested = requestedArtifactFormats(question), available = new Set<Format>();
-  if (result) {
-    const p = result.parameters;
+  for (const snapshot of deliveries.length ? deliveries : result ? [result] : []) {
+    const p = snapshot.parameters;
     if (p.dataDomain === 'deep-research/1') {
       if (p.agentReport && Array.isArray(p.researchDeliverables)) for (const format of p.researchDeliverables)
         if (['xlsx', 'pdf', 'docx', 'pptx'].includes(format)) available.add(format as Format);

@@ -18,3 +18,9 @@ test('transactional stacking contracts include both mutations and export evidenc
  assert.ok(reliableSourceGaps(path,"await client.rpc('stacking_plan_space_save',payload)").length);
  assert.deepEqual(reliableSourceGaps(path,"client.rpc('stacking_plan_space_save',p);client.rpc('stacking_plan_source_attach',p);withCriticalAudit(c,{action_type:'STACKING_PLAN_EXPORT'},x,r);withCriticalAudit(c,{action_type:'STACKING_PLAN_ORIGINAL_DOWNLOAD'},x,r)"),[]);
 });
+test('atomic lease transfer requires its awaited audited RPC and ambiguous-result failure handling',()=>{
+ const path='src/app/api/admin/transfer-submission/route.ts';
+ assert.ok(reliableSourceGaps(path,"await client.rpc('unrelated',p); if (error) throw error;").length);
+ assert.ok(reliableSourceGaps(path,"void client.rpc('transfer_lease_submission_v1',p)").length);
+ assert.deepEqual(reliableSourceGaps(path,"await client.rpc('transfer_lease_submission_v1',p); if (error) return failure('unknown','TRANSFER_UNCONFIRMED',503);"),[]);
+});

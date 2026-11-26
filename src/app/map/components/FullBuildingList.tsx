@@ -1,4 +1,6 @@
 'use client';
+import { coordinateNotice, coordinateIssue } from '@/src/lib/map-coordinates';
+import { futureSupplyDate } from '@/src/lib/future-supply-status';
 import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
 
 import * as React from 'react';
@@ -34,6 +36,7 @@ type Props = {
   filtersPanelId?: string;
   displayOverrides: ListDisplayOverrides;
   targetBuildingId: string | null;
+  targetBuildingType?: 'existing' | 'future';
   onBack: () => void;
   onToggleFilters: () => void;
   onKeywordChange: (value: string) => void;
@@ -45,10 +48,10 @@ type Props = {
 
 const PAGE_SIZE = 20;
 function format(value: number | null, digits: number, unit: string) {
-  return value === null ? '—' : `${value.toLocaleString('zh-CN', { maximumFractionDigits: digits })} ${unit}`;
+  return value === null ? '—' : `${value.toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${unit}`;
 }
 
-export function FullBuildingList({ active, searchContextKey, buildings, queryKey, activeFilterChips, compareGroupCount, requirementContext, competitorContext, filterState, onPatchFilters, keyword, loading, error, warning, filtersOpen, moreFiltersTriggerId, filtersPanelId, displayOverrides, targetBuildingId, onBack, onToggleFilters, onKeywordChange, onSearch, onResetFilters, onRetry, onBuildingClick }: Props) {
+export function FullBuildingList({ active, searchContextKey, buildings, queryKey, activeFilterChips, compareGroupCount, requirementContext, competitorContext, filterState, onPatchFilters, keyword, loading, error, warning, filtersOpen, moreFiltersTriggerId, filtersPanelId, displayOverrides, targetBuildingId, targetBuildingType = 'existing', onBack, onToggleFilters, onKeywordChange, onSearch, onResetFilters, onRetry, onBuildingClick }: Props) {
   const [sort, setSort] = useMapReadingState<FullListSort>('fullSort', 'default');
   const [paging, setPaging] = useMapReadingState('fullPaging', { queryKey, page: 1 });
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -131,36 +134,39 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
               <option value="vacancy-desc">空置率：从高到低</option>
             </select></label>
           </div>
-          {warning ? <p className={styles.warning} role="status">{warning}</p> : null}
+          {warning ? <div className={styles.warning}><p role="status">{warning}</p><Button variant="secondary" onClick={onRetry}>重新读取</Button></div> : null}
           {error ? <div className={styles.status} role="alert"><h2>楼宇数据暂时无法读取</h2><p>{error}</p><Button variant="secondary" onClick={onRetry}>重新读取</Button></div> : (
             <div aria-busy={loading}>
               {visible.map(building => {
                 const values = listBuildingValues(building), future = building._dataType === 'future';
+                const current = targetBuildingId === building.id && (future ? 'future' : 'existing') === targetBuildingType;
                 const grade = displayOverrides.get(building.id)?.get('grade')?.display_value ?? displayListGrade(building.grade);
                 const submarket = displayOverrides.get(building.id)?.get('submarket')?.display_value ?? building.submarket;
                 const vacancy = listVacancyPercent(values.vacancy);
                 const locationAvailable = hasBuildingLocation(building);
                 const year = future ? building.launch_year : building.completion_year;
-                return <article className={styles.row} key={`${building._dataType ?? 'existing'}:${building.id}`} data-building-id={building.id} aria-current={targetBuildingId === building.id ? 'true' : undefined}>
+                return <article className={styles.row} key={`${building._dataType ?? 'existing'}:${building.id}`} data-building-id={building.id} aria-current={current ? 'true' : undefined}>
                   <div className={styles.identity}>
                     <button className={styles.name} title="在地图中查看详情" disabled={loading} onClick={() => {
                       if (scrollRef.current) savedScroll.current = scrollRef.current.scrollTop;
                       onBuildingClick(building);
                     }}><MaskedText>{building.name || '未命名项目'}</MaskedText></button>
                     <div className={styles.meta}>
-                      {year ? <span>{year}年{future ? '预计供应' : ''}</span> : null}
+                      {future ? <span>{futureSupplyDate(building)}</span> : year ? <span>入市 {year}年</span> : null}
                       {future ? <span>{futureSupplyDisplayLabel(building)}</span> : null}
-                      {targetBuildingId === building.id ? <span>目标楼宇</span> : null}
+                      {current ? <span>目标楼宇</span> : null}
                     </div>
                   </div>
-                  <dl className={styles.facts}>
+                  <dl className={styles.identityFacts}>
                     <div><dt>区位</dt><dd>{[building.district, submarket].filter(Boolean).join(' · ') || '—'}</dd></div>
                     <div><dt>等级</dt><dd>{grade}</dd></div>
-                    <div><dt>统计面积</dt><dd>{format(values.area, 0, '㎡')}</dd></div>
-                    <div><dt>净有效租金</dt><dd>{format(values.rent, 2, '元/㎡/月')}</dd></div>
-                    <div><dt>空置率</dt><dd>{vacancy === null ? '—' : `${vacancy.toFixed(1)}%`}</dd></div>
                   </dl>
-                  {!locationAvailable ? <p className={styles.locationNote}>位置待完善，可查看项目资料</p> : null}
+                  <dl className={styles.facts}>
+                    <div><dt>{future ? '规划总体量' : '统计面积'}</dt><dd>{format(values.area, 0, '㎡')}</dd></div>
+                    {!future ? <><div><dt>净有效租金</dt><dd>{format(values.rent, 1, '元/㎡/月')}</dd></div>
+                    <div><dt>空置率</dt><dd>{vacancy === null ? '—' : `${vacancy.toFixed(1)}%`}</dd></div></> : null}
+                  </dl>
+                  {!locationAvailable ? <p className={styles.locationNote}>{coordinateIssue(building) === 'missing' ? '位置待完善，可查看项目资料' : coordinateNotice(building)}</p> : null}
                 </article>;
               })}
               {!loading && !buildings.length ? <div className={styles.status}><h2>未找到符合条件的楼宇</h2><p>减少筛选条件或换一个关键词继续查找。</p><Button variant="secondary" onClick={onResetFilters}>清空条件</Button></div> : null}

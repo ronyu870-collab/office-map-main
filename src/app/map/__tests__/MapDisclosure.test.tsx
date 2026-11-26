@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { MapDisclosure } from '../components/MapDisclosure';
@@ -38,4 +39,39 @@ it('handles immediate Escape after switching disclosures before native toggle ev
   fireEvent.keyDown(window, { key: 'Escape' });
   await waitFor(() => expect(container.querySelectorAll('details[open]')).toHaveLength(0));
   expect(screen.queryByText('统计')).not.toBeInTheDocument();
+});
+
+it('focuses compact action choices and returns to the opener after choosing a command', async () => {
+  const command = vi.fn();
+  const { container } = render(<MapDisclosure label="工作区操作" actionMenu><button onClick={command}>定位当前项目</button></MapDisclosure>);
+  const trigger = screen.getByText('工作区操作');
+  fireEvent.click(trigger);
+  const choice = await screen.findByRole('button', { name: '定位当前项目' });
+  await waitFor(() => expect(choice).toHaveFocus());
+  fireEvent.click(choice);
+  expect(command).toHaveBeenCalledOnce();
+  expect(container.querySelector('details')).not.toHaveAttribute('open');
+  expect(trigger).toHaveFocus();
+});
+
+it('provides an explicit filter-list close action without applying or clearing conditions', async () => {
+  const remove = vi.fn();
+  const {container}=render(<MapDisclosure label="全部2项条件" heading="生效条件" dismissLabel="关闭条件列表"><button onClick={remove}>移除条件：业主 含 资产管理</button></MapDisclosure>);
+  const trigger=screen.getByText('全部2项条件');fireEvent.click(trigger);
+  await screen.findByRole('heading',{name:'生效条件'});
+  fireEvent.click(screen.getByRole('button',{name:'关闭条件列表'}));
+  await waitFor(()=>expect(container.querySelector('details')).not.toHaveAttribute('open'));
+  expect(remove).not.toHaveBeenCalled();expect(trigger).toHaveFocus();
+});
+
+it('keeps keyboard focus in an open filter list when the focused condition is removed', async () => {
+  function Conditions() {
+    const [items,setItems]=React.useState(['业主','物业']);
+    return <MapDisclosure label="全部条件" heading="生效条件" dismissLabel="关闭条件列表">{items.map(item=><button key={item} onClick={()=>setItems(current=>current.filter(value=>value!==item))}>移除{item}</button>)}</MapDisclosure>;
+  }
+  render(<Conditions />);fireEvent.click(screen.getByText('全部条件'));
+  const remove=await screen.findByRole('button',{name:'移除业主'});remove.focus();fireEvent.click(remove);
+  await waitFor(()=>expect(screen.queryByRole('button',{name:'移除业主'})).not.toBeInTheDocument());
+  expect(screen.getByRole('button',{name:'关闭条件列表'})).toHaveFocus();
+  expect(screen.getByText('全部条件')).toHaveAttribute('aria-expanded','true');
 });

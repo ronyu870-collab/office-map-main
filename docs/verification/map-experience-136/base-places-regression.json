@@ -1,0 +1,70 @@
+{
+  "baseMain": "a17f78cd4e6389dc6beaa8bb75559307bb8cfb14",
+  "productFilesSha256": {
+    "src/services/MapController.ts": "f8354281dcf8d2a4dda20ded29c90e609df3921d54eb33f53ebe2582b7452e05",
+    "src/app/map/MapClient.tsx": "9312242597554a6881f77587d02f796525d4d50b42c9425a8172259fd1f59aea",
+    "src/app/map/components/MapWorkbenchView.tsx": "69fa1b77333dbad4537f9fecfc73dd33ec5406d49ab4895a753cda06632ef28a",
+    "src/app/map/map-workbench.css": "cbcedab2012f4bd1450230ca8ccdc9ade76a83bc53d162aa3522171f7727f389",
+    "src/app/map/workspace/continuity.tsx": "cc9b7aea7cad4c32a67219a5e8747ad9dfd5f03d13068412ee4724c6e47037d9"
+  },
+  "implementation": {
+    "default": [
+      "bg",
+      "road",
+      "building"
+    ],
+    "optionalPointFeature": "keyboard and pointer checkbox in existing legend",
+    "publicApiOnly": [
+      "Map constructor features",
+      "Map.setFeatures",
+      "Map.getFeatures"
+    ],
+    "continuity": "preference included in existing reading snapshot and restored after Stacking; no new business persistence"
+  },
+  "primarySources": [
+    "https://lbs.amap.com/api/javascript-api-v2/guide/map/map-style/",
+    "https://a.amap.com/jsapi/static/doc/20230922/index.html"
+  ],
+  "unit": {
+    "files": 4,
+    "passed": 40
+  },
+  "typecheck": "pass",
+  "lint": {
+    "errors": 0,
+    "warnings": 107
+  },
+  "scriptLint": "pass",
+  "productionBuild": "pass",
+  "fullWorkspace": {
+    "widths": [
+      1536,
+      390,
+      320,
+      844
+    ],
+    "records": 71,
+    "status": "pass"
+  },
+  "realSDK": {
+    "widths": [
+      1536,
+      390,
+      844
+    ],
+    "status": "pass",
+    "tileResponses": [
+      202,
+      105,
+      83
+    ],
+    "scope": "real SDK/tiles; isolated business and administrator identity",
+    "stackingPreferenceReturn": "1536 only"
+  },
+  "verificationCorrection": "Initial helper scoped checkbox under details, but shared disclosure content lives in a body Portal; fixed helper to follow aria-controls, then full four-viewport run passed. No product defect inferred from that locator failure. Final static captures disable animations to avoid entry-transition screenshots.",
+  "limitations": [
+    "No new production account, native mobile gesture or screen reader claim",
+    "No new CPU or long-session memory measurement",
+    "Exact-head necessary CI pending after submission"
+  ]
+}

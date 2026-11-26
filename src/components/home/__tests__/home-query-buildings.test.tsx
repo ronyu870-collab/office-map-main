@@ -35,6 +35,9 @@ describe('P2 source-bound building cards', () => {
     expect(screen.queryByRole('link', { name: '查看楼宇详情' })).not.toBeInTheDocument();
     expect(card).toHaveTextContent('现有楼宇详情依赖地图位置');
     expect(screen.getAllByRole('link', { name: '在地图中查看' }).at(-1)).toHaveAttribute('href', expect.stringContaining(ids[0]));
+    for (const link of screen.getAllByRole('link', { name: '在地图中查看' })) {
+      expect(new URL(link.getAttribute('href')!, 'https://example.invalid').searchParams.get('aiResult')).toBe(data.resultId);
+    }
   });
   it('T15 bounds card rendering and loads only selected page metadata; retained rows never requery metrics', async () => {
     const data = result(7); client.buildings.mockImplementation(async (_scope, input) => metadata(data, input.offset));
@@ -58,9 +61,9 @@ describe('P2 source-bound building cards', () => {
     expect(screen.queryByRole('article', { name: '合成楼6楼宇卡片' })).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('正在核对楼宇访问权限与当前目录');
     await act(async () => resolve(metadata(data, 5)));
-    expect(await screen.findByRole('article', { name: '合成楼6楼宇卡片' })).toHaveTextContent('CBD · A');
+    expect(await screen.findByRole('article', { name: '合成楼6楼宇卡片' })).toHaveTextContent('CBD · 甲级');
     expect(paintedCards.length).toBeGreaterThan(0);
-    expect(paintedCards.every(text => text.includes('CBD · A') && !text.includes('子市场未知'))).toBe(true);
+    expect(paintedCards.every(text => text.includes('CBD · 甲级') && !text.includes('子市场未知'))).toBe(true);
     expect(client.buildings).toHaveBeenCalledTimes(2);
   });
   it('T12 late responses after identity change never restore old cards', async () => {

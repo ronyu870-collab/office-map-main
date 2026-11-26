@@ -53,6 +53,25 @@ describe('AI experience regression fixes', () => {
     send(input, '继续'); await screen.findByText('继续分析');
     expect(within(screen.getByRole('article', { name: '此前问答' })).getByText('重点结论').tagName).toBe('STRONG');
   });
+  it('folds earlier long prose without deriving a factual summary and preserves the full original on demand', async () => {
+    const original = '这是一份完整的旧研究说明，包含需要保留的独立判断与边界。'.repeat(15);
+    client.submitAgent.mockImplementationOnce(async (_scope, body) => ({ requestId: ids[0], status: 'assistant', message: original, conversation: body.conversation }))
+      .mockImplementationOnce(async (_scope, body) => ({ requestId: ids[1], status: 'assistant', message: '新的简短回答', conversation: body.conversation }));
+    const { input } = await open(); send(input, '完整研究');
+    await screen.findByText(original); send(input, '下一问'); await screen.findByText('新的简短回答');
+    const earlier = within(screen.getByRole('article', { name: '此前问答' }));
+    expect(earlier.queryByText(original)).not.toBeInTheDocument();
+    expect(earlier.getByText('已保存的文字回答')).toBeVisible();
+    const expand = earlier.getByRole('button', { name: '展开完整回答' });
+    fireEvent.click(expand);
+    expect(await earlier.findByText(original)).toBeVisible();
+    fireEvent.click(earlier.getByRole('button', { name: '收起完整回答' }));
+    expect(earlier.getByText(original)).not.toBeVisible();
+    fireEvent.click(earlier.getByRole('button', { name: '展开完整回答' }));
+    expect(earlier.getByText(original)).toBeVisible();
+    expect(client.submitAgent).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('textbox', { name: '向 Colliers AI 提问' })).toBe(input);
+  });
   it('removes the requested notice and its stale accessible description while keeping help reachable', async () => {
     const { input } = await open();
     expect(screen.queryByText(/提问与回答会留存供获权审计/)).not.toBeInTheDocument();

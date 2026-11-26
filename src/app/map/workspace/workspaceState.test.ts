@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { initialWorkspaceState, PANEL_SIZES, workspaceColumns, workspaceReducer, workspaceSheetHeight, type WorkspaceKind } from './workspaceState';
+import { initialWorkspaceState, PANEL_SIZES, mapCanvasMinimum, contentPanelWidth, workspaceColumns, workspaceReducer, workspaceSheetHeight, type WorkspaceKind } from './workspaceState';
+import { fitMapExtent, mercatorPoint } from '../runtime/mapExtent';
+import { visibleMapRect } from '../runtime/mapFocusViewport';
 import { createDefaultFilterState } from '../model/mapDomain';
 
 describe('map workspace navigation and physical canvas budget', () => {
@@ -71,7 +73,7 @@ describe('map workspace navigation and physical canvas budget', () => {
         const columns = workspaceColumns(width, left, true, max, kind);
         if (columns.compact) continue;
         const canvas = width - columns.left - columns.right;
-        expect(canvas).toBeGreaterThanOrEqual(Math.max(560, width * (columns.left ? .52 : .6)) - .01);
+        expect(canvas).toBeGreaterThanOrEqual(mapCanvasMinimum(width, columns.left > 0) - .01);
         expect(columns.right).toBeGreaterThanOrEqual(min);
         expect(columns.right).toBeLessThanOrEqual(max);
       }
@@ -82,6 +84,54 @@ describe('map workspace navigation and physical canvas budget', () => {
     expect(workspaceSheetHeight(700, 900, 'compact')).toBeCloseTo(385);
     expect(workspaceSheetHeight(700, 160, 'reading')).toBeCloseTo(455);
     expect(workspaceSheetHeight(700, 160, 'full')).toBe(700);
-    expect(workspaceSheetHeight(200, 900, 'compact')).toBeLessThanOrEqual(120);
+    expect(workspaceSheetHeight(200, 900, 'compact')).toBeLessThanOrEqual(136);
   });
+});
+
+it('leaves room for an actual region camera and marker edges in very short sheets', () => {
+  const rows = [
+    { id: 'west', location_lng: 116.46, location_lat: 39.91 },
+    { id: 'east', location_lng: 116.53, location_lat: 39.95 },
+  ];
+  for (const height of [158, 176, 240, 300]) {
+    const sheet = workspaceSheetHeight(height, 900, 'compact');
+    const canvas = { left: 0, top: 0, right: 626, bottom: height, width: 626, height };
+    const panel = { left: 0, right: 626, top: height - 24 - sheet, bottom: height - 24, width: 626, height: sheet };
+    const target = fitMapExtent(rows, canvas, visibleMapRect(canvas, { bottom: panel }));
+    expect(target, `a ${height}px stage can issue a region camera`).not.toBeNull();
+    const center = mercatorPoint(...target!.center), scale = 256 * 2 ** target!.zoom;
+    for (const row of rows) {
+      const world = mercatorPoint(row.location_lng, row.location_lat);
+      const x = (world[0] - center[0]) * scale + 313;
+      const y = (world[1] - center[1]) * scale + height / 2;
+      expect(Math.min(x, 626 - x, y, panel.top - y)).toBeGreaterThanOrEqual(24);
+    }
+    expect(sheet).toBeGreaterThanOrEqual(52);
+  }
+  expect(workspaceSheetHeight(176, 900, 'compact', 'search')).toBeGreaterThan(100);
+  expect(workspaceSheetHeight(176, 900, 'compact', 'filters')).toBeGreaterThan(100);
+});
+
+it('uses compact content widths before a user preference exists and avoids unnecessary tablet sheets', () => {
+  expect(contentPanelWidth('search', 1)).toBe(288);
+  expect(contentPanelWidth('list', 2)).toBe(300);
+  expect(contentPanelWidth('list', 20)).toBe(320);
+  expect(workspaceColumns(820, false, true, 344, 'building').compact).toBe(false);
+  let state = initialWorkspaceState;
+  for (let i = 0; i < 40; i++) state = workspaceReducer(state, { type: 'open', view: { kind: i % 2 ? 'list' : 'supply' } });
+  expect(state.history).toHaveLength(20);
+});
+
+it('uses a readable side pane in low-height landscape while keeping half the map', () => {
+  const result = workspaceColumns(844, false, true, 400, 'submarket', 212);
+  expect(result.compact).toBe(false);
+  expect(result.right).toBeGreaterThanOrEqual(360);
+  expect(844 - result.right).toBeGreaterThanOrEqual(422);
+});
+
+it('keeps the short identity state stable when its own hidden header reduces measured content', () => {
+  const expandedHeaderSummary = workspaceSheetHeight(272, 190, 'compact');
+  const reducedHeaderSummary = workspaceSheetHeight(272, 130, 'compact');
+  expect(expandedHeaderSummary).toBe(52);
+  expect(reducedHeaderSummary).toBe(expandedHeaderSummary);
 });

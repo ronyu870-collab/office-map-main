@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { Button, IconButton } from './ui';
 import {
   ArrowRight,
   ChevronLeft,
@@ -119,7 +120,7 @@ function LocalImagePreview({ file, onRemove, disabled }: { file: File; onRemove:
         type="button"
         onClick={onRemove}
         disabled={disabled}
-        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/65 text-white disabled:opacity-40"
+        className="absolute right-1 top-1 flex h-8 w-8 max-sm:min-h-11 max-sm:min-w-11 items-center justify-center rounded-[var(--cd-radius-sm)] bg-black/65 text-white disabled:opacity-40"
         aria-label={`移除 ${file.name}`}
       >
         <X size={11} />
@@ -478,7 +479,7 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         ) : null}
-        <ArrowRight size={14} strokeWidth={1.55} className="shrink-0 text-[var(--cd-color-text-muted)] transition-colors group-hover:text-[var(--cd-color-brand)]" />
+        <ArrowRight size={14} strokeWidth={1.75} className="shrink-0 text-[var(--cd-color-text-muted)] transition-colors group-hover:text-[var(--cd-color-brand)]" />
       </button>
 
       {open ? (
@@ -492,9 +493,9 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
           >
             <div className="flex shrink-0 items-center justify-between px-4 py-3.5 sm:px-5">
               <h2 id="feedback-dialog-title" className="text-[15px] font-semibold text-[var(--cd-color-text-primary)]">问题与建议</h2>
-              <button ref={closeRef} type="button" onClick={closeDialog} className="flex h-8 w-8 items-center justify-center rounded-[var(--cd-radius-md)] text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)]" aria-label="关闭反馈窗口">
-                <X size={16} />
-              </button>
+              <IconButton ref={closeRef} variant="ghost" size="sm" onClick={closeDialog} label="关闭反馈窗口">
+                <X size={16} aria-hidden="true" />
+              </IconButton>
             </div>
 
             <div className="mx-4 mb-3 flex shrink-0 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)] p-1 sm:mx-5" role="tablist">
@@ -505,7 +506,7 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
                   role="tab"
                   aria-selected={tab === value}
                   onClick={() => { clearThread(); setTab(value); setSelectedIssue(null); if (value === 'mine') void loadIssues(); }}
-                  className={`flex min-h-8 flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--cd-radius-md)-2px)] px-3 text-xs font-medium transition-colors ${tab === value ? 'bg-[var(--cd-color-surface)] text-[var(--cd-color-text-primary)] shadow-sm' : 'text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-text-primary)]'}`}
+                  className={`flex min-h-8 max-sm:min-h-11 flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--cd-radius-md)-2px)] px-3 text-xs font-medium transition-colors ${tab === value ? 'bg-[var(--cd-color-surface)] text-[var(--cd-color-text-primary)] shadow-sm' : 'text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-text-primary)]'}`}
                 >
                   {label}
                   {value === 'mine' && unreadCount > 0 ? <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--cd-color-brand)] px-1 text-[9px] font-semibold text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
@@ -526,7 +527,7 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
                             type="button"
                             disabled={submitting}
                             onClick={() => setCategory(option.value)}
-                            className={`min-h-8 rounded-full px-3 text-xs font-medium transition-colors ${category === option.value ? 'bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]' : 'bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)] hover:text-[var(--cd-color-text-primary)]'}`}
+                            className={`min-h-8 max-sm:min-h-11 rounded-[var(--cd-radius-sm)] px-3 text-xs font-medium transition-colors ${category === option.value ? 'bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]' : 'bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)] hover:text-[var(--cd-color-text-primary)]'}`}
                           >
                             {option.label}
                           </button>
@@ -562,9 +563,9 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
                   {submitError ? <p className="rounded-[var(--cd-radius-md)] bg-red-50 px-3 py-2 text-xs text-red-700">{submitError}</p> : null}
 
                   <div className="flex justify-end border-t border-[var(--cd-color-border)] pt-4">
-                    <button type="submit" disabled={submitting || !title.trim() || !description.trim()} className="inline-flex min-h-10 items-center gap-1.5 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-4 text-[13px] font-medium text-white transition-opacity disabled:opacity-45">
-                      <Send size={14} />{submitting ? '提交中…' : '提交反馈'}
-                    </button>
+                    <Button type="submit" loading={submitting} loadingLabel="提交中…" disabled={!title.trim() || !description.trim()}>
+                      <Send size={16} aria-hidden="true" />提交反馈
+                    </Button>
                   </div>
                 </form>
               ) : selectedIssue ? (
@@ -627,9 +628,9 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
                       <textarea value={reply} maxLength={2000} rows={3} disabled={replying} onChange={(event) => setReply(event.target.value)} placeholder="补充说明或回复管理员…" className="w-full resize-y rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2.5 text-[13px] leading-5 outline-none placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)]" />
                       <div className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:items-end">
                         <div className="min-w-0 flex-1"><ImagePicker files={replyFiles} onChange={setReplyFiles} disabled={replying} compact /></div>
-                        <button type="submit" disabled={replying || (!reply.trim() && replyFiles.length === 0)} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3.5 text-xs font-medium text-white disabled:opacity-45">
-                          <Send size={13} />{replying ? '发送中…' : '补充说明'}
-                        </button>
+                        <Button type="submit" loading={replying} loadingLabel="发送中…" disabled={!reply.trim() && replyFiles.length === 0}>
+                          <Send size={16} aria-hidden="true" />补充说明
+                        </Button>
                       </div>
                     </form>
                   )}

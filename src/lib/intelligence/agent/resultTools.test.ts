@@ -67,7 +67,7 @@ describe('read-only Agent presentation tools bound to formal result snapshots', 
     const map = JSON.parse(runResultPresentationTool('prepare_map_selection', requestId, result).content);
     expect(map.status).toBe('ready');
     expect(map.buildingCount).toBe(4);
-    expect(map.mapHref).toBe('/map?aiRequest=' + requestId);
+    expect(map.mapHref).toBe(`/map?aiRequest=${requestId}&aiResult=${result.resultId}`);
     expect(map.mapHref).not.toContain([...changed.values()][0]);
   });
   it('prepares a reusable researcher-facing summary solely from stored facts', () => {

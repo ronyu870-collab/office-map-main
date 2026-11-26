@@ -1,3 +1,4 @@
+import { clickWorkspaceAction } from '../verification/workspace-actions.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,6 +15,8 @@ const contextProfile = profileMode === 'timeline';
 if (contextProfile && !profileCPU) throw new Error('Timeline CPU capture requires PERF_PROFILE_CPU=1');
 const rounds = Number(process.env.PERF_ACTION_ROUNDS ?? 3);
 assert.ok(Number.isInteger(rounds) && rounds >= 1 && rounds <= 20, 'PERF_ACTION_ROUNDS must be an integer from 1 to 20');
+const screenshotDirectory = process.env.PERF_SCREENSHOT_DIR;
+if (screenshotDirectory) fs.mkdirSync(screenshotDirectory, { recursive: true, mode: 0o700 });
 const profileDirectory = process.env.PERF_PROFILE_DIR;
 if (profileDirectory && !profileCPU) throw new Error('PERF_PROFILE_DIR requires PERF_PROFILE_CPU=1');
 if (profileDirectory) fs.mkdirSync(profileDirectory, { recursive: true, mode: 0o700 });
@@ -150,7 +153,7 @@ try {
       assert.ok(network.tileOK > 0 && network.sdkOK > 0, 'real provider SDK and tile responses required');
       const startup = await page.evaluate(() => window.__liveAmapProbe.stages);
       await page.getByRole('tab', { name: '成交与资料', exact: true }).click();
-      if (width === 390) await detail.getByRole('button', { name: '阅读', exact: true }).click();
+      if (width === 390) await clickWorkspaceAction(page, '展开到阅读高度');
       const link = page.getByRole('link', { name: 'Stacking Plan', exact: true });
       await link.scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
       const top = await detail.locator('.workspace-scroll').evaluate(e => e.scrollTop);
@@ -200,6 +203,17 @@ try {
           await list.getByRole('button', { name: /^CBD甲楼/ }).click(); await detail.waitFor(); await focus();
         });
         await focus(); assert.equal(await page.locator('.map-selected-marker').count(),1);
+      }
+      if (screenshotDirectory && width === 1536) {
+        for (const mode of ['租金', '空置', 'LEED', '项目']) {
+          await measure(`display-mode-${mode}`, async () => {
+            await page.getByRole('button', { name: mode, exact: true }).click();
+            await focus();
+            assert.equal(await page.locator('.map-selected-marker').count(), 1);
+            await page.waitForFunction(() => document.querySelector('.map-selected-marker img')?.naturalWidth > 0);
+          });
+          await page.screenshot({ path: path.join(screenshotDirectory, `selected-${mode}.png`) });
+        }
       }
       results.scenarios.push({width,height,reduced,name:'startup-and-network',startup,network,errors,readingScroll:top});
       assert.deepEqual(errors, []);

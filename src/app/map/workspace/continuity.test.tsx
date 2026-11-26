@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import * as React from 'react';
-import { MapReadingContext, useMapReadingScroll, useMapReadingState, readMapReturn, saveMapReturn, restoreWorkspace, mapReturnToken, type MapReturnSnapshot } from './continuity';
+import { createDefaultFilterState } from '../model/mapDomain';
+import { MapReadingContext, useMapReadingScroll, useMapReadingState, readMapReturn, saveMapReturn, restoreWorkspace, mapReturnToken, rememberMapEntry, type MapReturnSnapshot } from './continuity';
 
 const token = 'continuity-test-token';
-const saved = (): MapReturnSnapshot => ({ savedAt: Date.now(), selected: 'a', camera: { center: [116.46, 39.91], zoom: 15 }, mode: 'rent', input: 'CBD', filters: null,
+const saved = (): MapReturnSnapshot => ({ leedCatalogVersion: 2, savedAt: Date.now(), selected: 'a', camera: { center: [116.46, 39.91], zoom: 15 }, mode: 'rent', input: 'CBD', filters: null,
   right: { kind: 'building', id: 'a' }, history: [{ kind: 'list' }, { kind: 'building', id: 'removed' }], leftOpen: false, widths: { building: 400, list: 320 },
   reading: { listQuery: 'CBD', listSort: 'rent', listScroll: 550, fullPaging: { queryKey: 'q', page: 3 }, sheetModes: { building: 'reading' }, buildings: { a: { tab: 'materials', scrollTop: 140 } } },
   comparison: [], competitors: ['a'], target: 'a', groups: [], research: null });
@@ -40,6 +41,23 @@ describe('map return context', () => {
     saveMapReturn('scope', token, raw as MapReturnSnapshot);
     expect(readMapReturn('scope', token)?.reading).not.toHaveProperty('businessRecords');
   });
+  it('retains station criteria and independent object reading state without SDK objects', () => {
+    const value = { ...saved(), focus: true, filters: { ...createDefaultFilterState(), subwayLine: '1号线', subwayStation: { id: 'station-a', name: '国贸', center: [116.46, 39.91] } }, reading: {
+      ...saved().reading, previousSheetModes: { building: 'reading' }, filterScroll: 120,
+      submarkets: { CBD: { section: 'trend', grade: 'a', scrollTop: 180 } },
+      supplyExpanded: { '2027': true }, supplyScroll: 90,
+      buildings: { 'existing:a': { tab: 'market', scrollTop: 80, scrolls: { overview: 150, market: 80 }, trendOpen: true, trendHeight: 640, trend: { metric: 'vac', tableOpen: true }, photo: { open: true, index: 1 } } },
+    } } as unknown as MapReturnSnapshot;
+    saveMapReturn('scope', token, value);
+    expect(readMapReturn('scope', token)).toEqual(value);
+    expect(restoreWorkspace(value, [{ id: 'a' }], []).focus).toBe(true);
+  });
+  it('bounds old navigation history without dropping the rest of the return snapshot', () => {
+    const value = { ...saved(), history: Array.from({ length: 25 }, () => ({ kind: 'list' as const })) };
+    saveMapReturn('scope', token, value);
+    expect(readMapReturn('scope', token)?.history).toHaveLength(20);
+    expect(readMapReturn('scope', token)?.selected).toBe('a');
+  });
 });
 
 it('restores list query and scroll after remount and late content, then yields to user scrolling', () => {
@@ -62,4 +80,84 @@ it('restores list query and scroll after remount and late content, then yields t
   fireEvent.wheel(scroller); scroller.scrollTop = 180; fireEvent.scroll(scroller);
   act(() => resize()); expect(scroller.scrollTop).toBe(180); expect(reading.listScroll).toBe(180);
   second.unmount(); vi.unstubAllGlobals();
+});
+
+it('keeps reading state isolated when the same component changes its object key', () => {
+  const store = { first: 'A', second: 'B' };
+  function Reader({ id }: { id: string }) { const [value, setValue] = useMapReadingState(id, ''); return <input aria-label="对象阅读" value={value} onChange={event => setValue(event.target.value)} />; }
+  const view = render(<MapReadingContext.Provider value={store}><Reader id="first" /></MapReadingContext.Provider>);
+  fireEvent.change(screen.getByLabelText('对象阅读'), { target: { value: 'A2' } });
+  view.rerender(<MapReadingContext.Provider value={store}><Reader id="second" /></MapReadingContext.Provider>);
+  expect(screen.getByLabelText('对象阅读')).toHaveValue('B');
+  fireEvent.change(screen.getByLabelText('对象阅读'), { target: { value: 'B2' } });
+  view.rerender(<MapReadingContext.Provider value={store}><Reader id="first" /></MapReadingContext.Provider>);
+  expect(screen.getByLabelText('对象阅读')).toHaveValue('A2');
+});
+
+
+it('replaces stale project URL parameters while retaining unrelated navigation context', () => {
+  window.history.replaceState({ preserved: true }, '', '/map?building=old&section=deals&source=test');
+  rememberMapEntry(token, { id: 'next', future: true });
+  expect(new URL(location.href).searchParams.get('future')).toBe('next');
+  expect(new URL(location.href).searchParams.has('building')).toBe(false);
+  expect(new URL(location.href).searchParams.has('section')).toBe(false);
+  expect(new URL(location.href).searchParams.get('source')).toBe('test');
+  expect(window.history.state.preserved).toBe(true);
+  rememberMapEntry(token, null);
+  expect(new URL(location.href).searchParams.has('future')).toBe(false);
+});
+
+it('upgrades the legacy full LEED catalog in return filters and research, preserving current exclusions',()=>{
+  const filters={...createDefaultFilterState(),leeds:['Platinum','Gold','Silver','NULL']};
+  const value={...saved(),leedCatalogVersion:undefined,filters,research:{filters,input:'CBD',retained:true}};
+  const key='map-workspace-return:v1:scope:'+token;
+  sessionStorage.setItem(key,JSON.stringify(value));
+  expect(readMapReturn('scope',token)?.filters?.leeds).toContain('N');
+  expect(readMapReturn('scope',token)?.research?.filters.leeds).toContain('N');
+  saveMapReturn('scope',token,value);
+  expect(readMapReturn('scope',token)?.filters?.leeds).not.toContain('N');
+});
+
+it.each(['resize-first', 'scroll-first'])('preserves user reading across a fullscreen range clamp (%s)', order => {
+  let resized!: () => void;
+  vi.stubGlobal('ResizeObserver', class { constructor(callback: () => void) { resized = callback; } observe() {} disconnect() {} });
+  let height = 157, total = 457, position = 0;
+  const store: Record<string, unknown> = {};
+  function Reader() {
+    const ref = React.useRef<HTMLDivElement>(null);
+    useMapReadingScroll(ref, 'materialScroll');
+    return <div ref={element => {
+      ref.current = element;
+      if (element) Object.defineProperties(element, {
+        clientHeight: { configurable: true, get: () => height },
+        scrollHeight: { configurable: true, get: () => total },
+        scrollTop: { configurable: true, get: () => position, set: value => { position = Math.max(0, Math.min(Number(value), total - height)); } },
+      });
+    }} data-testid="material-reading"><div>项目资料</div></div>;
+  }
+  const view = render(<MapReadingContext.Provider value={store}><Reader /></MapReadingContext.Provider>);
+  try {
+    const element = screen.getByTestId('material-reading');
+    fireEvent.wheel(element); element.scrollTop = 300; fireEvent.scroll(element);
+    expect(store.materialScroll).toBe(300);
+    height = 526; total = 526; position = 0; // Browser clamps when all content fits.
+    if (order === 'scroll-first') fireEvent.scroll(element);
+    act(() => resized()); fireEvent.scroll(element);
+    height = 157; total = 457;
+    act(() => resized());
+    expect(element.scrollTop).toBe(300);
+    expect(store.materialScroll).toBe(300);
+    // A deliberate full-screen user gesture supersedes the earlier position.
+    height = 526; total = 526; position = 0; act(() => resized());
+    fireEvent.wheel(element); fireEvent.scroll(element);
+    height = 157; total = 457; act(() => resized());
+    expect(element.scrollTop).toBe(0);
+    expect(store.materialScroll).toBe(0);
+    // A late content resize in the same turn must not undo a fresh wheel.
+    fireEvent.wheel(element); element.scrollTop = 100; fireEvent.scroll(element);
+    fireEvent.wheel(element); total = 800; element.scrollTop = 220;
+    fireEvent.scroll(element); act(() => resized());
+    expect(element.scrollTop).toBe(220);
+    expect(store.materialScroll).toBe(220);
+  } finally { view.unmount(); vi.unstubAllGlobals(); }
 });

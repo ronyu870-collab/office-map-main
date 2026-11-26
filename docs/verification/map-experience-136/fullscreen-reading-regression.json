@@ -1,0 +1,243 @@
+{
+  "capturedAt": "2026-11-23T22:17:40.451221+00:00",
+  "baseMain": "6fae6e5bbd470c3c1388dd4abb0730763e0b5438",
+  "productFilesSha256": {
+    "src/app/map/MapBuildingCompareBridge.tsx": "faf3bcddbdb7c97254abc1dc53d86cedfae49d9064b700fdc8241db31e46998c",
+    "src/app/map/workspace/continuity.tsx": "ef37d6ae1a04d8d8b06cfe3eb4d63d6f767bb852461f7fbfd926ee2384799f33",
+    "scripts/verification/workspace-surface-continuity.mjs": "5738566decdc5b7d685a30773043b560a2d342ede50120fd1d865ae6cb131fdb",
+    "scripts/verification/verify-map-workspace.mjs": "d9518e68e744e6625f30fcb5dfd9d6847103aa441b87be18e5dd4976eb326768"
+  },
+  "implementation": [
+    "Shared reading hook observes the scroll container as well as its children, retains desired position across range clamps, handles scroll-before-resize ordering and yields to actual user intent.",
+    "Same-turn user scrolling and content resize preserve the new position when neither old nor new range explains it as a clamp. Hidden zero-size panels do not overwrite an established position.",
+    "Compare bridge timer cleanup and existing proposal identity boundaries are included in this final build."
+  ],
+  "after": {
+    "unit": "\n> office-map-main@0.1.0 test\n> vitest --run src/app/map/__tests__/MapProposalBridge.identity.test.tsx src/app/map/__tests__/MapBuildingCompareBridge.test.tsx src/app/map/__tests__/MapLeaseTransactionsBridge.test.tsx src/app/map/__tests__/MapSalesMaterialsBridge.identity.test.tsx src/app/map/__tests__/MapRouteGate.test.tsx src/app/map/__tests__/WorkspaceBuildingDetail.test.tsx src/app/map/workspace/continuity.test.tsx src/app/map/__tests__/FullBuildingList.integration.test.tsx src/app/map/runtime/workspaceMotion.test.tsx src/app/map/__tests__/MapWorkspaceLayout.test.tsx\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.6 /private/tmp/colliers-map-workspace-v2\n\n\n Test Files  10 passed (10)\n      Tests  110 passed (110)\n   Start at  06:13:48\n   Duration  10.43s (transform 2.34s, setup 891ms, import 5.33s, tests 11.40s, environment 12.03s)\n\n",
+    "type": "\n> office-map-main@0.1.0 typecheck\n> tsc --noEmit\n\n",
+    "lint": "\n/private/tmp/colliers-map-workspace-v2/src/app/map/MapBuildingCompareBridge.tsx\n  9:7  warning  'BUILDING_COMPARE_ID' is assigned a value but never used  @typescript-eslint/no-unused-vars\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx\n  120:45  warning  Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx:120:45\n  118 |   const [state, setValue] = React.useState<{ key: string; value: T }>(() => ({ key, value: (store?.[key] as T | undefined) ?? initial }));\n  119 |   const value = state.key === key ? state.value : (store?.[key] as T | undefined) ?? initial;\n> 120 |   const initialRef = React.useRef(initial); initialRef.current = initial;\n      |                                             ^^^^^^^^^^^^^^^^^^ Cannot update ref during render\n  121 |   const update = React.useCallback<React.Dispatch<React.SetStateAction<T>>>(next => setValue(previous => {\n  122 |     const current = previous.key === key ? previous.value : (store?.[key] as T | undefined) ?? initialRef.current;\n  123 |     const result = typeof next === 'function' ? (next as (old: T) => T)(current) : next;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/refs\n  132:45  warning  Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx:132:45\n  130 |   const [items, setItems] = useMapReadingState<Record<string, T>>(collection, {});\n  131 |   const value = items[identity] ?? initial;\n> 132 |   const initialRef = React.useRef(initial); initialRef.current = initial;\n      |                                             ^^^^^^^^^^^^^^^^^^ Cannot update ref during render\n  133 |   const update = React.useCallback<React.Dispatch<React.SetStateAction<T>>>(next => setItems(previous => {\n  134 |     const current = previous[identity] ?? initialRef.current;\n  135 |     return { ...previous, [identity]: typeof next === 'function' ? (next as (old: T) => T)(current) : next };                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   react-hooks/refs\n  143:41  warning  Error: Cannot modify local variables after render completes\n\nThis argument is a function which may reassign or mutate `store` after render, which can cause inconsistent behavior on subsequent renders. Consider using state instead.\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx:143:41\n  141 |   const store = React.useContext(MapReadingContext);\n  142 |   const reset = React.useRef<((position: number) => void) | null>(null);\n> 143 |   const resetScroll = React.useCallback((position = 0) => {\n      |                                         ^^^^^^^^^^^^^^^^^^^\n> 144 |     if (store) store[key] = Math.max(0, position);\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 145 |     if (reset.current) reset.current(position);\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 146 |     else if (ref.current) ref.current.scrollTop = position;\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 147 |   }, [key, ref, store]);\n      | ^^^^ This function may (indirectly) reassign or modify `store` after render\n  148 |   React.useLayoutEffect(() => {\n  149 |     const element = ref.current;\n  150 |     if (!element || !active) return;\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx:144:16\n  142 |   const reset = React.useRef<((position: number) => void) | null>(null);\n  143 |   const resetScroll = React.useCallback((position = 0) => {\n> 144 |     if (store) store[key] = Math.max(0, position);\n      |                ^^^^^ This modifies `store`\n  145 |     if (reset.current) reset.current(position);\n  146 |     else if (ref.current) ref.current.scrollTop = position;\n  147 |   }, [key, ref, store]);  react-hooks/immutability\n  144:16  warning  Error: This value cannot be modified\n\nModifying a value returned from 'useContext()' is not allowed..\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx:144:16\n  142 |   const reset = React.useRef<((position: number) => void) | null>(null);\n  143 |   const resetScroll = React.useCallback((position = 0) => {\n> 144 |     if (store) store[key] = Math.max(0, position);\n      |                ^^^^^ `store` cannot be modified\n  145 |     if (reset.current) reset.current(position);\n  146 |     else if (ref.current) ref.current.scrollTop = position;\n  147 |   }, [key, ref, store]);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   react-hooks/immutability\n  148:25  warning  Error: Cannot modify local variables after render completes\n\nThis argument is a function which may reassign or mutate `store` after render, which can cause inconsistent behavior on subsequent renders. Consider using state instead.\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx:148:25\n  146 |     else if (ref.current) ref.current.scrollTop = position;\n  147 |   }, [key, ref, store]);\n> 148 |   React.useLayoutEffect(() => {\n      |                         ^^^^^^^\n> 149 |     const element = ref.current;\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 150 |     if (!element || !active) return;\n      …\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 199 |       element.removeEventListener('keydown', takeOver); element.removeEventListener('scroll', save); };\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 200 |   }, [active, initial, key, ref, store]);\n      | ^^^^ This function may (indirectly) reassign or modify `store` after render\n  201 |   return resetScroll;\n  202 | }\n  203 |\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx:166:13\n  164 |         // Only a position explained by either range is a layout clamp.\n  165 |         desired = element.scrollTop;\n> 166 |         if (store) store[key] = desired;\n      |             ^^^^^ This modifies `store`\n  167 |       }\n  168 |       geometry = next;\n  169 |       // Expanding a sheet can make its content fit and clamp scrollTop to 0                                                                                                                                                                                                                                                             react-hooks/immutability\n  166:13  warning  Error: This value cannot be modified\n\nModifying a value returned from 'useContext()' is not allowed..\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx:166:13\n  164 |         // Only a position explained by either range is a layout clamp.\n  165 |         desired = element.scrollTop;\n> 166 |         if (store) store[key] = desired;\n      |             ^^^^^ `store` cannot be modified\n  167 |       }\n  168 |       geometry = next;\n  169 |       // Expanding a sheet can make its content fit and clamp scrollTop to 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 react-hooks/immutability\n  201:10  warning  Error: Cannot modify local variables after render completes\n\nThis argument is a function which may reassign or mutate `store` after render, which can cause inconsistent behavior on subsequent renders. Consider using state instead.\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx:201:10\n  199 |       element.removeEventListener('keydown', takeOver); element.removeEventListener('scroll', save); };\n  200 |   }, [active, initial, key, ref, store]);\n> 201 |   return resetScroll;\n      |          ^^^^^^^^^^^ This function may (indirectly) reassign or modify `store` after render\n  202 | }\n  203 |\n\n/private/tmp/colliers-map-workspace-v2/src/app/map/workspace/continuity.tsx:144:16\n  142 |   const reset = React.useRef<((position: number) => void) | null>(null);\n  143 |   const resetScroll = React.useCallback((position = 0) => {\n> 144 |     if (store) store[key] = Math.max(0, position);\n      |                ^^^^^ This modifies `store`\n  145 |     if (reset.current) reset.current(position);\n  146 |     else if (ref.current) ref.current.scrollTop = position;\n  147 |   }, [key, ref, store]);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/immutability\n\n✖ 8 problems (0 errors, 8 warnings)\n\n",
+    "productionBuild": {
+      "exitCode": 0,
+      "buildId": "gNMIJNelfkVz1dsJz7G9e"
+    },
+    "focused": {
+      "exitCode": 0,
+      "conditions": [
+        [
+          1536,
+          false
+        ],
+        [
+          390,
+          false
+        ],
+        [
+          390,
+          true
+        ],
+        [
+          320,
+          false
+        ],
+        [
+          844,
+          false
+        ]
+      ]
+    },
+    "workspace": {
+      "scenarioAssertions": "pass",
+      "records": 77,
+      "runnerExitCode": 0,
+      "note": "Completed normally after scenario JSON; no forced termination or process.exit."
+    },
+    "continuity": {
+      "scenarioAssertions": "pass",
+      "conditions": 3,
+      "runnerExitCode": 0,
+      "note": "Completed normally after scenario JSON; no forced termination or process.exit."
+    },
+    "capture": {
+      "exitCode": 0,
+      "observation": {
+        "width": 320,
+        "before": {
+          "top": 300,
+          "height": 157,
+          "total": 457
+        },
+        "full": {
+          "top": 0,
+          "height": 530,
+          "total": 530
+        },
+        "after": {
+          "top": 300,
+          "height": 157,
+          "total": 457
+        }
+      }
+    }
+  },
+  "readingResults": [
+    {
+      "width": 390,
+      "reduced": false,
+      "before": {
+        "top": 300,
+        "height": 157,
+        "total": 457
+      },
+      "full": {
+        "top": 0,
+        "height": 474,
+        "total": 474
+      },
+      "after": {
+        "top": 300,
+        "height": 157,
+        "total": 457
+      },
+      "userAfter": {
+        "top": 0,
+        "height": 157,
+        "total": 457
+      },
+      "boundaries": [
+        {
+          "top": 300,
+          "height": 157,
+          "total": 457,
+          "expanded": false
+        },
+        {
+          "top": 0,
+          "height": 474,
+          "total": 474,
+          "expanded": true
+        },
+        {
+          "top": 300,
+          "height": 157,
+          "total": 457,
+          "expanded": false
+        }
+      ],
+      "actualWheelTakeover": true
+    },
+    {
+      "width": 390,
+      "reduced": true,
+      "before": {
+        "top": 300,
+        "height": 157,
+        "total": 457
+      },
+      "full": {
+        "top": 0,
+        "height": 474,
+        "total": 474
+      },
+      "after": {
+        "top": 300,
+        "height": 157,
+        "total": 457
+      },
+      "userAfter": {
+        "top": 0,
+        "height": 157,
+        "total": 457
+      },
+      "boundaries": [
+        {
+          "top": 300,
+          "height": 157,
+          "total": 457,
+          "expanded": false
+        },
+        {
+          "top": 0,
+          "height": 474,
+          "total": 474,
+          "expanded": true
+        },
+        {
+          "top": 300,
+          "height": 157,
+          "total": 457,
+          "expanded": false
+        }
+      ],
+      "actualWheelTakeover": true
+    },
+    {
+      "width": 320,
+      "reduced": false,
+      "before": {
+        "top": 300,
+        "height": 157,
+        "total": 457
+      },
+      "full": {
+        "top": 0,
+        "height": 478,
+        "total": 478
+      },
+      "after": {
+        "top": 300,
+        "height": 157,
+        "total": 457
+      },
+      "userAfter": {
+        "top": 0,
+        "height": 157,
+        "total": 457
+      },
+      "boundaries": [
+        {
+          "top": 300,
+          "height": 157,
+          "total": 457,
+          "expanded": false
+        },
+        {
+          "top": 0,
+          "height": 478,
+          "total": 478,
+          "expanded": true
+        },
+        {
+          "top": 300,
+          "height": 157,
+          "total": 457,
+          "expanded": false
+        }
+      ],
+      "actualWheelTakeover": true
+    }
+  ],
+  "observationCorrections": [
+    "Phone fullscreen reading checks use the first ResizeObserver delivery after the application observer, which runs before paint. An immediate automation evaluation may precede that boundary.",
+    "Actual fullscreen wheel delivery is awaited even when top is already0.",
+    "844 standalone fixture preserved272 with the same185px reading height; its fullscreen did not reduce the scroll range. Clamp-specific assertions run at320/390 and390 reduced motion. All four widths still run research/project/fullscreen reversal paths."
+  ],
+  "limits": [
+    "Functional suites may run concurrently; timings and long-task fields are not performance evidence.",
+    "Business, identity, SDK transport and images are isolated fixtures; no new real SDK or production account claim."
+  ],
+  "pr": {
+    "url": "https://github.com/ronyu870-collab/office-map-main/pull/296",
+    "initialProductHead": "25de939fc3f504832aa7db53f8ed205e903d25e6",
+    "rebaseTreeUnchanged": "18df87c183f94841250b5d121310da3f11b013f4",
+    "necessaryCi": "all required checks succeeded on62951b95; merged in PR296"
+  },
+  "resolution": {
+    "pr": 296,
+    "testedHead": "62951b9580ea7c19f4c5793085aaca3dcd435422",
+    "verifyRun": "45278568424",
+    "necessaryChecks": "success: search, engineering, both real Auth and summary",
+    "mergedAtUtc": "2026-11-23T22:42:47Z",
+    "main": "15a1406132c9659d59e4601098125da0b994e1bc",
+    "testedAndMainTree": "614d1e5f0d30ed5bc81dd8fb74359ceae4a6e2bb"
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "baseHead": "4f0a177fb73c70842e48dfc8f5a248df2dab911a",
+  "productFilesSha256": {
+    "src/app/map/runtime/mapSelectionMarker.ts": "358dc86ffd83fd2e2da83b298c3e65470ac5342eda99924d7339d5b70b086067",
+    "src/app/map/map-native-overlays.css": "aad045f2164b08479b69f3d0013c2556d6f8485d10cbace8f54bdf53cf0e5658",
+    "src/services/MapController.ts": "32e663c5c8b081be423dacb7408a7ae10fc9ef1c5f31a141ccb0be04fb2f15b6"
+  },
+  "before": {
+    "unit": {
+      "failed": 2,
+      "passed": 10
+    },
+    "realSDK": {
+      "width": 1536,
+      "status": "fail",
+      "visibleTarget": "fully inside canvas after settled small pointer drag",
+      "moved": [
+        116.347276,
+        39.870741
+      ],
+      "afterClick": [
+        116.347276,
+        39.870741
+      ],
+      "expected": [
+        116.35,
+        39.87
+      ],
+      "readingIdentity": "single",
+      "note": "Earlier larger-drag attempt put marker partly at edge; final small-drag failure is the controlled reproduction."
+    }
+  },
+  "after": {
+    "unit": {
+      "relatedFiles": 4,
+      "passed": 30,
+      "finalUpdatedTestFilePassed": 12
+    },
+    "typecheck": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 79
+    },
+    "scriptLint": "pass",
+    "productionBuild": "pass",
+    "fullWorkspace": {
+      "status": "pass",
+      "widths": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "records": 71
+    },
+    "realSDK": {
+      "status": "pass",
+      "widths": [
+        1536,
+        390,
+        844
+      ],
+      "sdkResponses": [
+        1,
+        1,
+        1
+      ],
+      "tileResponses": [
+        190,
+        106,
+        85
+      ],
+      "scope": "Real AMap SDK and tiles; isolated business and administrator identity",
+      "currentMarker": [
+        "stock",
+        "future",
+        "pending"
+      ],
+      "actions": [
+        "native pointer drag then mouse click",
+        "native pointer drag then keyboard Enter"
+      ],
+      "readingIdentityAndTabRetained": true
+    }
+  },
+  "implementation": "Transparent native 44px button on current badge; existing camera owner; stale queued target and removed handlers invalidated; no detail re-open or new audit/data read",
+  "verificationCorrection": "Base-places helper now reads .workspace-building[data-building-id], rather than an explicit role selector that missed the implicit region. No product change for this correction.",
+  "limits": [
+    "No native phone gesture or production account claim",
+    "No new performance conclusion in this marker batch",
+    "Exact-head necessary CI still required before merge"
+  ],
+  "rebase": {
+    "ontoMain": "e655a84906016825ef2f6c7f91fe404e3c3cc28f",
+    "beforeCommit": "3e4880f5",
+    "afterCommitBeforeEvidenceUpdate": "4bcd8008bac8d041e246afc75697d8cd28447c34",
+    "completeTreeUnchanged": true
+  },
+  "resolution": {
+    "pr": 292,
+    "head": "79859c917f2614d0bbe10395c489fa6969235ff7",
+    "verifyRun": "45257348135",
+    "necessaryCI": "all pass including engineering, search and both real Auth jobs",
+    "mergedAt": "2026-11-23T20:41:01Z",
+    "main": "231baa9a95f8d4342285f3022b8c79917b86f756",
+    "mainTreeMatchesTestedHead": "94e44f9d432b6932be6b3de3a5f76be562ba691f"
+  }
+}

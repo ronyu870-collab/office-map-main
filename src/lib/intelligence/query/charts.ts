@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { resultChartEligibility } from './resultEligibility';
 import { distributionAnalysisSchema, distributionLabel, type DistributionAnalysis } from './distribution';
 import { CROSS_TREND_LIMITS, quarterRange } from './plan';
 import { quarterSchema, quarterKey } from './contracts';
@@ -30,7 +31,15 @@ const projected = (cell: DisplayCell, unit: string | null) => {
 
 export function buildResultChart(result: QueryResultView, raw: ChartRequest): ResultChart {
   const request = chartRequestSchema.parse(raw);
-  return configureChart(result, request.kind === 'plot' ? buildCartesianChart(result, request) : buildLegacyChart(result, request));
+  const chart = request.kind === 'plot' ? buildCartesianChart(result, request) : buildLegacyChart(result, request);
+  const eligibility = resultChartEligibility(result, request);
+  if (!eligibility.eligible) throw new Error(eligibility.reason === 'no_joint_sample' ? 'CHART_JOINT_SAMPLE_REQUIRED' : eligibility.reason === 'insufficient_periods' ? 'CHART_MULTIPLE_PERIODS_REQUIRED' : 'CHART_VALID_VALUES_REQUIRED');
+  if (!request.title) {
+    const scope = z.object({ submarkets: z.array(z.string()).optional() }).safeParse(result.parameters.scope).data;
+    const subject = scope?.submarkets?.join('、') ?? '';
+    chart.title = subject + chart.yLabel + (chart.kind === 'line' || chart.kind === 'faceted_line' ? '季度趋势' : result.operation === 'rank' ? '排名' : chart.kind === 'scatter' ? `与${chart.xLabel}的关系` : chart.kind === 'heatmap' ? '分组比较' : chart.distribution ? '分布' : '比较');
+  }
+  return configureChart(result, chart);
 }
 
 function buildLegacyChart(result: QueryResultView, request: Exclude<ChartRequest, {kind: 'plot'}>): ResultChart {
@@ -142,14 +151,15 @@ function buildLegacyChart(result: QueryResultView, request: Exclude<ChartRequest
   } else {
     if (result.operation === 'compare') throw new Error('CHART_COMPARISON_REQUIRED');
     yColumn = column(request.kind === 'scatter' ? request.y : request.field);
-    const xColumn = request.kind === 'scatter' ? column(request.x) : result.table.columns.find(c => c.key === 'name');
+    const xColumn = request.kind === 'scatter' ? column(request.x) : ['name', 'group', 'building', 'period'].flatMap(key => result.table.columns.filter(c => c.key === key))[0];
+    if (xColumn && request.kind !== 'scatter' && ['list', 'rank'].includes(result.operation)) xLabel = xColumn.label;
     if (request.kind === 'scatter') {
       if (!['list', 'relationship'].includes(result.operation) || request.x === request.y) throw new Error('CHART_JOINT_SAMPLE_REQUIRED');
       xLabel = xColumn!.label; xUnit = xColumn!.unit;
     }
     points = result.table.rows.map(row => {
       const y = row.cells[yColumn.key], x = xColumn ? row.cells[xColumn.key] : null;
-      const label = row.cells.name?.kind === 'text' ? row.cells.name.value + ((result.operation === 'cross_aggregate' || result.operation === 'cross_trend') && row.cells.grade?.kind === 'text' ? ` / ${row.cells.grade.value}` : '') + ((result.operation === 'group_trend' || result.operation === 'cross_trend') && row.cells.period?.kind === 'text' ? ` ${row.cells.period.value}` : '') : row.cells.period?.kind==='text'?row.cells.period.value:yColumn.label;
+      const label = row.cells.name?.kind === 'text' ? row.cells.name.value + ((result.operation === 'cross_aggregate' || result.operation === 'cross_trend') && row.cells.grade?.kind === 'text' ? ` / ${row.cells.grade.value}` : '') + ((result.operation === 'group_trend' || result.operation === 'cross_trend') && row.cells.period?.kind === 'text' ? ` ${row.cells.period.value}` : '') : xColumn && row.cells[xColumn.key]?.kind === 'text' ? (row.cells[xColumn.key] as Extract<DisplayCell, { kind: 'text' }>).value : yColumn.label;
       const numericX = request.kind === 'scatter' && x ? projected(x, xUnit) : label;
       const numericY = projected(y, yColumn.unit);
       return { label, x: numericX, y: numericY, xText: x ? cellText(x, xUnit) : label, yText: cellText(y, yColumn.unit),

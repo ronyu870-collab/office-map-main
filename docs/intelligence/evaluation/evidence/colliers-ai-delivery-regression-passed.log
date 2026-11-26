@@ -1,0 +1,15 @@
+
+> office-map-main@0.1.0 test
+> vitest --run src/lib/intelligence/agent/agentHttp.test.ts src/lib/intelligence/agent/agentConversation.test.ts src/lib/intelligence/agent/artifactFulfillment.test.ts src/lib/intelligence/agent/exportTableTool.test.ts src/lib/intelligence/research/research.test.ts src/components/home/__tests__/home-query-workspace.test.tsx src/lib/intelligence/query/__tests__/agentRecovery.test.ts src/lib/intelligence/query/__tests__/tableExportHttp.test.ts
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.6 <worktree>
+
+
+ Test Files  8 passed (8)
+      Tests  137 passed (137)
+   Start at  23:15:27
+   Duration  7.24s (transform 3.45s, setup 616ms, import 6.02s, tests 11.45s, environment 6.71s)

@@ -156,6 +156,68 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(client.submitAgentStream).toHaveBeenCalledOnce();
   });
 
+  it.each(['disconnect', 'stop', 'reload'])('retains the streamed request reference for recovery after %s', async mode => {
+    client.capabilities.mockResolvedValue({ ...access, agentEnabled: true, agentStreamEnabled: true });
+    const terminal = deferred<void>();
+    client.submitAgentStream.mockImplementation(async (_scope: typeof scope, _body: Submission,
+      _signal: AbortSignal, onProgress: (event: AgentProgressEvent) => void) => {
+      onProgress({ type: 'run_started', requestId: requestIds[0] });
+      await terminal.promise;
+      throw new TypeError('connection interrupted');
+    });
+    client.recover.mockResolvedValue({ status: 'assistant', requestId: requestIds[0], message: '已恢复流式原请求' });
+    const opened = await open(); send(opened.input, '需要恢复的流式请求');
+    await screen.findByText('正在研究你的问题…');
+    const storageKey = `trusted-query:last:${JSON.stringify(scope)}`;
+    expect(sessionStorage.getItem(storageKey)).toBe(requestIds[0]);
+    if (mode === 'disconnect') await act(async () => terminal.resolve(undefined));
+    else if (mode === 'stop') fireEvent.click(screen.getByRole('button', { name: '停止等待' }));
+    else {
+      opened.unmount();
+      await open();
+    }
+    fireEvent.click(await screen.findByRole('button', { name: '检查状态并恢复结果' }));
+    await screen.findByText('已恢复流式原请求');
+    expect(client.recover).toHaveBeenCalledWith(scope, requestIds[0], expect.any(AbortSignal));
+    expect(client.submitAgentStream).toHaveBeenCalledOnce();
+    expect(client.submitAgent).not.toHaveBeenCalled();
+    expect(client.submit).not.toHaveBeenCalled();
+    await act(async () => terminal.resolve(undefined));
+  });
+
+  it('does not describe a limited tool observation as completed', async () => {
+    client.capabilities.mockResolvedValue({ ...access, agentEnabled: true, agentStreamEnabled: true });
+    const terminal = deferred<void>();
+    client.submitAgentStream.mockImplementation(async (_scope: typeof scope, body: Submission,
+      _signal: AbortSignal, onProgress: (event: AgentProgressEvent) => void) => {
+      onProgress({ type: 'run_started', requestId: requestIds[0] });
+      onProgress({ type: 'tool_completed', name: 'query_quarterly_metrics', status: 'limited' });
+      await terminal.promise;
+      return { requestId: requestIds[0], status: 'assistant', conversation: body.conversation, message: '本轮查询未完成。' };
+    });
+    const { input } = await open(); send(input, '当前查询');
+    await screen.findByText('部分数据步骤未完成，正在整理说明…');
+    expect(screen.queryByText('数据步骤已完成，正在整理回答…')).not.toBeInTheDocument();
+    await act(async () => terminal.resolve(undefined));
+  });
+
+  it('ignores a late stream start after the request was stopped', async () => {
+    client.capabilities.mockResolvedValue({ ...access, agentEnabled: true, agentStreamEnabled: true });
+    const terminal = deferred<void>(); let progress!: (event: AgentProgressEvent) => void;
+    client.submitAgentStream.mockImplementation(async (_scope: typeof scope, body: Submission,
+      _signal: AbortSignal, onProgress: (event: AgentProgressEvent) => void) => {
+      progress = onProgress; await terminal.promise;
+      return { requestId: requestIds[0], status: 'assistant', conversation: body.conversation, message: '迟到终态' };
+    });
+    const { input } = await open(); send(input, '稍后才开始的流');
+    fireEvent.click(await screen.findByRole('button', { name: '停止等待' }));
+    act(() => progress({ type: 'run_started', requestId: requestIds[0] }));
+    expect(sessionStorage.getItem(`trusted-query:last:${JSON.stringify(scope)}`)).toBeNull();
+    expect(screen.queryByRole('button', { name: '检查状态并恢复结果' })).not.toBeInTheDocument();
+    await act(async () => terminal.resolve(undefined));
+    expect(screen.queryByText('迟到终态')).not.toBeInTheDocument();
+  });
+
   it('closes a history action menu with Escape before closing the workspace', async () => {
     historyClient.list.mockResolvedValue({ entries: [{ conversationId: requestIds[0], requestId: requestIds[1],
       title: '季度研究', latestQuestion: '租金趋势', updatedAt: '2026-11-18T01:00:00.000Z', archived: false }],
@@ -191,6 +253,38 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(screen.getByRole('textbox', { name: '向 Colliers AI 提问' })).toBe(input);
     expect(input).toHaveValue('正在继续编辑的草稿');
     expect(client.submit).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, true])('reveals a clipped keyboard target while keeping hidden layout ancestors fixed (native scrolling: %s)', async nativeScrolling => {
+    client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
+    const { input } = await open(); await expand(); send(input, 'CBD净有效租金');
+    const rendered = await screen.findByRole('region', { name: '查询结果' });
+    const target = within(rendered).getByRole('button', { name: '数据依据' });
+    const transcript = screen.getByRole('region', { name: '对话记录' });
+    const surface = screen.getByRole('dialog', { name: 'Colliers AI 工作空间' });
+    // Model native focus scrolling an overflow-hidden layout ancestor as well
+    // as the intended reader. The workspace must reveal through its reader only.
+    const layout = transcript.parentElement!; layout.style.overflowY = 'hidden';
+    const focus = target.focus.bind(target);
+    vi.spyOn(target, 'focus').mockImplementation(options => {
+      focus(options); if (nativeScrolling && !options?.preventScroll) layout.scrollTop = 200;
+    });
+    transcript.style.overflowY = 'auto';
+    Object.defineProperties(transcript, { clientHeight: { configurable: true, value: 300 }, scrollHeight: { configurable: true, value: 1200 } });
+    vi.spyOn(transcript, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 60, 768, 300));
+    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(() => new DOMRect(32, 640 - transcript.scrollTop, 56, 32));
+    const controls = Array.from(surface.querySelectorAll<HTMLElement>('button, a[href], input, textarea, select, summary'))
+      .filter(node => node.tabIndex >= 0 && !node.closest('[hidden], [inert], details:not([open]) > :not(summary)'));
+    const previous = controls[controls.indexOf(target) - 1];
+    previous.focus(); transcript.scrollTop = 0; document.documentElement.scrollTop = 47;
+    fireEvent.keyDown(previous, { key: 'Tab' });
+    expect(target).toHaveFocus();
+    expect(target.getBoundingClientRect().bottom).toBeLessThanOrEqual(360);
+    expect(transcript.scrollTop).toBe(312);
+    expect(layout.scrollTop).toBe(0);
+    expect(document.documentElement.scrollTop).toBe(47);
+    fireEvent.keyDown(target, { key: 'Tab' });
+    expect(target).not.toHaveFocus();
   });
 
   it('keeps the greeting compact until editor interaction and never uses question length to force full screen', async () => {
@@ -263,7 +357,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
       send(input, `第${index}个独立问题`); await screen.findByText(`助手回应：第${index}个独立问题`);
     }
     for (let index = 1; index <= 12; index++) {
-      expect(screen.getByText(`第${index}个独立问题`)).toBeInTheDocument();
+      expect(screen.getAllByText(`第${index}个独立问题`)[0]).toBeInTheDocument();
       expect(screen.getByText(`助手回应：第${index}个独立问题`)).toBeInTheDocument();
     }
     await expand(); await collapse();
@@ -448,7 +542,9 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     const sourcePanel = await screen.findByRole('region', { name: '来源详情' });
     await expand(); await collapse(); await expand();
     expect(screen.getByRole('region', { name: '查询结果' })).toBe(rendered);
-    expect(screen.getByRole('region', { name: '来源详情' })).toBe(sourcePanel);
+    expect(sourcePanel).not.toBeInTheDocument();
+    fireEvent.click(within(rendered).getByRole('button', { name: /^查看来源：/ }));
+    expect(screen.getByRole('region', { name: '来源详情' })).toBeVisible();
     expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
   });
 
@@ -469,7 +565,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     await user.click(trigger);
     await waitFor(() => expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus());
     await user.tab({ shift: true });
-    expect(within(rendered).getByText('来源、口径与结果版本')).toHaveFocus();
+    expect(screen.getByRole('button', { name: '返回对话' })).toHaveFocus();
     expect(screen.getByRole('region', { name: '查询结果' })).toBe(rendered);
     expect(screen.getByLabelText('Colliers AI')).toBe(input);
     expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
@@ -489,11 +585,12 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(within(summaryPanel).getByRole('button', { name: '收起摘要' })).toHaveFocus();
     await user.keyboard('{Enter}');
     expect(screen.queryByRole('region', { name: '市场分析摘要' })).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
+    expect(within(rendered).getByText('更多操作')).toHaveFocus();
+    await user.click(within(rendered).getByText('更多操作'));
     await user.click(trigger);
     await waitFor(() => expect(screen.getByRole('region', { name: '市场分析摘要' })).toHaveFocus());
     await user.tab({ shift: true });
-    expect(trigger).toHaveFocus();
+    expect(within(rendered).getByText('更多操作')).toHaveFocus();
     expect(screen.getByRole('region', { name: '查询结果' })).toBe(rendered);
     expect(screen.getByLabelText('Colliers AI')).toBe(input);
     expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();

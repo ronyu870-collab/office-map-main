@@ -1,0 +1,54 @@
+{
+  "status": "pass",
+  "environment": "production app, isolated SDK and authorized data fixtures",
+  "observations": [
+    {
+      "shortViewport": [
+        {
+          "width": 626,
+          "height": 328,
+          "stageHeight": 176,
+          "readingHeight": 98,
+          "mapStrip": 100,
+          "regionCameraIssued": true,
+          "allMetricsDirectlyVisible": true,
+          "materialActionReachable": true,
+          "toolsScrollReachable": true
+        },
+        {
+          "width": 600,
+          "height": 328,
+          "stageHeight": 176,
+          "readingHeight": 98,
+          "mapStrip": 100,
+          "regionCameraIssued": true,
+          "allMetricsDirectlyVisible": true,
+          "materialActionReachable": true,
+          "toolsScrollReachable": true
+        },
+        {
+          "width": 540,
+          "height": 360,
+          "stageHeight": 176,
+          "readingHeight": 98,
+          "mapStrip": 100,
+          "regionCameraIssued": true,
+          "allMetricsDirectlyVisible": true,
+          "materialActionReachable": true,
+          "toolsScrollReachable": true
+        },
+        {
+          "width": 320,
+          "height": 360,
+          "stageHeight": 176,
+          "readingHeight": 98,
+          "mapStrip": 100,
+          "regionCameraIssued": true,
+          "allMetricsDirectlyVisible": true,
+          "materialActionReachable": true,
+          "toolsScrollReachable": true
+        }
+      ]
+    }
+  ]
+}

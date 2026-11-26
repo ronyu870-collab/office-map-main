@@ -1,19 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MODEL_INTENT_LIMITS, understandWithModel } from '../modelIntent';
+import { MODEL_INTENT_LIMITS, understandWithModel as understandBoundedModel } from '../modelIntent';
+
+import { createModelRuntime } from '../../agent/modelRuntime';
+const understandWithModel: typeof understandBoundedModel = (question, context, markets, signal) => understandBoundedModel(question, context, markets, signal,
+  createModelRuntime({ actorId: 'synthetic-test-actor', question, revalidate: async () => {}, onAttempt: async () => {} }).interpret);
 
 const intent = { version: 'colliers-semantic-intent/1', operation: 'aggregate', submarkets: ['CBD'], metric: 'rent',
   time: { kind: 'explicit', periods: [{ year: 2026, quarter: 3 }] }, unresolvedConditions: [] };
-const payload = (content: unknown = intent) => ({ model: 'configured-model', choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(content) } }],
+const payload = (content: unknown = intent) => ({ model: 'deepseek-flash', choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify(content) } }],
   usage: { prompt_tokens: 80, completion_tokens: 30 } });
 const signal = () => new AbortController().signal;
 
 describe('P1 bounded real-provider adapter', () => {
-  beforeEach(() => { vi.stubEnv('DEEPSEEK_API_KEY', 'synthetic-test-key'); vi.stubEnv('DEEPSEEK_MODEL', 'configured-model'); vi.stubEnv('DEEPSEEK_API_BASE_URL', 'https://api.deepseek.com'); });
+  beforeEach(() => { vi.stubEnv('DEEPSEEK_API_KEY', 'synthetic-test-key'); vi.stubEnv('DEEPSEEK_MODEL', 'deepseek-flash'); vi.stubEnv('DEEPSEEK_API_BASE_URL', 'https://api.deepseek.com'); });
   afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+  it('requires the trusted runtime instead of constructing an ungoverned provider call', async () => {
+    const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+    await expect(understandBoundedModel('CBD', undefined, ['CBD'], signal())).rejects.toThrow('MODEL_INVOKER_REQUIRED');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it('makes one bounded extraction call with slots only and preserves reported token usage', async () => {
     const fetcher = vi.fn().mockResolvedValue(Response.json(payload())); vi.stubGlobal('fetch', fetcher);
     const result = await understandWithModel('2026Q3 CBD净有效租金，帮我解释下', undefined, ['CBD'], signal());
-    expect(result.intent).toEqual(intent); expect(result.usage).toEqual({ model: 'configured-model', inputTokens: 80, outputTokens: 30, calls: 1 });
+    expect(result.intent).toEqual(intent); expect(result.usage).toEqual({ model: 'deepseek-flash', inputTokens: 80, outputTokens: 30, calls: 1 });
     expect(fetcher).toHaveBeenCalledTimes(1);
     const [url, options] = fetcher.mock.calls[0]; expect(url).toBe('https://api.deepseek.com/chat/completions');
     const body = JSON.parse(options.body); expect(body.max_tokens).toBe(MODEL_INTENT_LIMITS.maxOutputTokens);
@@ -39,19 +48,19 @@ describe('P1 bounded real-provider adapter', () => {
   });
   it('never retries provider failures or falls back to invented results', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response('provider failure', { status: 429 })); vi.stubGlobal('fetch', fetcher);
-    await expect(understandWithModel('2026Q3CBD净有效租金', undefined, ['CBD'], signal())).rejects.toThrow('MODEL_PROVIDER_UNAVAILABLE');
+    await expect(understandWithModel('2026Q3CBD净有效租金', undefined, ['CBD'], signal())).rejects.toThrow('AGENT_MODEL_RATE_LIMITED');
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it('rejects incomplete output, oversized response and overlong input', async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ ...payload(), choices: [{ finish_reason: 'length', message: { content: '{}' } }] }))
+    const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ ...payload(), choices: [{ finish_reason: 'length', message: { role: 'assistant', content: '{}' } }] }))
       .mockResolvedValueOnce(new Response(' '.repeat(MODEL_INTENT_LIMITS.maxResponseBytes + 1))); vi.stubGlobal('fetch', fetcher);
     await expect(understandWithModel('CBD', undefined, ['CBD'], signal())).rejects.toThrow();
-    await expect(understandWithModel('CBD', undefined, ['CBD'], signal())).rejects.toThrow('MODEL_RESPONSE_TOO_LARGE');
+    await expect(understandWithModel('CBD', undefined, ['CBD'], signal())).rejects.toThrow('AGENT_MODEL_INVALID_RESPONSE');
     await expect(understandWithModel('a'.repeat(3001), undefined, ['CBD'], signal())).rejects.toThrow('MODEL_INPUT_LIMIT');
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
   it('does not call a provider without credentials', async () => {
     vi.stubEnv('DEEPSEEK_API_KEY', ''); const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
-    await expect(understandWithModel('CBD', undefined, ['CBD'], signal())).rejects.toThrow('MODEL_NOT_CONFIGURED'); expect(fetcher).not.toHaveBeenCalled();
+    await expect(understandWithModel('CBD', undefined, ['CBD'], signal())).rejects.toThrow('AGENT_MODEL_NOT_CONFIGURED'); expect(fetcher).not.toHaveBeenCalled();
   });
 });

@@ -357,6 +357,17 @@ body:has(#map-container) .amap-info-content:not(:has(.building-popup)):has(.buil
   cursor: zoom-in;
   touch-action: manipulation;
 }
+.building-photo-enlarge > span {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #172033;
+  font: 400 14px/1.5 Arial, "PingFang SC", sans-serif;
+}
+.building-photo-viewer .building-photo-enlarge > span { display: none; }
 .building-photo-enlarge:focus-visible {
   outline: 2px solid var(--cd-color-brand, #0065b3);
   outline-offset: -2px;

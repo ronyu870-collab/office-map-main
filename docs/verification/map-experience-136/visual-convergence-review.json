@@ -1,0 +1,36 @@
+{
+  "item": 119,
+  "recordedAt": "2026-11-24T00:54:06.301022+00:00",
+  "result": "Representative visual review complete; existing implemented layouts retained. No extra product change claimed.",
+  "reviewedThisFollowup": [
+    "material-availability-320.png",
+    "material-brochure-320.png",
+    "material-commission-1536.png",
+    "related-reading-1536.png",
+    "base-places-after-1536.png"
+  ],
+  "observations": [
+    "320px房源按房源身份、面积租金、交付、日期/业主确认组织，沿同一内容边界；必要详情可展开。",
+    "320px楼书按物业业务字段双列阅读，原件入口与资料页签有共同边界。",
+    "桌面佣金把政策、计算依据/日期与条款成组，历史/过期/待确认保留；宽内容区没有孤立操作。",
+    "关联成交长名称、季度/条件、经纪、备注和来源按连续阅读轴组织。",
+    "真实高德图保留道路/建筑/必要署名，自有项目标记与区域面板可辨；未将SDK夹具图当作底图效果。"
+  ],
+  "previouslyReviewedAndStillApplicable": [
+    "Long/short project details, mixed quarters, metric units, narrow/wide action grid, list and comparison figures in this task.",
+    "content-height-short-1536.png and content-height-long-1280.png cover the latest visible-card height change.",
+    "motion-paths-browser.json and async-reading-browser.json check transitions with actual consecutive geometry frames; still images alone cannot establish motion quality."
+  ],
+  "scopeReuse": "Current followup only adds AX name, active-state order, return focus and loading text. These do not change the material/related/map composition shown here. No repeated screenshot claimed.",
+  "limits": [
+    "Representative controlled identity/business samples; real SDK screenshot uses actual SDK/tiles with isolated business.",
+    "Native screen readers, browser zoom, physical touch/keyboard/system bars and production rich-data distribution retain their own partial items."
+  ],
+  "imageSha256": {
+    "material-availability-320.png": "55a3a0acc616f69dd9a4722b984c947ea3df5e2556a8c2d06c72f95fee4fd4d8",
+    "material-brochure-320.png": "d4f8622796c0182ad0f286cbfde7296816b843c4f416825071f95b69c8731677",
+    "material-commission-1536.png": "2fdf45873b41aaeb9105835d57c64c16756d6dc9e22078cd11d50c1295b39f68",
+    "related-reading-1536.png": "45ba911391a1e5e2b6e4ee5375a49e7dd8c6f24cfa190889c4cc778df1f36e1d",
+    "base-places-after-1536.png": "b894fe5b0d9cc2d91507fe4642c413f3193535607bb3c7b3dd20199c953464b7"
+  }
+}

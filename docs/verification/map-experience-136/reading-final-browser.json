@@ -1,0 +1,264 @@
+{
+  "status": "pass",
+  "environment": "production app, isolated SDK and authorized data fixtures",
+  "observations": [
+    {
+      "width": 1536,
+      "metricWidth": 332.609375,
+      "canvasWidth": 936,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "metricVariant": "three-digits",
+      "values": [
+        "146.1",
+        "21.1",
+        "128",
+        "1,154,494,208"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "width": 1536,
+      "metricVariant": "zero",
+      "values": [
+        "—",
+        "—",
+        "0",
+        "—"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "width": 1536,
+      "metricVariant": "missing",
+      "values": [
+        "—",
+        "—",
+        "1",
+        "—"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "width": 1280,
+      "metricWidth": 332.609375,
+      "canvasWidth": 680,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "metricWidth": 992,
+      "canvasWidth": 704,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "width": 900,
+      "metricWidth": 868,
+      "canvasWidth": 580,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "width": 820,
+      "metricWidth": 788,
+      "canvasWidth": 500,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "metricWidth": 736,
+      "canvasWidth": 448,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "width": 844,
+      "metricWidth": 480.40625,
+      "canvasWidth": 524,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "metricWidth": 366,
+      "canvasWidth": 390,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "metricWidth": 296,
+      "canvasWidth": 320,
+      "mapInstances": 1,
+      "stockReads": 1,
+      "nativeOpens": 0,
+      "typography": {
+        "sizes": [
+          "14px",
+          "16px"
+        ],
+        "weights": [
+          "400",
+          "600"
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "metricVariant": "three-digits",
+      "values": [
+        "146.1",
+        "21.1",
+        "128",
+        "1,154,494,208"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "width": 320,
+      "metricVariant": "zero",
+      "values": [
+        "—",
+        "—",
+        "0",
+        "—"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "width": 320,
+      "metricVariant": "missing",
+      "values": [
+        "—",
+        "—",
+        "1",
+        "—"
+      ],
+      "numberUnitGaps": [
+        4,
+        4,
+        4,
+        4
+      ]
+    }
+  ]
+}

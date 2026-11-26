@@ -1,3 +1,6 @@
+import { bindRuntimeControl } from '../control/runtimeControl';
+import { readAvailablePeriodGroups } from '../query/availablePeriods';
+import { numericFields, type NumericField } from '../query/registry';
 import { KNOWLEDGE_TOOL_NAMES, isKnowledgeResult, type KnowledgeToolName } from '../knowledge/protocol';
 import { queryKnowledge, knowledgeModelObservation, recheckKnowledgeResults } from '../knowledge/research';
 import { publicSearchConfigured } from '../knowledge/publicSearch';
@@ -17,7 +20,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { IMPERSONATION_REQUEST_HEADER } from '@/src/lib/server/impersonationAuth';
 import type { QueryAuthority } from '../query/admission';
-import { createRpcAuditPort, type AuditKeys } from '../query/auditStore';
+import { createRpcAuditPort, sanitizeAuditContent, type AuditKeys } from '../query/auditStore';
 import { redactSubmittedCredentials } from '../query/auditCrypto';
 import { readQueryBody } from '../query/httpBody';
 import { recordQueryIntake } from '../query/intake';
@@ -39,6 +42,8 @@ import { exportAuthorizedTable } from './exportTableTool';
 import type { QueryResult } from '../query/result';
 import { estimateAgentCostRange } from './agentCost';
 import { createModelRuntime, modelModeSchema } from './modelRuntime';
+import { validatedResultTableView } from '../query/tableView';
+import { routeTask } from './taskRouting';
 import { nextAgentMemory } from './agentMemory';
 import { queryVerifiedRealEstate, executeStructuredDataTool } from './verifiedDataTool';
 import { queryCapabilityManifest } from '../query/capabilityManifest';
@@ -47,6 +52,8 @@ import { REGISTERED_AGENT_TOOL_NAMES, STRUCTURED_DATA_TOOL_NAMES, WORKSET_TOOL_N
 import { AuthorizedResultWorkset, type WorksetOwner } from './resultWorkset';
 import { PRESENTATION_TOOL_NAMES, runResultPresentationTool } from './resultTools';
 import { AGENT_CONVERSATION_PROTOCOL, readAgentHistory, trimAgentHistory } from './agentConversation';
+import { selectedAnswerResult, type AnswerSelection } from '../query/answerSelection';
+import { answerTask, applyAnswerPolicy, hasExplicitLeaseWindow, isLatestLeaseQuestion } from './answerPolicy';
 
 const inputSchema = z.strictObject({
   idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(s => !!s.trim()),
@@ -72,7 +79,12 @@ function scopedAgentId(identity: VerifiedQueryIdentity, idempotencyKey: string):
 function providerMessage(error: unknown): string {
   if (error instanceof ModelProviderError) {
     switch (error.code) {
-      case 'budget_exceeded': return '本轮模型调用已达到 token 或费用估算预算，未继续调用供应商。';
+      case 'budget_exceeded':
+        if (error.budgetReason === 'admission_service_unavailable') return '模型预算服务暂不可用，本轮未调用模型。';
+        if (error.budgetReason === 'account_admission') return '本轮模型调用额度预算校验未通过，未调用供应商。';
+        if (error.budgetReason === 'token_reservation') return '下一次模型调用的输入和输出预留超出本轮 token 预算，未继续调用供应商。';
+        if (error.budgetReason === 'cost_reservation') return '下一次模型调用的费用预留超出本轮估算预算，未继续调用供应商。';
+        return '本轮模型调用已达到 token 或费用估算预算，未继续调用供应商。';
       case 'disclosure_denied': return '当前账号未获准向该模型供应商披露请求，未调用供应商。';
       case 'stream_interrupted': return '模型供应商流式连接中断，未取得完整回复。';
       case 'not_configured': return '模型供应商尚未配置，本轮未调用模型。';
@@ -165,24 +177,22 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const workset = new AuthorizedResultWorkset(worksetOwner);
     await audit.append(requestId, 'running', { phase: 'agent_planning', provider: 'server_policy',
       permissionRevision: authority.permissionRevision, policyVersion: authority.policyVersion });
-    const budget = await client.rpc('ai_query_model_budget', {
-      p_actor: actor.actorId, p_effective: actor.effectiveUserId,
-      p_session: actor.sessionId, p_request_id: requestId,
-    }).abortSignal(signal);
-    if (budget.error || budget.data?.allowed !== true) {
-      const reason = budget.error ? 'budget_rpc_unavailable' : 'budget_rejected';
-      await audit.append(requestId, 'failed', { stage: 'provider_admission', reason, delivery: 'not_sent' });
-      completed = true;
-      return json({ requestId, status: 'unavailable', error: budget.error
-        ? '模型供应商调用预算服务暂不可用，本轮没有调用模型。'
-        : '模型供应商调用预算校验未通过，本轮没有调用模型。' }, 503);
-    }
+    const admitModel = async (currentSignal: AbortSignal) => {
+      const budget = await client.rpc('ai_query_model_budget', {
+        p_actor: actor.actorId, p_effective: actor.effectiveUserId,
+        p_session: actor.sessionId, p_request_id: requestId,
+      }).abortSignal(currentSignal);
+      currentSignal.throwIfAborted();
+      if (budget.error || budget.data?.allowed !== true) throw new ModelProviderError('budget_exceeded', budget.error ? 'admission_service_unavailable' : 'account_admission');
+    };
     const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal);
     const research = new ResearchExecution(history.contextResult && isResearchResult(history.contextResult) ? history.contextResult : undefined);
     let researchTouched = false;
     const reportHistory = /PDF/i.test(valid.question) && !research.task && authority.grants.includes('export:internal')
       ? await readReportHistory(client, actor, keys, authority, valid.conversation, signal) : undefined;
     for (const result of reportHistory?.results ?? []) workset.register(result, worksetOwner);
+    for (const result of history.contextResults ?? [])
+      if (!reportHistory?.results.some(item => item.resultId === result.resultId)) workset.register(result, worksetOwner);
     if (research.task) for (const section of researchSections(history.contextResult!)) workset.register(section.result, worksetOwner);
     if (history.contextResult && !isResearchResult(history.contextResult) && !reportHistory?.results.some(r => r.resultId === history.contextResult!.resultId))
       workset.register(history.contextResult, worksetOwner);
@@ -224,7 +234,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
     const knowledgeResults=new Map<string,QueryResult>();
-    const imported = research.task ? research.results : history.contextResult ? [history.contextResult] : [];
+    const imported = research.task ? research.results : history.contextResults ?? (history.contextResult ? [history.contextResult] : []);
     for (const r of imported) if(r.parameters.knowledgeBindings || r.parameters.publicBindings) knowledgeResults.set(r.resultId,r);
     const businessResults = new Map<string,QueryResult>();
     for (const r of imported) if(r.parameters.businessBindings) businessResults.set(r.resultId,r);
@@ -241,31 +251,71 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       if (!current.grants.includes('query:catalog') || current.permissionRevision !== authority.permissionRevision
         || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
     };
-    const runtime = createModelRuntime({ actorId: actor.actorId, question: valid.question, mode: valid.mode ?? (research.task ? 'deep' : undefined),
+    const control = await bindRuntimeControl(client, actor, signal, requestId);
+    const runtime = createModelRuntime({ control, actorId: actor.actorId, question: valid.question, mode: valid.mode ?? (research.task ? 'deep' : undefined),
       hasChartContext: !!history.contextChart,
-      legacyInvoke: dependencies.invokeModel ?? completeWithDeepSeek, revalidate: revalidateModel,
+      contextDomains: [...(leaseResults.size ? ['lease' as const] : []), ...(businessResults.size ? ['business' as const] : []),
+        ...(knowledgeResults.size ? ['knowledge' as const] : [])],
+      legacyInvoke: dependencies.invokeModel ?? completeWithDeepSeek, revalidate: revalidateModel, admit: admitModel,
       onAttempt: async attempt => { await audit!.append(requestId, 'accounting', attempt); } });
     let preparedMap: QueryResult | undefined;
+    let preparedView: QueryResult | undefined;
     let preparedExport: QueryResult | undefined;
     let preparedReport: QueryResult | undefined;
     let reportFile: Record<string, unknown> | undefined;
     let preparedChart: QueryResult | undefined;
+    let preparedChartSourceId: string | undefined;
     let chartFile: Record<string, unknown> | undefined;
     let preparedResearch: QueryResult | undefined;
     let researchFiles: unknown;
     const exportFiles: Array<Record<string, unknown>> = [];
+    // Reuse the bounded answer-selection archive. Every generated snapshot
+    // remains immutable and independently downloadable under current grants.
+    const generatedResults: QueryResult[] = [];
+    const generatedChartFiles: Array<Record<string, unknown>> = [];
+    const deliverySources = new Map<string, QueryResult>();
+    const fitsDeliveryArchive = (results: readonly QueryResult[]) => {
+      try {
+        // The existing encrypted archive is 16MiB. Keep the existing 15MiB
+        // deliverable envelope, leaving room for selection and audit framing.
+        return Buffer.byteLength(JSON.stringify(sanitizeAuditContent({ result: { results } }))) <= 15 * 1024 * 1024;
+      } catch { return false; }
+    };
+    const requireDeliverySlot = (candidate?: QueryResult) => {
+      if (generatedResults.length >= 3 || candidate && !fitsDeliveryArchive([...generatedResults, candidate]))
+        throw new Error('AGENT_DELIVERY_LIMIT');
+    };
+    let selectedAnswer: AnswerSelection | undefined;
+    const queriedIds = new Set<string>();
+    // History is eligible evidence, not an automatic answer. Only a data
+    // task or an actual workset/chart read makes it participate now.
+    const comparisonRequested = /(?:比较|对比|相比|环比|同比|差异|变化|涨跌|compare|versus|\bvs\b)/i.test(valid.question)
+      && !/(?:解释|说明|介绍).*(?:方法|口径|含义|定义|规则)|(?:如何|怎么).*(?:比较|对比|计算)/.test(valid.question);
+    const historicalDataRequested = comparisonRequested
+      || /(?:查|展示|显示|分析|总结|概括|继续).*(?:数据|统计|结果|季度|租金|成交|排名|趋势)/.test(valid.question)
+        && !/(?:解释|说明|介绍).*(?:方法|口径|含义|定义|规则)/.test(valid.question);
+    const referencedIds = new Set<string>(historicalDataRequested ? workset.manifest(worksetOwner).map(item => item.resultId) : []);
+    const needsSelection = () => new Set([...queriedIds, ...referencedIds]).size > 1
+      && (!selectedAnswer || comparisonRequested && !selectedAnswer.results.some(item => item.role === 'comparison'));
+
+    const previousResult = history.contextResults?.length ? history.contextResults.length === 1 ? history.contextResults[0] : undefined : history.contextResult;
+    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult);
+    await audit.append(requestId, 'tool_finished', { executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), phase: 'task_routed' });
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
+        taskRoute, previousResultId: history.contextResults?.length === 1 ? history.contextResults[0].resultId : history.contextResult?.resultId,
         history, memory: history.memory, limits: runtime.limits,
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
         contextChart: history.contextChart,
+        ...(history.contextResults?.length ? { answerResults: workset.manifest(worksetOwner) } : {}),
         ...(research.task ? { researchContext: researchObservation(research.checkpoint()!) } : {}),
         ...(history.contextResult && (isBusinessResult(history.contextResult)||isKnowledgeResult(history.contextResult)) ? { businessResults:workset.manifest(worksetOwner) } : {}),
         ...(history.contextResult && isLeaseResult(history.contextResult) ? { leaseResults: workset.manifest(worksetOwner) } : {}),
         ...(reportHistory ? { reportResults: workset.manifest(worksetOwner), reportHistoryLimited: reportHistory.limited } : {}),
+        needsAnswerSelection: () => needsSelection() && !preparedExport && !preparedReport && !research.task,
         revalidate: async currentSignal => {
           await history.contextRecheck?.();
           await recheckLeases();
@@ -274,8 +324,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
         },
-        invoke: async (messages, currentSignal) => {
-          if (!observer) return runtime.invoke(messages, currentSignal);
+        invoke: async (messages, currentSignal, _onDelta, purpose = 'agent') => {
+          if (!observer) return runtime.invoke(messages, currentSignal, undefined, purpose);
           // Bound provisional updates; never make a DB authorization RPC for
           // every individual supplier token. Every visible batch must pass a
           // live permission-revision check before it reaches the browser.
@@ -295,21 +345,38 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           const result = await runtime.invoke(messages, currentSignal, async delta => {
             pending += delta;
             if (pending.length > 12000) throw new Error('AGENT_STREAM_EVENT_TOO_LARGE');
-          });
+          }, purpose);
           // File delivery state comes from the server, never model prose.
-          if (!(result.message.calls?.length) && !leaseResults.size && !knowledgeResults.size && !preparedExport
+          if (!/^(?:你好|您好|嗨|哈[喽啰]|hello|hi|谢谢|多谢|感谢|thanks|thank you)[！!。.?？\s]*$/i.test(valid.question.trim())
+            && !(result.message.calls?.length) && !referencedIds.size && !queriedIds.size && !leaseResults.size && !knowledgeResults.size && !preparedExport
             && !preparedChart && !preparedReport && !research.task && !/(?:导出|下载|Excel|CSV|xlsx|PNG|SVG|PDF|Word|PPT|报告|图)/i.test(valid.question)) await flush();
           return result;
         },
         signal, onEvent,
         runTool: async function runTool(name, args): Promise<import('./agentOrchestrator').AgentToolObservation<QueryResult>> {
           if (!REGISTERED_AGENT_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
+          if (control.snapshot?.config.disabledTools.includes(name)) throw new Error('AGENT_TOOL_DISABLED');
           const toolSignal = AbortSignal.any([signal, AbortSignal.timeout(20000)]);
           const rechecked = await loadDataAuthority(client, actor, toolSignal);
           if (!rechecked.grants.includes('query:catalog')
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
           await recheckLeases();
+          if (name.startsWith('pitch_')) {
+            if (!/Pitch\s*Studio|商务提案|Pitch\b/i.test(valid.question)) throw new Error('PITCH_DENIED');
+            const { runPitchTool } = await import('@/src/lib/pitch/ai/tools');
+            const observation = await runPitchTool({client,identity:actor,signal:toolSignal}, name as import('@/src/lib/pitch/ai/toolSchemas').PitchToolName, args);
+            await audit!.append(requestId, 'tool_finished', {tool:name,status:'completed',domain:'pitch'});
+            return {content:JSON.stringify(observation)};
+          }
+
+          if (name === 'select_answer_results') {
+            selectedAnswer = workset.select(args, worksetOwner);
+            return { content: JSON.stringify({ status: 'ready', primaryResultId: selectedAnswer.primaryResultId,
+              task: selectedAnswer.task, answerStatus: selectedAnswer.status,
+              references: selectedAnswer.results.map(item => ({ role: item.role, resultId: item.result.resultId })) }),
+              result: workset.read(selectedAnswer.primaryResultId, worksetOwner) };
+          }
           if (RESEARCH_TOOL_NAMES.has(name)) {
             researchTouched = true;
             if (name === 'plan_research_task') return research.plan(args);
@@ -330,48 +397,68 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (name === 'review_research_task') return research.review(args);
             const checkpoint = research.checkpoint();
             if (!checkpoint) throw new Error('RESEARCH_TASK_NOT_FOUND');
+            requireDeliverySlot();
             await recheckResearchResult(client, actor, toolSignal, requestId, checkpoint, authority.permissionRevision, { exporting: true });
-            const file = await generateResearchDeliverable(checkpoint, args, requestId);
+            const file = await generateResearchDeliverable(checkpoint, args, requestId, requireDeliverySlot);
             await recheckResearchResult(client, actor, toolSignal, requestId, file.result, authority.permissionRevision, { exporting: true });
             preparedResearch = file.result;
+            generatedResults.push(file.result);
             researchFiles = JSON.parse(file.content).files;
             return file;
           }
           if(KNOWLEDGE_TOOL_NAMES.has(name)) {
             const observed=await queryKnowledge(client,actor,toolSignal,name as KnowledgeToolName,args);
-            knowledgeResults.set(observed.result.resultId,observed.result);workset.register(observed.result,worksetOwner);
+            knowledgeResults.set(observed.result.resultId,observed.result);workset.register(observed.result,worksetOwner);queriedIds.add(observed.result.resultId);
             return observed;
           }
           if(BUSINESS_TOOL_NAMES.has(name)) {
             const observed=await queryBusinessResearch(client,actor,toolSignal,name as BusinessToolName,args);
-            businessResults.set(observed.result.resultId,observed.result);
+            businessResults.set(observed.result.resultId,observed.result);queriedIds.add(observed.result.resultId);
             const manifest=workset.register(observed.result,worksetOwner);
             return {...observed,content:JSON.stringify({...JSON.parse(observed.content),workset:manifest})};
           }
           if (name === 'query_lease_transactions') {
             const observed = await queryLeaseResearch(client, actor, toolSignal, args);
             if (!observed.result) return observed;
-            leaseResults.set(observed.result.resultId, observed.result);
+            leaseResults.set(observed.result.resultId, observed.result);queriedIds.add(observed.result.resultId);
             const manifest = workset.register(observed.result, worksetOwner);
             return { ...observed, content: JSON.stringify({ ...JSON.parse(observed.content), workset: manifest }) };
           }
           if (name === 'get_data_capabilities') {
-            return { content: JSON.stringify({ status: 'ready', authority: queryCapabilityManifest(rechecked), business:await businessCapabilities(client,actor,toolSignal),knowledge:{privateTextSentToModel:false,requiresDocumentGrant:true,publicSearchConfigured:publicSearchConfigured()} }) };
+            let availablePeriods: Array<{ label: string; periods: string[]; truncated: boolean }> | undefined;
+            if (args.includePeriods === true) {
+              const fields = rechecked.grants.includes('query:quarter') ? rechecked.fields.filter(field => ['totalArea', 'vacantArea', 'netEffectiveRent'].includes(field)) as NumericField[] : [];
+              if (fields.length) {
+                const available = await readAvailablePeriodGroups(client, actor, rechecked, { inventory: 'all_authorized' }, fields.map(field => [field]), toolSignal);
+                availablePeriods = (available.fieldGroups ?? [available]).map(group => ({ label: group.fields.map(field => numericFields[field].label).join('、'),
+                  periods: group.periods.map(period => `${period.year}Q${period.quarter}`), truncated: group.truncated }));
+              } else availablePeriods = [];
+            }
+            return { content: JSON.stringify({ status: 'ready', authority: queryCapabilityManifest(rechecked), ...(availablePeriods ? { availablePeriods } : {}), business:await businessCapabilities(client,actor,toolSignal),knowledge:{privateTextSentToModel:false,requiresDocumentGrant:true,publicSearchConfigured:publicSearchConfigured()} }) };
           }
           if (PRESENTATION_TOOL_NAMES.has(name)) {
             toolSignal.throwIfAborted();
-            const id = typeof args.resultId === 'string' ? args.resultId : workset.latestId();
+            const id = typeof args.resultId === 'string' ? args.resultId
+              : ['modify_chart', 'export_chart'].includes(name)
+                ? preparedChartSourceId ?? history.contextChart?.resultId ?? workset.latestId() : workset.latestId();
             let chosen = id ? workset.read(id, worksetOwner) : undefined;
-            if (chosen && preparedChart?.resultId === chosen.resultId) chosen = preparedChart;
+            if (chosen) referencedIds.add(chosen.resultId);
+            if (chosen && preparedChart && (preparedChart.resultId === chosen.resultId || preparedChartSourceId === chosen.resultId)) chosen = preparedChart;
             if(chosen && isKnowledgeResult(chosen)) return {content:JSON.stringify(knowledgeModelObservation(chosen))};
             if (name === 'export_chart') {
               if (!chosen) throw new Error('AGENT_RESULT_NOT_FOUND');
               if (!rechecked.grants.includes('export:internal')) throw new Error('AGENT_EXPORT_DENIED');
+              requireDeliverySlot();
               const prior = agentChartDescriptorSchema.safeParse(chosen.parameters.agentChart).data;
               const chart = chartRequestSchema.parse(args.chart ?? prior?.request);
               const format = args.format as 'png_zip' | 'svg_zip';
-              const next: QueryResult = { ...chosen, parameters: { ...chosen.parameters,
+              const next: QueryResult = { ...chosen,
+                // PNG and SVG may share source data, but need distinct sealed
+                // snapshots when both are delivered in the same answer.
+                resultId: generatedResults.some(r => r.resultId === chosen.resultId) ? randomUUID() : chosen.resultId,
+                parameters: { ...chosen.parameters,
                 agentChart: { version: 'chart-workspace/1', request: chart, format } } };
+              requireDeliverySlot(next);
               await recheckBusinessResults(client,actor,toolSignal,[next],true);
               if (isLeaseResult(next)) await recheckLeaseResult(client, actor, toolSignal, next, true);
               const file = await buildResultArtifact(next, { requestId, resultId: next.resultId, action: 'export', format, chart });
@@ -381,19 +468,20 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
               if (!current.grants.includes('export:internal') || current.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
               await recheckLeases(true);
               preparedChart = next;
+              preparedChartSourceId = id;
+              generatedResults.push(next);
               chartFile = { status: 'ready', state: 'server_generated', format, filename: file.filename, bytes: file.bytes.length, sha256: file.sha256 };
+              generatedChartFiles.push({ ...chartFile, resultId: next.resultId });
               return { content: JSON.stringify({ ...chartFile, resultId: next.resultId, note: '服务器已生成真实图片及来源包；回答提供下载操作，尚未发起浏览器下载，不能声称本机已保存。' }), result: next };
             }
-            // Existing map navigation points to the final archived result,
-            // not any arbitrary earlier result of this multi-step task.
-            if (name === 'prepare_map_selection' && id !== workset.latestId())
-              return { content: JSON.stringify({ status: 'unsupported',
-                reason: '地图当前仅能跳转到本轮最后一项正式结果；不能把较早结果冒充为最终快照。' }) };
+            // Selected snapshots are archived in full. Map actions can now
+            // refer to an earlier selected result without changing its role.
             const presentation = runResultPresentationTool(name as Parameters<typeof runResultPresentationTool>[0],
               requestId, chosen, args as { chart?: ChartRequest });
             if(name==='prepare_map_selection' && presentation.result) preparedMap=presentation.result;
             if (['prepare_chart', 'create_chart', 'modify_chart'].includes(name) && presentation.result) {
               preparedChart = presentation.result; chartFile = undefined;
+              preparedChartSourceId = id;
               if(isBusinessResult(presentation.result)) return {...presentation,content:JSON.stringify(businessModelObservation(presentation.result))};
               if (isLeaseResult(presentation.result)) return { ...presentation, content: JSON.stringify(leaseModelObservation(presentation.result)) };
               return presentation;
@@ -405,25 +493,29 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return id === workset.latestId() ? presentation : { content: presentation.content };
           }
           if (name === 'generate_pdf_report') {
+            requireDeliverySlot();
             if((args.resultIds as string[]).some(id=>isKnowledgeResult(workset.read(id,worksetOwner))))throw new Error('AGENT_EXPORT_DENIED');
             if ((args.resultIds as string[]).some(id => isBusinessResult(workset.read(id,worksetOwner)))) throw new Error('BUSINESS_PDF_UNSUPPORTED');
             if ((args.resultIds as string[]).some(id => isLeaseResult(workset.read(id, worksetOwner)))) throw new Error('LEASE_PDF_UNSUPPORTED');
-            const report = await generateAuthorizedReport(workset, worksetOwner, args, rechecked.grants, preparedChart);
+            const report = await generateAuthorizedReport(workset, worksetOwner, args, rechecked.grants,
+              preparedChart && preparedChartSourceId ? { ...preparedChart, resultId: preparedChartSourceId } : preparedChart, requireDeliverySlot);
             await history.contextRecheck?.();
             const current = await fresh();
             if (!current.grants.includes('export:internal') || current.permissionRevision !== authority.permissionRevision
               || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
             preparedReport = report.result; reportFile = JSON.parse(report.content);
+            generatedResults.push(report.result);
             return report;
           }
           if (name === 'export_table') {
+            requireDeliverySlot();
             if((args.resultIds as string[]).some(id=>isKnowledgeResult(workset.read(id,worksetOwner))))throw new Error('AGENT_EXPORT_DENIED');
             for (const id of args.resultIds as string[]) {
               const result = workset.read(id, worksetOwner);
               await recheckBusinessResults(client,actor,toolSignal,[result],true);
               if (isLeaseResult(result)) await recheckLeaseResult(client, actor, toolSignal, result, true);
             }
-            const exported = await exportAuthorizedTable(workset, worksetOwner, args, rechecked.grants);
+            const exported = await exportAuthorizedTable(workset, worksetOwner, args, rechecked.grants, requireDeliverySlot);
             // Derived export is archived as the terminal result. Do not duplicate
             // its rows into the bounded query workset or evict earlier queries.
             preparedExport = exported.result;
@@ -433,10 +525,20 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (!current.grants.includes('export:internal')
               || current.permissionRevision !== authority.permissionRevision
               || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+            generatedResults.push(exported.result);
+            for (const id of args.resultIds as string[]) deliverySources.set(id, workset.read(id, worksetOwner));
             return exported;
+          }
+          if (name === 'apply_result_view') {
+            const source = workset.read(args.resultId as string, worksetOwner);
+            const view = validatedResultTableView(source, args.view);
+            referencedIds.add(source.resultId);
+            preparedView = { ...source, parameters: { ...source.parameters, agentTableView: view } };
+            return { result: preparedView, content: JSON.stringify({ status: 'ready', resultId: source.resultId, view, rowCount: source.table.rows.length }) };
           }
           if (WORKSET_TOOL_NAMES.has(name)) {
             const ids = name === 'compare_result_sets' ? args.resultIds as string[] : [args.resultId as string];
+            for (const id of ids) { workset.read(id, worksetOwner); referencedIds.add(id); }
             const knowledge=ids.map(id=>workset.read(id,worksetOwner)).filter(isKnowledgeResult);
             if(knowledge.length)return {content:JSON.stringify({status:'ready',results:knowledge.map(knowledgeModelObservation)})};
             const businesses=ids.map(id=>workset.read(id,worksetOwner)).filter(isBusinessResult);
@@ -459,12 +561,13 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (/(?:成交|租赁交易|lease.transaction)/i.test(args.question)) throw new Error('LEASE_TOOL_REQUIRED');
             // Bounded migration for previous native Tool Calling clients.
             observation = await queryVerifiedRealEstate({ client, keys, identity: actor, audit: audit!,
-              requestId, authority, signal: toolSignal }, args.question);
+              requestId, authority, signal: toolSignal, ...(taskRoute.route === 'single_interpretation' ? { interpret: runtime.interpret, contextPlan: history.contextPlan } : {}) }, args.question);
           } else if (STRUCTURED_DATA_TOOL_NAMES.has(name)) {
             observation = await executeStructuredDataTool({ client, keys, identity: actor, audit: audit!,
               requestId, authority, signal: toolSignal }, name as StructuredDataToolName, args);
           } else throw new Error('AGENT_UNREGISTERED_TOOL');
           if (observation.result) {
+            queriedIds.add(observation.result.resultId);
             const manifest = workset.register(observation.result, worksetOwner);
             const original = JSON.parse(observation.content) as Record<string, unknown>;
             observation = { ...observation, content: JSON.stringify({ ...original,
@@ -474,7 +577,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         },
       });
     } catch (error) {
-      await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: 'incomplete',
+      await audit.append(requestId, 'accounting', { provider: 'server_policy', executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), status: 'incomplete', toolTrace,
         modelCallsCompleted: completedModels, inputTokens: reportedInput, outputTokens: reportedOutput,
         providerRequestIds: providerRequestIds.slice(0, 6),
         cost: null, costStatus: 'planning_range_not_invoice',
@@ -496,32 +599,64 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         completed = true; checkpointPreserved = true;
         await recordHistorySubmission(client, keys, actor, valid.conversation.id, requestId);
       }
+      const recoverable = signal.aborted || error instanceof ModelProviderError
+        || error instanceof Error && /^AGENT_(?:ROUND_LIMIT|TOOL_BUDGET_EXCEEDED|TOOL_RECOVERY_EXHAUSTED|TOKEN_BUDGET_EXCEEDED)$/.test(error.message);
+      const candidates = generatedResults.length ? generatedResults
+        : selectedAnswer?.results.map(item => item.result as QueryResult)
+          ?? [...queriedIds].map(id => workset.read(id, worksetOwner));
+      if (!research.task && recoverable && candidates.length && !(error instanceof Error && error.message === 'QUERY_DENIED')) {
+        const checkpointSignal = AbortSignal.timeout(10000);
+        const current = await loadDataAuthority(client, actor, checkpointSignal);
+        if (current.permissionRevision !== authority.permissionRevision || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+        await recheckBusinessResults(client, actor, checkpointSignal, candidates);
+        await recheckLeaseResults(client, actor, checkpointSignal, candidates.filter(isLeaseResult));
+        await recheckKnowledgeResults(client, actor, checkpointSignal, candidates);
+        const primary = candidates[0];
+        const selection: AnswerSelection = { version: 'answer-selection/1', task: answerTask(valid.question, primary),
+          status: 'partial', primaryResultId: primary.resultId,
+          notice: candidates.length > 1 ? '已保存多份中间查询结果，尚未确认最终主结果；原任务尚未全部完成。' : '已保存正式结果，原任务尚未全部完成。', results: candidates.map((result, i) => ({ role: i ? 'comparison' : 'primary', result: result as AnswerSelection['results'][number]['result'] })) };
+        await audit.append(requestId, 'tool_finished', { protocol: 'agent-answer/1', answerContext: true,
+          resolution: { protocol: 'answer-selection/1' }, permissionRevision: authority.permissionRevision,
+          history: trimAgentHistory(history, valid.question, selection.notice!), memory: nextAgentMemory(history.memory, valid.question, primary),
+          operations: runtime.summary(), executionRoute: taskRoute.route, executionStatus: 'partial', status: 'checkpoint_prepared' });
+        await audit.append(requestId, 'response_generated', { result: selection });
+        await audit.append(requestId, 'succeeded', { delivery: 'not_sent', executionStatus: 'partial', resultInterrupted: true });
+        completed = true;
+        // Reuse the exact owner/session/source/version recovery check; no
+        // checkpoint is offered as recoverable until every source passes it.
+        const read = await readOwnResult(client, actor, requestId, 'archive', checkpointSignal);
+        await recoverOwnResult(client, actor, keys, requestId, read, checkpointSignal);
+        checkpointPreserved = true;
+        await recordHistorySubmission(client, keys, actor, valid.conversation.id, requestId);
+      }
       throw error;
     }
+    execution.calls = runtime.records.length;
+    execution.inputTokens = runtime.records.some(r => r.usageStatus === 'unknown_reserved') ? null : runtime.records.reduce((n, r) => n + (r.inputTokens ?? 0), 0);
+    execution.outputTokens = runtime.records.some(r => r.usageStatus === 'unknown_reserved') ? null : runtime.records.reduce((n, r) => n + (r.outputTokens ?? 0), 0);
     if(execution.unresolvedFailures.some(item=>item.code==='knowledge_public_search_disabled'))execution.answer='公开搜索服务尚未启用，本轮没有联网或发送外部查询。需由维护者配置正式搜索服务及公开研究授权。';
     if (execution.unresolvedFailures.some(item => item.code === 'lease_scope_too_large')) execution.answer = '获权成交数据池超过20000条，未返回部分结果。请由授权维护者缩小正式研究授权范围后重试；本轮未完成成交查询。';
     if (!preparedChart && (execution.toolNames.some(name => ['prepare_chart', 'create_chart', 'modify_chart'].includes(name))
       || execution.unresolvedFailures.some(item => ['create_chart', 'modify_chart'].includes(item.tool)))) execution.answer = '本轮未生成图表。请核对获权字段、单位、范围及图表规格后重试。';
-    if (preparedChart) {
+    if (preparedChart && (!selectedAnswer || selectedAnswer.primaryResultId === preparedChart.resultId)) {
       execution.result = preparedChart;
       execution.answer = chartFile ? '服务器已生成 ' + (chartFile.format === 'png_zip' ? 'PNG' : 'SVG') + ' 图片与来源包，可通过本条回答下载；尚未发起浏览器下载，未确认本机保存。'
         : '已使用本次获权结果生成同源图表，图表与来源见本条回答；图表修改不改变正式数值。';
-      if (execution.unresolvedFailures.length) execution.answer += '\n执行限制：' + execution.unresolvedFailures.map(item => item.tool + '（' + item.code + '）').join('、');
+      if (execution.unresolvedFailures.length) execution.answer += '\n部分步骤未完成。';
     }
     if (preparedExport && !preparedChart) {
       execution.result = preparedExport;
       execution.answer = '服务器已生成 ' + preparedExport.table.rows.length
         + ' 行' + ((preparedExport.parameters.agentExport as { format: string }).format === 'xlsx' ? ' Excel 文件' : ' CSV 与来源包')
         + '，可通过本条回答的下载操作获取；尚未发起浏览器下载，也未确认本机保存。'
-        + (execution.unresolvedFailures.length ? '\n\n执行限制：' + execution.unresolvedFailures
-          .map(item => item.tool + '（' + item.code + '）').join('、') + '。其余步骤未全部完成。' : '');
+        + (execution.unresolvedFailures.length ? '\n其余步骤未全部完成。' : '');
     }
     if (!preparedExport && (execution.toolNames.includes('export_table')
       || execution.unresolvedFailures.some(item => item.tool === 'export_table'))) {
       execution.answer = '本轮未生成文件。'
         + (execution.unresolvedFailures.some(item => item.code === 'export_not_authorized')
           ? '当前身份没有独立的内部导出资格。' : '导出步骤未通过，请调整范围、字段或规格后重试。')
-        + '\n执行限制：' + execution.unresolvedFailures.map(item => item.tool + '（' + item.code + '）').join('、');
+        + '其余步骤未全部完成。';
     }
     if (!chartFile && (execution.toolNames.includes('export_chart') || execution.unresolvedFailures.some(item => item.tool === 'export_chart'))) {
       execution.answer = '本轮未生成图片文件。' + (preparedChart ? '同源图表仍可查看。' : '')
@@ -546,21 +681,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     if (current.permissionRevision !== authority.permissionRevision
       || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
     await recheckLeases();
-    if (leaseResults.size) {
-      execution.result ??= [...leaseResults.values()].at(-1);
-      if (execution.result && !isLeaseResult(execution.result)) execution.result = { ...execution.result,
-        parameters: { ...execution.result.parameters, leaseBindings: [...leaseResults.values()].flatMap(r => r.parameters.leaseBindings as unknown[]) } };
-    }
-    if(businessResults.size) {
-      execution.result ??= [...businessResults.values()].at(-1);
-      if(execution.result) execution.result={...execution.result,parameters:{...execution.result.parameters,
-        businessBindings:[...businessResults.values()].flatMap(r=>r.parameters.businessBindings as unknown[])}};
-    }
     if(knowledgeResults.size){
-      execution.result??=[...knowledgeResults.values()].at(-1);
-      if(execution.result)execution.result={...execution.result,parameters:{...execution.result.parameters,
-        knowledgeBindings:[...knowledgeResults.values()].flatMap(r=>r.parameters.knowledgeBindings as unknown[]??[]),
-        publicBindings:[...knowledgeResults.values()].flatMap(r=>r.parameters.publicBindings as unknown[]??[])}};
       // Do not feed model-authored claims about unread private text into history.
       if(execution.result && isKnowledgeResult(execution.result)) execution.answer=execution.result.table.rows.length===0
         ?'当前获权范围没有检索到匹配证据；未编造原文或研究判断。可调整文档范围和关键词，未命中不代表全文没有该信息。'
@@ -589,7 +710,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       if (researchFailures.length) execution.answer += '\n' + [...new Set(researchFailures)].join('');
       if (descriptor.state !== 'reviewed' || execution.unresolvedFailures.length) execution.executionStatus = 'partial';
     }
-    const fulfillment = artifactFulfillment(valid.question, execution.result);
+    const fulfillment = artifactFulfillment(valid.question, execution.result, generatedResults);
     if (fulfillment.missing.length) {
       for (const format of fulfillment.missing) {
         const tool = fulfillment.toolFor(format);
@@ -597,11 +718,114 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       }
       execution.executionStatus = execution.result ? 'partial' : 'limited';
       const delivered = fulfillment.requested.filter(f => fulfillment.available.includes(f));
-      execution.answer = (delivered.length ? '服务器已生成可通过本条回答下载的 ' + delivered.map(f => artifactLabels[f]).join('、') + ' 文件。' : '')
-        + '本轮未生成 ' + fulfillment.missing.map(f => artifactLabels[f]).join('、') + ' 文件，或尚未保留为本条回答可下载的成果；任务尚未全部完成。'
-        + '请核对当前授权、数据与生成步骤后继续。尚未发起浏览器下载，未确认本机保存。';
+      execution.answer = (delivered.length ? delivered.map(f => artifactLabels[f]).join('、') + ' 已可下载。' : '')
+        + '本轮未生成 ' + fulfillment.missing.map(f => artifactLabels[f]).join('、') + ' 文件，任务尚未全部完成。请核对范围或重试。';
     }
-    await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: execution.executionStatus,
+    const terminalDelivery = generatedResults.length > 0;
+    if (!execution.result && execution.toolCalls === 0 && isLatestLeaseQuestion(valid.question) && !hasExplicitLeaseWindow(valid.question))
+      execution.answer = '要查询哪个日期范围内的最新一笔租赁成交？';
+    if (selectedAnswer && !needsSelection() && !terminalDelivery && !researchTouched) {
+      selectedAnswer = { ...selectedAnswer, results: selectedAnswer.results.map(item => {
+        const prepared = preparedChart?.resultId === item.result.resultId ? preparedChart
+          : preparedMap?.resultId === item.result.resultId ? preparedMap : preparedView?.resultId === item.result.resultId ? preparedView : undefined;
+        return prepared ? { ...item, result: prepared as typeof item.result } : item;
+      }) };
+      execution.result = selectedAnswerResult(selectedAnswer) as QueryResult;
+    } else if (needsSelection() && !terminalDelivery && !researchTouched) {
+      selectedAnswer = undefined;
+      // Fail closed rather than pair an unbound model narrative with the last
+      // query (which may only be a coverage or future-period check).
+      execution.result = undefined;
+      execution.answer = '本轮取得多个结果，但尚未确认与当前问题对应的主结果。请明确需要比较的期间或范围。';
+      execution.executionStatus = 'limited';
+      execution.unresolvedFailures.push({ tool: 'select_answer_results', code: 'conditions_required' });
+    }
+    // Persist presentation intent with the archived snapshot. Delivery prose is
+    // rendered by attachments; substantive partial-execution warnings stay in
+    // the narrative. No keyword removal or model-supplied presentation values.
+    if (execution.result) {
+      if (generatedResults.length) execution.result = generatedResults.find(r => r.resultId === execution.result!.resultId)
+        ?? generatedResults.at(-1)!;
+      const delivery = !!(preparedExport || preparedReport || chartFile || preparedResearch);
+      const listing = !isKnowledgeResult(execution.result) && !isResearchResult(execution.result)
+        && !/(?:详细|完整报告|解释方法|为什么|原因|方法说明)/.test(valid.question);
+      const narrativeRole = delivery ? 'delivery_status' : listing ? 'result_summary' : 'analysis';
+      // Already-generated files bind the original digest. Never mutate their
+      // snapshot after generation; their versioned artifact descriptor is the
+      // legacy adapter's presentation input.
+      if (!delivery) execution.result = { ...execution.result, parameters: { ...execution.result.parameters,
+        responsePresentation: { version: 'response-presentation/1', narrativeRole } } };
+      if (execution.executionStatus === 'completed') {
+        if (narrativeRole === 'delivery_status') execution.answer = '文件已准备好，可从附件下载。仅供内部分析。';
+        else if (narrativeRole === 'result_summary') execution.answer = '查询结果见下方表格。';
+      }
+    }
+    if (execution.result) {
+      const primary = execution.result;
+      if (generatedResults.length) {
+        // Keep trusted, deterministic analysis on its original data shape.
+        // An export is a derived list and must not inherit incompatible
+        // analytics, nor may supplier-authored causal prose become evidence.
+        const analysisRequested = !!preparedExport && !preparedReport && !preparedResearch
+          && /分析|解释|比较|对比|差异|结论|总结/.test(valid.question);
+        const candidates = analysisRequested ? (selectedAnswer?.results.map(item => item.result as QueryResult)
+          ?? [...deliverySources.values()]).filter(r => r.analysis !== null || r.parameters.researchAnalysis) : [];
+        const additional = candidates.filter(r => !generatedResults.some(file => file.resultId === r.resultId));
+        const capacity = 3 - generatedResults.length;
+        const retainedAnalysis: QueryResult[] = [];
+        for (const candidate of additional) {
+          if (retainedAnalysis.length < capacity && fitsDeliveryArchive([...generatedResults, ...retainedAnalysis, candidate]))
+            retainedAnalysis.push(candidate);
+        }
+        if (analysisRequested && (!candidates.length || retainedAnalysis.length < additional.length)) {
+          execution.executionStatus = 'partial';
+          execution.unresolvedFailures.push({ tool: 'select_answer_results', code: retainedAnalysis.length < additional.length ? 'delivery_capacity' : 'analysis_not_available' });
+        }
+        selectedAnswer = {
+        version: 'answer-selection/1', task: 'file',
+        status: execution.executionStatus === 'completed' ? 'answered' : 'partial', primaryResultId: primary.resultId,
+        results: [{ role: 'primary', result: primary as AnswerSelection['results'][number]['result'] },
+          ...[...generatedResults.filter(r => r.resultId !== primary.resultId), ...retainedAnalysis].map(result => ({ role: 'comparison' as const,
+            result: result as AnswerSelection['results'][number]['result'] }))],
+        };
+      }
+      else if (!selectedAnswer || terminalDelivery || researchTouched) selectedAnswer = {
+        version: 'answer-selection/1', task: answerTask(valid.question, primary),
+        status: execution.executionStatus === 'completed' ? 'answered' : 'partial',
+        primaryResultId: primary.resultId, results: [{ role: 'primary', result: primary as AnswerSelection['results'][number]['result'] }],
+      };
+      else selectedAnswer = { ...selectedAnswer, results: selectedAnswer.results.map(item =>
+        item.result.resultId === primary.resultId ? { ...item, result: primary as typeof item.result } : item) };
+      selectedAnswer = applyAnswerPolicy(valid.question, selectedAnswer, execution.executionStatus);
+      // Data-summary ownership must not swallow a separate, trusted action
+      // outcome. Preparing a map never means that the browser opened it.
+      const mapAttempted = execution.toolNames.includes('prepare_map_selection');
+      const mapResultId = preparedMap?.resultId;
+      const mapDelivered = mapResultId && selectedAnswer.results.some(item =>
+        item.result.resultId === mapResultId && item.result.parameters.agentMap);
+      const mapNotice = mapAttempted ? mapDelivered
+        ? '地图操作已准备，尚未打开地图或改变当前地图选择。'
+        : preparedMap ? '地图操作未随当前回答交付，尚未打开地图或改变当前地图选择。'
+        : '本轮未准备地图操作。当前结果无法准备所选操作，尚未打开地图。' : undefined;
+      if (mapNotice) selectedAnswer = { ...selectedAnswer,
+        notice: [selectedAnswer.notice, mapNotice].filter(Boolean).join(' ') };
+      if (execution.executionStatus !== 'completed') {
+        // Summary ownership stays with formal blocks even after partial tool
+        // execution. A separate trusted notice retains what did not complete;
+        // no arbitrary supplier prose or Markdown table is scanned/deleted.
+        const onlyMapFailure = mapNotice && execution.unresolvedFailures.length > 0
+          && execution.unresolvedFailures.every(item => item.tool === 'prepare_map_selection');
+        const executionNotice = fulfillment.missing.length ? execution.answer
+          : execution.unresolvedFailures.some(item => ['delivery_limit', 'delivery_capacity'].includes(item.code))
+            ? '交付内容超过本轮容量，已有成果仍可下载；其余部分请分次生成，任务尚未全部完成。'
+          : execution.unresolvedFailures.some(item => item.code === 'analysis_not_available')
+            ? '文件已生成，但尚未取得可核验的分析结论；任务尚未全部完成。'
+          : onlyMapFailure ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
+        selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, executionNotice].filter(Boolean).join(' ') };
+      }
+      if (selectedAnswer.notice) execution.answer = selectedAnswer.notice;
+    }
+    await audit.append(requestId, 'accounting', { provider: 'server_policy', executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), status: execution.executionStatus, formalResult: !!execution.result, filesRequested: fulfillment.requested.length, filesCompleted: fulfillment.requested.filter(f => fulfillment.available.includes(f)).length, reusedTools: toolTrace.filter(t => t.reused).length,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       providerRequestIds: providerRequestIds.slice(0, 6), toolNames: execution.toolNames,
@@ -614,11 +838,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const leaseAnswer = execution.result && isLeaseResult(execution.result);
     const researchAnswer = execution.result && isResearchResult(execution.result);
     const answerPlan = execution.result && !researchAnswer && !leaseAnswer && !businessAnswer && !knowledgeAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
+    const archivedCharts = selectedAnswer?.results.map(item => item.result).filter(r => r.parameters.agentChart) ?? [];
+    const archivedChart = archivedCharts.find(r => r.resultId === preparedChart?.resultId) ?? archivedCharts.at(-1);
+    const archivedChartFile = archivedChart && generatedChartFiles.find(file => file.resultId === archivedChart.resultId);
     await audit.append(requestId, 'tool_finished', {
       protocol: 'agent-answer/1', provider: 'server_policy', model: execution.model,
       permissionRevision: authority.permissionRevision,
       history: trimAgentHistory(history, valid.question, execution.answer),
-      memory: nextAgentMemory(history.memory, valid.question, execution.result), operations: runtime.summary(),
+      memory: nextAgentMemory(history.memory, valid.question, execution.result), executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(),
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
       ...(researchAnswer ? { researchContext: true, resolution: { protocol: 'deep-research/1' } } : {}),
@@ -631,15 +858,17 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       ...(leaseAnswer ? { resolution: { protocol: 'lease-research/1' } } : {}),
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
       ...(preparedReport ? { reportFile } : {}),
-      ...(!preparedReport && preparedChart ? { chartContext: { resultId: preparedChart.resultId, chart: (preparedChart.parameters.agentChart as { request: ChartRequest }).request }, ...(chartFile ? { chartFile } : {}) } : {}),
+      ...(archivedChart ? { chartContext: { resultId: archivedChart.resultId, chart: (archivedChart.parameters.agentChart as { request: ChartRequest }).request },
+        ...(archivedChartFile ? { chartFile: archivedChartFile } : {}), ...(generatedChartFiles.length ? { chartFiles: generatedChartFiles } : {}) } : {}),
       ...(preparedExport && !isLeaseResult(preparedExport) && !isBusinessResult(preparedExport) && !isKnowledgeResult(preparedExport) ? { exportFiles, exportContext: {
         plans: preparedExport.parameters.exportPlans,
         selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {
           selection: { resultIds: string[] } }).selection; void _ids; return selection; })(),
       } } : {}),
+      ...(selectedAnswer ? { answerContext: true, resolution: { protocol: 'answer-selection/1' } } : {}),
       status: 'answer_prepared',
     });
-    await audit.append(requestId, 'response_generated', { result: execution.result ?? {
+    await audit.append(requestId, 'response_generated', { result: selectedAnswer ?? execution.result ?? {
       version: 'agent-message/1', text: execution.answer, model: execution.model,
     } });
     await audit.append(requestId, 'succeeded', { delivery: 'not_yet_sent',
@@ -650,8 +879,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const historySaved = await recordHistorySubmission(client, keys, actor, valid.conversation.id, requestId);
     const responseBody = { requestId, status: execution.result ? 'ready' : 'assistant',
       message: execution.answer, ...(execution.result ? { result: execution.result } : {}),
+      ...(selectedAnswer ? { answerSelection: selectedAnswer } : {}),
       conversation: valid.conversation, historySaved,
-      agent: { model: execution.model, modelCalls: execution.calls, operations: runtime.summary(),
+      agent: { executionRoute: taskRoute.route, taskType: taskRoute.taskType, model: execution.model, modelCalls: execution.calls, operations: runtime.summary(),
         toolCalls: execution.toolCalls, inputTokens: execution.inputTokens,
         outputTokens: execution.outputTokens, executionStatus: execution.executionStatus,
         phases: execution.phases, workset: workset.manifest(worksetOwner),
@@ -693,8 +923,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       catch { /* Audit persistence unavailable: never deliver a successful result. */ }
     }
     if (request.signal.aborted) return json({ requestId, status: 'cancelled',
-      error: checkpointPreserved ? '研究已中断，已完成的合法步骤已记录，可从历史恢复继续；研究尚未全部完成。' : '浏览器已中断请求，不能确认服务端是否完全停止。' }, 409);
-    if (checkpointPreserved) return json({ requestId, status: 'cancelled', error: '本轮执行受到预算、时间或服务异常限制，合法研究进度已记录，可从历史恢复继续；研究尚未全部完成。' }, 409);
+      error: checkpointPreserved ? '执行已中断，已有正式结果已记录，可从历史恢复；任务尚未全部完成。' : '浏览器已中断请求，不能确认服务端是否完全停止。' }, 409);
+    if (checkpointPreserved) return json({ requestId, status: 'cancelled', error: '本轮执行受到预算、时间或服务异常限制，已有正式结果已记录，可从历史恢复；任务尚未全部完成。' }, 409);
     return json({ requestId, status: error instanceof Error && error.message === 'QUERY_DENIED' ? 'denied' : 'unavailable',
       error: providerMessage(error) },
       error instanceof Error && error.message === 'QUERY_DENIED' ? 403 : 503);

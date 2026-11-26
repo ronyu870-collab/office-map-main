@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
+import { setTimeout as delay } from 'node:timers/promises';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
@@ -38,6 +39,16 @@ export async function verifyAi5FinalHardening({ db, service, keys, output, check
     return who;
   }
   async function submit(who, question, plan, parent, idempotencyKey = randomUUID()) {
+    // Query, recovery and artifact receipts share the existing account limit.
+    // Pace the fixture against its real window; do not raise limits, rotate
+    // actors, rewrite receipts or retry a rejected request.
+    const window = await db.query(`select extract(epoch from (min(received_at)+interval '61 seconds'-clock_timestamp()))*1000 wait_ms,
+      count(*) n from private.ai_query_audit_streams where actor_id=$1 and received_at>clock_timestamp()-interval '1 minute'`, [who.id]);
+    if (Number(window.rows[0].n) >= 12) {
+      console.log('WAIT final-hardening fixture: existing 12/minute account window');
+      let remaining = Math.max(0, Math.ceil(Number(window.rows[0].wait_ms)));
+      while (remaining > 0) { const chunk = Math.min(remaining, 60000); await delay(chunk); remaining -= chunk; }
+    }
     planner = plan; modelCalls = 0;
     const conversation = parent ? { ...parent.body.conversation, parentRequestId: parent.body.requestId } : { id: randomUUID() };
     const input = { idempotencyKey, question, conversation };
@@ -58,8 +69,16 @@ export async function verifyAi5FinalHardening({ db, service, keys, output, check
       assert.equal(response.status, 200); assert.equal(response.body.agent.toolCalls, 0); assert.equal(response.body.result, undefined);
     });
     await check('AI5收口 / A4 数据权限通过真实能力工具而非模型声明', async () => {
-      const response = await submit(basic, '你的数据权限是什么？', (messages, step) => step ? text('权限以本次工具授权快照为准。') : completion([call('get_data_capabilities', {})]));
+      const response = await submit(basic, '你的数据权限是什么？', (messages, step) => {
+        if (!step) return completion([call('get_data_capabilities', {})]);
+        const observation = prior(messages).at(-1);
+        assert.equal(observation.status, 'ready');
+        assert.equal(observation.authority.internalExport, true);
+        assert.ok(observation.authority.fields.some(f => f.id === 'netEffectiveRent'));
+        return text('权限以本次工具授权快照为准。');
+      });
       assert.equal(response.status, 200);
+      assert.equal(response.body.agent.executionStatus, 'completed');
       assert.ok((await events(response.body.requestId)).filter(e => e.kind === 'accounting').map(decrypt)
         .some(e => e.content.toolNames?.includes('get_data_capabilities')));
     });
@@ -68,6 +87,16 @@ export async function verifyAi5FinalHardening({ db, service, keys, output, check
       assert.equal(response.status, 200); assert.equal(response.body.result, undefined); assert.equal(response.body.agent.executionStatus, 'limited');
     });
     const who = await actor('chain'); let current;
+    await check('AI评测 / 单季度报告走真实授权快照与正式聚合而非非法趋势', async () => {
+      const response = await submit(who, '查询最近一个已结束季度的净有效租金，用于内部报告。',
+        (_, step) => step ? text('正式统计与来源见结果。') : completion([call('query_report_market', { scope, metric: 'rent', recentCompletedQuarters: 1 })]));
+      assert.equal(response.status, 200, JSON.stringify(response.body));
+      assert.equal(response.body.agent.executionStatus, 'completed');
+      assert.equal(response.body.result.operation, 'aggregate');
+      assert.equal(response.body.result.parameters.period.quarter >= 1, true);
+      assert.equal(response.body.result.parameters.reportPeriodRule, 'completed-shanghai-calendar-quarters/1');
+      assert.deepEqual((await recover(who, response.body.requestId)).body.result, response.body.result);
+    });
     for (const [id, question, tool, args] of [
       ['B6', '把 CBD 所有楼列出来。', 'list_buildings', { scope, fields: [], period: null }],
       ['B7', 'CBD 最高的五栋楼。', 'rank_buildings', { scope, field: 'height', direction: 'desc', limit: 5 }],
@@ -79,7 +108,12 @@ export async function verifyAi5FinalHardening({ db, service, keys, output, check
         return step ? text('完整正式结果与来源见本条回答。') : completion([call(tool, args)]);
       }, parent);
       assert.equal(current.status, 200, JSON.stringify(current.body)); assert.ok(current.body.result.table.rows.length > 0);
-      assert.deepEqual(current.body.result.parameters.executedPlan.scope, scope);
+      const executedScope = current.body.result.parameters.executedPlan.scope;
+      assert.deepEqual(executedScope.submarkets, ['CBD']);
+      if (id === 'B6') assert.equal(executedScope.inventory, 'all_authorized');
+      // Model-scripted buildingIds are not user conditions. The fast path
+      // preserves the user's logical scope; the real grant filters records.
+      assert.ok(current.body.result.table.rows.every(row => buildingIds.includes(row.entityId)));
       if (id === 'B9') assert.deepEqual(current.body.result.parameters.executedPlan.period, period);
       assert.deepEqual((await recover(who, current.body.requestId)).body.result, current.body.result);
     });

@@ -1,0 +1,50 @@
+{
+  "environment": "Production app with synthetic SDK, authorized business and identity fixtures",
+  "viewports": [
+    {
+      "width": 1536,
+      "sourceAndScopePreserved": true,
+      "zeroAndMissingDistinct": true,
+      "pagingCountReused": true,
+      "fiftyRowsThenLastPage": true,
+      "keyboardExpansion": true,
+      "escapeClosesOnlyRelated": true,
+      "focusReturned": true,
+      "reads": 2
+    },
+    {
+      "width": 390,
+      "sourceAndScopePreserved": true,
+      "zeroAndMissingDistinct": true,
+      "pagingCountReused": true,
+      "fiftyRowsThenLastPage": true,
+      "keyboardExpansion": true,
+      "escapeClosesOnlyRelated": true,
+      "focusReturned": true,
+      "reads": 2
+    },
+    {
+      "width": 320,
+      "sourceAndScopePreserved": true,
+      "zeroAndMissingDistinct": true,
+      "pagingCountReused": true,
+      "fiftyRowsThenLastPage": true,
+      "keyboardExpansion": true,
+      "escapeClosesOnlyRelated": true,
+      "focusReturned": true,
+      "reads": 2
+    },
+    {
+      "width": 844,
+      "sourceAndScopePreserved": true,
+      "zeroAndMissingDistinct": true,
+      "pagingCountReused": true,
+      "fiftyRowsThenLastPage": true,
+      "keyboardExpansion": true,
+      "escapeClosesOnlyRelated": true,
+      "focusReturned": true,
+      "reads": 2
+    }
+  ],
+  "status": "pass"
+}

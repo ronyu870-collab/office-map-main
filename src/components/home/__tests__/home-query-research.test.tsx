@@ -23,13 +23,14 @@ it('delivers selected Office formats in the answer, lazily reveals the complete 
   render(<HomeQueryResult result={result} requestId={requestId} scope={scope} internalExport />);
   expect(screen.queryByText('下载 PDF 研究报告')).not.toBeInTheDocument();
   expect(screen.queryByText('下载本次结果')).not.toBeInTheDocument();
-  expect(screen.getByText(/已完成 2\/2 个数据步骤/)).toBeInTheDocument();
+  expect(screen.getByText('研究步骤已审查，来源和限制随各部分保留。')).toBeInTheDocument();
   expect(client.download).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: '下载 Word' }));
   await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce());
   expect(client.download).toHaveBeenCalledWith(scope, { requestId, resultId: result.resultId, action: 'export', format: 'docx' }, expect.any(AbortSignal));
   expect(client.reportDelivery).toHaveBeenCalledWith(scope, file, 'browser_download_dispatched');
-  expect(screen.getByText(/浏览器已发起下载/)).toHaveTextContent('尚未确认文件已实际保存');
+  expect(screen.getByText('已发起下载')).toBeInTheDocument();
+  expect(screen.queryByText(/已保存到本地|下载成功/)).not.toBeInTheDocument();
   const details = screen.getByText('净有效租金趋势与区域比较', { selector: 'summary' }).parentElement as HTMLDetailsElement;
   details.open = true; fireEvent(details, new Event('toggle'));
   await waitFor(() => expect(screen.getByRole('img', { name: '净有效租金趋势与区域比较图表' })).toBeInTheDocument());
@@ -41,5 +42,5 @@ it('retains file permission errors and suppresses dispatch after a denied downlo
   client.download.mockRejectedValue(new Error('导出授权已撤销。'));
   render(<HomeQueryResult result={result} requestId={requestId} scope={scope} internalExport />);
   fireEvent.click(screen.getByRole('button', { name: '下载 PowerPoint' }));
-  await screen.findByText('导出授权已撤销。'); expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled(); expect(client.reportDelivery).not.toHaveBeenCalled();
+  await screen.findByText('文件暂不可用或下载失败，请重试。'); expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled(); expect(client.reportDelivery).not.toHaveBeenCalled();
 });

@@ -190,7 +190,7 @@ describe('MapWorkbenchView', () => {
     expect(screen.getByTestId('floating-building-list')).toBeInTheDocument();
   });
 
-  it('dismisses any open map workspace on Escape', () => {
+  it('dismisses only the current business workspace on Escape', () => {
     const callbacks = renderWorkbench({
       isFilterPanelOpen: true,
       isSupplyOpen: true,
@@ -200,8 +200,8 @@ describe('MapWorkbenchView', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' });
 
-    expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(false);
-    expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onFilterPanelOpenChange).not.toHaveBeenCalled();
+    expect(callbacks.onSupplyOpenChange).not.toHaveBeenCalled();
     expect(callbacks.onCloseList).toHaveBeenCalledTimes(1);
   });
 
@@ -293,4 +293,53 @@ it('explains the visible LEED aggregate colors instead of showing project certif
   expect(screen.getByText('≥60%')).toBeVisible();
   document.getElementById('map-container')!.dataset.markerTier = 'building';
   await waitFor(() => expect(screen.getByText('铂金')).toBeVisible());
+});
+
+it('distinguishes a future supply read failure from an empty supply result', () => {
+  renderWorkbench({ isSupplyOpen: true, rightKind: 'supply', fullListWarning: '未来供应暂时无法读取，当前仅显示存量楼宇。' });
+  expect(screen.getByRole('alert')).toHaveTextContent('未来供应暂时无法读取');
+  expect(screen.queryByText('当前筛选范围内暂无已确认供应，可调整筛选条件。')).not.toBeInTheDocument();
+});
+
+
+it('returns focus to the visible filter control when the final focused condition disappears', () => {
+  const chip = { id: 'owner', label: '业主 含 北京资产管理集团有限公司及其子公司', patch: { numericFilters: [] } };
+  const view = renderWorkbench({ activeFilterChips: [chip] });
+  const remove = screen.getByTitle(`移除条件：${chip.label}`);
+  remove.focus(); fireEvent.click(remove);
+  expect(view.onRemoveFilterChip).toHaveBeenCalledWith(chip.patch);
+  view.update({ activeFilterChips: [] });
+  expect(screen.getByRole('button', { name: '筛选' })).toHaveFocus();
+});
+
+
+it('shows one accurate future identity and one pending identity in the project legend', async () => {
+  renderWorkbench();
+  fireEvent.click(screen.getByText('图例'));
+  const pending = await screen.findByText('待核实项目', {exact: true});
+  const popup = pending.closest('.map-disclosure-content')!;
+  expect(within(popup as HTMLElement).getAllByText('未来供应', {exact: true})).toHaveLength(1);
+  expect(pending).toBeVisible();
+});
+
+
+it('distinguishes a pending supply read from an authorized empty result', () => {
+  const callbacks=renderWorkbench({isSupplyOpen:true,rightKind:'supply',futureSupplyLoading:'initial'});
+  const supply=screen.getByRole('region',{name:'未来供应'});
+  expect(supply).toHaveAttribute('aria-busy','true');
+  expect(within(supply).getByRole('status')).toHaveTextContent('正在读取未来供应');
+  expect(within(supply).queryByText(/暂无已确认供应/)).not.toBeInTheDocument();
+  expect(within(supply).queryByText(/查看无项目年份/)).not.toBeInTheDocument();
+  callbacks.update({futureSupplyLoading:null});
+  expect(supply).toHaveAttribute('aria-busy','false');
+  expect(within(supply).getByRole('status')).toHaveTextContent('暂无已确认供应');
+});
+
+it('keeps already read supply projects while announcing a local update', () => {
+  const project={id:'future-a',name:'保留的未来供应',type:'办公',launch_year:2027,launch_quarter:'Q1'};
+  renderWorkbench({isSupplyOpen:true,rightKind:'supply',futureSupplyLoading:'updating',futureSupplies:[project],futureSuppliesCount:1,futureSupplyCalendar:{...emptyCalendar,'2027':{total:1,office:1,park:0,commercial:0}}});
+  const supply=screen.getByRole('region',{name:'未来供应'});
+  expect(within(supply).getByRole('status')).toHaveTextContent('正在更新未来供应');
+  expect(within(supply).getByRole('button',{name:'保留的未来供应'})).toBeVisible();
+  expect(supply).toHaveAttribute('aria-busy','true');
 });

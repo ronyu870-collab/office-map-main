@@ -1,0 +1,299 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.6 <worktree>
+
+ ❯ src/lib/intelligence/agent/queryObligationHttp.test.ts (21 tests | 2 failed) 91ms
+     × keeps general explanation and work discussion conversational: 请解释CBD写字楼空置率的概念。 4ms
+     × keeps general explanation and work discussion conversational: 讨论CBD租金报告的写作思路。 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/intelligence/agent/queryObligationHttp.test.ts > HTTP data-fact obligations independent of model tool selection > keeps general explanation and work discussion conversational: 请解释CBD写字楼空置率的概念。
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array [
+      Object {
+        "audit": Object {
+          "append": [Function Mock],
+          "receive": [Function Mock],
+        },
+        "authority": Object {
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "allBuildings": false,
+          "allSubmarkets": false,
+          "buildingIds": Array [],
+          "effectiveUserId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "fields": Array [],
+          "grants": Array [
+            "query:catalog",
+          ],
+          "permissionRevision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "policyVersion": "test",
+          "sessionActive": true,
+          "sessionId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "submarkets": Array [],
+        },
+        "client": Object {
+          "rpc": [Function Mock],
+        },
+        "identity": Object {
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "effectiveUserId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "expiresAt": 1795361475704,
+          "sessionId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        },
+        "keys": Object {
+          "digestKey": Uint8Array [
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+          ],
+          "encryptionKey": Uint8Array [
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+          ],
+          "keyId": "query-obligation-fixture",
+        },
+        "requestId": "a4a6ff6b-7dec-8c36-87cb-abca0572d2bf",
+        "signal": AbortSignal {
+          Symbol(kEvents): Map {},
+          Symbol(events.maxEventTargetListeners): 0,
+          Symbol(events.maxEventTargetListenersWarned): false,
+          Symbol(kHandlers): Map {},
+          Symbol(kAborted): false,
+          Symbol(kReason): undefined,
+          Symbol(kComposite): true,
+          Symbol(kSourceSignals): Set {
+            SafeWeakRef {},
+            SafeWeakRef {},
+            SafeWeakRef {},
+          },
+        },
+      },
+      "请解释CBD写字楼空置率的概念。",
+    ]
+
+
+Number of calls: 1
+
+ ❯ src/lib/intelligence/agent/queryObligationHttp.test.ts:71:63
+     69|     state.provider.mockResolvedValue(completion(text));
+     70|     const response = await submit(question);
+     71|     expect(response.status).toBe(200); expect(state.tool).not.toHaveBe…
+       |                                                               ^
+     72|     expect(response.body.agent.toolCalls).toBe(0);
+     73|     expect(response.body.message).toBe(question === '你好' ? '你好。' : tex…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/intelligence/agent/queryObligationHttp.test.ts > HTTP data-fact obligations independent of model tool selection > keeps general explanation and work discussion conversational: 讨论CBD租金报告的写作思路。
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array [
+      Object {
+        "audit": Object {
+          "append": [Function Mock],
+          "receive": [Function Mock],
+        },
+        "authority": Object {
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "allBuildings": false,
+          "allSubmarkets": false,
+          "buildingIds": Array [],
+          "effectiveUserId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "fields": Array [],
+          "grants": Array [
+            "query:catalog",
+          ],
+          "permissionRevision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "policyVersion": "test",
+          "sessionActive": true,
+          "sessionId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "submarkets": Array [],
+        },
+        "client": Object {
+          "rpc": [Function Mock],
+        },
+        "identity": Object {
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "effectiveUserId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "expiresAt": 1795361475708,
+          "sessionId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        },
+        "keys": Object {
+          "digestKey": Uint8Array [
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11,
+          ],
+          "encryptionKey": Uint8Array [
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+          ],
+          "keyId": "query-obligation-fixture",
+        },
+        "requestId": "90f346cf-c6a9-8215-87ad-c0dc6addfe07",
+        "signal": AbortSignal {
+          Symbol(kEvents): Map {},
+          Symbol(events.maxEventTargetListeners): 0,
+          Symbol(events.maxEventTargetListenersWarned): false,
+          Symbol(kHandlers): Map {},
+          Symbol(kAborted): false,
+          Symbol(kReason): undefined,
+          Symbol(kComposite): true,
+          Symbol(kSourceSignals): Set {
+            SafeWeakRef {},
+            SafeWeakRef {},
+            SafeWeakRef {},
+          },
+        },
+      },
+      "讨论CBD租金报告的写作思路。",
+    ]
+
+
+Number of calls: 1
+
+ ❯ src/lib/intelligence/agent/queryObligationHttp.test.ts:71:63
+     69|     state.provider.mockResolvedValue(completion(text));
+     70|     const response = await submit(question);
+     71|     expect(response.status).toBe(200); expect(state.tool).not.toHaveBe…
+       |                                                               ^
+     72|     expect(response.body.agent.toolCalls).toBe(0);
+     73|     expect(response.body.message).toBe(question === '你好' ? '你好。' : tex…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 19 passed (21)
+   Start at  23:30:14
+   Duration  1.49s (transform 426ms, setup 94ms, import 550ms, tests 91ms, environment 625ms)

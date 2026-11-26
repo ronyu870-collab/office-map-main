@@ -1,0 +1,66 @@
+{
+  "items": [
+    35,
+    40,
+    109
+  ],
+  "recordedAt": "2026-11-24T00:26:37.603148+00:00",
+  "before": {
+    "unnamedLegend": {
+      "exit": 1,
+      "log": "viewport 390\naudit 390 map 13 [{\"role\":\"DisclosureTriangle\",\"id\":36,\"html\":\"<summary aria-controls=\\\"_r_3_\\\" aria-expanded=\\\"false\\\"><svg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"16\\\" height=\\\"16\\\" viewBox=\\\"0 0 24 24\\\" fill=\\\"none\\\" stroke=\\\"currentColor\\\" stroke-width=\\\"2\\\" stroke-linecap=\\\"round\\\" stroke-linejoin=\\\"round\\\" class=\\\"lucide lucide-info\\\" aria-hidden=\\\"true\\\"><circle cx=\\\"12\\\" cy=\\\"12\\\" r=\\\"10\\\"></circle><path d=\\\"M12 16v-4\\\"></path><path d=\\\"M12 8h.01\\\"></path></svg><span class=\\\"map-legend-label\\\">图例</span><svg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"14\\\" height=\\\"14\\\" viewBox=\\\"0 0 24 24\\\" fill=\\\"none\\\" stroke=\\\"currentColor\\\" stroke-width=\\\"2\\\" stroke-linecap=\\\"round\\\" stroke-linejoin=\\\"round\\\" class=\\\"lucide lucide-chevron-down\\\" aria-hidden=\\\"true\\\"><path d=\\\"m6 9 6 6 6-6\\\"></path></svg></summary>\"}]\nAssertionError [ERR_ASSERTION]: map: every exposed control has an accessible name\n+ actual - expected\n\n+ [\n+   {\n+     html: '<summary aria-controls=\"_r_3_\" aria-expanded=\"false\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-info\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><path d=\"M12 16v-4\"></path><path d=\"M12 8h.01\"></path></svg><span class=\"map-legend-label\">图例</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-chevron-down\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"></path></svg></summary>',\n+     id: 36,\n+     role: 'DisclosureTriangle'\n+   }\n+ ]\n- []\n\n    at inspect (file:///private/tmp/map-control-audit.mjs:13:12)\n    at async auditControls (file:///private/tmp/map-control-audit.mjs:17:3)\n    at async file:///private/tmp/map-control-focused.mjs:149:25 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: [Array],\n  expected: [],\n  operator: 'deepStrictEqual'\n}\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: map: every exposed control has an accessible name\n+ actual - expected\n\n+ [\n+   {\n+     html: '<summary aria-controls=\"_r_3_\" aria-expanded=\"false\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-info\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><path d=\"M12 16v-4\"></path><path d=\"M12 8h.01\"></path></svg><span class=\"map-legend-label\">图例</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-chevron-down\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"></path></svg></summary>',\n+     id: 36,\n+     role: 'DisclosureTriangle'\n+   }\n+ ]\n- []\n\n    at inspect (file:///private/tmp/map-control-audit.mjs:13:12)\n    at async auditControls (file:///private/tmp/map-control-audit.mjs:17:3)\n    at async file:///private/tmp/map-control-focused.mjs:149:25 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: [\n    {\n      role: 'DisclosureTriangle',\n      id: 36,\n      html: '<summary aria-controls=\"_r_3_\" aria-expanded=\"false\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-info\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><path d=\"M12 16v-4\"></path><path d=\"M12 8h.01\"></path></svg><span class=\"map-legend-label\">图例</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-chevron-down\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"></path></svg></summary>'\n    }\n  ],\n  expected: [],\n  operator: 'deepStrictEqual'\n}\n\nNode.js v22.13.0\n"
+    },
+    "pressedFeedback": {
+      "exit": 1,
+      "log": "viewport 1536\nAssertionError [ERR_ASSERTION]: Expected \"actual\" to be strictly unequal to:\n\n'rgb(237, 244, 251)'\n    at verifyControlSemantics (file:///private/tmp/colliers-map-workspace-v2/scripts/verification/workspace-control-semantics.mjs:79:43)\n    at async file:///private/tmp/map-control-focused.mjs:149:107 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 'rgb(237, 244, 251)',\n  expected: 'rgb(237, 244, 251)',\n  operator: 'notStrictEqual'\n}\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected \"actual\" to be strictly unequal to:\n\n'rgb(237, 244, 251)'\n    at verifyControlSemantics (file:///private/tmp/colliers-map-workspace-v2/scripts/verification/workspace-control-semantics.mjs:79:43)\n    at async file:///private/tmp/map-control-focused.mjs:149:107 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 'rgb(237, 244, 251)',\n  expected: 'rgb(237, 244, 251)',\n  operator: 'notStrictEqual'\n}\n\nNode.js v22.13.0\n"
+    }
+  },
+  "implementation": [
+    "At compact widths, keep the legend text visually clipped instead of display:none, preserving its browser accessible name with unchanged visual footprint.",
+    "Put active business-button feedback after hover so actual mouse-down has a distinct settled background.",
+    "Read the actual browser accessibility tree across 17 map surfaces per role/viewport; test names, selected/expanded/disabled semantics, loading/error text, role-specific maintenance, two-column actions and settled pointer/keyboard feedback. Existing audit and one-shot photo-failure checks remain intact."
+  ],
+  "after": {
+    "buildExit": 0,
+    "buildId": "2KDSK7GB_SmaFaVuQ0uNQ",
+    "typeExit": 0,
+    "lintExit": 0,
+    "focusedExit": 0,
+    "paths": 6,
+    "surfaces": 102,
+    "controlObservations": 2433,
+    "unnamedControls": 0,
+    "record": "control-semantics-browser.json",
+    "combined": {
+      "exit": 0,
+      "records": 55,
+      "widths": [
+        1536,
+        390
+      ],
+      "record": "control-semantics-combined.json"
+    },
+    "finalIntegratedFollowup": {
+      "exit": 0,
+      "width": 390,
+      "records": 27,
+      "record": "control-async-integrated.json",
+      "scope": "Final integration includes the observational asynchronous-content helper. Application build unchanged."
+    },
+    "lintWarnings": 0
+  },
+  "scriptCorrections": [
+    "Initial project/list area selectors were corrected to the actual accessible names. These incomplete attempts are not counted as passes.",
+    "Initial color samples caught ongoing transitions. Final assertions wait for a stable color before comparing normal/hover/active; this exposed the genuine hover override and required a CSS fix."
+  ],
+  "limits": [
+    "Isolated roles and fixtures; no production account/permission write or switch claim.",
+    "Browser accessibility tree is not VoiceOver/TalkBack output. Physical touch/keyboard/OS toolbar checks retain their own incomplete items.",
+    "Representative shared button variants and map work surfaces are covered, not every unrelated site route."
+  ],
+  "filesSha256": {
+    "src/app/map/map-workbench.css": "05f4fb846c4e4348896926fa465d1e72bb4c6a9a42a8ff30b3ca21b6258905ca",
+    "scripts/verification/verify-map-workspace.mjs": "90636eb9092a91c47e83666ccba34c4b479c100b1b49ea7708b42cf4bcddd6c3",
+    "scripts/verification/workspace-control-semantics.mjs": "1ddd2c1b656d86d05a30f1af6fecd10afde895e2c4db645d3388dcb9bb66e06c"
+  }
+}

@@ -1,6 +1,7 @@
 import { readReportModel, reportSectionNarrative } from './reportModel';
 import { resultOutputDescriptor } from './resultOutput';
 import { cellText, units } from './presentation';
+import { resultChartEligibility } from './resultEligibility';
 import { buildResultChart } from './charts';
 import { renderChartPng } from './chartPng';
 import { REPORT_LIMITS } from './reportProtocol';
@@ -60,7 +61,7 @@ function boundedText(model: Model) {
   if (characters > REPORT_LIMITS.textCharacters) throw new Error('REPORT_TEXT_LIMIT');
 }
 async function chartImage(section: Section) {
-  if (!section.chart) return null;
+  if (!section.chart || !resultChartEligibility(section.result, section.chart).eligible) return null;
   const chart = buildResultChart(section.result, section.chart);
   if (chart.request.kind === 'plot' && chart.points.length > 100) throw new Error('REPORT_CHART_LABEL_LIMIT');
   // Full narrative and limitations are laid out as editable text beside the
@@ -128,9 +129,8 @@ export function wrapReportText(value: string, max: number): string[] {
 }
 export async function renderResearchPptx(raw: QueryResult) {
   const model = readReportModel(raw); boundedText(model);
-  const { default: PptxGenJS } = await import('pptxgenjs');
-  const deck = new PptxGenJS(); deck.layout = 'LAYOUT_WIDE'; deck.author = 'Colliers AI'; deck.subject = '内部研究资料';
-  deck.title = '北京写字楼专题研究'; deck.theme = { headFontFace: font, bodyFontFace: font };
+  const { createOfficePresentation } = await import('./officePresentation');
+  const deck = await createOfficePresentation({ author: 'Colliers AI', title: '北京写字楼专题研究', subject: '内部研究资料', font });
   let pages = 0;
   const page = (title: string) => {
     if (++pages > REPORT_LIMITS.pages) throw new Error('REPORT_PAGE_LIMIT');
@@ -202,10 +202,11 @@ export async function renderResearchXlsx(raw: QueryResult) {
   const { buildXlsx } = await import('./exports');
   const workbook = XLSX.utils.book_new();
   for (const [i, section] of model.sections.entries()) {
-    const source = XLSX.read(await buildXlsx(section.result as QueryResult), { type: 'array' });
+    const source = XLSX.read(await buildXlsx(section.result as QueryResult), { type: 'array', cellNF: true });
     for (const name of source.SheetNames) XLSX.utils.book_append_sheet(workbook, source.Sheets[name], `${i + 1}_${name}`.slice(0, 31));
   }
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['研究用途', '仅供内部研究，对客发布须另行授权'],
     ...content(model).map(s => ['范围与限制', s]), ['结果版本', model.root.dataVersion]]), '研究说明');
-  return new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer);
+  const { presentWorkbook } = await import('./workbookPresentation');
+  return presentWorkbook(new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer));
 }

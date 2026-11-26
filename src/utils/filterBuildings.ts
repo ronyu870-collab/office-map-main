@@ -1,5 +1,6 @@
 import type { SidebarFilterState } from '@/src/components/SidebarFilter';
 import type { BuildingWithMetrics, BuildingMetric } from '@/src/types';
+import { matchesMapConditions } from './mapFilterConditions';
 
 import { latestFormalMetric } from '@/src/app/map/model/quarterlyFacts';
 export function getLatestMetric(metrics: BuildingMetric[] | null | undefined): BuildingMetric | null {
@@ -16,6 +17,7 @@ export function filterBuildings(
   filterState: SidebarFilterState,
   options?: FilterOptions,
 ): BuildingWithMetrics[] {
+  if ([filterState.districts, filterState.submarkets, filterState.leeds].some(values => values?.length === 0)) return [];
   return buildings.filter(b => {
     if (filterState.districts?.length > 0 && !filterState.districts.includes(b.district)) return false;
     if (filterState.submarkets?.length > 0 && b.submarket && !filterState.submarkets.map(normalizeMapSubmarket).includes(normalizeMapSubmarket(b.submarket))) return false;
@@ -36,37 +38,9 @@ export function filterBuildings(
 
     const latest = getLatestMetric(b.metrics);
 
-    if (filterState.numericFilters?.length > 0) {
-      for (const cond of filterState.numericFilters) {
-        if (cond.value === '' || cond.value === null || cond.value === undefined) continue;
-
-        if (cond.field === 'owner' || cond.field === 'property_management') {
-          const target = String(b[cond.field] || '').toLowerCase();
-          const query = String(cond.value).trim().toLowerCase();
-          if (query && !target.includes(query)) return false;
-          continue;
-        }
-
-        if (!latest) return false;
-        if (isNaN(Number(cond.value))) continue;
-
-        const raw = latest[cond.field as keyof BuildingMetric];
-        if (raw == null || raw === '') return false;
-        let metricVal = Number(raw);
-        const filterVal = Number(cond.value);
-        if (!Number.isFinite(metricVal)) return false;
-
-        if (cond.field === 'vacancy_rate') metricVal = metricVal * 100;
-
-        switch (cond.operator) {
-          case '>=': if (!(metricVal >= filterVal)) return false; break;
-          case '<=': if (!(metricVal <= filterVal)) return false; break;
-          case '=':  if (!(metricVal === filterVal)) return false; break;
-          case '>':  if (!(metricVal > filterVal)) return false; break;
-          case '<':  if (!(metricVal < filterVal)) return false; break;
-        }
-      }
-    }
+    if (!matchesMapConditions(filterState.numericFilters, field =>
+      field === 'owner' || field === 'property_management' ? b[field] : latest?.[field],
+    )) return false;
 
     if (options?.subwayFilter) {
       if (!options.subwayFilter(b)) return false;

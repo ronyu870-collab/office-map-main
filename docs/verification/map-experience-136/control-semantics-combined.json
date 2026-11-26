@@ -1,0 +1,11 @@
+{
+  "status": "pass",
+  "records": 55,
+  "widths": [
+    390,
+    1536
+  ],
+  "fullRecord": "control-semantics-combined-full.json",
+  "sha256": "8128aa0030db243a3072042c36d779c6c957d464337401e63279180883a054ee",
+  "exit": 0
+}

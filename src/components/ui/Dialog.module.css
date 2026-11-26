@@ -1,0 +1,10 @@
+.backdrop { opacity: 1; transition: opacity var(--cd-motion-normal) var(--cd-ease-out); }
+.panel { opacity: 1; transform: translateY(0); transition: opacity var(--cd-motion-normal) var(--cd-ease-out), transform var(--cd-motion-normal) var(--cd-ease-out); }
+.panel[data-presentation="drawer"] { transform: translateX(0); transition-duration: var(--cd-motion-spatial); }
+@starting-style {
+  .backdrop { opacity: 0; }
+  .panel { opacity: 0; transform: translateY(6px); }
+  .panel[data-presentation="drawer"] { transform: translateX(16px); }
+  .panel[data-presentation="fullscreen"] { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .backdrop, .panel { transition: none; } }

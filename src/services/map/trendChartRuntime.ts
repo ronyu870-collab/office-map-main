@@ -1,5 +1,6 @@
 "use client";
 
+import type { TrendChartReadingOptions } from "./trendChartReading";
 import * as echarts from "echarts/core";
 import { LineChart } from "echarts/charts";
 import { GridComponent, TooltipComponent } from "echarts/components";
@@ -11,6 +12,7 @@ export interface TrendChartDatum {
   year: number | string;
   quarter?: string;
   label?: string;
+  period?: string;
   net_effective_rent: number | string | null | undefined;
   vacancy_rate: number | string | null | undefined;
 }
@@ -26,6 +28,7 @@ export function initTrendChart(
   chartDom: HTMLElement,
   histData: TrendChartDatum[],
   onMetricView?: (metric: "rent" | "vac") => void,
+  reading?: TrendChartReadingOptions,
 ): echarts.ECharts | null {
   if (!chartDom || !histData?.length) return null;
 
@@ -43,7 +46,39 @@ export function initTrendChart(
   };
   const rentData = histData.map(row => metricValue(row.net_effective_rent));
   const vacancyData = histData.map(row => metricValue(row.vacancy_rate, 100));
-  const lastIndex = rentData.length - 1;
+  const motion = typeof matchMedia === "function" ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  const dataHost = chartDom.parentElement?.querySelector<HTMLElement>('[data-building-trend-data]');
+  const metricStatus = document.createElement('p');
+  metricStatus.className = 'workspace-note';
+  metricStatus.setAttribute('role', 'status');
+  metricStatus.textContent = '当前指标暂无有效历史数值，可展开期间数据查看。';
+  let details: HTMLDetailsElement | undefined;
+  let currentMetric: "rent" | "vac" = reading?.value?.metric ?? "rent";
+  const reportReading = () => reading?.onChange?.({ metric: currentMetric, tableOpen: details?.open ?? false });
+  if (dataHost) {
+    details = document.createElement('details');
+    details.open = reading?.value?.tableOpen ?? false;
+    details.className = 'workspace-trend-data';
+    const summary = document.createElement('summary');
+    summary.textContent = '查看期间数据';
+    const table = document.createElement('table');
+    table.setAttribute('aria-label', '项目期间租金与空置率');
+    const head = table.createTHead().insertRow();
+    for (const label of ['期间', '净有效租金（元/㎡/月）', '空置率（%）']) {
+      const cell = document.createElement('th');
+      cell.scope = 'col'; cell.textContent = label; head.appendChild(cell);
+    }
+    const body = table.createTBody();
+    histData.forEach((row, index) => {
+      const tr = body.insertRow();
+      const period = document.createElement('th');
+      period.scope = 'row'; period.textContent = row.period || (row.quarter ? `${row.year}${row.quarter}` : xAxisData[index]);
+      tr.appendChild(period);
+      for (const value of [rentData[index], vacancyData[index]]) tr.insertCell().textContent = value == null ? '—' : value.toFixed(1);
+    });
+    details.append(summary, table); dataHost.replaceChildren(metricStatus, details);
+    details.addEventListener('toggle', reportReading);
+  }
 
   const calculateAxisRange = (data: (number | null)[]) => {
     const observed = data.filter((value): value is number => value !== null);
@@ -63,17 +98,19 @@ export function initTrendChart(
     const range = calculateAxisRange(data);
 
     return {
-      grid: { top: 15, bottom: 25, left: 30, right: 30 },
+      animation: !motion?.matches,
+      textStyle: { fontFamily: 'Arial, "PingFang SC", "Microsoft YaHei", sans-serif', fontSize: 14, fontWeight: 400 },
+      grid: { top: 40, bottom: 16, left: 8, right: 20, containLabel: true },
       tooltip: {
         trigger: "axis",
         valueFormatter: (value: unknown) =>
-          value == null ? "未提供" : isRent ? `¥${String(value)}` : `${String(value)}%`,
+          value == null ? "未提供" : isRent ? `${String(value)} 元/㎡/月` : `${String(value)}%`,
       },
       xAxis: {
         type: "category",
         data: xAxisData,
         axisLabel: {
-          fontSize: 10,
+          fontSize: 14,
           color: "#64748b",
           showMaxLabel: true,
           showMinLabel: true,
@@ -84,69 +121,63 @@ export function initTrendChart(
       yAxis: [
         {
           type: "value",
-          show: false,
+          show: true,
+          name: isRent ? '元/㎡/月' : '%',
+          nameTextStyle: { fontSize: 14, fontWeight: 400, color: '#667085', align: 'left' },
+          nameLocation: 'end',
+          axisLabel: { color: '#667085', fontSize: 14, formatter: (value: number) => Number(value.toFixed(1)).toLocaleString('zh-CN') },
+          axisLine: { show: false },
+          axisTick: { show: false },
           scale: true,
           min: range.min,
           max: range.max,
-          splitLine: { show: false },
+          splitLine: { show: true, lineStyle: { color: "#e7ebf0" } },
         },
       ],
       series: [
         {
           type: "line",
           data,
-          smooth: true,
-          symbol: (_: unknown, params: { dataIndex: number }) =>
-            params.dataIndex === 0 || params.dataIndex === lastIndex
-              ? "circle"
-              : "none",
+          name: isRent ? '净有效租金' : '空置率',
+          smooth: false,
+          connectNulls: false,
+          showSymbol: true,
+          showAllSymbol: true,
+          symbol: 'circle',
           symbolSize: 6,
-          itemStyle: { color: isRent ? "#003e7e" : "#f59e0b" },
-          lineStyle: { width: 3 },
-          label: {
-            show: true,
-            position: isRent ? "top" : "bottom",
-            offset: [0, isRent ? -4 : 4],
-            color: isRent ? "#003e7e" : "#b45309",
-            fontSize: 10,
-            fontWeight: 800,
-            formatter: (params: { dataIndex: number; value: unknown }) =>
-              params.dataIndex === 0 || params.dataIndex === lastIndex
-                ? isRent
-                  ? `¥${String(params.value)}`
-                  : `${String(params.value)}%`
-                : "",
-          },
+          itemStyle: { color: '#003e7e' },
+          lineStyle: { width: 2 },
+          label: { show: false },
         },
       ],
     };
   };
 
-  chart.setOption(buildOption("rent"));
-  let currentMetric: "rent" | "vac" = "rent";
-  onMetricView?.("rent");
-
   const rentButton = document.getElementById("chart-btn-rent");
   const vacancyButton = document.getElementById("chart-btn-vac");
-
-  const setActive = (active: "rent" | "vac") => {
-    if (active === currentMetric) return;
-    chart.setOption(buildOption(active), true);
-    currentMetric = active;
-    onMetricView?.(active);
-
-    if (rentButton) {
-      rentButton.style.background = active === "rent" ? "#003e7e" : "#fff";
-      rentButton.style.color = active === "rent" ? "#fff" : "#64748b";
-      rentButton.style.borderColor = active === "rent" ? "#003e7e" : "#e2e8f0";
-    }
-
-    if (vacancyButton) {
-      vacancyButton.style.background = active === "vac" ? "#f59e0b" : "#fff";
-      vacancyButton.style.color = active === "vac" ? "#fff" : "#64748b";
-      vacancyButton.style.borderColor = active === "vac" ? "#f59e0b" : "#e2e8f0";
-    }
+  const syncButtons = () => {
+    rentButton?.setAttribute('aria-pressed', String(currentMetric === 'rent'));
+    vacancyButton?.setAttribute('aria-pressed', String(currentMetric === 'vac'));
+    const hasData = (currentMetric === 'rent' ? rentData : vacancyData).some(value => value !== null);
+    metricStatus.hidden = hasData;
+    const wasHidden = chartDom.hidden;
+    chartDom.hidden = !hasData;
+    if (wasHidden && hasData) chart.resize();
   };
+  chart.setOption(buildOption(currentMetric));
+  syncButtons();
+  onMetricView?.(currentMetric);
+
+  const setActive = (metric: "rent" | "vac") => {
+    if (metric === currentMetric) return;
+    currentMetric = metric;
+    chart.setOption(buildOption(metric), true);
+    syncButtons();
+    reportReading();
+    onMetricView?.(metric);
+  };
+  const syncMotion = () => chart.setOption(buildOption(currentMetric), true);
+  motion?.addEventListener('change', syncMotion);
 
   const showRent = () => setActive("rent");
   const showVacancy = () => setActive("vac");
@@ -164,6 +195,10 @@ export function initTrendChart(
     if (!active) return;
     active = false;
     observer?.disconnect();
+    motion?.removeEventListener('change', syncMotion);
+    details?.removeEventListener('toggle', reportReading);
+    dataHost?.replaceChildren();
+    chartDom.hidden = false;
     rentButton?.removeEventListener("click", showRent);
     vacancyButton?.removeEventListener("click", showVacancy);
     dispose();

@@ -1,0 +1,494 @@
+{
+  "environment": "Production app with synthetic SDK, authorized business and identity fixtures",
+  "viewports": [
+    {
+      "width": 1536,
+      "before": {
+        "metric": "true",
+        "tableOpen": true,
+        "scroll": 532
+      },
+      "after": {
+        "metric": "true",
+        "tableOpen": true,
+        "scroll": 532
+      },
+      "frames": [
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": false
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": false
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": false
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": false
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": false
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": false
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": false
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": false
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": false
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": true
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": true
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": true
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": true
+        },
+        {
+          "scroll": 532,
+          "scrollHeight": 1247,
+          "clientHeight": 715,
+          "hostHeight": 798.171875,
+          "ready": true
+        }
+      ],
+      "beforeGeometry": {
+        "scrollHeight": 1247,
+        "clientHeight": 715,
+        "hostHeight": 798.171875,
+        "busy": null,
+        "minHeight": ""
+      },
+      "afterGeometry": {
+        "scrollHeight": 1247,
+        "clientHeight": 715,
+        "hostHeight": 798.171875,
+        "busy": null,
+        "minHeight": ""
+      }
+    },
+    {
+      "width": 390,
+      "before": {
+        "metric": "true",
+        "tableOpen": true,
+        "scroll": 771
+      },
+      "after": {
+        "metric": "true",
+        "tableOpen": true,
+        "scroll": 771
+      },
+      "frames": [
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": true
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": true
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": true
+        },
+        {
+          "scroll": 771,
+          "scrollHeight": 1287,
+          "clientHeight": 516,
+          "hostHeight": 806.171875,
+          "ready": true
+        }
+      ],
+      "beforeGeometry": {
+        "scrollHeight": 1287,
+        "clientHeight": 516,
+        "hostHeight": 806.171875,
+        "busy": null,
+        "minHeight": ""
+      },
+      "afterGeometry": {
+        "scrollHeight": 1287,
+        "clientHeight": 516,
+        "hostHeight": 806.171875,
+        "busy": null,
+        "minHeight": ""
+      }
+    },
+    {
+      "width": 320,
+      "before": {
+        "metric": "true",
+        "tableOpen": true,
+        "scroll": 765
+      },
+      "after": {
+        "metric": "true",
+        "tableOpen": true,
+        "scroll": 765
+      },
+      "frames": [
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": false
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": true
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": true
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": true
+        },
+        {
+          "scroll": 765,
+          "scrollHeight": 1287,
+          "clientHeight": 522,
+          "hostHeight": 806.171875,
+          "ready": true
+        }
+      ],
+      "beforeGeometry": {
+        "scrollHeight": 1287,
+        "clientHeight": 522,
+        "hostHeight": 806.171875,
+        "busy": null,
+        "minHeight": ""
+      },
+      "afterGeometry": {
+        "scrollHeight": 1287,
+        "clientHeight": 522,
+        "hostHeight": 806.171875,
+        "busy": null,
+        "minHeight": ""
+      }
+    },
+    {
+      "width": 844,
+      "before": {
+        "metric": "true",
+        "tableOpen": true,
+        "scroll": 978
+      },
+      "after": {
+        "metric": "true",
+        "tableOpen": true,
+        "scroll": 978
+      },
+      "frames": [
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": false
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": false
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": false
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": false
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": false
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": false
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": false
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": false
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": false
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": true
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": true
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": true
+        },
+        {
+          "scroll": 978,
+          "scrollHeight": 1205,
+          "clientHeight": 227,
+          "hostHeight": 755.78125,
+          "ready": true
+        }
+      ],
+      "beforeGeometry": {
+        "scrollHeight": 1205,
+        "clientHeight": 227,
+        "hostHeight": 755.78125,
+        "busy": null,
+        "minHeight": ""
+      },
+      "afterGeometry": {
+        "scrollHeight": 1205,
+        "clientHeight": 227,
+        "hostHeight": 755.78125,
+        "busy": null,
+        "minHeight": ""
+      }
+    }
+  ],
+  "status": "pass",
+  "screenshots": "1536x900 and 320x844; capture after prefers-reduced-motion update and stable pixels, following normal-motion first-frame behavior verification"
+}

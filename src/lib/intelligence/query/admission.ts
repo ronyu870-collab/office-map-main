@@ -129,7 +129,7 @@ async function executeReceived<T>(request: AuditedRequest, audit: AuditPort, exe
     let plan: QueryPlan;
     try { plan = parseQueryPlan(request.plan); } catch { throw new Error('QUERY_DENIED'); }
     const authority = await recheck(plan);
-    await audit.append(request.requestId, request.preparationStarted ? 'tool_finished' : 'running', { policyVersion: authority.policyVersion, permissionRevision: authority.permissionRevision, authority,
+    await audit.append(request.requestId, request.preparationStarted ? 'tool_finished' : 'running', { executionRoute: request.resolutionMetadata && typeof request.resolutionMetadata==='object' && 'modelStatus' in request.resolutionMetadata && request.resolutionMetadata.modelStatus==='validated_candidate' ? 'single_interpretation' : 'deterministic_query', taskType:'query', policyVersion: authority.policyVersion, permissionRevision: authority.permissionRevision, authority,
       ...(request.resolutionMetadata ? { plan, resolution: request.resolutionMetadata } : {}) });
     const beforeRead = await recheck(plan);
     executionPending = true;

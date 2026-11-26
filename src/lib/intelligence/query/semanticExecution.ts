@@ -1,3 +1,5 @@
+import { bindRuntimeControl } from '../control/runtimeControl';
+import { ModelProviderError } from '../agent/modelProvider';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuditPort } from './admission';
 import type { AuditKeys } from './auditStore';
@@ -11,7 +13,7 @@ import { QUESTION_SUBMARKETS } from './question';
 import type { QueryResult } from './result';
 import { numericFields } from './registry';
 import { buildSemanticSuggestions, inferSemanticPeriodFieldGroups, inferSemanticScope, parseSemanticIntent, resolveSemanticQuestion } from './semanticPlanner';
-import type { DataAuthority, VerifiedQueryIdentity } from './serverAuthority';
+import { loadDataAuthority, type DataAuthority, type VerifiedQueryIdentity } from './serverAuthority';
 import { describePlanRead } from './snapshotReader';
 import { assertMultiMetricResultSize } from './multiMetric';
 import { prepareBuildingIntent } from './buildingIntent';
@@ -21,7 +23,7 @@ import { resolveAssistantHelp } from './assistantHelp';
 import { readQuarterlyCoverage, describeQuarterlyCoverage, type QuarterlyCoverage } from './quarterlySources';
 
 type Input = { client: SupabaseClient; keys: AuditKeys; identity: VerifiedQueryIdentity; authority: DataAuthority;
-  audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; buildingSelection?: BuildingSelection; receivedAt: Date; signal: AbortSignal };
+  audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; buildingSelection?: BuildingSelection; receivedAt: Date; signal: AbortSignal; modelInvoke?: import('./modelIntent').SemanticModelInvoke; allowStandaloneModel?: boolean; serverContext?: import('./semanticPlanner').SemanticContext };
 
 function planPeriodFieldGroups(plan: QueryPlan) {
   if ('metrics' in plan && plan.metrics) {
@@ -33,7 +35,7 @@ function planPeriodFieldGroups(plan: QueryPlan) {
 }
 const groupsKey = (groups: string[][]) => JSON.stringify([...new Set(groups.map(group => JSON.stringify([...new Set(group)].sort())))].sort());
 /** Provider/config/transport failures are distinct from rejected semantic candidates. Never expose raw provider errors. */
-const modelProviderUnavailable = (error: unknown): boolean => error instanceof TypeError
+const modelProviderUnavailable = (error: unknown): boolean => error instanceof ModelProviderError || error instanceof TypeError
   || error instanceof Error && (error.name === 'TimeoutError'
     || ['MODEL_NOT_CONFIGURED', 'MODEL_CONFIGURATION_INVALID', 'MODEL_PROVIDER_UNAVAILABLE',
       'MODEL_EMPTY_RESPONSE', 'MODEL_RESPONSE_TOO_LARGE'].includes(error.message));
@@ -44,7 +46,7 @@ export async function prepareSemanticExecution(input: Input) {
   if (conversation.parentRequestId === requestId) throw new Error('QUERY_DENIED');
   const previous = conversation.parentRequestId ? await readConversation(client, identity, keys, authority, conversation, conversation.parentRequestId, signal) : undefined;
   if (previous && previous.turn >= 40) throw new Error('QUERY_CONTEXT_LIMIT');
-  const context = previous?.context;
+  const context = previous?.context ?? input.serverContext;
   const turn = (previous?.turn ?? 0) + 1;
   const help = resolveAssistantHelp(question, context);
   if (help) return { resolution: help, availability: undefined, suggestions: [], quarterlyCoverage: [] as QuarterlyCoverage[],
@@ -77,27 +79,36 @@ export async function prepareSemanticExecution(input: Input) {
     resolution = resolveSemanticQuestion({ question, now: receivedAt, context, availablePeriods: availability.periods, ...(modelIntent === undefined ? {} : { modelIntent }) });
   }
   if (!action && resolution.kind === 'clarification' && resolution.clarification.reason === 'unrecognized') {
-    modelStatus = semanticModelConfigured() ? 'unavailable' : 'not_configured';
-    if (semanticModelConfigured()) {
-      const budget = await client.rpc('ai_query_model_budget', { p_actor: identity.actorId, p_effective: identity.effectiveUserId,
+    const configured = !!input.modelInvoke || input.allowStandaloneModel !== false && semanticModelConfigured();
+    modelStatus = configured ? 'unavailable' : 'not_configured';
+    if (configured) {
+      const budget = input.modelInvoke ? { error: null, data: { allowed: true } } : await client.rpc('ai_query_model_budget', { p_actor: identity.actorId, p_effective: identity.effectiveUserId,
         p_session: identity.sessionId, p_request_id: requestId }).abortSignal(signal);
       signal.throwIfAborted();
       if (!budget.error && budget.data?.allowed === true) {
-        await audit.append(requestId, 'tool_started', { tool: 'semantic_intent', provider: 'deepseek', limits: MODEL_INTENT_LIMITS,
+        await audit.append(requestId, 'tool_started', { tool: 'semantic_intent', provider: 'shared_model_runtime', limits: MODEL_INTENT_LIMITS,
           input: 'submitted_question_and_structured_slots_only', businessRecordsSent: 0 });
         let inferred: Awaited<ReturnType<typeof understandWithModel>> | undefined;
         try {
-          inferred = await understandWithModel(question, context, allowedSubmarkets, signal);
+          const modelInvoke = input.modelInvoke ?? (await import('../agent/modelRuntime')).createModelRuntime({
+            actorId: identity.actorId, question, mode: 'professional', control: await bindRuntimeControl(client, identity, signal, requestId),
+            revalidate: async currentSignal => {
+              const current = await loadDataAuthority(client, identity, currentSignal);
+              if (current.permissionRevision !== authority.permissionRevision || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+            }, onAttempt: async attempt => { await audit.append(requestId, 'accounting', attempt); },
+          }).interpret;
+          inferred = await understandWithModel(question, context, allowedSubmarkets, signal, modelInvoke);
           // Validate again at the planner boundary; even an adapter must not
           // supply a candidate that bypasses the strict intent contract.
           modelIntent = parseSemanticIntent(inferred.intent);
           modelStatus = 'validated_candidate';
         } catch (error) {
-          modelStatus = modelProviderUnavailable(error) ? 'provider_unavailable' : 'rejected_or_unavailable';
+          if (error instanceof Error && error.message === 'QUERY_DENIED') throw error;
+          modelStatus = error instanceof ModelProviderError && error.code === 'budget_exceeded' ? 'budget_exhausted' : modelProviderUnavailable(error) ? 'provider_unavailable' : 'rejected_or_unavailable';
         }
         // One accounting event per provider attempt. Audit, authority and data
         // failures below must propagate, never be mistaken for model rejection.
-        await audit.append(requestId, 'accounting', { tool: 'semantic_intent', provider: 'deepseek',
+        await audit.append(requestId, 'accounting', { tool: 'semantic_intent', provider: 'shared_model_runtime',
           status: modelIntent === undefined ? 'unavailable_or_invalid' : 'completed', attempts: 1, calls: inferred ? 1 : null,
           usage: inferred?.usage ?? null, cost: null,
           costStatus: inferred?.usage ? 'provider_invoice_not_available' : 'unknown' });
@@ -141,10 +152,10 @@ export async function prepareSemanticExecution(input: Input) {
     resolution = { ...resolution, clarification, context: { ...resolution.context, pending: { question, clarification } } };
   }
   if (resolution.kind === 'clarification' && resolution.clarification.reason === 'unrecognized' && modelStatus !== 'not_needed') {
-    const explanation = modelStatus === 'not_configured' ? '语义模型尚未配置，本轮未调用 DeepSeek。'
-      : modelStatus === 'budget_exhausted' ? '本轮语义解析额度已达保护上限，未调用 DeepSeek。'
-      : modelStatus === 'budget_unavailable' ? '本轮语义解析额度校验暂不可用，未调用 DeepSeek。'
-      : modelStatus === 'provider_unavailable' ? 'DeepSeek 语义解析暂不可用，本轮未取得模型结果。'
+    const explanation = modelStatus === 'not_configured' ? '语义模型尚未配置，本轮未调用语义模型。'
+      : modelStatus === 'budget_exhausted' ? '本轮语义解析额度已达保护上限，未调用语义模型。'
+      : modelStatus === 'budget_unavailable' ? '本轮语义解析额度校验暂不可用，未调用语义模型。'
+      : modelStatus === 'provider_unavailable' ? '模型语义解析暂不可用，本轮未取得模型结果。'
       : '本轮语义解析未形成可安全执行的计划。';
     resolution = { ...resolution, clarification: { ...resolution.clarification, message: `${explanation}${resolution.clarification.message}` } };
     resolution.context = { ...resolution.context, pending: { question, clarification: resolution.clarification } };

@@ -1,0 +1,24 @@
+{
+  "project": "PICC大厦",
+  "building_id": "78042253-6e6d-4442-9a71-0ce3de344e02",
+  "photo_id": "03ae88fb-3820-42a7-a415-aa3ab025f87e",
+  "caption": "PICC大厦双塔外观",
+  "catalog": "ready",
+  "building_active": true,
+  "tracking_scope": "tracked",
+  "private_object_exists": true,
+  "catalog_bytes": 247878,
+  "stored_bytes": 247878,
+  "mime_type": "image/jpeg",
+  "width": 1600,
+  "height": 991,
+  "origin_transferred_bytes": 247878,
+  "origin_decode": "pass",
+  "catalog_and_origin_sha256": "9615bb5266187b3ec654ba668e1486f6782a2ba0d8fc9e8514eb494885c5df24",
+  "limitations": [
+    "管理员生产UI复现过看图失效；修复尚未发布。",
+    "原始来源传输解码及存储目录关联通过，不代替生产管理员API签名/预览/浏览器解码。",
+    "CUA管理员Chrome接口连续两次30秒超时，未完成修后真实链路。"
+  ],
+  "production_writes": false
+}

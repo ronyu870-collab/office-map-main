@@ -1,0 +1,92 @@
+{
+  "capturedAt": "2026-11-23T22:34:28.812718+00:00",
+  "baseHead": "62951b9580ea7c19f4c5793085aaca3dcd435422",
+  "implementation": [
+    "The research editor reuses the existing shared unsaved navigation hook with actual draft differences. Existing workspace exit and server authorization/save behavior remain unchanged.",
+    "A reverted or unmounted draft removes the browser guard; accepting a link prompts once."
+  ],
+  "before": {
+    "browserRefresh": "viewport 1536\ndirty profile refresh {\"width\":1536,\"dialogs\":[],\"url\":\"/map\",\"editStillVisible\":0}\nnode:internal/modules/run_main:122\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: browser refresh must protect a dirty research profile\n+ actual - expected\n\n+ []\n- [\n-   'beforeunload'\n- ]\n\n    at file:///private/tmp/map-profile-draft-navigation.mjs:159:14\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at process.processImmediate (node:internal/timers:459:9)\n    at process.callbackTrampoline (node:internal/async_hooks:130:17) {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: [],\n  expected: [ 'beforeunload' ],\n  operator: 'deepStrictEqual'\n}\n\nNode.js v22.13.0\n",
+    "unit": "\n> office-map-main@0.1.0 test\n> vitest --run src/app/map/__tests__/SubmarketDetailPanel.test.tsx\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.6 /private/tmp/colliers-map-workspace-v2\n\n ❯ src/app/map/__tests__/SubmarketDetailPanel.test.tsx (16 tests | 2 failed) 662ms\n   × protects a changed research form on browser unload, then clears the guard on revert and unmount 33ms\n   × cancels real research-form route and history events without saving or losing its draft 30ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  src/app/map/__tests__/SubmarketDetailPanel.test.tsx > protects a changed research form on browser unload, then clears the guard on revert and unmount\nAssertionError: expected false to be true // Object.is equality\n\n- Expected\n+ Received\n\n- true\n+ false\n\n ❯ src/app/map/__tests__/SubmarketDetailPanel.test.tsx:332:22\n    330|     expect(unload()).toBe(false);\n    331|     fireEvent.change(input, { target: { value: '未保存的刷新保护回归' } });\n    332|     expect(unload()).toBe(true);\n       |                      ^\n    333|     expect(input).toHaveValue('未保存的刷新保护回归');\n    334|     fireEvent.change(input, { target: { value: profile.headline } });\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  src/app/map/__tests__/SubmarketDetailPanel.test.tsx > cancels real research-form route and history events without saving or losing its draft\nAssertionError: expected \"bound \" to be called once, but got 0 times\n ❯ src/app/map/__tests__/SubmarketDetailPanel.test.tsx:351:21\n    349|     fireEvent.change(screen.getByLabelText('一句话定位'), { target: { value…\n    350|     fireEvent.click(screen.getByRole('link', { name: '返回首页回归' }));\n    351|     expect(confirm).toHaveBeenCalledOnce();\n       |                     ^\n    352|     const event = new Event('navigate', { cancelable: true }); Object.…\n    353|     navigation.dispatchEvent(event);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed (1)\n      Tests  2 failed | 14 passed (16)\n   Start at  06:22:58\n   Duration  1.87s (transform 163ms, setup 71ms, import 321ms, tests 662ms, environment 700ms)\n\n"
+  },
+  "after": {
+    "unit": {
+      "files": 3,
+      "tests": 30,
+      "result": "\n> office-map-main@0.1.0 test\n> vitest --run src/app/map/__tests__/SubmarketDetailPanel.test.tsx src/lib/broker/useUnsavedNavigation.test.tsx src/components/stacking-plan/__tests__/StackingPlanWorkspace.focus.test.tsx\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.6 /private/tmp/colliers-map-workspace-v2\n\n\n Test Files  3 passed (3)\n      Tests  30 passed (30)\n   Start at  06:23:23\n   Duration  2.89s (transform 669ms, setup 231ms, import 1.24s, tests 2.80s, environment 1.77s)\n\n"
+    },
+    "typecheck": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 4
+    },
+    "productionBuild": {
+      "exitCode": 0,
+      "buildId": "WbNPBYjeS_vwSukVS747-"
+    },
+    "focused": {
+      "exitCode": 0,
+      "conditions": [
+        1536,
+        390,
+        320,
+        844
+      ],
+      "record": "profile-draft-navigation-focused.json",
+      "saves": 0
+    },
+    "researchBuildWorkspace": {
+      "scenarioAssertions": "pass",
+      "records": 84,
+      "widths": [
+        1536,
+        1024,
+        390,
+        320,
+        844
+      ],
+      "runnerExit": 0,
+      "record": "profile-draft-navigation-browser.json",
+      "scope": "Research guard build only; metrics guard was added afterward and will be separately built and executed."
+    }
+  },
+  "runnerCorrections": [
+    "Cross-document history correctly invokes beforeunload; same-document traversal is separately seeded and invokes confirm.",
+    "The map adds its real resume URL parameter when research opens; URL assertions capture after that update and preserve it.",
+    "The compact header entry is a native summary, not an explicit button role. Earlier locator timeout is a verification-script error."
+  ],
+  "productFilesSha256": {
+    "src/app/map/components/SubmarketDetailPanel.tsx": "17b303d45fbe850633df31e88593c88acca70b05eae250b66f3b7b5d281f48ee",
+    "src/app/map/__tests__/SubmarketDetailPanel.test.tsx": "505189fac30abde4d5adb9212f5d004263462325b8426ed3e93438ff2a378009",
+    "scripts/verification/workspace-profile-draft-navigation.mjs": "9fca44bd82f6ef930ae4a495bd2d373cf958d5aa0083525917d3863019b5ca8d",
+    "scripts/verification/verify-map-workspace.mjs": "09981151da1e322511af75a455e74f453984680c7d6266cb47ea998086de5ece"
+  },
+  "limits": [
+    "Production build in Chrome with isolated administrator/data/SDK transport, no production writes or new real account-switch/phone gesture claim.",
+    "Metrics gap and covered confirmation are fixed in the combined followup record."
+  ],
+  "finalCombinedFollowup": {
+    "unitFiles": 4,
+    "unitTests": 32,
+    "unitExit": 0,
+    "typeExit": 0,
+    "lintErrors": 0,
+    "lintWarnings": 10,
+    "buildExit": 0,
+    "buildId": "Cz47a0kDbzulNwcN95bf6",
+    "complete390ScenarioAssertions": "pass",
+    "complete390Records": 21,
+    "complete390RunnerExit": 0,
+    "metricsRecord": "metrics-draft-navigation-regression.json",
+    "scope": "Final metrics dialog layer change does not alter research product source; the final390 complete run executes both helpers. Research source hash remains identical to its four-width focused run."
+  },
+  "resolution": {
+    "pr": 297,
+    "testedHead": "cc3095262d11f08e832513c41afb2b9ecb05832c",
+    "verifyRun": "45283656287",
+    "necessaryChecks": "success: search, engineering, both real Auth and summary",
+    "mergedAtUtc": "2026-11-23T23:19:19Z",
+    "main": "9ca5dd8f786fbd6843f3fdf3b07c4d676206280f",
+    "testedAndMainTree": "62457659dac673d3402521330a1459f3613034eb"
+  }
+}

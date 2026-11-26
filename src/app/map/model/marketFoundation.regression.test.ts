@@ -10,7 +10,7 @@ import type { SubmarketTrendPoint } from './submarketMarketTrend';
 import { aggregateMarket, aggregateFutureSupply } from './marketStatistics';
 import { latestFormalMetric } from './quarterlyFacts';
 import { computeSubmarketTrends } from './submarketMarketTrend';
-import { normalizeMapSubmarket, submarketDatabaseNames } from './marketIdentity';
+import { normalizeLeed, normalizeMapSubmarket, submarketDatabaseNames } from './marketIdentity';
 import { LEGACY_RENT_REFERENCES } from '../runtime/mapSubmarketOverview';
 
 describe('market foundation defect regressions', () => {
@@ -23,6 +23,13 @@ describe('market foundation defect regressions', () => {
     filterState.leeds = ['Gold'];
     const filtered = store.filter({ filterState, compareGroups: [], role: 'viewer' });
     expect(submarketSummary(filtered, 'CBD').officeCount).toBe(1);
+  });
+
+  it('preserves main certification negatives and unknown observations when adding Chinese levels', () => {
+    expect(normalizeLeed('金级')).toBe('Gold');
+    expect(normalizeLeed('N')).toBe('N');
+    expect(normalizeLeed('无')).toBe('N');
+    expect(normalizeLeed('UNKNOWN')).toBe('NULL');
   });
 
   it('does not guess grades from arbitrary letters', () => {
