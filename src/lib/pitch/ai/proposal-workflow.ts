@@ -17,6 +17,10 @@ export type ProposalGenerationPort = {
   enqueue(input: ConfirmedProposal, reviewed: ReviewedProposal, signal: AbortSignal): Promise<Receipt>;
 };
 
+/** Plan and confirmation use the same composer. Register these together with
+ * the workspace transaction capable of saving its reviewed pages and sources. */
+export type ProposalExecution = { director: ProposalDirectorPorts; workflow: ProposalGenerationPort };
+
 export async function submitConfirmedProposal(
   input: ConfirmedProposal, director: ProposalDirectorPorts, workflow: ProposalGenerationPort,
   signal: AbortSignal, model?: ProposalModel | (() => Promise<ProposalModel | undefined>),

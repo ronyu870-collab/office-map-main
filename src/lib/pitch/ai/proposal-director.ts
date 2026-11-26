@@ -30,6 +30,8 @@ export type ComposedProposalPage = {
 
 export type ProposalComposerInput = {
   brief: ProposalBrief;
+  scope: PitchScope;
+  projectId?: string;
   buildings: readonly ProposalBuildingCandidate[];
   priorities: Awaited<ReturnType<typeof interpretProposal>>["brief"]["priorities"];
   assetIds: readonly string[];
@@ -47,6 +49,7 @@ export type ProposalDirectorPorts = {
     pages: ComposedProposalPage[];
     gaps: ProposalPlan["gaps"];
     recipeVersion: string;
+    theme?: { id: string; version: number };
   }>;
 };
 
@@ -62,7 +65,10 @@ export type DirectedSlide = SlideIntent & {
   uncertainties: string[];
 };
 
-export type DirectedProposalPlan = Omit<ProposalPlan, "slides"> & { slides: DirectedSlide[] };
+export type DirectedProposalPlan = Omit<ProposalPlan, "slides"> & {
+  slides: DirectedSlide[];
+  theme?: { id: string; version: number };
+};
 
 type ModelRoute = Pick<Awaited<ReturnType<typeof interpretProposal>>, "modelCalls" | "modelStatus">;
 type PlanState = { status: "clarification" | "unavailable"; code: string; message: string; candidates?: ProposalBuildingCandidate[] }
@@ -167,7 +173,7 @@ function buildPlan(
       },
     };
   });
-  const fingerprint = digest({ scope, brief, recipe: composition.recipeVersion, data, visuals, narrative, gaps });
+  const fingerprint = digest({ scope, brief, recipe: composition.recipeVersion, theme: composition.theme, data, visuals, narrative, gaps });
   const snapshot: PitchContextSnapshot = { scope, brief, data, visuals, fingerprint, isTestData };
   const ids = validated.map((page, index) => stableId(`pitch-proposal-page/1:${fingerprint}:${page.pageKind}:${index}`));
   const slides: DirectedSlide[] = validated.map((page, index) => {
@@ -193,7 +199,8 @@ function buildPlan(
       uncertainties: page.uncertainties ?? [],
     };
   });
-  const plan: DirectedProposalPlan = { id: stableId("pitch-proposal/1:" + fingerprint), version: 1, title: brief.title, contextFingerprint: fingerprint, slides, gaps };
+  const plan: DirectedProposalPlan = { id: stableId("pitch-proposal/1:" + fingerprint), version: 1, title: brief.title, contextFingerprint: fingerprint,
+    slides, gaps, ...(composition.theme ? { theme: composition.theme } : {}) };
   const generation = validated.every(page => !!page.generation)
     ? [...new Map(validated.map(page => [digest(page.generation!.part), page.generation!])).values()] : null;
   return { plan, snapshot, generation, pages: validated.map((page, index) => ({ id: ids[index], content: page.content, layoutId: page.layoutId })) };
@@ -252,7 +259,7 @@ export async function directProposal(
     const brief: ProposalBrief = { scenario, buildingIds, city, submarkets, language: understood.language,
       style: understood.style, audience: input.audience, title, targetClient: client, period, start, pages: understood.pages };
     signal.throwIfAborted();
-    const composed = await ports.compose({ brief, buildings: target.buildings, priorities: understood.priorities,
+    const composed = await ports.compose({ brief, scope, projectId: input.projectId, buildings: target.buildings, priorities: understood.priorities,
       assetIds: input.assetIds, analysisResultId: input.analysisResultId }, signal);
     signal.throwIfAborted();
     const ready = buildPlan(brief, scope, composed);
@@ -266,6 +273,8 @@ export async function directProposal(
     if (error instanceof Error) {
       if (error.message === "PITCH_PROPOSAL_SCOPE_REQUIRED") return fail("project-scope");
       if (error.message === "PITCH_PROPOSAL_PERIOD_REQUIRED") return fail("period-unavailable", true);
+      if (error.message === "PITCH_PROPOSAL_BUILDING_UNAVAILABLE") return fail("missing-building");
+      if (error.message === "PITCH_PROPOSAL_REQUIRED_EVIDENCE") return fail("no-evidence", true);
     }
     throw error;
   }
