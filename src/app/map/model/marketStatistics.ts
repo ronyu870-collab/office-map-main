@@ -1,7 +1,8 @@
 import { hasMarketCoordinates, officeGrade } from './marketIdentity';
-import { latestFormalMetric, MARKET_CONTRACT_VERSION, type QuarterlyFact } from './quarterlyFacts';
+import { latestFormalMetric, quarterKey, MARKET_CONTRACT_VERSION, type QuarterlyFact } from './quarterlyFacts';
 import { mapOptionalNumber, observedVacantArea } from './vacancyMetrics';
 import { isEnteredFutureSupply, isPendingFutureSupply } from '@/src/lib/future-supply-status';
+import { FORMAL_QUARTER_SAMPLE_POLICY, formalQuarterRentEligible, formalQuarterVacancyEligible } from '@/src/lib/marketSamplePolicy';
 
 export type MarketMetric = QuarterlyFact & {
   total_area?: unknown; vacant_area?: unknown; vacancy_rate?: unknown; net_effective_rent?: unknown;
@@ -19,6 +20,8 @@ export function aggregateMarket(buildings: readonly MarketBuilding[], scope: Mar
   let stockArea = 0, areaSamples = 0, rentSum = 0, rentSampleCount = 0, rentSampleArea = 0;
   let vacantArea = 0, vacancySampleCount = 0, vacancySampleArea = 0;
   const periods: Record<string, number> = {};
+  const strictQuarter = scope === 'quarterly_market';
+  let formalPeriod: number | null = null;
   const seen = new Set<string>();
   for (const building of buildings) {
     if (!building.id || seen.has(building.id)) continue;
@@ -33,19 +36,24 @@ export function aggregateMarket(buildings: readonly MarketBuilding[], scope: Mar
     if (hasMarketCoordinates(building)) mappableCount++;
     const metric = latestFormalMetric(building.metrics);
     if (!metric) continue;
+    const key = quarterKey(metric);
+    if (strictQuarter && formalPeriod !== null && key !== formalPeriod) throw new Error('MIXED_FORMAL_QUARTER');
+    if (strictQuarter) formalPeriod = key;
     const period = `${metric.record_year}Q${metric.record_quarter}`;
     periods[period] = (periods[period] ?? 0) + 1;
     const area = mapOptionalNumber(metric.total_area);
-    if (!(area >= 0)) continue;
+    if (strictQuarter ? !(area > 0) : !(area >= 0)) continue;
     stockArea += area; areaSamples++;
     if (area === 0) continue;
     const rent = mapOptionalNumber(metric.net_effective_rent);
-    if (rent >= 0) { rentSum += rent * area; rentSampleArea += area; rentSampleCount++; }
-    const vacant = observedVacantArea(metric);
+    if (strictQuarter ? formalQuarterRentEligible(area, rent) : rent >= 0) { rentSum += rent * area; rentSampleArea += area; rentSampleCount++; }
+    const physicalVacant = mapOptionalNumber(metric.vacant_area);
+    const vacant = strictQuarter ? (formalQuarterVacancyEligible(area, physicalVacant) ? physicalVacant : Number.NaN) : observedVacantArea(metric);
     if (Number.isFinite(vacant)) { vacantArea += vacant; vacancySampleArea += area; vacancySampleCount++; }
   }
   return {
-    version: MARKET_CONTRACT_VERSION, scope, method: 'latest_formal_per_building' as const,
+    version: MARKET_CONTRACT_VERSION, scope, method: strictQuarter ? 'single_formal_quarter' as const : 'latest_formal_per_building' as const,
+    samplePolicy: strictQuarter ? FORMAL_QUARTER_SAMPLE_POLICY.version : 'latest-state-estimate/1' as const,
     source: 'building_metrics' as const, membershipTime: 'current_catalog' as const,
     projectCount, mappableCount, gradeACount, gradeBCount, parkCount, otherCount,
     officeCount: gradeACount + gradeBCount, stockArea, areaSamples, periods,

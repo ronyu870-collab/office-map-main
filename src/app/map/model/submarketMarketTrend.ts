@@ -48,7 +48,7 @@ export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows:
       if (cached) return cached;
       const result = selectedMembers.filter(([id, grade]) => {
       const row = byEntityPeriod.get(`${id}:${key}`);
-      const stats = aggregateMarket([{ id, grade, metrics: row ? [row] : [] }]);
+      const stats = aggregateMarket([{ id, grade, metrics: row ? [row] : [] }], 'quarterly_market');
       return metric === 'rent' ? stats.rentSampleCount > 0 : stats.vacancySampleCount > 0;
       }).map(([id]) => id);
       sampleCache.set(cacheKey, result);
@@ -57,7 +57,7 @@ export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows:
     const change = (key: number, offset: number, metric: 'rent' | 'vacancy'): SameSampleChange => {
       const previousIds = new Set(sampleIds(key - offset, metric));
       const ids = sampleIds(key, metric).filter(id => previousIds.has(id));
-      const stats = (period: number) => aggregateMarket(ids.map(id => ({ id, metrics: [byEntityPeriod.get(`${id}:${period}`)!] })));
+      const stats = (period: number) => aggregateMarket(ids.map(id => ({ id, metrics: [byEntityPeriod.get(`${id}:${period}`)!] })), 'quarterly_market');
       const now = stats(key), before = stats(key - offset);
       return { samples: ids.length,
         rentPct: metric === 'rent' && ids.length >= 2 && now.rent != null && before.rent != null && before.rent > 0 ? (now.rent / before.rent - 1) * 100 : null,
