@@ -86,7 +86,7 @@ export async function verifyTransitFilters(page, { width, height, stock }) {
     const ids = [...new Set([...document.querySelectorAll('#map-container [data-building-id]')].map(el => el.getAttribute('data-building-id')))];
     return ids.length === 1 && ids[0] === expected && document.querySelectorAll('#map-container .map-future-supply-marker').length === 0;
   }, stock[0].id);
-  assert.deepEqual(await page.locator('.map-live-stats .map-metric-number').allTextContents(), ['146.1', '21.1', '1', '9,019,486']);
+  assert.deepEqual(await page.locator('.map-live-stats .map-metric-number').allTextContents(), ['146.1', '21.1', '1', '901.9']);
   await page.getByRole('button', { name: '项目列表', exact: true }).click();
   const list = page.getByRole('region', { name: '项目列表', exact: true });
   await list.getByRole('button', { name: new RegExp('^' + stock[0].name) }).waitFor();

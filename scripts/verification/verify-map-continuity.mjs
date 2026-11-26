@@ -90,7 +90,10 @@ try {
   await groupPanel.getByRole('checkbox', { name: 'CBD', exact: true }).check();
   await page.getByText('项目对比组 1', { exact: true }).waitFor();
   await filters.getByRole('button', { name: '关闭筛选', exact: true }).click();
-  await page.getByRole('button',{name:'租金',exact:true}).click();
+  const rentMode = page.getByRole('button',{name:'租金',exact:true});
+  const modeSelect = page.getByRole('combobox',{name:'地图显示模式',exact:true});
+  if (await modeSelect.isVisible()) await modeSelect.selectOption('rent');
+  else await rentMode.click();
   await page.getByRole('button',{name:'项目列表',exact:true}).click();
   const list=page.getByRole('region',{name:'项目列表',exact:true});await list.waitFor();
   await list.getByRole('searchbox',{name:'搜索当前项目列表'}).fill('CBD');
@@ -160,7 +163,8 @@ try {
   assert.equal(await page.getByText('项目对比组 1', { exact: true }).count(), 1, 'Stacking return retains the configured map comparison group');
   assert.equal(await page.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true','return restores original detail tab');
   assert.ok(Math.abs(await detail.locator('.workspace-scroll').evaluate(element=>element.scrollTop)-readingScroll)<2,'return restores actual detail scroll on a short phone viewport');
-  assert.equal(await page.getByRole('button',{name:'租金',exact:true}).getAttribute('aria-pressed'),'true');
+  if (await modeSelect.isVisible()) assert.equal(await modeSelect.inputValue(),'rent','return restores the selected mobile map mode');
+  else assert.equal(await rentMode.getAttribute('aria-pressed'),'true','return restores the selected desktop map mode');
   assert.equal(await page.locator('.map-selected-marker').count(),1);
   assert.deepEqual(await page.evaluate(()=>({zoom:window.__workspaceMap.getZoom(),center:window.__workspaceMap.center})),before.camera,'return restores camera');
   assert.deepEqual(await page.evaluate(()=>window.__workspaceSDK.initialCameras.at(-1)),before.camera,'return constructs at saved camera without rendering a default city view first');

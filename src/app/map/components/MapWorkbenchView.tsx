@@ -15,6 +15,8 @@ import type { WorkspaceView } from '../workspace/workspaceState';
 import { MapWorkspaceLayout } from './MapWorkspaceLayout';
 import { WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { MapDisclosure } from './MapDisclosure';
+import { SUBMARKET_COLORS, SUBMARKET_NEUTRAL } from '../runtime/mapSubmarketPresentation';
+import { marketObservationLabel, compactMarketArea } from '../model/mapMetricPresentation';
 import { futureSupplyImage } from '../runtime/mapSelectionMarker';
 import { animateWorkspace, WORKSPACE_MOTION } from '../runtime/workspaceMotion';
 import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
@@ -171,11 +173,7 @@ function IconButton({
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
-      className={`flex h-9 ${text ? 'w-auto gap-1.5 px-2' : 'w-9'} shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] border text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
-        active
-          ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand)] text-white'
-          : 'border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] text-[var(--cd-color-text-secondary)] hover:border-[var(--cd-color-border-strong)] hover:text-[var(--cd-color-brand)]'
-      }`}
+      className={`map-tool-button ${text ? 'map-tool-button--text' : ''}`}
     >
       {children}
       {text ? <span aria-hidden="true">{text}</span> : null}
@@ -243,14 +241,19 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
     },
   };
 
-  const config: { title: string; items: LegendItem[] } = aggregate && mode === 'leed' ? {
+  const config: { title: string; items: LegendItem[] } = aggregate && (mode === 'rent' || mode === 'vacancy') ? {
+    title: mode === 'rent' ? '子市场净有效租金（元/㎡/月）' : '子市场空置率',
+    items: metricConfig[mode].items.map((item, index) => ({ label: item.label, style: { backgroundColor: SUBMARKET_COLORS[index] ?? SUBMARKET_NEUTRAL } })),
+  } : aggregate && mode === 'leed' ? {
     title: '子市场 LEED 认证率', items: [
-      { label: '0%', className: 'bg-[#8794a4]' }, { label: '>0–<20%', className: 'bg-[#88a493]' },
-      { label: '20–<40%', className: 'bg-[#6f927f]' }, { label: '40–<60%', className: 'bg-[#537f6c]' },
-      { label: '≥60%', className: 'bg-[#3f715f]' },
+      { label: '<20%', style: { backgroundColor: SUBMARKET_COLORS[0] } },
+      { label: '20–<40%', style: { backgroundColor: SUBMARKET_COLORS[1] } },
+      { label: '40–<60%', style: { backgroundColor: SUBMARKET_COLORS[2] } },
+      { label: '≥60%', style: { backgroundColor: SUBMARKET_COLORS[3] } },
+      { label: '认证未收录 / 区域资料', style: { backgroundColor: SUBMARKET_NEUTRAL } },
     ],
   } : aggregate && mode === 'default' ? {
-    title: '子市场', items: [{ label: '租金 · 空置率 · 甲乙级数量', className: 'bg-[#245b78]' }],
+    title: '子市场', items: [{ label: '租金 · 空置率 · 甲乙级数量 / 产业园', className: 'bg-[#245b78]' }, { label: '区域资料', style: { backgroundColor: SUBMARKET_NEUTRAL } }],
   } : mode === 'default' && compareGroups.length > 0
     ? {
         title: '项目对比组',
@@ -272,6 +275,7 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
           </div>
         ))}
       </div>
+      {aggregate ? <p className="map-legend-note">气泡等大，不表示市场规模。租金与空置率为甲乙级正式观测；产业园单列数量。颜色仅表示数值区间。</p> : null}
       <label className="map-legend-places">
         <input type="checkbox" checked={pointsVisible} disabled={!mapReady || !onPointsChange} onChange={event => onPointsChange?.(event.target.checked)} />
         底图地点标注
@@ -285,23 +289,24 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
 }
 
 function MetricStrip({ stats, busy }: { stats: MapStatsState; busy: boolean }) {
+  const area = compactMarketArea(stats);
   const metrics = [
-    { label: '筛选存量净有效租金', value: stats.avgRent, unit: '元/㎡/月' },
-    { label: '筛选存量空置率', value: stats.overallVacancyPct, unit: '%' },
+    { label: '净有效租金', value: stats.avgRent, unit: '元/㎡/月' },
+    { label: '空置率', value: stats.overallVacancyPct, unit: '%' },
     { label: '有坐标项目', value: stats.visibleProjectCount, unit: '个' },
-    { label: '筛选存量面积', value: stats.totalArea, unit: '㎡', showsUpdating: true },
+    { label: '存量面积', value: area.value, unit: area.unit, exact: area.exact, showsUpdating: true },
   ];
 
   const [announcement, setAnnouncement] = React.useState('');
   const description = metrics.map(metric => `${metric.label} ${metric.value} ${metric.unit}`).join('，');
   React.useEffect(() => { if (busy) return; const timer = window.setTimeout(() => setAnnouncement(description), 400); return () => window.clearTimeout(timer); }, [busy, description]);
   return (
-    <section className="map-live-stats" aria-label="市场实时指标" aria-busy={busy}>
-      <dl className="map-workspace-kpis" aria-live="off">{metrics.map(metric => <MetricValue key={metric.label} metric={metric} updating={busy && Boolean(metric.showsUpdating)} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
+    <section className="map-live-stats" aria-label="市场实时指标" aria-busy={busy} aria-describedby="map-market-context">
+      <dl className="map-workspace-kpis" aria-live="off">{metrics.map(metric => <MetricValue key={metric.label} metric={metric} updating={busy && Boolean(metric.showsUpdating)} exact={metric.exact} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
     </section>
   );
 }
-function MetricValue({ metric, updating = false }: { updating?: boolean; metric: { label: string; value: string; unit: string } }) {
+function MetricValue({ metric, updating = false, exact }: { updating?: boolean; exact?: string; metric: { label: string; value: string; unit: string } }) {
   const number = React.useRef<HTMLElement>(null);
   const previous = React.useRef(metric.value);
   React.useEffect(() => {
@@ -310,7 +315,7 @@ function MetricValue({ metric, updating = false }: { updating?: boolean; metric:
     const animation = animateWorkspace(number.current, [{ opacity: .7 }, { opacity: 1 }], WORKSPACE_MOTION.feedback);
     return () => animation?.cancel();
   }, [metric.value]);
-  return <div><dt><span>{metric.label}</span>{updating ? <span className="map-stats-updating">更新中</span> : null}</dt><dd><b ref={number} className="map-metric-number">{metric.value}</b><span>{metric.unit}</span></dd></div>;
+  return <div><dt><span>{metric.label}</span>{updating ? <span className="map-stats-updating">更新中</span> : null}</dt><dd>{exact ? <MapDisclosure className="map-metric-precision" width={280} label={<><b ref={number} className="map-metric-number">{metric.value}</b><span>{metric.unit}</span><span className="sr-only">，查看精确面积</span></>}><h2>筛选存量面积</h2><p>{exact} 平方米</p><p>每楼最新正式观测；未知面积不计入，产业园包含在存量中。</p></MapDisclosure> : <><b ref={number} className="map-metric-number">{metric.value}</b><span>{metric.unit}</span></>}</dd></div>;
 }
 
 function SupplyProjectList({ projects, onSelect }: { projects: FullListBuilding[]; onSelect: (project: FullListBuilding) => void }) {
@@ -722,7 +727,7 @@ export function MapWorkbenchView({
       <div className="map-workbench-tools">
       <header className="relative z-[500] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <div className="map-page-header">
-          <BrokerSearchLink /><h1 title="北京办公楼市场地图">北京办公楼市场地图</h1>
+          <BrokerSearchLink /><div className="map-page-identity"><MapDisclosure className="map-context-disclosure" width={320} label={<h1 title="北京办公楼市场地图">北京办公楼市场地图<span id="map-market-context">{Object.keys(stats.periods ?? {}).length > 1 ? '筛选存量 · 混合季度' : marketObservationLabel(stats.periods)}</span></h1>}><h2>当前统计范围</h2><p>{marketObservationLabel(stats.periods)}</p><p>行情与面积包含当前筛选存量及产业园，采用每楼最新正式记录，允许不同观测季度。项目数量为可定位的当前列表项目，含已显示的未来供应。</p></MapDisclosure></div>
           <MetricStrip stats={stats} busy={mapDataLoading || (!mapReady && !mapError)} />
           <div className="map-header-navigation">
             <Link href="/" className="workspace-header-link"><Home size={16} aria-hidden="true" />主页</Link>
@@ -758,6 +763,7 @@ export function MapWorkbenchView({
                 <SearchBar
                   searchContextKey={searchContextKey}
                   inputLabel="搜索楼宇、子市场、业主或物业"
+                  clearLabel="清空地图搜索"
                   placeholder="搜索楼宇、子市场、业主…"
                   debounceMs={220}
                   value={keyword}
@@ -784,14 +790,14 @@ export function MapWorkbenchView({
 
           </div>
 
-          <div className="map-toolbar-mode-group"><div className="map-workspace-modes shrink-0 overflow-hidden rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] flex" role="group" aria-label="地图显示模式">
-            {MODE_OPTIONS.map(({ mode, label }, index) => (
+          <div className="map-toolbar-mode-group"><div className="map-workspace-modes" role="group" aria-label="地图显示模式">
+            {MODE_OPTIONS.map(({ mode, label }) => (
               <button
                 key={mode}
                 type="button"
                 aria-pressed={renderMode === mode}
                 onClick={() => onRenderModeChange(mode)}
-                className={`h-9 px-3 text-[14px] font-normal transition-colors focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] ${index > 0 ? 'border-l border-slate-200/80' : ''} ${renderMode === mode ? 'bg-[var(--cd-color-brand)] text-white' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+                className="map-mode-option"
               >
                 {label}
               </button>
@@ -809,8 +815,8 @@ export function MapWorkbenchView({
               type="button"
               onClick={openBuildingList}
               disabled={!canOpenList}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-[14px] font-normal text-[var(--cd-color-text-secondary)] shadow-[var(--cd-shadow-sm)] transition-colors hover:border-[var(--cd-color-border-strong)] hover:text-[var(--cd-color-brand)] disabled:cursor-not-allowed disabled:opacity-45"
-              aria-label="项目列表" title="查看项目列表"
+              className="map-tool-button map-tool-button--text"
+              aria-label="项目列表" title="当前筛选项目列表"
             >
               <List size={16} strokeWidth={1.75} aria-hidden="true" />
               <span aria-hidden="true">列表</span>
