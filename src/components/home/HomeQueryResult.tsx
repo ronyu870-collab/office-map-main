@@ -15,6 +15,8 @@ import { HomeQueryResultActions } from './HomeQueryResultActions';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
 import { HomeQueryInsights } from './HomeQueryInsights';
 import { HomeQuerySampleSummary } from './HomeQuerySampleSummary';
+import { HomeQuerySampleMembership } from './HomeQuerySampleMembership';
+import { sampleMembershipRequest } from '@/src/lib/intelligence/query/sampleMembership';
 import { HomeQuerySources, SourceOverview } from './HomeQuerySources';
 export { SourceOverview } from './HomeQuerySources';
 import { useQueryDetail } from './HomeQueryDetailPanel';
@@ -36,6 +38,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   const sourceDetailId = `${result.resultId}-${sectionId}-sources`;
   const detail = useQueryDetail();
   const hasDetailPanel = !!detail;
+  const membershipMode = sampleMembershipRequest(question);
   const blocks = React.useMemo(() => composeResponse(undefined, result, answerTask, question).blocks, [result, answerTask, question]);
   const availability = resultAvailability(result);
   const decision = React.useMemo(() => responseDecision(result, answerTask, question), [result, answerTask, question]);
@@ -134,6 +137,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       {renderers[block.type]?.()}
       {!availability && ['summary', 'metrics', 'building'].includes(block.type) && <ResultBoundary result={result} research={research} />}
     </div>)}
+    {membershipMode && ['aggregate', 'group_aggregate', 'cross_aggregate', 'trend', 'group_trend', 'cross_trend', 'compare'].includes(result.operation) && result.parameters.dataDomain !== 'lease-research/1' && <HomeQuerySampleMembership key={result.resultId + ':' + membershipMode} result={result} mode={membershipMode} onSource={showSources} />}
     <div ref={setActionContainer} className={experienceStyles.resultActions}>
       {!blocks.some(block => block.type === 'analysis') && requestId && scope && <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport} responseActions={responseActions} />}
     </div>

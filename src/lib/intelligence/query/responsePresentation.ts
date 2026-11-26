@@ -66,7 +66,7 @@ export function responseDecision(result: QueryResultView, task?: string, questio
   const shortComparison = isQuarterlyAnswer(result) && (result.operation === 'compare' || result.table.rows.length <= 2);
   if (!prefs.tableOnly && (chart || defaultChart && result.operation !== 'list' && (prefs.wantsChart || !prefs.wantsTable && !shortComparison))) return { ...base,
     task: result.operation === 'rank' ? 'ranking' : ['trend', 'group_trend', 'cross_trend'].includes(result.operation) ? 'trend' : 'research',
-    status: 'answered', primaryExpression: 'chart', details: inlineTable || ['trend', 'compare'].includes(result.operation) && result.table.rows.length <= 10 ? 'inline' : 'on_demand' };
+    status: 'answered', primaryExpression: 'chart', details: inlineTable || isQuarterlyAnswer(result) && prefs.wantsSamples || ['trend', 'compare'].includes(result.operation) && result.table.rows.length <= 10 ? 'inline' : 'on_demand' };
   if (inlineTable && (prefs.wantsTable || defaultChart || isQuarterlyAnswer(result) && result.table.rows.length > 1 && numeric.length > 1)) return { ...base,
     task: isQuarterlyAnswer(result) ? 'trend' : result.operation === 'rank' ? 'ranking' : 'list',
     status: 'answered', primaryExpression: 'table', details: 'inline' };

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { resultMetricAnalysis, resultMetricColumns, resultMetrics } from './multiMetricView';
 import type { DisplayCell, QueryResultView } from './presentation';
+import { sampleMembershipRequest, sampleMembership } from './sampleMembership';
 
 const compareCounts = z.object({
   base: z.object({ usedEntityIds: z.array(z.string()) }),
@@ -15,7 +16,8 @@ export function quarterlyAnswerIssues(question: string, result: QueryResultView)
   if (!quarterlyOperations.has(result.operation) || result.parameters.dataDomain === 'lease-research/1') return [];
   const wantsSamples = /各期样本|样本(?:数|数量|明细|楼宇|覆盖)|参与计算|多少栋|几栋/.test(question);
   const wantsAllValues = /每(?:一|个)?季度(?:的)?(?:数值|数据)|各期(?:数值|数据)|完整季度|逐季(?:列出|提供)/.test(question);
-  if (!wantsSamples && !wantsAllValues) return [];
+  const membership = sampleMembershipRequest(question);
+  if (!wantsSamples && !wantsAllValues && !membership) return [];
   const metrics = resultMetrics(result);
   if (!metrics.length) return [];
   const issues = new Set<string>();
@@ -33,5 +35,6 @@ export function quarterlyAnswerIssues(question: string, result: QueryResultView)
         issues.add('部分要求的季度指标缺少有效数据，保留未知值，未以其他季度或零填补。');
     }
   }
+  if (membership && !sampleMembership(result, membership).complete) issues.add('未完整返回所要求的样本楼宇清单；未获权或无法核实的名称不会补造。');
   return [...issues];
 }
