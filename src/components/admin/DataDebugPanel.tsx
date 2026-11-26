@@ -7,13 +7,12 @@ import type { BuildingWithMetrics, BuildingMetric } from '@/src/types';
 import type { SidebarFilterState } from '@/src/components/SidebarFilter';
 import { Button, ErrorState } from '@/src/components/ui';
 import { DebugFilter } from './DebugFilter';
+import { mapOptionalNumber } from '@/src/app/map/model/vacancyMetrics';
 import { filterBuildings } from '@/src/utils/filterBuildings';
 import { computeDebugStats, type DebugStatsResult, type BuildingContribution } from '@/src/utils/debugStats';
 
 function toFiniteNumber(input: unknown): number {
-  if (typeof input === 'number' && Number.isFinite(input)) return input;
-  const n = typeof input === 'string' ? Number(input.trim()) : Number(input);
-  return Number.isFinite(n) ? n : NaN;
+  return mapOptionalNumber(input);
 }
 
 function formatNum(n: number | null, decimals = 1): string {
@@ -134,7 +133,7 @@ export function DataDebugPanel() {
         .select(`id, name, submarket, grade, city, district, location_lng, location_lat,
           completion_year, leed_certification, owner, property_management,
           building_metrics(id, building_id, total_area, asking_rent, management_fee, face_rent,
-            rent_free_period, net_effective_rent, vacancy_rate, vacant_area, record_year, record_quarter)`)
+            rent_free_period, net_effective_rent, vacancy_rate, vacant_area, record_year, record_quarter, is_locked, is_draft, updated_at, created_at)`)
         .eq('is_active', true)
         .eq('tracking_scope', 'tracked')
         .abortSignal(controller.signal);
@@ -149,10 +148,11 @@ export function DataDebugPanel() {
       for (const r of rows) {
         const lng = toFiniteNumber(r.location_lng);
         const lat = toFiniteNumber(r.location_lat);
-        if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
         const metricsRaw: Record<string, unknown>[] = Array.isArray(r.building_metrics) ? r.building_metrics : [];
         const metrics: BuildingMetric[] = metricsRaw
           .map((rm: Record<string, unknown>) => ({
+            is_locked: rm.is_locked as boolean | null | undefined, is_draft: rm.is_draft as boolean | null | undefined,
+            updated_at: rm.updated_at as string | null | undefined, created_at: rm.created_at as string | null | undefined,
             id: String(rm.id ?? ''), building_id: String(rm.building_id ?? ''),
             total_area: toFiniteNumber(rm.total_area), asking_rent: toFiniteNumber(rm.asking_rent),
             management_fee: toFiniteNumber(rm.management_fee), face_rent: toFiniteNumber(rm.face_rent),

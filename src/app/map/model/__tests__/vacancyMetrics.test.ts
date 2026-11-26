@@ -28,7 +28,7 @@ describe('map vacancy observations', () => {
       location_lng: 116.46,
       location_lat: 39.91,
       metrics: [{
-        record_year: 2026, record_quarter: 3, total_area: 1000,
+        is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, total_area: 1000,
         net_effective_rent: 200, vacant_area: vacantArea, vacancy_rate: fraction,
       }],
     });

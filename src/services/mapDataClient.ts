@@ -96,6 +96,9 @@ export async function fetchBuildingTrendPayload(buildingId: string) {
 export type SubmarketDetailPayload = {
   submarket: string;
   stockCount: number;
+  scope?: 'authorized_market';
+  membershipTime?: 'current_catalog';
+  publication?: 'locked_non_draft';
   profileAvailable: boolean;
   profile: import('@/src/app/map/model/submarketProfile').SubmarketProfile;
   /** Accessible only to an actual administrator, never a viewer or impersonator. */

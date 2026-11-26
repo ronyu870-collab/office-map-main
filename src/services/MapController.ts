@@ -20,6 +20,7 @@ import { panMapFocusIntoAvailableArea } from "@/src/app/map/runtime/mapFocusView
 import { mapOptionalNumber, observedVacantArea } from "@/src/app/map/model/vacancyMetrics";
 import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
+import { latestFormalMetric } from "@/src/app/map/model/quarterlyFacts";
 import { clearMapReadCache } from "./mapReadCache";
 import { bindBuildingPopup } from "./map/buildingPopup";
 import { summarizeSubmarkets, officeGrade } from "@/src/app/map/model/submarketOverview";
@@ -108,14 +109,7 @@ function toNullableFiniteNumber(input: unknown): number | null {
 }
 
 function pickLatestMetric(metrics: BuildingMetric[]): BuildingMetric | null {
-  if (!Array.isArray(metrics) || metrics.length === 0) return null;
-  const sorted = [...metrics].sort((a, b) => {
-    const ay = a.record_year ?? 0,
-      by = b.record_year ?? 0;
-    if (ay !== by) return by - ay;
-    return (b.record_quarter ?? 0) - (a.record_quarter ?? 0);
-  });
-  return sorted[0] ?? null;
+  return latestFormalMetric(metrics);
 }
 
 /** 将 Supabase 原始行转换为 BuildingWithMetrics（与 fetchMapData 使用相同的清洗逻辑） */
@@ -127,14 +121,19 @@ function transformBuildingRow(r: Record<string, unknown>): BuildingWithMetrics {
     .map((rm: Record<string, unknown>) => ({
       id: String(rm.id ?? ""),
       building_id: String(rm.building_id ?? ""),
-      total_area: toFiniteNumber(rm.total_area),
-      asking_rent: toFiniteNumber(rm.asking_rent),
-      management_fee: toFiniteNumber(rm.management_fee),
-      face_rent: toFiniteNumber(rm.face_rent),
-      rent_free_period: toFiniteNumber(rm.rent_free_period),
-      net_effective_rent: toFiniteNumber(rm.net_effective_rent),
+      total_area: mapOptionalNumber(rm.total_area),
+      asking_rent: mapOptionalNumber(rm.asking_rent),
+      management_fee: mapOptionalNumber(rm.management_fee),
+      face_rent: mapOptionalNumber(rm.face_rent),
+      rent_free_period: mapOptionalNumber(rm.rent_free_period),
+      net_effective_rent: mapOptionalNumber(rm.net_effective_rent),
       vacancy_rate: mapOptionalNumber(rm.vacancy_rate),
       vacant_area: mapOptionalNumber(rm.vacant_area),
+      is_locked: rm.is_locked as boolean | null | undefined,
+      is_draft: rm.is_draft as boolean | null | undefined,
+      updated_at: rm.updated_at as string | null | undefined,
+      created_at: rm.created_at as string | null | undefined,
+      data_source: rm.data_source as string | null | undefined,
       record_year: toFiniteNumber(rm.record_year),
       record_quarter: toFiniteNumber(rm.record_quarter),
     }))
@@ -182,7 +181,7 @@ function displayGrade(grade: string | undefined | null): string {
   if (!g || g === "—") return "—";
   const upper = g.toUpperCase();
   if (upper === "BP") return g;
-  if (upper.includes("P")) return g.replace(/P/gi, "A");
+  if (officeGrade(g) === "a") return "A";
   return g;
 }
 
@@ -206,15 +205,15 @@ function getMarkerStyle(
       borderColor = "#ffffff";
       text = "F";
     } else {
-      const gradeStr = (building.grade ?? "").toUpperCase();
-      if (gradeStr.includes("BP")) {
+      const gradeStr = officeGrade(building.grade);
+      if (gradeStr === "park") {
         bgColor = "#d97706";
         text = "BP";
         fontSize = "9px";
-      } else if (gradeStr.includes("A") || gradeStr.includes("P")) {
+      } else if (gradeStr === "a") {
         bgColor = "#003e7e";
         text = "A";
-      } else if (gradeStr.includes("B")) {
+      } else if (gradeStr === "b") {
         bgColor = "#059669";
         text = "B";
       } else {
@@ -297,18 +296,8 @@ function getMarkerStyle(
 
 function matchesGroupGrades(grade: string, groupGrades: string[]): boolean {
   if (groupGrades.length === 0) return true;
-  const g = (grade || "").toUpperCase();
-  for (const fg of groupGrades) {
-    if (fg === "产业园" && g.includes("BP")) return true;
-    if (
-      fg === "甲级" &&
-      (g.includes("A") || g.includes("P")) &&
-      !g.includes("BP")
-    )
-      return true;
-    if (fg === "乙级" && g.includes("B") && !g.includes("BP")) return true;
-  }
-  return false;
+  const value = officeGrade(grade);
+  return groupGrades.some(label => ({ '产业园': 'park', '甲级': 'a', '乙级': 'b' }[label] === value));
 }
 
 function findBuildingGroupColor(
@@ -985,27 +974,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
       // 等级筛选（甲级含P/超甲级）
       if (hasGradeFilter) {
-        const g = (b.grade || "").trim().toUpperCase();
-        let match = false;
-        for (const fg of this._compFilterGrades) {
-          if (fg === "产业园" && g.includes("BP")) {
-            match = true;
-            break;
-          }
-          if (
-            fg === "甲级" &&
-            (g.includes("A") || g.includes("P")) &&
-            !g.includes("BP")
-          ) {
-            match = true;
-            break;
-          }
-          if (fg === "乙级" && g.includes("B") && !g.includes("BP")) {
-            match = true;
-            break;
-          }
-        }
-        if (!match) return false;
+        if (!matchesGroupGrades(b.grade, [...this._compFilterGrades])) return false;
       }
 
       // LEED 筛选
@@ -1877,7 +1846,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   async fetchMapData(): Promise<BuildingWithMetrics[]> {
     if (this._cachedMapDataPromise) return this._cachedMapDataPromise;
     this._cachedMapDataPromise = (async () => {
-      const payload = await fetchMapBuildingPayload("all");
+      const payload = await fetchMapBuildingPayload("latest");
 
       this._displayOverridesCache = new Map();
       for (const override of payload.displayOverrides) {
@@ -2172,7 +2141,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
     const submarketMap = new Map<string, any>();
     const visibleSubmarkets = new Set(items.map(b => normalizeMapSubmarket(b.submarket)));
-    const fullSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? (this._allBuildingsCache.length ? this._allBuildingsCache : items));
+    const fullSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? items);
     for (const b of overviewBuildings ?? items) {
       const sub = normalizeMapSubmarket(b.submarket);
       if (!visibleSubmarkets.has(sub)) continue;

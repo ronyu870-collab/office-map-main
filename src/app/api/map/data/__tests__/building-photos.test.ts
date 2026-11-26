@@ -17,7 +17,7 @@ beforeEach(() => {
   mocks.catalog.mockResolvedValue(new Map([[building, [photo]], ['invisible-building', [photo]]]));
   mocks.from.mockImplementation((table: string) => {
     const chain: Record<string, unknown> = {};
-    for (const op of ['select', 'eq', 'or', 'order', 'limit', 'in']) chain[op] = () => chain;
+    for (const op of ['select', 'eq', 'or', 'order', 'limit', 'in', 'range']) chain[op] = () => chain;
     const data = table === 'building_display_overrides' ? [] : table === 'future_supplies'
       ? [
         { id: 'future-row', building_id: building },

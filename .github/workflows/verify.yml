@@ -300,6 +300,12 @@ jobs:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
           POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
 
+      - name: PostgreSQL 17 and PostgREST map market selection
+        run: node --experimental-strip-types supabase/tests/map-market/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
       - name: PostgreSQL 17 and PostgREST lease history count regression
         run: node supabase/tests/lease-history-count/run.mjs
         env:

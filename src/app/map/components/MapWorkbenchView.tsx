@@ -266,10 +266,10 @@ function MapLegend({ mode, compareGroups, active }: { mode: RenderMode; compareG
 
 function MetricStrip({ stats }: { stats: MapStatsState }) {
   const metrics = [
-    { label: '净有效租金', value: stats.avgRent, unit: '元/㎡/月' },
-    { label: '空置率', value: stats.overallVacancyPct, unit: '%' },
+    { label: '筛选存量净有效租金', value: stats.avgRent, unit: '元/㎡/月' },
+    { label: '筛选存量空置率', value: stats.overallVacancyPct, unit: '%' },
     { label: '有坐标项目', value: stats.visibleProjectCount, unit: '个' },
-    { label: '总体量', value: stats.totalArea, unit: '㎡' },
+    { label: '筛选存量面积', value: stats.totalArea, unit: '㎡' },
   ];
 
   const host = React.useRef<HTMLElement>(null);

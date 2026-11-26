@@ -6,11 +6,13 @@ import { markerTextColor } from './mapMarkerContrast';
 
 import type { MapController } from '@/src/services/MapController';
 import { MAP_BUILDING_TIER_MIN_ZOOM } from './mapMarkerZoom';
-import { mapOptionalNumber, observedVacantArea } from '../model/vacancyMetrics';
+import { mapOptionalNumber } from '../model/vacancyMetrics';
 import { controllerInternals, type ControllerInternals } from './mapNativeMarkerRenderer';
+import { latestFormalMetric } from '../model/quarterlyFacts';
+import { officeGrade } from '../model/marketIdentity';
 import { summarizeSubmarkets } from '../model/submarketOverview';
 import { normalizeMapSubmarket } from '../model/mapDomain';
-import { createAreaPlaceholder, getAreaFixedRent, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
+import { createAreaPlaceholder, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerTier = 'submarket' | 'dot' | 'building';
@@ -79,25 +81,16 @@ function escapeHtml(value: unknown): string {
 }
 
 function latestMetric(building: any): any | null {
-  let latest: any | null = null;
-  let order = Number.NEGATIVE_INFINITY;
-  for (const metric of Array.isArray(building?.metrics) ? building.metrics : []) {
-    const next = (Number(metric?.record_year) || 0) * 10 + (Number(metric?.record_quarter) || 0);
-    if (next > order) {
-      latest = metric;
-      order = next;
-    }
-  }
-  return latest;
+  return latestFormalMetric(building?.metrics);
 }
 
 function matchesGroupGrades(gradeValue: unknown, wantedGrades: string[]): boolean {
   if (!wantedGrades.length) return true;
-  const grade = String(gradeValue ?? '').toUpperCase();
+  const grade = officeGrade(gradeValue);
   return wantedGrades.some(wanted => {
-    if (wanted === '产业园') return grade.includes('BP');
-    if (wanted === '甲级') return (grade.includes('A') || grade.includes('P')) && !grade.includes('BP');
-    if (wanted === '乙级') return grade.includes('B') && !grade.includes('BP');
+    if (wanted === '产业园') return grade === 'park';
+    if (wanted === '甲级') return grade === 'a';
+    if (wanted === '乙级') return grade === 'b';
     return false;
   });
 }
@@ -123,14 +116,14 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
   let fontSize = 12;
 
   if (mode === 'default') {
-    const grade = String(building?.grade ?? '').toUpperCase();
-    if (grade.includes('BP')) {
+    const grade = officeGrade(building?.grade);
+    if (grade === 'park') {
       background = PALETTE.gradeBP;
       text = 'BP';
       fontSize = 12;
-    } else if (grade.includes('A') || grade.includes('P')) {
+    } else if (grade === 'a') {
       background = PALETTE.gradeA;
-    } else if (grade.includes('B')) {
+    } else if (grade === 'b') {
       background = PALETTE.gradeB;
       text = 'B';
     } else {
@@ -139,7 +132,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     }
   } else if (mode === 'rent') {
     const rent = Number(metric?.net_effective_rent);
-    const hasValue = Number.isFinite(rent) && rent > 0;
+    const hasValue = Number.isFinite(rent) && rent >= 0;
     text = hasValue ? String(Math.round(rent)) : '–';
     fontSize = text.length > 4 ? 10.5 : 12;
     background = !hasValue ? PALETTE.neutral : rent >= 300 ? PALETTE.extreme : rent >= 200 ? PALETTE.high : rent >= 100 ? PALETTE.medium : PALETTE.low;
@@ -412,7 +405,7 @@ export function installMapVisualHierarchyV3(
   };
 
   const build = (buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean, overviewBuildings?: any[]): LayerSet => {
-    const summaries = summarizeSubmarkets(overviewBuildings ?? (c._allBuildingsCache?.length ? c._allBuildingsCache : buildings));
+    const summaries = summarizeSubmarkets(overviewBuildings ?? buildings);
     const labels = new Map<string, any>();
     const ranks = new Map<string, number>();
     const aggregates = new Map<string, any>();
@@ -422,7 +415,7 @@ export function installMapVisualHierarchyV3(
       if (!name || name === '其他') continue;
       let aggregate = aggregates.get(name);
       if (!aggregate) {
-        aggregate = { name, count: 0, lng: 0, lat: 0, coords: 0, area: 0, vacant: 0, rentSum: 0, rentArea: 0, leed: 0 };
+        aggregate = { name, count: 0, lng: 0, lat: 0, coords: 0, leed: 0 };
         aggregates.set(name, aggregate);
       }
       aggregate.count += 1;
@@ -430,18 +423,6 @@ export function installMapVisualHierarchyV3(
         aggregate.lng += building.location_lng;
         aggregate.lat += building.location_lat;
         aggregate.coords += 1;
-      }
-      const metric = latestMetric(building);
-      const area = Number(metric?.total_area);
-      const vacant = observedVacantArea(metric);
-      const rent = Number(metric?.net_effective_rent);
-      if (Number.isFinite(area) && area > 0 && Number.isFinite(vacant)) {
-        aggregate.area += area;
-        aggregate.vacant += vacant;
-      }
-      if (Number.isFinite(area) && area > 0 && Number.isFinite(rent) && rent > 0) {
-        aggregate.rentSum += rent * area;
-        aggregate.rentArea += area;
       }
       const leed = String(building?.leed_certification ?? '').trim().toUpperCase();
       if (leed && leed !== 'NULL' && leed !== '无' && leed !== '-') aggregate.leed += 1;
@@ -454,27 +435,25 @@ export function installMapVisualHierarchyV3(
       positionedNames.add(aggregate.name);
       const center: [number, number] = [aggregate.lng / aggregate.coords, aggregate.lat / aggregate.coords];
       const summary = summaries.get(aggregate.name);
-      const fixedRent = getAreaFixedRent(aggregate.name);
-      const rent = summary?.rent ?? fixedRent ?? 0;
+      const rent = summary?.rent ?? Number.NaN;
       const vacancy = summary?.vacancyPct ?? Number.NaN;
       const leedPercent = aggregate.count > 0 ? (aggregate.leed / aggregate.count) * 100 : 0;
       const accentRent = rent;
       let accent: string = PALETTE.brand;
-      if (mode === 'rent') accent = accentRent <= 0 ? PALETTE.neutral : accentRent >= 300 ? PALETTE.extreme : accentRent >= 200 ? PALETTE.high : accentRent >= 100 ? PALETTE.medium : PALETTE.low;
+      if (mode === 'rent') accent = !Number.isFinite(accentRent) || accentRent < 0 ? PALETTE.neutral : accentRent >= 300 ? PALETTE.extreme : accentRent >= 200 ? PALETTE.high : accentRent >= 100 ? PALETTE.medium : PALETTE.low;
       else if (mode === 'vacancy') accent = !Number.isFinite(vacancy) ? PALETTE.neutral : vacancy >= 30 ? PALETTE.extreme : vacancy >= 20 ? PALETTE.high : vacancy >= 10 ? PALETTE.medium : PALETTE.low;
       else if (mode === 'leed') accent = leedPercent >= 60 ? '#3f715f' : leedPercent >= 40 ? '#537f6c' : leedPercent >= 20 ? '#6f927f' : leedPercent > 0 ? '#88a493' : PALETTE.neutral;
 
       const count = summary?.officeCount ?? 0;
       const size = 86 + Math.min(12, Math.round(Math.sqrt(count + (summary?.parkCount ?? 0)) * 1.25));
-      const referenceRent = summary?.rent == null && fixedRent !== null;
-      const rentLabel = rent > 0 ? `¥${rent.toFixed(1)}${referenceRent ? '*' : ''}` : '¥—';
+      const rentLabel = Number.isFinite(rent) ? `¥${rent.toFixed(1)}` : '¥—';
       const vacancyLabel = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '—';
-      const nameOnly = isNameOnlyArea(aggregate.name, mode) && count === 0;
+      const nameOnly = isNameOnlyArea(aggregate.name, mode) && count === 0 && (summary?.parkCount ?? 0) === 0;
       const element = document.createElement('button');
       element.type = 'button';
       element.className = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
       element.dataset.renderMode = mode;
-      element.title = `${aggregate.name} · 甲乙级${count}个${referenceRent ? ' · *为区域参考租金，非加权均值' : ''}`;
+      element.title = `${aggregate.name} · 甲乙级${count}个`;
       element.setAttribute('aria-label', `查看${aggregate.name}子市场介绍，甲乙级${count}个，租金${rentLabel}，空置率${vacancyLabel}`);
       if (!nameOnly) {
         element.style.setProperty('--sm-accent', accent);
@@ -602,9 +581,9 @@ export function installMapVisualHierarchyV3(
       const visual = visualFor(building, mode, groups);
       const metric = latestMetric(building);
       const area = Number(metric?.total_area);
-      const grade = String(building?.grade ?? '').toUpperCase();
+      const grade = officeGrade(building?.grade);
       // BP includes "P", so test the industrial-park grade before A/P.
-      const gradeRank = grade.includes('BP') ? 1200 : grade.includes('A') || grade.includes('P') ? 2000 : 700;
+      const gradeRank = grade === 'park' ? 1200 : grade === 'a' ? 2000 : 700;
       const rank = gradeRank +
         (Number.isFinite(area) ? Math.min(999, Math.round(area / 1000)) : 0);
 
@@ -730,7 +709,7 @@ export function installMapVisualHierarchyV3(
       c.infoWindow?.close?.();
       clearSelection();
     }
-    const overview = Array.isArray(overviewBuildings) ? overviewBuildings : (c._allBuildingsCache?.length ? c._allBuildingsCache : buildings);
+    const overview = Array.isArray(overviewBuildings) ? overviewBuildings : buildings;
     const signature = `${renderSignature(buildings, mode, groups)}|${showAreaPlaceholders}|${overview === buildings ? '' : renderSignature(overview, 'default')}`;
     if (signature === lastSignature) {
       if (pendingFrame !== null) {

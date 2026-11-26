@@ -1,5 +1,8 @@
 import type { BuildingWithMetrics } from '@/src/types';
 import { getLatestMetric } from './filterBuildings';
+import { aggregateMarket } from '@/src/app/map/model/marketStatistics';
+import { mapOptionalNumber, observedVacantArea } from '@/src/app/map/model/vacancyMetrics';
+import { normalizeLeed, normalizeMapSubmarket } from '@/src/app/map/model/marketIdentity';
 
 export interface BuildingContribution {
   id: string;
@@ -70,35 +73,19 @@ export function computeDebugStats(buildings: BuildingWithMetrics[]): DebugStatsR
   let leedCount = 0;
   const leedBuildings: BuildingContribution[] = [];
 
-  const isLeed = (cert: string) => cert && cert.trim() !== '' && cert !== 'NULL';
+  const isLeed = (cert: string) => normalizeLeed(cert) !== 'NULL';
 
-  for (const b of buildings) {
+  const uniqueBuildings = [...new Map(buildings.filter(b => b.id).map(b => [b.id, b])).values()];
+  for (const b of uniqueBuildings) {
     const latest = getLatestMetric(b.metrics);
-    const area = latest ? Number(latest.total_area) : NaN;
-    const rent = latest ? Number(latest.net_effective_rent) : NaN;
-    const vacArea = latest ? Number(latest.vacant_area) : NaN;
-
-    let excludedFromRent = false;
-    let excludedFromVacancy = false;
-    let excludeReason: string | null = null;
-
-    if (!latest) {
-      excludedFromRent = true;
-      excludedFromVacancy = true;
-      excludeReason = '无季度数据';
-    } else {
-      const validArea = Number.isFinite(area) && area > 0;
-      const validRent = Number.isFinite(rent) && rent > 0;
-
-      if (!validArea) {
-        excludedFromRent = true;
-        excludedFromVacancy = true;
-        excludeReason = '面积无效';
-      } else if (!validRent) {
-        excludedFromRent = true;
-        excludeReason = '租金无效';
-      }
-    }
+    const area = mapOptionalNumber(latest?.total_area);
+    const rent = mapOptionalNumber(latest?.net_effective_rent);
+    const vacArea = observedVacantArea(latest);
+    const fact = aggregateMarket([b]);
+    const excludedFromRent = fact.rentSampleCount === 0;
+    const excludedFromVacancy = fact.vacancySampleCount === 0;
+    const excludeReason = !latest ? '无正式季度数据' : !(area > 0) ? '面积无效'
+      : excludedFromRent ? '租金未收录或无效' : excludedFromVacancy ? '空置未收录或无效' : null;
 
     const rentContrib = !excludedFromRent && Number.isFinite(rent) && Number.isFinite(area) ? rent * area : null;
 
@@ -144,7 +131,7 @@ export function computeDebugStats(buildings: BuildingWithMetrics[]): DebugStatsR
     }
 
     // Submarket aggregation
-    const sub = b.submarket?.trim() || '未分类';
+    const sub = normalizeMapSubmarket(b.submarket) || '未分类';
     if (!submarketMap.has(sub)) {
       submarketMap.set(sub, {
         submarket: sub,
@@ -197,7 +184,7 @@ export function computeDebugStats(buildings: BuildingWithMetrics[]): DebugStatsR
       excludedCount: vacancyExcluded,
     },
     submarkets,
-    projectCount: buildings.length,
+    projectCount: uniqueBuildings.length,
     leedCount,
     leedBuildings,
   };

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SubmarketDetailPayload } from '@/src/services/mapDataClient';
+import { aggregateMarket } from '../model/marketStatistics';
 import type { SubmarketSummary } from '../model/submarketOverview';
 import { emptySubmarketProfile } from '../model/submarketProfile';
 import { SubmarketDetailPanel } from '../components/SubmarketDetailPanel';
@@ -25,6 +26,7 @@ vi.mock('next/dynamic', () => ({
 }));
 
 const summary: SubmarketSummary = {
+  ...aggregateMarket([]),
   name: 'CBD',
   officeCount: 2,
   gradeACount: 1,
@@ -126,7 +128,7 @@ describe('submarket research workspace', () => {
   it('uses the latest quarter containing real observations, not the trailing empty axis cell', async () => {
     const makePoint = (period: string, rent: number | null, vacancyPct: number | null) => ({
       period, year: 2026, quarter: Number(period.slice(-1)), rent, vacancyPct,
-      rentSamples: rent == null ? 0 : 1, vacancySamples: vacancyPct == null ? 0 : 1,
+      rentSamples: rent == null ? 0 : 3, vacancySamples: vacancyPct == null ? 0 : 3,
       rentArea: rent == null ? 0 : 100, vacancyArea: vacancyPct == null ? 0 : 100,
     });
     const series = [

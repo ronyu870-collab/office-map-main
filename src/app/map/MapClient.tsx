@@ -39,6 +39,7 @@ import {
 } from './model/mapDomain';
 import { MapDataStore } from './model/MapDataStore';
 import { normalizeMapSubmarket } from './model/mapDomain';
+import { aggregateFutureSupply } from './model/marketStatistics';
 import { submarketSummary } from './model/submarketOverview';
 import { useMapRuntime } from './runtime/useMapRuntime';
 import { recordMapStartup } from '@/src/utils/mapStartupProbe';
@@ -185,11 +186,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const selectedSubmarket = researchView?.kind === 'submarket' ? researchView.name : null;
 
   const selectedSummary = React.useMemo(() => selectedSubmarket
-    ? submarketSummary(allBuildings, selectedSubmarket) : null, [allBuildings, selectedSubmarket]);
-  const selectedFutureCount = React.useMemo(() => selectedSubmarket
-    ? futureSupplies.filter(supply => !isPendingFutureSupply(supply)
-      && normalizeMapSubmarket(supply.submarket) === selectedSubmarket).length : 0,
-    [futureSupplies, selectedSubmarket]);
+    ? submarketSummary(filteredBuildings, selectedSubmarket) : null, [filteredBuildings, selectedSubmarket]);
+  const selectedFuture = React.useMemo(() => aggregateFutureSupply(selectedSubmarket
+    ? filteredFutureSupplies.filter(supply => normalizeMapSubmarket(supply.submarket) === selectedSubmarket) : []),
+    [filteredFutureSupplies, selectedSubmarket]);
 
   const activeFilterChips = React.useMemo(() => buildActiveFilterChips(filterState), [filterState]);
 
@@ -901,7 +901,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           onClose={closeWorkspace} onDisposeTrend={disposeDetailTrend}
           onAction={action => controllerRef.current?.runWorkspaceBuildingAction(action, buildingDetail.building)} /> : null}
         submarketDetailPanel={selectedSubmarket && selectedSummary ? <SubmarketDetailPanel key={selectedSubmarket}
-          name={selectedSubmarket} summary={selectedSummary} buildings={allBuildings} futureCount={selectedFutureCount}
+          name={selectedSubmarket} summary={selectedSummary} buildings={filteredBuildings} futureCount={selectedFuture.count} futureArea={selectedFuture.area}
           canEdit={userRole === 'admin' && !getImpersonationTargetUserId()} suspended={workspace.right?.kind !== 'submarket' || workspace.focus}
           onExitGuardChange={registerResearchExitGuard}
           onClose={closeWorkspace} onShowAll={showSubmarketBuildings}
