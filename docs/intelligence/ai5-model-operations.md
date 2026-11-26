@@ -22,6 +22,10 @@ OpenAI 固定使用 `https://api.openai.com/v1`，禁止重定向和自定义网
 
 各提供商配置只接受 `deepseek` 或 `openai`。DeepSeek 保留 `DEEPSEEK_API_KEY`、`DEEPSEEK_CHAT_MODEL`／`DEEPSEEK_MODEL` 及原官方端点限制；不会改动所有用户的既有模型选择。
 
+DeepSeek 保留原环境变量作为旧配置的默认入口。已验证账号可按需显式配置 `DEEPSEEK_CHAT_MODEL_QUICK`、`DEEPSEEK_CHAT_MODEL_PROFESSIONAL`、`DEEPSEEK_CHAT_MODEL_DEEP`，例如依次选用 `deepseek-flash`、`deepseek-flash`、`deepseek-v4-pro`。已发布运营配置优先，启用 Thinking 的模型须同时声明推理和工具续接能力。快速模式关闭 Thinking，专业模式用 low，深度模式用 high，语义抽取用 low。未显式配置的旧环境沿用原请求行为。移除模式环境变量或撤回对应模型能力可恢复旧配置。
+
+DeepSeek Thinking 实际发送 `thinking` 和 `reasoning_effort`。工具调用所需的 `reasoning_content` 只留在本轮服务端适配器，续接时按原样返回给同一模型，预算计入原生字段序列化的字节数。前端、普通历史和业务审计只获取模型、状态、用量及扣入预算的数值。加密尝试审计在实际发送时另记推理档位。默认沿用同一输出和超时上限，实际 Thinking 表现待经批准的供应商试验确认。[DeepSeek Thinking API](https://api-docs.deepseek.com/guides/thinking_mode/)
+
 OpenAI 需同时配置：
 
 - `OPENAI_API_KEY`：服务端密钥；`OPENAI_AGENT_MODEL`：账号实际可用的官方模型。
@@ -29,7 +33,7 @@ OpenAI 需同时配置：
 - `AI_OPENAI_ENABLED=true`，以及 `AI_OPENAI_ACTOR_IDS`：逗号分隔的批准账号 UUID。此名单表示允许将同一受控 Agent 请求及已批准可披露的工具观察交给该供应商，不新增任何业务访问资格。普通私有原件仍不发给模型。
 - `OPENAI_AGENT_INPUT_USD_PER_MILLION / OPENAI_AGENT_OUTPUT_USD_PER_MILLION`：必填的运营方美元费率上界；支持 0–1000 的有限数值。配置者应覆盖实际所选模式模型的最高价格；不是供应商账单或自动价格同步。
 
-OpenAI 未启用的账号不会因配置了模式而自动改用 OpenAI。提供商切换还需 `AI_MODEL_FALLBACK_ENABLED=true`，默认不回退。一轮只允许切换一次，后续模型调用保持备用供应商，避免反复击打已失败服务。缺少配置、超时、限流、配额、模型不可用、供应商不可用及流中断可在剩余预算内回退。业务拒绝、401／403、参数配置错误、格式错误、取消不回退。每次发送、切换和成功流文本交付前均重新检查当前身份、资格与已加载的数据域权限。
+OpenAI 未启用的账号不会因配置了模式而自动改用 OpenAI。提供商切换还需 `AI_MODEL_FALLBACK_ENABLED=true`，默认不回退。一轮只允许切换一次，后续模型调用保持备用供应商，避免反复击打已失败服务。缺少配置、超时、模型不可用、供应商不可用及流中断可在剩余预算内回退。业务拒绝、401／403、限流、配额、参数配置错误、格式错误、取消不回退。每次发送、切换和成功流文本交付前均重新检查当前身份、资格与已加载的数据域权限。
 
 ## 有界预算、取消及恢复
 

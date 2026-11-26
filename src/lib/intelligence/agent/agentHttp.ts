@@ -52,6 +52,7 @@ import { REGISTERED_AGENT_TOOL_NAMES, STRUCTURED_DATA_TOOL_NAMES, WORKSET_TOOL_N
 import { AuthorizedResultWorkset, type WorksetOwner } from './resultWorkset';
 import { PRESENTATION_TOOL_NAMES, runResultPresentationTool } from './resultTools';
 import { AGENT_CONVERSATION_PROTOCOL, readAgentHistory, trimAgentHistory } from './agentConversation';
+import { resultAvailability } from '../query/resultAvailability';
 import { selectedAnswerResult, type AnswerSelection } from '../query/answerSelection';
 import { answerTask, applyAnswerPolicy, hasExplicitLeaseWindow, isLatestLeaseQuestion } from './answerPolicy';
 
@@ -734,12 +735,29 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       }) };
       execution.result = selectedAnswerResult(selectedAnswer) as QueryResult;
     } else if (needsSelection() && !terminalDelivery && !researchTouched) {
-      selectedAnswer = undefined;
-      // Fail closed rather than pair an unbound model narrative with the last
-      // query (which may only be a coverage or future-period check).
-      execution.result = undefined;
-      execution.answer = '本轮取得多个结果，但尚未确认与当前问题对应的主结果。请明确需要比较的期间或范围。';
-      execution.executionStatus = 'limited';
+      // Preserve only usable results actually queried in this turn. Historical
+      // candidates still require a verified binding to the current request.
+      const retained: QueryResult[] = [];
+      if (queriedIds.size > 1) {
+        for (const id of queriedIds) {
+          const result = workset.read(id, worksetOwner);
+          if (resultAvailability(result) || !fitsDeliveryArchive([...retained, result])) continue;
+          retained.push(result);
+          if (retained.length === 3) break;
+        }
+      }
+      const [first] = retained;
+      // The primary key is an archive anchor for legacy clients. The status
+      // and notice prevent unverified model prose from becoming the answer.
+      selectedAnswer = first ? { version: 'answer-selection/1',
+        task: comparisonRequested ? 'comparison' : answerTask(valid.question, first),
+        status: 'partial', primaryResultId: first.resultId,
+        notice: '以下是本轮已核验的查询结果。综合结论尚未完成，请对照各项范围、期间和来源。',
+        results: retained.map((result, index) => ({ role: index === 0 ? 'primary' : comparisonRequested ? 'comparison' : 'supporting', result })),
+      } : undefined;
+      execution.result = first;
+      execution.answer = selectedAnswer?.notice ?? '本轮取得多个结果，但尚未确认与当前问题对应的主结果。请明确需要比较的期间或范围。';
+      execution.executionStatus = first ? 'partial' : 'limited';
       execution.unresolvedFailures.push({ tool: 'select_answer_results', code: 'conditions_required' });
     }
     // Persist presentation intent with the archived snapshot. Delivery prose is
@@ -822,7 +840,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             ? '交付内容超过本轮容量，已有成果仍可下载；其余部分请分次生成，任务尚未全部完成。'
           : execution.unresolvedFailures.some(item => item.code === 'analysis_not_available')
             ? '文件已生成，但尚未取得可核验的分析结论；任务尚未全部完成。'
-          : onlyMapFailure ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
+          : onlyMapFailure || selectedAnswer.notice && execution.unresolvedFailures.every(item => item.tool === 'select_answer_results')
+              ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
         selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, executionNotice].filter(Boolean).join(' ') };
       }
       if (selectedAnswer.notice) execution.answer = selectedAnswer.notice;

@@ -17,6 +17,20 @@ describe('P1 follow-up bounded multi-metric semantics', () => {
     expect(result.plan).toMatchObject({ operation: 'group_aggregate', metric: 'rent', metrics: ['rent', 'vacancy'], groupBy: 'submarket', scope: { submarkets: ['CBD', '金融街', '望京-酒仙桥'] } });
     expect(result.interpretation.resolvedQuestion).toContain('净有效租金和空置率');
   });
+  it.each([
+    ['分别列出2026Q2 CBD、金融街和望京三个子市场的净有效租金、空置率和市场存量，用一张表格进行比较', ['CBD', '金融街', '望京-酒仙桥']],
+    ['2025Q4请按子市场列出金融街与望京的净有效租金、空置率和季度总面积', ['金融街', '望京-酒仙桥']],
+  ])('distinguishes a group statistic table from a building list: %s', (question, submarkets) => {
+    expect(ready(ask(question)).plan).toMatchObject({
+      operation: 'group_aggregate', groupBy: 'submarket', metrics: ['rent', 'vacancy', 'totalArea'],
+      scope: { inventory: 'tracked', submarkets },
+    });
+  });
+  it('keeps unsupported grouped building lists distinct from display formatting', () => {
+    expect(ask('2026Q2按子市场列出CBD、金融街逐栋楼宇的净有效租金和空置率')).toMatchObject({
+      kind: 'clarification', clarification: { reason: 'unsupported' },
+    });
+  });
   it('inherits both metrics through market changes, comparison, four-quarter trend and a single-quarter override', () => {
     const first = ready(ask('2026Q3CBD净有效租金和空置率'));
     const second = ready(ask('金融街呢', first.context));

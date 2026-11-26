@@ -7,6 +7,8 @@ export type ModelMessage = {
   content: string | null;
   tool_calls?: ModelToolCall[];
   tool_call_id?: string;
+  /** Native DeepSeek wire field. Keep within the request-local adapter. */
+  reasoning_content?: string;
 };
 export type ModelCompletion = {
   model: string;
@@ -34,9 +36,15 @@ export const DATA_TOOL = {
 
 export const AGENT_TOOLS = [DATA_TOOL, ...SPECIALIST_DATA_TOOLS, ...WORKSET_TOOLS, ...PRESENTATION_TOOLS] as const;
 export const DEFAULT_AGENT_MODEL = 'deepseek-flash';
+export const MAX_DEEPSEEK_REASONING_CHARS = 120_000;
 const SUPPORTED_AGENT_MODELS = new Set(['deepseek-flash', 'deepseek-v4-pro', 'deepseek-v4-flash']);
+export function deepSeekModelForMode(mode?: 'quick' | 'professional' | 'deep', env: NodeJS.ProcessEnv = process.env) {
+  const modeModel = mode && env[`DEEPSEEK_CHAT_MODEL_${mode.toUpperCase()}`]?.trim();
+  return { model: modeModel || env.DEEPSEEK_CHAT_MODEL?.trim() || env.DEEPSEEK_MODEL?.trim() || DEFAULT_AGENT_MODEL,
+    thinkingConfigured: !!modeModel && mode !== 'quick' };
+}
 function configuredModel(): string {
-  const model = process.env.DEEPSEEK_CHAT_MODEL?.trim() || process.env.DEEPSEEK_MODEL?.trim() || DEFAULT_AGENT_MODEL;
+  const { model } = deepSeekModelForMode();
   if (!SUPPORTED_AGENT_MODELS.has(model)) throw new ModelProviderError('invalid_configuration');
   return model;
 }
@@ -49,6 +57,7 @@ const responseSchema = z.object({
     message: z.object({
       role: z.literal('assistant'),
       content: z.string().nullable().optional(),
+      reasoning_content: z.string().max(MAX_DEEPSEEK_REASONING_CHARS).nullable().optional(),
       tool_calls: z.array(z.object({
         id: z.string().min(1).max(128), type: z.literal('function'),
         function: z.object({ name: z.string().min(1).max(100), arguments: z.string().max(5000) }),
@@ -100,8 +109,7 @@ async function boundedJson(response: Response, maximum = 160000): Promise<unknow
       chunks.push(next.value);
     }
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)));
-  } catch { throw new ModelProviderError('invalid_response'); }
-  finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
 /** One real DeepSeek completion; no mock or rule-generated text is substituted on failure. */
@@ -118,8 +126,9 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
     response = await fetch(url, { method: 'POST', cache: 'no-store', redirect: 'error', signal: deadline,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
       body: JSON.stringify({ model, messages, ...(!options?.tools || options.tools.length ? { tools: options?.tools?.map(tool => ({ type: 'function', function: tool })) ?? AGENT_TOOLS, tool_choice: 'auto' } : {}),
-        ...(options?.responseFormat ? { response_format: { type: options.responseFormat }, temperature: 0 } : {}),
-        thinking: { type: 'disabled' }, stream: !!onDelta,
+        ...(options?.responseFormat ? { response_format: { type: options.responseFormat }, ...(!options.reasoningEffort ? { temperature: 0 } : {}) } : {}),
+        thinking: { type: options?.reasoningEffort ? 'enabled' : 'disabled' },
+        ...(options?.reasoningEffort ? { reasoning_effort: options.reasoningEffort } : {}), stream: !!onDelta,
         ...(onDelta ? { stream_options: { include_usage: true } } : {}), max_tokens: options?.maxOutputTokens ?? 1800 }),
     });
   } catch (error) {
@@ -138,14 +147,22 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
     const { parseDeepSeekStream } = await import('./modelStream');
     return parseDeepSeekStream(response, model, onDelta, deadline);
   }
-  const parsed = responseSchema.safeParse(await boundedJson(response, options?.maxResponseBytes));
+  let body: unknown;
+  try {
+    body = await boundedJson(response, options?.maxResponseBytes ?? (options?.reasoningEffort ? 1_000_000 : undefined));
+  } catch (error) {
+    if (signal.aborted) throw error;
+    throw new ModelProviderError(deadline.aborted ? 'timeout' : 'invalid_response');
+  }
+  const parsed = responseSchema.safeParse(body);
   if (!parsed.success) throw new ModelProviderError('invalid_response');
   const choice = parsed.data.choices[0], message = choice.message;
   if (!['stop', 'tool_calls'].includes(choice.finish_reason)
     || (choice.finish_reason === 'tool_calls' && !message.tool_calls?.length)
-    || (!message.tool_calls?.length && !message.content?.trim())) throw new ModelProviderError('invalid_response');
+    || (choice.finish_reason === 'stop' && (message.tool_calls?.length || !message.content?.trim()))) throw new ModelProviderError('invalid_response');
   return { model: parsed.data.model || model,
     message: { role: 'assistant', content: message.content ?? null,
+      ...(message.tool_calls?.length && typeof message.reasoning_content === 'string' ? { reasoning_content: message.reasoning_content } : {}),
       ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) },
     inputTokens: parsed.data.usage?.prompt_tokens ?? null,
     outputTokens: parsed.data.usage?.completion_tokens ?? null,

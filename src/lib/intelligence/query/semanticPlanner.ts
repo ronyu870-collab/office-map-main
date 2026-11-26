@@ -109,7 +109,7 @@ function planMetrics(plan?: QueryPlan): SemanticMetric[] {
 }
 function explicitMetrics(text: string, prior?: QueryPlan): SemanticMetric[] {
   const knownRent = text.includes('净有效租金') || /租金|最贵|最便宜/.test(text) && planMetrics(prior).includes('rent');
-  return [knownRent ? 'rent' : null, text.includes('空置率') ? 'vacancy' : null, text.includes('季度总面积') ? 'totalArea' : null]
+  return [knownRent ? 'rent' : null, text.includes('空置率') ? 'vacancy' : null, /季度总面积|市场存量/.test(text) ? 'totalArea' : null]
     .filter((value): value is SemanticMetric => value !== null);
 }
 function selectedMetrics(text: string, prior?: QueryPlan): SemanticMetric[] {
@@ -134,6 +134,13 @@ function detectedMarkets(text: string): string[] {
   }
   if (!text.includes('望京-酒仙桥') && /望京/.test(text)) matches.push({ at: text.indexOf('望京'), value: '望京-酒仙桥' });
   return unique(matches.sort((a, b) => a.at - b.at).map(item => item.value));
+}
+function requestsBuildingRows(text: string): boolean {
+  if (/逐栋|逐楼|每栋|每座|有哪些|有多少栋|列表|清单|找出|筛出|筛选/.test(text)) return true;
+  if (!/列出/.test(text)) return false;
+  const grouping = /按子市场|各子市场|按等级|不同等级|各等级/.test(text);
+  const multiMarket = detectedMarkets(text).length > 1 || pairReferencePattern.test(text) || manyReferencePattern.test(text);
+  return !grouping && !(multiMarket && /分别|比较|对比/.test(text));
 }
 const allScopePattern = /全部获权楼宇|全部获权范围|全部有权访问的楼宇/;
 const buildingHeightRankPattern = /(?:最高|最矮)(?:的)?(?:\d{1,3}|[二两三四五六七八九十]{1,3})?(?:栋|座|幢)?(?:楼|写字楼|楼宇|大厦)|(?:高度|建筑高度)(?:最高|最低)/;
@@ -224,7 +231,7 @@ export function inferSemanticPeriodFields(question: string, contextInput?: Seman
   if (buildingHeightRankPattern.test(text) && !/租金|最贵|最便宜|空置率/.test(text)) field = 'height';
   field ??= model?.field;
   const rank = /最贵|最便宜|最高|最低|排名|排前|前\d+栋|前[二两三四五六七八九十]栋/.test(text);
-  const list = /有哪些|有多少栋|楼宇列表|楼列表|列表|列出|清单|找出|筛出|筛选/.test(text);
+  const list = requestsBuildingRows(text);
   const distribution = /分布|分位数|直方图|箱线图/.test(text);
   const relationship = /关系|相关性|相关关系/.test(text) && statedMetrics.includes('rent') && statedMetrics.includes('vacancy');
   const changesOperation = /变化|趋势|最近|过去|逐季|比较|对比|同比|环比|按子市场|各子市场|按等级|不同等级|各等级|交叉/.test(text)
@@ -260,7 +267,7 @@ export function inferSemanticPeriodFieldGroups(question: string, contextInput?: 
   const model = modelInput === undefined ? undefined : parseSemanticIntent(modelInput);
   const metrics = selectedMetrics(text, context.lastPlan);
   const actual = metrics.length ? metrics : model?.metrics ?? (model?.metric ? [model.metric] : []);
-  if (actual.length < 2 || /最贵|最便宜|最高|最低|排名|排前|前\d+栋|前[二三四五六七八九十]栋|有哪些|有多少栋|列表|列出|清单|找出|筛出|筛选|分布|分位数|直方图|箱线图|关系|相关性/.test(text)
+  if (actual.length < 2 || /最贵|最便宜|最高|最低|排名|排前|前\d+栋|前[二三四五六七八九十]栋|分布|分位数|直方图|箱线图|关系|相关性/.test(text) || requestsBuildingRows(text)
     || model && !aggregateOperations.some(operation => operation === model.operation)) return [fields];
   const dependencies = [...conditions.fields, ...predicateFields(context.lastPlan?.filter)].filter(value => numericFields[value].temporal === 'quarter');
   return actual.map(metric => unique([...dependencies, ...distributionFields(metric)]));
@@ -359,6 +366,10 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   if (!explicitMarkets.length && !allScopePattern.test(text) && prior) inherited.push('子市场及楼宇范围');
   if (prior?.filter) inherited.push('筛选条件');
   const notices: string[] = [];
+  if (/市场存量/.test(text)) {
+    if (/全市场|整个市场/.test(text)) return clarify('unsupported', '当前只能统计获权季度跟踪样本总面积，无法确认全市场存量。');
+    notices.push('市场存量以获权季度跟踪样本总面积表示，覆盖范围以本次有效样本为准。');
+  }
   if (/望京/.test(text) && !text.includes('望京-酒仙桥')) notices.push('“望京”按当前目录的“望京-酒仙桥”子市场处理，包含酒仙桥，未单独划出望京。');
 
   const metricMatches = explicitMetrics(text, prior);
@@ -379,7 +390,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   let field: keyof typeof fieldLabels | undefined = explicitFields[0] ?? (metric === 'rent' ? 'netEffectiveRent' : metric === 'totalArea' ? 'totalArea' : prior?.operation === 'rank' ? prior.field : undefined);
   if (buildingHeightRankPattern.test(text) && !/租金|最贵|最便宜|空置率/.test(text)) field = 'height';
   const rank = /最贵|最便宜|最高|最低|排名|排前|前\d+栋|前[二两三四五六七八九十]栋/.test(text);
-  const isList = /有哪些|有多少栋|楼宇列表|楼列表|列表|列出|清单|找出|筛出|筛选/.test(text);
+  const isList = requestsBuildingRows(text);
   const distribution = /分布|分位数|直方图|箱线图/.test(text);
   if (relation && metricMatches.length !== 2) return clarify('unsupported', '当前关系分析专门比较同季度净有效租金与空置率，不能静默忽略其他指标。可以查询这些指标的分组比较或趋势。');
   if ((rank || distribution) && metricMatches.length > 1) return clarify('unsupported', '逐楼排名或分布需要明确一个指标；多指标支持统一聚合、分组、两期比较和趋势，不会只挑其中一个指标执行。');
@@ -387,7 +398,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   if ((rank || distribution) && !metricMatches.length && !explicitFields.length && planMetrics(prior).length > 1) return clarify('metric_required', '上一轮包含多个指标，请选择本次排名或分布要使用的指标。', planMetrics(prior).map(value => ({ id: `select_${value}`, label: metricLabels[value], question: `${metricLabels[value]}${question}` })));
   const explicitCross = crossGroupingPattern.test(text) || /子市场.*等级.*交叉|等级.*子市场.*交叉/.test(text);
   const byGrade = /按等级|不同等级|各等级/.test(text);
-  const bySubmarket = /按子市场|各子市场/.test(text);
+  const bySubmarket = /按子市场|各子市场/.test(text) || explicitMarkets.length > 1 && /分别/.test(text) && !isList;
   const explicitGrouping = explicitCross || byGrade || bySubmarket;
   if (explicitGrouping && (rank || isList || distribution || relation)) return clarify('unsupported', '当前逐楼排名、字段列表、分布和关系分析尚不支持分组执行；不能忽略明确要求的子市场或等级分组。可以查询同一范围的分组聚合或趋势。');
   const wantsTrend = /变化|趋势|最近|过去|逐季/.test(text);
@@ -564,7 +575,8 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   if (prior && absolute.length === 1) consume(/^(?:请)?(?:改到|换成|改成|改为)/);
   for (const market of QUESTION_SUBMARKETS) remaining = remaining.replaceAll(market, '');
   consume(/望京|全部获权楼宇|全部获权范围|全部有权访问的楼宇/g);
-  consume(/净有效租金|季度总面积|空置面积|空置率|建筑高度|楼层数|总车位数|租金/g);
+  consume(/(?:用|以)(?:一张)?表格(?:进行|呈现|展示)?/g);
+  consume(/净有效租金|季度总面积|市场存量|空置面积|空置率|建筑高度|楼层数|总车位数|租金/g);
   consume(/全期间共同样本|共同有效样本|共同样本|配对样本|各期有效样本|各期样本|同样本|按有效总面积加权|按面积加权/g);
   consume(/再加上|加上|再加|补充|一并看|一起看|也看看|也看|也加上|也加/g);
   consume(new RegExp(crossGroupingPattern.source, 'g'));

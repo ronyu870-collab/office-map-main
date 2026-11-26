@@ -278,6 +278,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
     await input.onEvent?.({ type: 'phase_changed', phase: value, ...(tools ? { tools } : {}) });
   };
   await phase('understanding');
+  let selectionCorrectionUsed = false;
   for (let round = 0; round < limits.rounds; round++) {
     input.signal.throwIfAborted();
     await input.revalidate?.(input.signal);
@@ -316,7 +317,8 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
     }
     if (!requested.length) {
       if (!completed.message.content?.trim()) throw new Error('AGENT_EMPTY_ANSWER');
-      if (input.needsAnswerSelection?.() && round < limits.rounds - 1 && toolCalls < limits.tools) {
+      if (!selectionCorrectionUsed && input.needsAnswerSelection?.() && round < limits.rounds - 1 && toolCalls < limits.tools) {
+        selectionCorrectionUsed = true;
         messages.push(completed.message, { role: 'system', content: '最终回答尚未绑定正式结果。请现在调用select_answer_results选择主结果、必要比较/辅助引用和任务状态；不要重复查询或把最后一次检查自动当答案。' });
         continue;
       }

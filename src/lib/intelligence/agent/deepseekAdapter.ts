@@ -1,4 +1,5 @@
-import { completeWithDeepSeek } from './modelProvider';
+import { randomUUID } from 'node:crypto';
+import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import type { AgentCompletion, AgentMessage, ModelAdapter } from './modelProtocol';
 
 /** Only for the existing DeepSeek adapter and previously registered test providers. */
@@ -15,6 +16,27 @@ export function toLegacyMessages(messages: AgentMessage[]): import('./modelProvi
 }
 
 export function createDeepSeekAdapter(invoke: typeof completeWithDeepSeek = completeWithDeepSeek): ModelAdapter {
-  return async (messages, signal, onDelta, options) => fromLegacyCompletion(
-    await invoke(toLegacyMessages(messages), signal, onDelta, options));
+  const continuations = new Map<string, { model: string; reasoning: string }>();
+  return async (messages, signal, onDelta, options) => {
+    const wire = toLegacyMessages(messages);
+    if (options?.reasoningEffort && options.tools?.length !== 0) {
+      for (const [index, message] of messages.entries()) {
+        if (!message.continuation?.startsWith('deepseek:')) continue;
+        const saved = continuations.get(message.continuation);
+        if (!saved) throw new ModelProviderError('invalid_response');
+        if (saved.model === options.model) wire[index].reasoning_content = saved.reasoning;
+      }
+    }
+    const result = await invoke(wire, signal, onDelta, options);
+    const completion = fromLegacyCompletion(result);
+    if (options?.reasoningEffort && completion.message.calls?.length) {
+      const reasoning = result.message.reasoning_content;
+      if (typeof reasoning !== 'string') throw new ModelProviderError('invalid_response');
+      const handle = 'deepseek:' + randomUUID();
+      continuations.set(handle, { model: options.model, reasoning });
+      completion.message.continuation = handle;
+      completion.message.continuationBudgetBytes = Buffer.byteLength(JSON.stringify({ reasoning_content: reasoning }));
+    }
+    return completion;
+  };
 }

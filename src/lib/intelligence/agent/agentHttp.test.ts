@@ -149,14 +149,14 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.provider).not.toHaveBeenCalled(); expect(state.structured).not.toHaveBeenCalled();
   });
 
-  it('does not pair a Q3 narrative with the last all-unknown Q4 check when no primary result was chosen', async () => {
+  it.each([false, true])('retains current results when the model omits selection (Q4 has data: %s)', async available => {
     const rawA = buildAggregateResult(fixture(), 'rent');
     const a = { ...rawA, parameters: { ...rawA.parameters, executedPlan: parseQueryPlan({ operation: 'aggregate',
       scope: { inventory: 'tracked' }, period: { year: 2026, quarter: 3 }, metric: 'rent' }) } };
     const rawB = buildAggregateResult(fixture({ year: 2026, quarter: 4 }), 'rent');
     const b = { ...rawB, parameters: { ...rawB.parameters, period: { year: 2026, quarter: 4 },
       executedPlan: parseQueryPlan({ operation: 'aggregate', scope: { inventory: 'tracked' }, period: { year: 2026, quarter: 4 }, metric: 'rent' }) },
-      table: { ...rawB.table, rows: rawB.table.rows.map(row => ({ ...row, cells: Object.fromEntries(
+      table: available ? rawB.table : { ...rawB.table, rows: rawB.table.rows.map(row => ({ ...row, cells: Object.fromEntries(
         Object.entries(row.cells).map(([key, cell]) => [key, { kind: 'unknown' as const, state: 'missing' as const,
           reason: 'no_valid_sample', sourceIds: cell.sourceIds }])) })) } };
     const tool = (id: string, quarter: number) => ({ id, type: 'function', function: {
@@ -171,10 +171,14 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     const response = await handleAgentSubmission(fakeRequest('查询季度统计，并检查后一季度覆盖。').request, deps());
     const body = await response.json();
     expect(response.status).toBe(200);
-    expect(body.result).toBeUndefined();
-    expect(body.agent.executionStatus).toBe('limited');
-    expect(body.message).toContain('尚未确认');
+    expect(body.result.resultId).toBe(a.resultId);
+    expect(body.agent.executionStatus).toBe('partial');
+    expect(body.answerSelection.status).toBe('partial');
+    expect(body.answerSelection.results.map(({ result }: { result: { resultId: string } }) => result.resultId))
+      .toEqual(available ? [a.resultId, b.resultId] : [a.resultId]);
     expect(body.message).not.toContain('Q3有可用统计');
+    expect(state.append.mock.calls.find(entry => entry[1] === 'response_generated')?.[2].result)
+      .toEqual(body.answerSelection);
   });
 
   it('keeps an explicitly selected Q3 primary after a later all-unknown Q4 query without archiving the unrelated check', async () => {

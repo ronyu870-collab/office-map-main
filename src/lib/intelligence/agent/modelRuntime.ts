@@ -3,9 +3,9 @@ import { selectConfiguredModel, type RegisteredModel } from '../control/config';
 import type { RuntimeControlBinding } from '../control/runtimeControl';
 import { requiresDataFactEvidence } from './queryObligation';
 import { compactModelContext, modelContextEnvelope, externalModelForbidden } from './modelContext';
-import { AGENT_TOOLS, completeWithDeepSeek, deepseekAgentConfigured, ModelProviderError } from './modelProvider';
+import { AGENT_TOOLS, completeWithDeepSeek, deepseekAgentConfigured, deepSeekModelForMode, ModelProviderError } from './modelProvider';
 import { createOpenAIAdapter } from './openaiAdapter';
-import type { AgentMessage, AgentCompletion, ModelAdapter, ProviderId } from './modelProtocol';
+import type { AgentMessage, AgentCompletion, ModelAdapter, ProviderId, ReasoningEffort } from './modelProtocol';
 import { createDeepSeekAdapter } from './deepseekAdapter';
 import { scopedModelProfileSchema, type ScopedModelProfile } from './modelProfile';
 import { pitchPreparationTools } from '@/src/lib/pitch/ai/toolSchemas';
@@ -22,7 +22,7 @@ const boundedNumber = (name: string, fallback: number, min: number, max: number)
   return value;
 };
 export function chooseModelMode(question: string, requested?: ModelMode): ModelMode {
-  return requested ?? (/研究|报告|Word|PPT|PDF|多季度|综合|八个季度/i.test(question) ? 'deep'
+  return requested ?? (/研究|报告|Word|PPT|PDF|多季度|综合|八个季度|选址|shortlist|research|briefing/i.test(question) ? 'deep'
     : /比较|趋势|图|导出|Excel|CSV|排名|最高|最低|租金|空置|所有楼|哪些楼|权限|高度|子市场|列出|查询|季度|翻页|楼宇|查|租赁|成交|行业|租户|TMT|空调|停车|地铁|竣工|认证/i.test(question) ? 'professional' : 'quick');
 }
 function openAIAllowed(actorId: string) {
@@ -49,6 +49,7 @@ export type ModelAttempt = {
   protocol: 'agent-model-attempt/1'; mode: ModelMode; attempt: number; provider: ProviderId; model: string;
   state: 'completed' | 'failed'; errorCode?: string; fallback: boolean; durationMs: number;
   inputTokens: number | null; outputTokens: number | null; cachedInputTokens: number | null; reasoningTokens: number | null;
+  reasoningEffort?: ReasoningEffort | null;
   providerRequestId: string | null; estimateUsd: number; estimateBasis: string;
   reservationTokens: number; chargedTokens: number; usageStatus: 'provider_reported' | 'unknown_reserved' | 'not_sent';
   configurationVersion?: string;
@@ -56,7 +57,7 @@ export type ModelAttempt = {
   context?: ReturnType<typeof modelContextEnvelope>;
   billing: { actualUsd: null; state: 'not_reconciled'; currency: 'USD' };
 };
-const retryable = new Set(['not_configured', 'rate_limited', 'timeout', 'provider_unavailable', 'model_not_found', 'payment_required', 'stream_interrupted']);
+const retryable = new Set(['not_configured', 'timeout', 'provider_unavailable', 'model_not_found', 'stream_interrupted']);
 
 /** Avoid sending four copies of the 11KiB chart spec and unrelated domain tools
  * on every round. This is a model capability catalogue, never a data grant. */
@@ -164,7 +165,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
       return { model, rates: { input: boundedNumber('OPENAI_AGENT_INPUT_USD_PER_MILLION', NaN, 0, 1000),
         output: boundedNumber('OPENAI_AGENT_OUTPUT_USD_PER_MILLION', NaN, 0, 1000), basis: 'operator_configured_upper_rates_not_invoice' } };
     }
-    const model = process.env.DEEPSEEK_CHAT_MODEL?.trim() || process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-flash';
+    const { model } = deepSeekModelForMode(mode);
     const rates: Rates = model === 'deepseek-v4-pro' ? { input: 1.32, output: 3.96, basis: 'deepseek_planning_upper_range_2026-11-19_not_invoice' }
       : { input: .3, output: 1.2, basis: 'deepseek_planning_upper_range_2026-11-19_not_invoice' };
     return { model, rates };
@@ -189,9 +190,17 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         settings = { model: 'unconfigured', rates: { input: 0, output: 0, basis: 'request_not_sent' } };
       }
       const { model, rates } = settings;
+      const thinkingApproved = selected
+        ? selected.reasoning === true && selected.continuation
+        : deepSeekModelForMode(mode).thinkingConfigured;
+      const reasoningEffort: ReasoningEffort | undefined =
+        provider === 'deepseek' && !scoped && !input.protocolTest && thinkingApproved && mode !== 'quick'
+          ? mode === 'deep' && purpose !== 'semantic_intent' ? 'high' : 'low'
+          : undefined;
       const tools = scoped ? [] : input.protocolTest ? input.protocolTest === 'tools' ? [{name:'synthetic_sum',description:'Return the sum of the two synthetic integers.',parameters:{type:'object',properties:{a:{type:'integer'},b:{type:'integer'}},required:['a','b'],additionalProperties:false}}] : [] : purpose === 'semantic_intent' ? [] : modelToolCatalogue(input.question, mode, messages, input.hasChartContext, input.contextDomains)
         .filter(tool => !snapshot?.config.disabledTools.includes(tool.name));
-      const outputLimit = purpose === 'semantic_intent' ? Math.min(1200, maxOutputTokens) : maxOutputTokens;
+      const governedOutput = Math.min(maxOutputTokens, selected?.outputLimit ?? Infinity);
+      const outputLimit = purpose === 'semantic_intent' ? Math.min(1200, governedOutput) : governedOutput;
       const context = modelContextEnvelope(provider, messages, tools);
       const upperInput = context.inputUpperTokens;
       if (selected?.contextLimit !== null && selected?.contextLimit !== undefined && upperInput + outputLimit > selected.contextLimit) throw new ModelProviderError('invalid_configuration');
@@ -216,7 +225,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         sent = true;
         result = await (input.adapters?.[provider] ?? (provider === 'deepseek' ? deepseek : openai))(messages, signal,
           onDelta ? async delta => { deltas.push(delta); if (deltas.join('').length > 12000) throw new ModelProviderError('invalid_response'); } : undefined,
-          { model, maxOutputTokens: outputLimit, timeoutMs: purpose === 'semantic_intent' ? Math.min(12000, timeoutMs) : timeoutMs, tools,
+          { model, maxOutputTokens: outputLimit, reasoningEffort, timeoutMs: purpose === 'semantic_intent' ? Math.min(12000, timeoutMs) : timeoutMs, tools,
             ...(purpose === 'semantic_intent' && provider === 'deepseek' || input.protocolTest === 'structured' ? { responseFormat: 'json_object' as const, maxResponseBytes: 32768 } : {}) });
         if (result.provider !== provider || !Number.isSafeInteger(result.inputTokens ?? 0) || !Number.isSafeInteger(result.outputTokens ?? 0)
           || (result.inputTokens ?? 0) < 0 || (result.outputTokens ?? 0) < 0
@@ -236,6 +245,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         state: failure ? 'failed' : 'completed', ...(errorCode ? { errorCode } : {}), fallback: fallbackUsed,
         durationMs: Math.max(0, Date.now() - started), inputTokens: result?.inputTokens ?? null, outputTokens: result?.outputTokens ?? null,
         cachedInputTokens: result?.cachedInputTokens ?? null, reasoningTokens: result?.reasoningTokens ?? null,
+        ...(provider === 'deepseek' && !notSent ? { reasoningEffort: reasoningEffort ?? null } : {}),
         providerRequestId: result?.providerRequestId?.slice(0, 150) ?? null, estimateUsd, estimateBasis: rates.basis,
         reservationTokens: reserveTokens, chargedTokens, usageStatus: notSent ? 'not_sent' : known ? 'provider_reported' : 'unknown_reserved',
         billing: { actualUsd: null, state: 'not_reconciled', currency: 'USD' } };

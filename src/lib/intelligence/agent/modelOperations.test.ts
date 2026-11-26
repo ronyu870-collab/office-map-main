@@ -88,7 +88,34 @@ describe('official OpenAI Responses SDK adapter (simulated supplier, no live key
 });
 
 describe('bounded routing, fallback and model cost governance', () => {
-  it.each(['not_configured', 'rate_limited', 'timeout', 'payment_required', 'model_not_found', 'provider_unavailable', 'stream_interrupted'] as const)(
+  it.each([
+    ['quick', 'deepseek-flash', undefined],
+    ['professional', 'deepseek-flash', 'low'],
+    ['deep', 'deepseek-v4-pro', 'high'],
+  ] as const)('routes the explicitly configured %s mode through the real DeepSeek wire', async (mode, model, effort) => {
+    setup();
+    vi.stubEnv('DEEPSEEK_API_KEY', 'synthetic-deepseek');
+    vi.stubEnv('DEEPSEEK_CHAT_MODEL', 'deepseek-flash');
+    vi.stubEnv('DEEPSEEK_CHAT_MODEL_PROFESSIONAL', 'deepseek-flash');
+    vi.stubEnv('DEEPSEEK_CHAT_MODEL_DEEP', 'deepseek-v4-pro');
+    vi.stubEnv('AI_PROVIDER_PROFESSIONAL', 'deepseek');
+    vi.stubEnv('AI_PROVIDER_DEEP', 'deepseek');
+    const fetch = vi.fn().mockResolvedValue(Response.json({
+      id: 'synthetic', model, choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '已完成' } }],
+      usage: { prompt_tokens: 40, completion_tokens: 20 },
+    }));
+    vi.stubGlobal('fetch', fetch);
+    const run = createModelRuntime({ actorId, question: '分析最新租金并生成研究简报', mode,
+      revalidate: vi.fn().mockResolvedValue(undefined), onAttempt: vi.fn().mockResolvedValue(undefined) });
+    await run.invoke(messages, signal());
+    const request = JSON.parse(String(fetch.mock.calls[0][1].body));
+    expect(request.model).toBe(model);
+    expect(request.thinking).toEqual({ type: effort ? 'enabled' : 'disabled' });
+    expect(request.reasoning_effort).toBe(effort);
+    expect(run.records[0]).toMatchObject({ model, reasoningEffort: effort ?? null, usageStatus: 'provider_reported' });
+  });
+
+  it.each(['not_configured', 'timeout', 'model_not_found', 'provider_unavailable', 'stream_interrupted'] as const)(
     'falls back once for %s only when authorized and within budgets, recording both attempts', async code => {
       setup(); const deepseek = vi.fn().mockRejectedValue(new ModelProviderError(code)), openai = vi.fn().mockResolvedValue(success('openai'));
       const run = runtime({ deepseek, openai }); expect((await run.invoke(messages, signal())).provider).toBe('openai');
@@ -97,9 +124,9 @@ describe('bounded routing, fallback and model cost governance', () => {
       expect(run.records[0].usageStatus).toBe(code === 'not_configured' ? 'not_sent' : 'unknown_reserved');
       expect(run.summary().actualBilledUsd).toBeNull(); expect(JSON.stringify(run.records)).not.toMatch(/synthetic-secret|private-contract/);
     });
-  it('never falls back on business denial, credentials failure, malformed output or cancellation; no alternate disclosure without actor opt-in', async () => {
+  it('never falls back on denial, credentials, quota, malformed output or cancellation; no alternate disclosure without actor opt-in', async () => {
     setup(); const openai = vi.fn().mockResolvedValue(success('openai'));
-    for (const error of [new Error('QUERY_DENIED'), new ModelProviderError('unauthorized'), new ModelProviderError('invalid_response')]) {
+    for (const error of [new Error('QUERY_DENIED'), new ModelProviderError('unauthorized'), new ModelProviderError('payment_required'), new ModelProviderError('rate_limited'), new ModelProviderError('invalid_response')]) {
       await expect(runtime({ deepseek: vi.fn().mockRejectedValue(error), openai }).invoke(messages, signal())).rejects.toBe(error);
     }
     vi.stubEnv('AI_OPENAI_ACTOR_IDS', 'another-user');
