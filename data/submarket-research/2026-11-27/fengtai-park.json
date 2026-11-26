@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "market": "丰台科技园",
+  "positioning": "面向轨道交通、通信等专业行业的西南研发与产业办公区",
+  "updatedOn": "2026-11-27",
+  "focus": "stock",
+  "sources": [
+    {
+      "id": "railtech",
+      "title": "交控大厦与丰台园轨道交通产业",
+      "publisher": "丰台区人民政府",
+      "url": "https://www.bjft.gov.cn/ftq/bmdt/202305/f8a89924cc094d27959ee8e9b5b21568.shtml",
+      "publishedOn": null,
+      "observedAt": "2023年5月报道",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "中关村科技园丰台园东区及轨道交通产业集群",
+      "basis": "公开资料记录交控大厦是丰台园东区三期项目，面向轨道交通产业创新。"
+    },
+    {
+      "id": "hage",
+      "title": "丰台两家特色产业园认定",
+      "publisher": "丰台时报",
+      "url": "https://www.bjft.gov.cn/fengtaishibao/html/2025-09/12/content_9499_18883801.htm",
+      "publishedOn": "2025-09-12",
+      "observedAt": "2025-09认定报道",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "project",
+      "scope": "海格通信·北京产业园",
+      "basis": "报道记录海格通信·北京产业园获认定为中关村特色产业园。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "轨道交通创新有专门空间",
+      "body": "丰台园公开材料把东区三期交控大厦与轨道交通研发及配套服务联系起来。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "railtech"
+      ]
+    },
+    {
+      "title": "通信园区获认定",
+      "body": "海格通信·北京产业园获中关村特色产业园认定，提供另一个专业载体案例。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "hage"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "把工程客户与测试环境纳入项目比较",
+      "body": "面向轨道系统、通信设备等客户的团队，可比较到合作企业的通勤、样机搬运和实验条件。轻办公团队再将这些条件与标准办公单位的空间效率和实际报价权衡。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "丰台园专业产业载体",
+      "limitation": "行业园区案例只证明载体定位和认定情况，当前样本无法估计全区需求份额或去化。",
+      "sourceIds": [
+        "railtech",
+        "hage"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "buildingId": "2454c12e-fe6c-4434-8377-6dd779246359",
+      "role": "通信产业办公载体",
+      "reason": "与政府公开报道中的海格通信·北京产业园对应。",
+      "sourceIds": [
+        "hage"
+      ]
+    }
+  ]
+}

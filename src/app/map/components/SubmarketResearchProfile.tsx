@@ -1,8 +1,9 @@
+import { SubmarketIntelligenceBrief } from './SubmarketIntelligenceBrief';
 import { ExternalLink } from 'lucide-react';
 import type { SubmarketProfile } from '../model/submarketProfile';
 
 export function hasSubmarketProfileContent(profile: SubmarketProfile | null): boolean {
-  return Boolean(profile && (profile.headline || profile.overview || profile.industries || profile.transport ||
+  return Boolean(profile && (profile.research || profile.headline || profile.overview || profile.industries || profile.transport ||
     profile.demographics.length || profile.policies.length || profile.insights.length));
 }
 
@@ -14,18 +15,20 @@ function SourceLink({ href, label }: { href: string; label: string }) {
   </a>;
 }
 
-export function SubmarketResearchProfile({ profile, state, onRetry }: {
+export function SubmarketResearchProfile({ profile, state, onRetry, leadShown }: {
   profile: SubmarketProfile | null;
   state: 'loading' | 'error' | 'ready';
   onRetry?: () => void;
+  leadShown?: boolean;
 }) {
   const hasBody = profile && (textSections.some(([id]) => profile[id]) || profile.demographics.length || profile.policies.length || profile.insights.length);
   return <section className="submarket-research-chapter submarket-profile" aria-labelledby="submarket-profile-heading">
-    <h3 id="submarket-profile-heading">区域画像</h3>
+    <h3 id="submarket-profile-heading">{profile?.research ? '区域研究' : '区域画像'}</h3>
     {state === 'loading' ? <p role="status">正在读取区域画像…</p>
       : state === 'error' ? <div className="submarket-read-status"><p role="status">区域画像暂不可用。</p>
         {onRetry ? <button type="button" className="submarket-quiet-action" onClick={onRetry}>重试区域画像</button> : null}
       </div>
+        : profile?.research ? <SubmarketIntelligenceBrief research={profile.research} leadShown={leadShown} />
         : !profile || !hasBody ? <p className="submarket-profile-meta">{profile?.headline ? '已发布区域定位见标题下方，暂无其他区域资料。' : '暂无已发布的区域画像。'}</p>
           : <div className="submarket-profile-groups">
             {textSections.map(([id, label]) => profile[id] ? <section key={id} className="submarket-profile-group">

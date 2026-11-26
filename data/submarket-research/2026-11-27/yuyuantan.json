@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "market": "玉渊潭",
+  "positioning": "公主坟及西三环一带的存量办公市场，楼宇级核验重于区域均值",
+  "updatedOn": "2026-11-27",
+  "focus": "matched-rent",
+  "sources": [
+    {
+      "id": "gongzhufen",
+      "title": "公主坟商圈更新资料",
+      "publisher": "海淀区商务局公开信息",
+      "url": "https://zyk.bjhd.gov.cn/jbdt/auto10489_51767/zfwj_59297/202005/t20200513_4403838.shtml?type=computer",
+      "publishedOn": "2020-05-13",
+      "observedAt": "2020年初步设计阶段",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "公主坟商圈",
+      "basis": "材料明确商圈由翠微、城乡、印象城、凯德晶品和新兴宾馆等节点构成；所述改造仍是当时方案。"
+    },
+    {
+      "id": "metro",
+      "title": "公主坟站运营信息",
+      "publisher": "北京地铁",
+      "url": "https://www.bjsubway.com/station/xltcx/line1/2013-08-19/10.html?sk=1",
+      "publishedOn": null,
+      "observedAt": "运营站点查询",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "network",
+      "scope": "公主坟轨道站及换乘",
+      "basis": "公主坟为1号线八通线与10号线换乘站。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "公主坟是复兴路商业轴的锚点",
+      "body": "翠微与城乡等存量商业节点集中在公主坟，构成就近服务和步行的实际参照。",
+      "kind": "place",
+      "status": "observed",
+      "sourceIds": [
+        "gongzhufen"
+      ]
+    },
+    {
+      "title": "公主坟站",
+      "body": "复兴路与西三环交会处可换乘1号线八通线和10号线，服务东西向和环线通勤。",
+      "kind": "transit",
+      "status": "observed",
+      "sourceIds": [
+        "metro"
+      ],
+      "lines": [
+        "1号线八通线",
+        "10号线"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "用楼宇距离和实勘条件控制样本误差",
+      "body": "先把项目按公主坟步行圈、西三环其他节点分组，再看门厅、电梯、机电状态与可租楼层。零星季度观测适合作为单楼价格线索，难以支撑横跨整个标签的议价区间。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "平台玉渊潭样本；公主坟为其中一个区位参照",
+      "limitation": "B级标签本身无法确认楼龄和改造状态，当前资料不足以判断整体租金走势。",
+      "sourceIds": [
+        "gongzhufen",
+        "metro"
+      ]
+    }
+  ],
+  "projects": []
+}

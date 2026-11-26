@@ -372,6 +372,12 @@ jobs:
         env:
           NEXT_PUBLIC_AMAP_KEY: syntheticfixture
 
+      - name: PostgreSQL 17, PostgREST and production-build submarket research regression
+        run: node --experimental-strip-types supabase/tests/submarket-research/run.mjs --http
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
       - name: Browser measurement calibration and anonymous production-build regression
         shell: bash
         run: |

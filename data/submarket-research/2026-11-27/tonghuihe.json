@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "market": "通惠河传媒走廊",
+  "positioning": "由广告、影像和文化创意载体构成的CBD东向园区市场",
+  "updatedOn": "2026-11-27",
+  "focus": "stock",
+  "sources": [
+    {
+      "id": "ad",
+      "title": "北京国家广告产业园与通惠河畔更新",
+      "publisher": "首都之窗转引北京发布",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202610/t20261030_4925085.html",
+      "publishedOn": "2026-10-30",
+      "observedAt": "2026-10-29重开；2012年前后园区建设回顾",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "project",
+      "scope": "北京国家广告产业园与毗邻的通惠河畔项目",
+      "basis": "报道确认国家广告产业园为CBD—定福庄国际传媒产业走廊的一部分；相邻欧式小镇已重开。"
+    },
+    {
+      "id": "media",
+      "title": "朝阳区数字视听产业专项行动计划解读",
+      "publisher": "首都之窗",
+      "url": "https://www.beijing.gov.cn/ywdt/gqrd/202601/t20260127_4469823.html",
+      "publishedOn": "2026-01-27",
+      "observedAt": "2026年行动计划发布",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "朝阳区数字视听产业及CBD—定福庄走廊",
+      "basis": "公开解读将传媒走廊作为数字视听方向的功能载体。"
+    },
+    {
+      "id": "art",
+      "title": "方寸数字艺术馆开进莱锦产业园",
+      "publisher": "首都之窗转引北京日报",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202405/t20240529_3697539.html",
+      "publishedOn": "2024-05-29",
+      "observedAt": "2024年5月开馆报道",
+      "verifiedOn": "2026-11-27",
+      "scope": "莱锦文化创意产业园",
+      "scopeType": "project",
+      "basis": "报道记录莱锦园区中的数字艺术馆开馆，提供园区文化内容的实际运营案例。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "广告产业有明确的园区节点",
+      "body": "北京国家广告产业园是CBD—定福庄国际传媒产业走廊的已建产业载体。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "ad"
+      ]
+    },
+    {
+      "title": "莱锦园区的内容与展示空间",
+      "body": "方寸数字艺术馆于2024年在莱锦产业园落地，体现园区能够承载内容展示活动。",
+      "kind": "place",
+      "status": "observed",
+      "sourceIds": [
+        "art"
+      ]
+    },
+    {
+      "title": "数字视听属于功能区政策方向",
+      "body": "朝阳区公开行动计划把传媒走廊纳入数字视听产业发展的空间布局。",
+      "kind": "policy",
+      "status": "planned",
+      "sourceIds": [
+        "media"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "制作空间与客户办公室需要不同的筛选条件",
+      "body": "需要影棚、后期机房或装卸通道的企业，可从特色园区逐栋核对层高、隔声、供电和消防。以客户接待为主的前台团队，还可把CBD标准写字楼纳入拆分选址。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "通惠河沿线产业办公与CBD客户接口",
+      "limitation": "政策方向和园区身份无法证明具体楼栋可搭建摄影棚或有当前空租。",
+      "sourceIds": [
+        "ad",
+        "media"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "buildingId": "367fb521-0a07-4710-b4a8-1e69b9975196",
+      "role": "广告产业载体",
+      "reason": "公开材料和平台均将北京国家广告产业园识别为该传媒走廊的项目。",
+      "sourceIds": [
+        "ad"
+      ]
+    },
+    {
+      "buildingId": "b34e04c2-02f5-49fd-9c23-ff083fb605fe",
+      "role": "内容展示型园区",
+      "reason": "莱锦有可追溯的数字艺术展示场地，提供与广告产业园不同的文创载体案例。",
+      "sourceIds": [
+        "art"
+      ]
+    }
+  ]
+}
