@@ -34,6 +34,69 @@ try {
   }
   assert.equal((await insert('system')).actor_kind,'system');
  });
+ // The fixture has the original identity migration; actor_role is the additive
+ // column from 20261121105118. Apply the real external identity migration.
+ await db.setup.query('alter table public.audit_logs add column actor_role text');
+ const externalMigration=await readFile(new URL('../../migrations/20261126121500_audit_external_tool_identity.sql',import.meta.url),'utf8');
+ const maintenanceInsert=async(user,source,action,module,table,details,when='2026-11-27 00:00:00+00')=>(await db.setup.query(
+  `insert into public.audit_logs(user_id,request_source,action_type,module,target_table,details,created_at,old_values,new_values)
+   values($1,$2,$3,$4,$5,$6,$7,'{"submarket":null}'::jsonb,'{"submarket":"CBD"}'::jsonb) returning *`,
+  [user,source,action,module,table,details,when])).rows[0];
+ const historical=[
+  ['chatgpt','chatgpt_mcp','AI_FIELD_FILL','building_data_ai_enrichment','building_brochure_data',{batch_id:'ai_brochure_submarket_20261124_100_v1',field_name:'submarket'},'2026-11-24 14:49:06+00','ChatGPT（工具执行）'],
+  ['chatgpt','chatgpt_mcp','AI_FIELD_FILL','building_data_ai_enrichment','building_brochure_data',{batch_id:'ai_technical_fields_20261124_v2'},'2026-11-24 15:08:14+00','ChatGPT（工具执行）'],
+  ['chatgpt','server','BUILDING_PHOTO_STORAGE_BACKFILL_RECEIPT','map','building_photos',{batch_id:'20261106-chatgpt-external-links-b8'},'2026-11-06 07:45:00+00','ChatGPT（工具执行）'],
+  ['tool:chatgpt_submarket_research','frontend','ADMIN_DATA_OPERATION','map','map_submarket_profiles',{operation:'ai_source_asof_correction'},'2026-11-19 06:25:00+00','ChatGPT（子市场研究）'],
+  ['assistant:authorized-auto-publication','frontend','ADMIN_DATA_OPERATION','map','map_submarket_profiles',{operation:'auto_publish_submarket_client_brief'},'2026-11-20 04:55:00+00','AI 助手（资料发布）'],
+ ];
+ const historicRows=[];
+ for(const entry of historical)historicRows.push(await maintenanceInsert(...entry.slice(0,7)));
+ const wrongBatch=await maintenanceInsert('chatgpt','chatgpt_mcp','AI_FIELD_FILL','building_data_ai_enrichment','building_brochure_data',{batch_id:'unverified'},'2026-11-24 14:49:06+00');
+ const wrongOperation=await maintenanceInsert('tool:chatgpt_submarket_research','frontend','ADMIN_DATA_OPERATION','map','map_submarket_profiles',{operation:'unverified'},'2026-11-19 06:25:00+00');
+ const wrongDate=await maintenanceInsert(...historical[4].slice(0,6));
+ const originalEvidence=async()=>(await db.setup.query("select jsonb_agg(to_jsonb(a)-'actor_kind'-'actor_name' order by id) data from public.audit_logs a")).rows[0].data;
+ const readRow=async id=>(await db.setup.query('select * from public.audit_logs where id=$1',[id])).rows[0];
+ const beforeExternal=await originalEvidence();
+ await check('scoped historical external actor repair preserves every original field and is idempotent',async()=>{
+  await db.setup.query(externalMigration);
+  assert.deepEqual(await originalEvidence(),beforeExternal);
+  for(let i=0;i<historicRows.length;i++){
+   const row=await readRow(historicRows[i].id);
+   assert.equal(row.actor_kind,'tool');assert.equal(row.actor_name,historical[i][7]);assert.equal(row.actor_role,null);
+  }
+  for(const original of [wrongBatch,wrongOperation,wrongDate])assert.equal((await readRow(original.id)).actor_kind,'unknown');
+  const classified=(await db.setup.query('select jsonb_agg(to_jsonb(a) order by id) data from public.audit_logs a')).rows[0].data;
+  await db.setup.query(externalMigration);
+  assert.deepEqual((await db.setup.query('select jsonb_agg(to_jsonb(a) order by id) data from public.audit_logs a')).rows[0].data,classified);
+ });
+ await check('new external writes use exact registered identifiers and trusted source, never caller-provided snapshots',async()=>{
+  for(const [id,label] of [['chatgpt','ChatGPT（工具执行）'],['tool:chatgpt_submarket_research','ChatGPT（子市场研究）'],['assistant:authorized-auto-publication','AI 助手（资料发布）']]){
+   for(const source of ['chatgpt_mcp','server']){
+    const row=await maintenanceInsert(id,source,'AI_FIELD_FILL','building_data_ai_enrichment','building_brochure_data',{batch_id:'future'});
+    assert.equal(row.actor_kind,'tool');assert.equal(row.actor_name,label);assert.equal(row.actor_role,null);
+   }
+   const frontend=await maintenanceInsert(id,'frontend','AI_FIELD_FILL','building_data_ai_enrichment','building_brochure_data',{});
+   assert.equal(frontend.actor_kind,'unknown');assert.equal(frontend.actor_name,null);
+  }
+  for(const id of ['tool:unregistered','chatgpt-fake','CHATGPT']){
+   const row=await maintenanceInsert(id,'chatgpt_mcp','AI_FIELD_FILL','building_data_ai_enrichment','building_brochure_data',{});
+   assert.equal(row.actor_kind,'unknown');assert.equal(row.actor_name,null);
+  }
+  const spoof=(await db.setup.query("insert into public.audit_logs(user_id,action_type,request_source,actor_kind,actor_name,actor_role) values('unknown','AI_FIELD_FILL','chatgpt_mcp','tool','forged','admin') returning *")).rows[0];
+  assert.equal(spoof.actor_kind,'unknown');assert.equal(spoof.actor_name,null);assert.equal(spoof.actor_role,null);
+  assert.equal((await insert(OWNER)).actor_kind,'user');
+  assert.equal((await insert('codex')).actor_kind,'tool');
+  assert.equal((await insert('system')).actor_kind,'system');
+ });
+ await check('authenticated sessions cannot forge external actor identity or write the audit table directly',async()=>{
+  await assert.rejects(db.asUser(OWNER,"insert into public.audit_logs(user_id,action_type,request_source) values('chatgpt','AI_FIELD_FILL','chatgpt_mcp')"),e=>e.code==='42501');
+  await db.setup.query('begin');
+  try {
+   await db.setup.query("select set_config('request.jwt.claim.sub',$1,true)",[OWNER]);
+   const row=await maintenanceInsert('chatgpt','chatgpt_mcp','AI_FIELD_FILL','building_data_ai_enrichment','building_brochure_data',{});
+   assert.equal(row.actor_kind,'unknown');
+  } finally {await db.setup.query('rollback');}
+ });
  await db.repair();
  await check('real editor lease update writes actor and before/after snapshots through both triggers',async()=>{
   await db.asUser(OWNER,'update public.lease_transactions set face_rent=230 where id=$1',[recordId()]);
