@@ -1,5 +1,8 @@
 # 统一AI查数、对话与审计开发索引
 
+Pitch Studio 的可选智能辅助复用本模块运行时、工具及费用协议；指定素材版本的独立处理授权、任务运营与限制见 [Pitch AI](../pitch-studio/ai-intelligence.md)。既有知识正文出站保护与 admin 本人限制保持不变。
+
+
 运行时继续受默认关闭的配置开关、当前角色与独立资格共同约束；实际生产状态以对应发布记录为准。P0 对话与结果展示已随 PR #199 合并；本次 P1 的实现、验证及发布状态见下方专门记录。现有管理员业务智能、方案及 F6 路线继续保留。
 
 当前用户决定：**所有AI功能仅供admin本人使用**，仍需对应独立查询/数据/导出/审计资格。普通角色或模拟身份不可使用，旧公开预览开关不能扩大范围。以前工作包允许持资格viewer/editor的证据仅是历史行为，已被本包替代。见[admin专用限制与验证](admin-only-access.md)。
@@ -8,6 +11,7 @@
 | --- | --- |
 | Colliers AI 可靠性评测、预算台账、确定性修复与独立验收 | [评测入口与分层证据](evaluation/README.md) |
 | Colliers AI 6.0 执行路径、统一预算与结果恢复 | [执行效率重构与验证](ai6-efficient-runtime.md) |
+| 自主研发检查点、连续筛选与导出范围、下一轮研究方向 | [研发状态](evolution/STATE.md) |
 | Colliers AI 6.0 结构化回答、交互表格、附件与工作空间 | [实施与验证边界](ai6-workspace.md) |
 | Colliers AI 5.0 阶段 12 实际能力矩阵、成果完成判定、分页预算与最终回归 | [最终工程收口](ai5-final-hardening.md) |
 | Colliers AI 5.0 阶段 11 官方 Responses／DeepSeek 统一协议、有界恢复与成本治理 | [模型运行与运营治理](ai5-model-operations.md) |

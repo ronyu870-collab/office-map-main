@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HomeQueryMenu } from '../HomeQueryMenu';
 
@@ -62,6 +62,48 @@ it('keeps an open menu when layout compensation changes ancestor scroll offsets 
   fireEvent.scroll(inner); fireEvent.scroll(outer);
   expect(trigger).toHaveAttribute('aria-expanded', 'true');
   fireEvent.click(screen.getByRole('button', { name: '复制' }));
+  expect(trigger).toHaveAttribute('aria-expanded', 'false');
+});
+
+it('uses the latest measured anchor after a resize before checking compensated scrolling', () => {
+  const popover = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'showPopover');
+  Object.defineProperty(HTMLElement.prototype, 'showPopover', { value: () => {}, configurable: true });
+  let frame: FrameRequestCallback | undefined;
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => { frame = callback; return 1; });
+  try {
+    const view = render(<div data-testid="scroll"><HomeQueryMenu label="重新定位"><button>复制</button></HomeQueryMenu></div>);
+    const trigger = screen.getByRole('button', { name: '重新定位' }), scroller = view.getByTestId('scroll');
+    let top = 100;
+    vi.spyOn(trigger, 'getBoundingClientRect').mockImplementation(() => ({ top, bottom: top + 40, left: 200, right: 300, width: 100, height: 40 }) as DOMRect);
+    fireEvent.click(trigger);
+    top = 120;
+    fireEvent(window, new Event('resize'));
+    act(() => frame!(0));
+    expect(view.container.querySelector('[data-query-menu-panel]')).toHaveStyle({ top: '164px' });
+    scroller.scrollTop = 10; fireEvent.scroll(scroller);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    top = 110; scroller.scrollTop = 20; fireEvent.scroll(scroller);
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  } finally {
+    if (popover) Object.defineProperty(HTMLElement.prototype, 'showPopover', popover);
+    else Reflect.deleteProperty(HTMLElement.prototype, 'showPopover');
+  }
+});
+
+it('repositions through content shrink scroll clamping, then dismisses an actual reader scroll', () => {
+  const view = render(<div data-testid="scroll"><HomeQueryMenu label="内容更新"><button>复制</button></HomeQueryMenu></div>);
+  const scroller = view.getByTestId('scroll'), trigger = screen.getByRole('button', { name: '内容更新' });
+  let height = 900, top = 100;
+  Object.defineProperties(scroller, { scrollHeight: { get: () => height }, clientHeight: { get: () => 300 } });
+  vi.spyOn(trigger, 'getBoundingClientRect').mockImplementation(() => ({ top, left: 200 }) as DOMRect);
+  scroller.scrollTop = 600;
+  fireEvent.click(trigger);
+  // Removing transient content clamps a scroller near its end. This is a
+  // layout update, so keep the menu aligned instead of interpreting it as input.
+  height = 852; top = 98; scroller.scrollTop = 552; fireEvent.scroll(scroller);
+  expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  // The next movement with unchanged layout still dismisses normally.
+  top = 118; scroller.scrollTop = 532; fireEvent.scroll(scroller);
   expect(trigger).toHaveAttribute('aria-expanded', 'false');
 });
 

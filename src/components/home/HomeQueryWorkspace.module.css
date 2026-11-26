@@ -148,6 +148,9 @@
   .history[hidden], .research[hidden] { opacity: 0; transform: translateY(4px); }
   @starting-style { .history:not([hidden]), .research:not([hidden]) { opacity: 0; transform: translateY(4px); } }
 }
+/* Compact mode returns to document flow. A hidden sidebar's discrete exit
+   must not reserve space there after viewport events finish shell motion. */
+.surface[data-mode="compact"] :is(.history, .research)[hidden] { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   .backdrop { transition: none; }
   .history, .research { animation: none; transition: none; }

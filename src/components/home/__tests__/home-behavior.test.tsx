@@ -84,6 +84,17 @@ describe('Home workspace behavior', () => {
 
   afterEach(() => cleanup());
 
+  it.each(['admin', 'editor', 'viewer'] as const)('shows the independent Pitch pilot entrance to %s only when enabled and outside simulation', role => {
+    setSession(role);
+    const { rerender } = render(<HomeWorkspace />);
+    expect(screen.queryByRole('link', { name: /Pitch Studio/ })).not.toBeInTheDocument();
+    rerender(<HomeWorkspace pitchStudioVisible />);
+    expect(screen.getByRole('link', { name: /Pitch Studio/ })).toHaveAttribute('href', '/intelligence/pitch');
+    state.impersonating = true;
+    rerender(<HomeWorkspace pitchStudioVisible />);
+    expect(screen.queryByRole('link', { name: /Pitch Studio/ })).not.toBeInTheDocument();
+  });
+
   it('makes just the map link actionable during profile recovery and keeps its keyboard focus when the profile arrives', () => {
     state.status = 'loading';
     state.session = null;

@@ -233,7 +233,7 @@ export function AiAuditWorkspace() {
   const allowedIdentity = status === 'authenticated' && isIntelligencePreviewEnabled(session?.role) && actorId && sessionId && session?.user.id === actorId && !isImpersonating && !targetUserId;
   const scope = React.useMemo(() => ({ actorId: actorId ?? '', sessionId: sessionId ?? '' }), [actorId, sessionId]);
   return <main className={styles.workspace}>
-    <header className={styles.header}><div><h1>AI 提问审计</h1><p>检索正式提交的问题，核对留存回答、来源与处理过程。</p></div><Link href="/">返回主页</Link></header>
+    <header className={styles.header}><div><h1>AI 提问审计</h1><p>检索正式提交的问题，核对留存回答、来源与处理过程。</p></div><nav><Link href="/intelligence/pitch?panel=admin">Pitch 模型与素材处理</Link> · <Link href="/">返回主页</Link></nav></header>
     <div className={styles.body}>
       <p className={styles.access}>仅向经服务器验证并获独立审计资格的 admin 开放。管理员角色本身不授予正文查看权。</p>
       {allowedIdentity ? <AiAuditSearch key={`${actorId}:${sessionId}`} scope={scope} />

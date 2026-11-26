@@ -1,9 +1,14 @@
 import { z } from 'zod';
 import type { QueryResultView } from './presentation';
+import { projectResultTable } from './tableView';
 
 export type QueryBuildingRow = { id: string; name: string; cells: QueryResultView['table']['rows'][number]['cells'] };
 /** Only a source-bound building identity is actionable. Group and period row keys are not buildings. */
 export function resultBuildingRows(result: QueryResultView): QueryBuildingRow[] {
+  const scoped = projectResultTable(result);
+  // A filtered row set must never fall back to the original plan's wider scope.
+  const filtered = scoped !== result;
+  result = scoped;
   const names = new Map(result.sources.filter(source => source.table === 'buildings' && source.field === 'name'
     && source.entityId === source.recordId && z.uuid().safeParse(source.entityId).success && typeof source.rawValue === 'string')
     .map(source => [source.id, source]));
@@ -25,6 +30,7 @@ export function resultBuildingRows(result: QueryResultView): QueryBuildingRow[] 
     return [...new Map(buildings.map(building => [building.id, building])).values()];
   }
   if (rows.length) return [...new Map(rows.map(row => [row.id, row])).values()];
+  if (filtered) return [];
   const scope = z.object({ scope: z.object({ buildingIds: z.array(z.uuid()).max(20) }) }).safeParse(result.parameters.executedPlan);
   if (!scope.success) return [];
   return scope.data.scope.buildingIds.flatMap(id => {

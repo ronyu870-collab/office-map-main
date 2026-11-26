@@ -163,6 +163,51 @@
         "name": "app_settings",
         "label": "系统设置",
         "fieldCount": 3
+      },
+      {
+        "name": "pitch_parse_jobs",
+        "label": "素材解析任务",
+        "fieldCount": 18
+      },
+      {
+        "name": "pitch_upload_parts",
+        "label": "素材上传分块",
+        "fieldCount": 3
+      },
+      {
+        "name": "pitch_media_occurrences",
+        "label": "页面媒体关联",
+        "fieldCount": 5
+      },
+      {
+        "name": "pitch_asset_links",
+        "label": "素材资产版本关联",
+        "fieldCount": 6
+      },
+      {
+        "name": "pitch_business_profiles",
+        "label": "业务资产档案版本",
+        "fieldCount": 5
+      },
+      {
+        "name": "pitch_business_templates",
+        "label": "业务模板配置版本",
+        "fieldCount": 6
+      },
+      {
+        "name": "pitch_business_generations",
+        "label": "业务生成快照",
+        "fieldCount": 9
+      },
+      {
+        "name": "pitch_workspace_states",
+        "label": "Pitch 工作台编辑状态",
+        "fieldCount": 5
+      },
+      {
+        "name": "pitch_exports",
+        "label": "Pitch 私有导出文件",
+        "fieldCount": 15
       }
     ]
   }

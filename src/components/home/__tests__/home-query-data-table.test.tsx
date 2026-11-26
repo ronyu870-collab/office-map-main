@@ -20,6 +20,18 @@ it('restores a server-validated numeric filter and sort without losing the full 
   expect(screen.getByRole('table').textContent).not.toContain('B座');
   expect(value.table.rows).toHaveLength(4);
 });
+it('removes one bound without discarding the other bound on the same field', () => {
+  const value = result();
+  value.parameters.agentTableView = { version: 'result-table-view/1', sort: null,
+    filters: [{ key: 'height', operator: 'gte', value: '200' }, { key: 'height', operator: 'lte', value: '220' }], page: 0 };
+  render(<HomeQueryDataTable result={value} internalExport={false} onSource={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: '移除筛选：建筑高度 ≥ 200 米' }));
+  expect(screen.getByRole('button', { name: '移除筛选：建筑高度 ≤ 220 米' })).toBeVisible();
+  expect(screen.getByRole('table')).toHaveTextContent('A座');
+  expect(screen.getByRole('table')).toHaveTextContent('B座');
+  fireEvent.click(screen.getByRole('button', { name: '移除筛选：建筑高度 ≤ 220 米' }));
+  expect(screen.getByRole('table').querySelectorAll('tbody tr')).toHaveLength(4);
+});
 beforeEach(() => { vi.resetAllMocks(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it('links both all-buildings and a single building to this exact source-bound result snapshot', () => {

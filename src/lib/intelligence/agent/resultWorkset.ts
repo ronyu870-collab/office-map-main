@@ -1,5 +1,7 @@
 import { resultViewSchema, cellText, resultSummary, type QueryResultView } from '../query/presentation';
 import type { QueryResult } from '../query/result';
+import { Decimal } from '../query/decimal';
+import { projectResultTable, resultTableViewSchema, validatedResultTableView, type ResultTableView } from '../query/tableView';
 import { answerSelectionSchema, selectAnswerResultsSchema, type AnswerSelection } from '../query/answerSelection';
 
 export type WorksetOwner = Readonly<{
@@ -16,6 +18,7 @@ export const WORKSET_LIMITS = { results: 8, totalRows: 50000, pageSize: 100, mod
  * Permission/actor are independently checked on every workset access. */
 export class AuthorizedResultWorkset {
   private readonly entries = new Map<string, Entry>();
+  private readonly views = new Map<string, ResultTableView>();
   constructor(private readonly owner: WorksetOwner) {}
 
   private assertOwner(identity: WorksetOwner) {
@@ -50,7 +53,14 @@ export class AuthorizedResultWorkset {
   read(resultId: string, identity: WorksetOwner): QueryResult {
     const entry = this.getEntry(resultId, identity);
     if (entry.sealed !== JSON.stringify(entry.result)) throw new Error('AGENT_RESULT_CHANGED');
-    return entry.result;
+    const view = this.views.get(resultId);
+    return view ? { ...entry.result, parameters: { ...entry.result.parameters, agentTableView: resultTableViewSchema.parse(view) } } : entry.result;
+  }
+
+  applyView(resultId: string, input: unknown, identity: WorksetOwner): QueryResult {
+    const source = this.read(resultId, identity);
+    this.views.set(resultId, validatedResultTableView(source, input));
+    return this.read(resultId, identity);
   }
 
   select(input: unknown, identity: WorksetOwner): AnswerSelection {
@@ -110,6 +120,8 @@ export class AuthorizedResultWorkset {
 
   page(input: Page, identity: WorksetOwner) {
     const view = this.getEntry(input.resultId, identity).view;
+    const current = this.views.get(input.resultId);
+    const scoped = projectResultTable(current ? { ...view, parameters: { ...view.parameters, agentTableView: current } } : view);
     const column = (key: string) => {
       const found = view.table.columns.find(item => item.key === key);
       if (!found) throw new Error('AGENT_FIELD_NOT_AVAILABLE');
@@ -119,19 +131,21 @@ export class AuthorizedResultWorkset {
     const filter = input.filter ? column(input.filter.field) : undefined;
     // Ordinary paging must not allocate/scan the entire 50k-row result on every
     // page. Only filtering or sorting needs the indexed full-table projection.
-    let rows = sort || filter ? view.table.rows.map((row, index) => ({ row, index })) : undefined;
+    let rows = sort || filter || scoped.table !== view.table ? scoped.table.rows.map((row, index) => ({ row, index })) : undefined;
     if (filter && input.filter) {
       const f = input.filter;
+      const numeric = Decimal.parse(f.value);
+      if (filter.unit !== null && f.operator !== 'contains' && !numeric) throw new Error('AGENT_INVALID_TOOL_ARGUMENTS');
       rows = rows!.filter(({ row }) => {
         const cell = row.cells[filter.key];
         if (cell.kind === 'unknown') return false;
         if (f.operator === 'contains') return cell.kind === 'text'
           && cell.value.toLocaleLowerCase().includes(String(f.value).toLocaleLowerCase());
         if (cell.kind === 'text') return f.operator === 'eq' && cell.value === String(f.value);
-        const n = Number(f.value);
-        if (!Number.isFinite(n)) throw new Error('AGENT_INVALID_TOOL_ARGUMENTS');
-        const value = cell.value.numeric;
-        return f.operator === 'eq' ? value === n : f.operator === 'gte' ? value >= n : value <= n;
+        if (!numeric) throw new Error('AGENT_INVALID_TOOL_ARGUMENTS');
+        const exact = cell.value.exact;
+        const compared = Decimal.fraction(BigInt(exact.numerator), BigInt(exact.denominator)).compare(numeric);
+        return f.operator === 'eq' ? compared === 0 : f.operator === 'gte' ? compared >= 0 : compared <= 0;
       });
     }
     if (sort && input.sort) {

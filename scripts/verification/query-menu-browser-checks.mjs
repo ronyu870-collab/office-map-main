@@ -32,7 +32,7 @@ export async function menuGeometry(panel) {
       const hit = document.elementFromPoint(x, y);
       return { rect: r, visible: r.width > 0 && r.height > 0 && x >= bounds.left && x <= bounds.right && y >= Math.max(bounds.top, box.top) && y <= Math.min(bounds.bottom, box.bottom), hit: element === hit || element.contains(hit), actualHit: hit?.outerHTML.slice(0, 350) };
     };
-    return { hidden: node.hidden, expanded: trigger?.getAttribute('aria-expanded'), transitioning: workspace?.dataset.transitioning, activeElement: document.activeElement?.outerHTML.slice(0, 350), viewport: { width: innerWidth, height: innerHeight, scale: viewport?.scale }, mode: workspace?.dataset.mode, trigger: trigger && rect(trigger), menu: box, bounds, top: style.top, bottom: style.bottom, height: style.height, maxHeight: style.maxHeight, overflowX: style.overflowX, overflowY: style.overflowY, clipping, topLayer, activeOverlays: [...document.querySelectorAll('[data-query-menu-panel]:not([hidden]), details[open]')].map(n => n.id || n.className), items: items.map(item), horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
+    return { viewport: { width: innerWidth, height: innerHeight, scale: viewport?.scale }, mode: workspace?.dataset.mode, trigger: trigger && rect(trigger), menu: box, bounds, top: style.top, bottom: style.bottom, height: style.height, maxHeight: style.maxHeight, overflowX: style.overflowX, overflowY: style.overflowY, clipping, topLayer, activeOverlays: [...document.querySelectorAll('[data-query-menu-panel]:not([hidden]), details[open]')].map(n => n.id || n.className), items: items.map(item), horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
   });
 }
 
@@ -286,9 +286,18 @@ export async function checkAllQueryMenus(session, helpers) {
   await history.locator('[data-history-scroll]').evaluate(node => { node.scrollTop -= 100; });
   await page.waitForFunction(() => !document.querySelector('[data-query-menu-panel]:not([hidden])'));
   await history.getByRole('button', { name: '关闭历史', exact: true }).click();
+  // A viewport event can finish workspace motion while a sidebar is still
+  // exiting. A hidden sidebar must stop occupying compact layout immediately.
+  await page.getByRole('button', { name: '收起 Colliers AI 工作空间', exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await page.waitForFunction(() => document.querySelector('#colliers-ai')?.dataset.mode === 'compact'
+    && document.querySelector('#colliers-ai')?.dataset.transitioning === 'false');
+  const hiddenPanels = await page.locator('#query-workspace-history[hidden], #query-workspace-research[hidden]').evaluateAll(nodes => nodes
+    .map(node => ({ id: node.id, display: getComputedStyle(node).display, height: node.getBoundingClientRect().height })));
+  assert.equal(hiddenPanels.length, 2);
+  assert.ok(hiddenPanels.every(panel => panel.height === 0), `compact hidden sidebar layout: ${JSON.stringify(hiddenPanels)}`);
   await expanded(page, false);
   await more.click(); await assertMenu(page, more, 'compact menu');
-  const openedAnchor = menuRecords.at(-1).trigger;
   // Nested scroll restoration can change offsets while leaving the visible
   // anchor in exactly the same place. It must not dismiss a usable menu.
   const compensated = await more.evaluate(node => {
@@ -309,7 +318,9 @@ export async function checkAllQueryMenus(session, helpers) {
   });
   assert.ok(compensated.available && Math.abs(compensated.deltaX) < .5 && Math.abs(compensated.deltaY) < .5,
     `compact scroll compensation: ${JSON.stringify(compensated)}`);
-  const settled = await more.evaluate(node => new Promise((resolve, reject) => {
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+  await assertMenu(page, more, 'compact menu after scroll compensation');
+  await more.evaluate(node => new Promise((resolve, reject) => {
     const start = performance.now(); let changed = start, last;
     const sample = now => {
       const box = node.getBoundingClientRect(), next = { x: box.x, y: box.y };
@@ -321,16 +332,7 @@ export async function checkAllQueryMenus(session, helpers) {
     };
     requestAnimationFrame(sample);
   }));
-  // Native scroll anchoring may subsequently move the trigger (observed at
-  // 1536px and 320px). Compare with the opening geometry: it may already have moved
-  // between the initial assertion and the synthetic compensation.
-  console.log(`menus: compensation ${JSON.stringify({ openedAnchor, settled, compensated })}`);
-  if (Math.abs(settled.x - openedAnchor.left) < .5 && Math.abs(settled.y - openedAnchor.top) < .5) {
-    await assertMenu(page, more, 'compact menu after stable scroll compensation');
-  } else {
-    await page.waitForFunction(node => node.getAttribute('aria-expanded') === 'false', await more.elementHandle());
-    await closed(more);
-  }
+  await assertMenu(page, more, 'compact menu after settled layout compensation');
   await expanded(page, true);
   await closed(more);
   assert.equal(session.errors.length, 0, session.errors.join('\n'));

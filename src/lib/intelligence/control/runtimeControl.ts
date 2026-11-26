@@ -14,6 +14,15 @@ export type RuntimeControlBinding = { snapshot?: ControlSnapshot; availabilityMo
   beforeCall: (provider: ProviderId, model: string, signal: AbortSignal, reservation?: {attempt:number;reserveUsd:number;modelId:string}) => Promise<void>;
   settle?: (attempt:ModelAttempt) => Promise<void> };
 
+/** Content-authorized workloads keep their own model and accounting ledger.
+ * Reuse live pause/provider/model controls without attaching an ordinary query
+ * reservation (whose request ID belongs to the query audit stream).
+ */
+export async function bindScopedRuntimeControl(client: SupabaseClient, identity: VerifiedQueryIdentity, signal: AbortSignal, requestId: string): Promise<RuntimeControlBinding> {
+  const control = await bindRuntimeControl(client, identity, signal, requestId);
+  return { beforeCall: (provider, model, currentSignal) => control.beforeCall(provider, model, currentSignal) };
+}
+
 /** A single request snapshot, no process-global cache. Security controls remain live.
  * Only the exact absent RPC is compatible with a pre-migration deployment.
  * A database outage or malformed configuration always blocks paid calls. */
