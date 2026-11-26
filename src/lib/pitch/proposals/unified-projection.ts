@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import { normalizeMapSubmarket } from '@/src/app/map/model/marketIdentity';
 import { quarterSchema } from '@/src/lib/intelligence/query/contracts';
 import type { QueryResult } from '@/src/lib/intelligence/query/result';
@@ -66,12 +67,43 @@ function sourceId(key: string) {
 
 /** Bind content to the original receipt and its result lookup. The underlying result retains field-level provenance. */
 function receipt<T>(context: UnifiedProposalContext, value: T, records: readonly UnifiedResult[], date: string): Evidence<T> {
-  const sources = records.length ? records.map(record => ({ id: record.result.resultId, kind: 'record' as const,
-    label: record.binding.domain === 'lease' ? '租赁成交库' : record.binding.domain === 'business' ? '楼书及项目档案' : '正式季度库',
-    recordId: record.result.resultId, locator: `${record.id} · ${record.result.resultId}`, version: record.binding.dataVersion, dataAsOf: date,
-  })) : [{ id: sourceId(context.fingerprint + ':catalog'), kind: 'record' as const, label: '楼宇目录',
+  const sources = records.length ? records.map(record => {
+    const id = sourceId(JSON.stringify([record.id, record.entityId, record.binding.dataVersion]));
+    return { id, kind: 'record' as const,
+      label: record.binding.domain === 'lease' ? '租赁成交库' : record.binding.domain === 'business' ? '楼书及项目档案' : '正式季度库',
+      recordId: id, locator: `${record.id} · ${record.entityId}`, version: record.binding.dataVersion, dataAsOf: date };
+  }) : [{ id: sourceId(context.fingerprint + ':catalog'), kind: 'record' as const, label: '楼宇目录',
     recordId: context.fingerprint, locator: `楼宇目录快照 ${context.fingerprint}`, version: context.fingerprint, dataAsOf: context.capturedAt.slice(0, 10) }];
   return { value, disclosure: context.disclosure, sources, data: context.bindings.filter(binding => records.some(record => record.binding.domain === binding.domain && record.binding.dataVersion === binding.dataVersion)) };
+}
+
+function publishedSubmarketOverview(context: UnifiedProposalContext, submarket: string): Market['spotlight'] {
+  const record = context.results.find(item => item.id === 'submarket-research' && item.binding.domain === 'business'
+    && item.binding.disclosure === 'internal' && item.result.table.id === 'query_submarket_profile');
+  const row = record?.result.table.rows.find(item => normalizeMapSubmarket(item.entityId) === submarket);
+  if (!record || !row) return undefined;
+  const sections = [['overview', ''], ['industries', '区域产业 · '], ['transport', '区域交通 · ']] as const;
+  const excerpts = sections.flatMap(([field, prefix]) => {
+    const cell = row.cells[field];
+    if (cell?.kind !== 'text') return [];
+    const evidence = record.result.sources.find(source => cell.sourceIds.includes(source.id)
+      && source.table === 'map_submarket_profiles' && source.field === field && source.rawValue === cell.value);
+    if (!evidence) return [];
+    const date = z.iso.date().safeParse((evidence.businessAsOf ?? evidence.recordedAt)?.slice(0, 10));
+    const line = cell.value.split(/\n+/).find(item => item.trim())?.trim();
+    if (!date.success || !line) return [];
+    return [{ field, text: prefix + (line.length <= 220 ? line : `${line.slice(0, 219)}…`), source: {
+      id: sourceId(evidence.id), kind: 'record' as const, label: '已发布子市场研究', recordId: evidence.recordId,
+      locator: `map_submarket_profiles/${evidence.recordId}/${field}`, version: evidence.recordVersion, dataAsOf: date.data,
+    } }];
+  });
+  const [overview, ...details] = excerpts;
+  if (overview?.field !== 'overview') return undefined;
+  return {
+    publication: 'published', disclosure: 'internal',
+    value: { name: submarket, observation: overview.text, details: details.map(item => item.text) },
+    sources: excerpts.map(item => item.source),
+  };
 }
 
 const profileLabels = { nameEn: '英文名称', address: '地址', completionYear: '入市年份', owner: '业主', propertyManagement: '物业管理', leed: '绿色建筑认证' };
@@ -122,7 +154,7 @@ function marketProjection(context: UnifiedProposalContext, brief: ProposalBrief,
     submarkets: marketObservations(context, records.filter(item => item.result.parameters.groupBy === 'submarket'), 'group_aggregate', period),
     grades: marketObservations(context, records.filter(item => item.result.parameters.groupBy === 'grade'), 'group_aggregate', period),
     methodology: receipt(context, coverage || '分组和历史的样本覆盖按相应来源回查。', aggregates, periodEnd(period)),
-    spotlight: materials.spotlight, outlook: materials.outlook,
+    spotlight: materials.spotlight ?? (submarket ? publishedSubmarketOverview(context, submarket) : undefined), outlook: materials.outlook,
   };
 }
 

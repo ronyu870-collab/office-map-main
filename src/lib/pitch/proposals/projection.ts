@@ -52,7 +52,7 @@ export type Market = {
   history?: readonly Evidence<Metrics & { period: Period }>[];
   submarkets?: readonly Evidence<MarketObservation & { period: Period }>[];
   grades?: readonly Evidence<MarketObservation & { period: Period }>[];
-  spotlight?: PublishedEvidence<{ name: string; observation: string }>;
+  spotlight?: PublishedEvidence<{ name: string; observation: string; details?: readonly string[] }>;
   methodology?: Evidence<string>;
   outlook?: PublishedEvidence<{ period: string; claim: string; basis: string; limitations: string[] }>;
 };

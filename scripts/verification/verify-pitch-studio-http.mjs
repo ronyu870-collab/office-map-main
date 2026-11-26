@@ -57,6 +57,9 @@ try {
    '20261127090006_pitch_workspace_document_jobs.sql',
    '20261127090106_pitch_document_delivery.sql',
    '20261127090206_pitch_workspace_bindings.sql',
+   '20261127090306_pitch_workspace_handoff_replay.sql',
+   '20261127090406_pitch_workspace_shares.sql',
+   '20261127090506_pitch_export_file_reuse.sql',
  ]) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
  await db.query("notify pgrst,'reload schema'");
  const owner=await person('editor'),other=await person('editor'),viewer=await person('viewer'),admin=await person('admin');

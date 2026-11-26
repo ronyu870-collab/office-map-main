@@ -118,6 +118,10 @@ export function leasingDrafts(data: ProposalData, target: BoundBuilding, period:
     profile: fieldPage(`${target.name}项目概况`, target.profile),
     arrival: location(`${target.name}的区位与到达`, data.maps?.target, [target], '项目登记点位'),
     submarket: market ? metricPage(`${marketTitle}写字楼市场`, market.quarter, ['netEffectiveRent', 'vacancyRate', 'sampleCount'], periodLabel(period)) : null,
+    'submarket-research': market?.spotlight ? {
+      ...textPage(`${marketTitle}区域研究`, [market.spotlight.value.observation, ...(market.spotlight.value.details ?? [])], [market.spotlight]),
+      subtitle: `已发布区域概况 · ${market.spotlight.sources[0].dataAsOf}`,
+    } : null,
     history: history.length === 2 && history.every(item => item.block.block.kind === 'chart')
       ? { title: `${marketTitle}的租金与空置率历史变化`, subtitle: history[0].coverage + ' ／ ' + history[1].coverage, composition: 'chart-stack', blocks: history.map(entry => entry.block) }
       : history.map(entry => ({ title: entry.title, subtitle: entry.coverage, composition: entry.block.block.kind === 'chart' ? 'chart-insight' : 'data-table', blocks: [entry.block] })),
