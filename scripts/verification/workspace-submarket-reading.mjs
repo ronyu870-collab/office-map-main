@@ -203,7 +203,7 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   const methodologyPanel=page.getByRole('region',{name:'数据与统计口径',exact:true});
   await methodologyPanel.getByRole('heading',{name:'当前筛选的存量',exact:true}).waitFor();
   await page.keyboard.press('Escape');
-  await methodologyPanel.waitFor({state:'hidden'});
+  await page.locator('.map-disclosure-content').waitFor({state:'detached'});
   assert.ok(await methodology.evaluate(el=>el===document.activeElement),'research methodology closes without leaving the reading workspace');
 
   await visitAllProjects();

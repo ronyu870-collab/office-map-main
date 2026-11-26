@@ -171,7 +171,7 @@ try {
         methodsBounds.y >= 0 && methodsBounds.y + methodsBounds.height <= height, 'statistical details fit the viewport');
       assert.ok(await methodsPanel.evaluate(el => el === document.activeElement), 'keyboard opens the portal at its content');
       await page.keyboard.press('Escape');
-      await methodsPanel.waitFor({ state: 'hidden' });
+      await page.locator('.map-disclosure-content').waitFor({ state: 'detached' });
       assert.ok(await methodsTrigger.evaluate(el => el === document.activeElement), 'statistical details return keyboard focus');
       const metricBounds = await liveStats.boundingBox();
       assert.ok(metricBounds.x >= 0 && metricBounds.x + metricBounds.width <= width, 'metrics fit the viewport');
