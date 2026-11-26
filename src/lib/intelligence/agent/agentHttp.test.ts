@@ -37,6 +37,9 @@ vi.mock('./agentConversation', async original => ({
 }));
 
 import { handleAgentSubmission } from './agentHttp';
+import { tableRowIndexes, restoredResultTableView } from '../query/tableView';
+import { buildResultArtifact } from '../query/artifacts';
+import { resultViewSchema } from '../query/presentation';
 
 const actorId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const sessionId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -81,6 +84,59 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it('does not widen an archived numeric view when exporting the previous result', async () => {
+    const raw = buildListResult(fixture(), ['height']);
+    const prior = { ...raw, parameters: { ...raw.parameters,
+      executedPlan: parseQueryPlan({ operation: 'list', fields: ['height'], scope: { inventory: 'all_authorized' }, period: null }),
+      agentTableView: { version: 'result-table-view/1', sort: { key: 'height', direction: 'asc' }, filters: [{ key: 'height', operator: 'gte', value: '190' }, { key: 'height', operator: 'lte', value: '220' }], page: 1 },
+    } };
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    state.history.mockResolvedValue(Object.assign([], { contextResult: prior, contextResults: [prior] }));
+    const response = await handleAgentSubmission(fakeRequest('把刚才的结果导出Excel').request, deps());
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.result.table.rows.map((row: { entityId: string }) => row.entityId)).toEqual(['B', 'A']);
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
+  it('keeps both numeric bounds across follow-ups and exports exactly that filtered order', async () => {
+    let prior = buildListResult(fixture(), ['height']);
+    prior = { ...prior, parameters: { ...prior.parameters, executedPlan: parseQueryPlan({ operation: 'list',
+      fields: ['height'], scope: { inventory: 'all_authorized', submarkets: ['CBD'] }, period: null }) } };
+    const original = JSON.stringify(prior.table), sources = JSON.stringify(prior.sources);
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    for (const question of ['筛选建筑高度至少200米', '筛选建筑高度不超过220米', '筛选建筑高度至少205米', '按高度从高到低排列']) {
+      state.history.mockResolvedValue(Object.assign([], { contextResult: prior, contextResults: [prior] }));
+      const response = await handleAgentSubmission(fakeRequest(question).request, deps());
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.agent.modelCalls).toBe(0);
+      prior = body.result;
+      expect(JSON.stringify(prior.table)).toBe(original);
+      expect(JSON.stringify(prior.sources)).toBe(sources);
+      const view = restoredResultTableView(prior);
+      expect(tableRowIndexes(resultViewSchema.parse(prior), '', view.filters, view.sort)).toEqual([0]);
+    }
+    expect(restoredResultTableView(prior).filters).toEqual([
+      { key: 'height', operator: 'lte', value: '220' }, { key: 'height', operator: 'gte', value: '205' },
+    ]);
+    state.history.mockResolvedValue(Object.assign([], { contextResult: prior, contextResults: [prior] }));
+    const response = await handleAgentSubmission(fakeRequest('把刚才的结果导出Excel').request, deps());
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.agent.modelCalls).toBe(0);
+    expect(body.result.table.rows.map((row: { entityId: string }) => row.entityId)).toEqual(['A']);
+    const file = await buildResultArtifact(body.result, { requestId: randomUUID(), resultId: body.result.resultId, action: 'export', format: 'xlsx' });
+    if (file.type !== 'download') throw new Error('missing Excel');
+    const XLSX = await import('xlsx');
+    const book = XLSX.read(file.bytes, { type: 'array' });
+    const rows = XLSX.utils.sheet_to_json(book.Sheets['数据'], { header: 1 });
+    expect(rows).toHaveLength(2);
+    expect(JSON.stringify(rows)).toContain('A座');
+    expect(JSON.stringify(rows)).not.toContain('B座');
+    expect(state.provider).not.toHaveBeenCalled(); expect(state.structured).not.toHaveBeenCalled();
+  });
+
   it('applies an authorized prior-result view through the actual HTTP executor with zero model calls', async () => {
     const prior = { ...buildListResult(fixture(), ['height']), parameters: { executedPlan: parseQueryPlan({ operation: 'list',
       fields: ['height'], scope: { inventory: 'all_authorized', submarkets: ['CBD'] }, period: null }) } };
@@ -531,6 +587,35 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
       && entry[2]?.protocol === 'agent-answer/1')?.[2];
     expect(saved.workset).toHaveLength(2);
     expect(saved.toolTrace).toHaveLength(4);
+  });
+
+  it('uses a view applied earlier in the same model request for both chart tools and model paging', async () => {
+    const raw = buildListResult(fixture(), ['height']);
+    const result = { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({ operation: 'list', fields: ['height'],
+      period: null, scope: { inventory: 'tracked', submarkets: ['CBD'] } }) } };
+    const call = (id: string, name: string, args: object) => ({ id, type: 'function' as const,
+      function: { name, arguments: JSON.stringify(args) } });
+    const round = (tool_calls: ReturnType<typeof call>[]) => ({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 12,
+      message: { role: 'assistant' as const, content: null, tool_calls } });
+    state.structured.mockResolvedValue({ content: '{"status":"ready"}', result });
+    state.provider.mockReset()
+      .mockResolvedValueOnce(round([call('list', 'search_buildings', { scope: { inventory: 'tracked', submarkets: ['CBD'] } })]))
+      .mockResolvedValueOnce(round([call('view', 'apply_result_view', { resultId: result.resultId, view: { version: 'result-table-view/1',
+        filters: [{ key: 'height', operator: 'gte', value: '200' }], page: 1 } })]))
+      .mockResolvedValueOnce(round([call('page', 'read_result_page', { resultId: result.resultId, offset: 0, limit: 10 }),
+        call('chart', 'create_chart', { resultId: result.resultId, chart: { kind: 'bar', field: 'height' } })]))
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 12,
+        message: { role: 'assistant', content: '已按高度筛选并准备同源图表。' } });
+    const response = await handleAgentSubmission(fakeRequest('综合核对CBD楼宇清单，筛选高度并生成柱状图和读取下一页').request, deps());
+    const output = await response.json();
+    expect(response.status, JSON.stringify(output)).toBe(200);
+    expect(output.agent.executionStatus).toBe('completed');
+    const observations = state.provider.mock.calls[3][0].filter((message: { role: string }) => message.role === 'tool')
+      .map((message: { content: string }) => JSON.parse(message.content));
+    expect(observations.find((item: { totalMatched?: number }) => item.totalMatched !== undefined)).toMatchObject({ totalMatched: 1, rows: [{ entityId: 'A' }] });
+    expect(observations.find((item: { chartKind?: string }) => item.chartKind)).toMatchObject({ totalPoints: 1, points: [{ label: 'A座' }] });
+    expect(output.result.table.rows).toHaveLength(4);
+    expect(output.result.parameters.agentTableView.filters).toEqual([{ key: 'height', operator: 'gte', value: '200' }]);
   });
 
   it('fails authorization after a first result instead of reading the workset after revocation', async () => {

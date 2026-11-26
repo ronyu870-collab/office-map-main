@@ -89,7 +89,12 @@ function DataTable({ result, requestId, scope, internalExport, onSource, onPage,
     {(search || filters.length > 0 || selected.size > 0 || sort) && <div className={styles.selection} role="status">
       <span>筛选 {indexes.length} / {result.table.rows.length} 条{selected.size > 0 ? `，已选 ${selected.size} 条（筛选内 ${selectedInView} 条${selected.size > selectedInView ? `，筛选外 ${selected.size - selectedInView} 条` : ''}）` : ''}</span>
       {!!search && <button type="button" onClick={() => { setSearch(''); changePage(0); }}>清除搜索</button>}
-      {filters.map(filter => <button key={filter.key} type="button" aria-label={`移除筛选：${filter.value}`} onClick={() => { setFilters(current => current.filter(item => item.key !== filter.key)); changePage(0); }}>{filter.value} ×</button>)}
+      {filters.map((filter, index) => {
+        const column = result.table.columns.find(column => column.key === filter.key);
+        const label = filter.operator && column?.unit
+          ? `${column.label} ${{ gte: '≥', lte: '≤', eq: '=' }[filter.operator]} ${filter.value} ${units[column.unit] ?? column.unit}` : filter.value;
+        return <button key={`${filter.key}:${filter.operator}:${index}`} type="button" aria-label={`移除筛选：${label}`} onClick={() => { setFilters(current => current.filter((_, i) => i !== index)); changePage(0); }}>{label} ×</button>;
+      })}
       {sort && <button type="button" onClick={() => { setSort(null); changePage(0); }}>恢复原始顺序</button>}
       {selected.size > 0 && <button type="button" onClick={() => setSelected(new Set())}>清除选择</button>}
     </div>}

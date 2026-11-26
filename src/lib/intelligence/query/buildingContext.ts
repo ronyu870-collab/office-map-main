@@ -9,7 +9,9 @@ export async function readBuildingContext(client: SupabaseClient, archived: unkn
   let all = resultBuildingRows(result);
   if(input.mapSelection && !input.buildingId && result.parameters.agentMap) {
     const selection=mapResultSelectionSchema.parse(result.parameters.agentMap);
-    if(selection.buildingIds.some(id=>!all.some(r=>r.id===id)))throw new Error('QUERY_DENIED');
+    const authorized = result.parameters.agentTableView === undefined ? all : resultBuildingRows({ ...result,
+      parameters: { ...result.parameters, agentTableView: undefined } });
+    if(selection.buildingIds.some(id=>!authorized.some(r=>r.id===id)))throw new Error('QUERY_DENIED');
     all=all.filter(row=>selection.buildingIds.includes(row.id));
   }
   if (input.buildingId && !all.some(row => row.id === input.buildingId)) throw new Error('QUERY_DENIED');

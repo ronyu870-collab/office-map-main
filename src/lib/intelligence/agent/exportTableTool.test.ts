@@ -37,6 +37,18 @@ async function fileFor(result: ReturnType<typeof prepareExportResult>, format: '
 }
 
 describe('authorized Agent table exports read real final XLSX/CSV bytes', () => {
+  it('inherits a view applied earlier in the same request before applying explicit export filters', async () => {
+    const base = fullResult(), workset = new AuthorizedResultWorkset(owner);
+    workset.register(base, owner);
+    workset.applyView(base.resultId, { version: 'result-table-view/1',
+      filters: [{ key: 'height', operator: 'gte', value: '1135' }], sort: { key: 'height', direction: 'desc' }, page: 1 }, owner);
+    const out = await exportAuthorizedTable(workset, owner, { resultIds: [base.resultId], format: 'xlsx',
+      filters: [{ field: 'height', operator: 'lte', value: 1135 }] }, ['export:internal']);
+    const book = XLSX.read((await fileFor(out.result)).bytes, { type: 'array' });
+    const rows = XLSX.utils.sheet_to_json(book.Sheets['数据'], { header: 1 });
+    expect(rows).toHaveLength(2); expect(rows[1]).toContain(1135);
+    expect(base.table.rows).toHaveLength(137);
+  });
   it('exports all 137 Chinese rows, numeric types, source dates, widths and filter rather than a preview/page', async () => {
     const base = fullResult(), workset = new AuthorizedResultWorkset(owner);
     workset.register(base, owner);

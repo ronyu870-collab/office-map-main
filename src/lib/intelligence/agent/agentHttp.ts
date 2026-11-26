@@ -443,7 +443,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
                 ? preparedChartSourceId ?? history.contextChart?.resultId ?? workset.latestId() : workset.latestId();
             let chosen = id ? workset.read(id, worksetOwner) : undefined;
             if (chosen) referencedIds.add(chosen.resultId);
-            if (chosen && preparedChart && (preparedChart.resultId === chosen.resultId || preparedChartSourceId === chosen.resultId)) chosen = preparedChart;
+            if (chosen && preparedChart && (preparedChart.resultId === chosen.resultId || preparedChartSourceId === chosen.resultId)) chosen = {
+              ...preparedChart, parameters: { ...preparedChart.parameters, ...(chosen.parameters.agentTableView === undefined ? {}
+                : { agentTableView: chosen.parameters.agentTableView }) } };
             if(chosen && isKnowledgeResult(chosen)) return {content:JSON.stringify(knowledgeModelObservation(chosen))};
             if (name === 'export_chart') {
               if (!chosen) throw new Error('AGENT_RESULT_NOT_FOUND');
@@ -533,7 +535,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             const source = workset.read(args.resultId as string, worksetOwner);
             const view = validatedResultTableView(source, args.view);
             referencedIds.add(source.resultId);
-            preparedView = { ...source, parameters: { ...source.parameters, agentTableView: view } };
+            preparedView = workset.applyView(source.resultId, view, worksetOwner);
             return { result: preparedView, content: JSON.stringify({ status: 'ready', resultId: source.resultId, view, rowCount: source.table.rows.length }) };
           }
           if (WORKSET_TOOL_NAMES.has(name)) {

@@ -85,11 +85,12 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
       const unit = filter?.[4];
       const unitMatches = !unit || ({ 米: 'm', 平方米: 'm2', '元/平方米/月': 'CNY/m2/month' } as Record<string, string>)[unit] === column?.unit;
       if (unitMatches) {
+        const operator = filter && (/至少|大于等于/.test(filter[2]) ? 'gte' : 'lte');
         const tableView: ResultTableView = { ...prior,
           page: page ? page[1] ? Number(page[1]) - 1 : Math.min(4000, prior.page + 1) : 0,
           ...(sort ? { sort: { key: column.key, direction: /从低到高|升序/.test(sort[2]) ? 'asc' : 'desc' } } : {}),
-          ...(filter ? { filters: [...prior.filters.filter(f => f.key !== column.key), { key: column.key,
-            operator: /至少|大于等于/.test(filter[2]) ? 'gte' : 'lte', value: filter[3] }] } : {}),
+          ...(filter && operator ? { filters: [...prior.filters.filter(f => f.key !== column.key || f.operator !== operator), { key: column.key,
+            operator, value: filter[3] }] } : {}),
         };
         return { route: 'deterministic_query', taskType: 'query', question, reusePrevious: true, tableView };
       }

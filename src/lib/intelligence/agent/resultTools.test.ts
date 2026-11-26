@@ -1,22 +1,71 @@
 import { describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { buildListResult, buildTrendResult } from '../query/result';
+import { buildDistributionResult, buildListResult, buildTrendResult } from '../query/result';
 import { fixture } from '../query/__tests__/fixtures';
 import { buildResultChart } from '../query/charts';
 import { resultViewSchema } from '../query/presentation';
 import { preferredChartRequest, runResultPresentationTool } from './resultTools';
+import { readBuildingContext } from '../query/buildingContext';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const requestId = randomUUID();
 const quarter = (value: number) => ({ year: 2026, quarter: value });
 const trend = () => buildTrendResult([fixture(quarter(1)), fixture(quarter(2))], 'rent', 'per_period');
 
 describe('read-only Agent presentation tools bound to formal result snapshots', () => {
+  function filteredBuildings(value = '200') {
+    const raw = buildListResult(fixture(), ['height']);
+    const ids = new Map(raw.table.rows.map(row => [row.entityId, randomUUID()]));
+    return { ...raw, table: { ...raw.table, rows: raw.table.rows.map(row => ({ ...row, entityId: ids.get(row.entityId)! })) },
+      sources: raw.sources.map(source => ({ ...source, entityId: ids.get(source.entityId) ?? source.entityId,
+        recordId: source.table === 'buildings' ? ids.get(source.recordId) ?? source.recordId : source.recordId })),
+      parameters: { ...raw.parameters, agentTableView: { version: 'result-table-view/1', sort: null,
+        filters: [{ key: 'height', operator: 'gte', value }], page: 1 } } };
+  }
+  it('uses every matching row for charts and source-bound maps while retaining the full original snapshot', () => {
+    const result = filteredBuildings(), before = JSON.stringify(result);
+    const chart = runResultPresentationTool('create_chart', requestId, result, { chart: { kind: 'bar', field: 'height' } });
+    expect(JSON.parse(chart.content).points.map((point: { label: string }) => point.label)).toEqual(['A座']);
+    expect(buildResultChart(resultViewSchema.parse(chart.result), { kind: 'bar', field: 'height' }).points.map(point => point.label)).toEqual(['A座']);
+    const map = runResultPresentationTool('prepare_map_selection', requestId, result);
+    expect(map.result?.parameters.agentMap).toMatchObject({ buildingIds: [result.table.rows[0].entityId] });
+    expect(chart.result?.table.rows).toHaveLength(4);
+    expect(buildResultChart(resultViewSchema.parse(chart.result), { kind: 'bar', field: 'height' }).summary.join('')).toContain('1 条记录');
+    expect(() => runResultPresentationTool('prepare_map_selection', requestId, result,
+      { buildingIds: [result.table.rows[1].entityId] })).toThrow('QUERY_DENIED');
+    expect(JSON.stringify(result)).toBe(before);
+  });
+  it('intersects an earlier map selection with the current view and never restores excluded rows for an empty view', async () => {
+    const result = filteredBuildings();
+    const archived = { ...result, parameters: { ...result.parameters, agentMap: { version: 'map-selection/1',
+      buildingIds: result.table.rows.map(row => row.entityId), intent: 'select' } } };
+    const builder = { select: () => builder, in: () => builder, eq: () => builder, is: () => builder,
+      or: () => builder, abortSignal: async () => ({ data: [], error: null }) };
+    const client = { from: () => builder } as unknown as SupabaseClient;
+    const input = { requestId, action: 'buildings' as const, mapSelection: true, offset: 0, limit: 500 };
+    const context = await readBuildingContext(client, archived, input, new AbortController().signal);
+    expect(context.buildings.map(row => row.name)).toEqual(['A座']);
+    const empty = filteredBuildings('300');
+    const limited = runResultPresentationTool('prepare_map_selection', requestId, empty);
+    expect(JSON.parse(limited.content)).toMatchObject({ status: 'unavailable', mapHref: null });
+    expect((await readBuildingContext(client, empty, input, new AbortController().signal)).buildings).toEqual([]);
+    await expect(readBuildingContext(client, { ...archived, parameters: { ...archived.parameters,
+      agentMap: { ...archived.parameters.agentMap, buildingIds: [randomUUID()] } } }, input, new AbortController().signal)).rejects.toThrow('QUERY_DENIED');
+  });
   it('refuses every artifact request before a verified database result exists', () => {
     for (const name of ['get_source_evidence', 'prepare_chart', 'prepare_map_selection', 'prepare_research_output'] as const) {
       const out = runResultPresentationTool(name, requestId, undefined);
       expect(JSON.parse(out.content)).toMatchObject({ status: 'requires_verified_result' });
       expect(out.result).toBeUndefined();
     }
+  });
+  it('does not reuse full distribution statistics after filtering observation rows', () => {
+    const raw = buildDistributionResult(fixture(), 'height');
+    const filtered = { ...raw, parameters: { ...raw.parameters, agentTableView: { version: 'result-table-view/1',
+      filters: [{ key: 'value', operator: 'gte', value: '200' }], page: 0 } } };
+    const out = runResultPresentationTool('create_chart', requestId, filtered, { chart: { kind: 'histogram' } });
+    expect(JSON.parse(out.content)).toMatchObject({ status: 'unsupported', code: 'CHART_VIEW_UNSUPPORTED' });
+    expect(out.result).toBeUndefined();
   });
   it('reveals only already-known provenance handles, never the raw source payload', () => {
     const result = trend();
