@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { prepareRevision } from "../ai/revision-preview";
+import { prepareRevision, selectRevision } from "../ai/revision-preview";
 import { layoutFixture } from "../fixtures/layouts";
 
 it("diffs only changed titles and paragraphs and keeps numbers, original sources and tables untouched", () => {
@@ -36,4 +36,33 @@ it("rejects duplicate, out-of-range and non-paragraph block references", () => {
   for (const refs of [["title", "title"], ["block:1000"], ["block:" + tableIndex], ["block:00"]]) {
     expect(() => prepareRevision(original, refs.map(ref => ({ ref, text: "unexpected" })), "en")).toThrow("PITCH_AI_REVISION");
   }
+});
+
+
+it("applying a subset preserves every other paragraph and the original language marker", () => {
+  const original = layoutFixture("table-insight");
+  const index = original.blocks.findIndex(b => b.kind === "paragraph");
+  const revisions = [{ ref: "title", text: "Selected English title" }, { ref: "block:" + index, text: "Not selected" }];
+  const subset = selectRevision(original, revisions, "en", ["title"]);
+  expect(subset.selectedRefs).toEqual(["title"]);
+  expect(subset.allChanges).toHaveLength(2);
+  expect(subset.content.title).toBe("Selected English title");
+  expect(subset.content.locale).toBe(original.locale);
+  expect(subset.content.blocks).toEqual(original.blocks);
+  expect(() => selectRevision(original, revisions, "en", ["title", "title"])).toThrow("PITCH_AI_PREVIEW_REQUIRED");
+  expect(() => selectRevision(original, revisions, "en", ["approved:0"])).toThrow("PITCH_AI_PREVIEW_REQUIRED");
+});
+
+it("uses the real renderer for the complete material preview; does not remove unsupported media", async () => {
+  const { renderRevisionLayout } = await import("../ai/revision-visual");
+  const { STUDIO_THEME } = await import("../design/theme");
+  const original = layoutFixture("two-columns");
+  const revised = selectRevision(original, [{ ref: "title", text: "新的版式标题" }], "zh");
+  const theme = async () => STUDIO_THEME;
+  const picture = await renderRevisionLayout(original, revised.content, theme, new AbortController().signal);
+  expect(picture?.before.length).toBe(1);
+  expect(picture?.after[0]).toMatch(/^<svg/);
+  expect(picture?.before[0]).not.toBe(picture?.after[0]);
+  const media = layoutFixture("image-text");
+  expect(await renderRevisionLayout(media, media, theme, new AbortController().signal)).toBeNull();
 });

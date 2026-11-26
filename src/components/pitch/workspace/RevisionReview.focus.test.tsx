@@ -54,3 +54,25 @@ it("a stale source forces another read rather than repeating a save", async () =
   await waitFor(() => expect(screen.queryByText("保存为私有草稿")).not.toBeInTheDocument());
   expect(call.mock.calls.map(([input]) => input.action)).toEqual(["revision_preview", "materialize"]);
 });
+
+it("renders the selected-only proposal and the same selection is bound to save", async () => {
+  const changes = [...receipt.changes,
+    { id: "block:1", label: "正文段落 1", before: "留着这段", after: "不要应用这段" }];
+  const all = { ...receipt, changes, selectedRefs: ["title", "block:1"] };
+  const chosen = { ...all, selectedRefs: ["title"], fingerprint: "b".repeat(64),
+    visual: { before: ["<svg/>"], after: ["<svg width='2'/>"] } };
+  const call = vi.fn(async (input: Record<string, unknown>) => input.action === "revision_preview"
+    ? (input.visual ? chosen : all) : {});
+  render(<RevisionReview taskId={taskId} call={call as Call} destination={destination} />);
+  fireEvent.click(screen.getByText("查看修改前后"));
+  fireEvent.click(await screen.findByRole("checkbox", { name: "采用正文段落 1" }));
+  expect(screen.getByRole("button", { name: "保存为私有草稿" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "预览所选改动" }));
+  expect(await screen.findByRole("img", { name: "仅采用所选改动第 1 页" })).toBeInTheDocument();
+  expect(call).toHaveBeenLastCalledWith({ action: "revision_preview", taskId, visual: true, selectedRefs: ["title"] },
+    true, "ai", expect.anything());
+  fireEvent.click(screen.getByRole("button", { name: "保存为私有草稿" }));
+  await waitFor(() => expect(call).toHaveBeenLastCalledWith(expect.objectContaining({
+    action: "materialize", taskId, selectedRefs: ["title"], revisionFingerprint: chosen.fingerprint,
+  }), true, "ai", expect.anything()));
+});

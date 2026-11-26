@@ -715,7 +715,12 @@ try {
       await assert.rejects(ai.adoptUnderstanding(admin, materialize), /PITCH_AI_PREVIEW_REQUIRED/);
       await assert.rejects(ai.adoptUnderstanding(admin, { ...materialize, revisionFingerprint: "0".repeat(64) }), /PITCH_AI_PREVIEW_REQUIRED/);
       await assert.rejects(ai.adoptUnderstanding(admin, { ...materialize, scope: { ...scope, city: "other" }, revisionFingerprint: preview.fingerprint }), /PITCH_DENIED/);
-      await ai.adoptUnderstanding(admin, { ...materialize, revisionFingerprint: preview.fingerprint });
+      await assert.rejects(ai.adoptUnderstanding(admin, { ...materialize,
+        selectedRefs: ["title"], revisionFingerprint: preview.fingerprint }), /PITCH_AI_PREVIEW_REQUIRED/);
+      const reviewed = await ai.previewRevision(admin, taskId, { selectedRefs: ["approved:0"], visual: true });
+      assert.equal(reviewed.visual, null);
+      await ai.adoptUnderstanding(admin, { ...materialize, selectedRefs: reviewed.selectedRefs,
+        revisionFingerprint: reviewed.fingerprint });
       const candidate = await library.assetContext(admin, id);
       assert.equal(candidate.version.content.locale, "en");
       assert.match(

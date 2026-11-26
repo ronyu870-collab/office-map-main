@@ -73,7 +73,7 @@ export async function handleAiRequest(
     if (c.action === "prepare") return reply(await preparePitch(ctx, c.input));
     if (c.action === "outline")
       return reply(await suggestOutline(ctx, c.query, c.projectId));
-    if (c.action === "revision_preview") return reply(await previewRevision(ctx, c.taskId));
+    if (c.action === "revision_preview") return reply(await previewRevision(ctx, c.taskId, c));
     if (c.action === "materialize" || c.action === "candidate_materialize")
       return reply(await adoptUnderstanding(ctx, c));
     const result = await pitchRpc(ctx, { ...c, action: "ai_" + c.action });

@@ -222,6 +222,8 @@ export const outlineSchema = z.strictObject({
   title: z.string().min(1).max(160),
   part: generationPartSchema,
 });
+const revisionRefs = z.array(z.string().regex(/^(?:title|approved:0|block:(?:0|[1-9]\d?))$/)).min(1).max(51)
+  .refine(entries => new Set(entries).size === entries.length);
 export const aiCommandSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("config") }),
   z.strictObject({ action: z.literal("config_save"), config: configSchema }),
@@ -284,10 +286,12 @@ export const aiCommandSchema = z.discriminatedUnion("action", [
     categoryId: id,
     scope: scopeSchema,
   }),
-  z.strictObject({ action: z.literal("revision_preview"), taskId: id }),
+  z.strictObject({ action: z.literal("revision_preview"), taskId: id,
+    selectedRefs: revisionRefs.optional(), visual: z.literal(true).optional() }),
   z.strictObject({
     action: z.literal("materialize"),
     revisionFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    selectedRefs: revisionRefs.optional(),
     taskId: id,
     assetId: id,
     categoryId: id,

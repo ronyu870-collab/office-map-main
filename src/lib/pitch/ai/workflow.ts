@@ -28,7 +28,7 @@ import {
   validateUnderstanding,
 } from "./understanding";
 
-import { prepareRevision, type RevisionPreview } from "./revision-preview";
+import { selectRevision, type RevisionPreview } from "./revision-preview";
 
 export const hash = (v: unknown) =>
   digest(new TextEncoder().encode(JSON.stringify(v)));
@@ -247,21 +247,25 @@ async function readyUnderstanding(ctx: PitchContext, taskId: string) {
   return { task, original: stored.version.content, result: understandingSchema.parse(task.result),
     scope: { organizationId: organization_id, region, city, businessLine: business_line } };
 }
-function reviewedRevision(taskId: string, original: Awaited<ReturnType<typeof readyUnderstanding>>) {
+function reviewedRevision(taskId: string, original: Awaited<ReturnType<typeof readyUnderstanding>>,
+  selectedRefs?: readonly string[]) {
   const { task, result } = original;
   if (task.request.task !== "revise-text") throw new Error("PITCH_AI_REVISION");
-  const prepared = prepareRevision(original.original, result.revisions, task.request.language);
-  const fingerprint = hash([taskId, task.asset_id, task.asset_version, original.original, prepared.content]);
+  const prepared = selectRevision(original.original, result.revisions, task.request.language, selectedRefs);
+  const fingerprint = hash([taskId, task.asset_id, task.asset_version, original.original, prepared.content, prepared.selectedRefs]);
   return { ...prepared, fingerprint };
 }
-export async function previewRevision(ctx: PitchContext, taskId: string): Promise<RevisionPreview> {
+export async function previewRevision(ctx: PitchContext, taskId: string, options?: { selectedRefs?: string[]; visual?: boolean }): Promise<RevisionPreview> {
   const ready = await readyUnderstanding(ctx, taskId);
-  const { changes, redacted, preservedBlocks, fingerprint, content } = reviewedRevision(taskId, ready);
+  const { allChanges, selectedRefs, redacted, preservedBlocks, fingerprint, content } = reviewedRevision(taskId, ready, options?.selectedRefs);
+  const visual = options?.visual
+    ? redacted ? null : await (await import("./revision-visual")).previewRevisionLayout(ctx, ready.original, content)
+    : undefined;
   // Recheck the exact policy after reading the pinned source. Do not preview text
   // from a revoked model run, and never return the unredacted source for a scrubbed run.
   await pitchRpc(ctx, { action: "ai_result", taskId });
   return {
-    changes, redacted, preservedBlocks, fingerprint,
+    changes: allChanges, redacted, preservedBlocks, fingerprint, selectedRefs, visual,
     scope: ready.scope, sourceVersion: ready.task.asset_version, dataAsOf: content.dataAsOf,
     beforeLanguage: redacted ? null : ready.original.locale, afterLanguage: content.locale,
   };
@@ -275,7 +279,7 @@ export async function adoptUnderstanding(
     const ready = await readyUnderstanding(ctx, c.taskId);
     const { task, original, result } = ready;
     if (task.request.task === "revise-text") {
-      const preview = reviewedRevision(c.taskId, ready);
+      const preview = reviewedRevision(c.taskId, ready, c.selectedRefs);
       if (!Object.entries(ready.scope).every(([key, value]) => c.scope[key as keyof typeof c.scope] === value))
         throw new Error("PITCH_DENIED");
       if (!c.revisionFingerprint || c.revisionFingerprint !== preview.fingerprint)
@@ -284,6 +288,7 @@ export async function adoptUnderstanding(
         throw new Error("PITCH_AI_REVISION");
       content = preview.content;
     } else {
+      if (c.selectedRefs || c.revisionFingerprint) throw new Error("PITCH_AI_REVISION");
       content = slideContentSchema.parse({
         ...original,
         disclosure: "internal",

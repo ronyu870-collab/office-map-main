@@ -12,9 +12,11 @@ export type RevisionPreview = {
   redacted: boolean;
   preservedBlocks: number;
   changes: RevisionChange[];
+  selectedRefs?: string[];
+  visual?: { before: string[]; after: string[] } | null;
 };
 
-export function prepareRevision(original: SlideContent, revisions: Understanding["revisions"], language: "zh" | "en") {
+export function prepareRevision(original: SlideContent, revisions: Understanding["revisions"], language: string) {
   const changes: RevisionChange[] = [];
   if (!revisions.length) throw new Error("PITCH_AI_REVISION");
   const redacted = revisions.some(r => r.ref === "approved:0");
@@ -52,4 +54,18 @@ export function prepareRevision(original: SlideContent, revisions: Understanding
   });
   const content = slideContentSchema.parse({ ...original, locale: language, disclosure: "internal", title, blocks });
   return { content, changes, redacted, preservedBlocks: blocks.length - changedBlocks };
+}
+
+export function selectRevision(original: SlideContent, revisions: Understanding["revisions"], language: "zh" | "en",
+  selectedRefs?: readonly string[]) {
+  const full = prepareRevision(original, revisions, language);
+  if (!selectedRefs) return { ...full, allChanges: full.changes, selectedRefs: full.changes.map(change => change.id) };
+  const wanted = new Set(selectedRefs);
+  const canonical = full.changes.filter(change => wanted.has(change.id)).map(change => change.id);
+  if (!wanted.size || wanted.size !== selectedRefs.length || canonical.length !== wanted.size)
+    throw new Error("PITCH_AI_PREVIEW_REQUIRED");
+  const partial = canonical.length < full.changes.length;
+  const prepared = partial ? prepareRevision(original, revisions.filter(revision => wanted.has(revision.ref)),
+    original.locale) : full;
+  return { ...prepared, allChanges: full.changes, selectedRefs: canonical };
 }
