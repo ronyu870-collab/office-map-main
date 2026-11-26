@@ -25,7 +25,6 @@ const SETTINGS = {
   spring: 0.06,
   strongSpring: 0.13,
   strongSpringDistance: 64,
-  overlayMinZIndex: 240,
   settleDelayMs: 120,
 } as const;
 
@@ -39,23 +38,18 @@ function finiteNumber(value: unknown, fallback = 0): number {
 }
 
 function collectAvoidRects(container: HTMLElement): AvoidRect[] {
-  const workspace = container.parentElement;
+  const workspace = container.closest('.map-workspace-layout') ?? container.parentElement;
   if (!workspace) return [];
 
   const containerRect = container.getBoundingClientRect();
   const result: AvoidRect[] = [];
-  const candidates = workspace.querySelectorAll<HTMLElement>('*');
+  const candidates = workspace.querySelectorAll<HTMLElement>('.map-workspace-left[data-open], .map-workspace-right[data-open], [data-map-avoidance], .workspace-restore-filter');
 
   for (const element of candidates) {
     if (element === container || container.contains(element)) continue;
 
     const style = window.getComputedStyle(element);
     if (style.display === 'none' || style.visibility === 'hidden') continue;
-    if (style.position !== 'absolute' && style.position !== 'fixed' && style.position !== 'sticky') continue;
-
-    const zIndex = Number.parseInt(style.zIndex, 10);
-    if (!Number.isFinite(zIndex) || zIndex < SETTINGS.overlayMinZIndex) continue;
-
     const rect = element.getBoundingClientRect();
     if (rect.width < 24 || rect.height < 24) continue;
 
@@ -260,8 +254,17 @@ export function installSubmarketCollisionAvoidance(
       const radius = Math.max(42, Math.max(renderedWidth, renderedHeight) / 2);
       const currentCenterX = rect.left - containerRect.left + rect.width / 2;
       const currentCenterY = rect.top - containerRect.top + rect.height / 2;
-      const anchorX = currentCenterX - previousX;
-      const anchorY = currentCenterY - previousY;
+      // Read the currently painted translation, not the previous animation target.
+      // Otherwise an interrupted CSS transition feeds its own displacement back in.
+      let paintedX = previousX, paintedY = previousY;
+      try {
+        if (computed.transform && computed.transform !== 'none' && typeof DOMMatrixReadOnly !== 'undefined') {
+          const matrix = new DOMMatrixReadOnly(computed.transform);
+          paintedX = matrix.m41; paintedY = matrix.m42;
+        }
+      } catch { /* Older SDK browsers retain the last published translation. */ }
+      const anchorX = currentCenterX - paintedX;
+      const anchorY = currentCenterY - paintedY;
 
       nodes.push({
         element,
@@ -280,6 +283,7 @@ export function installSubmarketCollisionAvoidance(
     for (const node of nodes) {
       const shiftX = Math.round((node.x - node.anchorX) * 2) / 2;
       const shiftY = Math.round((node.y - node.anchorY) * 2) / 2;
+      if (Math.abs(shiftX - finiteNumber(node.element.dataset.collisionX)) < 1 && Math.abs(shiftY - finiteNumber(node.element.dataset.collisionY)) < 1) continue;
       node.element.style.setProperty('--sm-collision-x', `${shiftX}px`);
       node.element.style.setProperty('--sm-collision-y', `${shiftY}px`);
       node.element.dataset.collisionX = String(shiftX);
@@ -291,6 +295,12 @@ export function installSubmarketCollisionAvoidance(
 
   const observer = new MutationObserver(() => scheduleSettled());
   observer.observe(container, { childList: true, subtree: true });
+  const workspace = container.closest('.map-workspace-layout');
+  const panels = new MutationObserver(scheduleSettled);
+  if (workspace) panels.observe(workspace, { attributes: true, subtree: true, attributeFilter: ['data-open', 'data-expanded', 'data-compact'] });
+  const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleSettled);
+  resize?.observe(container);
+  workspace?.querySelectorAll<HTMLElement>('.map-workspace-left, .map-workspace-right').forEach(panel => resize?.observe(panel));
 
   const onViewportSettled = () => schedule();
   map.on?.('zoomend', onViewportSettled);
@@ -302,6 +312,7 @@ export function installSubmarketCollisionAvoidance(
   return () => {
     disposed = true;
     observer.disconnect();
+    panels.disconnect(); resize?.disconnect();
     if (frame !== null) window.cancelAnimationFrame(frame);
     if (settleTimer !== null) window.clearTimeout(settleTimer);
     map.off?.('zoomend', onViewportSettled);

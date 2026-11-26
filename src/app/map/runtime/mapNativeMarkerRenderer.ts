@@ -1,4 +1,5 @@
 'use client';
+import { createSubmarketBubble } from './mapSubmarketPresentation';
 import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
@@ -12,7 +13,7 @@ import { latestFormalMetric } from '../model/quarterlyFacts';
 import { officeGrade } from '../model/marketIdentity';
 import { summarizeSubmarkets } from '../model/submarketOverview';
 import { normalizeMapSubmarket } from '../model/mapDomain';
-import { createAreaPlaceholder, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
+import { createAreaPlaceholder, getAreaPlaceholders } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerMode = 'submarket' | 'dot' | 'building';
@@ -84,6 +85,7 @@ export type ControllerInternals = {
   renderFutureMarkers?: (...args: any[]) => void;
   clearFutureMarkers?: () => void;
   isWorkspaceActive?: () => boolean;
+  getWorkspaceSubmarket?: () => string | null;
   setWorkspaceSelectionRenderer?: (renderer: ((building: any) => string) | null) => void;
   refreshWorkspaceSelection?: () => void;
   openBuildingInfoWindow?: (buildingId: string) => void;
@@ -293,22 +295,6 @@ function buildingVisual(
   }
 
   return { background, border, textColor: markerTextColor(background, textColor), text, fontSize };
-}
-
-function submarketAccent(
-  mode: RenderMode,
-  rent: number,
-  vacancy: number,
-  leed: number,
-): string {
-  if (mode === 'default') return PALETTE.brand;
-  if (mode === 'rent') return scaleColor(rent, Number.isFinite(rent) && rent >= 0);
-  if (mode === 'vacancy') return vacancyColor(vacancy, Number.isFinite(vacancy));
-  if (leed >= 60) return '#3f715f';
-  if (leed >= 40) return '#537f6c';
-  if (leed >= 20) return '#6f927f';
-  if (leed > 0) return '#88a493';
-  return PALETTE.neutral;
 }
 
 function svgDataUri(svg: string): string {
@@ -617,37 +603,8 @@ export function installNativeMarkerRenderer(
         item.latSum / item.coordCount,
       ];
       const summary = summaries.get(item.name);
-      const rent = summary?.rent ?? Number.NaN;
-      const vacancy = summary?.vacancyPct ?? Number.NaN;
       const leed = item.count > 0 ? (item.leedCount / item.count) * 100 : 0;
-      const accent = submarketAccent(mode, rent, vacancy, leed);
-      const size = 86 + Math.min(12, Math.round(Math.sqrt(summary?.officeCount ?? item.count) * 1.25));
-
-      const count = summary?.officeCount ?? 0;
-      const nameOnly = isNameOnlyArea(item.name, mode) && count === 0 && (summary?.parkCount ?? 0) === 0;
-      const bubbleClass = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
-      const rentText = Number.isFinite(rent) ? `¥${rent.toFixed(1)}` : '¥—';
-      const vacancyText = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '—';
-      const element = document.createElement('button');
-      element.type = 'button';
-      element.className = bubbleClass;
-      element.dataset.renderMode = mode;
-      element.title = `${item.name}，甲乙级${count}个`;
-      element.setAttribute('aria-label', `查看${item.name}子市场介绍，甲乙级${count}个`);
-      if (!nameOnly) {
-        element.style.setProperty('--sm-accent', accent);
-        element.style.setProperty('--sm-foreground', markerTextColor(accent));
-      }
-      element.style.setProperty('--sm-size', `${size}px`);
-      const metrics = nameOnly ? '' : `
-        <span class="map-submarket-bubble__metrics">
-          <span class="map-submarket-bubble__primary">${rentText}</span>
-          <span class="map-submarket-bubble__sep">·</span>
-          <span class="map-submarket-bubble__secondary">${vacancyText}</span>
-        </span>
-        <span class="map-submarket-bubble__count">${count > 0 ? `甲乙级 ${count} 个` : `产业园 ${summary?.parkCount ?? 0} 个`}</span>
-        ${mode === 'leed' ? `<span class="map-submarket-bubble__context">LEED ${leed.toFixed(0)}%</span>` : ''}`;
-      element.innerHTML = `<span class="map-submarket-bubble__name">${escapeHtml(item.name)}</span>${metrics}`;
+      const element = createSubmarketBubble({ name: item.name, summary, mode, leed, selected: controller.getWorkspaceSubmarket?.() === item.name });
       const openBrief = () => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: item.name } }));
       element.addEventListener('click', event => { event.stopPropagation(); openBrief(); });
       const marker = new Marker({
@@ -665,7 +622,7 @@ export function installNativeMarkerRenderer(
     for (const { name, center } of getAreaPlaceholders(showAreaPlaceholders, positionedNames)) {
       const content = createAreaPlaceholder(name, () => {
         if (activeTier === 'submarket') window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name } }));
-      }, mode, summaries.get(name));
+      }, mode, summaries.get(name), controller.getWorkspaceSubmarket?.() === name);
       result.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, MARKER_ZOOM.submarketMax], zIndex: 92 }));
     }
     return result;

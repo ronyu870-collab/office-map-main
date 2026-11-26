@@ -1,3 +1,4 @@
+import { verifySubmarketDesign } from './workspace-submarket-design.mjs';
 import { verifySupplyLoading } from './workspace-supply-loading.mjs';
 import { verifyShortViewport } from './workspace-short-viewport.mjs';
 import { verifyRouteFocus } from './workspace-route-focus.mjs';
@@ -160,7 +161,11 @@ try {
       assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true');
       const liveStats = page.getByRole('region', { name: '市场实时指标', exact: true });
       await liveStats.getByText('有坐标项目', { exact: true }).waitFor();
-      assert.equal(await liveStats.locator('summary,button').count(), 0, 'metrics have no explanation trigger');
+      assert.equal(await liveStats.locator('summary').count(), 1, 'only the area precision disclosure is present');
+      await liveStats.locator('summary').click();
+      await page.getByText('36,077,944 平方米',{exact:true}).waitFor();
+      await page.keyboard.press('Escape');
+      await page.getByText('36,077,944 平方米',{exact:true}).waitFor({state:'detached'});
       const metricBounds = await liveStats.boundingBox();
       assert.ok(metricBounds.x >= 0 && metricBounds.x + metricBounds.width <= width, 'metrics fit the viewport');
       if (width > 1100) assert.ok(metricBounds.width <= 520, `content-sized metrics width ${metricBounds.width}`);
@@ -535,7 +540,7 @@ try {
       await page.waitForFunction(() => document.querySelector('.map-selected-marker__badge')?.naturalWidth > 0);
       assert.ok(decodeURIComponent(await futureBadge.getAttribute('src')).includes('>F</text>'), 'selected future has a visible identity badge');
       assert.equal(await page.getByRole('tab',{name:'行情',exact:true}).count(),0);
-      assert.equal(await page.getByText('筛选存量净有效租金',{exact:true}).count(),1,'only the global market metric remains, not a future project rent');
+      assert.equal(await page.getByRole('region',{name:'市场实时指标',exact:true}).getByText('净有效租金',{exact:true}).count(),1,'only the global market metric remains, not a future project rent');
       assert.match(await page.getByRole('region',{name:'规划指标'}).locator('dd').innerText(),/^80,000\s*㎡$/);
       await page.getByRole('tab', { name: '概览',exact:true }).press('ArrowLeft');
       assert.equal(await page.getByRole('tab', { name: '项目资料' }).getAttribute('aria-selected'),'true');
@@ -819,7 +824,7 @@ try {
           await page.waitForFunction(count=>document.querySelector('.map-live-stats')?.getAttribute('aria-busy')==='false' && document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent===count,count);
           const values=await liveStats.locator('.map-metric-number').allTextContents();
           assert.equal(values[2],count);
-          if (label==='three-digits') assert.equal(values[3],'1,154,494,208');
+          if (label==='three-digits') assert.equal(values[3],'115,449.4');
           else assert.deepEqual([values[0],values[1],values[3]],['—','—','—']);
           assert.ok(await liveStats.evaluate(element=>element.scrollWidth<=element.clientWidth+1),'metric edge content fits its frame');
           const gaps=await liveStats.locator('dd').evaluateAll(elements=>elements.map(element=>{
@@ -830,6 +835,8 @@ try {
           observations.push({width,metricVariant:label,values,numberUnitGaps:gaps});
         }
       }
+
+      if ([1536,390].includes(width)) observations.push(await verifySubmarketDesign(context, { base, width, stock }));
 
       // Use a fresh map page: the full list deliberately remains mounted after
       // closing, while earlier assertions inspect the map's entire DOM text.
