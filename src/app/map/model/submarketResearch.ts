@@ -1,9 +1,9 @@
 import { normalizeMapSubmarket, officeGrade } from './marketIdentity';
 import { aggregateMarket, type MarketBuilding } from './marketStatistics';
-import { latestFormalMetric, quarterKey } from './quarterlyFacts';
+import { latestFormalMetric, quarterKey, quarterLabel } from './quarterlyFacts';
 import type { SubmarketTrendPoint } from './submarketMarketTrend';
 import type { SubmarketSummary } from './submarketOverview';
-import { summarizeSubmarketTrend } from './submarketTrendDigest';
+import { marketSampleCoverageChanged, summarizeSubmarketTrend } from './submarketTrendDigest';
 
 const metrics = ['rent', 'vacancyPct'] as const;
 type Metric = typeof metrics[number];
@@ -11,7 +11,6 @@ type Benchmark = { period: string; cityValue: number; difference: number };
 type CurrentMetric = { periods: string[]; benchmark: Benchmark | null };
 type PeriodStats = Pick<ReturnType<typeof aggregateMarket>, 'rent' | 'rentSampleCount' | 'vacancyPct' | 'vacancySampleCount'>;
 const samples = (stats: PeriodStats, metric: Metric) => metric === 'rent' ? stats.rentSampleCount : stats.vacancySampleCount;
-const periodLabel = (period: number) => `${Math.floor(period / 4)}Q${period % 4 + 1}`;
 
 /** Period membership is metric-specific: a building without a valid value cannot date that KPI. */
 export function describeCurrentResearchMarket(name: string, buildings: readonly MarketBuilding[], beijingBenchmarkBuildings?: readonly MarketBuilding[]) {
@@ -39,7 +38,7 @@ export function describeCurrentResearchMarket(name: string, buildings: readonly 
   collect(buildings, 'local');
   if (beijingBenchmarkBuildings) collect(beijingBenchmarkBuildings, 'city');
   const observations = [...byPeriod].sort(([a], [b]) => a - b).map(([key, group]) => ({
-    period: periodLabel(key), local: aggregateMarket(group.local),
+    period: quarterLabel(key), local: aggregateMarket(group.local),
     city: beijingBenchmarkBuildings ? aggregateMarket(group.city) : null,
     other: beijingBenchmarkBuildings ? aggregateMarket(group.other) : null,
   }));
@@ -70,8 +69,10 @@ export function describeQuarterlyResearchMarket(data: readonly SubmarketTrendPoi
   const rent = through(latestRent);
   const vacancy = latestVacancy === latestRent ? rent : through(latestVacancy);
   return {
-    rent: { latest: latestRent, qoqAbsolute: rent.rentChange, qoqPct: rent.rentQoqPct, yoyPct: rent.rentYoyPct },
-    vacancy: { latest: latestVacancy, qoqPp: vacancy.vacancyChange, yoyPp: vacancy.vacancyYoyPp },
+    rent: { latest: latestRent, qoqAbsolute: rent.rentChange, qoqPct: rent.rentQoqPct, yoyPct: rent.rentYoyPct,
+      scopeChanged: Boolean(latestRent?.sampleChanged?.rent) || marketSampleCoverageChanged(rent.previous, latestRent, 'rent') },
+    vacancy: { latest: latestVacancy, qoqPp: vacancy.vacancyChange, yoyPp: vacancy.vacancyYoyPp,
+      scopeChanged: Boolean(latestVacancy?.sampleChanged?.vacancy) || marketSampleCoverageChanged(vacancy.previous, latestVacancy, 'vacancyPct') },
   };
 }
 
@@ -100,7 +101,9 @@ export function submarketResearchObservation(
   const rentPeriod = rent?.latest?.period;
   const changeWord = (value: number) => direction(value) > 0 ? '上升' : direction(value) < 0 ? '下降' : '持平';
   if (rentPeriod && rentPeriod === vacancy?.latest?.period && rent?.qoqAbsolute != null && vacancy.qoqPp != null) {
-    return `${rentPeriod} 完整甲乙级子市场的净有效租金环比${changeWord(rent.qoqAbsolute)}，空置率环比${changeWord(vacancy.qoqPp)}。`;
+    const changed = rent.scopeChanged || vacancy.scopeChanged;
+    const note = changed ? '两期样本构成或覆盖有变。' : '';
+    return `${rentPeriod} 完整甲乙级子市场${changed ? '市场样本中' : '的'}净有效租金环比${changeWord(rent.qoqAbsolute)}，空置率环比${changeWord(vacancy.qoqPp)}。${note}`;
   }
   const benchmarkFacts: string[] = [];
   for (const metric of metrics) {

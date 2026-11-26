@@ -22,12 +22,6 @@ vi.mock('@/src/services/mapDataClient', () => ({
   saveSubmarketProfile: api.save,
 }));
 
-vi.mock('next/dynamic', () => ({
-  default: () => function MockTrendChart() {
-    return <div data-testid="trend-chart" />;
-  },
-}));
-
 const summary: SubmarketSummary = {
   ...aggregateMarket([]),
   name: 'CBD',
@@ -178,33 +172,32 @@ describe('submarket research workspace', () => {
     await screen.findByText(profile.headline);
     const overviewDigest = () => within(screen.getByRole('region', { name: '季度变化' }));
     expect(overviewDigest().getByText('净有效租金', { exact: false })).toHaveTextContent('2026Q3');
-    expect(screen.queryByTestId('trend-chart')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '指标走势' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
-    expect(screen.getByTestId('trend-chart')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '指标走势' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '乙级' }));
     expect(screen.getByRole('button', { name: '乙级' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('region', { name: '季度行情' })).toHaveTextContent('当前等级暂无已发布的有效季度观测');
-    expect(screen.queryByTestId('trend-chart')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '指标走势' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: '市场概览' }));
     expect(overviewDigest().getByText('净有效租金', { exact: false })).toHaveTextContent('2026Q3');
-    expect(screen.queryByTestId('trend-chart')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '指标走势' })).not.toBeInTheDocument();
   });
 
-  it('combines overlapping research notes in full reading without hiding the selected grade digest', async () => {
+  it('uses the dedicated trend chapter in full reading without duplicating the quarterly overview', async () => {
     const point = { period: '2026Q3', year: 2026, quarter: 3, rent: 180, vacancyPct: 10, rentSamples: 1, vacancySamples: 1, rentArea: 100, vacancyArea: 100 };
     api.read.mockResolvedValueOnce({ ...payload, trends: { all: [point], a: [point], b: [] } });
     render(<WorkspacePanelContext.Provider value={{ compact: false, mode: 'full', setMode: vi.fn() }}>
       <SubmarketDetailPanel {...props} />
     </WorkspacePanelContext.Provider>);
-    expect(await screen.findByTestId('trend-chart')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '季度变化' })).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: '最新季度变化' })).not.toBeInTheDocument();
-    expect(screen.getByText('数据口径与来源').closest('details')).toHaveTextContent('历史按当前楼宇归属及等级统计');
+    expect(await screen.findByRole('region', { name: '指标走势' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '季度变化' })).not.toBeInTheDocument();
+    expect(screen.getByText('季度行情口径与来源').closest('details')).toHaveTextContent('历史按当前楼宇归属及等级统计');
 
     fireEvent.click(screen.getByRole('button', { name: '甲级' }));
-    expect(screen.getByRole('region', { name: '最新季度变化' })).toHaveTextContent('2026Q3');
+    expect(screen.getByRole('region', { name: '指标走势' })).toHaveTextContent('2026Q3');
     expect(screen.getByRole('region', { name: '季度行情' })).toHaveTextContent('完整授权子市场 · 甲级');
     expect(screen.getAllByText('数据口径与来源')).toHaveLength(1);
   });
@@ -256,9 +249,9 @@ describe('submarket research workspace', () => {
     api.read.mockResolvedValueOnce({ ...payload, trends: { all: series, a: [], b: [] } });
     render(<SubmarketDetailPanel {...props} />);
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
-    const digest = within(await screen.findByRole('region', { name: '最新季度变化' }));
-    const rent = digest.getByText('净有效租金', { exact: false }).parentElement;
-    const vacancy = digest.getByText('空置率', { exact: false }).parentElement;
+    const digest = within(await screen.findByRole('region', { name: '指标走势' }));
+    const rent = digest.getByRole('heading', { name: '净有效租金' }).closest('figure');
+    const vacancy = digest.getByRole('heading', { name: '空置率' }).closest('figure');
     expect(rent).toHaveTextContent('2026Q2');
     expect(rent).toHaveTextContent(/环比 −10\.0 元\/㎡\/月/);
     expect(vacancy).toHaveTextContent('2026Q2');
@@ -274,7 +267,7 @@ describe('submarket research workspace', () => {
     const trend = within(screen.getByRole('region', { name: '季度行情' }));
     await waitFor(() => expect(trend.getByRole('status')).toHaveTextContent('历史行情暂不可用'));
     expect(trend.queryByText(/暂无已发布的有效季度观测/)).not.toBeInTheDocument();
-    expect(screen.queryByTestId('trend-chart')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '指标走势' })).not.toBeInTheDocument();
     fireEvent.click(trend.getByRole('button', { name: '重新加载' }));
     await waitFor(() => expect(trend.getByText(/暂无已发布的有效季度观测/)).toBeInTheDocument());
     expect(trend.queryByText(/历史行情暂不可用/)).not.toBeInTheDocument();

@@ -7,9 +7,11 @@ import { WorkspacePanelContext, WorkspacePanelHeader } from './WorkspacePanelHea
 import { SubmarketProfileEditor } from './SubmarketProfileEditor';
 import { hasSubmarketProfileContent, SubmarketResearchProfile } from './SubmarketResearchProfile';
 import { SubmarketResearchOverview, SubmarketResearchTrend, type SubmarketResearchFutureState } from './SubmarketResearchData';
+import { MarketTrendSummary } from './MarketTrendSummary';
 import { SubmarketRepresentativeProjects } from './SubmarketRepresentativeProjects';
 import { useSubmarketWorkspaceDetail } from './useSubmarketWorkspaceDetail';
 import { describeQuarterlyResearchMarket, researchNumber } from '../model/submarketResearch';
+import type { MarketTrendRange } from '../model/marketTrendPresentation';
 import type { MarketBuilding, SubmarketSummary } from '../model/submarketOverview';
 import { useMapObjectReadingState, useMapReadingScroll } from '../workspace/continuity';
 import './submarket-research.css';
@@ -21,7 +23,9 @@ const gradeNames = [['all', '甲乙级'], ['a', '甲级'], ['b', '乙级']] as c
 const emptyTrend = [] as const;
 type Section = (typeof sections)[number][0];
 type Grade = (typeof gradeNames)[number][0];
-const initialReading = { section: 'overview', grade: 'all', scrollTop: 0 } as { section: Section; grade: Grade; scrollTop: number };
+const initialReading: { section: Section; grade: Grade; scrollTop: number; trendRange?: MarketTrendRange } = {
+  section: 'overview', grade: 'all', scrollTop: 0,
+};
 
 type Props = {
   name: string;
@@ -153,11 +157,12 @@ function SubmarketWorkspace({
     </div>
     <SubmarketResearchTrend data={payload?.trends[grade] ?? emptyTrend} state={trendState}
       gradeLabel={gradeNames.find(([id]) => id === grade)?.[1] ?? '甲乙级'} onRetry={detail.error ? undefined : retry}
-      showDigest={!full || grade !== 'all'} showSource={!full} />
+      series={payload?.trends} active={!suspended} range={reading.trendRange ?? 'default'}
+      onRangeChange={trendRange => setReading(previous => ({ ...previous, trendRange }))} />
   </section>;
   const overview = <SubmarketResearchOverview name={name} summary={summary} buildings={buildings} trendData={allTrend}
     trendState={trendState} futureState={futureState} futureCount={futureCount} futureArea={futureArea} futureAreaSamples={futureAreaSamples}
-    beijingBenchmarkBuildings={beijingBenchmarkBuildings} includeTrendSource={expanded} />;
+    beijingBenchmarkBuildings={beijingBenchmarkBuildings} showQuarterlySummary={!expanded} />;
   const projects = (compact = false) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}
     onOpen={onOpenBuilding} compact={compact} />;
 
@@ -209,7 +214,9 @@ function SubmarketWorkspace({
               {!detail.loading ? <button type="button" className="submarket-quiet-action" onClick={retry}>重新加载</button> : null}
             </div> : null}
             {layout === 'quick' ? <QuickSummary summary={summary} onRead={() => openStandard()}
-                onViewProjects={() => openStandard('buildings')} />
+                onViewProjects={() => openStandard('buildings')}>
+                {trendState === 'ready' && <MarketTrendSummary data={allTrend} compact />}
+              </QuickSummary>
               : layout === 'expanded' ? <div className="submarket-brief">
                 <section className="submarket-research-chapter submarket-brief-overview" aria-labelledby="submarket-brief-overview">
                   <h3 id="submarket-brief-overview">市场概览</h3>{overview}
@@ -240,7 +247,7 @@ function SubmarketWorkspace({
   </div>;
 }
 
-function QuickSummary({ summary, onRead, onViewProjects }: { summary: SubmarketSummary; onRead: () => void; onViewProjects: () => void }) {
+function QuickSummary({ summary, onRead, onViewProjects, children }: { summary: SubmarketSummary; onRead: () => void; onViewProjects: () => void; children: React.ReactNode }) {
   const metric = (value: number | null, unit: string, precision = 1) => value != null && Number.isFinite(value)
     ? <>{researchNumber(value, precision)} <span>{unit}</span></> : <span>未收录</span>;
   return <section className="submarket-quick-summary" aria-label="市场核心指标">
@@ -254,6 +261,7 @@ function QuickSummary({ summary, onRead, onViewProjects }: { summary: SubmarketS
       </dl>
       <button type="button" className="submarket-link-action" onClick={onRead}>阅读完整研究 <ChevronRight size={14} aria-hidden="true" /></button>
     </div>
+    {children}
     {summary.officeCount > 0 ? <p className="submarket-quick-fact">存量构成：甲级 {researchNumber(summary.gradeACount, 0)} 个，乙级 {researchNumber(summary.gradeBCount, 0)} 个。</p> : null}
     <button type="button" className="submarket-link-action" onClick={onViewProjects}>查看代表项目 <ChevronRight size={14} aria-hidden="true" /></button>
   </section>;

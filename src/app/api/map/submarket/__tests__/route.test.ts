@@ -34,6 +34,8 @@ const buildingRows = [
   { id: 'a', grade: 'A' }, { id: 'b', grade: 'B' }, { id: 'park', grade: 'BP' },
 ];
 const quarterRows = [
+  { building_id: 'a', record_year: 2023, record_quarter: 4, total_area: 100,
+    net_effective_rent: 150, vacancy_rate: 0, is_draft: false, is_locked: true },
   { building_id: 'a', record_year: 2026, record_quarter: 3, total_area: 100,
     net_effective_rent: 100, vacancy_rate: .1, is_draft: false, is_locked: true },
   { building_id: 'b', record_year: 2026, record_quarter: 3, total_area: 300,
@@ -106,6 +108,8 @@ describe('authorized submarket GET', () => {
       period: '2026Q3', rent: 175, vacancyPct: 17.5,
       rentSamples: 2, vacancySamples: 2,
     });
+    expect(result.trends.all[0]).toMatchObject({ period: '2023Q4', rent: 150, vacancyPct: 0 });
+    expect(result.trends.all[1]).toMatchObject({ period: '2024Q1', rent: null, vacancyPct: null });
     expect(result.trends.a.at(-1).rent).toBe(100);
     expect(result.trends.b.at(-1).rent).toBe(200);
     expect(result.profileAvailable).toBe(false);
