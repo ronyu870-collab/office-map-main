@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { areaNumber, OCCUPANCY_LABELS, selectFloorRows, unitLayout } from '@/src/components/stacking-plan/stackingPlanModel';
 import { createStackingPresentationSvg, stackingPresentationSize, type PresentationInput } from '@/src/components/stacking-plan/stackingPlanPresentation';
+import { stackingSelectionSchema } from '../contracts/visual-reference';
 import { sceneFont } from '../layout/metrics';
 import { svgText } from './svg-text';
+export { stackingSelectionSchema } from '../contracts/visual-reference';
 
 const reference = z.string().min(1).max(100);
 const area = z.union([z.number(), z.string()]).nullable();
@@ -23,11 +25,6 @@ const snapshotSchema = z.object({
   towers: z.array(z.object({ id: z.uuid(), building_id: z.uuid(), code: z.string(), display_name: z.string() })),
   floors: z.array(floor).max(199), spaces: z.array(space).max(999), sources: z.array(source),
 });
-export const stackingSelectionSchema = z.strictObject({
-  towerIds: z.array(z.uuid()).min(1).max(2).optional(),
-  levelRange: z.tuple([z.number().int().min(-200).max(300), z.number().int().min(-200).max(300)]).optional(),
-}).refine(s => (!s.levelRange || s.levelRange[0] <= s.levelRange[1])
-  && (!s.towerIds || s.towerIds.length === new Set(s.towerIds).size));
 export type StackingSelection = z.infer<typeof stackingSelectionSchema>;
 
 /** Native geometry weights come from the existing workbench model. Historical status remains source-qualified. */

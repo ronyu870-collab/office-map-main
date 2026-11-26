@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { BUILDING_PHOTO_TABLE } from '@/src/lib/building-photos/model';
 import { scheduleAuditBestEffort } from '@/src/lib/serverAudit';
+import { visualBuildingIds } from '../contracts/visual-reference';
 import type { PitchContext } from '../data/store';
 import type { SceneMedia } from '../render/media';
-import { authorizeVisualBuildings, recheckVisualBuildings, visualBuildingIds } from './buildings';
+import { authorizeVisualBuildings, recheckVisualBuildings } from './buildings';
 import { photoSceneBytes, readPhotoFile } from './photo-file';
 import { classifyBuildingPhoto, reusablePhotoLicense, selectBuildingPhotos, type PhotoCandidate } from './photo-selection';
 

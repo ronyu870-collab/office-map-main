@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import { loadBusinessSnapshot } from '@/src/lib/intelligence/business/research';
 import { readStackingSnapshot } from '@/src/lib/stacking-plan/readSnapshot';
+import { stackingSelectionSchema } from '../contracts/visual-reference';
 import type { PitchContext } from '../data/store';
 import type { SceneMedia } from '../render/media';
 import { authorizeVisualBuildings, marketVisualSelection, recheckVisualBuildings, type VisualBuildingSelection } from './buildings';
 import { createLocationSchematic, locationSchematicSvg } from './location';
 import { contentHash } from './photo-file';
 import { pinVisual, stableVisualId, type PinnedVisualReference } from './reference';
-import { createStackingVisual, stackingSelectionSchema, stackingVisualSvg, type StackingSelection } from './stacking';
+import { createStackingVisual, stackingVisualSvg, type StackingSelection } from './stacking';
 
 async function rasterizeSvg(svg: string, width = 2560) {
   if (Buffer.byteLength(svg) > 16 * 1024 * 1024) throw new Error('PITCH_VISUAL_LIMIT');

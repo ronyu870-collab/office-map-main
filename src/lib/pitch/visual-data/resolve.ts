@@ -1,9 +1,11 @@
+import type { SlideContent } from '../contracts/content';
+import type { SlideScene } from '../contracts/scene';
 import type { PitchContext } from '../data/store';
 import type { ProposalAudience } from '../integration-contracts';
-import type { SceneMedia } from '../render/media';
+import { sceneMediaReferences, type SceneMedia } from '../render/media';
 import { readPitchLocation, readPitchStackingPlan } from './derived-assets';
 import { loadBuildingPhotoMedia } from './photos';
-import { assertVisualVersion, pinnedVisualInput } from './reference';
+import { assertVisualVersion, pinnedVisualInput, stableVisualId } from './reference';
 
 /** Every replay goes back through the original permission and source-version checks. */
 export async function resolvePitchVisualAsset(ctx: PitchContext, input: unknown, audience: ProposalAudience, options: { stackingImage?: boolean } = {}) {
@@ -45,4 +47,19 @@ export async function resolveReferencedVisualMedia(ctx: PitchContext, pins: read
     media.push(resolved.media);
   }
   return media;
+}
+
+/** Read the immutable receipts from the selected persisted slides or export manifest. */
+export function getVisualPageReceipts(pages: readonly Pick<SlideContent, 'sources'>[]) {
+  return pages.flatMap(page => page.sources.flatMap(source => {
+    if (!source.visual) return [];
+    if (source.id !== stableVisualId(['source', source.visual.id])) throw new Error('PITCH_SOURCE_CHANGED');
+    return [source.visual];
+  }));
+}
+
+export async function resolveVisualPageMedia(ctx: PitchContext,
+  pages: readonly { content: Pick<SlideContent, 'sources'>; scene: SlideScene }[], audience: ProposalAudience) {
+  return resolveReferencedVisualMedia(ctx, getVisualPageReceipts(pages.map(page => page.content)),
+    sceneMediaReferences(pages.map(page => page.scene)), audience);
 }
