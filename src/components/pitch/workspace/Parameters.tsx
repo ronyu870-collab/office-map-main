@@ -8,6 +8,7 @@ import type {
 import { dynamicParametersSchema } from "@/src/lib/pitch/business/protocol";
 import type { Call } from "./client";
 import type { Template } from "./TemplatePicker";
+import { ECOSYSTEM_BY_ID } from '@/src/lib/pitch/templates/ecosystem';
 import styles from "./workspace.module.css";
 export function BuildingPicker({
   call,
@@ -155,6 +156,7 @@ export function TemplateParameters({
   onGenerate,
   busy,
   initial,
+  actionLabel = "生成页面",
 }: {
   call: Call;
   template: Template;
@@ -163,6 +165,7 @@ export function TemplateParameters({
   onGenerate: (part: Generation["parts"][number]) => Promise<void>;
   busy: boolean;
   initial?: Generation["parts"][number];
+  actionLabel?: string;
 }) {
   const now = new Date(),
     year = now.getFullYear(),
@@ -282,6 +285,7 @@ export function TemplateParameters({
   return (
     <section className={styles.form} aria-label={`${template.name}配置`}>
       <h2>{template.name}</h2>
+      {ECOSYSTEM_BY_ID.get(template.id)&&<p>所需内容：{ECOSYSTEM_BY_ID.get(template.id)!.fields.join('、')}。</p>}
       {error && <p role="alert">{error}</p>}
       {dynamic ? (
         <>
@@ -487,7 +491,7 @@ export function TemplateParameters({
               onChange={(e) => setVariant(e.target.value as typeof variant)}
             >
               <option value="standard">标准</option>
-              <option value="alternate">替换布局</option>
+              {!ECOSYSTEM_BY_ID.has(template.id)&&<option value="alternate">替换布局</option>}
             </select>
           </label>
           <label className={styles.check}>
@@ -507,7 +511,7 @@ export function TemplateParameters({
         loading={busy}
         onClick={() => void generate()}
       >
-        生成页面
+        {actionLabel}
       </Button>
     </section>
   );

@@ -51,6 +51,8 @@ const eslintConfig = defineConfig([
   // Override default ignores of eslint-config-next.
   globalIgnores([
     "public/vendor/**",
+    // Generated, git-ignored local databases, fixtures and one-off verification artifacts.
+    "tmp/**",
     ".local/sales-materials/**",
     ".local/f6-admin-pilot/**",
     // Generated dependency bundle used only by the real Auth integration harness.

@@ -14,11 +14,11 @@ async function sampleImage(): Promise<Uint8Array> {
   const { Resvg } = await import('@resvg/resvg-js');
   return new Resvg('<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640"><rect width="960" height="640" fill="#E7EBEE"/><path d="M140 540V190h220v350M400 540V100h260v440M700 540V280h130v260" fill="#778BA5"/><path d="M175 230h150m-150 60h150m-150 60h150m-150 60h150m110-260h180m-180 70h180m-180 70h180m-180 70h180m-180 70h180m100-90h70m-70 65h70" stroke="#E7EBEE" stroke-width="18"/></svg>', { font: { loadSystemFonts: false } }).render().asPng();
 }
-export async function createSample(ctx: PitchContext, requestId: string, scope: PitchScope, fixture?: LayoutId, language: 'zh' | 'en' = 'zh') {
+export async function createSample(ctx: PitchContext, requestId: string, scope: PitchScope, fixture?: LayoutId, language: 'zh' | 'en' = 'zh', example?: {templateId:string;page:number}) {
   // IDs are request-scoped so an interrupted upload can retry without duplicates.
   const { createHash } = await import('node:crypto');
   const id = (kind: string) => {
-    const namespace = fixture ? 'pitch-sample/2' : 'pitch-sample/1';
+    const namespace = example ? `pitch-example/1:${example.templateId}:${example.page}:${language}` : fixture ? 'pitch-sample/2' : 'pitch-sample/1';
     const b = createHash('sha256').update(`${namespace}:${ctx.identity.actorId}:${requestId}:${kind}`).digest().subarray(0, 16);
     b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
     const h = b.toString('hex'); return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
@@ -28,7 +28,8 @@ export async function createSample(ctx: PitchContext, requestId: string, scope: 
   // Fixed synthetic business date makes interrupted retries byte-identical.
   const dataAsOf = '2026-01-01';
   const { layoutFixture } = await import('../fixtures/layouts');
-  const testContent = fixture ? layoutFixture(fixture, language, sourceId, mediaId) : undefined;
+  const testContent = example ? (await import('../fixtures/business')).templateExample(example.templateId, language, sourceId, mediaId)[example.page]?.content : fixture ? layoutFixture(fixture, language, sourceId, mediaId) : undefined;
+  if(example&&!testContent)throw new Error('PITCH_INVALID');
   const original = new TextEncoder().encode(JSON.stringify({ kind: 'synthetic', notice: '测试数据；非高力国际真实案例', dataAsOf, title: '测试办公空间', description: '此素材仅用于验证内容、页面、主题及文件导出的完整流程。', ...(testContent ? { content: testContent } : {}) }));
   const sourceFile = makeFile(`sources/${ctx.identity.actorId}/${documentId}/original.json`, 'application/json', original);
   const png = await sampleImage(), mediaFile = makeFile(`media/${ctx.identity.actorId}/${mediaId}/1.png`, 'image/png', png);

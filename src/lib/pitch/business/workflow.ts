@@ -1,3 +1,4 @@
+import { PATTERN_BY_ID } from '../layout/patterns/catalog';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { designThemeSchema } from '../design/theme';
@@ -74,7 +75,7 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
     const content=slideContentSchema.parse(page.content),assetId=randomUUID();
     let parts;
     try{await layoutSlides(content,theme,page.layoutId,page.variant);parts=[page];}
-    catch(error){if(!(error instanceof LayoutError))throw error;parts=await normalizationPlan(content,theme);changes.push({group,reason:error.code});}
+    catch(error){if(!(error instanceof LayoutError)||PATTERN_BY_ID.has(page.layoutId))throw error;parts=await normalizationPlan(content,theme);changes.push({group,reason:error.code});}
     generated.push({id:assetId,content,sha256:hash(content)});
     for(const part of parts)for(const scene of await layoutSlides(part.content,theme,part.layoutId,part.variant))slides.push({slideId:randomUUID(),assetId,assetVersion:1,content:part.content,scene,theme});
     if(slides.length>50)throw new DocumentError('PITCH_PAGE_LIMIT','本次生成超过 50 页，请拆为多个 Pitch；未静默删减内容。');

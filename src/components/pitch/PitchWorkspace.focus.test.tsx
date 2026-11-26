@@ -1,4 +1,5 @@
 import * as React from "react";
+import { BUSINESS_RECIPES } from "@/src/lib/pitch/business/recipes";
 import { Manager } from "./workspace/Manager";
 import type { Catalog, Call } from "./workspace/client";
 import type { AuthSessionResult } from "@/src/services/Auth";
@@ -152,12 +153,14 @@ let detail: ReturnType<typeof initial>,
   failTaskPoll = false,
   failCompletedRead = false,
   completedTask = false,
-  rejectSave = false;
+  rejectSave = false,
+  expandedCatalog = false;
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 beforeEach(() => {
   state.role = "editor";
   state.other = false;
   rejectSave = false;
+  expandedCatalog = false;
   failTaskPoll = false;
   failCompletedRead = false;
   completedTask = false;
@@ -176,7 +179,7 @@ beforeEach(() => {
       let status = 200;
       if (init?.method === "POST") writes.push(c);
       if (c.action === "catalog")
-        body = path === "business" ? { recipes: [], dynamic: [] } : catalog;
+        body = path === "business" ? { recipes: expandedCatalog ? BUSINESS_RECIPES.map(r => ({...r, revision: 1, categoryId: sourceId, enabled: true})) : [], dynamic: [] } : catalog;
       else if (c.action === "capabilities")
         body = { allowedDynamic: [], buildingSearch: false };
       else if (c.action === "preferences") body = { favorites: [], recent: [] };
@@ -196,6 +199,8 @@ beforeEach(() => {
         if (failCompletedRead && writes.some((c) => c.action === "status"))
           throw new Error("新页面暂时读取失败");
         body = detail;
+      } else if (c.action === "create") {
+        body = {...detail, project: {...detail.project, id: c.projectId, title: c.title, theme_id: c.themeId, theme_version: c.themeVersion}, workspace: {...detail.workspace, context: c.context, active_slide: null}, slides: [], tasks: []};
       } else if (c.action === "status") {
         if (failTaskPoll) throw new Error("生成进度网络中断");
         body = {
@@ -275,6 +280,21 @@ async function enter() {
   return user;
 }
 describe("Pitch workspace continuous editing", () => {
+  it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
+    expandedCatalog = true;
+    const user = await enter();
+    await user.click(screen.getByText("项目设置", { selector: "summary" }));
+    fireEvent.change(screen.getByLabelText("默认季度"), {target: {value: "2026-Q4"}});
+    await user.click(screen.getByRole("button", {name: "示例与套装"}));
+    await user.click(await screen.findByRole("tab", {name: "提案套装"}));
+    await user.click(screen.getByRole("button", {name: "创建演示 Pitch"}));
+    await waitFor(() => expect(writes.some(c => c.action === "create")).toBe(true));
+    const created = writes.find(c => c.action === "create")!;
+    expect(created.context).toMatchObject({period: "2026-Q4"});
+    expect(created.projectId).not.toBe(projectId);
+    const saveAt = writes.findIndex(c => c.action === "save"), createAt = writes.findIndex(c => c.action === "create");
+    expect(saveAt).toBeGreaterThanOrEqual(0); expect(saveAt).toBeLessThan(createAt);
+  });
   it("keeps project name focused through continuous typing and cursor edits", async () => {
     const user = await enter(),
       input = screen.getByLabelText("项目名称") as HTMLInputElement;
