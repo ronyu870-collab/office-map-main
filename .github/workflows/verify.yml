@@ -2,6 +2,7 @@ name: Verify
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
     branches:
       - main
       - codex/pitch-studio-01-foundation
@@ -12,12 +13,16 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: '17 18 * * *' # 02:17 Beijing time, daily full regression
+  workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
-  group: verify-${{ github.workflow }}-${{ github.ref }}
+  group: verify-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -27,21 +32,43 @@ jobs:
     timeout-minutes: 5
     outputs:
       docs_only: ${{ steps.scope.outputs.docs_only }}
-      quick_only: ${{ steps.scope.outputs.quick_only }}
+      full_only: ${{ steps.scope.outputs.full_only }}
+      map_browser: ${{ steps.scope.outputs.map_browser }}
+      ai_browser: ${{ steps.scope.outputs.ai_browser }}
+      browser_mode: ${{ steps.scope.outputs.browser_mode }}
+      comparison_sha: ${{ steps.scope.outputs.comparison_sha }}
+      affected_only: ${{ steps.scope.outputs.affected_only }}
+      post_merge: ${{ steps.scope.outputs.post_merge }}
+      draft: ${{ steps.scope.outputs.draft }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       - name: Verify safe scope selection and required-check results
         run: node --test scripts/verification/ci-scope.node-test.mjs
+      - name: Recognize an already verified PR merge
+        id: merge
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # An exact merged PR is required; failures/non-PR pushes use ordinary risk classification.
+          if gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --paginate --jq '.[] | select(.merged_at != null and .base.ref == "main") | .merge_commit_sha' | grep -Fxq "$GITHUB_SHA"; then
+            echo 'post_merge=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'post_merge=false' >> "$GITHUB_OUTPUT"
+          fi
       - id: scope
         run: node scripts/verification/ci-scope.mjs
         env:
           CI_COMPARISON_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          CI_QUICK_REQUESTED: ${{ startsWith(github.head_ref, 'codex/quick-') || contains(github.event.head_commit.message, '[quick]') }}
+          CI_FORCE_FULL: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+          CI_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+          CI_POST_MERGE: ${{ steps.merge.outputs.post_merge == 'true' }}
 
   search-focus:
     needs: changes
@@ -61,7 +88,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           # The temporary runner already has a warm npm cache on disk.
           cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
       - run: npm ci
@@ -70,31 +97,96 @@ jobs:
       - name: Run regressions for affected entrypoints
         run: node scripts/search-focus-gate.mjs
         env:
-          SEARCH_FOCUS_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          SEARCH_FOCUS_BASE_SHA: ${{ needs.changes.outputs.comparison_sha }}
 
-  quick:
-    name: Quick UI update
+  standard:
+    name: Routine engineering checks
     needs: changes
-    if: ${{ needs.changes.outputs.quick_only == 'true' }}
+    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.full_only != 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run verify:quick
+      - name: Audit coverage contract
+        run: npm run audit:coverage
         env:
-          CI_COMPARISON_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          AUDIT_COVERAGE_BASE_SHA: ${{ needs.changes.outputs.comparison_sha }}
+      - name: Changed-file lint, types and affected tests
+        if: ${{ needs.changes.outputs.affected_only == 'true' }}
+        run: npm run verify:quick
+        env:
+          CI_COMPARISON_SHA: ${{ needs.changes.outputs.comparison_sha }}
+      - name: Typecheck
+        if: ${{ needs.changes.outputs.affected_only != 'true' }}
+        run: npm run typecheck
+      - name: Check schema dictionary catalog and search index
+        run: node scripts/generate-schema-dictionary.mjs --check
+      - name: Lint
+        if: ${{ needs.changes.outputs.affected_only != 'true' }}
+        run: npm run lint
+      - name: Unit and component tests
+        if: ${{ needs.changes.outputs.affected_only != 'true' }}
+        run: npm run test
+      - name: Offline AI evaluation (affected module)
+        if: ${{ needs.changes.outputs.ai_browser == 'true' }}
+        run: npm run test:ai-eval
+      - name: Cache Next.js compiler
+        if: ${{ needs.changes.outputs.post_merge != 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            next-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}-
+      - name: Production build
+        if: ${{ needs.changes.outputs.post_merge != 'true' }}
+        run: npm run build
+        env:
+          NEXT_PUBLIC_AMAP_KEY: syntheticfixture
+      - name: Cache Playwright Chromium
+        if: ${{ runner.environment == 'github-hosted' && needs.changes.outputs.browser_mode == 'targeted' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.58.2-${{ runner.os }}-${{ runner.arch }}
+      - name: Affected map and AI browser functional regressions
+        if: ${{ needs.changes.outputs.browser_mode == 'targeted' }}
+        shell: bash
+        env:
+          MAP_BROWSER: ${{ needs.changes.outputs.map_browser }}
+          AI_BROWSER: ${{ needs.changes.outputs.ai_browser }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/performance-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/performance-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          export PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/performance-browser/node_modules/playwright-core"
+          export PERF_BROWSER_CHANNEL=chromium
+          node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3210 > "$RUNNER_TEMP/routine-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3210/login > /dev/null; then break; fi
+            sleep 1
+          done
+          if [ "$MAP_BROWSER" = true ]; then
+            node scripts/verification/verify-map-workspace.mjs http://127.0.0.1:3210
+            node scripts/verification/verify-map-continuity.mjs http://127.0.0.1:3210
+          fi
+          if [ "$AI_BROWSER" = true ]; then
+            node scripts/verification/home-entry-browser.mjs after http://127.0.0.1:3210
+            HOME_QUERY_P2_BUILD_MODE=production HOME_QUERY_P2_EVIDENCE_DIR="$RUNNER_TEMP/colliers-ai-experience-p2" node scripts/verification/home-query-experience-p2-browser.mjs after http://127.0.0.1:3210
+          fi
 
   engineering:
     needs: changes
-    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.quick_only != 'true' }}
-    name: Engineering regressions
+    if: ${{ needs.changes.outputs.full_only == 'true' }}
+    name: Database and specialist regressions
     runs-on: >-
       ${{ github.event_name == 'pull_request'
           && github.event.pull_request.head.repo.full_name == github.repository
@@ -102,8 +194,7 @@ jobs:
           && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
           && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
           || 'ubuntu-24.04' }}
-    # Full native Pitch fixture generation and existing browser regressions run here.
-    # The measured combined job exceeded 35 minutes without a test failure.
+    # Database suites retain their own isolated PostgreSQL service.
     timeout-minutes: 45
     services:
       postgres:
@@ -124,37 +215,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           # The temporary runner already has a warm npm cache on disk.
           cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Audit coverage contract
-        run: npm run audit:coverage
-        env:
-          AUDIT_COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Check schema dictionary catalog and search index
-        run: node scripts/generate-schema-dictionary.mjs --check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm run test
-
-      - name: Offline AI evaluation budget and replay boundaries
-        run: npm run test:ai-eval
 
       - name: Archived original ingestion regression
         run: |
@@ -367,12 +438,109 @@ jobs:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
           POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
 
+      - name: Retain Audit 2 execution evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-2-verification
+          path: verification/audit-2
+          if-no-files-found: ignore
+          retention-days: 3
+      - name: Retain AI query and audit evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-query-audit-verification
+          path: |
+            verification/ai-query-intake/results.json
+            verification/ai-query-p1/results.json
+            verification/ai-query-p1/gateway-results.json
+            verification/ai-audit-console/results.json
+            verification/ai-admin-only/results.json
+            verification/ai-audit-people/results.json
+            verification/ai-audit-export/results.json
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Retain generated editable Pitch template and kit samples
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitch-template-ecosystem
+          path: tmp/pitch-ecosystem-fixtures/
+          if-no-files-found: ignore
+          retention-days: 3
+
+
+  full-app:
+    needs: changes
+    if: ${{ needs.changes.outputs.full_only == 'true' }}
+    name: Full-scope core application checks
+    runs-on: >-
+      ${{ github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && vars.CI_TEMP_RUNNER_BRANCH != ''
+          && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
+          && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
+          || 'ubuntu-24.04' }}
+    # Run independently of database regressions; full browser regression is scheduled/manual only.
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          # The temporary runner already has a warm npm cache on disk.
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit coverage contract
+        run: npm run audit:coverage
+        env:
+          AUDIT_COVERAGE_BASE_SHA: ${{ needs.changes.outputs.comparison_sha }}
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Check schema dictionary catalog and search index
+        run: node scripts/generate-schema-dictionary.mjs --check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Offline AI evaluation budget and replay boundaries
+        run: npm run test:ai-eval
+
+      - name: Cache Next.js compiler
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            next-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}-
       - name: Production build
         run: npm run build
         env:
           NEXT_PUBLIC_AMAP_KEY: syntheticfixture
 
+      - name: Cache Playwright Chromium
+        if: ${{ runner.environment == 'github-hosted' && needs.changes.outputs.browser_mode != 'none' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.58.2-${{ runner.os }}-${{ runner.arch }}
       - name: Browser measurement calibration and anonymous production-build regression
+        if: ${{ needs.changes.outputs.browser_mode == 'full' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
         shell: bash
         run: |
           npm install --prefix "$RUNNER_TEMP/performance-browser" --no-save --ignore-scripts playwright-core@1.58.2
@@ -439,16 +607,43 @@ jobs:
           node scripts/verification/verify-lease-expiry.mjs http://127.0.0.1:3210
           node scripts/verification/lease-expiry-timeline-browser.mjs http://127.0.0.1:3210
 
+      - name: Affected map and AI browser functional regressions
+        if: ${{ needs.changes.outputs.browser_mode == 'targeted' }}
+        shell: bash
+        env:
+          MAP_BROWSER: ${{ needs.changes.outputs.map_browser }}
+          AI_BROWSER: ${{ needs.changes.outputs.ai_browser }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/performance-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/performance-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          export PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/performance-browser/node_modules/playwright-core"
+          export PERF_BROWSER_CHANNEL=chromium
+          node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3210 > "$RUNNER_TEMP/routine-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3210/login > /dev/null; then break; fi
+            sleep 1
+          done
+          if [ "$MAP_BROWSER" = true ]; then
+            node scripts/verification/verify-map-workspace.mjs http://127.0.0.1:3210
+            node scripts/verification/verify-map-continuity.mjs http://127.0.0.1:3210
+          fi
+          if [ "$AI_BROWSER" = true ]; then
+            node scripts/verification/home-entry-browser.mjs after http://127.0.0.1:3210
+            HOME_QUERY_P2_BUILD_MODE=production HOME_QUERY_P2_EVIDENCE_DIR="$RUNNER_TEMP/colliers-ai-experience-p2" node scripts/verification/home-query-experience-p2-browser.mjs after http://127.0.0.1:3210
+          fi
+
       - name: Retain Audit 2 execution evidence
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: audit-2-verification
+          name: audit-2-browser-verification
           path: verification/audit-2
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
       - name: Retain homepage browser evidence
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: homepage-entry-verification
@@ -456,10 +651,10 @@ jobs:
             docs/verification/home-ai-entry/after-*.png
             docs/verification/home-ai-entry/after-browser.json
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
 
       - name: Retain Colliers AI P2 browser evidence
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: colliers-ai-experience-p2-verification
@@ -467,53 +662,28 @@ jobs:
             ${{ runner.temp }}/colliers-ai-experience-p2
             ${{ runner.temp }}/colliers-ai-menus
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
 
       - name: Retain isolated report verification evidence
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: occupier-report-verification
           path: verification/occupier-report
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
 
       - name: Retain isolated building photo verification evidence
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: building-photo-verification
           path: verification/building-photos
           if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Retain AI query and audit evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-query-audit-verification
-          path: |
-            verification/ai-query-intake/results.json
-            verification/ai-query-p1/results.json
-            verification/ai-query-p1/gateway-results.json
-            verification/ai-audit-console/results.json
-            verification/ai-admin-only/results.json
-            verification/ai-audit-people/results.json
-            verification/ai-audit-export/results.json
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Retain generated editable Pitch template and kit samples
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pitch-template-ecosystem
-          path: tmp/pitch-ecosystem-fixtures/
-          if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
 
       - name: Retain isolated lease expiry review evidence
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: lease-expiry-review-verification
@@ -521,21 +691,22 @@ jobs:
             verification/lease-expiry
             verification/lease-expiry-timeline
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
+
 
   ai-query-auth:
     needs: changes
-    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.quick_only != 'true' }}
+    if: ${{ needs.changes.outputs.full_only == 'true' }}
     name: Real Auth trusted query HTTP integration
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci
       - uses: supabase/setup-cli@v1
@@ -553,6 +724,12 @@ jobs:
         shell: bash
         run: |
           AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-ai-query-auth.mjs
+      - name: Cache Playwright Chromium
+        if: ${{ runner.environment == 'github-hosted' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.58.2-${{ runner.os }}-${{ runner.arch }}
       - name: Pitch Studio real Auth, private Storage and production HTTP round trip
         shell: bash
         run: |
@@ -560,29 +737,29 @@ jobs:
           node "$RUNNER_TEMP/pitch-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
           PITCH_TEST_ALLOW_LOCAL=disposable PITCH_TEST_REUSE_BUILD=true PITCH_WORKSPACE_BROWSER=true PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/pitch-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium PITCH_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-pitch-studio-http.mjs
       - name: Retain isolated Pitch workspace browser results
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: pitch-workspace-browser
           path: tmp/pitch-workspace-browser/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
       - name: Stop only the disposable query Auth stack
         if: always()
         run: supabase stop --workdir "$RUNNER_TEMP/ai-query-auth-integration" --no-backup
       - name: Retain credential-free query results
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ai-query-real-auth
           path: |
             verification/ai-query-auth/results.json
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
 
   lease-expiry-auth:
     needs: changes
-    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.quick_only != 'true' }}
+    if: ${{ needs.changes.outputs.full_only == 'true' }}
     name: Real Auth lease expiry integration
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -590,7 +767,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci
       - uses: supabase/setup-cli@v1
@@ -604,6 +781,12 @@ jobs:
           supabase start --workdir "$RUNNER_TEMP/f6-auth-integration" -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/f6-auth-start.log" 2>&1
           supabase status --workdir "$RUNNER_TEMP/f6-auth-integration" -o json > "$RUNNER_TEMP/f6-auth-status.json"
           chmod 600 "$RUNNER_TEMP/f6-auth-status.json"
+      - name: Cache Playwright Chromium
+        if: ${{ runner.environment == 'github-hosted' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1.58.2-${{ runner.os }}-${{ runner.arch }}
       - name: Real account, authorization, concurrency and revocation regressions
         shell: bash
         run: |
@@ -614,7 +797,7 @@ jobs:
         if: always()
         run: supabase stop --workdir "$RUNNER_TEMP/f6-auth-integration" --no-backup
       - name: Retain credential-free integration results
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: lease-expiry-real-auth
@@ -622,19 +805,19 @@ jobs:
             verification/lease-expiry-auth/results.json
             verification/lease-expiry-auth/*.png
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
 
   verify:
     name: Typecheck, lint, test and build
     if: ${{ always() }}
-    needs: [changes, search-focus, quick, engineering, ai-query-auth, lease-expiry-auth]
+    needs: [changes, search-focus, standard, engineering, full-app, ai-query-auth, lease-expiry-auth]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       - name: Require every applicable engineering and Auth job
         run: node scripts/verification/ci-scope.mjs --check-results
         env:
