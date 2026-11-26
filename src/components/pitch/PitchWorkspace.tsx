@@ -1139,10 +1139,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       projectId={detail.project.id}
                       slideId={page.id}
                       scene={page.scene}
+                      content={page.content}
+                      allowParagraphs={detail.workspace.page_settings[page.id]?.origin !== "data"}
                       pendingMoves={pageEdit?.objectMoves}
+                      pendingTexts={pageEdit?.objectTexts}
                       onClose={() => setObjectPage(null)}
-                      onApply={(objectMoves) => {
-                        editPage({ objectMoves });
+                      onApply={({ moves, texts }) => {
+                        editPage({ objectMoves: moves.length ? moves : undefined, objectTexts: texts.length ? texts : undefined });
                         setObjectPage(null);
                       }}
                     />
@@ -1151,17 +1154,17 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       {canGenerate && page.scene.rendererVersion === "pitch-scene/2" &&
                         page.scene.elements.some(canMoveObject) && (
                         <div className={styles.objectTools}>
-                          <Button variant="ghost" disabled={busy || saving || conflict || rendering || (dirty && !pageEdit?.objectMoves)}
+                          <Button variant="ghost" disabled={busy || saving || conflict || rendering || (dirty && !pageEdit?.objectMoves && !pageEdit?.objectTexts)}
                             onClick={() => setObjectPage(active)}>
                             调整画布对象
                           </Button>
-                          {pageEdit?.objectMoves && (
-                            <Button variant="ghost" disabled={saving} onClick={() => editPage({ objectMoves: undefined })}>
-                              丢弃未保存的移动
+                          {(pageEdit?.objectMoves || pageEdit?.objectTexts) && (
+                            <Button variant="ghost" disabled={saving} onClick={() => editPage({ objectMoves: undefined, objectTexts: undefined })}>
+                              丢弃未保存的对象修改
                             </Button>
                           )}
                           {page.scene.elements.some(element => element.editorId) && (
-                            <Button variant="ghost" disabled={busy || saving || conflict || rendering || !!pageEdit?.objectMoves}
+                            <Button variant="ghost" disabled={busy || saving || conflict || rendering || !!pageEdit?.objectMoves || !!pageEdit?.objectTexts}
                               onClick={() => setConfirmation({
                                 title: "恢复自动布局？",
                                 body: "此页手动摆放的位置将被替换。已保存的旧版仍可从项目历史恢复。",

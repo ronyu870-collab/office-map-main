@@ -51,3 +51,61 @@ export function applyObjectMoves(scene: SlideScene, value: ObjectMove[]): SlideS
   if (pending.size) throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
   return slideSceneSchema.parse({ ...scene, elements });
 }
+
+export const objectTextSchema = z.strictObject({
+  id: z.string().regex(/^object-[0-9]{1,3}$/),
+  text: z.string().trim().min(1).max(4000),
+});
+export type ObjectText = z.infer<typeof objectTextSchema>;
+
+export type TextAnchor = { kind: "title"; maxLength: 160 } | { kind: "paragraph"; block: number; maxLength: 4000 };
+const matchText = (text: string) => text.replace(/\s+/gu, "");
+
+export function textAnchors(scene: SlideScene, content: import("../contracts/content").SlideContent, allowParagraphs = true): Map<string, TextAnchor> {
+  const anchors = new Map<string, TextAnchor>();
+  if (scene.rendererVersion !== "pitch-scene/2" || (scene.pagination?.count ?? 1) !== 1 || content.disclosure === "restricted") return anchors;
+  for (const [index, element] of scene.elements.entries()) {
+    if (element.kind !== "text" || element.purpose) continue;
+    const normalized = matchText(element.text), id = objectId(element, index);
+    if (scene.elements.filter(candidate => candidate.kind === "text" && candidate.role === element.role &&
+      !candidate.purpose && matchText(candidate.text) === normalized).length !== 1) continue;
+    if (element.role === "title" && normalized === matchText(content.title)) {
+      anchors.set(id, { kind: "title", maxLength: 160 });
+    } else if (allowParagraphs && element.role === "body" && normalized !== matchText(content.subtitle ?? "")) {
+      const blocks = content.blocks.flatMap((block, i) =>
+        block.kind === "paragraph" && matchText(block.text) === normalized ? [i] : []);
+      if (blocks.length === 1) anchors.set(id, { kind: "paragraph", block: blocks[0], maxLength: 4000 });
+    }
+  }
+  return anchors;
+}
+
+export function applyObjectTexts(
+  scene: SlideScene,
+  content: import("../contracts/content").SlideContent,
+  changes: ObjectText[],
+  allowParagraphs = true,
+): { scene: SlideScene; content: typeof content; changedBlocks: Set<number> } {
+  const patches = z.array(objectTextSchema).min(1).max(30).parse(changes);
+  const targets = textAnchors(scene, content, allowParagraphs), edits = new Map(patches.map(patch => [patch.id, patch.text]));
+  if (edits.size !== patches.length) throw new Error("PITCH_OBJECT_TEXT_INVALID");
+  const next = structuredClone(content), changedBlocks = new Set<number>();
+  for (const [id, text] of edits) {
+    const anchor = targets.get(id);
+    if (!anchor || text.length > anchor.maxLength) throw new Error("PITCH_OBJECT_TEXT_INVALID");
+    if (anchor.kind === "title") next.title = text;
+    else {
+      const block = next.blocks[anchor.block];
+      if (block.kind !== "paragraph") throw new Error("PITCH_OBJECT_TEXT_INVALID");
+      next.blocks[anchor.block] = { ...block, text };
+      changedBlocks.add(anchor.block);
+    }
+  }
+  return {
+    content: next, changedBlocks,
+    scene: slideSceneSchema.parse({ ...scene, elements: scene.elements.map((element, i) => {
+      const id = objectId(element, i), text = edits.get(id);
+      return element.kind === "text" && text !== undefined ? { ...element, editorId: id, text } : element;
+    }) }),
+  };
+}

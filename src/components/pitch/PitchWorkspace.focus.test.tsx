@@ -1,5 +1,6 @@
 import * as React from "react";
-import { applyObjectMoves, type ObjectMove } from "@/src/lib/pitch/workspace/object-layout";
+import { applyObjectMoves, applyObjectTexts, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
+import { slideContentSchema } from "@/src/lib/pitch/contracts/content";
 import { slideSceneSchema } from "@/src/lib/pitch/contracts/scene";
 import { BUSINESS_RECIPES } from "@/src/lib/pitch/business/recipes";
 import { Manager } from "./workspace/Manager";
@@ -243,17 +244,20 @@ beforeEach(() => {
                 title?: string;
                 paragraphs?: string[];
                 objectMoves?: ObjectMove[];
+                objectTexts?: ObjectText[];
               }) => {
                 const original = detail.slides.find(
                   (s) => s.id === (p.duplicateOf ?? p.id),
                 )!;
+                const patchedText = p.objectTexts && applyObjectTexts(slideSceneSchema.parse(original.scene), slideContentSchema.parse(original.content), p.objectTexts);
+                const patchedScene = patchedText ? patchedText.scene : slideSceneSchema.parse(original.scene);
                 return {
                   ...original,
                   id: p.id,
-                  scene: p.objectMoves ? applyObjectMoves(slideSceneSchema.parse(original.scene), p.objectMoves) as typeof scene : original.scene,
+                  scene: (p.objectMoves ? applyObjectMoves(patchedScene, p.objectMoves) : patchedScene) as typeof scene,
                   content: {
                     ...original.content,
-                    title: p.title ?? original.content.title,
+                    title: p.title ?? (patchedText ? patchedText.content.title : original.content.title),
                     blocks: p.paragraphs
                       ? original.content.blocks.map((b, i) => ({
                           ...b,
@@ -345,6 +349,26 @@ describe("Pitch workspace continuous editing", () => {
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
     await user.click(await screen.findByRole("button", { name: "对象 1：隔离页面" }));
     expect(screen.getByText("横向 1.05 英寸 · 纵向 1.00 英寸")).toBeInTheDocument();
+  });
+  it("edits a real title inside the canvas, undoing and redoing before applying", async () => {
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    const layer = await screen.findByRole("button", { name: "对象 1：隔离页面" });
+    fireEvent.doubleClick(layer);
+    const input = screen.getByRole("textbox", { name: "画布文字" });
+    fireEvent.change(input, { target: { value: "画布新标题" } });
+    await user.click(screen.getByRole("button", { name: "完成文字编辑" }));
+    expect(screen.getByRole("button", { name: "对象 1：画布新标题" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "撤销画布操作" }));
+    expect(screen.getByRole("button", { name: "对象 1：隔离页面" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "重做画布操作" }));
+    expect(screen.getByRole("button", { name: "对象 1：画布新标题" })).toBeInTheDocument();
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "应用到页面" }));
+    await waitFor(() => expect(detail.slides[0].content.title).toBe("画布新标题"), { timeout: 3000 });
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectTexts: [{ id: "object-1", text: "画布新标题" }] },
+    ]);
   });
   it("keeps project name focused through continuous typing and cursor edits", async () => {
     const user = await enter(),

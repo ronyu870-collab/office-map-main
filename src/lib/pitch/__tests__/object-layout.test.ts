@@ -5,7 +5,7 @@ import { layoutSlides } from "../layout/engine";
 import { layoutFixture } from "../fixtures/layouts";
 import { renderPitchPptx } from "../render/pptx";
 import { renderSceneSvg } from "../render/svg";
-import { applyObjectMoves, constrainedPosition, objectId } from "../workspace/object-layout";
+import { applyObjectMoves, applyObjectTexts, constrainedPosition, objectId, textAnchors } from "../workspace/object-layout";
 import { pageEditSchema } from "../workspace/protocol";
 
 const page = async () => (await layoutSlides(layoutFixture("executive-summary"), STUDIO_THEME, "executive-summary"))[0];
@@ -34,6 +34,24 @@ describe("editable scene positions", () => {
     expect(shape).toContain("<a:t>");
     expect(shape).toContain(`x="${Math.round(x * 914400)}"`);
     expect(deck.file("ppt/slides/slide2.xml")).toBeNull();
+  });
+
+  it("updates canonical content and native text together without touching ambiguous or managed content", async () => {
+    const baseline = layoutFixture("executive-summary");
+    const scene = await page();
+    const anchors = textAnchors(scene, baseline);
+    const id = [...anchors.entries()].find(([, anchor]) => anchor.kind === "title")?.[0];
+    expect(id).toBeDefined();
+    const changed = applyObjectTexts(scene, baseline, [{ id: id!, text: "改稿已核对" }]);
+    expect(changed.content.title).toBe("改稿已核对");
+    expect(baseline.title).not.toBe(changed.content.title);
+    expect(changed.content.blocks).toEqual(baseline.blocks);
+    expect(changed.scene.elements.find(element => element.editorId === id)).toMatchObject({ text: "改稿已核对" });
+    const deck = await JSZip.loadAsync(await renderPitchPptx("对象文本验证", [{ scene: changed.scene, theme: STUDIO_THEME }], []));
+    expect(await deck.file("ppt/slides/slide1.xml")!.async("string")).toContain("<a:t>改稿已核对</a:t>");
+    const source = scene.elements.findIndex(element => element.kind === "text" && element.purpose === "source");
+    expect(() => applyObjectTexts(scene, baseline, [{ id: objectId(scene.elements[source], source), text: "不可" }])).toThrow("PITCH_OBJECT_TEXT_INVALID");
+    expect(textAnchors({ ...scene, pagination: { index: 0, count: 2 } }, baseline).size).toBe(0);
   });
 
   it("rejects unknown, repeated, managed and out-of-bounds objects and arbitrary replacement scene data", async () => {

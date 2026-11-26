@@ -150,6 +150,8 @@ export async function handleWorkspaceRequest(
               ? "此内容已自动分页，请修改原素材后重新生成整组页面。"
               : code === "PITCH_OBJECT_LAYOUT_RESET_REQUIRED"
                 ? "此页已手动摆放对象。若要重新排版，请先明确恢复自动布局。"
+              : code === "PITCH_OBJECT_TEXT_INVALID"
+                ? "这段文字不能直接修改，请检查是否为跨页或受保护的内容。"
               : code === "PITCH_OBJECT_LAYOUT_INVALID"
                 ? "对象已变更或位置超出页面，请重试。"
               : code === "PITCH_THEME_REPAGINATION"

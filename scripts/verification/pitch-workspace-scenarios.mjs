@@ -247,6 +247,15 @@ export async function verifyPitchWorkspace({
         index ? page : { ...page, title: "不应覆盖手工摆放" },
       ) });
       assert.equal(blocked.status, 422, JSON.stringify(blocked.body));
+      const textCommand = save();
+      textCommand.pages[0].objectTexts = [{ id, text: "画布内修改的标题" }];
+      const textSaved = await workspace(admin, textCommand);
+      assert.equal(textSaved.status, 200, JSON.stringify(textSaved.body));
+      detail = (await workspace(admin, { action: "get", projectId: detail.project.id })).body;
+      assert.equal(detail.slides[0].content.title, "画布内修改的标题");
+      assert.equal(detail.slides[0].content.disclosure, "internal");
+      assert.equal(detail.slides[0].scene.elements[targetIndex].x, move.x);
+      assert.ok(detail.slides[0].scene.elements.some(e => e.purpose === "source" && e.text.replace(/\s/g, "").includes("未经业务数据核验")));
     },
   );
   await check(
@@ -296,6 +305,8 @@ export async function verifyPitchWorkspace({
         assert.ok(file.body.length > 100);
         if (format === "pptx") {
           const zip = await JSZip.loadAsync(file.body);
+          const firstSlide = await zip.file("ppt/slides/slide1.xml").async("string");
+          assert.ok(firstSlide.includes("<a:t>画布内修改的标题</a:t>"), "saved text is a native PPTX text run");
           assert.equal(
             Object.keys(zip.files).filter((p) =>
               /^ppt\/slides\/slide\d+\.xml$/.test(p),
@@ -315,6 +326,7 @@ export async function verifyPitchWorkspace({
   await check("workspace restores automated layout only by an explicit reset", async () => {
     const command = save();
     command.pages[0].resetObjectLayout = true;
+    command.pages[0].title = "用户编辑市场页面标题";
     const reset = await workspace(admin, command);
     assert.equal(reset.status, 200, JSON.stringify(reset.body));
     detail = reset.body;

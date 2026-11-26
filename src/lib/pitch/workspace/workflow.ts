@@ -4,14 +4,16 @@ import { slideContentSchema, type SlideContent } from "../contracts/content";
 import { type LayoutId } from "../contracts/scene";
 import { pitchRpc, digest, type PitchContext } from "../data/store";
 import { loadMedia, studioRegistry } from "../data/renderWorkflow";
-import { layoutSlides } from "../layout/engine";
+import { layoutSlides, sceneSourceLine } from "../layout/engine";
 import { numberDeckPages } from "../layout/pagination";
+import { sceneComponents } from "../layout/components";
+import { sceneFont } from "../layout/metrics";
 import { assertSceneQuality } from "../layout/quality";
 import { generateBusinessProject } from "../business/workflow";
 import { generationSchema } from "../business/protocol";
 import { workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
 import { workspaceDetailSchema, type WorkspaceDetail } from "./protocol";
-import { applyObjectMoves } from "./object-layout";
+import { applyObjectMoves, applyObjectTexts } from "./object-layout";
 type Page = WorkspaceDetail["slides"][number];
 type Settings = WorkspaceDetail["workspace"]["page_settings"];
 export async function getWorkspace(ctx: PitchContext, id: string) {
@@ -111,8 +113,8 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
       (edit.duplicateOf && current.slides.some((p) => p.id === edit.id))
     )
       throw new Error("PITCH_INVALID");
-    const prior = settings[original.id] ?? {},
-      content: SlideContent = structuredClone(original.content);
+    const prior = settings[original.id] ?? {};
+    let content: SlideContent = structuredClone(original.content);
     if (edit.title) content.title = edit.title;
     if (edit.paragraphs) {
       if ((original.scene.pagination?.count ?? 1) > 1)
@@ -167,12 +169,25 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
         );
       }
     }
+    const relayoutRequested = JSON.stringify(content) !== JSON.stringify(original.content) ||
+      original.scene.themeId !== theme.id || original.scene.themeVersion !== theme.version ||
+      (edit.layoutId && edit.layoutId !== original.scene.layoutId) ||
+      (edit.variant && edit.variant !== original.scene.variant);
+    const objectEdit = !!(edit.objectMoves || edit.objectTexts);
+    const hasObjectLayout = original.scene.elements.some(element => element.editorId);
+    if ((objectEdit && (relayoutRequested || edit.resetObjectLayout)) ||
+      (relayoutRequested && hasObjectLayout && !edit.resetObjectLayout))
+      throw new Error("PITCH_OBJECT_LAYOUT_RESET_REQUIRED");
+    const textChange = edit.objectTexts ? applyObjectTexts(original.scene, content, edit.objectTexts, prior.origin !== "data") : null;
+    if (textChange) content = textChange.content;
     const manual =
       prior.manual ||
+      !!textChange ||
       edit.images !== undefined ||
       edit.paragraphs !== undefined ||
       content.title !== original.content.title;
     if (
+      textChange ||
       edit.paragraphs ||
       edit.images ||
       content.title !== original.content.title
@@ -191,23 +206,14 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
         version: String(command.expectedVersion + 1),
         dataAsOf: content.dataAsOf,
       });
-      if (edit.paragraphs)
-        content.blocks = content.blocks.map((b) =>
-          b.kind === "paragraph" ? { ...b, sourceIds: [sourceId] } : b,
+      if (edit.paragraphs || textChange?.changedBlocks.size)
+        content.blocks = content.blocks.map((b, index) =>
+          b.kind === "paragraph" && (edit.paragraphs || textChange?.changedBlocks.has(index))
+            ? { ...b, sourceIds: [sourceId] } : b,
         );
-      content.disclosure = "internal";
+      if (content.disclosure !== "restricted") content.disclosure = "internal";
     }
-    const changed =
-      JSON.stringify(content) !== JSON.stringify(original.content) ||
-      original.scene.themeId !== theme.id ||
-      original.scene.themeVersion !== theme.version ||
-      (edit.layoutId && edit.layoutId !== original.scene.layoutId) ||
-      (edit.variant && edit.variant !== original.scene.variant);
-    const hasObjectLayout = original.scene.elements.some(element => element.editorId);
-    // Don't silently discard placed objects while regenerating text, theme or layout.
-    if ((edit.objectMoves && (changed || edit.resetObjectLayout)) ||
-      (changed && hasObjectLayout && !edit.resetObjectLayout))
-      throw new Error("PITCH_OBJECT_LAYOUT_RESET_REQUIRED");
+    const changed = relayoutRequested || (!textChange && JSON.stringify(content) !== JSON.stringify(original.content));
     let scenes = [original.scene];
     if (changed || edit.resetObjectLayout) {
       scenes = await layoutSlides(
@@ -225,8 +231,21 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
       const media = await loadMedia(ctx, mediaContext.media, scenes);
       for (const scene of scenes) await assertSceneQuality(scene, theme, media);
     }
-    if (edit.objectMoves) {
-      const scene = applyObjectMoves(original.scene, edit.objectMoves);
+    if (objectEdit) {
+      let textScene = original.scene;
+      if (textChange) {
+        const formatter = sceneComponents(await sceneFont(), theme);
+        const editedIds = new Set(edit.objectTexts?.map(item => item.id));
+        textScene = { ...textChange.scene, elements: textChange.scene.elements.map(element => {
+          if (element.kind !== "text" || (element.purpose !== "source" && !editedIds.has(element.editorId ?? ""))) return element;
+          const value = element.purpose === "source" ? sceneSourceLine(content) : element.text;
+          const rendered = formatter.text(value, element.x, element.y, element.w, element.h, element.role, element.bold);
+          if (rendered.kind !== "text") return element;
+          return { ...element, text: rendered.text };
+        }) };
+      }
+      content = slideContentSchema.parse(content);
+      const scene = edit.objectMoves ? applyObjectMoves(textScene, edit.objectMoves) : textScene;
       const media = await loadMedia(ctx, mediaContext.media, [scene]);
       await assertSceneQuality(scene, theme, media);
       scenes = [scene];

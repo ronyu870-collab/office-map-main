@@ -2,13 +2,29 @@
 "use client";
 import * as React from "react";
 import { Button } from "@/src/components/ui";
+import type { SlideContent } from "@/src/lib/pitch/contracts/content";
 import type { SlideScene } from "@/src/lib/pitch/contracts/scene";
-import { canMoveObject, constrainedPosition, objectId, type ObjectMove } from "@/src/lib/pitch/workspace/object-layout";
+import { canMoveObject, constrainedPosition, objectId, textAnchors, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
 import type { Call } from "./client";
 import styles from "./workspace.module.css";
 
 type Layer = { id: string | null; url: string };
 type Position = Pick<ObjectMove, "x" | "y">;
+type Changes = { moves: ObjectMove[]; texts: ObjectText[] };
+type History = { past: Changes[]; present: Changes; future: Changes[] };
+type HistoryAction = { type: "record"; update: (value: Changes) => Changes } | { type: "undo" | "redo" };
+function editHistory(state: History, action: HistoryAction): History {
+  if (action.type === "record") {
+    const present = action.update(state.present);
+    return JSON.stringify(present) === JSON.stringify(state.present) ? state :
+      { past: [...state.past, state.present].slice(-100), present, future: [] };
+  }
+  if (action.type === "undo" && state.past.length)
+    return { past: state.past.slice(0, -1), present: state.past[state.past.length - 1], future: [state.present, ...state.future] };
+  if (action.type === "redo" && state.future.length)
+    return { past: [...state.past, state.present], present: state.future[0], future: state.future.slice(1) };
+  return state;
+}
 
 export function splitLayers(svg: string): Layer[] {
   const root = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
@@ -25,24 +41,39 @@ export function splitLayers(svg: string): Layer[] {
   });
 }
 
-export function ObjectCanvas({ call, projectId, slideId, scene, pendingMoves, onApply, onClose }: {
+export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, pendingMoves, pendingTexts, onApply, onClose }: {
   call: Call;
   projectId: string;
   slideId: string;
   scene: SlideScene;
+  content: SlideContent;
+  allowParagraphs: boolean;
   pendingMoves?: ObjectMove[];
-  onApply: (moves: ObjectMove[]) => void;
+  pendingTexts?: ObjectText[];
+  onApply: (changes: Changes) => void;
   onClose: () => void;
 }) {
   const [layers, setLayers] = React.useState<Layer[]>([]);
   const [error, setError] = React.useState("");
   const [selected, setSelected] = React.useState<string | null>(null);
-  const [moves, setMoves] = React.useState<ObjectMove[]>(pendingMoves ?? []);
+  const [history, dispatch] = React.useReducer(editHistory, {
+    past: [], present: { moves: pendingMoves ?? [], texts: pendingTexts ?? [] }, future: [],
+  });
+  const { moves, texts } = history.present;
+  const [typing, setTyping] = React.useState<{ id: string; value: string } | null>(null);
   const [dragMove, setDragMove] = React.useState<ObjectMove | null>(null);
   const board = React.useRef<HTMLDivElement | null>(null);
   const drag = React.useRef<{ id: string; pointer: number; startX: number; startY: number; origin: Position; rect: DOMRect } | null>(null);
   const sceneKey = JSON.stringify(scene);
   const entries = scene.elements.map((element, i) => ({ element, id: objectId(element, i) }));
+  const anchors = React.useMemo(() => textAnchors(scene, content, allowParagraphs), [scene, content, allowParagraphs]);
+  const canonicalText = (id: string) => {
+    const anchor = anchors.get(id);
+    if (anchor?.kind === "title") return content.title;
+    const block = anchor?.kind === "paragraph" ? content.blocks[anchor.block] : undefined;
+    return block?.kind === "paragraph" ? block.text : "";
+  };
+  const hasChanges = !!(moves.length || texts.length);
   React.useEffect(() => {
     const request = new AbortController();
     void call<{ svg: string; scene: SlideScene }>({
@@ -67,18 +98,42 @@ export function ObjectCanvas({ call, projectId, slideId, scene, pendingMoves, on
   function place(id: string, next: Position) {
     const entry = entries.find(value => value.id === id);
     if (!entry) return;
-    setMoves(previous => {
-      const rest = previous.filter(move => move.id !== id);
-      return next.x === entry.element.x && next.y === entry.element.y ? rest : [...rest, { id, ...next }];
-    });
+    dispatch({ type: "record", update: previous => {
+      const rest = previous.moves.filter(move => move.id !== id);
+      const moves = next.x === entry.element.x && next.y === entry.element.y ? rest : [...rest, { id, ...next }];
+      return { ...previous, moves };
+    } });
+  }
+  function startTyping(id: string) {
+    if (anchors.has(id)) setTyping({ id, value: texts.find(text => text.id === id)?.text ?? canonicalText(id) });
+  }
+  function commitText() {
+    if (!typing) return;
+    const { id, value } = typing, text = value.trim(), anchor = anchors.get(id);
+    if (!anchor || !text || text.length > anchor.maxLength) return;
+    dispatch({ type: "record", update: before => {
+      const rest = before.texts.filter(change => change.id !== id);
+      return { ...before, texts: text === canonicalText(id) ? rest : [...rest, { id, text }] };
+    } });
+    setTyping(null);
+    requestAnimationFrame(() => board.current?.querySelector<HTMLButtonElement>(`[data-canvas-id="${id}"]`)?.focus());
   }
   const picked = entries.find(entry => entry.id === selected);
   return (
-    <section className={styles.objectEditor} aria-label="画布对象编辑">
+    <section className={styles.objectEditor} aria-label="画布对象编辑" onKeyDown={event => {
+      if (typing || event.nativeEvent.isComposing || !(event.metaKey || event.ctrlKey) ||
+        event.key.toLowerCase() !== "z") return;
+      event.preventDefault();
+      dispatch({ type: event.shiftKey ? "redo" : "undo" });
+    }}>
       <div className={styles.objectTools}>
         <Button variant="ghost" onClick={onClose}>返回预览</Button>
-        <Button variant="ghost" disabled={!moves.length} onClick={() => setMoves([])}>清除临时移动</Button>
-        <Button disabled={!!error || !layers.length || !moves.length} onClick={() => onApply(moves)}>应用位置</Button>
+        <Button variant="ghost" disabled={!!typing || !history.past.length} onClick={() => dispatch({ type: "undo" })}>撤销画布操作</Button>
+        <Button variant="ghost" disabled={!!typing || !history.future.length} onClick={() => dispatch({ type: "redo" })}>重做画布操作</Button>
+        {picked && anchors.has(picked.id) && !typing &&
+          <Button variant="ghost" onClick={() => startTyping(picked.id)}>编辑所选文字</Button>}
+        <Button disabled={!!error || !layers.length || !hasChanges || !!typing}
+          onClick={() => onApply(history.present)}>{texts.length ? "应用到页面" : "应用位置"}</Button>
       </div>
       {error && <p role="alert">{error}</p>}
       {!layers.length && !error && <p role="status">正在读取页面对象…</p>}
@@ -86,18 +141,36 @@ export function ObjectCanvas({ call, projectId, slideId, scene, pendingMoves, on
         {layers.map((layer, index) => {
           const element = entries[index - 1]?.element;
           const p = layer.id && element ? position(layer.id, element) : null;
+          const text = layer.id ? texts.find(change => change.id === layer.id)?.text : undefined;
+          if (layer.id && element?.kind === "text" && p && (text || typing?.id === layer.id)) {
+            if (typing?.id === layer.id) return null;
+            return <div key={layer.id} className={styles.objectTextPreview} data-title={element.role === "title"}
+              style={{ left: `${p.x / scene.width * 100}%`, top: `${p.y / scene.height * 100}%`,
+                width: `${element.w / scene.width * 100}%`, height: `${element.h / scene.height * 100}%` }}>{text}</div>;
+          }
           return <img key={layer.id ?? "background"} draggable={false} alt="" src={layer.url}
             style={p && element ? { transform: `translate(${(p.x - element.x) / scene.width * 100}%, ${(p.y - element.y) / scene.height * 100}%)` } : undefined} />;
         })}
         {entries.filter(({ element }) => canMoveObject(element)).map(({ id, element }, index) => {
           const p = position(id, element);
-          const label = element.kind === "text" ? element.text.slice(0, 55)
+          const bounds = { left: `${p.x / scene.width * 100}%`, top: `${p.y / scene.height * 100}%`,
+            width: `${element.w / scene.width * 100}%`, height: `${element.h / scene.height * 100}%` };
+          if (typing?.id === id) return <textarea key={id} className={styles.objectTextInput}
+            aria-label="画布文字" autoFocus style={bounds} maxLength={anchors.get(id)?.maxLength}
+            value={typing.value} onChange={event => setTyping({ id, value: event.target.value })}
+            onKeyDown={event => {
+              if (event.nativeEvent.isComposing) return;
+              if (event.key === "Escape") { event.preventDefault(); setTyping(null); }
+              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); commitText(); }
+            }} />;
+          const label = element.kind === "text" ? (texts.find(change => change.id === id)?.text ?? element.text).slice(0, 55)
             : element.kind === "image" ? element.alt || "图片"
             : ({ chart: "图表", table: "表格", shape: "形状", map: "地图" } as Record<string,string>)[element.kind] ?? "对象";
           return <button
             key={id} type="button" aria-label={`对象 ${index + 1}：${label}`} aria-pressed={selected === id}
             className={styles.objectTarget}
-            style={{ left: `${p.x / scene.width * 100}%`, top: `${p.y / scene.height * 100}%`, width: `${element.w / scene.width * 100}%`, height: `${element.h / scene.height * 100}%` }}
+            data-canvas-id={id} style={bounds}
+            onDoubleClick={() => startTyping(id)}
             onClick={() => setSelected(id)}
             onFocus={() => setSelected(id)}
             onPointerDown={event => {
@@ -127,6 +200,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, pendingMoves, on
             onLostPointerCapture={() => { drag.current = null; setDragMove(null); }}
             onPointerCancel={() => { drag.current = null; setDragMove(null); }}
             onKeyDown={event => {
+              if (event.key === "F2" && anchors.has(id)) { event.preventDefault(); startTyping(id); return; }
               const offsets: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
               const d = offsets[event.key];
               if (!d) return;
@@ -136,6 +210,10 @@ export function ObjectCanvas({ call, projectId, slideId, scene, pendingMoves, on
             }}
           />;
         })}
+      </div>}
+      {typing && <div className={styles.objectTools}>
+        <Button variant="ghost" onClick={() => setTyping(null)}>取消文字修改</Button>
+        <Button variant="secondary" disabled={!typing.value.trim()} onClick={commitText}>完成文字编辑</Button>
       </div>}
       {picked && <output aria-live="polite" className={styles.objectPosition}>
         横向 {position(picked.id, picked.element).x.toFixed(2)} 英寸 · 纵向 {position(picked.id, picked.element).y.toFixed(2)} 英寸
