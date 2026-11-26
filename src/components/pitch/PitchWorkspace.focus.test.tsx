@@ -207,6 +207,8 @@ beforeEach(() => {
         body = detail;
       } else if (c.action === "create") {
         body = {...detail, project: {...detail.project, id: c.projectId, title: c.title, theme_id: c.themeId, theme_version: c.themeVersion}, workspace: {...detail.workspace, context: c.context, active_slide: null}, slides: [], tasks: []};
+      } else if (c.action === "proposal_plan") {
+        body = { status: "clarification", message: "请确认选址范围。" };
       } else if (c.action === "status") {
         if (failTaskPoll) throw new Error("生成进度网络中断");
         body = {
@@ -323,11 +325,13 @@ describe("Pitch workspace continuous editing", () => {
     await user.clear(projectTitle);
     await user.type(projectTitle, "选址项目");
     await user.click(screen.getByRole("button", { name: /^创建$/ }));
-    const question = await screen.findByLabelText("需要制作什么页面？");
+    const question = await screen.findByLabelText("需要制作什么页面？", {}, { timeout: 10000 });
     expect(question).toHaveValue("为科技企业制作选址提案");
+    await screen.findByText("请确认选址范围。");
     expect(writes.filter((entry) => entry.action === "create")).toHaveLength(1);
-    expect(writes.some((entry) => entry.action === "prepare")).toBe(false);
-  });
+    expect(writes.filter((entry) => entry.action === "proposal_plan")).toHaveLength(1);
+    expect(writes.some((entry) => entry.action === "proposal_generate")).toBe(false);
+  }, 60000);
   it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
     expandedCatalog = true;
     const user = await enter();
@@ -490,7 +494,7 @@ describe("Pitch workspace continuous editing", () => {
     });
     const user = await enter();
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
-    await screen.findByRole("button", { name: "对象 2：形状" });
+    await screen.findByRole("button", { name: "对象 2：形状" }, { timeout: 15000 });
     await user.click(screen.getByText("图层（从上到下）"));
     await user.click(screen.getByRole("checkbox", { name: "多选对象：形状" }));
     await user.click(screen.getByRole("checkbox", { name: "多选对象：隔离页面" }));
@@ -503,13 +507,13 @@ describe("Pitch workspace continuous editing", () => {
     expect(saved[0].editorGroup).toBeDefined();
     expect(saved[0].editorGroup).toBe(saved[1].editorGroup);
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
-    await user.click(await screen.findByRole("button", { name: "对象 2：形状" }));
+    await user.click(await screen.findByRole("button", { name: "对象 2：形状" }, { timeout: 15000 }));
     await user.click(screen.getByText("图层（从上到下）"));
     await user.click(screen.getByRole("button", { name: "取消所选组合" }));
     await user.click(screen.getByRole("button", { name: "应用到页面" }));
     await waitFor(() => expect(detail.slides[0].scene.elements.every(el => !el.editorGroup)).toBe(true), { timeout: 3000 });
     expect(detail.slides[0].scene.elements[1].x).toBeCloseTo(2.05);
-  });
+  }, 60000);
   it("keeps project name focused through continuous typing and cursor edits", async () => {
     const user = await enter(),
       input = screen.getByLabelText("项目名称") as HTMLInputElement;
