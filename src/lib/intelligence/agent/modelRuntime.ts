@@ -7,6 +7,8 @@ import { AGENT_TOOLS, completeWithDeepSeek, deepseekAgentConfigured, ModelProvid
 import { createOpenAIAdapter } from './openaiAdapter';
 import type { AgentMessage, AgentCompletion, ModelAdapter, ProviderId } from './modelProtocol';
 import { createDeepSeekAdapter } from './deepseekAdapter';
+import { scopedModelProfileSchema, type ScopedModelProfile } from './modelProfile';
+import { pitchPreparationTools } from '@/src/lib/pitch/ai/toolSchemas';
 
 export const modelModeSchema = z.enum(['quick', 'professional', 'deep']);
 export type ModelMode = z.infer<typeof modelModeSchema>;
@@ -27,9 +29,13 @@ function openAIAllowed(actorId: string) {
   return process.env.AI_OPENAI_ENABLED === 'true'
     && (process.env.AI_OPENAI_ACTOR_IDS ?? '').split(',').map(s => s.trim()).includes(actorId);
 }
-export function modelAvailability(actorId: string,registered?: readonly RegisteredModel[]) {
+export function modelAvailability(actorId: string, configuration?: ScopedModelProfile | readonly RegisteredModel[]) {
+  const scopedProfile = configuration && !Array.isArray(configuration) ? scopedModelProfileSchema.parse(configuration) : undefined;
+  const registered = Array.isArray(configuration) ? configuration as readonly RegisteredModel[] : undefined;
   let openai = false;
-  if (openAIAllowed(actorId) && process.env.OPENAI_API_KEY?.trim() && (registered?registered.some(m=>m.provider==='openai'&&m.enabled):process.env.OPENAI_AGENT_MODEL?.trim())) {
+  if (scopedProfile?.provider === 'openai') {
+    openai = openAIAllowed(actorId) && !!process.env.OPENAI_API_KEY?.trim();
+  } else if (openAIAllowed(actorId) && process.env.OPENAI_API_KEY?.trim() && (registered ? registered.some(m => m.provider === 'openai' && m.enabled) : process.env.OPENAI_AGENT_MODEL?.trim())) {
     try {
       if(!registered){boundedNumber('OPENAI_AGENT_INPUT_USD_PER_MILLION', NaN, 0, 1000);
       boundedNumber('OPENAI_AGENT_OUTPUT_USD_PER_MILLION', NaN, 0, 1000);}
@@ -55,6 +61,7 @@ const retryable = new Set(['not_configured', 'rate_limited', 'timeout', 'provide
 /** Avoid sending four copies of the 11KiB chart spec and unrelated domain tools
  * on every round. This is a model capability catalogue, never a data grant. */
 export function modelToolCatalogue(question: string, mode: ModelMode, messages: AgentMessage[], hasChartContext = false, contextDomains: readonly ContextDomain[] = []) {
+  if (/Pitch\s*Studio|商务提案|Pitch\b/i.test(question)) return pitchPreparationTools().map(t => t.function);
   if (/^(?:你好|您好|嗨|哈[喽啰]|hello|hi|谢谢|多谢|感谢|thanks|thank you)[！!。.?？\s]*$/i.test(question.trim())) return [];
   if (/概念|含义|定义|方法|如何计算|怎么计算|写一|^(?:请)?(?:什么是|解释|介绍|说明|what is|define|explain)/i.test(question.trim()) && !requiresDataFactEvidence(question)) return [];
   void mode;
@@ -120,27 +127,36 @@ export function createModelRuntime(input: { actorId: string; question: string; m
   revalidate: (signal: AbortSignal) => Promise<void>; admit?: (signal: AbortSignal) => Promise<void>; onAttempt: (attempt: ModelAttempt) => Promise<void>;
   control?: RuntimeControlBinding;
   protocolTest?: 'connection' | 'structured' | 'tools' | 'stream';
-  legacyInvoke?: typeof completeWithDeepSeek; adapters?: Partial<Record<ProviderId, ModelAdapter>> }) {
-  const mode = chooseModelMode(input.question, input.mode), configured = process.env[`AI_PROVIDER_${mode.toUpperCase()}`] ?? 'deepseek';
+  legacyInvoke?: typeof completeWithDeepSeek; adapters?: Partial<Record<ProviderId, ModelAdapter>>;
+  scopedProfile?: ScopedModelProfile;
+  onReserve?: (reservation: { tokens: number; usd: number }, signal: AbortSignal) => Promise<void> }) {
+  const scoped = input.scopedProfile ? scopedModelProfileSchema.parse(input.scopedProfile) : undefined;
+  const mode = chooseModelMode(input.question, input.mode), configured = scoped?.provider ?? process.env[`AI_PROVIDER_${mode.toUpperCase()}`] ?? 'deepseek';
   if (!['deepseek', 'openai'].includes(configured)) throw new ModelProviderError('invalid_configuration');
-  const snapshot = input.control?.snapshot;
+  // A content-specific grant pins the provider/model. Ordinary mode selection
+  // and fallback cannot expand that grant; live beforeCall controls still apply.
+  const snapshot = scoped ? undefined : input.control?.snapshot;
   const policy = snapshot?.config.modes[mode];
-  let active: ProviderId = configured === 'openai' && openAIAllowed(input.actorId) ? 'openai' : 'deepseek';
-  const runtimeLimits = policy ? { rounds: Math.max(1, policy.limits.attempts - 1), tools: policy.limits.tools } : limits[mode];
+  let active: ProviderId = scoped?.provider ?? (configured === 'openai' && openAIAllowed(input.actorId) ? 'openai' : 'deepseek');
+  const runtimeLimits = scoped ? { rounds: 0, tools: 0 } : policy ? { rounds: Math.max(1, policy.limits.attempts - 1), tools: policy.limits.tools } : limits[mode];
   let fallbackUsed = false, spent = 0, tokens = 0, attempts = 0;
   let budgetRejection: string | null = null;
   let busy = false, admitted = false;
   const rejectBudget = (reason: NonNullable<ModelProviderError['budgetReason']>): never => {
     budgetRejection = reason; throw new ModelProviderError('budget_exceeded', reason);
   };
-  const maxTokens = Math.min(policy?.limits.tokens ?? Infinity, Math.floor(boundedNumber('AI_AGENT_MAX_TOKENS', 60000, 1000, 60000)));
-  const maxUsd = Math.min(policy?.limits.usd ?? Infinity, boundedNumber('AI_AGENT_MAX_ESTIMATED_USD', .25, .000001, 5));
-  const maxOutputTokens = Math.min(policy?.limits.outputTokens ?? Infinity, Math.floor(boundedNumber('AI_AGENT_MAX_OUTPUT_TOKENS', 1800, 256, 4096)));
-  const timeoutMs = Math.min(policy?.limits.timeoutMs ?? Infinity, Math.floor(boundedNumber('AI_AGENT_PROVIDER_TIMEOUT_MS', 18000, 1000, 18000)));
+  const maxTokens = Math.min(scoped?.maxTokens ?? Infinity, policy?.limits.tokens ?? Infinity, Math.floor(boundedNumber('AI_AGENT_MAX_TOKENS', 60000, 1000, 60000)));
+  const maxUsd = Math.min(scoped?.maxUsd ?? Infinity, policy?.limits.usd ?? Infinity, boundedNumber('AI_AGENT_MAX_ESTIMATED_USD', .25, .000001, 5));
+  const maxOutputTokens = Math.min(scoped?.maxOutputTokens ?? Infinity, policy?.limits.outputTokens ?? Infinity, Math.floor(boundedNumber('AI_AGENT_MAX_OUTPUT_TOKENS', 1800, 256, 4096)));
+  const timeoutMs = Math.min(scoped?.timeoutMs ?? Infinity, policy?.limits.timeoutMs ?? Infinity, Math.floor(boundedNumber('AI_AGENT_PROVIDER_TIMEOUT_MS', 18000, 1000, 18000)));
   const records: ModelAttempt[] = [];
   const openai = createOpenAIAdapter();
   const deepseek = createDeepSeekAdapter(input.legacyInvoke);
   const config = (provider: ProviderId) => {
+    if (scoped) {
+      if (provider !== scoped.provider || provider === 'openai' && !openAIAllowed(input.actorId)) throw new ModelProviderError('disclosure_denied');
+      return { model: scoped.model, rates: { input: scoped.inputRate, output: scoped.outputRate, basis: 'operator_configured_upper_rates_not_invoice' } };
+    }
     if (provider === 'openai') {
       if (!openAIAllowed(input.actorId)) throw new ModelProviderError('disclosure_denied');
       const model = process.env[`OPENAI_AGENT_MODEL_${mode.toUpperCase()}`]?.trim() || process.env.OPENAI_AGENT_MODEL?.trim();
@@ -173,7 +189,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         settings = { model: 'unconfigured', rates: { input: 0, output: 0, basis: 'request_not_sent' } };
       }
       const { model, rates } = settings;
-      const tools = input.protocolTest ? input.protocolTest === 'tools' ? [{name:'synthetic_sum',description:'Return the sum of the two synthetic integers.',parameters:{type:'object',properties:{a:{type:'integer'},b:{type:'integer'}},required:['a','b'],additionalProperties:false}}] : [] : purpose === 'semantic_intent' ? [] : modelToolCatalogue(input.question, mode, messages, input.hasChartContext, input.contextDomains)
+      const tools = scoped ? [] : input.protocolTest ? input.protocolTest === 'tools' ? [{name:'synthetic_sum',description:'Return the sum of the two synthetic integers.',parameters:{type:'object',properties:{a:{type:'integer'},b:{type:'integer'}},required:['a','b'],additionalProperties:false}}] : [] : purpose === 'semantic_intent' ? [] : modelToolCatalogue(input.question, mode, messages, input.hasChartContext, input.contextDomains)
         .filter(tool => !snapshot?.config.disabledTools.includes(tool.name));
       const outputLimit = purpose === 'semantic_intent' ? Math.min(1200, maxOutputTokens) : maxOutputTokens;
       const context = modelContextEnvelope(provider, messages, tools);
@@ -181,7 +197,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
       if (selected?.contextLimit !== null && selected?.contextLimit !== undefined && upperInput + outputLimit > selected.contextLimit) throw new ModelProviderError('invalid_configuration');
       const reserveTokens = configurationFailure ? 0 : upperInput + outputLimit;
       const reserveUsd = configurationFailure ? 0 : (upperInput * rates.input + outputLimit * rates.output) / 1e6;
-      if (attempts >= (policy?.limits.attempts ?? runtimeLimits.rounds + 1)) rejectBudget('attempt_limit');
+      if (attempts >= (scoped ? 1 : policy?.limits.attempts ?? runtimeLimits.rounds + 1)) rejectBudget('attempt_limit');
       if (tokens + reserveTokens > maxTokens) rejectBudget('token_reservation');
       if (spent + reserveUsd > maxUsd) rejectBudget('cost_reservation');
       if (!admitted && !configurationFailure) {
@@ -189,6 +205,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         catch (error) { if (error instanceof ModelProviderError && error.code === 'budget_exceeded') rejectBudget(error.budgetReason ?? 'account_admission'); throw error; }
         admitted = true;
       }
+      if (!configurationFailure) await input.onReserve?.({ tokens: reserveTokens, usd: reserveUsd }, signal);
       attempts++;
       let result: AgentCompletion | undefined, failure: unknown;
       let sent = false;
@@ -232,7 +249,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         return result!;
       }
       // Never retry business authorization, cancellation or arbitrary exceptions.
-      if (!(failure instanceof ModelProviderError) || !retryable.has(failure.code) || fallbackUsed
+      if (scoped || !(failure instanceof ModelProviderError) || !retryable.has(failure.code) || fallbackUsed
         || process.env.AI_MODEL_FALLBACK_ENABLED !== 'true' || snapshot && !policy?.fallback || signal.aborted) throw failure;
       const alternate = snapshot ? selectConfiguredModel(snapshot, mode, purpose, true).provider : provider === 'deepseek' ? 'openai' : 'deepseek';
       if (alternate === 'openai' && !openAIAllowed(input.actorId)) throw failure;

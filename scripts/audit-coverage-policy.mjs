@@ -1,5 +1,10 @@
 const SERVER_AUDIT_CALL = /\b(?:withCriticalAudit|writeAuditBestEffort|writeAuditStackingSpace)\s*\(/gi;
 export const RELIABLE_ROUTES = new Map([
+  ['src/app/api/intelligence/pitch/ai/route.ts',['handleAiRequest(', 'pitch_studio_access']],
+  ['src/app/api/intelligence/pitch/workspace/route.ts',['handleWorkspaceRequest(', 'pitch_studio_access']],
+  ['src/app/api/intelligence/pitch/business/route.ts',['handleBusinessRequest(', 'pitch_studio_access']],
+  ['src/app/api/intelligence/pitch/library/route.ts',['handleLibraryRequest(', 'pitch_studio_access']],
+  ['src/app/api/intelligence/pitch/route.ts',['handlePitchRequest(', 'pitch_studio_access']],
   // Atomic ai_management_events and mandatory encrypted protocol-test audit are
   // enforced in the delegated handler/RPCs; PostgreSQL and real Auth tests cover failures.
   ['src/app/api/intelligence/management/route.ts',['await handleManagement(','queryHttpDependencies()']],

@@ -7,7 +7,7 @@ import type { AgentCompletion, ModelAdapter, ProviderId } from '../agent/modelPr
 import { createDeepSeekAdapter } from '../agent/deepseekAdapter';
 import { ModelProviderError } from '../agent/modelProvider';
 import { controlConfigSchema, modelSchema, validateControlConfig, type ControlConfig, type ControlSnapshot, type RegisteredModel } from './config';
-import { bindRuntimeControl } from './runtimeControl';
+import { bindRuntimeControl, bindScopedRuntimeControl } from './runtimeControl';
 
 const actorId = randomUUID(), sessionId = randomUUID();
 const signal = () => new AbortController().signal;
@@ -174,5 +174,48 @@ describe('cross-instance binding and read failures', () => {
     await expect(absent.beforeCall('deepseek','deepseek-flash',signal())).resolves.toBeUndefined();
     const broken=await bindRuntimeControl(db(()=>({error:{code:'42883',message:'unknown helper'}})),identity,signal(),randomUUID());
     await expect(broken.beforeCall('deepseek','deepseek-flash',signal())).rejects.toThrow();
+  });
+});
+
+describe('Pitch and ordinary control-plane integration', () => {
+  const scopedProfile = { provider: 'deepseek' as const, model: 'synthetic-authorized-model',
+    maxTokens: 20000, maxOutputTokens: 500, timeoutMs: 1000, maxUsd: .1, inputRate: .3, outputRate: 1.2 };
+  it('pins content authorization despite a configured synthesis model and protocol-test tools', async () => {
+    const deepseek=adapter('deepseek'), openai=adapter('openai'), beforeCall=vi.fn();
+    const run=createModelRuntime({actorId,question:'Pitch Studio approved evidence',scopedProfile,
+      control:{snapshot:snapshot(),beforeCall},protocolTest:'tools',adapters:{deepseek,openai},
+      revalidate:async()=>{},onAttempt:async()=>{}});
+    await run.invoke([],signal(),undefined,'synthesis');
+    expect(deepseek.mock.calls[0][3]).toMatchObject({model:scopedProfile.model,tools:[]});
+    expect(openai).not.toHaveBeenCalled();
+    await expect(run.invoke([],signal())).rejects.toMatchObject({code:'budget_exceeded',budgetReason:'attempt_limit'});
+  });
+  it('keeps deployment ceilings above scoped task budgets', async () => {
+    vi.stubEnv('AI_AGENT_MAX_OUTPUT_TOKENS','256');vi.stubEnv('AI_AGENT_MAX_TOKENS','10000');
+    const deepseek=adapter('deepseek');
+    const run=createModelRuntime({actorId,question:'Pitch Studio approved evidence',scopedProfile,adapters:{deepseek},
+      revalidate:async()=>{},onAttempt:async()=>{}});
+    await run.invoke([],signal());
+    expect(deepseek.mock.calls[0][3]?.maxOutputTokens).toBe(256);
+    expect(run.summary().maxTokens).toBe(10000);
+  });
+  it.each(['paused','provider','model'])('scoped workloads obey a live %s stop without borrowing ordinary query accounting', async kind => {
+    let stop=false;
+    const rpc=vi.fn((name:string)=>({abortSignal:async()=>{
+      expect(name).toBe('ai_control_runtime');
+      return {data:{allowed:true,version:null,revision:randomUUID(),paused:stop&&kind==='paused',
+        disabledProviders:stop&&kind==='provider'?['deepseek']:[],disabledModels:stop&&kind==='model'?[scopedProfile.model]:[],
+        config:null,models:null},error:null};
+    }}));
+    const control=await bindScopedRuntimeControl({rpc} as unknown as SupabaseClient,
+      {actorId,effectiveUserId:actorId,sessionId,expiresAt:Date.now()+3600000},signal(),randomUUID());
+    expect(control.snapshot).toBeUndefined();expect(control.settle).toBeUndefined();
+    stop=true;
+    const deepseek=adapter('deepseek');
+    const run=createModelRuntime({actorId,question:'Pitch Studio approved evidence',scopedProfile,control,adapters:{deepseek},
+      revalidate:async()=>{},onAttempt:async()=>{}});
+    await expect(run.invoke([],signal())).rejects.toMatchObject({code:'disclosure_denied'});
+    expect(deepseek).not.toHaveBeenCalled();
+    expect(rpc.mock.calls.every(([name])=>name==='ai_control_runtime')).toBe(true);
   });
 });

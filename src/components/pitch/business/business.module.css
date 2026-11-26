@@ -1,0 +1,18 @@
+.studio { display: grid; gap: 1rem; color: var(--text-primary, #243044); }
+.studio h2,.studio p { margin: 0; }
+.form { display: flex; flex-wrap: wrap; gap: .8rem 1rem; align-items: end; }
+.form label { display: grid; gap: .35rem; flex: 1 1 12rem; min-width: 0; }
+.studio input,.studio select,.studio textarea { width: 100%; min-width: 0; padding: .55rem; border: 1px solid var(--border-color, #b7bfca); border-radius: .2rem; background: var(--surface, #faf9f6); color: inherit; font: inherit; }
+.studio .check { display: flex; align-items: center; gap: .55rem; }
+.check input { width: auto; flex: 0 0 auto; }
+.list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border-color, #b7bfca); }
+.list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .6rem; padding: .65rem 0; border-bottom: 1px solid var(--border-color, #b7bfca); }
+.studio details { padding-top: .8rem; border-top: 1px solid var(--border-color, #b7bfca); }
+.studio summary,.history summary { cursor: pointer; padding: .4rem 0; }
+.editor { display: grid; gap: .8rem; margin-top: 1rem; }
+.editor textarea { min-height: 6rem; }
+.history { margin-block: 1rem; }
+.history pre { max-height: 24rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.history input { width: 100%; padding: .55rem; font: inherit; }
+.studio fieldset { display: flex; flex-wrap: wrap; gap: .6rem; flex: 1 1 100%; min-width: 0; }
+@media(max-width: 640px) { .form > *, .form label { flex-basis: 100%; } .studio button { min-height: 44px; } }

@@ -512,6 +512,78 @@
     ]
   },
   {
+    "id": "pitch-studio-workspace",
+    "roots": [
+      "src/components/pitch/PitchWorkspace.tsx",
+      "src/components/pitch/workspace/Projects.tsx",
+      "src/components/pitch/workspace/Manager.tsx"
+    ],
+    "file": "src/components/pitch/PitchWorkspace.focus.test.tsx",
+    "cases": [
+      "keeps project name focused through continuous typing and cursor edits",
+      "keeps page text focused through autosave and restores real server edits after remount",
+      "keeps project search stable through delayed empty results, middle edits and IME",
+      "keeps category fields focused while editing and switching static filters"
+    ]
+  },
+  {
+    "id": "pitch-material-library",
+    "roots": [
+      "src/components/pitch/library/MaterialLibrary.tsx"
+    ],
+    "file": "src/components/pitch/library/MaterialLibrary.focus.test.tsx",
+    "cases": [
+      "keeps library search focused through delayed results, cursor edits, empty results and IME"
+    ]
+  },
+  {
+    "id": "pitch-business-studio",
+    "roots": [
+      "src/components/pitch/business/BusinessStudio.tsx"
+    ],
+    "file": "src/components/pitch/business/BusinessStudio.focus.test.tsx",
+    "cases": [
+      "keeps asset search stable through delayed results, middle edits, empty results and Chinese IME",
+      "keeps real building selection search focused when authorized catalog results change"
+    ]
+  },
+  {
+    "id": "pitch-workspace-controls",
+    "roots": [
+      "src/components/pitch/workspace/TemplatePicker.tsx",
+      "src/components/pitch/workspace/Parameters.tsx",
+      "src/components/pitch/workspace/Assets.tsx",
+      "src/components/pitch/workspace/ExportPanel.tsx"
+    ],
+    "file": "src/components/pitch/workspace/Controls.focus.test.tsx",
+    "cases": [
+      "keeps template and enterprise asset searches stable through delayed results, middle edits, empty matches and IME",
+      "keeps building and business asset search focused and submits actual selected bindings",
+      "accepts editable quarter and submarket text without resetting partially typed values or separators",
+      "exports only selected indices and exposes success only after a ready receipt with downloadable bytes"
+    ]
+  },
+  {
+    "id": "pitch-ai-assist",
+    "roots": [
+      "src/components/pitch/workspace/AiAssist.tsx"
+    ],
+    "file": "src/components/pitch/workspace/AiAssist.focus.test.tsx",
+    "cases": [
+      "keeps assistant keywords focused through delayed results, middle edits and Chinese IME"
+    ]
+  },
+  {
+    "id": "pitch-ai-manager",
+    "roots": [
+      "src/components/pitch/workspace/AiManager.tsx"
+    ],
+    "file": "src/components/pitch/workspace/AiManager.focus.test.tsx",
+    "cases": [
+      "keeps model filter focused through delayed and stale results, middle edits and Chinese IME"
+    ]
+  },
+  {
     "id": "ai-management-task-filters",
     "roots": [
       "src/components/admin/ai-management/AiManagementWorkspace.tsx"

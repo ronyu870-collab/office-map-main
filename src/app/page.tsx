@@ -4,7 +4,7 @@ import { anonymousHomeBootstrap } from '@/src/components/home/anonymousHomeBoots
 export default function LobbyPage() {
   return (
     <>
-      <HomeWorkspace />
+      <HomeWorkspace pitchStudioVisible={process.env.PITCH_STUDIO_ENABLED === 'true'} />
       {/* This parser-time redirect intentionally runs before Next's client bootstrap. */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script dangerouslySetInnerHTML={{ __html: anonymousHomeBootstrap() }} />

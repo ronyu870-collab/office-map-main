@@ -1,3 +1,4 @@
+import { openSafeArchive, DocumentError } from './safeArchive';
 import { createHash } from 'node:crypto';
 import { chunkSchema, type DocumentChunk } from './protocol';
 export const PARSER_VERSION = 'local-text/1';
@@ -92,6 +93,10 @@ export async function parseDocument(bytes: Uint8Array, mime: string): Promise<Do
     }
     if (!mime.includes('openxmlformats-officedocument'))
         throw new Error('KNOWLEDGE_FORMAT_UNSUPPORTED');
+    // Shared bounded decompression/CRC validation also protects legacy text
+    // extraction without changing its output contract.
+    try { const safe = await openSafeArchive(bytes, false); for (const name of safe.names) safe.read(name); }
+    catch (e) { throw new Error(e instanceof DocumentError && e.code === 'PITCH_DOCUMENT_LIMIT' ? 'KNOWLEDGE_DOCUMENT_LIMIT' : 'KNOWLEDGE_UNSAFE_DOCUMENT'); }
     const { default: JSZip } = await import('jszip');
     const zip = await JSZip.loadAsync(bytes);
     const entries = Object.values(zip.files);
