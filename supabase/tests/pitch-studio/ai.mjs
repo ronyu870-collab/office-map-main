@@ -950,6 +950,12 @@ try {
       );
       assert.equal(outline.sections.length, 4);
       assert.equal(outline.confirmed, false);
+      const unavailable = await routing.suggestOutline(
+        ordinary,
+        protocol.recommendationSchema.parse({ language: "zh", city: "nonexistent-fixture-city" }),
+      );
+      assert.deepEqual(unavailable.sections, []);
+      assert.ok(unavailable.missing.includes("市场研究缺少可用的已发布素材。"));
     },
   );
   await check(

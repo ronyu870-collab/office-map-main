@@ -66,3 +66,23 @@
 
 
 - 当前页设置的「修订本页文字」不再要求先搜索素材。只对项目原样引用的一个已授权内部素材起草标题和正文修订；服务端确认原版、版本和当前项目，只有完整文字授权的任务能调用模型。处理完成后复用逐项审阅和真实画布预览；网络超时时查询同一任务，未确认前不重复提交。没有额外数据库迁移。
+
+## PR #323 提纲到可编辑 PPTX
+
+- 实际入口从 `/intelligence/pitch` 的「你想制作什么？」开始。点击「进入提案助手」，在新建项目的更多设置里明确选择楼宇、填写季度，创建后直接进入提案结构。可改章节标题、上移、移除，先核对资料版本和正式季度，再一次确认生成。
+- 提交结果不明确时保留任务编号。先查原任务并显示工作区顶部状态。服务器暂时找不到任务时，恢复请求只能重用原编号和原提纲。资料版本或正式数据变化后，任务保留原稿并提示重新核对。混合提案的正式数据页在预览和 PPTX 中标注仅限内部，沿用服务器端对客导出拒绝。
+- 生成并回读后切回页面导航，保留同一个项目，可编辑并保存，然后从项目工具栏选择「导出可编辑 PPTX」。入口默认全套、PowerPoint 和内部使用，仍支持在导出面板调整范围和格式。
+
+### 复验入口
+
+- 类型检查 `npm run typecheck`，改动的 TS／TSX／MJS 逐文件运行 ESLint，组件和领域行为运行 `npx vitest run --maxWorkers=2 src/components/pitch src/lib/pitch`。
+- PostgreSQL 17 隔离实例内运行 `PITCH_TEST_ALLOW_LOCAL=disposable PITCH_TEST_PG_PORT=<隔离端口> node supabase/tests/pitch-studio/ai.mjs`。范围包括已有文字修订、授权、草稿及素材撤权，也核对正式素材缺项。
+- 浏览器回归沿用 Verify 中 Pitch Studio 的隔离 Supabase 步骤。准备一次性本地栈及其状态 JSON 后，运行 `PITCH_TEST_ALLOW_LOCAL=disposable PITCH_WORKSPACE_BROWSER=true PITCH_AUTH_STATUS=<状态JSON> PERF_PLAYWRIGHT_MODULE=<playwright-core路径> node scripts/verification/verify-pitch-studio-http.mjs`。如已构建本版本可设置 `PITCH_TEST_REUSE_BUILD=true`。输出在 `tmp/pitch-workspace-browser/reviewed-outline.pptx` 和同名 JSON。使用两个模拟断网场景、已发布合成研究素材及图片、隔离季度记录，并在浏览器下载后解包检查原生对象。
+
+### 本轮证据与边界
+
+- 接手时 PR HEAD 为 `5c5d117f`，比较的远端 main 为 `d9de4947`。本轮沿用原 PR 分支，桌面浏览器从工作台创建项目，实测改名、调序、删章、正式数据变化后的原项目零页、重核后整批生成、保存研究页标题及加入已发布配图。两种断网故障分别覆盖响应丢失与请求未到达，回读确认数据库只有两次有意提交的任务。
+- 浏览器下载的合成提案为七页。下载件含原生文字、两张表、一个带电子表格的折线图和一个原生图片；解包复核了页序、日期和来源，租金环比为 +25%，空置率环比为 +2 个百分点，去年同期缺值保持标记。具有对客导出资格的测试身份也无法导出该提案。将一个原生标题改写后保存并重新读取得到同一文字。
+- 同一份提案在 LibreOffice 加载项目自带 Noto Sans SC 后已渲染复核。修复前两个基准季度被断开，修复后在浏览器和 PPTX 表头中都独立成行。未在不同机器的 PowerPoint 字体替换环境中验证。
+- 最终差异通过类型检查、改动 Lint、110 项 Pitch 测试、24 组 PostgreSQL 场景及 33 组 HTTP 场景。浏览器包含桌面主流程以及 390 和 320 像素工作区保存、重开与导出回归。
+- 本机 Docker 无响应。本地浏览器和 HTTP 回归使用常规 Next 构建、真实 PostgreSQL 17.11 与 PostgREST 16.5。GoTrue 和 Storage 由一次性本地测试替身提供。真实 GoTrue／Storage 的复验仍使用原 GitHub Verify 工作流。生产、真实企业资料和真实外部模型调用均未纳入本轮验收。

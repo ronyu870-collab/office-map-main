@@ -383,12 +383,13 @@ export async function suggestOutline(ctx: PitchContext, query: Recommendation, p
   const project = projectId ? z.object({
     project: z.object({ city: z.string(), region: z.string(), business_line: z.string() }),
   }).parse(await pitchRpc(ctx, { action: "workspace_get", projectId })).project : null;
-  const sections = [];
-  for (const [kind, title] of [
-    ["corporate", "公司介绍"],
-    ["team", "核心团队"],
-    ["case", "代表案例"],
-    ["research", "市场研究"],
+  const sections = [], missing: string[] = [];
+  const english = query.language === "en";
+  for (const [kind, zh, en] of [
+    ["corporate", "公司介绍", "Company overview"],
+    ["team", "核心团队", "Core team"],
+    ["case", "代表案例", "Selected case studies"],
+    ["research", "市场研究", "Market research"],
   ] as const) {
     const found = await recommendAssets(ctx, {
       ...query,
@@ -396,29 +397,33 @@ export async function suggestOutline(ctx: PitchContext, query: Recommendation, p
       kind,
       limit: kind === "case" ? 3 : kind === "team" ? 6 : 1,
     }, project?.business_line);
-    if (found.items.length)
-      sections.push({
-        id: crypto.randomUUID(),
-        title: query.language === "en" ? {
-          corporate: "Company overview", team: "Core team", case: "Selected case studies", research: "Market research",
-        }[kind] : title,
-        materials: found.items.map(({ id, version, title }) => ({ id, version, title })),
-        part: generationPartSchema.parse({
-          mode: found.items.length === 1 ? "static" : "semi-dynamic",
-          templateId: found.items[0].templateId,
-          assetIds: found.items.map((a) => a.id),
-          length: "brief",
-          allowFallback: false,
-          variant: "standard",
-        }),
-      });
+    if (!found.items.length) {
+      missing.push(english ? en + " requires published materials in scope." : zh + "缺少可用的已发布素材。");
+      continue;
+    }
+    sections.push({
+      id: crypto.randomUUID(),
+      title: english ? en : zh,
+      materials: found.items.map(({ id, version, title }) => ({ id, version, title })),
+      part: generationPartSchema.parse({
+        mode: found.items.length === 1 ? "static" : "semi-dynamic",
+        templateId: found.items[0].templateId,
+        assetIds: found.items.map((a) => a.id),
+        length: "brief",
+        allowFallback: false,
+        variant: "standard",
+      }),
+    });
   }
+  if (!projectId) missing.push(english
+    ? "Project and competitor analysis needs reviewed projects and reporting periods."
+    : "目标项目与竞品分析需核对楼宇和正式季度。");
+  missing.push(english
+    ? "Service strategy and execution plans need approved materials."
+    : "服务策略与执行计划需要经确认素材。");
   return {
     sections,
-    missing: query.language === "en"
-      ? ["Project and competitor analysis needs reviewed projects and reporting periods.",
-        "Service strategy and execution plans need approved materials."]
-      : ["目标项目与竞品分析请选择项目及正式期间", "服务策略与执行计划需要经确认素材"],
+    missing,
     confirmed: false,
     modelCalls: 0,
   };

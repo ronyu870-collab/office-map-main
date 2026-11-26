@@ -62,8 +62,10 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
       }
       for (const [index, content] of snapshot.content.entries()) {
         const period = part.parameters.period;
+        const english = command.language === 'en';
         const subtitle = expectedDataFingerprint
-          ? (content.subtitle ?? `${period.year} Q${period.quarter}${index ? (command.language === 'en' ? ' · Method and coverage' : ' · 口径与覆盖') : ''}`)
+          ? [content.subtitle ?? `${period.year} Q${period.quarter}${index ? (english ? ' · Method and coverage' : ' · 口径与覆盖') : ''}`,
+            english ? 'Internal use only' : '仅限内部'].join(' · ')
           : content.subtitle;
         groups.push({
           content: part.title ? { ...content, title: part.title, subtitle } : content,

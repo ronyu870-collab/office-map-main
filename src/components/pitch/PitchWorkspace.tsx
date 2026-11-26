@@ -28,6 +28,7 @@ import {
   type WorkspaceSave,
   type WorkspacePart,
   type OutlinePart,
+  type WorkspaceCommand,
 } from "@/src/lib/pitch/workspace/protocol";
 import {
   recipeSchema,
@@ -69,6 +70,9 @@ const Manager = dynamic(
   { loading: () => <p>正在打开管理中心…</p> },
 );
 type Panel = "home" | "examples" | "quick" | "templates" | "assets" | "projects" | "admin";
+type OutlineStart = Extract<WorkspaceCommand, { action: "start" }> & { part: OutlinePart };
+type TaskReceipt = { id: string; state: string; attempts?: number; error_code?: string };
+type WorkspaceTask = TaskReceipt & { outline?: boolean; unconfirmed?: OutlineStart };
 type SavedCanvasHistory = {
   projectId: string;
   slideId: string;
@@ -152,12 +156,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [chosen, setChosen] = React.useState<Template | null>(null),
     [regenerating, setRegenerating] = React.useState(false);
   const [selected, setSelected] = React.useState<string[]>([]),
-    [task, setTask] = React.useState<{
-      id: string;
-      state: string;
-      attempts?: number;
-      error_code?: string;
-    } | null>(null),
+    [task, setTask] = React.useState<WorkspaceTask | null>(null),
     [customOpen, setCustomOpen] = React.useState(false),
     [custom, setCustom] = React.useState({
       title: "",
@@ -302,22 +301,16 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setConflict(false);
     current.current = { detail: value, draft: draftOf(value), dirty: false };
     setSelected((v) => v.filter((id) => value.slides.some((p) => p.id === id)));
-    const work =
-      value.tasks.find((t) =>
-        ["queued", "processing"].includes(String(t.state)),
-      ) ??
-      value.tasks.find((t) =>
-        ["failed", "cancelled"].includes(String(t.state)),
-      );
-    setTask(
-      work
-        ? {
-            id: String(work.id),
-            state: String(work.state),
-            attempts: Number(work.attempts),
-          }
-        : null,
-    );
+    const work = value.tasks.find(t => t.state === "queued" || t.state === "processing") ?? value.tasks[0];
+    setTask(previous => {
+      const receipt = work && {
+        id: String(work.id), state: String(work.state), attempts: Number(work.attempts),
+        error_code: typeof work.error_code === "string" ? work.error_code : undefined,
+        outline: previous?.id === work.id && previous?.outline,
+      };
+      if (previous?.unconfirmed?.projectId === value.project.id && receipt?.id !== previous.id) return previous;
+      return receipt && (receipt.state !== "completed" || receipt.outline) ? receipt : null;
+    });
   }, []);
   const linkedProjectRead = React.useRef(false);
   React.useEffect(() => {
@@ -553,8 +546,9 @@ function Studio({ session }: { session: AuthSessionResult }) {
           "workspace",
           c.signal,
         )
-          .then(async (result) => {
+          .then(async (receipt) => {
             if (c.signal.aborted) return;
+            const result: WorkspaceTask = { ...receipt, outline: task.outline };
             setTaskPollFailed(false);
             if (result.state === "completed") {
               setReadingResult(true);
@@ -580,7 +574,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 setChosen(null);
                 setRegenerating(false);
                 setMobile("preview");
-                setMessage("页面已生成并保存。");
+                if (result.outline) setLeftTab("pages");
+                setMessage(result.outline ? "" : "页面已生成并保存。");
               }
             } else {
               setReadingResult(false);
@@ -660,6 +655,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
   }) ?? [];
   const resizeLeft = (width: number) => setLeftWidth(Math.round(Math.max(196, Math.min(340, width))));
   const rendering = !!task && ["queued", "processing"].includes(task.state);
+  const generationPending = rendering || !!task?.unconfirmed;
   const editPage = (change: Partial<WorkspaceSave["pages"][number]>) => {
     if (active)
       edit((d) => ({
@@ -720,30 +716,61 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setBusy(true);
     try{const saved=await ensureProject(),taskId=crypto.randomUUID();await call({action:'start',projectId:saved.project.id,expectedVersion:saved.project.version,taskId,part,replaceIds:[]},true);setTask({id:taskId,state:'queued'});setPanel('quick');setChosen(null);}finally{setBusy(false);}
   }
+  function trackOutlineReceipt(receipt: TaskReceipt) {
+    // Completed receipts still need to load the saved pages through the same path as polling.
+    setTask({ ...receipt, state: receipt.state === "completed" ? "processing" : receipt.state, outline: true });
+    setTaskPollFailed(false);
+  }
+  function readOutlineReceipt({ projectId, taskId }: OutlineStart) {
+    return call<TaskReceipt>({ action: "status", projectId, taskId }, true);
+  }
   async function startOutline(part: OutlinePart) {
-    if (busy || rendering || conflict) throw new Error("当前项目正忙，请处理后再提交。");
+    if (busy || generationPending || conflict) throw new Error("当前项目正忙，请处理后再提交。");
     setBusy(true);
     setMessage("");
     try {
-      const saved = await flush(), taskId = crypto.randomUUID(), projectId = saved.project.id;
-      let receipt: { id: string; state: string; attempts?: number };
+      const saved = await flush();
+      const command: OutlineStart = { action: "start", projectId: saved.project.id,
+        expectedVersion: saved.project.version, taskId: crypto.randomUUID(), part, replaceIds: [] };
       try {
-        receipt = await call({ action: "start", projectId, expectedVersion: saved.project.version,
-          taskId, part, replaceIds: [] }, true);
+        trackOutlineReceipt(await call<TaskReceipt>(command, true));
       } catch (error) {
-        // An ambiguous response might have created the task. Read the same receipt;
-        // never submit a second task as a retry of the first.
-        if (error instanceof WorkspaceError && error.status < 500) throw error;
+        if (error instanceof WorkspaceError && error.status < 500 && error.status !== 408) throw error;
         try {
-          receipt = await call({ action: "status", projectId, taskId }, true);
+          trackOutlineReceipt(await readOutlineReceipt(command));
         } catch {
-          throw error;
+          setTask({ id: command.taskId, state: "unconfirmed", outline: true, unconfirmed: command });
         }
       }
-      setTask(receipt);
-      if (receipt.state === "completed") await open(projectId);
     } finally {
       setBusy(false);
+    }
+  }
+  async function recoverOutline(command: OutlineStart) {
+    try {
+      trackOutlineReceipt(await readOutlineReceipt(command));
+    } catch (error) {
+      if (!(error instanceof WorkspaceError) || error.status !== 403)
+        throw new Error("暂时无法查询原任务，请稍后再查。");
+      // A missing receipt uses the same 403 as revoked access. The existing
+      // start authorization/version checks still apply to an idempotent replay.
+      try {
+        trackOutlineReceipt(await call<TaskReceipt>(command, true));
+      } catch (replayError) {
+        if (replayError instanceof WorkspaceError && replayError.status < 500 && replayError.status !== 408) {
+          try {
+            trackOutlineReceipt(await readOutlineReceipt(command));
+          } catch (lookupError) {
+            if (replayError.status === 403) throw replayError;
+            if (!(lookupError instanceof WorkspaceError) || lookupError.status !== 403)
+              throw new Error("原任务仍在确认中，请稍后再查。");
+            setTask({ id: command.taskId, state: "not_accepted", outline: true });
+            throw replayError;
+          }
+        } else {
+          throw new Error("原任务仍在确认中，请稍后再查。");
+        }
+      }
     }
   }
   function reorder(id: string, to: number) {
@@ -1033,9 +1060,106 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   selected={selected}
                   flush={flush}
                   canClient={catalog.scopes.some((s) => s.canClientExport)}
-                  disabled={busy || conflict || rendering}
+                  disabled={busy || conflict || generationPending}
+                  outlineReady={task?.outline && task.state === "completed"}
                 />
               </header>
+              {task && (rendering || task.unconfirmed || task.state !== "completed" || task.outline) && (
+                <div role="status" className={styles.task}>
+                  {task.unconfirmed ? (
+                    <>
+                      <span>提交结果待确认。再次查询会使用原任务编号。</span>
+                      <Button variant="secondary" disabled={busy}
+                        onClick={() => {
+                          const command = task.unconfirmed;
+                          if (command) void run(() => recoverOutline(command));
+                        }}>
+                        重新查询生成进度
+                      </Button>
+                    </>
+                  ) : rendering ? (
+                    <>
+                      <span>
+                        {readingResult
+                          ? "页面已生成，正在读取结果"
+                          : task.state === "queued"
+                            ? (task.outline ? "提纲已确认，正在排队" : "页面正在排队")
+                            : (task.outline ? "正在按已审阅提纲生成" : "正在生成页面，原页面可继续查看")}
+                      </span>
+                      {!readingResult && (
+                        <Button
+                          variant="ghost"
+                          onClick={() =>
+                            void run(async () => {
+                              const r = await call<typeof task>(
+                                {
+                                  action: "cancel",
+                                  projectId: detail.project.id,
+                                  taskId: task.id,
+                                },
+                                true,
+                              );
+                              setTask(r && { ...r, outline: task.outline });
+                            })
+                          }
+                        >
+                          取消生成
+                        </Button>
+                      )}
+                      {taskPollFailed && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setTaskPollFailed(false);
+                            setMessage("");
+                            setTask({ ...task });
+                          }}
+                        >
+                          重新查询生成进度
+                        </Button>
+                      )}
+                    </>
+                  ) : task.state === "failed" ? (
+                    <>
+                      <span>
+                        生成未完成，原页面已保留。
+                        {task.error_code === "PITCH_CONFLICT"
+                          ? "项目已更新，请按最新参数重新生成。"
+                          : task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED"
+                            ? "素材版本已变化，请重新推荐并确认提纲。"
+                            : task.error_code === "PITCH_OUTLINE_DATA_CHANGED"
+                              ? "楼宇数据、季度或权限已变化，请重新核对正式数据。"
+                              : ""}
+                      </span>
+                      <Button
+                        variant="secondary"
+                        disabled={(task.attempts ?? 0) >= 3 || task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED" || task.error_code === "PITCH_OUTLINE_DATA_CHANGED"}
+                        onClick={() =>
+                          void run(async () => {
+                            const r = await call<typeof task>(
+                              {
+                                action: "retry",
+                                projectId: detail.project.id,
+                                taskId: task.id,
+                              },
+                              true,
+                            );
+                            setTask(r && { ...r, outline: task.outline });
+                          })
+                        }
+                      >
+                        重试生成
+                      </Button>
+                    </>
+                  ) : task.state === "not_accepted" ? (
+                    <span>生成请求未被接受。请核对当前项目和提纲后重新提交。</span>
+                  ) : task.state === "cancelled" ? (
+                    <span>生成已取消，原页面保留。</span>
+                  ) : task.outline && task.state === "completed" ? (
+                    <span>提案已生成并保存。确认页面后即可导出可编辑 PPTX。</span>
+                  ) : null}
+                </div>
+              )}
               <div
                 className={styles.mobileTabs}
                 role="tablist"
@@ -1206,7 +1330,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       period={draft.context.period}
                       language={draft.context.language}
                       admin={catalog.scopes.some((s) => s.canAdmin)}
-                      busy={busy || rendering || conflict}
+                      busy={busy || generationPending || conflict}
+                      outlineCanResubmit={task?.outline && ["cancelled", "not_accepted"].includes(task.state)}
                       onGenerate={generate}
                       revisionDestination={catalog.categories.find(c => c.system_code === "general" && c.enabled) &&
                         catalog.scopes.some(s => s.canAdmin && s.canMaintain && s.organizationId === detail.project.organization_id &&
@@ -1659,87 +1784,6 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   )}
                 </aside>
               </div>
-              {task && (
-                <div role="status" className={styles.task}>
-                  {rendering ? (
-                    <>
-                      <span>
-                        {readingResult
-                          ? "页面已生成，正在读取结果"
-                          : task.state === "queued"
-                            ? "页面正在排队"
-                            : "正在生成页面，原页面可继续查看"}
-                      </span>
-                      {!readingResult && (
-                        <Button
-                          variant="ghost"
-                          onClick={() =>
-                            void run(async () => {
-                              const r = await call<typeof task>(
-                                {
-                                  action: "cancel",
-                                  projectId: detail.project.id,
-                                  taskId: task.id,
-                                },
-                                true,
-                              );
-                              setTask(r);
-                            })
-                          }
-                        >
-                          取消生成
-                        </Button>
-                      )}
-                      {taskPollFailed && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setTaskPollFailed(false);
-                            setMessage("");
-                            setTask({ ...task });
-                          }}
-                        >
-                          重新查询生成进度
-                        </Button>
-                      )}
-                    </>
-                  ) : task.state === "failed" ? (
-                    <>
-                      <span>
-                        生成未完成，原页面已保留。
-                        {task.error_code === "PITCH_CONFLICT"
-                          ? "项目已更新，请按最新参数重新生成。"
-                          : task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED"
-                            ? "素材版本已变化，请重新推荐并确认提纲。"
-                            : task.error_code === "PITCH_OUTLINE_DATA_CHANGED"
-                              ? "楼宇数据、季度或权限已变化，请重新核对正式数据。"
-                              : ""}
-                      </span>
-                      <Button
-                        variant="secondary"
-                        disabled={(task.attempts ?? 0) >= 3 || task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED" || task.error_code === "PITCH_OUTLINE_DATA_CHANGED"}
-                        onClick={() =>
-                          void run(async () => {
-                            const r = await call<typeof task>(
-                              {
-                                action: "retry",
-                                projectId: detail.project.id,
-                                taskId: task.id,
-                              },
-                              true,
-                            );
-                            setTask(r);
-                          })
-                        }
-                      >
-                        重试生成
-                      </Button>
-                    </>
-                  ) : task.state === "cancelled" ? (
-                    <span>生成已取消，原页面保留。</span>
-                  ) : null}
-                </div>
-              )}
             </>
           )}
         </>

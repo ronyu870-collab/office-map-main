@@ -57,6 +57,7 @@ export function AiAssist({
   busy,
   onGenerate,
   onGenerateOutline,
+  outlineCanResubmit,
   revisionDestination,
   canvasTarget,
   onCanvasSaved,
@@ -72,6 +73,7 @@ export function AiAssist({
   busy: boolean;
   onGenerate: (part: Generation["parts"][number]) => Promise<void>;
   onGenerateOutline: (outline: OutlinePart) => Promise<void>;
+  outlineCanResubmit?: boolean;
   revisionDestination?: RevisionDestination;
   canvasTarget?: CanvasRevisionTarget & { assetId: string; assetVersion: number };
   onCanvasSaved?: (result: unknown) => void;
@@ -90,9 +92,9 @@ export function AiAssist({
     [batch, setBatch] = React.useState(""),
     [tasks, setTasks] = React.useState<Task[]>([]),
     [sections, setSections] = React.useState<Section[]>([]),
-    [outlineMissing, setOutlineMissing] = React.useState<string[]>([]),
+    [outlineMissing, setOutlineMissing] = React.useState<string[] | null>(null),
     [compareQuarters, setCompareQuarters] = React.useState(false),
-    [outlineSent, setOutlineSent] = React.useState(false),
+    [submitted, setOutlineSent] = React.useState(false),
     [pollFailed, setPollFailed] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => controller.current?.abort(), []);
@@ -184,6 +186,7 @@ export function AiAssist({
       setItems(r.items);
       setSelected([]);
     });
+  const outlineSent = submitted && !outlineCanResubmit;
   const dataReview = sections.find(section => section.review)?.review;
   const reviewMatches = !dataReview || (
     Boolean(dataReview.comparisons?.length) === compareQuarters &&
@@ -231,7 +234,7 @@ export function AiAssist({
     });
   return (
     <div className={styles.form} aria-label="Pitch 辅助">
-      <h2>快速配置</h2>
+      <h2>{initialQuestion ? "提案助手" : "快速配置"}</h2>
       <label>
         需要制作什么页面？
         <textarea
@@ -242,6 +245,159 @@ export function AiAssist({
           placeholder="生成燕莎空置率趋势页面"
         />
       </label>
+      <details open={initialQuestion.trim() ? true : undefined}>
+        <summary>提案结构建议</summary>
+        <Button
+          disabled={working || busy}
+          variant={sections.length ? "secondary" : "primary"}
+          onClick={() =>
+            void perform(async (signal) => {
+              const r = await call<{ sections: Section[]; missing: string[] }>(
+                { action: "outline", projectId, query: { q, objective: question.trim().slice(0, 200), language, limit: 5 } },
+                true,
+                "ai",
+                signal,
+              );
+              setSections(previous => [...r.sections, ...previous.filter(section => section.review)]);
+              setOutlineMissing(r.missing ?? []);
+              setOutlineSent(false);
+              if (!r.sections.length)
+                setError("当前范围没有可用的发布素材。可调整关键词，或先加入正式数据。");
+            })
+          }
+        >
+          推荐提纲
+        </Button>
+        <p>可用「项目设置」中关联的 1–5 栋楼宇和默认季度，加入正式数据章节。仅限内部使用。</p>
+        <label className={styles.check}>
+          <input type="checkbox" checked={compareQuarters} disabled={working || busy}
+            onChange={event => setCompareQuarters(event.target.checked)} />
+          同时核对租金和空置率的环比、同比
+        </label>
+        <Button
+          variant="secondary"
+          disabled={working || busy || (!dataReview && sections.length >= 8) ||
+            !outlineBuildingIds.safeParse(buildingIds).success || !outlineQuarter.safeParse(period).success}
+          onClick={() => void reviewData()}
+        >
+          {dataReview ? "重新核对正式数据" : "核对并加入正式数据"}
+        </Button>
+        {!reviewMatches && <p role="status">关联楼宇或季度已变化，或已切换对比方式。请重新核对或移除正式数据章节。</p>}
+        <ol>
+          {sections.map((s, i) => {
+            const sectionPart = s.part;
+            const alternatives = sectionPart.mode === "dynamic" ? [] : items.filter(item =>
+              selected.includes(item.id) && item.templateId === sectionPart.templateId);
+            return <li key={s.id}>
+              <input
+                aria-label="章节标题"
+                disabled={working || busy || outlineSent}
+                maxLength={160}
+                value={s.title}
+                onChange={(e) =>
+                  setSections((v) =>
+                    v.map((x) =>
+                      x.id === s.id ? { ...x, title: e.target.value } : x,
+                    ),
+                  )
+                }
+              />
+              {s.review && <div>
+                <p>正式季度：{s.review.parameters.period.year}-Q{s.review.parameters.period.quarter} · 仅限内部</p>
+                <p>缺失值原样标记；不替换楼宇或季度。</p>
+                <ul aria-label="已核对楼宇">
+                  {s.review.buildings.map(building => <li key={building.id}>
+                    <strong>{building.name}</strong>
+                    <ul>{building.facts.map(fact => <li key={fact.label}>{fact.label}：{fact.value}</li>)}</ul>
+                  </li>)}
+                </ul>
+                {s.review.comparisons?.map(comparison => <div key={comparison.metric}>
+                  <div className={styles.tableScroll}>
+                  <table className={styles.comparisonTable}>
+                    <caption>{comparison.metric}</caption>
+                    <thead><tr>{comparison.columns.map(column => <th scope="col" key={column}>{column}</th>)}</tr></thead>
+                    <tbody>{comparison.rows.map((row, i) => <tr key={s.review?.buildings[i].id ?? i}>
+                      <th scope="row">{row[0]}</th>
+                      {row.slice(1).map((cell, j) => <td key={comparison.columns[j + 1]}>{cell}</td>)}
+                    </tr>)}</tbody>
+                  </table>
+                  </div>
+                  <p>{comparison.note}</p>
+                </div>)}
+              </div>}
+              {s.materials?.length > 0 && <ul aria-label="已选素材">
+                {s.materials.map(material => <li key={material.id}>{material.title} · v{material.version}</li>)}
+              </ul>}
+              <Button
+                variant="ghost"
+                disabled={!i || working || busy || outlineSent}
+                onClick={() =>
+                  setSections((v) => {
+                    const next = [...v];
+                    [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                    return next;
+                  })
+                }
+              >
+                上移
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={working || busy || outlineSent}
+                onClick={() =>
+                  setSections((v) => v.filter((x) => x.id !== s.id))
+                }
+              >
+                移除
+              </Button>
+              {!!alternatives.length && alternatives.length === selected.length && (
+                <Button
+                  variant="ghost"
+                  disabled={working || busy || outlineSent}
+                  onClick={() =>
+                    setSections((v) =>
+                      v.map((x) =>
+                        x.id === s.id && x.part.mode !== "dynamic"
+                          ? {
+                              ...x,
+                              materials: alternatives.map(({ id, title, version }) => ({ id, title, version })),
+                              part: {
+                                ...x.part,
+                                mode:
+                                  alternatives.length === 1
+                                    ? "static"
+                                    : "semi-dynamic",
+                                assetIds: alternatives.map(item => item.id),
+                              },
+                            }
+                          : x,
+                      ),
+                    )
+                  }
+                >
+                  替换为所选素材
+                </Button>
+              )}
+            </li>;
+          })}
+        </ol>
+        {(outlineMissing || dataReview) && (outlineMissing?.length || !dataReview) ? <div>
+          <strong>未包含的部分</strong>
+          <ul>
+            {outlineMissing?.map(note => <li key={note}>{note}</li>)}
+            {!dataReview && <li>尚未加入正式楼宇季度数据。</li>}
+          </ul>
+        </div> : null}
+
+        {!!sections.length && (
+          <Button
+            disabled={working || busy || outlineSent || !reviewMatches || sections.some(section => !section.title.trim())}
+            onClick={() => void generateOutline()}
+          >
+            确认生成 {sections.length} 个板块
+          </Button>
+        )}
+      </details>
       <Button
         disabled={working || busy || !question.trim()}
         onClick={() =>
@@ -406,156 +562,6 @@ export function AiAssist({
           用所选素材生成
         </Button>
       )}
-      <details>
-        <summary>提案结构建议</summary>
-        <Button
-          disabled={working}
-          variant="secondary"
-          onClick={() =>
-            void perform(async (signal) => {
-              const r = await call<{ sections: Section[]; missing: string[] }>(
-                { action: "outline", projectId, query: { q, objective: question.trim().slice(0, 200), language, limit: 5 } },
-                true,
-                "ai",
-                signal,
-              );
-              setSections(previous => [...r.sections, ...previous.filter(section => section.review)]);
-              setOutlineMissing(r.missing ?? []);
-              setOutlineSent(false);
-              if (!r.sections.length)
-                setError("没有满足条件的正式素材，请先选择或维护素材。");
-            })
-          }
-        >
-          推荐提纲
-        </Button>
-        <p>可用「项目设置」中关联的 1–5 栋楼宇和默认季度，加入正式数据章节。仅限内部使用。</p>
-        <label className={styles.check}>
-          <input type="checkbox" checked={compareQuarters} disabled={working || busy}
-            onChange={event => setCompareQuarters(event.target.checked)} />
-          同时核对租金和空置率的环比、同比
-        </label>
-        <Button
-          variant="secondary"
-          disabled={working || busy || (!dataReview && sections.length >= 8) ||
-            !outlineBuildingIds.safeParse(buildingIds).success || !outlineQuarter.safeParse(period).success}
-          onClick={() => void reviewData()}
-        >
-          {dataReview ? "重新核对正式数据" : "核对并加入正式数据"}
-        </Button>
-        {!reviewMatches && <p role="status">关联楼宇或季度已变化，或已切换对比方式。请重新核对或移除正式数据章节。</p>}
-        <ol>
-          {sections.map((s, i) => {
-            const sectionPart = s.part;
-            const alternatives = sectionPart.mode === "dynamic" ? [] : items.filter(item =>
-              selected.includes(item.id) && item.templateId === sectionPart.templateId);
-            return <li key={s.id}>
-              <input
-                aria-label="章节标题"
-                disabled={working || outlineSent}
-                maxLength={160}
-                value={s.title}
-                onChange={(e) =>
-                  setSections((v) =>
-                    v.map((x) =>
-                      x.id === s.id ? { ...x, title: e.target.value } : x,
-                    ),
-                  )
-                }
-              />
-              {s.review && <div>
-                <p>正式季度：{s.review.parameters.period.year}-Q{s.review.parameters.period.quarter} · 仅限内部</p>
-                <p>缺失值原样标记；不替换楼宇或季度。</p>
-                <ul aria-label="已核对楼宇">
-                  {s.review.buildings.map(building => <li key={building.id}>
-                    <strong>{building.name}</strong>
-                    <ul>{building.facts.map(fact => <li key={fact.label}>{fact.label}：{fact.value}</li>)}</ul>
-                  </li>)}
-                </ul>
-                {s.review.comparisons?.map(comparison => <div key={comparison.metric}>
-                  <div className={styles.tableScroll}>
-                  <table>
-                    <caption>{comparison.metric}</caption>
-                    <thead><tr>{comparison.columns.map(column => <th scope="col" key={column}>{column}</th>)}</tr></thead>
-                    <tbody>{comparison.rows.map((row, i) => <tr key={s.review?.buildings[i].id ?? i}>
-                      <th scope="row">{row[0]}</th>
-                      {row.slice(1).map((cell, j) => <td key={comparison.columns[j + 1]}>{cell}</td>)}
-                    </tr>)}</tbody>
-                  </table>
-                  </div>
-                  <p>{comparison.note}</p>
-                </div>)}
-              </div>}
-              {s.materials?.length > 0 && <ul aria-label="已选素材">
-                {s.materials.map(material => <li key={material.id}>{material.title} · v{material.version}</li>)}
-              </ul>}
-              <Button
-                variant="ghost"
-                disabled={!i || working || outlineSent}
-                onClick={() =>
-                  setSections((v) => {
-                    const next = [...v];
-                    [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                    return next;
-                  })
-                }
-              >
-                上移
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={working || outlineSent}
-                onClick={() =>
-                  setSections((v) => v.filter((x) => x.id !== s.id))
-                }
-              >
-                移除
-              </Button>
-              {!!alternatives.length && alternatives.length === selected.length && (
-                <Button
-                  variant="ghost"
-                  disabled={working || outlineSent}
-                  onClick={() =>
-                    setSections((v) =>
-                      v.map((x) =>
-                        x.id === s.id && x.part.mode !== "dynamic"
-                          ? {
-                              ...x,
-                              materials: alternatives.map(({ id, title, version }) => ({ id, title, version })),
-                              part: {
-                                ...x.part,
-                                mode:
-                                  alternatives.length === 1
-                                    ? "static"
-                                    : "semi-dynamic",
-                                assetIds: alternatives.map(item => item.id),
-                              },
-                            }
-                          : x,
-                      ),
-                    )
-                  }
-                >
-                  替换为所选素材
-                </Button>
-              )}
-            </li>;
-          })}
-        </ol>
-        {outlineMissing.length > 0 && <div>
-          <strong>未包含的部分</strong>
-          <ul>{outlineMissing.map(note => <li key={note}>{note}</li>)}</ul>
-        </div>}
-        {outlineSent && <p role="status">提纲已提交为一个生成任务，生成进度见工作区。</p>}
-        {!!sections.length && (
-          <Button
-            disabled={working || busy || outlineSent || !reviewMatches || sections.some(section => !section.title.trim())}
-            onClick={() => void generateOutline()}
-          >
-            确认生成 {sections.length} 个板块
-          </Button>
-        )}
-      </details>
       {admin && (
         <details>
           <summary>辅助理解所选资料</summary>

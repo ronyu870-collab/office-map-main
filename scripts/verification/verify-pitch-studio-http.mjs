@@ -162,7 +162,7 @@ try {
  });
  const businessResult=await verifyPitchBusiness({app,db,owner,other,admin,scope,call,library,check,until});
  await verifyPitchEcosystem({app,owner,other,scope,call,check,until});
- await verifyPitchWorkspace({app,db,owner,other,admin,scope,call,check,until,...businessResult});
+ await verifyPitchWorkspace({app,db,owner,other,admin,scope,call,library,check,until,...businessResult});
  await verifyPitchAi({app,db,owner,other,admin,check,until});
  await check('revoked grants block recovery, raw RLS and previously archived download',async()=>{
    await db.query('update private.pitch_grants set enabled=false where user_id=$1',[owner.id]);

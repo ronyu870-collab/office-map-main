@@ -473,10 +473,11 @@
 }
 .task {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
   padding: 8px 24px;
-  border-top: 1px solid var(--pitch-border);
+  border-bottom: 1px solid var(--pitch-border);
   background: var(--pitch-surface);
 }
 .metrics {
@@ -495,6 +496,9 @@
 .tableScroll table {
   width: 100%;
   border-collapse: collapse;
+}
+.comparisonTable th[scope="col"] {
+  white-space: pre-line;
 }
 .tableScroll td,
 .tableScroll th {

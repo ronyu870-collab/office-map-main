@@ -45,9 +45,9 @@ export function quarterComparisons(results: readonly QuarterComparisonEvidence[]
         : (en ? "Change is the difference between rates in percentage points. Missing values never become zero." : "空置率变化为两期之差，单位：百分点，不是相对百分比。缺失不按零处理。"),
       columns: [
         en ? "Building" : "楼宇",
-        `${quarterLabel(current)} · ${rent ? (en ? "CNY/m²/mo" : "元/㎡/月") : "%"}`,
-        `${en ? "QoQ" : "环比"} · ${quarterLabel(baselines.previous)}`,
-        `${en ? "YoY" : "同比"} · ${quarterLabel(baselines.priorYear)}`,
+        `${quarterLabel(current)}\n${rent ? (en ? "CNY/m²/mo" : "元/㎡/月") : "%"}`,
+        `${en ? "QoQ" : "环比"}\n${quarterLabel(baselines.previous)}`,
+        `${en ? "YoY" : "同比"}\n${quarterLabel(baselines.priorYear)}`,
       ],
       rows: ids.map(id => {
         const latest = latestRows.get(id), name = latest?.name;

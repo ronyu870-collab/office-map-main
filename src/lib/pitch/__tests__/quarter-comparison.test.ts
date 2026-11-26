@@ -24,7 +24,7 @@ const results = [result(number(100), number(12, 100)), result(number(80), number
 it("takes Q1 QoQ from previous Q4 and never changes the prior-year baseline", () => {
   expect(comparisonQuarters(period)).toEqual({ previous: { year: 2025, quarter: 4 }, priorYear: { year: 2025, quarter: 1 } });
   const [rent, vacancy] = quarterComparisons(results, period, [first, other], "zh");
-  expect(rent.columns.slice(2)).toEqual(["环比 · 2025-Q4", "同比 · 2025-Q1"]);
+  expect(rent.columns).toEqual(["楼宇", "2026-Q1\n元/㎡/月", "环比\n2025-Q4", "同比\n2025-Q1"]);
   expect(rent.rows[0]).toEqual(["国贸测试楼", "100", "+25%", "基期为零"]);
   expect(vacancy.rows[0]).toEqual(["国贸测试楼", "12", "+2 个百分点", "基期无有效值"]);
   expect(rent.rows[1]).toEqual(["测试广场", "无有效值", "本期无有效值", "本期无有效值"]);

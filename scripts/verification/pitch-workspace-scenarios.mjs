@@ -10,6 +10,7 @@ export async function verifyPitchWorkspace({
   admin,
   scope,
   call,
+  library,
   check,
   until,
   ids,
@@ -274,6 +275,7 @@ export async function verifyPitchWorkspace({
       ["团队正式素材", "目标楼宇正式数据"]);
     const data = generated.slides.find(page => page.content.title === "目标楼宇正式数据");
     assert.equal(data.content.dataAsOf, "2026-09-30");
+    assert.match(data.content.subtitle, /2026 Q3 · 仅限内部/);
     assert.ok(data.content.sources.length);
     assert.match(JSON.stringify(data.content.blocks), /提纲核对测试楼/);
     const changes = generated.slides.find(page => page.content.subtitle?.includes("净有效租金 · 环比"));
@@ -282,6 +284,30 @@ export async function verifyPitchWorkspace({
     assert.equal(generated.workspace.page_settings[data.id].origin, "data");
     const gates = await db.query("select allow_client_export from public.pitch_content_assets where id=any($1::uuid[])", [generated.slides.map(p => p.asset_id)]);
     assert.ok(gates.rows.length > 0 && gates.rows.every(asset => asset.allow_client_export === false));
+    if (process.env.PITCH_WORKSPACE_BROWSER === "true") {
+      const { verifyPitchOutlineBrowser } = await import("./pitch-workspace-browser.mjs");
+      const research = (await db.query("select id, current_version as version from public.pitch_content_assets where id=$1", [ids.research])).rows[0];
+      const media = await library(admin, { action: "search", kind: "media", state: "published", validity: "valid" });
+      assert.equal(media.status, 200, JSON.stringify(media.body));
+      const image = media.body.items.find(item => item.mime === "image/png");
+      assert.ok(image, "published synthetic image from the imported historical PPTX");
+      await verifyPitchOutlineBrowser({ app, who: admin, buildingName: "提纲核对测试楼", period, research, image,
+        changeQuarter: () => db.query("update public.building_metrics set net_effective_rent=80 where building_id=$1 and record_year=2026 and record_quarter=2", [building]),
+        readProject: async projectId => (await workspace(admin, { action: "get", projectId })).body,
+        assertClientDenied: async projectId => {
+          const gate = await db.query("select id, can_client_export from private.pitch_grants where user_id=$1 and region=$2", [admin.id, scope.region]);
+          assert.equal(gate.rows.length, 1);
+          const grant = gate.rows[0];
+          await db.query("update private.pitch_grants set can_client_export=true where id=$1", [grant.id]);
+          try {
+            const out = await call(admin, { action: "export_start", projectId, exportId: randomUUID(), audience: "client", format: "pptx" }, true);
+            assert.equal(out.status, 403, JSON.stringify(out.body));
+          } finally {
+            await db.query("update private.pitch_grants set can_client_export=$1 where id=$2", [grant.can_client_export, grant.id]);
+          }
+        },
+      });
+    }
   });
   await check(
     "workspace HTTP saves configuration, content, order and active page across new requests; stale save returns 409",
