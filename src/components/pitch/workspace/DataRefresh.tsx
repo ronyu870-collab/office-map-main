@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
-import { contentBlockSchema } from "@/src/lib/pitch/contracts/content";
 import { outlineQuarter, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { WorkspaceError, type Call } from "./client";
+import { BusinessEvidence, evidenceValueSchema } from "./BusinessEvidence";
 import styles from "./workspace.module.css";
 
 const periodSchema = z.object({ year: z.number().int(), quarter: z.number().int().min(1).max(4) });
@@ -40,38 +40,11 @@ const refreshSchema = z.object({
 type Review = z.infer<typeof refreshSchema>;
 type Quarter = z.infer<typeof periodSchema>;
 const periodLabel = ({ year, quarter }: Quarter) => `${year}-Q${quarter}`;
-const [paragraphBlock, metricBlock, , tableBlock, chartBlock] = contentBlockSchema.options;
-const refreshBlockSchema = z.discriminatedUnion("kind", [
-  paragraphBlock.omit({ sourceIds: true }),
-  metricBlock.omit({ sourceIds: true }),
-  tableBlock.omit({ sourceIds: true }),
-  chartBlock.omit({ sourceIds: true }),
-]);
-
-function ValueTable({ columns, rows }: { columns: string[]; rows: (string | number | null)[][] }) {
-  return <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="数据预览">
-    <table>
-      <thead><tr>{columns.map((column, index) => <th key={index} scope="col">{column}</th>)}</tr></thead>
-      <tbody>{rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{value ?? "—"}</td>)}</tr>)}</tbody>
-    </table>
-  </div>;
-}
-
 function BlockValue({ value }: { value?: Record<string, unknown> }) {
   if (!value) return <p>此版本没有该数据项。</p>;
-  const parsed = refreshBlockSchema.safeParse(value);
+  const parsed = evidenceValueSchema.safeParse(value);
   if (!parsed.success) return <p>此数据项在页面生成后可查看。</p>;
-  const block = parsed.data;
-  if (block.kind === "paragraph") return <p>{block.text}</p>;
-  if (block.kind === "table") return <ValueTable columns={block.columns} rows={block.rows} />;
-  if (block.kind === "metric") return <dl className={styles.refreshMetric}>
-    <div><dt>{block.label}</dt><dd>{block.value === null ? "—" : `${block.value} ${block.unit}`}</dd></div>
-    {block.qoq !== undefined && <div><dt>环比</dt><dd>{block.qoq ?? "—"}</dd></div>}
-    {block.yoy !== undefined && <div><dt>同比</dt><dd>{block.yoy ?? "—"}</dd></div>}
-  </dl>;
-  if (block.kind === "chart") return <ValueTable columns={["类别", ...block.series.map(series => series.unit ? `${series.name}（${series.unit}）` : series.name)]}
-    rows={block.categories.map((item, index) => [item, ...block.series.map(series => series.values[index] ?? null)])} />;
-  return <p>此数据项在页面生成后可查看。</p>;
+  return <BusinessEvidence block={parsed.data} />;
 }
 
 export function DataRefresh({ call, detail, slideId, disabled, onApplied }: {

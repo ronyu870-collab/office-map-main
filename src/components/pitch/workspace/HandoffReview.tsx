@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
-import type { PitchScope } from "@/src/lib/pitch/contracts/content";
+import { contentBlockSchema, type PitchScope } from "@/src/lib/pitch/contracts/content";
 import { outlineQuarter, workspaceDetailSchema } from "@/src/lib/pitch/workspace/protocol";
 import type { PitchHandoffNavigation } from "../PitchHandoffLink";
 import { WorkspaceError, type Call } from "./client";
+import { BusinessEvidence } from "./BusinessEvidence";
 import styles from "./workspace.module.css";
 
 const projectsSchema = z.object({
@@ -16,7 +17,8 @@ const readySchema = z.object({
   status: z.literal("ready"), period: z.string(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   submarkets: z.array(z.string()), buildingIds: z.array(z.uuid()),
   binding: z.object({ dataAsOf: z.iso.date() }),
-  pages: z.array(z.object({ title: z.string(), sources: z.array(z.object({ label: z.string() })) })),
+  pages: z.array(z.object({ title: z.string(), sources: z.array(z.object({ label: z.string() })),
+    blocks: z.array(contentBlockSchema).optional() })),
 });
 const reviewSchema = z.discriminatedUnion("status", [readySchema, z.object({ status: z.literal("period_required") })]);
 const receiptSchema = z.object({ state: z.enum(["queued", "processing", "completed", "failed", "cancelled"]) });
@@ -28,16 +30,19 @@ type Target = { mode: "append"; expectedVersion: number } | ({
 });
 type Submit = { action: "add_to_pitch"; handoff: AddToPitch; target: Target; fingerprint: string; taskId: string };
 
-export function HandoffReview({ source, call, grants, theme, onOpen, onClose }: {
+export type HandoffDestination = { id: string; title: string };
+
+export function HandoffReview({ source, call, grants, theme, destination, onOpen, onClose }: {
   source: PitchHandoffNavigation;
   call: Call;
   grants: PitchScope[];
   theme?: { id: string; current_version: number };
+  destination?: HandoffDestination;
   onOpen: (id: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [projects, setProjects] = useState<z.infer<typeof projectsSchema>["items"]>([]);
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(destination?.id ?? "");
   const [scopeIndex, setScopeIndex] = useState(0);
   const [period, setPeriod] = useState(source.period ?? "");
   const lease = source.source.kind === "lease-search" ? source.source : undefined;
@@ -49,11 +54,13 @@ export function HandoffReview({ source, call, grants, theme, onOpen, onClose }: 
   const [projectListError, setProjectListError] = useState("");
   const [listAttempt, setListAttempt] = useState(0);
   const operation = useRef<AbortController>(null);
+  const autoReviewed = useRef(false);
   const command = useRef<{ payload: Submit; projectId: string; accepted: boolean }>(null);
   const canCreate = !!grants[scopeIndex] && !!theme;
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
 
   useEffect(() => {
+    if (destination) return;
     const request = new AbortController();
     void call({ action: "list", filter: "active" }, false, "workspace", request.signal)
       .then(projectsSchema.parse)
@@ -62,8 +69,18 @@ export function HandoffReview({ source, call, grants, theme, onOpen, onClose }: 
         if (!request.signal.aborted) setProjectListError(cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "项目列表读取未完成。");
       });
     return () => request.abort();
-  }, [call, listAttempt]);
+  }, [call, destination, listAttempt]);
   useEffect(() => () => operation.current?.abort(), []);
+  useEffect(() => {
+    if (!destination || !source.period || autoReviewed.current) return;
+    const timer = setTimeout(() => {
+      autoReviewed.current = true;
+      void checkSource();
+    }, 0);
+    return () => clearTimeout(timer);
+  // The workspace opens with an explicit review action and a saved default quarter.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [destination, source.period]);
 
   function resetReview() {
     setReview(undefined);
@@ -160,14 +177,14 @@ export function HandoffReview({ source, call, grants, theme, onOpen, onClose }: 
         <p>{sourceLabel}</p>
         {lease && <p>{lease.from} 至 {lease.to} · {lease.dataset === "live" ? "日常填报" : lease.dataset === "history" ? "历史导入" : "合并来源"}</p>}
       </div>
-      <label>
+      {destination ? <p>追加到 {destination.title}</p> : <label>
         目标项目
         <select value={projectId} disabled={!!busy || submitted}
           onChange={event => { resetReview(); setProjectId(event.target.value); }}>
           <option value="">新建 Pitch</option>
           {projects.filter(project => project.state !== "archived").map(project => <option key={project.id} value={project.id}>{project.title}</option>)}
         </select>
-      </label>
+      </label>}
       {projectListError && <div role="alert">
         <p>{projectListError}</p>
         <Button variant="ghost" onClick={() => { setProjectListError(""); setListAttempt(value => value + 1); }}>重试读取项目</Button>
@@ -195,10 +212,17 @@ export function HandoffReview({ source, call, grants, theme, onOpen, onClose }: 
         </label>}
         <p>{review.data.period && `${review.data.period} · `}{review.data.binding.dataAsOf} · 仅供内部使用</p>
         <ol className={styles.handoffPages}>
-          {review.data.pages.map((page, index) => <li key={index}>
-            <strong>{page.title}</strong>
-            {page.sources.length > 0 && <p>{[...new Set(page.sources.map(item => item.label))].join("、")}</p>}
-          </li>)}
+          {review.data.pages.map((page, index) => {
+            const evidence = page.blocks?.filter(block =>
+              block.kind === "table" || block.kind === "chart" || block.kind === "metric" || block.kind === "paragraph") ?? [];
+            return <li key={index}>
+              {evidence.length ? <details open={review.data.pages.length === 1 ? true : undefined}>
+                <summary>{page.title}</summary>
+                {evidence.map((block, position) => <BusinessEvidence key={position} block={block} />)}
+              </details> : <strong>{page.title}</strong>}
+              {page.sources.length > 0 && <p>{[...new Set(page.sources.map(item => item.label))].join("、")}</p>}
+            </li>;
+          })}
         </ol>
       </>}
     </div>

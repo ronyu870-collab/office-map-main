@@ -160,6 +160,7 @@ let detail: ReturnType<typeof initial>,
   completedTask = false,
   rejectSave = false,
   expandedCatalog = false,
+  workspaceBuildingLookup = false,
   readyProposal = false,
   dropProposalCreateResponse = false,
   proposalSource: { id: string; detail: unknown } | undefined;
@@ -170,6 +171,7 @@ beforeEach(() => {
   state.other = false;
   rejectSave = false;
   expandedCatalog = false;
+  workspaceBuildingLookup = false;
   failTaskPoll = false;
   failCompletedRead = false;
   completedTask = false;
@@ -194,7 +196,9 @@ beforeEach(() => {
       if (c.action === "catalog")
         body = path === "business" ? { recipes: expandedCatalog ? BUSINESS_RECIPES.map(r => ({...r, revision: 1, categoryId: sourceId, enabled: true})) : [], dynamic: [] } : catalog;
       else if (c.action === "capabilities")
-        body = { allowedDynamic: [], buildingSearch: false };
+        body = { allowedDynamic: [], buildingSearch: workspaceBuildingLookup };
+      else if (c.action === "buildings")
+        body = { items: [{ id: assetId, name: "工作台核对楼宇" }], next: null };
       else if (c.action === "preferences") body = { favorites: [], recent: [] };
       else if (c.action === "list")
         body = {
@@ -231,6 +235,16 @@ beforeEach(() => {
         } : { status: "clarification", message: "请确认选址范围。" };
       } else if (c.action === "proposal_generate") {
         body = { state: "completed", taskId: c.confirmation.taskId, projectId: proposalId };
+      } else if (c.action === "review_handoff") {
+        body = {
+          status: "ready", fingerprint: "f".repeat(64), period: "2026-Q3", submarkets: [], buildingIds: [assetId],
+          binding: { dataAsOf: "2026-09-30" },
+          pages: [{ title: "楼宇正式季度参数", sources: [{ label: "获权季度库" }],
+            blocks: [{ kind: "table", columns: ["楼宇", "净有效租金"], rows: [["工作台核对楼宇", 95]],
+              sourceIds: [sourceId] }] }],
+        };
+      } else if (c.action === "add_to_pitch") {
+        body = { state: "queued" };
       } else if (c.action === "status") {
         if (failTaskPoll) throw new Error("生成进度网络中断");
         body = {
@@ -398,6 +412,31 @@ describe("Pitch workspace continuous editing", () => {
     }));
     expect(writes.find(entry => entry.action === "get" && entry.projectId === proposalId)).toBeDefined();
   }, 60000);
+  it("reviews selected buildings in the data inspector and appends exactly the reviewed scope to the current project", async () => {
+    workspaceBuildingLookup = true;
+    detail.workspace.context.period = "2026-Q3";
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
+    await user.type(await screen.findByLabelText("搜索楼宇"), "工作台核对");
+    await user.click(await screen.findByRole("button", { name: "工作台核对楼宇" }));
+    await user.click(screen.getByRole("button", { name: "核对季度数据" }));
+    await screen.findByText("追加到 隔离测试 Pitch");
+    expect(screen.queryByLabelText("目标项目")).not.toBeInTheDocument();
+    expect(await screen.findByRole("cell", { name: "95" })).toBeInTheDocument();
+    expect(screen.getByText("获权季度库")).toBeInTheDocument();
+    expect(writes.some(entry => entry.action === "add_to_pitch")).toBe(false);
+    const review = writes.find(entry => entry.action === "review_handoff");
+    expect(review).toEqual({ action: "review_handoff", handoff: {
+      projectId, source: { kind: "buildings", buildingIds: [assetId] }, period: "2026-Q3", language: "zh",
+    } });
+    await user.click(screen.getByRole("button", { name: "确认并追加" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "加入 Pitch" })).not.toBeInTheDocument());
+    expect(writes.filter(entry => entry.action === "add_to_pitch")).toEqual([{
+      action: "add_to_pitch", handoff: review?.handoff, target: { mode: "append", expectedVersion: 2 },
+      fingerprint: "f".repeat(64), taskId: expect.any(String),
+    }]);
+  });
   it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
     expandedCatalog = true;
     const user = await enter();

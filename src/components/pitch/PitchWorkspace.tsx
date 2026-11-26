@@ -57,7 +57,7 @@ import {
 import { TemplatePicker, type Template } from "./workspace/TemplatePicker";
 import { TemplateParameters, BuildingPicker } from "./workspace/Parameters";
 import { readPitchHandoff, type PitchHandoffNavigation } from "./PitchHandoffLink";
-import { HandoffReview } from "./workspace/HandoffReview";
+import { HandoffReview, type HandoffDestination } from "./workspace/HandoffReview";
 import { LayoutVariants } from "./workspace/LayoutVariants";
 import { DataRefresh } from "./workspace/DataRefresh";
 import { CurrentPageRevision } from "./workspace/CurrentPageRevision";
@@ -163,7 +163,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [catalog, setCatalog] = React.useState<Catalog | null>(null),
     [templates, setTemplates] = React.useState<Template[]>([]),
     [templateCategory, setTemplateCategory] = React.useState<"all" | "favorites">("all"),
-    [handoff, setHandoff] = React.useState<PitchHandoffNavigation | null>(null),
+    [handoff, setHandoff] = React.useState<(PitchHandoffNavigation & { destination?: HandoffDestination }) | null>(null),
     [preferences, setPreferences] = React.useState({
       favorites: [] as string[],
       recent: [] as string[],
@@ -188,6 +188,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [assistSeed, setAssistSeed] = React.useState(""),
     [createFromBrief, setCreateFromBrief] = React.useState(false),
     [buildingSearch, setBuildingSearch] = React.useState(false);
+  const [dataBuildingsOpen, setDataBuildingsOpen] = React.useState(false);
   const [left, setLeft] = React.useState(true),
     [right, setRight] = React.useState(true),
     [mobile, setMobile] = React.useState<MobilePane>("preview"),
@@ -1918,9 +1919,30 @@ function Studio({ session }: { session: AuthSessionResult }) {
                           </details>
                         </>
                       ) : <p>选择页面以查看数据和来源。</p>}
+                      {buildingSearch && <details open={dataBuildingsOpen}
+                        onToggle={event => setDataBuildingsOpen(event.currentTarget.open)}>
+                        <summary>查找楼宇数据</summary>
+                        {dataBuildingsOpen && <div className={styles.form}>
+                          <BuildingPicker call={call} ids={draft.context.buildingIds} disabled={busy || saving}
+                            onChange={buildingIds => edit(value => ({ ...value, context: { ...value.context, buildingIds } }))} />
+                          <Button variant="secondary"
+                            disabled={!draft.context.buildingIds.length || !canGenerate || busy || saving || generationPending || conflict}
+                            onClick={() => void run(async () => {
+                              const saved = await flush();
+                              if (current.current.detail?.project.id !== saved.project.id) return;
+                              if (current.current.dirty) throw new Error("还有未保存的修改，请保存后再核对。");
+                              const { buildingIds, period, language } = saved.workspace.context;
+                              if (!buildingIds.length) return;
+                              setHandoff({ source: { kind: "buildings", buildingIds }, period: period || undefined, language,
+                                destination: { id: saved.project.id, title: saved.project.title } });
+                            })}>
+                            核对季度数据
+                          </Button>
+                        </div>}
+                      </details>}
                       <details>
                         <summary>项目设置</summary>
-                        <ContextFields buildingSearch={buildingSearch} call={call} value={draft.context}
+                        <ContextFields buildingSearch={false} call={call} value={draft.context}
                           onChange={(value) => edit((d) => ({ ...d, context: value }))} />
                       </details>
                     </div>
@@ -1994,7 +2016,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
           )}
         </>
       )}
-      {handoff && catalog && <HandoffReview source={handoff} call={call} theme={catalog.themes[0]}
+      {handoff && catalog && <HandoffReview source={handoff} call={call} theme={catalog.themes[0]} destination={handoff.destination}
         grants={grants.flatMap(scope => scope.region && scope.city && scope.businessLine
           ? [{ ...scope, region: scope.region, city: scope.city, businessLine: scope.businessLine }] : [])}
         onOpen={open} onClose={() => setHandoff(null)} />}
