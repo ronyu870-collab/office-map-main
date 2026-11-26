@@ -998,7 +998,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           onClose={closeWorkspace} onDisposeTrend={disposeDetailTrend}
           onAction={(action, trendReading) => { if (action === 'locate' && hasBuildingLocation(buildingDetail.building)) canvasCoordinator.current?.focus({ center: [buildingDetail.building.location_lng!, buildingDetail.building.location_lat!] }); else if (action !== 'locate') controllerRef.current?.runWorkspaceBuildingAction(action, buildingDetail.building, trendReading); }} /> : null}
         submarketDetailPanel={selectedSubmarket && selectedSummary ? <SubmarketDetailPanel key={selectedSubmarket}
-          name={selectedSubmarket} summary={selectedSummary} buildings={filteredBuildings} futureState={researchFutureState}
+          name={selectedSubmarket} summary={selectedSummary} buildings={filteredBuildings}
+          getResearchBuildings={() => mapDataStoreRef.current.getRoleVisible('admin')} futureState={researchFutureState}
           futureCount={selectedFuture.count} futureArea={selectedFuture.area}
           futureAreaSamples={selectedFuture.areaSamples} researchScopeKey={researchScopeKey} beijingBenchmarkBuildings={beijingBenchmarkBuildings}
           mapLocationNotice={fullListBusy ? '正在更新当前筛选的地图项目…' : !combinedBuildingList.some(item => normalizeMapSubmarket(item.submarket) === selectedSubmarket && hasBuildingLocation(item)) ? '当前筛选下暂无可定位项目，地图未移动。可调整或清除筛选。' : undefined}

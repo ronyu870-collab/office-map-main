@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "market": "通州",
+  "positioning": "运河商务区与副中心公共服务逐步兑现的甲级写字楼市场",
+  "updatedOn": "2026-11-27",
+  "focus": "matched-vacancy",
+  "sources": [
+    {
+      "id": "canal",
+      "title": "运河商务区配套及运营概况",
+      "publisher": "北京市商务局",
+      "url": "https://www.beijing.gov.cn/ywdt/zwzt/gjxxfxcs/gjf/xftyq/wlts/202404/t20240410_3615102.html",
+      "publishedOn": "2023-09-27",
+      "observedAt": "2023年公开资料时点",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "运河商务区",
+      "basis": "报道记载爱琴海购物公园已运营、新光大中心大融城一期已开业。"
+    },
+    {
+      "id": "ocean",
+      "title": "北京远洋乐堤港办公项目",
+      "publisher": "北京市投资促进服务局",
+      "url": "https://invest.beijing.gov.cn/tcgz/lqzs/202607/t20260706_4749145.html",
+      "publishedOn": "2026-07-06",
+      "observedAt": "2026-07招商材料",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "project",
+      "scope": "北京远洋乐堤港综合体",
+      "basis": "招商材料将写字楼与集中商业作为同一项目组合介绍。"
+    },
+    {
+      "id": "q3",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "publishedOn": "2026-10-12",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "external_market",
+      "scope": "世邦魏理仕通州办公监测范围",
+      "basis": "第三季度报告将当地政府机构迁址列为通州需求支撑之一。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "已运营的商务区配套",
+      "body": "政府公开资料把爱琴海购物公园和大融城一期列为实际运营节点，可作为考察运河商务区办公生活配套的起点。",
+      "kind": "place",
+      "status": "observed",
+      "sourceIds": [
+        "canal"
+      ]
+    },
+    {
+      "title": "写字楼和集中商业一体开发",
+      "body": "远洋乐堤港公开招商资料明确包含办公与集中商业两类产品。",
+      "kind": "place",
+      "status": "observed",
+      "sourceIds": [
+        "ocean"
+      ]
+    },
+    {
+      "title": "机构迁址提供可识别的需求线索",
+      "body": "世邦魏理仕第三季度监测指出，政府机构迁址带动通州部分市场需求。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "q3"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "去化观察应拆开政务联系、项目交付和市场空置",
+      "body": "对政务协作密集型团队，副中心的服务半径本身就是选址价值。横向比较中心城区时，先用平台同样本空置率判断原有楼宇，再看待交付项目是否形成新增可选面积。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "平台通州甲级存量与运河商务区",
+      "limitation": "副中心是更大的功能范围。机构搬迁报道只能解释部分需求，不能代表整个通州标签的出租率。",
+      "sourceIds": [
+        "canal",
+        "ocean",
+        "q3"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "buildingId": "1f528d1b-d8af-46af-b300-1fcd598170e8",
+      "role": "运河综合体办公样本",
+      "reason": "以一座的楼宇记录关联远洋乐堤港综合体，便于核对其办公与商业设施。",
+      "sourceIds": [
+        "ocean"
+      ]
+    }
+  ]
+}

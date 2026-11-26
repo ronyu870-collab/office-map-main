@@ -143,3 +143,71 @@
 @container submarket-research (min-width: 62rem) {
   .submarket-brief { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 20px; }
 }
+
+.submarket-intelligence,
+.submarket-intelligence-observations,
+.submarket-intelligence-lead {
+  display: grid;
+  gap: 12px;
+}
+.submarket-intelligence-lead h3,
+.submarket-intelligence h4,
+.submarket-intelligence dt {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 600;
+}
+.submarket-intelligence-lead p,
+.submarket-intelligence p,
+.submarket-intelligence dd { margin: 0; overflow-wrap: anywhere; }
+.submarket-intelligence-facts { margin: 0; }
+.submarket-intelligence-facts > div,
+.submarket-intelligence-sources {
+  border-top: 1px solid var(--cd-color-border);
+  padding-block: 10px;
+}
+.submarket-intelligence-sources summary { min-height: 44px; align-content: center; cursor: pointer; }
+.submarket-intelligence-sources ol { padding-inline-start: 22px; }
+.submarket-intelligence-sources li + li { margin-top: 8px; }
+.submarket-intelligence-cites,
+.submarket-intelligence-lines { display: flex; flex-wrap: wrap; gap: 6px; }
+.submarket-intelligence-cites { list-style: none; margin: 0; padding: 0; }
+.submarket-intelligence-cites a {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--cd-color-text-secondary);
+  text-decoration: underline;
+}
+.submarket-intelligence-lines span { border-radius: 4px; padding-inline: 5px; background: var(--cd-color-surface-alt); }
+.submarket-intelligence-editor,
+.submarket-intelligence-editor fieldset {
+  display: grid;
+  gap: 8px;
+  min-inline-size: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.submarket-intelligence-editor legend { font-weight: 600; padding: 0; }
+.submarket-intelligence-editor select {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  padding-inline: 8px;
+  border: 1px solid var(--cd-color-border);
+  border-radius: 6px;
+  background: var(--cd-color-surface);
+}
+.submarket-intelligence-editor-group,
+.submarket-legacy-fields,
+.submarket-intelligence-version { border-top: 1px solid var(--cd-color-border); }
+.submarket-intelligence-editor-group summary,
+.submarket-legacy-fields summary { min-height: 44px; align-content: center; cursor: pointer; }
+.submarket-intelligence-editor-group > fieldset { padding-block: 6px 12px; }
+.submarket-intelligence-editor-group .submarket-quiet-action,
+.submarket-intelligence-editor > .submarket-quiet-action { justify-self: start; }
+.submarket-intelligence-source-choices label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.submarket-intelligence-version { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }

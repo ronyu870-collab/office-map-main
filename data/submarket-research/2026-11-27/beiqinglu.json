@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "market": "北清路",
+  "positioning": "海淀北部专业园区带，研发设计与实验中试对楼宇条件的要求不同",
+  "updatedOn": "2026-11-27",
+  "focus": "stock",
+  "sources": [
+    {
+      "id": "ic",
+      "title": "中关村集成电路设计园案例",
+      "publisher": "北京市科委、中关村管委会",
+      "url": "https://kw.beijing.gov.cn/xwdt/bmdt/202301/t20230118_3815788.html",
+      "publishedOn": "2023-01-18",
+      "observedAt": "2023-01项目介绍",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "project",
+      "scope": "北清路沿线中关村集成电路设计园",
+      "basis": "IC PARK位于北清路科创发展轴，围绕集成电路设计提供专业服务与空间。"
+    },
+    {
+      "id": "life",
+      "title": "海星医药健康创新园改造项目报道",
+      "publisher": "北京市发展和改革委员会转引北京日报",
+      "url": "https://fgw.beijing.gov.cn/gzdt/fgzs/mtbdx/bzwlxw/202502/t20250211_4007889.htm",
+      "publishedOn": "2025-02-10",
+      "observedAt": "2025-02工程进度",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "project",
+      "scope": "北清路周边海星医药健康创新园项目",
+      "basis": "报道介绍项目建设阶段与拟覆盖的医药研发、中试和生产链条；当时的投用时间属于预期。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "北清路已有专业集成电路设计载体",
+      "body": "IC PARK通过园区空间和专业服务，承接集成电路设计团队。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "ic"
+      ]
+    },
+    {
+      "title": "医药研发和中试的项目定位",
+      "body": "海星项目在2025年2月工程报道中将创新药研发与中试作为建设方向。",
+      "kind": "industry",
+      "status": "planned",
+      "sourceIds": [
+        "life"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "空间核验顺序随研发工艺改变",
+      "body": "芯片设计办公可先比对供电、机房及上下游服务。涉及实验和中试时，应先核验环评、给排水、排风以及设备运输，再评估租赁成本和到站接驳。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "北清路专业研发载体",
+      "limitation": "2025年工程报道不足以确认海星现时招商、交付状态或实验许可。",
+      "sourceIds": [
+        "ic",
+        "life"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "buildingId": "823578d7-4ed6-4dc3-aadc-fffc69caef28",
+      "role": "集成电路设计载体",
+      "reason": "官方园区案例确认IC PARK位于北清路并面向芯片设计链条。",
+      "sourceIds": [
+        "ic"
+      ]
+    }
+  ]
+}

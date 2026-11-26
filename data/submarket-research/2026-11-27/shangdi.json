@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "market": "上地",
+  "positioning": "上地—后厂村的软件企业园区，大体量研发办公与跨区通勤同等重要",
+  "updatedOn": "2026-11-27",
+  "focus": "stock",
+  "sources": [
+    {
+      "id": "park",
+      "title": "中关村软件园二期与后厂村",
+      "publisher": "北京市公安局海淀分局",
+      "url": "https://gaj.beijing.gov.cn/xxfb/fjjx/202404/t20240426_3640520.html",
+      "publishedOn": "2024-04-26",
+      "observedAt": "2015年前后二期投用；2024年回顾",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "project",
+      "scope": "中关村软件园一二期",
+      "basis": "二期投用过程中，百度、新浪等互联网企业迁入。"
+    },
+    {
+      "id": "metro",
+      "title": "地铁18号线首日开通报道",
+      "publisher": "首都之窗",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202512/t20251228_4370895.html",
+      "publishedOn": "2025-12-28",
+      "observedAt": "2025-12-27开通",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "network",
+      "scope": "18号线上地软件园站及西段",
+      "basis": "18号线西端服务中关村软件园，开通首日已有乘客到达上地软件园站。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "软件园二期改变了办公空间规模",
+      "body": "二期在2015年前后陆续投用。百度、新浪等企业迁入是公开可追溯的研发办公集聚案例。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "park"
+      ]
+    },
+    {
+      "title": "上地软件园站",
+      "body": "18号线已接入软件园，可把到站后步行和园区入口作为大团队通勤测算的一部分。",
+      "kind": "transit",
+      "status": "observed",
+      "sourceIds": [
+        "metro"
+      ],
+      "lines": [
+        "18号线"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "整层或园区级组合优先看人流峰值",
+      "body": "将研发团队的面积需求、园区楼栋间步行、地铁到门岗和早晚高峰接驳放进同一张选址表。中关村核心办公可补充客户访问半径，上地更适合进一步核对成片研发办公选择。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "中关村软件园及上地园区",
+      "limitation": "企业搬迁为历史案例；园区统计不推断当前整层可租面积。",
+      "sourceIds": [
+        "park",
+        "metro"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "buildingId": "8b13f7a2-4516-4d8f-8861-435a0aa2de9c",
+      "role": "软件园办公样本",
+      "reason": "平台将互联网创新中心作为独立项目关联至中关村软件园。",
+      "sourceIds": [
+        "park"
+      ]
+    }
+  ]
+}

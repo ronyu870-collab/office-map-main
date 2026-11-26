@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "market": "望京-酒仙桥",
+  "positioning": "望京成熟商务楼与酒仙桥电子、研发和工业更新园区并存",
+  "updatedOn": "2026-11-27",
+  "focus": "stock",
+  "sources": [
+    {
+      "id": "zones",
+      "title": "中关村朝阳园分区介绍",
+      "publisher": "开放北京",
+      "url": "https://open.beijing.gov.cn/html/park/zhongguancun_cy.html",
+      "publishedOn": null,
+      "observedAt": "网页所列已投入使用项目",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "中关村朝阳园望京片区与酒仙桥东区",
+      "basis": "望京段列出浦项中心、保利国际广场等高端楼宇；酒仙桥段采用老电子工业基地更新口径，列出798和751。"
+    },
+    {
+      "id": "reuse",
+      "title": "798·751园区更新及运营报道",
+      "publisher": "首都之窗",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202508/t20250807_4167942.html",
+      "publishedOn": "2025-08-07",
+      "observedAt": "2025年上半年报道",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "project",
+      "scope": "798与751文化产业载体",
+      "basis": "报道记录原有工业遗存被用于展览、文化消费和创意产业活动。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "望京的商务楼群",
+      "body": "朝阳园介绍列明浦项中心、保利国际广场已投入使用。",
+      "kind": "place",
+      "status": "observed",
+      "sourceIds": [
+        "zones"
+      ]
+    },
+    {
+      "title": "酒仙桥的工业空间再利用",
+      "body": "酒仙桥电子工业旧址衍生出798、751等文化科技载体，并与周边研发园区共存。",
+      "kind": "place",
+      "status": "observed",
+      "sourceIds": [
+        "reuse",
+        "zones"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "先选望京或酒仙桥，再选载体",
+      "body": "大堂接待、楼层标准化和总部形象权重较高时，先比较望京商务楼。保留研发与制作功能的团队，则应到酒仙桥核验研发园区的装卸、消防和电力条件。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "望京商务片区与酒仙桥园区",
+      "limitation": "平台合并标签可用于区域定位；办公与园区样本的均值只代表各自口径。",
+      "sourceIds": [
+        "zones",
+        "reuse"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "buildingId": "1baf921f-3b14-4321-a7ef-645b972704df",
+      "role": "望京商务楼样本",
+      "reason": "朝阳园公开介绍点名已投用楼宇。",
+      "sourceIds": [
+        "zones"
+      ]
+    }
+  ]
+}

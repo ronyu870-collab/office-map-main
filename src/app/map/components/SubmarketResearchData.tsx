@@ -2,6 +2,8 @@
 
 import { useMemo, type ReactNode } from 'react';
 import type { SubmarketTrendPoint, SubmarketTrendSeries } from '../model/submarketMarketTrend';
+import { normalizeMapSubmarket, officeGrade } from '../model/marketIdentity';
+import { aggregateMarket } from '../model/marketStatistics';
 import type { MarketBuilding, SubmarketSummary } from '../model/submarketOverview';
 import {
   describeCurrentResearchMarket, describeQuarterlyResearchMarket, researchNumber,
@@ -50,6 +52,7 @@ function SourceDisclosure({ children, label = '数据口径与来源' }: { child
 export function SubmarketResearchOverview({
   name, summary, buildings, trendData = emptyTrend, trendState = 'ready', futureState, futureCount, futureArea,
   futureAreaSamples, beijingBenchmarkBuildings, showQuarterlySummary = true,
+  structured = false, hasResearchSignal = false, parkOnly = false,
 }: {
   name: string;
   summary: SubmarketSummary;
@@ -62,14 +65,29 @@ export function SubmarketResearchOverview({
   futureAreaSamples?: number;
   beijingBenchmarkBuildings?: readonly MarketBuilding[];
   showQuarterlySummary?: boolean;
+  structured?: boolean;
+  hasResearchSignal?: boolean;
+  parkOnly?: boolean;
 }) {
   const current = useMemo(() => describeCurrentResearchMarket(name, buildings, beijingBenchmarkBuildings), [name, buildings, beijingBenchmarkBuildings]);
   const quarterly = useMemo(() => trendState === 'ready' ? describeQuarterlyResearchMarket(trendData) : null, [trendData, trendState]);
+  const park = useMemo(() => parkOnly ? aggregateMarket(buildings.filter(building =>
+    normalizeMapSubmarket(building.submarket) === name && officeGrade(building.grade) === 'park')) : null,
+  [buildings, name, parkOnly]);
   const showFutureArea = futureState === 'ready' && available(futureArea) && futureArea >= 0 && futureAreaSamples != null
     && futureAreaSamples > 0 && futureAreaSamples <= futureCount;
   const hasBenchmark = Boolean(current.rent.benchmark || current.vacancyPct.benchmark);
   return <div className={styles.research}>
-    <section data-workspace-summary aria-label="市场核心指标">
+    {park ? <section data-workspace-summary aria-label="市场核心指标">
+      <p className={styles.scope}>当前筛选 · 产业园存量</p>
+      <dl className={styles.metrics}>
+        <div className={styles.metric}><dt>产业园项目</dt><dd><MetricValue value={park.projectCount} unit="个" precision={0} /></dd></div>
+        {park.areaSamples > 0 ? <div className={styles.metric}>
+          <dt>已知面积</dt><dd><MetricValue value={park.stockArea} unit="㎡" precision={0} /></dd>
+          <dd className={styles.metricDetail}>{count(park.areaSamples)}项目有正式面积记录</dd>
+        </div> : null}
+      </dl>
+    </section> : <section data-workspace-summary aria-label="市场核心指标">
       <p className={styles.scope}>当前筛选 · 甲乙级存量 · 各楼宇最新发布记录</p>
       <dl className={styles.metrics}>
         <CurrentMetric label="平均净有效租金" value={summary.rent} unit="元/㎡/月" sampleCount={summary.rentSampleCount} context={current.rent} />
@@ -79,22 +97,24 @@ export function SubmarketResearchOverview({
           <dd><MetricValue value={summary.officeCount} precision={0} unit="个" /></dd>
         </div>
       </dl>
-    </section>
-    <section aria-label="市场观察" className={styles.block}>
+    </section>}
+    {!structured ? <section aria-label="市场观察" className={styles.block}>
       <h3>市场观察</h3>
       <p>{submarketResearchObservation(name, summary, current, quarterly)}</p>
-    </section>
-    {showQuarterlySummary && (trendState === 'ready' ? <MarketTrendSummary data={trendData} /> : <section aria-label="季度变化" className={styles.block}>
-      <h3>季度变化</h3>
-      <p role="status" className={styles.secondary}>{trendState === 'loading' ? '正在读取季度行情…' : '季度行情暂不可用。'}</p>
-    </section>)}
-    <section aria-label="楼宇构成" className={styles.block}>
-      <h3>楼宇构成</h3>
-      <MarketComposition segments={[
+    </section> : null}
+    {showQuarterlySummary && !parkOnly && !hasResearchSignal && (
+      trendState === 'ready' ? <MarketTrendSummary data={trendData} /> : <section aria-label="季度变化" className={styles.block}>
+        <h3>季度变化</h3>
+        <p role="status" className={styles.secondary}>{trendState === 'loading' ? '正在读取季度行情…' : '季度行情暂不可用。'}</p>
+      </section>
+    )}
+    {(!parkOnly || (futureState === 'ready' && futureCount > 0) || futureState === 'error') ? <section aria-label={parkOnly ? '未来供应' : '楼宇构成'} className={styles.block}>
+      <h3>{parkOnly ? '未来供应' : '楼宇构成'}</h3>
+      {!parkOnly && <MarketComposition segments={[
         { label: '甲级写字楼', count: summary.gradeACount },
         { label: '乙级写字楼', count: summary.gradeBCount },
         { label: '产业园', count: summary.parkCount },
-      ]} />
+      ]} />}
       <dl className={styles.supplement}>
         {summary.areaSamples > 0 && available(summary.stockArea) && summary.stockArea >= 0 && <div>
           <dt>甲乙级已知存量面积</dt><dd>{researchNumber(summary.stockArea, 0)} ㎡（{count(summary.areaSamples)}有面积记录）</dd>
@@ -103,8 +123,8 @@ export function SubmarketResearchOverview({
         {futureState === 'error' && <div><dt>未来供应（另计）</dt><dd role="status">暂不可用</dd></div>}
         {showFutureArea && <div><dt>未来供应已知面积</dt><dd>{researchNumber(futureArea, 0)} ㎡（{count(futureAreaSamples)}有面积记录）</dd></div>}
       </dl>
-    </section>
-    <SourceDisclosure>
+    </section> : null}
+    {parkOnly ? <SourceDisclosure><p>存量为当前筛选的园区项目。面积采用各楼宇最新已发布记录，可能跨季度。未来供应独立计算。</p></SourceDisclosure> : <SourceDisclosure>
       <p>核心指标与地图气泡口径一致：平台收录且命中当前筛选的甲乙级存量，按每栋楼最新已发布的季度记录面积加权；同一指标可能包含多个季度。超甲级计入甲级；产业园和未来供应不纳入甲乙级统计。</p>
       {(current.rent.periods.length > 1 || current.vacancyPct.periods.length > 1) && <p>
         {current.rent.periods.length > 1 && `净有效租金样本季度：${current.rent.periods.join('、')}。`}
@@ -113,7 +133,7 @@ export function SubmarketResearchOverview({
       <p>净有效租金有效面积覆盖：{summary.rentCoverage.area == null ? '未收录' : numberUnit(summary.rentCoverage.area * 100, '%')}；空置率有效面积覆盖：{summary.vacancyCoverage.area == null ? '未收录' : numberUnit(summary.vacancyCoverage.area * 100, '%')}。分母为甲乙级已知存量面积。</p>
       {hasBenchmark && <p>北京比较仅解除当前研究子市场的限制，保留其他筛选，使用平台收录的甲乙级项目（含本子市场）。同一指标在本区和北京均须来自同一正式季度、各至少两个有效样本，且北京样本须包含其他具名子市场的有效观测。</p>}
       <p>季度比较使用完整授权子市场同季度已锁定、非草稿的楼宇季度记录。环比和同比要求相隔一个和四个真实季度，且比较的两期各至少有两个有效样本；各期样本可能不同。</p>
-    </SourceDisclosure>
+    </SourceDisclosure>}
   </div>;
 }
 

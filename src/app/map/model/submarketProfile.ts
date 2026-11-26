@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { readSubmarketIntelligence, submarketIntelligenceSchema } from './submarketIntelligence';
 
 const limitedText = (limit: number) => z.string().trim().max(limit);
 const httpsSource = z.string().trim().max(600).refine(
@@ -40,6 +41,7 @@ export const submarketProfileSchema = z.strictObject({
   demographics: z.array(demographicSchema).max(12),
   policies: z.array(policySchema).max(20),
   insights: z.array(insightSchema).max(12),
+  research: submarketIntelligenceSchema.nullable().optional(),
 });
 
 export type SubmarketProfileDraft = z.infer<typeof submarketProfileSchema>;
@@ -72,6 +74,7 @@ export function readSubmarketProfileRow(row: Record<string, unknown> | null | un
   const content = parsed.success ? parsed.data : emptySubmarketProfile();
   return {
     ...content,
+    ...(row && 'research' in row ? { research: readSubmarketIntelligence(row.research, name) } : {}),
     submarket: name,
     updatedAt: typeof row?.updated_at === 'string' ? row.updated_at : null,
     updatedBy: typeof row?.updated_by === 'string' ? row.updated_by : null,

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
+import { submarketIntelligenceSchema } from '@/src/app/map/model/submarketIntelligence';
+import edition from '@/data/submarket-research/2026-11-27/cbd.json';
 import { emptySubmarketProfile } from '@/src/app/map/model/submarketProfile';
 import { GET, PUT } from '../route';
 
@@ -118,6 +120,18 @@ describe('authorized submarket GET', () => {
     expect(mocks.calls).toContainEqual({ table: 'buildings', action: 'eq', args: ['tracking_scope', 'tracked'] });
     const metricsQuery = mocks.calls.find(record => record.table === 'building_metrics' && record.action === 'in');
     expect(metricsQuery?.args).toEqual(['building_id', ['a', 'b']]);
+  });
+
+  it('projects a structured edition without legacy draft fields and blocks viewer history', async () => {
+    const research = submarketIntelligenceSchema.parse(edition);
+    mocks.profileAvailable = true;
+    mocks.profileRow = { submarket: 'CBD', is_published: true, headline: '内部提示', research };
+    const result = await (await GET(new NextRequest(baseUrl))).json();
+    expect(result.profile).toMatchObject({ headline: research.positioning, insights: [], research });
+    expect(result.draftProfile).toBeUndefined();
+    expect((await GET(new NextRequest(baseUrl + '&researchHistory=0'))).status).toBe(403);
+    mocks.identity.mockResolvedValue(getIdentity('admin', true));
+    expect((await GET(new NextRequest(baseUrl + '&researchHistory=0'))).status).toBe(403);
   });
 
   it('does not disclose any data when anonymous or role invalid', async () => {

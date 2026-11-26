@@ -7,19 +7,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SubmarketDetailPayload } from '@/src/services/mapDataClient';
 import { aggregateMarket } from '../model/marketStatistics';
 import type { SubmarketSummary } from '../model/submarketOverview';
+import { submarketIntelligenceSchema } from '../model/submarketIntelligence';
+import cbdEdition from '../../../../data/submarket-research/2026-11-27/cbd.json';
+import shangdiEdition from '../../../../data/submarket-research/2026-11-27/shangdi.json';
 import { emptySubmarketProfile } from '../model/submarketProfile';
 import { SubmarketDetailPanel } from '../components/SubmarketDetailPanel';
 import { WorkspacePanelContext } from '../components/WorkspacePanelHeader';
 
 const api = vi.hoisted(() => ({
   audit:vi.fn(),read: vi.fn(),
-  save: vi.fn(),
+  save: vi.fn(), history: vi.fn(),
 }));
 
 vi.mock('@/src/utils/audit',()=>({logAction:api.audit}));
 vi.mock('@/src/services/mapDataClient', () => ({
   fetchSubmarketDetailPayload: api.read,
   saveSubmarketProfile: api.save,
+  fetchSubmarketResearchHistory: api.history,
 }));
 
 const summary: SubmarketSummary = {
@@ -361,9 +365,67 @@ describe('submarket research workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
     expect(screen.queryByRole('button', { name: '核验并发布' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '保存并展示' }));
-    await waitFor(() => expect(api.save).toHaveBeenCalledWith('CBD', expect.objectContaining({ headline: profile.headline }), true));
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith('CBD', expect.objectContaining({ headline: profile.headline }), true, profile.updatedAt));
     expect(confirm).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByRole('tab', { name: '区域画像' })).toBeInTheDocument());
+  });
+
+  it('shows a park edition with citations and opens a curated park in the normal map path', async () => {
+    const research = submarketIntelligenceSchema.parse(shangdiEdition);
+    const parkBuilding = { id: research.projects[0].buildingId, name: '软件园实测项目', grade: 'BP', submarket: '上地' };
+    const onOpenBuilding = vi.fn();
+    api.read.mockResolvedValue({ ...payload, submarket: '上地', stockCount: 0,
+      profile: { ...profile, submarket: '上地', research, headline: research.positioning } });
+    render(<SubmarketDetailPanel {...props} name="上地" canEdit={false} buildings={[parkBuilding]} onOpenBuilding={onOpenBuilding}
+      summary={{ ...aggregateMarket([parkBuilding], 'filtered_market', true), name: '上地' }} />);
+    await screen.findByText(research.positioning);
+    expect(screen.getByText('产业园项目')).toBeInTheDocument();
+    expect(screen.queryByText('甲乙级项目')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: parkBuilding.name }));
+    expect(onOpenBuilding).toHaveBeenCalledWith(parkBuilding.id);
+    fireEvent.click(screen.getByRole('tab', { name: '区域研究' }));
+    expect(screen.getByText('18号线', { exact: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByText('来源与口径（2）'));
+    expect(screen.getByText(research.sources[1].basis)).toBeInTheDocument();
+  });
+
+  it('keeps the structured research signal and adaptive trend details in the same workspace', async () => {
+    const research = submarketIntelligenceSchema.parse(cbdEdition);
+    const early = { period: '2025Q4', year: 2025, quarter: 4, rent: 180, vacancyPct: 0,
+      rentSamples: 2, vacancySamples: 2, rentArea: 100, vacancyArea: 100 };
+    const latest = { ...early, period: '2026Q2', year: 2026, quarter: 2, rent: 190, vacancyPct: 10 };
+    api.read.mockResolvedValue({ ...payload, profile: { ...profile, research, headline: research.positioning },
+      trends: { all: [early, latest], a: [{ ...latest, rent: 210 }], b: [{ ...latest, rent: 170 }] } });
+    render(<SubmarketDetailPanel {...props} />);
+    await screen.findByText('同季度甲乙级租金差');
+    expect(screen.getByText(/2026Q2 甲级减乙级/)).toHaveTextContent('+40 元/㎡/月');
+    expect(screen.queryByRole('region', { name: '季度变化' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
+    const trend = within(screen.getByRole('region', { name: '季度行情' }));
+    expect(trend.getByText('2025Q4 至 2026Q2变化 +10.0 元/㎡/月（+5.6%）')).toBeVisible();
+    fireEvent.click(trend.getByText('查看季度数据'));
+    const table = within(trend.getByRole('table', { name: '季度租金与空置率' }));
+    expect(table.getByRole('row', { name: /^2026Q1/ })).toHaveTextContent('未收录');
+  });
+
+  it('loads an earlier structured edition into the form, then publishes using the current version token', async () => {
+    const research = submarketIntelligenceSchema.parse(shangdiEdition);
+    const earlier = { ...research, positioning: '软件园历史市场定位' };
+    const current = { ...profile, submarket: '上地', headline: research.positioning, research };
+    api.read.mockResolvedValue({ ...payload, submarket: '上地', profile: current, draftProfile: current });
+    api.history.mockResolvedValue({ versions: [{ id: 'version-1', savedAt: '2026-11-20T00:00:00Z', wasPublished: true, research: earlier }], nextOffset: null });
+    api.save.mockResolvedValue({ profile: { ...current, research: earlier }, profilePublished: true });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<SubmarketDetailPanel {...props} name="上地" />);
+    fireEvent.click(await screen.findByRole('button', { name: '维护资料' }));
+    fireEvent.click(screen.getByRole('button', { name: '查看历史版本' }));
+    fireEvent.click(await screen.findByRole('button', { name: '载入版本' }));
+    expect(screen.getByLabelText('市场定位', { exact: true })).toHaveValue(earlier.positioning);
+    expect(api.save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '保存并展示' }));
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith('上地', expect.objectContaining({ research: earlier }), true, current.updatedAt));
+    expect(await screen.findByText(earlier.positioning)).toBeInTheDocument();
   });
 
   it('retains the unsaved-edit confirmation when Escape closes the full-screen dialog', async () => {
