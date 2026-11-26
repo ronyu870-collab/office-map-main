@@ -320,6 +320,7 @@ jobs:
 
       - name: Real PostgreSQL Audit 2 reliability and permission regressions
         run: |
+          node --test supabase/tests/audit-2/latency-budget.node-test.mjs
           node supabase/tests/audit-2/run.mjs
           node supabase/tests/audit-2/quarterly-performance.mjs
         env:

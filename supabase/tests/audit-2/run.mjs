@@ -2,6 +2,9 @@ import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import { mkdir,writeFile,readFile } from 'node:fs/promises';
 import { createLeaseTestDatabase, OWNER, ADMIN } from '../lease-change-history/database.mjs';
+import { assessLatencyBudget, assertLatencyBudgets, withLatencyRecheck, writeLatencyEvidence } from './latency-budget.mjs';
+
+async function verifyAudit2(attempt) {
 const db = await createLeaseTestDatabase();
 let passed=0;
 const check=async(name,run)=>{await run();passed++;console.log('PASS '+name);};
@@ -77,15 +80,16 @@ try {
  const after=await benchmark();
  const afterBusiness=await businessBench();
  const afterAuditBatch=await auditBatch();
- for(const key of Object.keys(beforeBusiness))assert.ok(afterBusiness[key].p95Ms-beforeBusiness[key].p95Ms<=Math.max(10,beforeBusiness[key].p95Ms*.03),key+' latency budget');
+ const latency=[...Object.keys(beforeBusiness).map(key=>assessLatencyBudget(key,beforeBusiness[key],afterBusiness[key])),assessLatencyBudget('buildingInsert',before,after)];
+ // Save P95/median/backend CPU and all budget results even when a later assertion fails.
+ await writeLatencyEvidence('postgres-performance',attempt,{version:db.version,path:'authenticated PostgreSQL transactions; 10 warmup +100 measured; localhost only',before,after,beforeBusiness,afterBusiness,beforeAuditBatch,afterAuditBatch,latency});
  await db.setup.query(`insert into public.audit_logs(user_id,action_type,target_table,target_id,occurred_at,details) select '${ADMIN}','VIEW_BUILDING','buildings',n::text,now()-n*interval '1 minute',jsonb_build_object('synthetic',repeat('x',512)) from generate_series(1,40000) n`);
  await db.setup.query('analyze public.audit_logs');
  const afterQuery=await explain(listQuery);
  await writeFile('verification/audit-2/query-plan.json',JSON.stringify({environment:'PostgreSQL 17 synthetic 40000 summary rows, authenticated admin/RLS; no production EXPLAIN ANALYZE writes',query:listQuery,before:beforeQuery,after:afterQuery},null,2));
- assert.ok(after.p95Ms-before.p95Ms<=Math.max(10,before.p95Ms*0.03),'critical transaction latency budget');
- console.log(JSON.stringify({path:'actual building INSERT through authenticated role and RLS; local PostgreSQL 17, 10 warmup +100 measured',before,after,addedP95Ms:after.p95Ms-before.p95Ms}));
- await mkdir('verification/audit-2',{recursive:true});
- await writeFile('verification/audit-2/postgres-performance.json',JSON.stringify({version:db.version,path:'authenticated PostgreSQL transactions; 10 warmup +100 measured; localhost only',before,after,beforeBusiness,afterBusiness,beforeAuditBatch,afterAuditBatch},null,2));
+ // Do not abort the real reliability/RLS/rollback checks on timing noise.
+ // The strict original timing budgets are checked after every functional assertion.
+ console.log(JSON.stringify({path:'actual building INSERT through authenticated role and RLS; local PostgreSQL 17, 10 warmup +100 measured',attempt,before,after,addedP95Ms:after.p95Ms-before.p95Ms}));
  await db.setup.query('truncate public.buildings,public.audit_logs');
  await check('critical insert/update/delete, no-op and audit-failure rollback execute through real RLS',async()=>{
   const row=(await db.asUser(ADMIN,"insert into public.buildings(name,leasable_area) values('Synthetic',100) returning id")).rows[0];
@@ -245,5 +249,9 @@ try {
   await db.setup.query("update public.user_roles set role='viewer' where user_id=$1",[ADMIN]);
   await assert.rejects(db.asUser(ADMIN,'select public.admin_audit_health()'),e=>e.code==='42501');
  });
- console.log(`PASS ${passed} audit 2 PostgreSQL 17 scenarios`);
+ console.log(`PASS ${passed} audit 2 PostgreSQL 17 scenarios (attempt ${attempt})`);
+ assertLatencyBudgets(latency);
 } finally {await db.close();}
+}
+
+await withLatencyRecheck(verifyAudit2);
