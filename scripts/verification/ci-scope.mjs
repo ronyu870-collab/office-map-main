@@ -64,7 +64,7 @@ function browserScopes(changes) {
   };
 }
 
-export function getScope(base, { cwd = process.cwd(), head = 'HEAD', quickRequested = false, forceFull = false, postMerge = false } = {}) {
+export function getScope(base, { cwd = process.cwd(), head = 'HEAD', quickRequested = false, forceFull = false, postMerge = false, draft = false } = {}) {
   const git = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 });
   try {
     if (!/^[0-9a-f]{40}$/.test(base ?? '') || /^0+$/.test(base)) throw new Error('Missing comparison commit');
@@ -78,9 +78,9 @@ export function getScope(base, { cwd = process.cwd(), head = 'HEAD', quickReques
       changes.push({ path: records[i + 1], oldMode: match[1], newMode: match[2] });
     }
     const docsOnly = !forceFull && classifyChanges(changes);
-    const fullOnly = forceFull || (!docsOnly && !postMerge && (!changes.length || changes.some(change => isHighRiskChange(change, git, base, head))));
+    const fullOnly = forceFull || (!docsOnly && !postMerge && !draft && (!changes.length || changes.some(change => isHighRiskChange(change, git, base, head))));
     return { docsOnly, fullOnly, quickOnly: !docsOnly && quickRequested && isQuickChange(changes, git, base, head),
-      ...(!postMerge ? browserScopes(changes) : { mapBrowser: false, aiBrowser: false }), paths: changes.map(change => change.path) };
+      ...(!postMerge && !draft ? browserScopes(changes) : { mapBrowser: false, aiBrowser: false }), paths: changes.map(change => change.path) };
   } catch (error) {
     // A missing/shallow/invalid base must never skip runtime verification.
     return { docsOnly: false, fullOnly: true, quickOnly: false, mapBrowser: false, aiBrowser: false, reason: error.message };
@@ -112,7 +112,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   } else {
     const forceFull = process.env.CI_FORCE_FULL === 'true';
     const base = process.env.CI_COMPARISON_SHA || (forceFull ? execFileSync('git', ['rev-parse', 'HEAD^'], { encoding: 'utf8' }).trim() : '');
-    const scope = getScope(base, { forceFull, postMerge: process.env.CI_POST_MERGE === 'true' });
+    const scope = getScope(base, { forceFull, postMerge: process.env.CI_POST_MERGE === 'true', draft: process.env.CI_DRAFT === 'true' });
     console.log(JSON.stringify(scope));
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `docs_only=${scope.docsOnly}\nfull_only=${scope.fullOnly}\nmap_browser=${scope.mapBrowser}\nai_browser=${scope.aiBrowser}\ncomparison_sha=${base}\n`);
   }

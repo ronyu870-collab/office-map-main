@@ -170,3 +170,11 @@ test('scheduled/manual runs are full, main pushes reuse the standard path, and i
   f.commit();
   assert.equal(getScope(last, { ...f, forceFull: true }).fullOnly, true);
 });
+
+test('draft uses routine checks; ready-for-review restores sensitive checks', t => {
+  const f = fixture(t);
+  f.write('src/app/api/foo/route.ts', 'changed');
+  f.commit();
+  assert.equal(getScope(f.base, { ...f, draft: true }).fullOnly, false);
+  assert.equal(getScope(f.base, f).fullOnly, true);
+});
