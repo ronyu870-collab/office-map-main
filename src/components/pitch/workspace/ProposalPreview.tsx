@@ -24,19 +24,20 @@ const responseSchema = z.discriminatedUnion("status", [
       submarkets: z.array(z.string()),
       period: z.string().nullable(),
       buildingIds: z.array(z.uuid()),
+      language: z.enum(["zh", "en"]).optional(),
     }),
     selection: z.enum(["explicit", "scoped-sample", "none"]),
   }),
   z.object({
     status: z.enum(["clarification", "unavailable"]),
     message: z.string(),
-    candidates: z.array(z.object({ id: z.uuid(), name: z.string(), submarket: z.string().optional() })).optional(),
+    candidates: z.array(z.object({ id: z.uuid(), name: z.string(), submarket: z.string().nullish() })).optional(),
   }),
 ]);
 type Result = z.infer<typeof responseSchema>;
 type Request = {
   question: string;
-  projectId: string;
+  projectId?: string;
   language: "zh" | "en";
   buildingIds: string[];
   city?: string;
@@ -44,10 +45,14 @@ type Request = {
   audience: "internal";
 };
 const receiptSchema = z.object({ taskId: z.uuid(), projectId: z.uuid(), state: z.literal("completed") });
+type Project = { id: string; version: number };
+export type ProposalProjectInput = { id: string; title: string; language: "zh" | "en"; buildingIds: string[]; period: string };
+type Destination =
+  | { projectId: string; projectVersion: number; createProject?: never }
+  | { projectId?: never; projectVersion?: never; createProject: (input: ProposalProjectInput) => Promise<Project> };
 
-export function ProposalPreview({ call, projectId, city, question, language, period, buildingIds, initialQuestion, disabled, projectVersion, onGenerated }: {
+export function ProposalPreview({ call, projectId, city, question, language, period, buildingIds, initialQuestion, disabled, projectVersion, createProject, onGenerated, onGenerating }: Destination & {
   call: Call;
-  projectId: string;
   city?: string;
   question: string;
   language: "zh" | "en";
@@ -55,14 +60,14 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   buildingIds: string[];
   initialQuestion?: string;
   disabled: boolean;
-  projectVersion: number;
   onGenerated: (projectId: string) => Promise<void>;
+  onGenerating?: (generating: boolean) => void;
 }) {
   const [result, setResult] = useState<{ key: string; data: Result; input: Request }>();
   const [error, setError] = useState("");
   const [working, setWorking] = useState<"plan" | "generate">();
   const [recovery, setRecovery] = useState(false);
-  const submission = useRef<{ key: string; taskId: string; completedProject?: string }>(null);
+  const submission = useRef<{ key: string; taskId: string; sourceId: string; source?: Project; completedProject?: string }>(null);
   const request = useRef<AbortController | null>(null);
   const autoStarted = useRef(false);
   const inputKey = JSON.stringify([projectId, projectVersion, city, question, language, period, buildingIds]);
@@ -91,7 +96,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
     setRecovery(false);
     try {
       const input: Request = {
-        question: question.trim(), projectId, language,
+        question: question.trim(), ...(projectId ? { projectId } : {}), language,
         buildingIds: candidate ? [candidate] : buildingIds,
         ...(city ? { city } : {}),
         ...(period ? { period } : {}),
@@ -103,7 +108,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
       if (current.signal.aborted) return;
       setResult(undefined);
       setError(cause instanceof WorkspaceError && [400, 404].includes(cause.status)
-        ? "正式提案规划暂不可用。你可以继续使用下方的提纲和素材工具。"
+        ? "正式提案规划暂不可用。"
         : cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "提案规划暂时未能读取，请重试。");
     } finally {
       if (!current.signal.aborted) setWorking(undefined);
@@ -114,18 +119,31 @@ export function ProposalPreview({ call, projectId, city, question, language, per
     if (!result || visible?.status !== "ready" || disabled || working) return;
     const { id: planId, contextFingerprint } = visible.plan;
     const key = JSON.stringify([inputKey, planId, contextFingerprint]);
-    if (submission.current?.key !== key) submission.current = { key, taskId: crypto.randomUUID() };
+    if (submission.current?.key !== key) submission.current = {
+      key, taskId: crypto.randomUUID(), sourceId: projectId ?? crypto.randomUUID(),
+    };
     const entry = submission.current;
     const current = new AbortController();
     request.current = current;
     setError("");
     setWorking("generate");
+    onGenerating?.(true);
     try {
       if (!entry.completedProject) {
+        entry.source ??= projectId !== undefined
+          ? { id: projectId, version: projectVersion }
+          : await createProject({
+            id: entry.sourceId, title: visible.plan.title,
+            language: visible.brief.language ?? language,
+            buildingIds: visible.brief.buildingIds,
+            period: visible.brief.period ?? "",
+          });
+        if (current.signal.aborted) return;
+        const source = entry.source;
         const receipt = receiptSchema.parse(await call({
           action: "proposal_generate",
-          confirmation: { taskId: entry.taskId, projectId, expectedVersion: projectVersion,
-            planId, contextFingerprint, request: result.input },
+          confirmation: { taskId: entry.taskId, projectId: source.id, expectedVersion: source.version,
+            planId, contextFingerprint, request: { ...result.input, projectId: source.id } },
         }, true, "ai", current.signal));
         if (receipt.taskId !== entry.taskId) throw new Error("生成任务编号不匹配，请重新查询。");
         entry.completedProject = receipt.projectId;
@@ -134,6 +152,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
     } catch (cause) {
       if (current.signal.aborted) return;
       if (cause instanceof WorkspaceError && cause.status === 409) {
+        if (!projectId) entry.source = undefined;
         setResult(undefined);
         setError("项目或资料已更新，请重新规划正式提案。");
       } else {
@@ -142,6 +161,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
       }
     } finally {
       if (!current.signal.aborted) setWorking(undefined);
+      onGenerating?.(false);
     }
   }
 
@@ -153,8 +173,12 @@ export function ProposalPreview({ call, projectId, city, question, language, per
     {error && <p role="alert">{error}</p>}
     {visible?.status === "ready" && <>
       <h3>{visible.plan.title}</h3>
-      <p>{[visible.brief.city, ...visible.brief.submarkets, visible.brief.period, `${visible.plan.slides.length} 页`].filter(Boolean).join(" · ")}</p>
-      {visible.selection === "scoped-sample" && <p>按需求范围选取的候选样本。可在「数据」中指定楼宇后重新核对。</p>}
+      <p>{[visible.brief.city, ...visible.brief.submarkets, visible.brief.period,
+        visible.brief.buildingIds.length ? `${visible.brief.buildingIds.length} 栋楼宇` : null,
+        `${visible.plan.slides.length} 页`].filter(Boolean).join(" · ")}</p>
+      {visible.selection === "scoped-sample" && <p>按需求范围选取的候选样本。{projectId
+        ? "可在「数据」中指定楼宇后重新核对。"
+        : "如需指定楼宇，可先打开项目设置。"}</p>}
       <ol>{visible.plan.slides.map(slide => <li key={slide.id}>{slide.title}</li>)}</ol>
       {visible.plan.gaps.length > 0 && <details>
         <summary>资料缺口（{visible.plan.gaps.length}）</summary>
