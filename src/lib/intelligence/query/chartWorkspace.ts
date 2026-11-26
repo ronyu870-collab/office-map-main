@@ -127,11 +127,11 @@ export function axisDomain(chart: ResultChart, axis: 'x' | 'y'): [number, number
 export function axisTicks(domain: [number, number], count = 5) {
   return Array.from({ length: count }, (_, i) => domain[0] + i / (count - 1) * (domain[1] - domain[0]));
 }
-export function axisText(n: number, unit: string | null) {
+export function axisText(n: number, unit: string | null, interval?: number) {
   if (!Number.isFinite(n)) throw new Error('CHART_RANGE_UNSUPPORTED');
   // Projected ratios already use percentage units. Avoid raw floating tails and
   // preserve small tick intervals without changing the source cell precision.
-  const digits = Math.abs(n) > 0 && Math.abs(n) < .01 ? 6 : 2;
+  const digits = interval && Number.isFinite(interval) && interval > 0 ? Math.min(12, Math.max(2, 1 - Math.floor(Math.log10(interval)))) : Math.abs(n) > 0 && Math.abs(n) < .01 ? 6 : 2;
   return `${n.toLocaleString('zh-CN', { maximumFractionDigits: digits })}${unit === 'ratio' || unit === 'percent' ? '%' : unit === 'percentage_point' ? ' pp' : ''}`;
 }
 
@@ -174,10 +174,10 @@ export function renderCartesianSvg(chart: ResultChart, options?: { provenance: '
     const p = g.numericY(tick);
     elements.push(g.horizontal ? `<line x1="${p}" x2="${p}" y1="${g.top}" y2="${g.bottom}" stroke="#dbe0e6"/>`
       : `<line x1="${g.left}" x2="${g.right}" y1="${p}" y2="${p}" stroke="#dbe0e6"/>`);
-    text(g.horizontal ? p : g.left - 12, g.horizontal ? g.bottom + 28 : p + 5, axisText(tick, chart.yUnit), `text-anchor="${g.horizontal ? 'middle' : 'end'}"`);
+    text(g.horizontal ? p : g.left - 12, g.horizontal ? g.bottom + 28 : p + 5, axisText(tick, chart.yUnit, Math.abs(g.yd[1] - g.yd[0]) / ((chart.request.yAxis?.ticks ?? 5) - 1)), `text-anchor="${g.horizontal ? 'middle' : 'end'}"`);
   }
   if (chart.kind === 'scatter' || chart.kind === 'line' && chart.xUnit) for (const tick of axisTicks(g.xd, chart.request.xAxis?.ticks ?? 5))
-    text(g.numericX(tick), g.bottom + 28, axisText(tick, chart.xUnit), 'text-anchor="middle"');
+    text(g.numericX(tick), g.bottom + 28, axisText(tick, chart.xUnit, Math.abs(g.xd[1] - g.xd[0]) / ((chart.request.xAxis?.ticks ?? 5) - 1)), 'text-anchor="middle"');
   else {
     const every = g.horizontal ? 1 : Math.max(1, Math.ceil(g.categories.length / 12));
     g.categories.forEach((label, i) => {

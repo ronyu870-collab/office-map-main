@@ -583,7 +583,7 @@ const PreviousTurn = React.memo(function PreviousTurn({ turn, scope, internalExp
         <Button className={styles.resultDisclosure} variant="ghost" aria-expanded={open} aria-controls={resultPanelId} data-query-result-disclosure={result.resultId}
           onClick={() => { setOpen(value => !value); setMounted(true); }}>{open ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}{open ? '收起数据与来源' : '展开数据与来源'}</Button>
         <div id={resultPanelId} hidden={!open}>
-          {mounted && <HomeQueryResponse question={turn.question} message={turn.reply?.message} answerSelection={turn.reply?.answerSelection} result={result} executionStatus={turn.reply?.agent?.executionStatus} delivery={turn.reply ?? undefined} requestId={turn.reply?.requestId} scope={scope} internalExport={internalExport} presentation={presentation} onExpand={onExpand} collapsed={!open} />}
+          {mounted && <HomeQueryResponse question={turn.attempt.question} message={turn.reply?.message} answerSelection={turn.reply?.answerSelection} result={result} executionStatus={turn.reply?.agent?.executionStatus} delivery={turn.reply ?? undefined} requestId={turn.reply?.requestId} scope={scope} internalExport={internalExport} presentation={presentation} onExpand={onExpand} collapsed={!open} />}
           {open && controls}
         </div>
       </> : <>

@@ -131,9 +131,9 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
       </> : chart.kind==='faceted_line'?<>{chartFacets(chart).map((part,i)=><div key={chart.facets![i].key}><p>{part.title}</p><TrendLine chart={part} onSource={onSource} height={250} bounds={[min,max]}/></div>)}</>:chart.kind==='line'?<TrendLine chart={chart} onSource={onSource}/>:<Scatter chart={chart} onSource={onSource} />}
       {chart.kind === 'scatter' && <p className={styles.notice}>仅含两个字段均有效的联合样本，不代表因果关系。</p>}
     </figure></HomeQueryChartFrame>}
-    {!result.parameters.agentChart && canConfigure && <details className={experienceStyles.chartSettings}><summary>图表设置</summary>
+    {!result.parameters.agentChart && canConfigure && <details className={experienceStyles.chartSettings}><summary>{autoChart || chart ? '图表设置' : '查看图表'}</summary>
       {chart?.kind === 'bar' && <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>}
-      {chart?.kind === 'faceted_line' && <p className={styles.notice}>各组共用相同纵轴范围 {min}–{max}，不连接不同组。</p>}
+      {chart?.kind === 'faceted_line' && <p className={styles.notice}>各组共用同一纵轴，不连接不同组。</p>}
       {(chart?.kind === 'line' || chart?.kind === 'faceted_line') && <p className={styles.notice}>季度连续排列，可横向滚动查看全部季度；点选图元查看数值与来源。</p>}
       <div className={`${styles.actions} ${experienceStyles.chartTools}`}>
       {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
@@ -177,12 +177,11 @@ function TrendLine({chart,onSource,height=chart.points.length <= 4 ? 240 : 320,b
   const plot=lineGeometry(chart,undefined,height,bounds);
   return <><div className={styles.scatterScroll} tabIndex={0} aria-label="季度趋势图，可横向滚动；缺期断线，来源见原表">
     <svg viewBox={`0 0 ${plot.width} ${plot.height}`} width={plot.width} height={plot.height} style={{ maxWidth: chart.points.length <= 8 ? '100%' : undefined, height: 'auto' }} role="img" aria-label={`${chart.title}，${chart.yLabel}季度趋势，${chart.points.length}个季度，${chart.unknownCount}个季度未知`}>
-      <ChartGrid left={plot.left} right={plot.right} top={plot.top} bottom={plot.bottom} />
+      <g aria-hidden="true" stroke="var(--cd-color-border)" strokeDasharray="3 4">{plot.ticks.slice(1).map(tick => <line key={tick.value} x1={plot.left} x2={plot.right} y1={tick.y} y2={tick.y} />)}</g>
       <path d={`M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}`} fill="none" stroke="var(--cd-color-border-strong)"/>
       {plot.segments.map((segment,i)=><polyline key={i} points={segment} fill="none" stroke="var(--cd-color-brand)" strokeWidth="2" strokeLinejoin="round"/>)}
       {plot.points.map((p,index)=><g key={p.point.label}>{p.y!==null&&<circle tabIndex={0} role="button" aria-label={`${p.point.label}：${p.point.yText}`} onClick={() => setSelected(index)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(index); } }} cx={p.x} cy={p.y} r="4" fill="var(--cd-color-brand)"><title>{p.point.label}：{p.point.yText}</title></circle>}<text x={p.x} y={plot.bottom+26} textAnchor="middle">{p.point.label}</text></g>)}
-      {[.25, .5, .75].map(fraction => <text key={fraction} x={plot.left-10} y={plot.bottom-(plot.bottom-plot.top)*fraction+5} textAnchor="end">{axisText(plot.min+(plot.max-plot.min)*fraction, chart.yUnit)}</text>)}
-      <text x={plot.left-10} y={plot.top+5} textAnchor="end">{axisText(plot.max, chart.yUnit)}</text><text x={plot.left-10} y={plot.bottom} textAnchor="end">{axisText(plot.min, chart.yUnit)}</text>
+      {plot.ticks.map(tick => <text key={tick.value} x={plot.left-10} y={tick.y+4} textAnchor="end">{tick.label}</text>)}
       {plot.points.length <= 4 && plot.points.map(p => p.y !== null && <text key={p.point.label} x={p.x + (p.x === plot.left ? 8 : p.x === plot.right ? -8 : 0)} y={Math.max(16, p.y - 10)} textAnchor={p.x === plot.left ? 'start' : p.x === plot.right ? 'end' : 'middle'} fontWeight="600">{p.point.yText}</text>)}
     </svg>
   </div>{selected !== null && <ChartPoint point={chart.points[selected]} onSource={onSource} />}</>;

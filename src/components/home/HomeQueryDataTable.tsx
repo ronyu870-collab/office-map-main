@@ -42,7 +42,7 @@ function DataTable({ result, requestId, scope, internalExport, onSource, onPage,
     const scroller = root.current?.querySelector('[data-table-scroll]');
     if (scroller) { scroller.scrollTop = scrollPosition.current.top; scroller.scrollLeft = scrollPosition.current.left; }
   }, [expanded]);
-  const columns = result.table.columns.filter(column => !hiddenColumns.has(column.key));
+  const allColumns = result.table.columns.filter(column => !hiddenColumns.has(column.key));
   const deferredSearch = React.useDeferredValue(search);
   const indexes = React.useMemo(() => tableRowIndexes(result, deferredSearch, filters, sort), [result, deferredSearch, filters, sort]);
   const buildings = React.useMemo(() => new Set(resultBuildingRows(result).map(building => building.id)), [result]);
@@ -55,6 +55,13 @@ function DataTable({ result, requestId, scope, internalExport, onSource, onPage,
   const availability = resultAvailability(result);
   const policy = resultTablePolicy(result, expanded);
   const fullControls = !availability && (policy.controls || toolsOpen || selected.size > 0 || filters.length > 0 || hiddenColumns.size > 0 || !!search);
+  const compactTrend = !fullControls && !expanded && result.operation === 'trend' && result.table.rows.length <= 10
+    && !result.parameters.metrics && !result.parameters.agentTableView;
+  // Only omit a duplicated count, never a differently scoped count. Full
+  // controls restore every original column; export uses the original result.
+  const duplicateCount = result.table.rows.every(row => row.cells.usedCount?.kind === 'number' && row.cells.availableCount?.kind === 'number'
+    && row.cells.usedCount.value.numeric === row.cells.availableCount.value.numeric);
+  const columns = compactTrend && duplicateCount ? allColumns.filter(column => column.key !== 'availableCount') : allColumns;
   const canSelect = fullControls && ['list', 'rank'].includes(result.operation) && !result.parameters.agentReport && !result.parameters.researchTask;
   const canExport = ['list', 'rank'].includes(result.operation) && !result.parameters.agentReport && !result.parameters.researchTask;
   const mapEligible = resultMapEligible(result);
@@ -104,7 +111,7 @@ function DataTable({ result, requestId, scope, internalExport, onSource, onPage,
           onChange={event => setSelected(current => { const next = new Set(current); indexes.forEach(index => event.target.checked ? next.add(index) : next.delete(index)); return next; })} /></label></th>}
           {columns.map(column => <th scope="col" key={column.key} className={`${column.key === 'name' ? styles.name : ''} ${column.unit ? styles.number : ''}`} aria-sort={sort?.key === column.key ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'}>
             <button type="button" onClick={() => { setSort(sort?.key === column.key && sort.direction === 'desc' ? null : { key: column.key, direction: sort?.key === column.key ? 'desc' : 'asc' }); changePage(0); }}>
-              {column.key === 'usedCount' ? '参与计算' : column.key === 'availableCount' ? '有效样本' : column.key === 'coverage' ? '样本覆盖' : column.label}{column.unit ? `（${units[column.unit] ?? column.unit}）` : ''}
+              {column.key === 'usedCount' ? (compactTrend && duplicateCount ? '有效样本' : '参与计算') : column.key === 'availableCount' ? '有效样本' : column.key === 'coverage' ? '样本覆盖' : column.label}{column.unit ? `（${units[column.unit] ?? column.unit}）` : ''}
               {sort?.key === column.key && (sort.direction === 'asc' ? <ArrowUp size={14} aria-hidden="true" /> : <ArrowDown size={14} aria-hidden="true" />)}</button>
           </th>)}</tr></thead>
         <tbody>{shown.map(index => {

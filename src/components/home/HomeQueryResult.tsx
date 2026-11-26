@@ -6,7 +6,7 @@ import { cellText, resultScopeText, units, type QueryResultView } from '@/src/li
 import { researchAnalysisSchema, type ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnalysisView';
 import { metricLabels, resultMetrics, resultMetricAnalysis } from '@/src/lib/intelligence/query/multiMetricView';
 import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailability';
-import { answerDisplayPreferences, composeResponse, responseDecision, responseFactCells, responseResultContent, responseTableTitle } from '@/src/lib/intelligence/query/responsePresentation';
+import { composeResponse, responseDecision, responseFactCells, responseResultContent, responseTableTitle } from '@/src/lib/intelligence/query/responsePresentation';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryResearch } from './HomeQueryResearch';
@@ -14,6 +14,7 @@ import { responseBlockRenderers } from './HomeQueryResponseBlocks';
 import { HomeQueryResultActions } from './HomeQueryResultActions';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
 import { HomeQueryInsights } from './HomeQueryInsights';
+import { HomeQuerySampleSummary } from './HomeQuerySampleSummary';
 import { HomeQuerySources, SourceOverview } from './HomeQuerySources';
 export { SourceOverview } from './HomeQuerySources';
 import { useQueryDetail } from './HomeQueryDetailPanel';
@@ -47,7 +48,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   }, [result]);
   const { conclusion, context, primaryFinding } = React.useMemo(() => responseResultContent(result, research), [result, research]);
   const [tableOpen, setTableOpen] = React.useState(false);
-  const [insightsOpen, setInsightsOpen] = React.useState(() => answerDisplayPreferences(question).wantsSamples && result.table.rows.length > 2 && result.operation === 'compare');
+  const [insightsOpen, setInsightsOpen] = React.useState(false);
   const sourceMap = React.useMemo(() => new Map(result.sources.map(source => [source.id, source])), [result]);
   const sources = selected ? selected.ids.flatMap(id => sourceMap.has(id) ? [sourceMap.get(id)!] : []) : [];
   useQueryPresentationReceipt(scope, delivery, { surface: 'answer_table', page, pageSize: 25, sourceIds: sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => source.id) }, visible);
@@ -110,7 +111,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       return <section id={`${sectionId}-table`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="结果明细">
         {decision.details === 'on_demand' ? <details className={experienceStyles.details} open={tableOpen} onToggle={event => setTableOpen(event.currentTarget.open)}>
           <summary>{availability ? '查看已返回记录' : `查看数据明细（${result.table.rows.length} 行）`}</summary><div hidden={!tableOpen}>{content}</div>
-        </details> : <><h3 className={experienceStyles.sectionTitle}>{responseTableTitle(result)}</h3>{content}</>}
+        </details> : <><h3 className={experienceStyles.sectionTitle}>{responseTableTitle(result)}</h3>{content}{research && <HomeQuerySampleSummary research={research} result={result} onSource={showSources} />}</>}
       </section>;
     },
     sources: () => (<section id={`${sectionId}-sources`} tabIndex={-1} className={experienceStyles.sourceSummary} aria-label="数据来源">

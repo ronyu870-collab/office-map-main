@@ -124,3 +124,17 @@ describe('continuous quarterly trends and immutable line artifacts', () => {
     expect(resultDigest(result)).toBe(digest);
   });
 });
+
+it('formats every trend axis tick and matches the exported SVG, including long fractional values', () => {
+  const result = resultViewSchema.parse(buildTrendResult([fixture(q(1)), fixture(q(2))], 'rent', 'per_period'));
+  const chart = buildResultChart(result, { kind: 'time_series' });
+  const plot = lineGeometry(chart);
+  expect(plot.ticks).toHaveLength(5);
+  expect(new Set(plot.ticks.map(tick => tick.label)).size).toBe(5);
+  expect(plot.min).toBeLessThanOrEqual(Math.min(...chart.points.flatMap(point => point.y === null ? [] : [point.y])));
+  expect(plot.max).toBeGreaterThanOrEqual(Math.max(...chart.points.flatMap(point => point.y === null ? [] : [point.y])));
+  const svg = new DOMParser().parseFromString(renderChartSvg(chart), 'image/svg+xml');
+  const labels = [...svg.querySelectorAll('text')].map(node => node.textContent);
+  for (const tick of plot.ticks) expect(labels).toContain(tick.label);
+  for (const point of chart.points) expect(labels).toContain(point.yText);
+});

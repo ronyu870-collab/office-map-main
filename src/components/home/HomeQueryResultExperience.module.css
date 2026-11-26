@@ -114,3 +114,7 @@
 .chartSettings { margin-block-start: var(--cd-space-1); }
 .sourceSummary { padding-top: var(--cd-space-2); border-top: 1px solid var(--cd-color-border); }
 .resultActions { margin-top: var(--cd-space-2); }
+
+.sampleSummary { margin-top: var(--cd-space-3); color: var(--cd-color-text-secondary); line-height: 1.7; }
+.sampleSummary > p { margin-block: var(--cd-space-2) 0; }
+.sampleSummary strong { color: var(--cd-color-text-primary); font-weight: 600; }

@@ -5,7 +5,7 @@ import { agentChartDescriptorSchema } from './chartProtocol';
 import { resultBuildingRows } from './buildingCards';
 import { resultAvailability } from './resultAvailability';
 import { defaultResultChartRequest, resultNumericColumns } from './resultEligibility';
-import { cellText, resultSummary, units, type QueryResultView } from './presentation';
+import { cellText, formatExact, resultSummary, units, type QueryResultView } from './presentation';
 import { resultMetrics, resultMetricColumns, metricLabels } from './multiMetricView';
 import type { ResearchAnalysis } from './researchAnalysisView';
 
@@ -63,7 +63,8 @@ export function responseDecision(result: QueryResultView, task?: string, questio
   const prefs = answerDisplayPreferences(question);
   const inlineTable = preferTable(result, question);
   const defaultChart = defaultResultChartRequest(result);
-  if (!prefs.tableOnly && (chart || defaultChart && result.operation !== 'list' && (!inlineTable || prefs.wantsChart))) return { ...base,
+  const shortComparison = isQuarterlyAnswer(result) && (result.operation === 'compare' || result.table.rows.length <= 2);
+  if (!prefs.tableOnly && (chart || defaultChart && result.operation !== 'list' && (prefs.wantsChart || !prefs.wantsTable && !shortComparison))) return { ...base,
     task: result.operation === 'rank' ? 'ranking' : ['trend', 'group_trend', 'cross_trend'].includes(result.operation) ? 'trend' : 'research',
     status: 'answered', primaryExpression: 'chart', details: inlineTable || isQuarterlyAnswer(result) && result.table.rows.length <= 10 ? 'inline' : 'on_demand' };
   if (inlineTable && (prefs.wantsTable || defaultChart || isQuarterlyAnswer(result) && result.table.rows.length > 1 && numeric.length > 1)) return { ...base,
@@ -170,7 +171,7 @@ export function responseResultContent(result: QueryResultView, research: Researc
       return column && cell ? [`${metricLabels[metric]}为 ${cellText(cell, column.unit)}${cell.kind === 'number' ? ` ${units[column.unit ?? ''] ?? column.unit ?? ''}` : ''}`] : [];
     }).join('；') : '';
   const series = primaryFinding && research?.series.find(item => primaryFinding.evidence.seriesKey === item.key);
-  const shortTrend = series?.periods.length === 2 && series.overall && series.direction !== 'incomplete' ? series.overall : null;
+  const shortTrend = series?.periods.length === 2 && series.overall ? series.overall : null;
   const shortLead = shortTrend?.baseValue && shortTrend.currentValue && series ? (() => {
     const value = formatExact(shortTrend.currentValue!, series.unit);
     const base = formatExact(shortTrend.baseValue!, series.unit);
@@ -195,6 +196,7 @@ export function responseTableTitle(result: QueryResultView): string {
   const scope = z.object({ submarkets: z.array(z.string()).optional() }).safeParse(result.parameters.scope).data;
   const object = scope?.submarkets?.join('、') ?? '';
   const field = typeof result.parameters.field === 'string' ? result.table.columns.find(column => column.key === result.parameters.field)?.label : null;
+  if (['trend', 'group_trend', 'cross_trend', 'compare'].includes(result.operation)) return object + '季度数据与样本';
   return result.operation === 'rank' ? `${object}${field ?? '楼宇'}排名`
     : result.operation === 'list' ? `${object}楼宇清单` : `${object}数据明细`;
 }
