@@ -172,6 +172,50 @@ export async function verifyPitchWorkspace({
       );
     },
   );
+  await check("a reviewed outline is a single version-pinned job and failure never changes destination pages", async () => {
+    const projectId = randomUUID();
+    const created = await workspace(admin, {
+      action: "create", projectId, title: "隔离多章节提案", themeId: "colliers-default-v1",
+      themeVersion: 2, scope, context,
+    });
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    const assets = await db.query("select id, current_version from public.pitch_content_assets where id=any($1::uuid[])", [[ids.corporate, ids.research]]);
+    const versions = new Map(assets.rows.map(asset => [asset.id, asset.current_version]));
+    const part = { mode: "static", templateId: "corporate-overview", assetIds: [ids.corporate],
+      length: "brief", allowFallback: false, variant: "standard" };
+    const start = { action: "start", projectId, expectedVersion: created.body.project.version,
+      replaceIds: [], part: { mode: "outline", parts: [
+        { ...part, title: "公司资料之一" },
+        { ...part, assetIds: [ids.research], templateId: "research-page", title: "市场研究章节" },
+      ], bindings: [{ id: ids.corporate, version: versions.get(ids.corporate) },
+        { id: ids.research, version: versions.get(ids.research) + 999 }] } };
+    const failId = randomUUID();
+    assert.equal((await workspace(admin, { ...start, taskId: failId })).status, 202);
+    await until(async () => {
+      const r = await workspace(admin, { action: "status", projectId, taskId: failId });
+      assert.equal(r.status, 200);
+      if (r.body.state !== "failed") return false;
+      assert.equal(r.body.error_code, "PITCH_OUTLINE_SOURCE_CHANGED");
+      return true;
+    }, "reject stale outline materials");
+    const same = await workspace(admin, { action: "get", projectId });
+    assert.equal(same.body.project.version, created.body.project.version);
+    assert.equal(same.body.slides.length, 0);
+    const taskId = randomUUID();
+    start.part.bindings[1].version = versions.get(ids.research);
+    assert.equal((await workspace(admin, { ...start, taskId })).status, 202);
+    await until(async () => {
+      const r = await workspace(admin, { action: "status", projectId, taskId });
+      assert.equal(r.status, 200);
+      assert.notEqual(r.body.state, "failed", JSON.stringify(r.body));
+      return r.body.state === "completed";
+    }, "atomic outline append");
+    const generated = await workspace(admin, { action: "get", projectId });
+    assert.equal(generated.body.project.version, created.body.project.version + 1);
+    const titles = generated.body.slides.map(slide => slide.content.title);
+    assert.deepEqual([...new Set(titles)], ["公司资料之一", "市场研究章节"]);
+    for (const page of generated.body.slides) assert.ok(page.content.sources.length);
+  });
   await check(
     "workspace HTTP saves configuration, content, order and active page across new requests; stale save returns 409",
     async () => {

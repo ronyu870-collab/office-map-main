@@ -36,7 +36,7 @@ export async function saveBusinessProfile(ctx:PitchContext,c:{assetId:string;exp
   asset.state='draft';asset.allowClientExport=false;asset.allowExternalAi=false;
   return pitchRpc(ctx,{action:'business_profile_save',assetId:c.assetId,expectedVersion:c.expectedVersion,profile,asset,sha256:hash(asset.content),tokens:documentTokens(JSON.stringify([asset.content,profile])),media:profileMedia(profile)});
 }
-export async function generateBusinessProject(ctx:PitchContext,command:Generation) {
+export async function generateBusinessProject(ctx:PitchContext,command:Generation,expectedAssetVersions?:ReadonlyMap<string,number>) {
   const registry=z.object({theme:z.object({definition:designThemeSchema})}).parse(await pitchRpc(ctx,{action:'registry',templateId:'business-content',templateVersion:1,themeId:command.themeId,themeVersion:command.themeVersion}));
   const theme=registry.theme.definition,bindings:{id:string;version:number}[]=[],snapshots:PitchDataSnapshot[]=[],recipes:{id:string;revision:number}[]=[],groups:BusinessPage[]=[],mediaRows:z.infer<typeof mediaRowSchema>[]=[];
   const currentPeriods=command.parts.filter(p=>p.mode==='dynamic'&&!p.parameters.templateId.endsWith('-trend')&&!p.parameters.templateId.startsWith('lease-')).map(p=>p.mode==='dynamic'?JSON.stringify(p.parameters.period):'');
@@ -64,6 +64,8 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
     const assets:BusinessAsset[]=[];
     for(const id of part.assetIds) {
       const stored=storedSchema.parse(await pitchRpc(ctx,{action:'business_generation_asset',assetId:id}));
+      if (expectedAssetVersions && expectedAssetVersions.get(id) !== stored.asset.current_version)
+        throw new Error('PITCH_OUTLINE_SOURCE_CHANGED');
       const a:BusinessAsset={id,version:stored.asset.current_version,scope:{organizationId:stored.asset.organization_id,region:stored.asset.region,city:stored.asset.city,businessLine:stored.asset.business_line},profile:stored.profile,content:stored.version.content};
       assertBusinessScope(a,command.scope,command.language,part.allowFallback);assets.push(a);mediaRows.push(...stored.media);
       if(!bindings.some(b=>b.id===id))bindings.push({id,version:a.version});

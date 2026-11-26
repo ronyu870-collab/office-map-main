@@ -241,7 +241,7 @@ export const aiCommandSchema = z.discriminatedUnion("action", [
     query: recommendationSchema,
   }),
   z.strictObject({ action: z.literal("prepare"), input: nlSchema }),
-  z.strictObject({ action: z.literal("outline"), query: recommendationSchema }),
+  z.strictObject({ action: z.literal("outline"), query: recommendationSchema, projectId: z.uuid().optional() }),
   z.strictObject({
     action: z.literal("feedback"),
     eventId: id,

@@ -26,6 +26,7 @@ const rowSchema = z.object({
   kind: z.string().nullable(),
   city: z.string().nullable(),
   region: z.string().nullable(),
+  business_line: z.string().nullable().optional(),
   tags: z.array(z.string()),
   data_as_of: z.string().nullable(),
   language: z.string(),
@@ -39,6 +40,7 @@ const rowSchema = z.object({
 export async function recommendAssets(
   ctx: PitchContext,
   query: Recommendation,
+  businessLine?: string,
 ) {
   const q = recommendationSchema.parse(query),
     rows = z.array(rowSchema).parse(
@@ -50,6 +52,7 @@ export async function recommendAssets(
     );
   const scored = rows
     .slice(0, 200)
+    .filter(row => !businessLine || row.business_line === businessLine)
     .map((r) => {
       let score = 0;
       const reasons: string[] = [];
@@ -376,7 +379,10 @@ export async function preparePitch(
     modelCalls: 0,
   };
 }
-export async function suggestOutline(ctx: PitchContext, query: Recommendation) {
+export async function suggestOutline(ctx: PitchContext, query: Recommendation, projectId?: string) {
+  const project = projectId ? z.object({
+    project: z.object({ city: z.string(), region: z.string(), business_line: z.string() }),
+  }).parse(await pitchRpc(ctx, { action: "workspace_get", projectId })).project : null;
   const sections = [];
   for (const [kind, title] of [
     ["corporate", "公司介绍"],
@@ -386,13 +392,17 @@ export async function suggestOutline(ctx: PitchContext, query: Recommendation) {
   ] as const) {
     const found = await recommendAssets(ctx, {
       ...query,
+      ...(project ? { city: project.city, region: project.region } : {}),
       kind,
       limit: kind === "case" ? 3 : kind === "team" ? 6 : 1,
-    });
+    }, project?.business_line);
     if (found.items.length)
       sections.push({
         id: crypto.randomUUID(),
-        title,
+        title: query.language === "en" ? {
+          corporate: "Company overview", team: "Core team", case: "Selected case studies", research: "Market research",
+        }[kind] : title,
+        materials: found.items.map(({ id, version, title }) => ({ id, version, title })),
         part: generationPartSchema.parse({
           mode: found.items.length === 1 ? "static" : "semi-dynamic",
           templateId: found.items[0].templateId,
@@ -405,10 +415,10 @@ export async function suggestOutline(ctx: PitchContext, query: Recommendation) {
   }
   return {
     sections,
-    missing: [
-      "目标项目与竞品分析请选择项目及正式期间",
-      "服务策略与执行计划需要经确认素材",
-    ],
+    missing: query.language === "en"
+      ? ["Project and competitor analysis needs reviewed projects and reporting periods.",
+        "Service strategy and execution plans need approved materials."]
+      : ["目标项目与竞品分析请选择项目及正式期间", "服务策略与执行计划需要经确认素材"],
     confirmed: false,
     modelCalls: 0,
   };

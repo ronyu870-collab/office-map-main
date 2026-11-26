@@ -66,7 +66,22 @@ export const examplePartSchema = z.strictObject({
   kit:z.strictObject({id:z.string().max(100),version:z.number().int().positive()}).optional(),
 });
 export const bundlePartSchema=z.strictObject({mode:z.literal('bundle'),kit:z.strictObject({id:z.string().max(100),version:z.number().int().positive()}),parts:z.array(generationPartSchema).min(1).max(12)});
-export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema]);
+export const outlinePartSchema = z.strictObject({
+  mode: z.literal("outline"),
+  parts: z.array(generationPartSchema).min(1).max(8),
+  bindings: z.array(z.strictObject({ id, version: z.number().int().positive() })).min(1).max(80),
+}).superRefine((outline, ctx) => {
+  const wanted = new Set(outline.parts.flatMap(part => part.mode === "dynamic" ? [] : part.assetIds));
+  const pinned = new Set(outline.bindings.map(binding => binding.id));
+  if (outline.parts.some(part => part.mode === "dynamic" || !part.title || part.allowFallback ||
+    new Set(part.assetIds).size !== part.assetIds.length) ||
+    pinned.size !== outline.bindings.length || pinned.size !== wanted.size ||
+    [...wanted].some(assetId => !pinned.has(assetId))) {
+    ctx.addIssue({ code: "custom", message: "Outline must pin every reviewed asset; dynamic or partial sections are not supported" });
+  }
+});
+export type OutlinePart = z.infer<typeof outlinePartSchema>;
+export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema,outlinePartSchema]);
 export type WorkspacePart=z.infer<typeof workspacePartSchema>;
 export const workspaceCommandSchema = z.discriminatedUnion("action", [
   z.strictObject({

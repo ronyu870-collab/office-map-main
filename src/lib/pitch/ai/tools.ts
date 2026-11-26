@@ -74,14 +74,11 @@ export async function runPitchTool(
       workspace: "/intelligence/pitch",
     };
   }
-  if (name === "pitch_suggest_outline")
-    return {
-      status: "ready",
-      ...(await suggestOutline(
-        ctx,
-        PITCH_TOOL_SCHEMAS.pitch_suggest_outline.parse(args),
-      )),
-    };
+  if (name === "pitch_suggest_outline") {
+    const result = await suggestOutline(ctx, PITCH_TOOL_SCHEMAS.pitch_suggest_outline.parse(args));
+    // Asset titles are for the authenticated workspace UI, not an ordinary agent observation.
+    return { status: "ready", ...result, sections: result.sections.map(({ id, title, part }) => ({ id, title, part })) };
+  }
   if (name === "pitch_export") {
     const c = PITCH_TOOL_SCHEMAS.pitch_export.parse(args),
       command = {

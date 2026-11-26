@@ -603,7 +603,8 @@ export async function startWorkspaceTask(
 ) {
   const current = await getWorkspace(ctx, c.projectId);
   checkVersion(current, c.expectedVersion);
-  if (c.replaceIds.some((id) => !current.slides.some((p) => p.id === id)))
+  if ((c.part.mode === "outline" && c.replaceIds.length > 0) ||
+    c.replaceIds.some((id) => !current.slides.some((p) => p.id === id)))
     throw new Error("PITCH_INVALID");
   return pitchRpc(ctx, {
     action: "workspace_task_start",
@@ -655,7 +656,7 @@ export async function runWorkspaceTask(
       language: current.workspace.context.language,
       themeId: p.theme_id,
       themeVersion: p.theme_version,
-      parts: part.mode==='bundle'?part.parts:[part],
+      parts: part.mode === 'bundle' || part.mode === 'outline' ? part.parts : [part],
     });
     if(part.mode==='bundle'){
       const kit=(await import('../templates/deckKits')).DECK_KIT_BY_ID.get(part.kit.id);
@@ -667,7 +668,8 @@ export async function runWorkspaceTask(
         scope:{organizationId:p.organization_id,region:p.region,city:p.city,businessLine:p.business_line},
         language:current.workspace.context.language,themeId:p.theme_id,themeVersion:p.theme_version,part,
       });
-    } else await generateBusinessProject(ctx, command!);
+    } else await generateBusinessProject(ctx, command!, part.mode === 'outline'
+      ? new Map(part.bindings.map(binding => [binding.id, binding.version])) : undefined);
     await pitchRpc(ctx, { action: "workspace_task_check", ...args });
     const source = await getWorkspace(ctx, receipt.task.source_project_id),
       settings = { ...current.workspace.page_settings };

@@ -7,6 +7,7 @@ import {
   type Understanding,
 } from "@/src/lib/pitch/ai/protocol";
 import type { Generation } from "@/src/lib/pitch/business/protocol";
+import { outlinePartSchema, type OutlinePart } from "@/src/lib/pitch/workspace/protocol";
 import type { PreparedPitch } from "@/src/lib/pitch/ai/routing";
 import type { Call } from "./client";
 import styles from "./workspace.module.css";
@@ -18,7 +19,8 @@ type Asset = {
   templateId: string;
   reasons: string[];
 };
-type Section = { id: string; title: string; part: Generation["parts"][number] };
+type Material = { id: string; version: number; title: string };
+type Section = { id: string; title: string; part: Generation["parts"][number]; materials: Material[] };
 type Task = {
   id: string;
   state: string;
@@ -45,7 +47,7 @@ export function AiAssist({
   admin,
   busy,
   onGenerate,
-  onReload,
+  onGenerateOutline,
   onExport,
 }: {
   call: Call;
@@ -57,7 +59,7 @@ export function AiAssist({
   admin: boolean;
   busy: boolean;
   onGenerate: (part: Generation["parts"][number]) => Promise<void>;
-  onReload: () => Promise<void>;
+  onGenerateOutline: (outline: OutlinePart) => Promise<void>;
   onExport: () => void;
 }) {
   const [question, setQuestion] = React.useState(initialQuestion),
@@ -73,6 +75,8 @@ export function AiAssist({
     [batch, setBatch] = React.useState(""),
     [tasks, setTasks] = React.useState<Task[]>([]),
     [sections, setSections] = React.useState<Section[]>([]),
+    [outlineMissing, setOutlineMissing] = React.useState<string[]>([]),
+    [outlineSent, setOutlineSent] = React.useState(false),
     [pollFailed, setPollFailed] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => controller.current?.abort(), []);
@@ -165,70 +169,22 @@ export function AiAssist({
       setSelected([]);
     });
   const generateOutline = () =>
-    perform(async (signal) => {
-      // Confirmation is this explicit button. Every step uses the existing durable
-      // workspace executor and current optimistic version; failures preserve prior pages.
-      for (const section of sections.slice(0, 8)) {
-        signal.throwIfAborted();
-        const current = await call<{ project: { version: number } }>(
-            { action: "get", projectId },
-            true,
-            "workspace",
-            signal,
-          ),
-          taskId = crypto.randomUUID();
-        await call(
-          {
-            action: "start",
-            projectId,
-            taskId,
-            expectedVersion: current.project.version,
-            part: { ...section.part, title: section.title },
-            replaceIds: [],
-          },
-          true,
-          "workspace",
-          signal,
-        );
-        let done = false;
-        for (let attempt = 0; attempt < 75; attempt++) {
-          await new Promise<void>((resolve, reject) => {
-            const abort = () => {
-              clearTimeout(timer);
-              reject(new DOMException("Aborted", "AbortError"));
-            };
-            const timer = setTimeout(() => {
-              signal.removeEventListener("abort", abort);
-              resolve();
-            }, 800);
-            signal.addEventListener("abort", abort, { once: true });
-            if (signal.aborted) abort();
-          });
-          const receipt = await call<{ state: string }>(
-            { action: "status", projectId, taskId },
-            true,
-            "workspace",
-            signal,
-          );
-          if (receipt.state === "completed") {
-            done = true;
-            break;
-          }
-          if (["failed", "cancelled"].includes(receipt.state))
-            throw new Error("本页未完成，已生成页面保留。");
-        }
-        if (!done)
-          throw new Error("任务尚未完成，请在当前项目任务记录中继续查看。");
-        await feedback(
-          "accepted",
-          undefined,
-          section.part.mode === "dynamic"
-            ? section.part.parameters.templateId
-            : section.part.templateId,
-        );
+    perform(async () => {
+      const pinned = new Map<string, number>();
+      for (const section of sections) for (const source of section.materials ?? []) {
+        const prior = pinned.get(source.id);
+        if (prior !== undefined && prior !== source.version)
+          throw new Error("素材版本已变化，请重新推荐提纲。");
+        pinned.set(source.id, source.version);
       }
-      await onReload();
-      setSections([]);
+      const result = outlinePartSchema.safeParse({
+        mode: "outline",
+        parts: sections.map(section => ({ ...section.part, title: section.title })),
+        bindings: [...pinned].map(([id, version]) => ({ id, version })),
+      });
+      if (!result.success) throw new Error("请补全章节标题和对应素材，再重新确认。");
+      await onGenerateOutline(result.data);
+      setOutlineSent(true);
     });
   return (
     <div className={styles.form} aria-label="Pitch 辅助">
@@ -414,13 +370,15 @@ export function AiAssist({
           variant="secondary"
           onClick={() =>
             void perform(async (signal) => {
-              const r = await call<{ sections: Section[] }>(
-                { action: "outline", query: { q, language, limit: 5 } },
+              const r = await call<{ sections: Section[]; missing: string[] }>(
+                { action: "outline", projectId, query: { q, objective: question.trim().slice(0, 200), language, limit: 5 } },
                 true,
                 "ai",
                 signal,
               );
               setSections(r.sections);
+              setOutlineMissing(r.missing ?? []);
+              setOutlineSent(false);
               if (!r.sections.length)
                 setError("没有满足条件的正式素材，请先选择或维护素材。");
             })
@@ -429,10 +387,15 @@ export function AiAssist({
           推荐提纲
         </Button>
         <ol>
-          {sections.map((s, i) => (
-            <li key={s.id}>
+          {sections.map((s, i) => {
+            const sectionPart = s.part;
+            const alternatives = sectionPart.mode === "dynamic" ? [] : items.filter(item =>
+              selected.includes(item.id) && item.templateId === sectionPart.templateId);
+            return <li key={s.id}>
               <input
                 aria-label="章节标题"
+                disabled={working || outlineSent}
+                maxLength={160}
                 value={s.title}
                 onChange={(e) =>
                   setSections((v) =>
@@ -442,9 +405,12 @@ export function AiAssist({
                   )
                 }
               />
+              {s.materials?.length > 0 && <ul aria-label="已选素材">
+                {s.materials.map(material => <li key={material.id}>{material.title} · v{material.version}</li>)}
+              </ul>}
               <Button
                 variant="ghost"
-                disabled={!i}
+                disabled={!i || working || outlineSent}
                 onClick={() =>
                   setSections((v) => {
                     const next = [...v];
@@ -457,28 +423,31 @@ export function AiAssist({
               </Button>
               <Button
                 variant="ghost"
+                disabled={working || outlineSent}
                 onClick={() =>
                   setSections((v) => v.filter((x) => x.id !== s.id))
                 }
               >
                 移除
               </Button>
-              {!!selected.length && (
+              {!!alternatives.length && alternatives.length === selected.length && (
                 <Button
                   variant="ghost"
+                  disabled={working || outlineSent}
                   onClick={() =>
                     setSections((v) =>
                       v.map((x) =>
                         x.id === s.id && x.part.mode !== "dynamic"
                           ? {
                               ...x,
+                              materials: alternatives.map(({ id, title, version }) => ({ id, title, version })),
                               part: {
                                 ...x.part,
                                 mode:
-                                  selected.length === 1
+                                  alternatives.length === 1
                                     ? "static"
                                     : "semi-dynamic",
-                                assetIds: selected,
+                                assetIds: alternatives.map(item => item.id),
                               },
                             }
                           : x,
@@ -489,15 +458,20 @@ export function AiAssist({
                   替换为所选素材
                 </Button>
               )}
-            </li>
-          ))}
+            </li>;
+          })}
         </ol>
+        {outlineMissing.length > 0 && <div>
+          <strong>未包含的部分</strong>
+          <ul>{outlineMissing.map(note => <li key={note}>{note}</li>)}</ul>
+        </div>}
+        {outlineSent && <p role="status">提纲已提交为一个生成任务，生成进度见工作区。</p>}
         {!!sections.length && (
           <Button
-            disabled={working || busy}
+            disabled={working || busy || outlineSent || sections.some(section => !section.title.trim())}
             onClick={() => void generateOutline()}
           >
-            确认生成 {Math.min(8, sections.length)} 个板块
+            确认生成 {sections.length} 个板块
           </Button>
         )}
       </details>

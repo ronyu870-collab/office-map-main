@@ -38,7 +38,7 @@ describe("Pitch optional assistant behavior", () => {
         admin={false}
         busy={false}
         onGenerate={onGenerate}
-        onReload={async () => {}}
+        onGenerateOutline={async () => {}}
         onExport={() => {}}
       />,
     );
@@ -84,7 +84,7 @@ describe("Pitch optional assistant behavior", () => {
         admin={false}
         busy={false}
         onGenerate={onGenerate}
-        onReload={async () => {}}
+        onGenerateOutline={async () => {}}
         onExport={() => {}}
       />,
     );
@@ -144,7 +144,7 @@ describe("Pitch optional assistant behavior", () => {
         admin
         busy={false}
         onGenerate={onGenerate}
-        onReload={async () => {}}
+        onGenerateOutline={async () => {}}
         onExport={() => {}}
       />,
     );
@@ -163,6 +163,7 @@ describe("Pitch optional assistant behavior", () => {
         {
           id,
           title: "隔离公司",
+          materials: [{ id, title: "隔离企业素材", version: 2 }],
           part: {
             mode: "static",
             templateId: "corporate-overview",
@@ -184,7 +185,7 @@ describe("Pitch optional assistant behavior", () => {
         admin={false}
         busy={false}
         onGenerate={async () => {}}
-        onReload={async () => {}}
+        onGenerateOutline={async () => {}}
         onExport={() => {}}
       />,
     );
@@ -199,6 +200,36 @@ describe("Pitch optional assistant behavior", () => {
     fireEvent.click(screen.getByText("移除"));
     expect(screen.queryByText("确认生成 1 个板块")).toBeNull();
   });
+  it("submits the reviewed order and pinned asset versions as one background outline", async () => {
+    const secondId = "22222222-2222-4222-8222-222222222222";
+    const part = (assetId: string) => ({ mode: "static", templateId: "corporate-overview",
+      assetIds: [assetId], length: "brief", allowFallback: false, variant: "standard" });
+    const call = vi.fn(async (input: Record<string, unknown>) => input.action === "outline" ? ({
+      sections: [
+        { id, title: "原公司", part: part(id), materials: [{ id, title: "已发布公司资料", version: 3 }] },
+        { id: secondId, title: "原市场", part: part(secondId), materials: [{ id: secondId, title: "已审阅资料", version: 7 }] },
+      ], missing: ["缺少正式竞品数据"],
+    }) : {});
+    const onGenerateOutline = vi.fn(async () => {});
+    render(<AiAssist call={call as Call} projectId={id} buildingIds={[]} period="" language="zh"
+      initialQuestion="为北京客户做办公选址提案" admin={false} busy={false}
+      onGenerate={async () => {}} onGenerateOutline={onGenerateOutline} onExport={() => {}} />);
+    fireEvent.click(screen.getByText("提案结构建议"));
+    fireEvent.click(screen.getByText("推荐提纲"));
+    await screen.findByText("已审阅资料 · v7");
+    expect(screen.getByText("缺少正式竞品数据")).toBeInTheDocument();
+    expect(onGenerateOutline).not.toHaveBeenCalled();
+    fireEvent.change(screen.getAllByLabelText("章节标题")[1], { target: { value: "先看市场" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "上移" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "确认生成 2 个板块" }));
+    await waitFor(() => expect(onGenerateOutline).toHaveBeenCalledExactlyOnceWith({
+      mode: "outline", parts: [{ ...part(secondId), title: "先看市场" }, { ...part(id), title: "原公司" }],
+      bindings: [{ id: secondId, version: 7 }, { id, version: 3 }],
+    }));
+    expect(screen.getByRole("button", { name: "确认生成 2 个板块" })).toBeDisabled();
+    expect(call.mock.calls.some(([request]) => request.action === "start" || request.action === "status")).toBe(false);
+  });
+
 });
 
 it("keeps assistant keywords focused through delayed results, middle edits and Chinese IME", async () => {
@@ -221,7 +252,7 @@ it("keeps assistant keywords focused through delayed results, middle edits and C
       admin={false}
       busy={false}
       onGenerate={async () => {}}
-      onReload={async () => {}}
+      onGenerateOutline={async () => {}}
       onExport={() => {}}
     />,
   );

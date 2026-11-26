@@ -27,6 +27,7 @@ import {
   type WorkspaceDetail,
   type WorkspaceSave,
   type WorkspacePart,
+  type OutlinePart,
 } from "@/src/lib/pitch/workspace/protocol";
 import {
   recipeSchema,
@@ -710,6 +711,32 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setBusy(true);
     try{const saved=await ensureProject(),taskId=crypto.randomUUID();await call({action:'start',projectId:saved.project.id,expectedVersion:saved.project.version,taskId,part,replaceIds:[]},true);setTask({id:taskId,state:'queued'});setPanel('quick');setChosen(null);}finally{setBusy(false);}
   }
+  async function startOutline(part: OutlinePart) {
+    if (busy || rendering || conflict) throw new Error("当前项目正忙，请处理后再提交。");
+    setBusy(true);
+    setMessage("");
+    try {
+      const saved = await flush(), taskId = crypto.randomUUID(), projectId = saved.project.id;
+      let receipt: { id: string; state: string; attempts?: number };
+      try {
+        receipt = await call({ action: "start", projectId, expectedVersion: saved.project.version,
+          taskId, part, replaceIds: [] }, true);
+      } catch (error) {
+        // An ambiguous response might have created the task. Read the same receipt;
+        // never submit a second task as a retry of the first.
+        if (error instanceof WorkspaceError && error.status < 500) throw error;
+        try {
+          receipt = await call({ action: "status", projectId, taskId }, true);
+        } catch {
+          throw error;
+        }
+      }
+      setTask(receipt);
+      if (receipt.state === "completed") await open(projectId);
+    } finally {
+      setBusy(false);
+    }
+  }
   function reorder(id: string, to: number) {
     edit((d) => {
       const pages = [...d.pages],
@@ -1172,7 +1199,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       admin={catalog.scopes.some((s) => s.canAdmin)}
                       busy={busy || rendering || conflict}
                       onGenerate={generate}
-                      onReload={() => open(detail.project.id)}
+                      onGenerateOutline={startOutline}
                       onExport={() => setExportTrigger((v) => v + 1)}
                     />
                   ) : leftTab === "templates" ? (
@@ -1643,11 +1670,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
                         生成未完成，原页面已保留。
                         {task.error_code === "PITCH_CONFLICT"
                           ? "项目已更新，请按最新参数重新生成。"
-                          : ""}
+                          : task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED"
+                            ? "素材版本已变化，请重新推荐并确认提纲。"
+                            : ""}
                       </span>
                       <Button
                         variant="secondary"
-                        disabled={(task.attempts ?? 0) >= 3}
+                        disabled={(task.attempts ?? 0) >= 3 || task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED"}
                         onClick={() =>
                           void run(async () => {
                             const r = await call<typeof task>(
