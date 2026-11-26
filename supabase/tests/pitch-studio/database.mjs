@@ -31,7 +31,7 @@ export async function createPitchDatabase() {
       await setup.query('insert into public.user_roles values($1,$2)',[id,role]);
       await setup.query("insert into auth.sessions values($1,$2,now()+interval '1 day')",[sessionFor(id),id]);
     }
-    for (const migration of ['20261125165826_pitch_studio_foundation.sql', '20261125174626_pitch_studio_render_engine.sql', '20261125182357_pitch_studio_material_library.sql', '20261125192547_pitch_studio_business_templates.sql', '20261125201503_pitch_studio_workspace.sql', '20261126083359_pitch_studio_template_ecosystem.sql', '20261126090000_pitch_studio_ai.sql', '20261126163000_pitch_workspace_revision_apply.sql']) await setup.query(await readFile(new URL('../../migrations/' + migration,import.meta.url),'utf8'));
+    for (const migration of ['20261125165826_pitch_studio_foundation.sql', '20261125174626_pitch_studio_render_engine.sql', '20261125182357_pitch_studio_material_library.sql', '20261125192547_pitch_studio_business_templates.sql', '20261125201503_pitch_studio_workspace.sql', '20261126083359_pitch_studio_template_ecosystem.sql', '20261126090000_pitch_studio_ai.sql', '20261126163000_pitch_workspace_revision_apply.sql', '20261127091002_pitch_export_visual_sources.sql']) await setup.query(await readFile(new URL('../../migrations/' + migration,import.meta.url),'utf8'));
     return {setup,config,database,
       async grant(uid,region='test-region',extra={}) {
         await setup.query(`insert into private.pitch_grants(user_id,organization_id,region,city,business_line,can_generate,maintainer,can_client_export,can_external_ai,valid_until,granted_by)

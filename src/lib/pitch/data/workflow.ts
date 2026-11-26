@@ -8,6 +8,8 @@ import { digest, makeFile, mediaRowSchema, pitchRpc, readFile, uploadFile, type 
 import type { PitchCommand } from '../contracts/api';
 import { PPTX_MIME } from '../render/pptx';
 import type { LayoutId } from '../contracts/scene';
+import { downloadArtifact } from './renderWorkflow';
+import { artifactVisualSourcesSchema } from '../visual-data/artifact';
 
 /** Synthetic art only. Never a real Colliers building, client or case study. */
 async function sampleImage(): Promise<Uint8Array> {
@@ -57,7 +59,7 @@ export async function createProject(ctx: PitchContext, command: Extract<PitchCom
     content, scene, sources: content.sources, layoutId: scene.layoutId, layoutVersion: scene.layoutVersion });
 }
 const exportContextSchema = z.object({
-  export: z.object({ id: z.uuid(), storage_path: z.string(), state: z.enum(['pending', 'ready', 'failed']) }),
+  export: z.object({ id: z.uuid(), storage_path: z.string(), state: z.enum(['pending', 'ready', 'failed']), visual_source_snapshot: artifactVisualSourcesSchema }),
   project: z.object({ title: z.string() }),
   slides: z.array(z.object({ scene: slideSceneSchema })).min(1).max(50),
   themes: z.array(z.object({ definition: designThemeSchema })).min(1), media: z.array(mediaRowSchema),
@@ -69,6 +71,7 @@ export async function exportProject(ctx: PitchContext, projectId: string, audien
   await pitchRpc(ctx, { action: 'export_prepare', ...args });
   try {
     const context = exportContextSchema.parse(await pitchRpc(ctx, { action: 'export_context', ...args }));
+    if (context.export.visual_source_snapshot.length) throw new Error('PITCH_ASYNC_REQUIRED');
     const media = [];
     for (const m of context.media) {
       const file = makeFileFromRow(m);
@@ -97,11 +100,7 @@ function makeFileFromRow(m: z.infer<typeof mediaRowSchema>) {
   return { bucket: 'pitch-studio-private' as const, path: m.storage_path, mime: m.mime, sha256: m.sha256, size: m.size_bytes };
 }
 export async function downloadExport(ctx: PitchContext, input: { projectId: string; exportId: string; audience: 'internal' | 'client' }) {
-  const schema = z.object({ storage_path: z.string(), sha256: z.string(), size_bytes: z.coerce.number() });
-  const current = schema.parse(await pitchRpc(ctx, { ...input, action: 'export_download' }));
-  const bytes = await readFile(ctx, { bucket: 'pitch-studio-private', path: current.storage_path, mime: PPTX_MIME, sha256: current.sha256, size: current.size_bytes });
-  await pitchRpc(ctx, { ...input, action: 'export_download' });
-  return bytes;
+  return (await downloadArtifact(ctx, input)).bytes;
 }
 
 /** An explicit upgrade creates a linked project revision. Original project,
