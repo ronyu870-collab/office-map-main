@@ -101,6 +101,18 @@ describe('旗舰提案编排', () => {
     expect(() => buildProposal(snapshot, data, { theme: STUDIO_THEME, pages: { cover: { layoutId: 'data-table' } } })).toThrow('PITCH_PROPOSAL_LAYOUT_INCOMPATIBLE');
   });
 
+  it('正式指标按其显示精度落页，保留输入的空置率观测', () => {
+    const { snapshot, data } = proposalFixture('building-promotion');
+    const vacancyRate = 0.06071428571428571;
+    const observed = data.buildings[0].quarter!.value;
+    observed.vacancyRate = vacancyRate;
+    const result = buildProposal(snapshot, data, { theme: STUDIO_THEME });
+    const indicator = result.pages.flatMap(page => page.content.blocks)
+      .find(block => block.kind === 'metric' && block.label === '空置率');
+    expect(indicator).toMatchObject({ value: 6.1, unit: '%' });
+    expect(observed.vacancyRate).toBe(vacancyRate);
+  });
+
   it('只按显式权重比较完整候选，保留真实零值且小样本不排名', () => {
     const candidates = [{ buildingId: 'a', values: { netEffectiveRent: 90, vacancyRate: 0 } },
       { buildingId: 'b', values: { netEffectiveRent: 180, vacancyRate: .1 } }, { buildingId: 'c', values: { netEffectiveRent: 70, vacancyRate: null } }];

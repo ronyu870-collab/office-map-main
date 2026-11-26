@@ -40,9 +40,7 @@ const refreshSchema = z.object({
 type Review = z.infer<typeof refreshSchema>;
 type Quarter = z.infer<typeof periodSchema>;
 const periodLabel = ({ year, quarter }: Quarter) => `${year}-Q${quarter}`;
-const refreshBlockSchema = z.discriminatedUnion("kind",
-  contentBlockSchema.options.map(option => option.omit({ sourceIds: true })));
-
+const previewValidationId = "00000000-0000-4000-8000-000000000000";
 
 function ValueTable({ columns, rows }: { columns: string[]; rows: (string | number | null)[][] }) {
   return <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="数据预览">
@@ -55,7 +53,8 @@ function ValueTable({ columns, rows }: { columns: string[]; rows: (string | numb
 
 function BlockValue({ value }: { value?: Record<string, unknown> }) {
   if (!value) return <p>此版本没有该数据项。</p>;
-  const parsed = refreshBlockSchema.safeParse(value);
+  // The refresh response omits evidence IDs. Validate the remaining fields with the shared content schema.
+  const parsed = contentBlockSchema.safeParse({ ...value, sourceIds: [previewValidationId] });
   if (!parsed.success) return <p>此数据项在页面生成后可查看。</p>;
   const block = parsed.data;
   if (block.kind === "paragraph") return <p>{block.text}</p>;

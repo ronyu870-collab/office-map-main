@@ -42,7 +42,7 @@ const rowFor = (bytes: Uint8Array, photo = photoId, building = buildingId) => ({
   sha256: contentHash(bytes), file_size: bytes.byteLength, width: 1280, height: 720,
   photo_kind: 'exterior', caption: '测试外观', sort_order: 0, collected_at: '2026-11-18T00:00:00+00:00', ...rights,
 });
-type PhotoRow = ReturnType<typeof rowFor>;
+type PhotoRow = Omit<ReturnType<typeof rowFor>, 'license_url'> & { license_url: string | null };
 
 function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array>; allowed?: boolean; stackingAdmin?: boolean;
   stackingExport?: boolean; revoke?: boolean; incompatiblePhoto?: boolean;

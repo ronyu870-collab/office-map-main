@@ -12,6 +12,7 @@ import { once } from 'node:events';
 import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 import JSZip from 'jszip';
+import { PDFDocument } from 'pdf-lib';
 import { materialFixtures, NOTE_SECRET, HIDDEN_SECRET } from '../../supabase/tests/pitch-studio/library-fixtures.mjs';
 assert.equal(process.env.PITCH_TEST_ALLOW_LOCAL,'disposable');
 const settings=JSON.parse(await readFile(process.env.PITCH_AUTH_STATUS,'utf8'));
@@ -43,7 +44,20 @@ try {
    create table if not exists public.user_roles(user_id uuid primary key references auth.users(id),role text not null,email text,chinese_name text,full_name text);
    grant select on public.user_roles to service_role;
  `);
- for (const migration of ['20261125165826_pitch_studio_foundation.sql', '20261125174626_pitch_studio_render_engine.sql', '20261125182357_pitch_studio_material_library.sql', '20261125192547_pitch_studio_business_templates.sql', '20261125201503_pitch_studio_workspace.sql', '20261126083359_pitch_studio_template_ecosystem.sql', '20261126090000_pitch_studio_ai.sql', '20261126163000_pitch_workspace_revision_apply.sql', '20261126180746_pitch_design_candidates.sql']) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
+ for (const migration of [
+   '20261125165826_pitch_studio_foundation.sql',
+   '20261125174626_pitch_studio_render_engine.sql',
+   '20261125182357_pitch_studio_material_library.sql',
+   '20261125192547_pitch_studio_business_templates.sql',
+   '20261125201503_pitch_studio_workspace.sql',
+   '20261126083359_pitch_studio_template_ecosystem.sql',
+   '20261126090000_pitch_studio_ai.sql',
+   '20261126163000_pitch_workspace_revision_apply.sql',
+   '20261126180746_pitch_design_candidates.sql',
+   '20261127090006_pitch_workspace_document_jobs.sql',
+   '20261127090106_pitch_document_delivery.sql',
+   '20261127090206_pitch_workspace_bindings.sql',
+ ]) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
  await db.query("notify pgrst,'reload schema'");
  const owner=await person('editor'),other=await person('editor'),viewer=await person('viewer'),admin=await person('admin');
  const env={...process.env,NEXT_PUBLIC_SUPABASE_URL:settings.API_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:settings.ANON_KEY,SUPABASE_SECRET_KEY:settings.SERVICE_ROLE_KEY,PITCH_STUDIO_ENABLED:'true',DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'syntheticfixture'};
@@ -125,13 +139,18 @@ try {
    assert.equal((await call(owner,{action:'preview',projectId:studioProject,page:0,scene:{execute:'JS'}},true)).status,400);
    assert.equal((await call(owner,{action:'export',projectId:studioProject,audience:'internal'},true)).status,422);
  });
- for(const format of ['pptx','png','svg','xlsx'])await check(`real background ${format} export acknowledges HTTP, records durable progress and downloads exact archived bytes`,async()=>{
-   const exportId=randomUUID(),input={action:'export_start',projectId:studioProject,exportId,audience:'internal',format,...(format==='pptx'?{}:{page:7})};
+ for(const format of ['pptx','pdf','png','svg','xlsx'])await check(`real background ${format} export acknowledges HTTP, records durable progress and downloads exact archived bytes`,async()=>{
+   const entireDeck = format === 'pptx' || format === 'pdf';
+   const exportId=randomUUID(),input={action:'export_start',projectId:studioProject,exportId,audience:'internal',format,...(entireDeck?{}:{page:7})};
    const out=await call(owner,input,true);assert.equal(out.status,202,JSON.stringify(out.body));
    let status;await until(async()=>{status=await call(owner,{action:'export_status',projectId:studioProject,exportId});assert.equal(status.status,200,JSON.stringify(status.body));assert.notEqual(status.body.state,'failed',JSON.stringify(status.body));return status.body.state==='ready';},'durable '+format);
    assert.equal(status.body.progress,100);assert.ok(status.body.filename.endsWith('.'+format));
    const file=await call(owner,{action:'download',projectId:studioProject,exportId,audience:'internal'});assert.equal(file.status,200,JSON.stringify(file.body));assert.match(file.headers.get('content-disposition'),/filename\*=UTF-8/);
    if(format==='pptx'){const zip=await JSZip.loadAsync(file.body);assert.equal(Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+[.]xml$/.test(n)).length,12);studioExport=exportId;}
+   if (format === 'pdf') {
+     assert.equal(file.headers.get('content-type'), 'application/pdf');
+     assert.equal((await PDFDocument.load(file.body)).getPageCount(), 12);
+   }
    if(format==='png')assert.deepEqual([...file.body.slice(0,8)],[137,80,78,71,13,10,26,10]);
    if(format==='svg')assert.match(new TextDecoder().decode(file.body),/<svg/);
    if(format==='xlsx'){const zip=await JSZip.loadAsync(file.body);assert.ok(zip.file('xl/workbook.xml'));}

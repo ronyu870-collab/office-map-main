@@ -24,7 +24,8 @@ export function metricPage(title: string, report: Evidence<Metrics>, keys: reado
     const value = metricValue(report.value, key);
     if (value === null) return [];
     const metric = metricInfo[key];
-    return [bind({ kind: 'metric', label: metric.label, value: value * metric.scale, unit: metric.unit }, [report])];
+    const displayValue = Number((value * metric.scale).toFixed(metric.digits));
+    return [bind({ kind: 'metric', label: metric.label, value: displayValue, unit: metric.unit }, [report])];
   });
   return blocks.length ? { title, subtitle, composition: 'kpi', blocks } : null;
 }

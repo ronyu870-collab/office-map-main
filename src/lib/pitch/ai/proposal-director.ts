@@ -62,7 +62,7 @@ export type DirectedSlide = SlideIntent & {
   uncertainties: string[];
 };
 
-export type DirectedProposalPlan = ProposalPlan & { slides: DirectedSlide[] };
+export type DirectedProposalPlan = Omit<ProposalPlan, "slides"> & { slides: DirectedSlide[] };
 
 type ModelRoute = Pick<Awaited<ReturnType<typeof interpretProposal>>, "modelCalls" | "modelStatus">;
 type PlanState = { status: "clarification" | "unavailable"; code: string; message: string; candidates?: ProposalBuildingCandidate[] }
