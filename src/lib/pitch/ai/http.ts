@@ -71,6 +71,19 @@ export async function handleAiRequest(
     if (c.action === "recommend")
       return reply(await recommendAssets(ctx, c.query));
     if (c.action === "prepare") return reply(await preparePitch(ctx, c.input));
+    if (c.action === "proposal_plan") {
+      const { prepareProposal } = await import("./proposal-runtime");
+      const { authorizedProposalModel } = await import("./proposal-model");
+      return reply(await prepareProposal(ctx, c.input, await authorizedProposalModel(ctx, c.input)));
+    }
+    if (c.action === "proposal_generate") {
+      const { generateConfirmedProposal } = await import("./proposal-generation-runtime");
+      return reply(await generateConfirmedProposal(ctx, c.confirmation));
+    }
+    if (c.action === "proposal_revision") {
+      const { planProposalRevision } = await import("./proposal-revision-runtime");
+      return reply(await planProposalRevision(ctx, c.input));
+    }
     if (c.action === "outline")
       return reply(await suggestOutline(ctx, c.query, c.projectId));
     if (c.action === "revision_preview") return reply(await previewRevision(ctx, c.taskId, c));
@@ -119,6 +132,7 @@ export async function handleAiRequest(
       return reply({ error: "登录状态已变化，请重新进入。" }, 401);
     if (code === "PITCH_AI_PREVIEW_REQUIRED")
       return reply({ code, error: "请重新查看修改前后对照，再确认保存草稿。" }, 409);
+    if (code === "PITCH_PROPOSAL_REVIEW_REQUIRED") return reply({ code, error: "来源或范围已变化，请重新审阅提案。" }, 409);
     if (code === "PITCH_CONFLICT")
       return reply({ error: "版本已更新，请重新读取后再保存。" }, 409);
     if (

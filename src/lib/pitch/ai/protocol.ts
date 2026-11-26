@@ -3,6 +3,8 @@ import { scopedModelProfileSchema } from "@/src/lib/intelligence/agent/modelProf
 import { layoutIdSchema } from "../contracts/scene";
 import { scopeSchema } from "../contracts/content";
 import { generationPartSchema } from "../business/protocol";
+import { confirmedProposalSchema, proposalRequestSchema } from "./proposal-brief";
+import { proposalRevisionRequestSchema } from "./proposal-edit-intent";
 
 export const AI_VERSION = "pitch-ai/1";
 export const taskIds = [
@@ -244,6 +246,9 @@ export const aiCommandSchema = z.discriminatedUnion("action", [
     query: recommendationSchema,
   }),
   z.strictObject({ action: z.literal("prepare"), input: nlSchema }),
+  z.strictObject({ action: z.literal("proposal_plan"), input: proposalRequestSchema }),
+  z.strictObject({ action: z.literal("proposal_generate"), confirmation: confirmedProposalSchema }),
+  z.strictObject({ action: z.literal("proposal_revision"), input: proposalRevisionRequestSchema }),
   z.strictObject({ action: z.literal("outline"), query: recommendationSchema, projectId: z.uuid().optional() }),
   z.strictObject({
     action: z.literal("feedback"),

@@ -56,6 +56,9 @@
 # 2026-11-27 — Pitch Studio 3.0 房地产提案（独立 PR）
 
 - 新增招商代理、写字楼选址、季度市场报告和单楼推介四类证据驱动配方。按获权楼宇、期间、素材与主题生成可编辑页面，保留缺项、原始来源和客户披露约束。见[房地产提案编排](docs/pitch-studio/flagship-proposals.md)。
+# 2026-11-27 — Pitch Studio 3.0 AI 提案策划（开发分支）
+
+- 增加自然语言提案策划、逐页来源绑定、确认生成及版本化修订审阅。既有确定性模板保留；符合运营许可的复杂需求使用一次结构化模型解释。接口、数据范围及专项回归见[AI Proposal Director](docs/pitch-studio/proposal-director.md)。
 
 # 2026-11-27 — Pitch Studio 2.0 提纲交付（开发分支）
 
