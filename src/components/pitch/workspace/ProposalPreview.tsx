@@ -8,6 +8,7 @@ import type { Call } from "./client";
 import { WorkspaceError } from "./client";
 import styles from "./workspace.module.css";
 
+const projectThemeSchema = z.object({ id: z.string().min(1).max(100), version: z.number().int().positive() });
 const responseSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("ready"),
@@ -16,6 +17,7 @@ const responseSchema = z.discriminatedUnion("status", [
       title: z.string(),
       version: z.number().int().positive(),
       contextFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      theme: projectThemeSchema.optional(),
       slides: z.array(z.object({ id: z.uuid(), title: z.string() })),
       gaps: z.array(z.object({ pageKind: z.string(), reason: z.string() })),
     }),
@@ -44,9 +46,19 @@ type Request = {
   period?: string;
   audience: "internal";
 };
-const receiptSchema = z.object({ taskId: z.uuid(), projectId: z.uuid(), state: z.literal("completed") });
+const receiptSchema = z.discriminatedUnion("state", [
+  z.object({ taskId: z.uuid(), state: z.literal("completed"), projectId: z.uuid() }),
+  z.object({ taskId: z.uuid(), state: z.enum(["queued", "running", "failed", "cancelled"]), projectId: z.uuid().optional() }),
+]);
 type Project = { id: string; version: number };
-export type ProposalProjectInput = { id: string; title: string; language: "zh" | "en"; buildingIds: string[]; period: string };
+export type ProposalProjectInput = {
+  id: string;
+  title: string;
+  language: "zh" | "en";
+  buildingIds: string[];
+  period: string;
+  theme?: z.infer<typeof projectThemeSchema>;
+};
 type Destination =
   | { projectId: string; projectVersion: number; createProject?: never }
   | { projectId?: never; projectVersion?: never; createProject: (input: ProposalProjectInput) => Promise<Project> };
@@ -67,11 +79,13 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   const [error, setError] = useState("");
   const [working, setWorking] = useState<"plan" | "generate">();
   const [recovery, setRecovery] = useState(false);
+  const [taskProgress, setTaskProgress] = useState<{ key: string; state: "queued" | "running" }>();
   const submission = useRef<{ key: string; taskId: string; sourceId: string; source?: Project; completedProject?: string }>(null);
   const request = useRef<AbortController | null>(null);
   const autoStarted = useRef(false);
   const inputKey = JSON.stringify([projectId, projectVersion, city, question, language, period, buildingIds]);
   const visible = result?.key === inputKey ? result.data : undefined;
+  const taskState = taskProgress?.key === inputKey ? taskProgress.state : undefined;
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
 
   useEffect(() => () => request.current?.abort(), []);
@@ -137,6 +151,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
             language: visible.brief.language ?? language,
             buildingIds: visible.brief.buildingIds,
             period: visible.brief.period ?? "",
+            theme: visible.plan.theme,
           });
         if (current.signal.aborted) return;
         const source = entry.source;
@@ -145,7 +160,19 @@ export function ProposalPreview({ call, projectId, city, question, language, per
           confirmation: { taskId: entry.taskId, projectId: source.id, expectedVersion: source.version,
             planId, contextFingerprint, request: { ...result.input, projectId: source.id } },
         }, true, "ai", current.signal));
+        if (current.signal.aborted) return;
         if (receipt.taskId !== entry.taskId) throw new Error("生成任务编号不匹配，请重新查询。");
+        if (receipt.state === "queued" || receipt.state === "running") {
+          setTaskProgress({ key: inputKey, state: receipt.state });
+          return;
+        }
+        setTaskProgress(undefined);
+        if (receipt.state !== "completed") {
+          submission.current = { ...entry, taskId: crypto.randomUUID() };
+          setRecovery(false);
+          setError(receipt.state === "cancelled" ? "生成已取消。可以重新生成。" : "生成失败。可以重新生成。");
+          return;
+        }
         entry.completedProject = receipt.projectId;
       }
       if (!current.signal.aborted) await onGenerated(entry.completedProject);
@@ -153,6 +180,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
       if (current.signal.aborted) return;
       if (cause instanceof WorkspaceError && cause.status === 409) {
         if (!projectId) entry.source = undefined;
+        setTaskProgress(undefined);
         setResult(undefined);
         setError("项目或资料已更新，请重新规划正式提案。");
       } else {
@@ -166,7 +194,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   }
 
   return <section className={styles.proposalReview} aria-label="业务提案规划">
-    <Button variant="secondary" disabled={disabled || !question.trim() || !validPeriod || working === "generate"}
+    <Button variant="secondary" disabled={disabled || !question.trim() || !validPeriod || !!taskState || working === "generate"}
       loading={working === "plan"} loadingLabel="正在核对范围与正式资料…" onClick={() => void preview()}>
       规划正式提案
     </Button>
@@ -184,9 +212,10 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         <summary>资料缺口（{visible.plan.gaps.length}）</summary>
         <ul>{visible.plan.gaps.map(({ reason }, index) => <li key={index}>{reason}</li>)}</ul>
       </details>}
+      {taskState && <p role="status">{taskState === "queued" ? "等待生成提案…" : "正在生成提案…"}</p>}
       <Button disabled={disabled || working === "plan"} loading={working === "generate"}
-        loadingLabel="正在按已核对的方案生成…" onClick={() => void generate()}>
-        {recovery ? "重新查询或继续生成" : "确认并生成 Pitch"}
+        loadingLabel={taskState ? "正在查询生成进度…" : "正在按已核对的方案生成…"} onClick={() => void generate()}>
+        {taskState ? "查询生成进度" : recovery ? "重新查询或继续生成" : "确认并生成 Pitch"}
       </Button>
     </>}
     {visible && visible.status !== "ready" && <>

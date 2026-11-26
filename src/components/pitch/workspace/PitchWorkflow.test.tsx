@@ -111,3 +111,36 @@ it("rechecks the same home project version when confirming a newly reviewed plan
   expect(createProject).toHaveBeenCalledTimes(2);
   expect(createProject.mock.calls[1][0].id).toBe(createProject.mock.calls[0][0].id);
 });
+
+it("checks server-reported generation stages with the original confirmation and retries a cancelled job with a new ID", async () => {
+  const user = userEvent.setup();
+  const confirmations: { taskId: string }[] = [];
+  const onGenerated = vi.fn(async () => {});
+  const call = vi.fn(async (entry: Record<string, unknown>) => {
+    if (entry.action === "proposal_plan") {
+      return { status: "ready", selection: "none",
+        plan: { id, title: "季度市场报告", version: 1, contextFingerprint: fingerprint,
+          slides: [{ id: newId, title: "北京市场" }], gaps: [] },
+        brief: { city: "北京", submarkets: [], period: "2026-Q3", buildingIds: [] } };
+    }
+    const confirmation = entry.confirmation as { taskId: string };
+    confirmations.push(confirmation);
+    const state = ["queued", "running", "cancelled", "completed"][confirmations.length - 1];
+    return { taskId: confirmation.taskId, state, ...(state === "completed" ? { projectId: newId } : {}) };
+  }) as unknown as Call;
+  render(<ProposalPreview call={call} projectId={id} projectVersion={1} question="北京季度写字楼市场报告"
+    language="zh" period="" buildingIds={[]} disabled={false} onGenerated={onGenerated} />);
+  await user.click(screen.getByRole("button", { name: "规划正式提案" }));
+  await user.click(await screen.findByRole("button", { name: "确认并生成 Pitch" }));
+  await screen.findByText("等待生成提案…");
+  await user.click(screen.getByRole("button", { name: "查询生成进度" }));
+  await screen.findByText("正在生成提案…");
+  await user.click(screen.getByRole("button", { name: "查询生成进度" }));
+  await screen.findByText("生成已取消。可以重新生成。");
+  expect(confirmations[1]).toEqual(confirmations[0]);
+  expect(confirmations[2]).toEqual(confirmations[0]);
+  expect(onGenerated).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "确认并生成 Pitch" }));
+  await waitFor(() => expect(onGenerated).toHaveBeenCalledWith(newId));
+  expect(confirmations[3].taskId).not.toBe(confirmations[0].taskId);
+});
