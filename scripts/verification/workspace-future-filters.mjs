@@ -23,7 +23,7 @@ export async function verifyFutureConditions(page,{width,stock,future}) {
     const calendar=page.getByRole('region',{name:'未来供应',exact:true});
     const toggle=page.getByRole('button',{name:'未来供应',exact:true});
     if(await toggle.getAttribute('aria-pressed')!=='true') await toggle.click();
-    await calendar.locator('.workspace-panel-subtitle').filter({hasText:new RegExp(`^${total} 个项目$`)}).waitFor();
+    await calendar.locator('.workspace-panel-subtitle, .workspace-heading-meta').filter({hasText:new RegExp(`^${total} 个项目$`)}).waitFor();
     if(!total) assert.equal(await calendar.getByRole('button',{name:new RegExp('^'+future[0].name)}).count(),0);
   };
   console.log(`future conditions ${width}: starting`);
