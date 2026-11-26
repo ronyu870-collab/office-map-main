@@ -104,3 +104,13 @@
 }
 .result > [aria-label="查询数据状态"] { width: 100%; max-width: var(--cd-ai-reading-width); margin-inline: auto; }
 .readingVisual { width: 100%; max-width: var(--cd-ai-reading-width); margin-inline: auto; }
+
+/* Clear reading axis; full data tables can extend beyond it. */
+.answer .conclusion { max-width: none; font-size: var(--cd-ai-body-size); line-height: 1.75; margin: 0; }
+.scope { margin-top: var(--cd-space-2); }
+.readingSection { margin-block: var(--cd-space-4); }
+.readingSection + .readingSection { margin-top: var(--cd-space-4); }
+.details { margin-block: var(--cd-space-1); }
+.chartSettings { margin-block-start: var(--cd-space-1); }
+.sourceSummary { padding-top: var(--cd-space-2); border-top: 1px solid var(--cd-color-border); }
+.resultActions { margin-top: var(--cd-space-2); }

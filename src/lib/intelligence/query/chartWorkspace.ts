@@ -128,7 +128,11 @@ export function axisTicks(domain: [number, number], count = 5) {
   return Array.from({ length: count }, (_, i) => domain[0] + i / (count - 1) * (domain[1] - domain[0]));
 }
 export function axisText(n: number, unit: string | null) {
-  return `${Number(n.toPrecision(6)).toLocaleString('zh-CN', { maximumFractionDigits: 6 })}${unit === 'ratio' || unit === 'percent' ? '%' : unit === 'percentage_point' ? ' pp' : ''}`;
+  if (!Number.isFinite(n)) throw new Error('CHART_RANGE_UNSUPPORTED');
+  // Projected ratios already use percentage units. Avoid raw floating tails and
+  // preserve small tick intervals without changing the source cell precision.
+  const digits = Math.abs(n) > 0 && Math.abs(n) < .01 ? 6 : 2;
+  return `${n.toLocaleString('zh-CN', { maximumFractionDigits: digits })}${unit === 'ratio' || unit === 'percent' ? '%' : unit === 'percentage_point' ? ' pp' : ''}`;
 }
 
 /** A single geometry contract shared by preview, SVG and PNG rasterization. */

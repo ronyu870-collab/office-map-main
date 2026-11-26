@@ -6,7 +6,7 @@ import { cellText, resultScopeText, units, type QueryResultView } from '@/src/li
 import { researchAnalysisSchema, type ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnalysisView';
 import { metricLabels, resultMetrics, resultMetricAnalysis } from '@/src/lib/intelligence/query/multiMetricView';
 import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailability';
-import { composeResponse, responseDecision, responseFactCells, responseResultContent, responseTableTitle } from '@/src/lib/intelligence/query/responsePresentation';
+import { answerDisplayPreferences, composeResponse, responseDecision, responseFactCells, responseResultContent, responseTableTitle } from '@/src/lib/intelligence/query/responsePresentation';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryResearch } from './HomeQueryResearch';
@@ -20,9 +20,9 @@ import { useQueryDetail } from './HomeQueryDetailPanel';
 import styles from './HomeQuery.module.css';
 import experienceStyles from './HomeQueryResultExperience.module.css';
 
-export const HomeQueryResult = React.memo(function HomeQueryResult({ result, requestId, scope, delivery, internalExport = false, presentation = 'expanded', visible = true, responseActions, answerTask }: {
+export const HomeQueryResult = React.memo(function HomeQueryResult({ result, requestId, scope, delivery, internalExport = false, presentation = 'expanded', visible = true, responseActions, answerTask, question }: {
   result: QueryResultView; requestId?: string; scope?: QueryClientScope; delivery?: object; internalExport?: boolean;
-  presentation?: 'compact' | 'expanded'; onExpand?: () => void; visible?: boolean; responseActions?: React.ReactNode; answerTask?: string;
+  presentation?: 'compact' | 'expanded'; onExpand?: () => void; visible?: boolean; responseActions?: React.ReactNode; answerTask?: string; question?: string;
 }) {
   const [page, setPage] = React.useState(0);
   const [selected, setSelected] = React.useState<{ ids: readonly string[]; label: string } | null>(null);
@@ -35,9 +35,9 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   const sourceDetailId = `${result.resultId}-${sectionId}-sources`;
   const detail = useQueryDetail();
   const hasDetailPanel = !!detail;
-  const blocks = React.useMemo(() => composeResponse(undefined, result, answerTask).blocks, [result, answerTask]);
+  const blocks = React.useMemo(() => composeResponse(undefined, result, answerTask, question).blocks, [result, answerTask, question]);
   const availability = resultAvailability(result);
-  const decision = React.useMemo(() => responseDecision(result, answerTask), [result, answerTask]);
+  const decision = React.useMemo(() => responseDecision(result, answerTask, question), [result, answerTask, question]);
   const facts = React.useMemo(() => responseFactCells(result, answerTask), [result, answerTask]);
   const research = React.useMemo(() => {
     const parsed = researchAnalysisSchema.safeParse(result.parameters.researchAnalysis);
@@ -47,7 +47,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   }, [result]);
   const { conclusion, context, primaryFinding } = React.useMemo(() => responseResultContent(result, research), [result, research]);
   const [tableOpen, setTableOpen] = React.useState(false);
-  const [insightsOpen, setInsightsOpen] = React.useState(false);
+  const [insightsOpen, setInsightsOpen] = React.useState(() => answerDisplayPreferences(question).wantsSamples && result.table.rows.length > 2 && result.operation === 'compare');
   const sourceMap = React.useMemo(() => new Map(result.sources.map(source => [source.id, source])), [result]);
   const sources = selected ? selected.ids.flatMap(id => sourceMap.has(id) ? [sourceMap.get(id)!] : []) : [];
   useQueryPresentationReceipt(scope, delivery, { surface: 'answer_table', page, pageSize: 25, sourceIds: sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => source.id) }, visible);
@@ -63,7 +63,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
     if (!hasDetailPanel) sourcePanel.current?.scrollIntoView?.({ block: 'nearest' });
   }, [selected, hasDetailPanel]);
   const analysisSection = (requestId && scope || research) && <section id={`${sectionId}-analysis`} tabIndex={-1} className={`${experienceStyles.readingSection} ${['rank', 'trend', 'compare', 'aggregate', 'list'].includes(result.operation) ? experienceStyles.readingVisual : ''}`} aria-label="图表与分析">
-    {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible} actionContainer={actionContainer} responseActions={responseActions} />}
+    {requestId && scope && <HomeQueryArtifacts autoChart={decision.primaryExpression === 'chart'} result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible} actionContainer={actionContainer} responseActions={responseActions} />}
     {research && <details className={experienceStyles.details} open={insightsOpen} onToggle={event => setInsightsOpen(event.currentTarget.open)}><summary>分析与样本核查</summary><div hidden={!insightsOpen}><HomeQueryInsights research={research} primaryFindingId={primaryFinding?.id} onSource={showSources} /></div></details>}
     </section>;
   const renderers: Partial<Record<(typeof blocks)[number]['type'], () => React.ReactNode>> = {
@@ -129,7 +129,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   }
   return <section ref={resultPanel} tabIndex={-1} className={`${styles.result} ${experienceStyles.result}`} aria-label="查询结果" data-presentation={presentation} data-result-id={result.resultId}>
     {availability && <section className={styles.emptyState} aria-label="查询数据状态"><h3>{availability.title}</h3><p>{availability.description}</p></section>}
-    {blocks.map(block => <div key={block.type} className={block.type === 'file' ? experienceStyles.readingVisual : ['analysis', 'building', 'table', 'research'].includes(block.type) ? experienceStyles.readingSection : undefined}>
+    {blocks.map(block => <div key={`${result.resultId}:${block.type}`} className={block.type === 'file' ? experienceStyles.readingVisual : ['analysis', 'building', 'table', 'research'].includes(block.type) ? experienceStyles.readingSection : undefined}>
       {renderers[block.type]?.()}
       {!availability && ['summary', 'metrics', 'building'].includes(block.type) && <ResultBoundary result={result} research={research} />}
     </div>)}
@@ -155,8 +155,8 @@ function ResultBoundary({ result, research }: { result: QueryResultView; researc
   });
   const incompletePeriods = research?.series.some(series => series.periods.some(period => period.coverage.valid < period.coverage.total));
   const notices = [...coverageNotes, unknown ? '部分结果值暂无可交付数值，不按零处理。' : '',
-    incompletePeriods ? '部分候选未参与计算，各期有效样本与缺失情况见明细。' : '',
-    scope?.inventoryTime === 'current_catalog' && result.sources.some(source => source.period) ? '分类依据当前目录，不代表历史市场全集。' : '',
+    incompletePeriods ? '部分楼宇缺少有效数据，未参与计算。' : '',
+    scope?.inventoryTime === 'current_catalog' && result.sources.some(source => source.period) ? '楼宇分类按当前目录，不代表历史市场全集。' : '',
     result.sources.some(source => source.verification === 'unreviewed') ? '部分来源尚未核验。' : '',
     historical && !lease ? '含历史来源，不能确认当前有效性。' : '', limited ? '研究分析受资源范围限制，详见数据依据。' : ''].filter(Boolean);
   return notices.length ? <p className={experienceStyles.scope} aria-label="重要数据限制">{notices.join(' ')}</p> : null;

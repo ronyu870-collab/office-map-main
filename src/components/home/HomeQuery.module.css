@@ -208,3 +208,6 @@
 .sendButton[data-busy="true"] .sendGlyph svg:first-child { opacity: 0; }
 .sendButton[data-busy="true"] .sendGlyph svg:last-child { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .sendButton, .sendGlyph svg { transition: none; } .sendButton:enabled:active { transform: none; } }
+
+.chart { margin-top: var(--cd-space-2); padding-block: 0 var(--cd-space-2); }
+.scatterScroll { margin-top: var(--cd-space-2); }
