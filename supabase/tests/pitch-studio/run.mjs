@@ -197,7 +197,8 @@ try {
   if(format==='xlsx'){const XLSX=await import('xlsx');const book=XLSX.read(file.bytes,{type:'array'});assert.equal(book.SheetNames.length,1);}
  });
  await check('revoked authority blocks queued task, preview, status and previously archived file; expiry becomes explicit failed receipt',async()=>{
-  const command={action:'export_start',projectId:studioProject,exportId:randomUUID(),audience:'internal',format:'pptx'};await prepareRenderExport(owner,command);
+  const command={action:'export_start',projectId:studioProject,exportId:randomUUID(),audience:'internal',format:'pptx',pages:[0,8]};
+  assert.equal((await prepareRenderExport(owner,command)).state,'pending');
   await db.setup.query('update private.pitch_grants set enabled=false where user_id=$1',[OWNER]);
   await runRenderExport(owner,command);await assert.rejects(previewPage(owner,{action:'preview',projectId:studioProject,page:0}),/PITCH_DENIED/);await assert.rejects(downloadArtifact(owner,latest),/PITCH_DENIED/);
   await assert.rejects(db.rpc(OWNER,{action:'export_status',projectId:studioProject,exportId:command.exportId}),e=>e.code==='42501');

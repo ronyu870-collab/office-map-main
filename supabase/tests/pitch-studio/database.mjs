@@ -43,11 +43,11 @@ export async function createPitchDatabase() {
           await setup.query('set local role authenticated');const out=await setup.query(sql,params);await setup.query('commit');return out;
         } catch(error){await setup.query('rollback');throw error;}
       },
-      async rpc(uid,input){
-        await setup.query('begin');try{
-          await setup.query('set local role service_role');
-          const out=await setup.query('select public.pitch_studio_access($1,$2,$3) result',[uid,sessionFor(uid),input]);await setup.query('commit');return out.rows[0].result;
-        }catch(error){await setup.query('rollback');throw error;}
+      async rpc(uid,input,connection=setup){
+        await connection.query('begin');try{
+          await connection.query('set local role service_role');
+          const out=await connection.query('select public.pitch_studio_access($1,$2,$3) result',[uid,sessionFor(uid),input]);await connection.query('commit');return out.rows[0].result;
+        }catch(error){await connection.query('rollback');throw error;}
       },
       async close(){await setup.end();await admin.query(`drop database ${database} with(force)`);await admin.end();}
     };

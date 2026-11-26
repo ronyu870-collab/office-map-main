@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import JSZip from "jszip";
 import { PDFDocument } from "pdf-lib";
+import pg from "pg";
 import {
   createPitchDatabase,
   OWNER,
@@ -796,6 +797,79 @@ try {
       assert.equal((await render.prepareRenderExport(ordinary, { ...request, exportId: randomUUID(), pages: [0, 49] })).state, "pending");
       await workspace.saveWorkspace(ordinary, save(reopened, { title: "已修改的五十页项目" }));
       assert.equal((await render.prepareRenderExport(ordinary, { ...request, exportId: randomUUID() })).state, "pending");
+    },
+  );
+  await check(
+    "equivalent concurrent exports render once and a follower takes over a failed worker",
+    async () => {
+      let project = await create(ordinary, "并行导出回归");
+      project = await workspace.customWorkspace(ordinary, {
+        action: "custom", projectId: project.project.id, expectedVersion: project.project.version,
+        title: "原生可编辑页", body: "相同版本和范围的独立导出收据。",
+      });
+      const command = { action: "export_start", projectId: project.project.id, format: "pptx", audience: "internal" };
+      const start = async (format = command.format) => {
+        const request = { ...command, format, exportId: randomUUID() };
+        assert.equal((await render.prepareRenderExport(ordinary, request)).state, "pending");
+        return request;
+      };
+      const first = await start();
+      const duplicate = await start();
+      const separate = await start("pdf");
+      const claim = request => ({
+        action: "export_claim", projectId: request.projectId, exportId: request.exportId, workerToken: randomUUID(),
+      });
+      const status = request => db.rpc(OTHER, { action: "export_status", projectId: request.projectId, exportId: request.exportId });
+      const archiveBefore = files.size;
+      const paused = Promise.withResolvers();
+      const reachedUpload = Promise.withResolvers();
+      const slowWorker = { ...ordinary, client: { ...ordinary.client, storage: { from(bucket) {
+        const storage = ordinary.client.storage.from(bucket);
+        return { ...storage, async upload(path, bytes) {
+          reachedUpload.resolve();
+          await paused.promise;
+          return storage.upload(path, bytes);
+        } };
+      } } } };
+      const working = render.runRenderExport(slowWorker, first);
+      try {
+        await Promise.race([reachedUpload.promise, working.then(() => assert.fail("first renderer did not reach upload"))]);
+        assert.equal((await status(first)).stage, "storing");
+        await assert.rejects(db.rpc(OWNER, claim(duplicate)), error => error.code === "42501");
+        assert.equal((await status(duplicate)).stage, "waiting_for_package");
+        assert.equal((await status(separate)).stage, "queued");
+        await render.runRenderExport(ordinary, duplicate);
+        assert.equal((await status(duplicate)).stage, "waiting_for_package");
+        assert.equal(files.size, archiveBefore);
+      } finally {
+        paused.resolve();
+        await working;
+      }
+      assert.equal((await status(first)).state, "ready");
+      assert.equal((await status(duplicate)).state, "ready");
+      assert.equal(files.size, archiveBefore + 1);
+      assert.equal((await db.setup.query("select file_export_id from pitch_exports where id=$1", [duplicate.exportId])).rows[0].file_export_id, first.exportId);
+      assert.deepEqual((await render.downloadArtifact(ordinary, duplicate)).bytes, (await render.downloadArtifact(ordinary, first)).bytes);
+
+      const requests = [separate, await start("pdf")];
+      const claims = requests.map(claim);
+      const peer = new pg.Client({ ...db.config, database: db.database, statement_timeout: 5000 });
+      await peer.connect();
+      let results;
+      try {
+        results = await Promise.all([db.rpc(OTHER, claims[0]), db.rpc(OTHER, claims[1], peer)]);
+      } finally {
+        await peer.end();
+      }
+      assert.equal(results.filter(item => item.claimed).length, 1, JSON.stringify(results));
+      const failed = results.findIndex(item => item.claimed);
+      const successor = requests[1 - failed];
+      assert.equal((await status(successor)).stage, "waiting_for_package");
+      await db.rpc(OTHER, { ...claims[failed], action: "export_fail", errorCode: "PITCH_STORAGE_UNAVAILABLE" });
+      assert.equal((await status(successor)).stage, "queued");
+      await render.runRenderExport(ordinary, successor);
+      assert.equal((await status(successor)).state, "ready");
+      assert.equal((await PDFDocument.load((await render.downloadArtifact(ordinary, successor)).bytes)).getPageCount(), 1);
     },
   );
   await check(
