@@ -80,3 +80,4 @@ next-env.d.ts
 
 # Disposable Pitch Studio database, build logs and verification artifacts.
 /tmp/
+/verification/ai-control-center/

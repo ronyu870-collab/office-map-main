@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { bindRuntimeControl } from '../control/runtimeControl';
 import { modelAvailability } from '@/src/lib/intelligence/agent/modelRuntime';
 import { authorizePlan } from './admission';
 import { queryHttpDependencies } from './http';
@@ -23,7 +25,8 @@ export async function handleQueryCapabilities(request: Request, dependencies: Re
         if (result.kind !== 'plan') return false;
         try { authorizePlan(result.plan, authority); return true; } catch { return false; }
       });
-    const models = modelAvailability(identity.actorId), available = models.deepseek || models.openai;
+    const binding=await bindRuntimeControl(dependencies.client,identity,AbortSignal.any([request.signal,AbortSignal.timeout(4000)]),randomUUID());
+    const models = modelAvailability(identity.actorId,binding.availabilityModels), available = models.deepseek || models.openai;
     return json({ enabled: true, examples, internalExport: authority.grants.includes('export:internal'), agentEnabled: available,
       modelModes: models.modes, agentStreamEnabled: available && process.env.AI_AGENT_STREAM_ENABLED !== 'false', grammarVersion: QUESTION_GRAMMAR_VERSION, permissionRevision: authority.permissionRevision, authority: queryCapabilityManifest(authority) });
   } catch (error) {

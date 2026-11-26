@@ -5,6 +5,9 @@ export const RELIABLE_ROUTES = new Map([
   ['src/app/api/intelligence/pitch/business/route.ts',['handleBusinessRequest(', 'pitch_studio_access']],
   ['src/app/api/intelligence/pitch/library/route.ts',['handleLibraryRequest(', 'pitch_studio_access']],
   ['src/app/api/intelligence/pitch/route.ts',['handlePitchRequest(', 'pitch_studio_access']],
+  // Atomic ai_management_events and mandatory encrypted protocol-test audit are
+  // enforced in the delegated handler/RPCs; PostgreSQL and real Auth tests cover failures.
+  ['src/app/api/intelligence/management/route.ts',['await handleManagement(','queryHttpDependencies()']],
   ...['map/building-photos','map/sales-materials'].map(route=>[`src/app/api/${route}/route.ts`,['withCriticalAudit(']]),
   ...['admin/create-user','admin/reset-password','admin/users','auth/complete-password-change','oss','map/submarket','admin/audit/export','lease-submission/export','audit-events/critical'].map(route=>[`src/app/api/${route}/route.ts`,['withCriticalAudit(']]),
   ['src/app/api/admin/transfer-submission/route.ts',["await client.rpc('transfer_lease_submission_v1'",'if (error)',"'TRANSFER_UNCONFIRMED'"]],

@@ -582,5 +582,35 @@
     "cases": [
       "keeps model filter focused through delayed and stale results, middle edits and Chinese IME"
     ]
+  },
+  {
+    "id": "ai-management-task-filters",
+    "roots": [
+      "src/components/admin/ai-management/AiManagementWorkspace.tsx"
+    ],
+    "file": "src/components/admin/ai-management/AiManagementWorkspace.test.tsx",
+    "cases": [
+      "keeps task filter focus, caret and Chinese composition across server results and empty pages"
+    ]
+  },
+  {
+    "id": "ai-management-grant-search",
+    "roots": [
+      "src/components/admin/ai-management/GovernancePanels.tsx"
+    ],
+    "file": "src/components/admin/ai-management/GovernancePanels.test.tsx",
+    "cases": [
+      "keeps grant search focus, caret and Chinese composition while delayed account results arrive"
+    ]
+  },
+  {
+    "id": "ai-management-model-filter",
+    "roots": [
+      "src/components/admin/ai-management/ControlConfiguration.tsx"
+    ],
+    "file": "src/components/admin/ai-management/ControlConfiguration.test.tsx",
+    "cases": [
+      "filters models by provider and name while retaining selected, ineligible, caret and Chinese composition states"
+    ]
   }
 ]

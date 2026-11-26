@@ -27,7 +27,7 @@ async function submit(question: string) {
   const request = new Request('https://www.colliersdata.com/api/intelligence/query/agent', { method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer isolated-obligation-fixture' },
     body: JSON.stringify({ idempotencyKey: randomUUID(), question, conversation: { id: randomUUID() } }) });
-  const rpc = vi.fn(() => ({ abortSignal: () => Promise.resolve({ data: { allowed: true }, error: null }) }));
+  const rpc = vi.fn((name:string) => ({ abortSignal: () => Promise.resolve(name==='ai_control_runtime'?{data:null,error:{code:'PGRST202',message:'Could not find ai_control_runtime'}}:{ data: { allowed: true }, error: null }) }));
   const response = await handleAgentSubmission(request, { client: { rpc } as unknown as SupabaseClient, keys, enabled: true });
   return { status: response.status, body: await response.json() };
 }

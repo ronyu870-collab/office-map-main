@@ -1,3 +1,4 @@
+import { verifyAiControlCenter } from './ai-control-center-scenarios.mjs';
 import { verifyAi6Runtime } from './ai6-runtime-scenarios.mjs';
 import { verifyAi5ModelOperations } from './ai5-model-operations-scenarios.mjs';
 import { verifyAi5FinalHardening } from './ai5-final-hardening-scenarios.mjs';
@@ -141,6 +142,7 @@ try{
   await installLeaseResearchFixture(db);
   await installBusinessFixture(db);
   await installKnowledgeFixture(db);
+  if(!(await db.query("select to_regclass('private.ai_control_state') r")).rows[0].r)await db.query(await load('20261125152942_ai_control_center.sql'));
   companyFixture = await setupCompanyAdmin(db, load);
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
@@ -607,6 +609,7 @@ try{
   await verifyP2Buildings({db,app,check,person,call,recover,events,decrypt,exportCaps});
   await verifyConversation({db,check,person,call,recover,events,decrypt,exportCaps,fixture:companyFixture});
   await verifyP2History({db,app,check,person,call,recover,artifact,events,decrypt,exportCaps});
+  await verifyAiControlCenter({db,app,check,person});
   await verifyAi6Runtime({db,app,fixture:companyFixture,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps});
   await verifyAi5Exports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Charts({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});

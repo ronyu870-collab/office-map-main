@@ -24,6 +24,7 @@ const chunkSchema = z.object({
   usage: z.object({
     prompt_tokens: z.number().int().nonnegative().optional(),
     completion_tokens: z.number().int().nonnegative().optional(),
+    prompt_cache_hit_tokens:z.number().int().nonnegative().optional(),completion_tokens_details:z.object({reasoning_tokens:z.number().int().nonnegative().optional()}).optional(),
   }).nullable().optional(),
 });
 const MAX_STREAM_BYTES = 1_000_000;
@@ -45,7 +46,7 @@ export async function parseDeepSeekStream(
   const observedTools = new Map<number, ToolAccumulator>();
   let buffer = '', totalBytes = 0, text = '', finishReason: string | null = null;
   let completed = false;
-  const accounting: { usage: { prompt_tokens?: number; completion_tokens?: number } | null } = { usage: null };
+  const accounting: { usage: { prompt_tokens?: number; completion_tokens?: number;prompt_cache_hit_tokens?:number;completion_tokens_details?:{reasoning_tokens?:number} } | null } = { usage: null };
   let providerRequestId = '', actualModel = requestedModel;
   const consume = async (raw: string) => {
     const lines = raw.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart());
@@ -121,6 +122,8 @@ export async function parseDeepSeekStream(
     return {
       model: actualModel, providerRequestId,
       message: { role: 'assistant', content: text || null, ...(tools.length ? { tool_calls: tools } : {}) },
+      ...(accounting.usage?.prompt_cache_hit_tokens!==undefined?{cachedInputTokens:accounting.usage.prompt_cache_hit_tokens}:{}),
+      ...(accounting.usage?.completion_tokens_details?.reasoning_tokens!==undefined?{reasoningTokens:accounting.usage.completion_tokens_details.reasoning_tokens}:{}),
       inputTokens: accounting.usage?.prompt_tokens ?? null, outputTokens: accounting.usage?.completion_tokens ?? null,
     };
   } catch (error) {

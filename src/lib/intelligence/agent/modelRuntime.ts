@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { selectConfiguredModel, type RegisteredModel } from '../control/config';
+import type { RuntimeControlBinding } from '../control/runtimeControl';
 import { requiresDataFactEvidence } from './queryObligation';
 import { compactModelContext, modelContextEnvelope, externalModelForbidden } from './modelContext';
 import { AGENT_TOOLS, completeWithDeepSeek, deepseekAgentConfigured, ModelProviderError } from './modelProvider';
@@ -27,19 +29,20 @@ function openAIAllowed(actorId: string) {
   return process.env.AI_OPENAI_ENABLED === 'true'
     && (process.env.AI_OPENAI_ACTOR_IDS ?? '').split(',').map(s => s.trim()).includes(actorId);
 }
-export function modelAvailability(actorId: string, scopedProfile?: ScopedModelProfile) {
+export function modelAvailability(actorId: string, configuration?: ScopedModelProfile | readonly RegisteredModel[]) {
+  const scopedProfile = configuration && !Array.isArray(configuration) ? scopedModelProfileSchema.parse(configuration) : undefined;
+  const registered = Array.isArray(configuration) ? configuration as readonly RegisteredModel[] : undefined;
   let openai = false;
   if (scopedProfile?.provider === 'openai') {
-    scopedModelProfileSchema.parse(scopedProfile);
     openai = openAIAllowed(actorId) && !!process.env.OPENAI_API_KEY?.trim();
-  } else if (openAIAllowed(actorId) && process.env.OPENAI_API_KEY?.trim() && process.env.OPENAI_AGENT_MODEL?.trim()) {
+  } else if (openAIAllowed(actorId) && process.env.OPENAI_API_KEY?.trim() && (registered ? registered.some(m => m.provider === 'openai' && m.enabled) : process.env.OPENAI_AGENT_MODEL?.trim())) {
     try {
-      boundedNumber('OPENAI_AGENT_INPUT_USD_PER_MILLION', NaN, 0, 1000);
-      boundedNumber('OPENAI_AGENT_OUTPUT_USD_PER_MILLION', NaN, 0, 1000);
+      if(!registered){boundedNumber('OPENAI_AGENT_INPUT_USD_PER_MILLION', NaN, 0, 1000);
+      boundedNumber('OPENAI_AGENT_OUTPUT_USD_PER_MILLION', NaN, 0, 1000);}
       openai = true;
     } catch { /* Invalid prices must not advertise a cost-governed model. */ }
   }
-  return { deepseek: deepseekAgentConfigured(), openai, modes: ['quick', 'professional', 'deep'] as const };
+  return { deepseek: registered?!!process.env.DEEPSEEK_API_KEY?.trim()&&registered.some(m=>m.provider==='deepseek'&&m.enabled):deepseekAgentConfigured(), openai, modes: ['quick', 'professional', 'deep'] as const };
 }
 type Rates = { input: number; output: number; basis: string };
 export type ModelAttempt = {
@@ -48,6 +51,7 @@ export type ModelAttempt = {
   inputTokens: number | null; outputTokens: number | null; cachedInputTokens: number | null; reasoningTokens: number | null;
   providerRequestId: string | null; estimateUsd: number; estimateBasis: string;
   reservationTokens: number; chargedTokens: number; usageStatus: 'provider_reported' | 'unknown_reserved' | 'not_sent';
+  configurationVersion?: string;
   purpose?: 'agent' | 'semantic_intent' | 'synthesis';
   context?: ReturnType<typeof modelContextEnvelope>;
   billing: { actualUsd: null; state: 'not_reconciled'; currency: 'USD' };
@@ -121,23 +125,30 @@ export function modelToolCatalogue(question: string, mode: ModelMode, messages: 
  * enforces the cross-instance per-account minute/day cap. No automatic SDK retries. */
 export function createModelRuntime(input: { actorId: string; question: string; mode?: ModelMode; hasChartContext?: boolean; contextDomains?: readonly ContextDomain[];
   revalidate: (signal: AbortSignal) => Promise<void>; admit?: (signal: AbortSignal) => Promise<void>; onAttempt: (attempt: ModelAttempt) => Promise<void>;
+  control?: RuntimeControlBinding;
+  protocolTest?: 'connection' | 'structured' | 'tools' | 'stream';
   legacyInvoke?: typeof completeWithDeepSeek; adapters?: Partial<Record<ProviderId, ModelAdapter>>;
   scopedProfile?: ScopedModelProfile;
   onReserve?: (reservation: { tokens: number; usd: number }, signal: AbortSignal) => Promise<void> }) {
   const scoped = input.scopedProfile ? scopedModelProfileSchema.parse(input.scopedProfile) : undefined;
   const mode = chooseModelMode(input.question, input.mode), configured = scoped?.provider ?? process.env[`AI_PROVIDER_${mode.toUpperCase()}`] ?? 'deepseek';
   if (!['deepseek', 'openai'].includes(configured)) throw new ModelProviderError('invalid_configuration');
+  // A content-specific grant pins the provider/model. Ordinary mode selection
+  // and fallback cannot expand that grant; live beforeCall controls still apply.
+  const snapshot = scoped ? undefined : input.control?.snapshot;
+  const policy = snapshot?.config.modes[mode];
   let active: ProviderId = scoped?.provider ?? (configured === 'openai' && openAIAllowed(input.actorId) ? 'openai' : 'deepseek');
+  const runtimeLimits = scoped ? { rounds: 0, tools: 0 } : policy ? { rounds: Math.max(1, policy.limits.attempts - 1), tools: policy.limits.tools } : limits[mode];
   let fallbackUsed = false, spent = 0, tokens = 0, attempts = 0;
   let budgetRejection: string | null = null;
   let busy = false, admitted = false;
   const rejectBudget = (reason: NonNullable<ModelProviderError['budgetReason']>): never => {
     budgetRejection = reason; throw new ModelProviderError('budget_exceeded', reason);
   };
-  const maxTokens = scoped?.maxTokens ?? Math.floor(boundedNumber('AI_AGENT_MAX_TOKENS', 60000, 1000, 60000));
-  const maxUsd = scoped?.maxUsd ?? boundedNumber('AI_AGENT_MAX_ESTIMATED_USD', .25, .000001, 5);
-  const maxOutputTokens = scoped?.maxOutputTokens ?? Math.floor(boundedNumber('AI_AGENT_MAX_OUTPUT_TOKENS', 1800, 256, 4096));
-  const timeoutMs = scoped?.timeoutMs ?? Math.floor(boundedNumber('AI_AGENT_PROVIDER_TIMEOUT_MS', 18000, 1000, 18000));
+  const maxTokens = Math.min(scoped?.maxTokens ?? Infinity, policy?.limits.tokens ?? Infinity, Math.floor(boundedNumber('AI_AGENT_MAX_TOKENS', 60000, 1000, 60000)));
+  const maxUsd = Math.min(scoped?.maxUsd ?? Infinity, policy?.limits.usd ?? Infinity, boundedNumber('AI_AGENT_MAX_ESTIMATED_USD', .25, .000001, 5));
+  const maxOutputTokens = Math.min(scoped?.maxOutputTokens ?? Infinity, policy?.limits.outputTokens ?? Infinity, Math.floor(boundedNumber('AI_AGENT_MAX_OUTPUT_TOKENS', 1800, 256, 4096)));
+  const timeoutMs = Math.min(scoped?.timeoutMs ?? Infinity, policy?.limits.timeoutMs ?? Infinity, Math.floor(boundedNumber('AI_AGENT_PROVIDER_TIMEOUT_MS', 18000, 1000, 18000)));
   const records: ModelAttempt[] = [];
   const openai = createOpenAIAdapter();
   const deepseek = createDeepSeekAdapter(input.legacyInvoke);
@@ -163,21 +174,30 @@ export function createModelRuntime(input: { actorId: string; question: string; m
     const messages = compactModelContext(originalMessages);
     for (;;) {
       signal.throwIfAborted(); await input.revalidate(signal);
-      const provider = active, started = Date.now();
+      const selected = snapshot ? selectConfiguredModel(snapshot, mode, purpose, fallbackUsed) : undefined;
+      const provider = selected?.provider ?? active, started = Date.now();
       let configurationFailure: unknown;
       let settings: { model: string; rates: Rates };
-      try { settings = config(provider); } catch (error) {
+      try {
+        if (selected) {
+          if (provider === 'openai' && !openAIAllowed(input.actorId)) throw new ModelProviderError('disclosure_denied');
+          if (!process.env[provider === 'openai' ? 'OPENAI_API_KEY' : 'DEEPSEEK_API_KEY']?.trim()) throw new ModelProviderError('not_configured');
+          settings = { model: selected.model, rates: { input: selected.inputRate, output: selected.outputRate, basis: selected.priceSource } };
+        } else settings = config(provider);
+      } catch (error) {
         configurationFailure = error;
         settings = { model: 'unconfigured', rates: { input: 0, output: 0, basis: 'request_not_sent' } };
       }
       const { model, rates } = settings;
-      const tools = scoped || purpose === 'semantic_intent' ? [] : modelToolCatalogue(input.question, mode, messages, input.hasChartContext, input.contextDomains);
+      const tools = scoped ? [] : input.protocolTest ? input.protocolTest === 'tools' ? [{name:'synthetic_sum',description:'Return the sum of the two synthetic integers.',parameters:{type:'object',properties:{a:{type:'integer'},b:{type:'integer'}},required:['a','b'],additionalProperties:false}}] : [] : purpose === 'semantic_intent' ? [] : modelToolCatalogue(input.question, mode, messages, input.hasChartContext, input.contextDomains)
+        .filter(tool => !snapshot?.config.disabledTools.includes(tool.name));
       const outputLimit = purpose === 'semantic_intent' ? Math.min(1200, maxOutputTokens) : maxOutputTokens;
       const context = modelContextEnvelope(provider, messages, tools);
       const upperInput = context.inputUpperTokens;
+      if (selected?.contextLimit !== null && selected?.contextLimit !== undefined && upperInput + outputLimit > selected.contextLimit) throw new ModelProviderError('invalid_configuration');
       const reserveTokens = configurationFailure ? 0 : upperInput + outputLimit;
       const reserveUsd = configurationFailure ? 0 : (upperInput * rates.input + outputLimit * rates.output) / 1e6;
-      if (attempts >= (scoped ? 1 : limits[mode].rounds + 1)) rejectBudget('attempt_limit');
+      if (attempts >= (scoped ? 1 : policy?.limits.attempts ?? runtimeLimits.rounds + 1)) rejectBudget('attempt_limit');
       if (tokens + reserveTokens > maxTokens) rejectBudget('token_reservation');
       if (spent + reserveUsd > maxUsd) rejectBudget('cost_reservation');
       if (!admitted && !configurationFailure) {
@@ -188,24 +208,31 @@ export function createModelRuntime(input: { actorId: string; question: string; m
       if (!configurationFailure) await input.onReserve?.({ tokens: reserveTokens, usd: reserveUsd }, signal);
       attempts++;
       let result: AgentCompletion | undefined, failure: unknown;
+      let sent = false;
       const deltas: string[] = [];
       try {
         if (configurationFailure) throw configurationFailure;
+        await input.control?.beforeCall(provider, model, signal, {attempt:attempts,reserveUsd,modelId:selected?.id??model});
+        sent = true;
         result = await (input.adapters?.[provider] ?? (provider === 'deepseek' ? deepseek : openai))(messages, signal,
           onDelta ? async delta => { deltas.push(delta); if (deltas.join('').length > 12000) throw new ModelProviderError('invalid_response'); } : undefined,
           { model, maxOutputTokens: outputLimit, timeoutMs: purpose === 'semantic_intent' ? Math.min(12000, timeoutMs) : timeoutMs, tools,
-            ...(purpose === 'semantic_intent' && provider === 'deepseek' ? { responseFormat: 'json_object' as const, maxResponseBytes: 32768 } : {}) });
+            ...(purpose === 'semantic_intent' && provider === 'deepseek' || input.protocolTest === 'structured' ? { responseFormat: 'json_object' as const, maxResponseBytes: 32768 } : {}) });
         if (result.provider !== provider || !Number.isSafeInteger(result.inputTokens ?? 0) || !Number.isSafeInteger(result.outputTokens ?? 0)
-          || (result.inputTokens ?? 0) < 0 || (result.outputTokens ?? 0) < 0) throw new ModelProviderError('invalid_response');
+          || (result.inputTokens ?? 0) < 0 || (result.outputTokens ?? 0) < 0
+          || [result.cachedInputTokens,result.reasoningTokens].some(n=>n!=null&&(!Number.isSafeInteger(n)||n<0))
+          || result.cachedInputTokens!=null&&result.inputTokens!=null&&result.cachedInputTokens>result.inputTokens
+          || result.reasoningTokens!=null&&result.outputTokens!=null&&result.reasoningTokens>result.outputTokens) throw new ModelProviderError('invalid_response');
       } catch (error) { failure = error; }
       const known = result && !failure && result.inputTokens !== null && result.outputTokens !== null;
-      const notSent = failure instanceof ModelProviderError && ['not_configured', 'invalid_configuration', 'disclosure_denied'].includes(failure.code);
+      const notSent = !!failure && (!sent || failure instanceof ModelProviderError && ['not_configured', 'invalid_configuration', 'disclosure_denied'].includes(failure.code));
       const chargedTokens = notSent ? 0 : known ? result!.inputTokens! + result!.outputTokens! : reserveTokens;
-      const estimateUsd = notSent ? 0 : known ? (result!.inputTokens! * rates.input + result!.outputTokens! * rates.output) / 1e6 : reserveUsd;
+      const cached = Math.min(result?.inputTokens ?? 0, Math.max(0, result?.cachedInputTokens ?? 0));
+      const estimateUsd = notSent ? 0 : known ? ((result!.inputTokens! - cached) * rates.input + cached * (selected?.cachedInputRate ?? rates.input) + result!.outputTokens! * rates.output) / 1e6 : reserveUsd;
       tokens += chargedTokens; spent += estimateUsd;
       const errorCode = failure instanceof ModelProviderError ? failure.code : signal.aborted ? 'cancelled'
         : failure instanceof Error && failure.message === 'QUERY_DENIED' ? 'authorization_denied' : failure ? 'provider_unavailable' : undefined;
-      const record: ModelAttempt = { purpose, context, protocol: 'agent-model-attempt/1', mode, attempt: attempts, provider, model: result?.model ?? model,
+      const record: ModelAttempt = { ...(snapshot ? { configurationVersion: snapshot.version } : {}), purpose, context, protocol: 'agent-model-attempt/1', mode, attempt: attempts, provider, model: result?.model ?? model,
         state: failure ? 'failed' : 'completed', ...(errorCode ? { errorCode } : {}), fallback: fallbackUsed,
         durationMs: Math.max(0, Date.now() - started), inputTokens: result?.inputTokens ?? null, outputTokens: result?.outputTokens ?? null,
         cachedInputTokens: result?.cachedInputTokens ?? null, reasoningTokens: result?.reasoningTokens ?? null,
@@ -213,6 +240,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         reservationTokens: reserveTokens, chargedTokens, usageStatus: notSent ? 'not_sent' : known ? 'provider_reported' : 'unknown_reserved',
         billing: { actualUsd: null, state: 'not_reconciled', currency: 'USD' } };
       records.push(record); await input.onAttempt(record);
+      await input.control?.settle?.(record);
       if (!failure) {
         if (tokens > maxTokens) rejectBudget('actual_token_limit');
         if (spent > maxUsd) rejectBudget('actual_cost_limit');
@@ -222,8 +250,8 @@ export function createModelRuntime(input: { actorId: string; question: string; m
       }
       // Never retry business authorization, cancellation or arbitrary exceptions.
       if (scoped || !(failure instanceof ModelProviderError) || !retryable.has(failure.code) || fallbackUsed
-        || process.env.AI_MODEL_FALLBACK_ENABLED !== 'true' || signal.aborted) throw failure;
-      const alternate = provider === 'deepseek' ? 'openai' : 'deepseek';
+        || process.env.AI_MODEL_FALLBACK_ENABLED !== 'true' || snapshot && !policy?.fallback || signal.aborted) throw failure;
+      const alternate = snapshot ? selectConfiguredModel(snapshot, mode, purpose, true).provider : provider === 'deepseek' ? 'openai' : 'deepseek';
       if (alternate === 'openai' && !openAIAllowed(input.actorId)) throw failure;
       await input.revalidate(signal); active = alternate; fallbackUsed = true;
     }
@@ -236,7 +264,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
     try { return await invokeInternal(messages, signal, onDelta, purpose); }
     finally { busy = false; }
   };
-  return { mode, interpret: (messages: AgentMessage[], signal: AbortSignal) => invoke(messages, signal, undefined, 'semantic_intent'), limits: limits[mode], invoke, records,
-    summary: () => ({ mode, attempts, estimatedUpperUsd: spent, chargedTokens: tokens, maxTokens, maxEstimatedUsd: maxUsd,
+  return { mode, interpret: (messages: AgentMessage[], signal: AbortSignal) => invoke(messages, signal, undefined, 'semantic_intent'), limits: runtimeLimits, invoke, records,
+    summary: () => ({ configurationVersion: snapshot?.version ?? 'environment/1', mode, attempts, paidCalls:records.filter(r=>r.usageStatus!=='not_sent').length, estimatedUpperUsd: spent, chargedTokens: tokens, maxTokens, maxEstimatedUsd: maxUsd,
       budgetRejection, providers: [...new Set(records.map(r => r.provider))], fallbackUsed, actualBilledUsd: null, billingStatus: 'not_reconciled' as const }) };
 }

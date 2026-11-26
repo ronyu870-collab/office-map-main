@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createModelRuntime } from "@/src/lib/intelligence/agent/modelRuntime";
 import { modelAvailability } from "@/src/lib/intelligence/agent/modelRuntime";
 import { ModelProviderError } from "@/src/lib/intelligence/agent/modelProvider";
+import { bindScopedRuntimeControl } from "@/src/lib/intelligence/control/runtimeControl";
 import type {
   ModelAdapter,
   ProviderId,
@@ -147,6 +148,12 @@ export async function runAiBatch(
           mode: "quick",
           scopedProfile: profile,
           adapters,
+          control: await bindScopedRuntimeControl(
+            ctx.client,
+            ctx.identity,
+            ctx.signal,
+            task.id,
+          ),
           revalidate,
           onReserve: async (r) => {
             const receipt = z

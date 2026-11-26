@@ -2,7 +2,7 @@ import "./load-app.cjs";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import JSZip from "jszip";
 import {
   createPitchDatabase,
@@ -39,6 +39,25 @@ const require = createRequire(import.meta.url),
   } = require("../../../src/lib/intelligence/agent/modelProvider.ts");
 const db = await createPitchDatabase(),
   files = new Map();
+// Use the actual main control-plane bootstrap and runtime function. The remaining
+// management/audit ledger migration is verified by ai-control-center/run.mjs.
+const controlMigration = await readFile(
+  new URL(
+    "../../migrations/20261125152942_ai_control_center.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const controlBootstrap = controlMigration.split("-- Defense in depth")[0];
+const publicControl = controlMigration.match(
+  /create function public\.ai_control_runtime\(p_actor uuid,p_session uuid\) returns jsonb[\s\S]*?\$\$;/,
+)?.[0];
+assert.ok(
+  controlBootstrap.includes("create function private.ai_control_runtime") &&
+    publicControl,
+);
+await db.setup.query(controlBootstrap + publicControl + "\ncommit;");
+
 let count = 0;
 const check = async (name, fn) => {
   await fn();
@@ -86,6 +105,13 @@ function ctx(uid) {
             try {
               if (name === "pitch_studio_access")
                 return { data: await db.rpc(uid, args.p_input), error: null };
+              if (name === "ai_control_runtime") {
+                const result = await db.setup.query(
+                  "select public.ai_control_runtime($1,$2) result",
+                  [args.p_actor, args.p_session],
+                );
+                return { data: result.rows[0].result, error: null };
+              }
               const keys = rpcOrder[name];
               assert.ok(keys);
               const query = `select public.${name}(${keys.map((_, i) => "$" + (i + 1)).join(",")}) result`;
@@ -513,6 +539,37 @@ try {
         db.rpc(OTHER, { action: "ai_status", batchId: bid }),
         (e) => e.code === "42501",
       );
+    },
+  );
+  await check(
+    "actual main AI control plane stops Pitch on pause, provider and model disable without changing the approved model",
+    async () => {
+      const before = calls;
+      try {
+        for (const kind of ["paused", "provider", "model"]) {
+          await db.setup.query(
+            "update private.ai_control_state set paused=$1,disabled_providers=$2,disabled_models=$3",
+            [
+              kind === "paused",
+              kind === "provider" ? ["deepseek"] : [],
+              kind === "model" ? ["synthetic-text-model"] : [],
+            ],
+          );
+          await policy();
+          const result = (await run(await start()))[0];
+          assert.equal(result.state, "failed");
+          assert.equal(result.error_code, "disclosure_denied");
+          assert.equal(calls, before);
+        }
+      } finally {
+        await db.setup.query(
+          "update private.ai_control_state set paused=false,disabled_providers='{}',disabled_models='{}'",
+        );
+      }
+      await policy();
+      const result = (await run(await start()))[0];
+      assert.equal(result.state, "completed");
+      assert.equal(calls, before + 1);
     },
   );
   await check(

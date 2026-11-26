@@ -256,6 +256,7 @@ jobs:
           node supabase/tests/ai-query-intake/run.mjs
           node supabase/tests/ai-audit-console/run.mjs
           node supabase/tests/ai-admin-only/run.mjs
+          node supabase/tests/ai-control-center/run.mjs
           node supabase/tests/ai-audit-people/run.mjs
           node supabase/tests/ai-audit-export/run.mjs
           node supabase/tests/ai-query-authority/run.mjs
