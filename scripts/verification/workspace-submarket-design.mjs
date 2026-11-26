@@ -63,7 +63,7 @@ export async function verifySubmarketDesign(context, { base, width, stock }) {
       for (const name of names) {
         const bubble = bubbles.find(b => b.name === name);
         assert.ok(bubble, `${name} rendered by active native overlay in ${mode}`);
-        assert.equal(bubble.width, bubble.height); assert.ok(bubble.fits && bubble.nameHeight <= bubble.nameClientHeight + 1, `${name} text fits ${JSON.stringify(bubble)}`);
+        assert.ok(Math.abs(bubble.width - bubble.height) < 0.5, 'circle remains square within browser subpixel rounding'); assert.ok(bubble.fits && bubble.nameHeight <= bubble.nameClientHeight + 1, `${name} text fits ${JSON.stringify(bubble)}`);
         assert.match(bubble.background, /^rgb\(/, 'solid fill without alpha');
         assert.ok(!bubble.text.includes('¥—') && !bubble.text.includes('甲乙级 0'), 'no meaningless financial placeholders or zero office inventory');
       }
