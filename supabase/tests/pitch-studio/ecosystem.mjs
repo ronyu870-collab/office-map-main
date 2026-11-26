@@ -36,6 +36,17 @@ try {
     await check('registered business thumbnail uses its actual business example and controlled SVG', async () => { const image = await templateThumbnail(ctx, 'mandate-summary', 'default'); assert.ok(image.example); assert.match(image.svg, /<svg/); assert.ok(!image.svg.includes('PRIVATE_CLIENT')); await assert.rejects(() => templateThumbnail(ctx, 'not-registered', 'default')); });
     let single;
     await check('real worker creates a private example, persists sources, reopens it, exports and downloads native PPTX', async () => { const current = await create(), result = await task(current, { mode: 'example', templateIds: ['mandate-summary'] }); assert.equal(result.receipt.state, 'completed', result.receipt.error_code); single = result.detail; assert.ok(single.slides.length); assert.ok(single.slides.every(p => p.content.isTestData && p.content.sources.every(s => s.kind === 'synthetic' && s.documentId && s.pageId))); assert.ok(Object.values(single.workspace.page_settings).every(s => s.example)); const command = { action: 'export_start', projectId: single.project.id, exportId: randomUUID(), audience: 'internal', format: 'pptx' }; await render.prepareRenderExport(ctx, command); await render.runRenderExport(ctx, command); const file = await render.downloadArtifact(ctx, command); const zip = await JSZip.loadAsync(file.bytes); assert.match(await zip.file('ppt/slides/slide1.xml').async('string'), /<a:t>/); await assert.rejects(() => render.prepareRenderExport(ctx, { ...command, exportId: randomUUID(), audience: 'client' })); await assert.rejects(() => workspace.getWorkspace(context(OTHER), single.project.id)); });
+    await check('new-pattern pages remain editable, save their sources and switch themes without changing shared assets', async () => {
+        const original = single.slides[0], assetId = original.asset_id;
+        const saved = await workspace.saveWorkspace(ctx, {action: 'save', projectId: single.project.id, expectedVersion: single.project.version, title: single.project.title, themeId: 'colliers-render-verification', themeVersion: 1, context: single.workspace.context, activeSlide: original.id, pages: [{id: original.id, title: '私人委托摘要修订', paragraphs: original.content.blocks.filter(b => b.kind === 'paragraph').map((b, i) => i ? b.text : '用户确认的私人委托范围')}]});
+        single = await workspace.getWorkspace(ctx, saved.project.id);
+        assert.equal(single.slides[0].content.title, '私人委托摘要修订');
+        assert.equal(single.slides[0].scene.layoutId, 'executive-summary');
+        assert.equal(single.slides[0].scene.themeId, 'colliers-render-verification');
+        assert.ok(single.slides[0].content.sources.some(s => s.recordId === 'workspace:' + single.project.id));
+        const shared = await db.rpc(OWNER, {action: 'get_asset', assetId});
+        assert.notEqual(shared.version.content.title, '私人委托摘要修订');
+    });
     await check('all eight complete kits run through the persistent executor, preserve every selected section and kit version', async () => { for (const kit of DECK_KITS) {
         const current = await create(), result = await task(current, { mode: 'example', kit: { id: kit.id, version: kit.version }, templateIds: kit.sections.map(s => s.templateId) });
         assert.equal(result.receipt.state, 'completed', kit.id + ': ' + result.receipt.error_code);

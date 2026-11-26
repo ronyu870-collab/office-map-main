@@ -603,12 +603,12 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setMobile("preview");
   }
   async function addExamples(templateIds:string[],kit?:{id:string;version:number},newDemo=false) {
-    if (newDemo && detail && dirty) await flush();
+    const previous = newDemo && detail ? await flush() : detail;
     const grant=grants[scopeIndex];
     let saved:WorkspaceDetail;
     if(!detail||newDemo){
-      if(!grant)throw new Error('请选择获权区域后重试。');
-      saved=workspaceDetailSchema.parse(await call({action:'create',projectId:crypto.randomUUID(),title:(kit?'提案套装演示':'模板示例')+' · 合成资料',scope:{organizationId:grant.organizationId,region:grant.region,city:grant.city,businessLine:grant.businessLine},themeId:detail?.project.theme_id??catalog!.themes[0].id,themeVersion:detail?.project.theme_version??catalog!.themes[0].current_version,context:detail?.workspace.context??context},true));
+      if(!previous&&!grant)throw new Error('请选择获权区域后重试。');
+      saved=workspaceDetailSchema.parse(await call({action:'create',projectId:crypto.randomUUID(),title:(kit?'提案套装演示':'模板示例')+' · 合成资料',scope:previous?{organizationId:previous.project.organization_id,region:previous.project.region,city:previous.project.city,businessLine:previous.project.business_line}:{organizationId:grant.organizationId,region:grant.region,city:grant.city,businessLine:grant.businessLine},themeId:previous?.project.theme_id??catalog!.themes[0].id,themeVersion:previous?.project.theme_version??catalog!.themes[0].current_version,context:previous?.workspace.context??context},true));
       accept(saved);
     }else saved=await flush();
     const taskId=crypto.randomUUID();
