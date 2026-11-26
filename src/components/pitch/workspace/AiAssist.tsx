@@ -37,6 +37,7 @@ const stateLabel: Record<string, string> = {
 };
 export function AiAssist({
   call,
+  initialQuestion = "",
   projectId,
   buildingIds,
   period,
@@ -48,6 +49,7 @@ export function AiAssist({
   onExport,
 }: {
   call: Call;
+  initialQuestion?: string;
   projectId: string;
   buildingIds: string[];
   period: string;
@@ -58,7 +60,7 @@ export function AiAssist({
   onReload: () => Promise<void>;
   onExport: () => void;
 }) {
-  const [question, setQuestion] = React.useState(""),
+  const [question, setQuestion] = React.useState(initialQuestion),
     [plan, setPlan] = React.useState<PreparedPitch | null>(null),
     [q, setQ] = React.useState(""),
     [kind, setKind] = React.useState("case"),

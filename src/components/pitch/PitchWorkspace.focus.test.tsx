@@ -280,6 +280,20 @@ async function enter() {
   return user;
 }
 describe("Pitch workspace continuous editing", () => {
+  it("takes a workbench brief to the real project assistant only after project creation", async () => {
+    const user = userEvent.setup();
+    render(<PitchWorkspace />);
+    const brief = await screen.findByLabelText("你想制作什么？");
+    await user.type(brief, "为科技企业制作选址提案");
+    await user.click(screen.getByRole("button", { name: "进入提案助手" }));
+    expect(writes.some((entry) => entry.action === "create" || entry.action === "prepare")).toBe(false);
+    await user.type(screen.getByLabelText("Pitch 名称"), "选址项目");
+    await user.click(screen.getByRole("button", { name: /^创建$/ }));
+    const question = await screen.findByLabelText("需要制作什么页面？");
+    expect(question).toHaveValue("为科技企业制作选址提案");
+    expect(writes.filter((entry) => entry.action === "create")).toHaveLength(1);
+    expect(writes.some((entry) => entry.action === "prepare")).toBe(false);
+  });
   it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
     expandedCatalog = true;
     const user = await enter();
@@ -294,6 +308,16 @@ describe("Pitch workspace continuous editing", () => {
     expect(created.projectId).not.toBe(projectId);
     const saveAt = writes.findIndex(c => c.action === "save"), createAt = writes.findIndex(c => c.action === "create");
     expect(saveAt).toBeGreaterThanOrEqual(0); expect(saveAt).toBeLessThan(createAt);
+  });
+  it("resizes the editor divider with the keyboard without writing project content", async () => {
+    await enter();
+    const divider = screen.getByRole("separator", { name: "调整左栏宽度" });
+    const before = writes.filter((entry) => entry.action === "save").length;
+    fireEvent.keyDown(divider, { key: "ArrowRight" });
+    expect(divider).toHaveAttribute("aria-valuenow", "240");
+    fireEvent.keyDown(divider, { key: "End" });
+    expect(divider).toHaveAttribute("aria-valuenow", "340");
+    expect(writes.filter((entry) => entry.action === "save")).toHaveLength(before);
   });
   it("keeps project name focused through continuous typing and cursor edits", async () => {
     const user = await enter(),

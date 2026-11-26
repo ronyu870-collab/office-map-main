@@ -16,8 +16,10 @@ export function Projects({
   call,
   onOpen,
   onCopy,
+  recentOnly = false,
 }: {
   call: Call;
+  recentOnly?: boolean;
   onOpen: (id: string) => Promise<void>;
   onCopy: (id: string, title: string) => Promise<void>;
 }) {
@@ -28,6 +30,7 @@ export function Projects({
     [refresh, setRefresh] = React.useState(0),
     [error, setError] = React.useState(""),
     [busy, setBusy] = React.useState(false),
+    [loading, setLoading] = React.useState(true),
     [deleting, setDeleting] = React.useState<Row | null>(null);
   React.useEffect(() => {
     const c = new AbortController(),
@@ -43,9 +46,13 @@ export function Projects({
               setItems(r.items);
               setNext(r.next);
               setError("");
+              setLoading(false);
             })
             .catch((e) => {
-              if (!c.signal.aborted) setError(e.message);
+              if (!c.signal.aborted) {
+                setError(e.message);
+                setLoading(false);
+              }
             }),
         220,
       );
@@ -75,8 +82,8 @@ export function Projects({
     }
   }
   return (
-    <section className={styles.content}>
-      <div className={styles.filters}>
+    <section className={recentOnly ? styles.recentList : styles.content}>
+      {!recentOnly && <div className={styles.filters}>
         <label>
           搜索 Pitch
           <input
@@ -93,10 +100,10 @@ export function Projects({
             <option value="deleted">已删除</option>
           </select>
         </label>
-      </div>
+      </div>}
       {error && <p role="alert">{error}</p>}
       <ul className={styles.rows}>
-        {items.map((row) => (
+        {(recentOnly ? items.slice(0, 5) : items).map((row) => (
           <li key={row.id}>
             <button
               className={styles.rowTitle}
@@ -111,7 +118,7 @@ export function Projects({
                 {new Date(row.updated_at).toLocaleString("zh-CN")}
               </span>
             </button>
-            <div className={styles.actions}>
+            {!recentOnly && <div className={styles.actions}>
               {row.deleted_at ? (
                 <Button
                   variant="secondary"
@@ -154,16 +161,17 @@ export function Projects({
                   </Button>
                 </>
               )}
-            </div>
+            </div>}
           </li>
         ))}
       </ul>
-      {!items.length && (
+      {loading && <p role="status">正在读取项目…</p>}
+      {!loading && !error && !items.length && (
         <p>
           {q ? "没有匹配的 Pitch。" : "还没有项目，先从模板或素材生成页面。"}
         </p>
       )}
-      {next !== null && (
+      {!recentOnly && next !== null && (
         <Button
           variant="secondary"
           onClick={() =>
