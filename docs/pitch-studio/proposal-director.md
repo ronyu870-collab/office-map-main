@@ -20,7 +20,7 @@
 
 ## 集成接口与验收范围
 
-- `directProposal` 使用共享 `ProposalBrief`、`PitchContextSnapshot` 和 `ProposalPlan`。`ProposalDirectorPorts` 负责目录、期间和业务页面的授权读取。业务与视觉适配器提供真实身份、期间、来源和版本，业务 recipe 提供实际 `SlideContent`。策划器只选有来源的组合，并保留有待确认项。
+- `directProposal` 使用共享 `ProposalBrief`、`PitchContextSnapshot` 和 `ProposalPlan`。`ProposalDirectorPorts` 负责目录、期间和业务页面的授权读取。`composeUnifiedProposalPages` 接收统一数据投影和获权素材，调用四套专业 recipe 并保留必要页面及业务依赖。业务与视觉适配器提供真实身份、期间、来源和版本，业务 recipe 提供实际 `SlideContent`。策划器只选有来源的组合，并保留有待确认项。
 - `previewProposalRevision` 生成带原页版本的 `DocumentModificationPlan`。文本和可用主题可经 Agent 06 的 `apply_modification` 审阅后执行。正式季度变更先重查数据并返回独立审阅的刷新计划。竞品、照片、重新定位、语言与图表等意图已有结构化枚举，其正式事务需由相应数据、素材及工作流接缝提供。
 - 本专项的基础数据适配沿用 #323 信任边界和已有动态模板。完整四套业务 recipe、楼宇别名、对客披露、照片／地图／Stacking Plan 与可恢复事务依赖 Agent 01、02、04、06 的集成。已有可信分析可通过当前本人获权的归档请求 ID 构建计划，正式生成依赖归档交接路径。
-- 四个旗舰请求、缺失或同名楼宇、未授权、未完成季度、缺图、季度修订、模型超时／非法响应以及取消均使用本地合成夹具。四个请求由现有渲染器生成 PPTX。预提交守卫专项执行既有业务生成路径，核对证据变化时不进入持久化操作。没有真实供应商请求。
+- 四个旗舰请求、缺失或同名楼宇、未授权、未完成季度、缺图、季度修订、模型超时／非法响应以及取消均使用本地合成夹具。四个请求均经过 Agent 04 的业务 recipe，代表页由现有渲染器生成 PPTX 并回读原生表格或图表。预提交守卫专项执行既有业务生成路径，核对证据变化时不进入持久化操作。没有真实供应商请求。

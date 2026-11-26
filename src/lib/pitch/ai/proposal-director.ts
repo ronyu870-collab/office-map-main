@@ -23,6 +23,8 @@ export type ComposedProposalPage = {
   data: BusinessDataBinding[];
   visuals: VisualAssetReference[];
   uncertainties?: string[];
+  essential?: boolean;
+  dependencyKinds?: readonly string[];
   generation?: { part: Generation["parts"][number]; evidenceVersion: string };
 };
 
@@ -56,6 +58,7 @@ export type DirectedSlide = SlideIntent & {
   chart: Chart | null;
   follows: string | null;
   precedes: string | null;
+  dependsOn: string[];
   uncertainties: string[];
 };
 
@@ -130,7 +133,13 @@ function buildPlan(
   scope: PitchScope,
   composition: Awaited<ReturnType<ProposalDirectorPorts["compose"]>>,
 ) {
-  const usedPages = composition.pages.slice(0, brief.pages);
+  let optionalSlots = Math.max(0, brief.pages - composition.pages.filter(page => page.essential).length);
+  const omitted: ProposalPlan["gaps"] = [];
+  const usedPages = composition.pages.filter(page => {
+    if (page.essential || optionalSlots-- > 0) return true;
+    omitted.push({ pageKind: page.pageKind, reason: brief.language === "en" ? "Omitted within the requested length." : "按提案篇幅省略。" });
+    return false;
+  });
   if (!usedPages.length) return null;
   const validated = usedPages.map(page => ({ ...page, content: slideContentSchema.parse(page.content) }));
   const isTestData = validated.some(page => page.content.isTestData);
@@ -144,7 +153,7 @@ function buildPlan(
   }
   const data = uniqueSorted(validated.flatMap(page => page.data), item => digest(item));
   const visuals = uniqueSorted(validated.flatMap(page => page.visuals), item => `${item.id}:${item.version}:${item.versionHash}`);
-  const gaps = composition.gaps;
+  const gaps = [...composition.gaps, ...omitted];
   // Source IDs can be request-local. Hash actual source locators, versions and
   // content after replacing their per-request identifiers with stable positions.
   const narrative = validated.map(({ content, ...page }) => {
@@ -180,6 +189,7 @@ function buildPlan(
       visuals: page.visuals,
       follows: ids[index - 1] ?? null,
       precedes: ids[index + 1] ?? null,
+      dependsOn: validated.slice(0, index).flatMap((prior, position) => page.dependencyKinds?.includes(prior.pageKind) ? [ids[position]] : []),
       uncertainties: page.uncertainties ?? [],
     };
   });
