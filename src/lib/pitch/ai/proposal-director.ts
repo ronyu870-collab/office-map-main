@@ -6,7 +6,7 @@ import type {
   BusinessDataBinding, PitchContextSnapshot, ProposalBrief, ProposalPlan, SlideIntent, VisualAssetReference,
 } from "../integration-contracts";
 import type { UnifiedProposalContext } from "../proposals/unified-projection";
-import type { ProposalRequest } from "./proposal-brief";
+import type { ClientRequirement, ProposalPriority, ProposalRequest } from "./proposal-brief";
 import { interpretProposal, type ProposalModel } from "./proposal-interpretation";
 import {
   resolveProposalBuildings, resolveProposalPeriod, type FormalProposalPeriod, type ProposalBuildingCandidate,
@@ -26,6 +26,7 @@ export type ComposedProposalPage = {
   visuals: VisualAssetReference[];
   uncertainties?: string[];
   essential?: boolean;
+  topics?: readonly ProposalPriority[];
   dependencyKinds?: readonly string[];
   generation?: { part: Generation["parts"][number]; evidenceVersion: string };
 };
@@ -36,6 +37,8 @@ export type ProposalComposerInput = {
   projectId?: string;
   buildings: readonly ProposalBuildingCandidate[];
   priorities: Awaited<ReturnType<typeof interpretProposal>>["brief"]["priorities"];
+  requestedPriorities?: readonly ProposalPriority[];
+  clientRequirements?: readonly ClientRequirement[];
   assetIds: readonly string[];
   analysisResultId?: string;
 };
@@ -71,6 +74,7 @@ export type DirectedSlide = SlideIntent & {
 
 export type DirectedProposalPlan = Omit<ProposalPlan, "slides"> & {
   slides: DirectedSlide[];
+  analysisPriorities?: readonly ProposalPriority[];
   theme?: { id: string; version: number };
 };
 
@@ -140,15 +144,37 @@ function uniqueSorted<T>(items: readonly T[], key: (item: T) => string) {
     .sort(([a], [b]) => a.localeCompare(b)).map(([, item]) => item);
 }
 
+function chooseProposalPages(pages: readonly ComposedProposalPage[], limit: number, priorities: readonly ProposalPriority[]) {
+  const chosen = new Set(pages.filter(page => page.essential));
+  const add = (page: ComposedProposalPage) => {
+    if (chosen.size < limit) chosen.add(page);
+  };
+  const focused = new Set<ComposedProposalPage>();
+  for (const priority of priorities) {
+    if ([...focused].some(page => page.topics?.includes(priority))) continue;
+    const page = pages.find(entry => entry.topics?.includes(priority));
+    if (!page) continue;
+    add(page);
+    if (chosen.has(page)) focused.add(page);
+  }
+  // Retain the recipe's story order. When space remains, keep the preceding
+  // context for the chosen analysis pages before filling from the full recipe.
+  const supporting = new Set([...focused].flatMap(page => page.dependencyKinds ?? []));
+  for (const page of pages) if (supporting.has(page.pageKind)) add(page);
+  for (const page of pages) add(page);
+  return chosen;
+}
+
 function buildPlan(
   brief: ProposalBrief,
   scope: PitchScope,
   composition: Awaited<ReturnType<ProposalDirectorPorts["compose"]>>,
+  priorities: readonly ProposalPriority[],
 ) {
-  let optionalSlots = Math.max(0, brief.pages - composition.pages.filter(page => page.essential).length);
+  const chosen = chooseProposalPages(composition.pages, brief.pages, priorities);
   const omitted: ProposalPlan["gaps"] = [];
   const usedPages = composition.pages.filter(page => {
-    if (page.essential || optionalSlots-- > 0) return true;
+    if (chosen.has(page)) return true;
     omitted.push({ pageKind: page.pageKind, reason: brief.language === "en" ? "Omitted within the requested length." : "按提案篇幅省略。" });
     return false;
   });
@@ -193,6 +219,7 @@ function buildPlan(
     });
     return {
       ...page,
+      topics: undefined,
       content: {
         ...content,
         sources,
@@ -200,7 +227,8 @@ function buildPlan(
       },
     };
   });
-  const fingerprint = digest({ scope, brief, recipe: composition.recipeVersion, theme: composition.theme, data, visuals, narrative, gaps });
+  const analysisPriorities = priorities.length ? priorities : undefined;
+  const fingerprint = digest({ scope, brief, recipe: composition.recipeVersion, theme: composition.theme, analysisPriorities, data, visuals, narrative, gaps });
   const snapshot: PitchContextSnapshot = { scope, brief, data, visuals, fingerprint, isTestData };
   const ids = validated.map((page, index) => stableId(`pitch-proposal-page/1:${fingerprint}:${page.pageKind}:${index}`));
   const slides: DirectedSlide[] = validated.map((page, index) => {
@@ -227,7 +255,7 @@ function buildPlan(
     };
   });
   const plan: DirectedProposalPlan = { id: stableId("pitch-proposal/1:" + fingerprint), version: 1, title: brief.title, contextFingerprint: fingerprint,
-    slides, gaps, ...(composition.theme ? { theme: composition.theme } : {}) };
+    slides, gaps, ...(analysisPriorities ? { analysisPriorities } : {}), ...(composition.theme ? { theme: composition.theme } : {}) };
   const generation = validated.every(page => !!page.generation)
     ? [...new Map(validated.map(page => [digest(page.generation!.part), page.generation!])).values()] : null;
   return { plan, snapshot, generation, verifySources: composition.verifySources,
@@ -289,9 +317,10 @@ export async function directProposal(
       style: understood.style, audience: input.audience, title, targetClient: client, period, start, pages: understood.pages };
     signal.throwIfAborted();
     const composed = await ports.compose({ brief, scope, projectId: input.projectId, buildings: target.buildings, priorities: understood.priorities,
+      requestedPriorities: understood.requestedPriorities, clientRequirements: understood.clientRequirements,
       assetIds: input.assetIds, analysisResultId: input.analysisResultId }, signal);
     signal.throwIfAborted();
-    const ready = buildPlan(brief, scope, composed);
+    const ready = buildPlan(brief, scope, composed, understood.requestedPriorities);
     if (!ready) return fail("no-evidence", true);
     return { status: "ready", selection: target.selection, ...ready, ...route };
   } catch (error) {

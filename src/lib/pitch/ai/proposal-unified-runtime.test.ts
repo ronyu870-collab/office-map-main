@@ -76,6 +76,42 @@ function contextWithDossier(resultId: string, dataVersion = "brochure/1"): Unifi
 }
 
 describe("authorized proposal recipe sources", () => {
+  it("uses the requested analysis focus to retain the right page under a tight length while preserving the cover and closing", async () => {
+    const { director, signal } = fixture();
+    const question = proposalRequestSchema.parse({ question: "为霄云路33号制作高端项目推介，控制在3页" });
+    const defaultPlan = await directProposal(question, director, signal);
+    const focused = await directProposal({ ...question, question: question.question + "，优先核对通勤" }, director, signal);
+    if (defaultPlan.status !== "ready" || focused.status !== "ready") throw new Error("Missing property plan");
+    expect(defaultPlan.plan.slides.map(slide => slide.pageKind)).toEqual(["cover", "profile", "next-steps"]);
+    expect(focused.plan.analysisPriorities).toEqual(["commute"]);
+    expect(focused.plan.slides.map(slide => slide.pageKind)).toEqual(["cover", "arrival", "next-steps"]);
+    expect(focused.plan.slides[1].visuals).toEqual([expect.objectContaining({ kind: "map", buildingIds: [buildings[0].id] })]);
+    expect(focused.modelCalls).toBe(0);
+  });
+
+  it("keeps the financial client's stated conditions distinct from verified property facts and from unknown conditions", async () => {
+    const { director, signal } = fixture();
+    const question = proposalRequestSchema.parse({
+      question: "为某金融企业制作燕莎两栋候选楼宇的选址方案，重点核对通勤，办公面积至少3000平方米，月租预算不超过15万元",
+    });
+    const plan = await directProposal(question, director, signal);
+    if (plan.status !== "ready") throw new Error(plan.code);
+    expect(plan.snapshot.brief).toMatchObject({ scenario: "site-selection", targetClient: "某金融企业" });
+    expect([...plan.snapshot.brief.buildingIds].sort()).toEqual(buildings.map(building => building.id));
+    expect(plan.plan.slides[0]).toMatchObject({ pageKind: "cover", title: "某金融企业 · 写字楼选址方案" });
+    const requirementId = plan.plan.slides.find(slide => slide.pageKind === "requirements")?.id;
+    const page = plan.pages.find(item => item.id === requirementId)?.content;
+    expect(page?.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: "用户输入 · 办公面积至少3000平方米" }),
+      expect.objectContaining({ text: "用户输入 · 月租预算不超过15万元" }),
+      expect.objectContaining({ text: "待客户确认 · 通勤起点、目标入驻时间、交付条件" }),
+    ]));
+    expect(page?.sources).toEqual([expect.objectContaining({ label: "本次选址需求输入" })]);
+    expect(plan.plan.slides.find(slide => slide.pageKind === "requirements")?.data).toEqual([]);
+    const afterCreate = await directProposal({ ...question, projectId: id(20) }, director, signal);
+    expect(afterCreate).toMatchObject({ status: "ready", plan: { id: plan.plan.id } });
+  });
+
   it("hands only pinned, correctly scoped assets into confirmed workflow pages", async () => {
     const { director, readers, signal } = fixture();
     const request = promotion();

@@ -2,9 +2,19 @@ import type { PitchScope } from "../contracts/content";
 import type { PitchContextSnapshot, ProposalBrief } from "../integration-contracts";
 import { buildProposal, PROPOSAL_RECIPES, type ProposalData, type ProposalOptions } from "../proposals";
 import { projectUnifiedProposalContext, type ProposalMaterials, type UnifiedProposalContext } from "../proposals/unified-projection";
+import type { ProposalPriority } from "./proposal-brief";
 import type { ProposalDirectorPorts } from "./proposal-director";
 
 type Composition = Awaited<ReturnType<ProposalDirectorPorts["compose"]>>;
+
+const topics: Readonly<Record<string, readonly ProposalPriority[]>> = {
+  "rent-position": ["cost"], "rent-trend": ["cost", "market-trend"],
+  "vacancy-position": ["availability"], "vacancy-trend": ["availability", "market-trend"],
+  "availability": ["availability"], "leasing-evidence": ["availability"],
+  "arrival": ["commute"], "parameters": ["building-quality"], "spaces": ["building-quality"],
+  "history": ["market-trend"], "lease-trend": ["market-trend"], "lease-area": ["availability"],
+  "target-tenants": ["leasing-strategy"], "offer-strategy": ["leasing-strategy"],
+};
 
 export function composeRecipePages(snapshot: PitchContextSnapshot, data: ProposalData, options: ProposalOptions): Composition {
   const brief = snapshot.brief.scenario === "site-selection"
@@ -20,11 +30,13 @@ export function composeRecipePages(snapshot: PitchContextSnapshot, data: Proposa
       if (!intent) throw new Error("PITCH_PROPOSAL_RECIPE_BINDING_MISSING");
       return {
         pageKind: page.pageKind,
-        content: page.content,
+        content: page.pageKind === "cover" && snapshot.brief.scenario === "site-selection"
+          ? { ...page.content, title: snapshot.brief.title } : page.content,
         layoutId: page.layoutId,
         businessIntent: page.claimKind,
         essential: recipe?.pages.find(definition => definition.id === page.pageKind)?.fallback === "retain",
         dependencyKinds: page.follows,
+        ...(topics[page.pageKind] ? { topics: topics[page.pageKind] } : {}),
         data: intent.data,
         visuals: intent.visuals,
       };
