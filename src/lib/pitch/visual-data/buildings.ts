@@ -7,16 +7,29 @@ import type { PitchContext } from '../data/store';
 import type { LocationBuilding } from './location';
 
 export const visualBuildingIds = z.array(z.uuid()).min(1).max(20).refine(ids => new Set(ids).size === ids.length);
-const marketNames = z.array(z.string().trim().min(1).max(80)).min(1).max(8);
+const marketNames = z.array(z.string().trim().min(1).max(80)).max(8);
+export const marketVisualSelectionSchema = z.strictObject({
+  submarkets: marketNames.optional(),
+  city: z.string().trim().regex(/^[\p{L}\p{M}\p{N} ·-]{1,80}$/u).optional(),
+}).refine(selection => Boolean(selection.city || selection.submarkets?.length));
 const buildings = z.array(z.object({
   id: z.uuid(), name: z.string().min(1), submarket: z.string().nullable(),
-  location_lat: z.number().nullable(), location_lng: z.number().nullable(),
+  location_lat: z.number().nullable(), location_lng: z.number().nullable(), city: z.string().nullable().optional(),
 }));
-export type VisualBuildingSelection = { buildingIds: string[] } | { submarkets: string[] };
+export type MarketVisualSelection = z.input<typeof marketVisualSelectionSchema>;
+export type VisualBuildingSelection = { buildingIds: string[] } | MarketVisualSelection;
+
+export function marketVisualSelection(input: MarketVisualSelection) {
+  const { city, submarkets } = marketVisualSelectionSchema.parse(input);
+  const cityName = city && /^(?:北京市?|beijing)$/iu.test(city) ? '北京' : city;
+  return { city: cityName, submarkets: submarkets?.length ? [...new Set(submarkets)].sort() : undefined };
+}
 
 export async function authorizeVisualBuildings(ctx: PitchContext, selection: VisualBuildingSelection) {
+  const market = 'buildingIds' in selection ? null : marketVisualSelection(selection);
+  const cities = market?.city === '北京' ? ['北京', '北京市', 'Beijing', 'BEIJING', 'beijing'] : market?.city ? [market.city] : null;
   const scope = 'buildingIds' in selection ? { buildingIds: visualBuildingIds.parse(selection.buildingIds) }
-    : { submarkets: [...new Set(marketNames.parse(selection.submarkets).flatMap(submarketDatabaseNames))] };
+    : market?.submarkets ? { submarkets: [...new Set(market.submarkets.flatMap(submarketDatabaseNames))] } : {};
   const authority = await loadDataAuthority(ctx.client, ctx.identity, ctx.signal);
   if (!authority.grants.includes('export:internal')) throw new Error('QUERY_DENIED');
   const plan = parseQueryPlan({ operation: 'list', scope: { inventory: 'tracked', ...scope }, fields: [], period: null });
@@ -28,13 +41,16 @@ export async function authorizeVisualBuildings(ctx: PitchContext, selection: Vis
   const catalogRows: LocationBuilding[] = [];
   const ids = [...permittedIds].sort();
   for (let offset = 0; offset < ids.length; offset += 100) {
-    const { data, error } = await ctx.client.from('buildings').select('id,name,submarket,location_lat,location_lng')
+    let query = ctx.client.from('buildings').select('id,name,submarket,location_lat,location_lng,city')
       .in('id', ids.slice(offset, offset + 100)).eq('is_active', true).eq('tracking_scope', 'tracked')
-      .is('merged_into_id', null).or('project_type.neq.future,project_type.is.null').abortSignal(ctx.signal);
+      .is('merged_into_id', null).or('project_type.neq.future,project_type.is.null');
+    if (cities) query = query.in('city', cities);
+    const { data, error } = await query.abortSignal(ctx.signal);
     if (error) throw new Error('PITCH_VISUAL_SOURCE_UNAVAILABLE');
-    for (const row of buildings.parse(data)) {
+    for (const { city, ...row } of buildings.parse(data)) {
       if (!permittedIds.has(row.id) || (!authority.allSubmarkets && !authority.submarkets.includes(row.submarket ?? ''))
-          || (scope.submarkets && !scope.submarkets.includes(row.submarket ?? ''))) throw new Error('QUERY_DENIED');
+          || (scope.submarkets && !scope.submarkets.includes(row.submarket ?? ''))
+          || (cities && (!city || !cities.includes(city)))) throw new Error('QUERY_DENIED');
       catalogRows.push(row);
     }
   }
