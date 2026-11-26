@@ -20,6 +20,8 @@ describe("proposal request understanding", () => {
   it.each([
     ["为霄云路33号制作招商代理提案", { scenario: "leasing-agency", buildingQueries: ["霄云路33号"], pages: 19 }],
     ["比较CBD五栋甲级写字楼", { scenario: "office-comparison", comparisonCount: 5, submarkets: ["CBD"], grade: "A" }],
+    ["比较CBD五栋甲级写字楼，六页内，重点看通勤与租金", { scenario: "office-comparison", comparisonCount: 5,
+      buildingQueries: [], pages: 6, requestedPriorities: ["commute", "cost"] }],
     ["制作北京最新正式季度写字楼市场报告", { scenario: "market-report", city: "北京", period: null, style: "research" }],
     ["为霄云路33号制作高端项目推介", { scenario: "building-promotion", buildingQueries: ["霄云路33号"], style: "premium" }],
     ["为某金融企业制作选址方案", { scenario: "site-selection", targetClient: "某金融企业" }],
@@ -33,6 +35,13 @@ describe("proposal request understanding", () => {
   it("uses selected property IDs when the request refers to the current building", () => {
     const input = proposalRequestSchema.parse({ question: "2026Q2，为所选楼宇制作项目推介", buildingIds: [projectId] });
     expect(readProposalBrief(input)).toMatchObject({ buildingQueries: [], buildingIds: [projectId], period: "2026-Q2" });
+  });
+
+  it("keeps stated client limits without treating descriptions of a building as client requirements", () => {
+    const brief = readProposalBrief(request("为某金融企业制作选址方案，候选楼A办公面积3000平方米，预算15万元/月，预算上限为20万元/月"));
+    expect(brief.clientRequirements).toEqual([
+      { kind: "budget", text: "预算15万元/月" }, { kind: "budget", text: "预算上限为20万元/月" },
+    ]);
   });
 
   it("does not adjudicate conflicting explicit quarters on its own", () => {

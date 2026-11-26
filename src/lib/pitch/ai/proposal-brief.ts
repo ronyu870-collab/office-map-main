@@ -20,6 +20,12 @@ const scenarioRules = [
 ] as const;
 
 const priorities = ["cost", "availability", "commute", "leasing-strategy", "market-trend", "building-quality"] as const;
+export type ProposalPriority = (typeof priorities)[number];
+export type ClientRequirement = { kind: "area" | "budget"; text: string };
+const clientRequirementPatterns = [
+  ["area", /(?:需求面积|面积需求|面积要求|选址面积|拟租面积|(?:办公|租赁)?面积\s*[:：]?\s*(?:至少|不低于|不超过|最多|需要))\s*[:：]?\s*(?:约(?:为)?|为)?\s*\d[\d,]*(?:\.\d+)?\s*(?:平方米|平米|㎡|m[²2])/iu],
+  ["budget", /(?:月租)?预算\s*[:：]?\s*(?:月租|每月)?\s*(?:约(?:为)?|不超过|上限(?:为)?|最多|为)?\s*\d[\d,]*(?:\.\d+)?\s*(?:万元|万|元)(?:\s*[\/／]\s*(?:月|年))?/u],
+] as const;
 const priorityRules = [
   ["cost", /租金|预算|成本|rent|budget|cost/i],
   ["availability", /空置|面积|可租|vacancy|availability|floor area/i],
@@ -80,6 +86,8 @@ export type ProposalBrief = {
   period: string | null;
   periodConflict: boolean;
   priorities: (typeof priorities)[number][];
+  requestedPriorities: ProposalPriority[];
+  clientRequirements: ClientRequirement[];
   pages: number;
   requiresInterpretation: boolean;
 };
@@ -117,7 +125,8 @@ export function readProposalBrief(input: ProposalRequest): ProposalBrief {
   const latest = /最新|latest|most recent/i.test(question);
   const namedBuilding = /(?:为|关于|以)\s*(.{2,60}?)\s*(?:制作|生成|出具|做一份|做一套|做)(?=.{0,50}(?:招商|推介|楼宇介绍|项目介绍))/i.exec(question)?.[1];
   const suffixBuilding = /^(?:请|帮我|请帮我)?\s*(?:制作|生成|做一份)?\s*(.{2,60}?)(?:的)?(?:高端)?(?:招商代理提案|项目推介|楼宇推介|楼宇介绍)/i.exec(question)?.[1];
-  const comparison = /(?:比较|对比)\s*(.{3,100}?)\s*(?:的)?(?:项目|楼宇|写字楼)?\s*(?:[。.!！]|$)/i.exec(question)?.[1];
+  const comparison = /(?:比较|对比)\s*(.{3,100}?)\s*(?:的)?(?:项目|楼宇|写字楼)?\s*(?:[。.!！]|$)/i.exec(question)?.[1]
+    ?.split(/[,，;；]\s*(?=重点|优先|主要|关注|突出|侧重|着重|控制|限制|[一二两三四五六七八九十\d]+页)/u, 1)[0];
   const listedBuildings = comparison && /[、,]|\s+vs\.?\s+/i.test(comparison)
     ? comparison.split(/\s*(?:[、,]|\s+vs\.?\s+)\s*/i).map(value => value.trim()).filter(Boolean)
     : [];
@@ -128,8 +137,16 @@ export function readProposalBrief(input: ProposalRequest): ProposalBrief {
     ? buildingPhrase : undefined;
   const count = /([一二两三四五六七八九十\d]{1,3})\s*栋/i.exec(question);
   const pageCount = naturalNumber(/([一二两三四五六七八九十\d]{1,3})\s*(?:页|slides?\b)/i.exec(question)?.[1]);
-  const explicitPriorities = priorityRules.filter(([, test]) => test.test(question)).map(([priority]) => priority);
+  const explicitPriorities = priorityRules.flatMap(([priority, pattern]) => {
+    const index = question.search(pattern);
+    return index < 0 ? [] : [{ priority, index }];
+  }).sort((a, b) => a.index - b.index).map(({ priority }) => priority);
   const requestedScenario = scenario ? scenarioDefaults[scenario] : null;
+  const clientRequirements = clientRequirementPatterns.flatMap(([kind, pattern]) => {
+    const values = new Set([...input.question.matchAll(new RegExp(pattern.source, pattern.flags + "g"))]
+      .map(([text]) => text).filter(text => text.length <= 100));
+    return [...values].slice(0, 2).map(text => ({ kind, text }));
+  });
   const style = /高端|精致|premium|luxury/i.test(question) ? "premium"
     : scenario === "market-report" || /研究风格|research style/i.test(question) ? "research" : "professional";
 
@@ -149,6 +166,8 @@ export function readProposalBrief(input: ProposalRequest): ProposalBrief {
     period: periods.at(-1) ?? (latest ? null : input.period ?? null),
     periodConflict: periods.length > 2 || (periods.length === 2 && (!hasRange || periods[0] > periods[1])),
     priorities: explicitPriorities.length ? explicitPriorities : requestedScenario?.priorities ?? [],
+    requestedPriorities: explicitPriorities,
+    clientRequirements,
     pages: pageCount && pageCount >= 3 && pageCount <= 20 ? pageCount : requestedScenario?.pages ?? 8,
     requiresInterpretation: !scenario || matches.length > 1
       || (!!scenario && ["leasing-agency", "building-promotion"].includes(scenario) && !buildingQuery && !input.buildingIds.length && !input.projectId)
@@ -188,5 +207,6 @@ export function mergeProposalInterpretation(
     buildingQueries: parsed.buildingQueries.length ? parsed.buildingQueries : value.buildingQueries ?? [],
     style: parsed.style === "professional" ? value.style ?? parsed.style : parsed.style,
     priorities: [...new Set([...(value.priorities ?? []), ...parsed.priorities, ...(!parsed.scenario ? defaults.priorities : [])])],
+    requestedPriorities: [...new Set([...parsed.requestedPriorities, ...(value.priorities ?? [])])],
   };
 }

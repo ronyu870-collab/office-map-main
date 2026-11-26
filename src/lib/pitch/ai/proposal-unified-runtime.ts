@@ -1,8 +1,10 @@
 import type { PitchContext } from "../data/store";
 import type { ProposalBrief, VisualAssetReference } from "../integration-contracts";
+import { stableId } from "../library/extract";
 import { proposalMapImage, proposalPhoto, proposalStackingImage, type ProposalOptions } from "../proposals";
 import type { ProposalMaterials, UnifiedProposalContext } from "../proposals/unified-projection";
 import type { ProposalComposerInput, ProposalDirectorPorts } from "./proposal-director";
+import type { ProposalPriority } from "./proposal-brief";
 import { readProposalMaterials } from "./proposal-materials";
 import { composeUnifiedProposalPages } from "./proposal-recipe";
 
@@ -21,6 +23,32 @@ export type UnifiedProposalReaders = {
 };
 
 const photoKinds = { exterior: "exterior", interior: "office", lobby: "lobby", amenity: "amenity" } as const;
+const prioritiesZh: Record<ProposalPriority, string> = {
+  cost: "租金与成本", availability: "面积与可租条件", commute: "通勤与交通",
+  "leasing-strategy": "招商策略", "market-trend": "市场趋势", "building-quality": "楼宇设施与规格",
+};
+
+function clientBrief(input: ProposalComposerInput, capturedAt: string): ProposalMaterials["customerBrief"] {
+  const { brief, requestedPriorities, clientRequirements = [] } = input;
+  if (brief.scenario !== "site-selection" || (!brief.targetClient && !clientRequirements.length)) return;
+  const priorities = requestedPriorities?.map(priority => prioritiesZh[priority]) ?? [];
+  const requirements = brief.targetClient ? [`目标客户 · ${brief.targetClient}`] : [];
+  requirements.push(...clientRequirements.map(({ text }) => `用户输入 · ${text}`));
+  if (priorities.length) requirements.push(`本次分析关注 · ${priorities.join("、")}`);
+  const gaps = ["通勤起点", "目标入驻时间", "交付条件"];
+  for (const [kind, label] of [["area", "面积"], ["budget", "预算"]] as const) {
+    const count = clientRequirements.filter(item => item.kind === kind).length;
+    if (!count) gaps.unshift(label);
+    if (count > 1) gaps.unshift(`${label}条件的适用口径`);
+  }
+  requirements.push(`待客户确认 · ${gaps.join("、")}`);
+  const selectionBasis = brief.submarkets.length ? [`候选范围 · ${brief.submarkets.join("、")}`] : ["候选范围 · 本次已选项目"];
+  const id = stableId(JSON.stringify(["pitch-proposal-client-brief/1", requirements, selectionBasis]));
+  return { value: { requirements, selectionBasis }, disclosure: "internal", sources: [{
+    id, kind: "record", recordId: id, label: "本次选址需求输入", version: "brief/1",
+    locator: "提案需求及当前项目范围", dataAsOf: capturedAt.slice(0, 10),
+  }] };
+}
 
 function allows(reference: VisualAssetReference, kind: VisualAssetReference["kind"], ids?: readonly string[]) {
   return reference.kind === kind && reference.disclosure !== "restricted" && reference.source.kind !== "synthetic"
@@ -119,7 +147,7 @@ export function createUnifiedProposalComposer(ctx: PitchContext, readers: Unifie
     ]);
     signal.throwIfAborted();
     const result = composeUnifiedProposalPages(context, brief, scope, { ...options, targetBuildingId: brief.buildingIds[0] },
-      { ...visuals, ...materials?.evidence });
+      { ...visuals, ...materials?.evidence, customerBrief: clientBrief(input, context.capturedAt) });
     for (const page of result.pages) {
       const sourceIds = new Set(page.content.sources.map(source => source.id));
       const references = materials?.references.filter(item => sourceIds.has(item.sourceId));
