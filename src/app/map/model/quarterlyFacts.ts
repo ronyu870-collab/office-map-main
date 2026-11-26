@@ -18,6 +18,8 @@ export function quarterKey(row: QuarterlyFact): number | null {
     ? year * 4 + quarter - 1 : null;
 }
 
+export const quarterLabel = (key: number) => `${Math.floor(key / 4)}Q${key % 4 + 1}`;
+
 export function isFormalQuarterlyFact(row: QuarterlyFact): boolean {
   return row.is_locked === true && row.is_draft !== true && quarterKey(row) !== null;
 }

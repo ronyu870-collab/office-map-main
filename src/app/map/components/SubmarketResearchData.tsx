@@ -1,8 +1,7 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useMemo, type ReactNode } from 'react';
-import type { SubmarketTrendPoint } from '../model/submarketMarketTrend';
+import type { SubmarketTrendPoint, SubmarketTrendSeries } from '../model/submarketMarketTrend';
 import { normalizeMapSubmarket, officeGrade } from '../model/marketIdentity';
 import { aggregateMarket } from '../model/marketStatistics';
 import type { MarketBuilding, SubmarketSummary } from '../model/submarketOverview';
@@ -10,16 +9,15 @@ import {
   describeCurrentResearchMarket, describeQuarterlyResearchMarket, researchNumber,
   signedResearchNumber, submarketResearchObservation,
 } from '../model/submarketResearch';
+import type { MarketTrendRange } from '../model/marketTrendPresentation';
+import { MarketComposition } from './MarketComposition';
+import { MarketTrendSummary } from './MarketTrendSummary';
+import { MarketGradeComparison, SubmarketTrendChart } from './SubmarketTrendChart';
 import styles from './SubmarketResearchData.module.css';
 
 export type SubmarketResearchTrendState = 'loading' | 'error' | 'ready';
 export type SubmarketResearchFutureState = 'disabled' | 'loading' | 'error' | 'ready';
 const emptyTrend: readonly SubmarketTrendPoint[] = [];
-const LazyTrendChart = dynamic(() => import('./SubmarketTrendChart').then(module => module.SubmarketTrendChart), {
-  ssr: false,
-  loading: () => <p className={styles.chartStatus} role="status">正在准备趋势图…</p>,
-});
-
 const available = (value: number | null | undefined): value is number => value != null && Number.isFinite(value);
 const count = (value: number) => `${researchNumber(value, 0)} 个`;
 const numberUnit = (value: number, unit: string) => `${researchNumber(value)}${unit === '%' ? '' : ' '}${unit}`;
@@ -47,43 +45,14 @@ function CurrentMetric({ label, value, unit, sampleCount, context }: {
   </div>;
 }
 
-function ChangeRow({ label, period, qoq, yoy }: { label: string; period: string; qoq: string | null; yoy: string | null }) {
-  return <div className={styles.changeRow}>
-    <dt>{label} <span className={styles.secondary}>{period}</span></dt>
-    <dd>环比 {qoq ?? '不可比'}</dd>
-    <dd>同比 {yoy ?? '不可比'}</dd>
-  </div>;
-}
-
-type QuarterlyMarket = ReturnType<typeof describeQuarterlyResearchMarket>;
-function QuarterlyChanges({ quarterly, state, title = '季度变化', scope }: {
-  quarterly: QuarterlyMarket | null; state: SubmarketResearchTrendState; title?: string; scope?: string;
-}) {
-  const rent = quarterly?.rent;
-  const vacancy = quarterly?.vacancy;
-  const rentQoq = rent?.qoqAbsolute != null ? `${delta(rent.qoqAbsolute, '元/㎡/月')}${rent.qoqPct != null ? `（${delta(rent.qoqPct, '%')}）` : ''}` : null;
-  return <section aria-label={title} className={styles.block}>
-    <h3>{title}</h3>
-    {scope && <p className={styles.secondary}>{scope}</p>}
-    {state === 'loading' ? <p role="status" className={styles.secondary}>正在读取季度行情…</p>
-      : state === 'error' ? <p className={styles.secondary}>季度行情暂不可用。</p>
-        : rent?.latest || vacancy?.latest ? <dl className={styles.changeList}>
-          {rent?.latest && <ChangeRow label="净有效租金" period={rent.latest.period}
-            qoq={rentQoq} yoy={rent.yoyPct != null ? delta(rent.yoyPct, '%') : null} />}
-          {vacancy?.latest && <ChangeRow label="空置率" period={vacancy.latest.period}
-            qoq={vacancy.qoqPp != null ? delta(vacancy.qoqPp, '百分点') : null}
-            yoy={vacancy.yoyPp != null ? delta(vacancy.yoyPp, '百分点') : null} />}
-        </dl> : <p className={styles.secondary}>暂无已发布的有效季度观测。</p>}
-  </section>;
-}
-
-function SourceDisclosure({ children }: { children: ReactNode }) {
-  return <details className={styles.source}><summary>数据口径与来源</summary><div>{children}</div></details>;
+function SourceDisclosure({ children, label = '数据口径与来源' }: { children: ReactNode; label?: string }) {
+  return <details className={styles.source}><summary>{label}</summary><div>{children}</div></details>;
 }
 
 export function SubmarketResearchOverview({
   name, summary, buildings, trendData = emptyTrend, trendState = 'ready', futureState, futureCount, futureArea,
-  futureAreaSamples, beijingBenchmarkBuildings, includeTrendSource = false, structured = false, hasResearchSignal = false, parkOnly = false,
+  futureAreaSamples, beijingBenchmarkBuildings, showQuarterlySummary = true,
+  structured = false, hasResearchSignal = false, parkOnly = false,
 }: {
   name: string;
   summary: SubmarketSummary;
@@ -95,7 +64,7 @@ export function SubmarketResearchOverview({
   futureArea?: number | null;
   futureAreaSamples?: number;
   beijingBenchmarkBuildings?: readonly MarketBuilding[];
-  includeTrendSource?: boolean;
+  showQuarterlySummary?: boolean;
   structured?: boolean;
   hasResearchSignal?: boolean;
   parkOnly?: boolean;
@@ -133,14 +102,19 @@ export function SubmarketResearchOverview({
       <h3>市场观察</h3>
       <p>{submarketResearchObservation(name, summary, current, quarterly)}</p>
     </section> : null}
-    {!parkOnly && !hasResearchSignal ? <QuarterlyChanges quarterly={quarterly} state={trendState} scope="完整授权甲乙级子市场 · 不随地图筛选变化" /> : null}
+    {showQuarterlySummary && !parkOnly && !hasResearchSignal && (
+      trendState === 'ready' ? <MarketTrendSummary data={trendData} /> : <section aria-label="季度变化" className={styles.block}>
+        <h3>季度变化</h3>
+        <p role="status" className={styles.secondary}>{trendState === 'loading' ? '正在读取季度行情…' : '季度行情暂不可用。'}</p>
+      </section>
+    )}
     {(!parkOnly || (futureState === 'ready' && futureCount > 0) || futureState === 'error') ? <section aria-label={parkOnly ? '未来供应' : '楼宇构成'} className={styles.block}>
       <h3>{parkOnly ? '未来供应' : '楼宇构成'}</h3>
-      {!parkOnly ? <dl className={styles.facts}>
-        <div><dt>甲级写字楼</dt><dd>{count(summary.gradeACount)}</dd></div>
-        <div><dt>乙级写字楼</dt><dd>{count(summary.gradeBCount)}</dd></div>
-        <div><dt>产业园</dt><dd>{count(summary.parkCount)}</dd></div>
-      </dl> : null}
+      {!parkOnly && <MarketComposition segments={[
+        { label: '甲级写字楼', count: summary.gradeACount },
+        { label: '乙级写字楼', count: summary.gradeBCount },
+        { label: '产业园', count: summary.parkCount },
+      ]} />}
       <dl className={styles.supplement}>
         {summary.areaSamples > 0 && available(summary.stockArea) && summary.stockArea >= 0 && <div>
           <dt>甲乙级已知存量面积</dt><dd>{researchNumber(summary.stockArea, 0)} ㎡（{count(summary.areaSamples)}有面积记录）</dd>
@@ -159,38 +133,35 @@ export function SubmarketResearchOverview({
       <p>净有效租金有效面积覆盖：{summary.rentCoverage.area == null ? '未收录' : numberUnit(summary.rentCoverage.area * 100, '%')}；空置率有效面积覆盖：{summary.vacancyCoverage.area == null ? '未收录' : numberUnit(summary.vacancyCoverage.area * 100, '%')}。分母为甲乙级已知存量面积。</p>
       {hasBenchmark && <p>北京比较仅解除当前研究子市场的限制，保留其他筛选，使用平台收录的甲乙级项目（含本子市场）。同一指标在本区和北京均须来自同一正式季度、各至少两个有效样本，且北京样本须包含其他具名子市场的有效观测。</p>}
       <p>季度比较使用完整授权子市场同季度已锁定、非草稿的楼宇季度记录。环比和同比要求相隔一个和四个真实季度，且比较的两期各至少有两个有效样本；各期样本可能不同。</p>
-      {includeTrendSource && <p>{trendSourceNotes}</p>}
     </SourceDisclosure>}
   </div>;
 }
 
-const trendSourceNotes = '各指标保留自己的最新有效季度；空白季度不补零或插值。历史按当前楼宇归属及等级统计；空置率变化以百分点表示。';
-
-export function SubmarketResearchTrend({ data, state, gradeLabel, onRetry, showDigest = true, showSource = true }: {
+export function SubmarketResearchTrend({ data, state, gradeLabel, series, active, range, onRangeChange, onRetry }: {
   data: readonly SubmarketTrendPoint[];
   state: SubmarketResearchTrendState;
   gradeLabel: string;
+  series?: SubmarketTrendSeries;
+  active: boolean;
+  range: MarketTrendRange;
+  onRangeChange: (range: MarketTrendRange) => void;
   onRetry?: () => void;
-  showDigest?: boolean;
-  showSource?: boolean;
 }) {
-  const quarterly = useMemo(() => state === 'ready' ? describeQuarterlyResearchMarket(data) : null, [data, state]);
-  const hasTrend = Boolean(quarterly?.rent.latest || quarterly?.vacancy.latest);
   return <div className={styles.research}>
-    <section aria-label="季度行情">
-      <p className={styles.scope}>完整授权子市场 · {gradeLabel} · 不随地图筛选变化</p>
+    <section className={styles.trendSection} aria-label="季度行情">
+      <p className={styles.secondary}>完整授权子市场 · {gradeLabel} · 不随地图筛选变化</p>
       {state === 'loading' ? <p role="status" className={styles.chartStatus}>正在读取季度数据…</p>
         : state === 'error' ? <div className={styles.chartStatus}>
           <p role="status">历史行情暂不可用。</p>
           {onRetry && <button type="button" className={styles.retry} onClick={onRetry}>重新加载</button>}
         </div>
-          : hasTrend ? <LazyTrendChart data={data} />
-            : <p className={styles.chartStatus}>当前等级暂无已发布的有效季度观测。</p>}
+          : <SubmarketTrendChart data={data} range={range} onRangeChange={onRangeChange} active={active} />}
+      {state === 'ready' && series && <MarketGradeComparison series={series} />}
     </section>
-    {showDigest && hasTrend && <QuarterlyChanges quarterly={quarterly} state={state} title="最新季度变化" />}
-    {showSource && <SourceDisclosure>
-      <p>趋势来自已锁定、非草稿的楼宇季度记录，各期样本可能不同。{trendSourceNotes}</p>
-      <p>环比、同比须相隔一个、四个真实季度，且比较两期各至少有两个有效样本。</p>
+    {state === 'ready' && data.some(row => row.rent != null || row.vacancyPct != null) && <SourceDisclosure label="季度行情口径与来源">
+      <p>完整历史覆盖本次读取范围内的正式季度记录（当年及前四个日历年），历史按当前楼宇归属及等级统计。各指标保留自己的有效季度，缺失季度留空。</p>
+      <p>环比、同比对应相隔一季和四季的正式观测。每期至少两个有效样本才显示变化。面积覆盖以当期已知存量面积为分母，两期相差至少 10 个百分点时提示覆盖变化。</p>
+      <p>市场样本变化使用各期面积加权值。同样本变化只用两期均有效的共同项目重新计算，至少需要两个共同项目。空置率差值以百分点表示。</p>
     </SourceDisclosure>}
   </div>;
 }

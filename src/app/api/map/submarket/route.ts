@@ -119,7 +119,7 @@ async function readTrend(client: SupabaseClient, name: string, signal: AbortSign
   }
 
   return {
-    trends: computeSubmarketTrends(offices, rows, 8),
+    trends: computeSubmarketTrends(offices, rows, 'available'),
     scope: 'authorized_market', membershipTime: 'current_catalog', publication: 'locked_non_draft',
     quarterMethod: 'same_quarter_area_weighted',
     source: 'building_metrics',

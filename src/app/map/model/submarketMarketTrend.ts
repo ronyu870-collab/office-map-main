@@ -23,45 +23,50 @@ export type SubmarketTrendSeries = Record<'all' | 'a' | 'b', SubmarketTrendPoint
 type OfficeRecord = { id: string; grade?: string | null };
 
 /** The selected observation is never forward-filled into another quarter. */
-export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows: readonly TrendMetricRow[], count = 8): SubmarketTrendSeries {
+export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows: readonly TrendMetricRow[], count: number | 'available' = 8): SubmarketTrendSeries {
   const members = new Map(buildings.map(building => [building.id, officeGrade(building.grade)] as const)
     .filter((entry): entry is readonly [string, 'a' | 'b'] => entry[1] === 'a' || entry[1] === 'b'));
   const byEntityPeriod = new Map<string, TrendMetricRow>();
-  let last = -Infinity;
+  let first = Infinity, last = -Infinity;
   for (const row of rows) {
     if (!members.has(row.building_id) || !isFormalQuarterlyFact(row)) continue;
     const key = quarterKey(row)!;
     const entityPeriod = `${row.building_id}:${key}`;
     const previous = byEntityPeriod.get(entityPeriod);
     if (!previous || compareQuarterlyFacts(row, previous) > 0) byEntityPeriod.set(entityPeriod, row);
+    first = Math.min(first, key);
     last = Math.max(last, key);
   }
   if (!Number.isFinite(last)) return { all: [], a: [], b: [] };
-  const size = Number.isFinite(count) ? Math.max(1, Math.min(20, Math.floor(count))) : 8;
+  const requested = count === 'available' ? last - first + 1 : count;
+  const size = Number.isFinite(requested) ? Math.max(1, Math.min(20, Math.floor(requested))) : 8;
   const periodKeys = Array.from({ length: size }, (_, index) => last - size + index + 1);
   const series = (selected: 'all' | 'a' | 'b'): SubmarketTrendPoint[] => {
     const selectedMembers = [...members].filter(([, grade]) => selected === 'all' || grade === selected);
-    const sampleCache = new Map<string, string[]>();
+    const sampleCache = new Map<number, { rent: string[]; vacancy: string[] }>();
     const sampleIds = (key: number, metric: 'rent' | 'vacancy') => {
-      const cacheKey = `${key}:${metric}`;
-      const cached = sampleCache.get(cacheKey);
-      if (cached) return cached;
-      const result = selectedMembers.filter(([id, grade]) => {
-      const row = byEntityPeriod.get(`${id}:${key}`);
-      const stats = aggregateMarket([{ id, grade, metrics: row ? [row] : [] }]);
-      return metric === 'rent' ? stats.rentSampleCount > 0 : stats.vacancySampleCount > 0;
-      }).map(([id]) => id);
-      sampleCache.set(cacheKey, result);
-      return result;
+      const cached = sampleCache.get(key);
+      if (cached) return cached[metric];
+      const result = { rent: [] as string[], vacancy: [] as string[] };
+      for (const [id, grade] of selectedMembers) {
+        const row = byEntityPeriod.get(`${id}:${key}`);
+        if (!row) continue;
+        const stats = aggregateMarket([{ id, grade, metrics: [row] }]);
+        if (stats.rentSampleCount > 0) result.rent.push(id);
+        if (stats.vacancySampleCount > 0) result.vacancy.push(id);
+      }
+      sampleCache.set(key, result);
+      return result[metric];
     };
     const change = (key: number, offset: number, metric: 'rent' | 'vacancy'): SameSampleChange => {
       const previousIds = new Set(sampleIds(key - offset, metric));
       const ids = sampleIds(key, metric).filter(id => previousIds.has(id));
+      if (ids.length < 2) return { samples: ids.length, rentPct: null, vacancyPp: null };
       const stats = (period: number) => aggregateMarket(ids.map(id => ({ id, metrics: [byEntityPeriod.get(`${id}:${period}`)!] })));
       const now = stats(key), before = stats(key - offset);
       return { samples: ids.length,
-        rentPct: metric === 'rent' && ids.length >= 2 && now.rent != null && before.rent != null && before.rent > 0 ? (now.rent / before.rent - 1) * 100 : null,
-        vacancyPp: metric === 'vacancy' && ids.length >= 2 && now.vacancyPct != null && before.vacancyPct != null ? now.vacancyPct - before.vacancyPct : null };
+        rentPct: metric === 'rent' && now.rent != null && before.rent != null && before.rent > 0 ? (now.rent / before.rent - 1) * 100 : null,
+        vacancyPp: metric === 'vacancy' && now.vacancyPct != null && before.vacancyPct != null ? now.vacancyPct - before.vacancyPct : null };
     };
     return periodKeys.map(key => {
       const year = Math.floor(key / 4), quarter = key % 4 + 1;
