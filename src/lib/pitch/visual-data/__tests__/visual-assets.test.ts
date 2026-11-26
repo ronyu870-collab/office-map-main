@@ -100,9 +100,14 @@ function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array
 
 describe('building photo admission and actual scene bytes', () => {
   it('checks reuse permission and separates real, lobby, amenity and rendering classifications', () => {
-    expect(reusablePhotoLicense({ ...rights, license_url: null })).toBeNull();
-    expect(reusablePhotoLicense({ ...rights, attribution_text: '' })).toBeNull();
-    expect(reusablePhotoLicense({ ...rights, license_url: 'https://creativecommons.org/licenses/by-nc/4.0/' })).toBeNull();
+    expect(reusablePhotoLicense({ ...rights, license_url: null })).toMatchObject({
+      status: 'gallery-approved', attribution: rights.attribution_text, licenseUrl: null, cropAllowed: false,
+    });
+    expect(reusablePhotoLicense({ ...rights, attribution_text: '' })).toMatchObject({ status: 'gallery-approved', attribution: rights.source_name });
+    expect(reusablePhotoLicense({ ...rights, source_url: 'file:///not-a-source' })).toBeNull();
+    expect(reusablePhotoLicense({ ...rights, license_url: 'https://creativecommons.org/licenses/by-nc/4.0/' })).toMatchObject({
+      status: 'gallery-approved', licenseUrl: null,
+    });
     expect(reusablePhotoLicense(rights)).toMatchObject({ cropAllowed: false });
     expect(classifyBuildingPhoto('interior', '首层大堂')).toBe('lobby');
     expect(classifyBuildingPhoto('other', '项目配套健身房')).toBe('amenity');
@@ -123,12 +128,15 @@ describe('building photo admission and actual scene bytes', () => {
     const files = [rendering, portrait, alternate, secondExterior, wide];
     expect(selectBuildingPhotos([buildingId], files, 'cover')[0].primary?.id).toBe(wide.id);
     expect(selectBuildingPhotos([buildingId], files, 'cover', [wide.file.sha256])[0].primary?.id).toBe(alternate.id);
+    expect(selectBuildingPhotos([buildingId], [portrait], 'cover')[0]).toMatchObject({
+      primary: { id: portrait.id }, placement: { fit: 'contain' },
+    });
     const compare = selectBuildingPhotos([buildingId, secondId], files, 'comparison');
     expect(compare.map(item => item.primary?.category)).toEqual(['exterior', 'exterior']);
     expect(compare.map(item => item.placement)).toEqual([compare[0].placement, compare[0].placement]);
   });
 
-  it('does not reach storage for denied, unlicensed, other-building, or duplicate content', async () => {
+  it('does not reach storage for denied, other-building, or duplicate content', async () => {
     const denied = fixture({ allowed: false });
     await expect(getBuildingPhotoChoices(denied.ctx, { buildingIds: [buildingId], use: 'cover' })).rejects.toThrow('QUERY_DENIED');
     expect(denied.calls).toHaveLength(1);
@@ -139,6 +147,16 @@ describe('building photo admission and actual scene bytes', () => {
     const badPath = fixture({ rows: [{ ...rowFor(jpeg), storage_path: rowFor(jpeg, photoId, secondId).storage_path }] });
     expect((await getBuildingPhotoChoices(badPath.ctx, { buildingIds: [buildingId], use: 'cover' }))[0].primary).toBeNull();
     expect(badPath.calls.some(call => call.startsWith('/storage/'))).toBe(false);
+  });
+
+  it('pins an internally approved gallery photo while retaining attribution and the original file checks', async () => {
+    const { ctx, calls } = fixture({ rows: [{ ...rowFor(jpeg), license_url: null }] });
+    const [item] = await getBuildingPhotoChoices(ctx, { buildingIds: [buildingId], use: 'cover' });
+    expect(item.primary).toMatchObject({ disclosure: 'internal', contentHash: contentHash(jpeg), rights: {
+      attribution: rights.attribution_text, licenseName: null, licenseUrl: null, cropAllowed: false,
+      clientDistribution: false, externalAi: false,
+    } });
+    expect(calls.some(call => call.startsWith('/storage/'))).toBe(true);
   });
 
   it('omits missing and corrupt files, including a corrupt original whose recorded hash matches', async () => {

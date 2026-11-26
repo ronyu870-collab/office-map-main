@@ -35,7 +35,7 @@ function referenceFor(candidate: PhotoCandidate) {
     kind: 'photo', id: stableVisualId(['building-photo', id]), buildingIds: [buildingId], disclosure: 'internal',
     origin: { type: 'building-photo', buildingId, photoId: id }, contentHash: file.sha256,
     dimensions: { width: file.width, height: file.height }, businessDate: null, sourceDateBasis: 'catalog-recorded',
-    rights: { scope: 'internal', holder: null, attribution: license.attribution, licenseName: license.name,
+    rights: { scope: 'internal', holder: null, attribution: license.attribution, licenseName: license.status === 'licensed' ? license.name : null,
       sourceUrl: license.sourceUrl, licenseUrl: license.licenseUrl, cropAllowed: license.cropAllowed, clientDistribution: false, externalAi: false },
     source: { kind: 'record', recordId: id, label: `${license.attribution} · ${license.name}`.slice(0, 300),
       locator: `楼宇照片目录 · ${license.sourceName} · 采集日期，拍摄日期未知`.slice(0, 300), dataAsOf: collectedOn },

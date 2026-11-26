@@ -20,13 +20,18 @@ export function classifyBuildingPhoto(kind: string, caption: string): PhotoCateg
   return 'other';
 }
 
-/** A source page or ready status alone does not establish presentation reuse rights. */
+/** The curated building gallery is approved for internal Pitch use. Preserve independently documented licenses. */
 export function reusablePhotoLicense(row: PhotoSource) {
   const sourceUrl = publicPhotoUrl(row.source_url, true);
-  const attribution = row.attribution_text?.trim();
+  const credited = row.attribution_text?.trim();
+  const attribution = credited || row.source_name.trim() || '楼宇图库';
   const licenseUrl = publicPhotoUrl(row.license_url);
   const match = licenseUrl?.match(/^https:\/\/creativecommons\.org\/licenses\/(by|by-sa)\/4\.0\/?$/i);
-  if (!sourceUrl || !attribution || !match) return null;
+  if (!sourceUrl) return null;
+  if (!credited || !match) return {
+    status: 'gallery-approved' as const, name: '图库内部使用',
+    sourceUrl, sourceName: row.source_name, attribution, licenseUrl: null, cropAllowed: false,
+  };
   return {
     status: 'licensed' as const,
     name: match[1].toLowerCase() === 'by' ? 'CC BY 4.0' : 'CC BY-SA 4.0',
@@ -67,8 +72,9 @@ export function selectBuildingPhotos(
   const targetAspect = use === 'cover' ? 16 / 9 : 4 / 3;
   const eligible = candidates.filter(photo => buildingIds.includes(photo.buildingId)
     && photo.file.width >= 320 && photo.file.height >= 240
-    && (use !== 'cover' || photo.category === 'exterior' && photo.file.width >= 960
-      && photo.file.height >= 540 && photo.file.width / photo.file.height >= 1.1));
+    && (use !== 'cover' || photo.category === 'exterior'
+      && Math.max(photo.file.width, photo.file.height) >= 960
+      && Math.min(photo.file.width, photo.file.height) >= 540));
   const owners = new Map<string, Set<string>>();
   for (const { file, buildingId } of candidates) {
     const ids = owners.get(file.sha256) ?? new Set<string>();
@@ -98,7 +104,9 @@ export function selectBuildingPhotos(
   });
   const comparisonContain = use === 'comparison' && selected.some(item => item.primary && !item.primary.license.cropAllowed);
   return selected.map(item => ({ ...item, placement: item.primary ? {
-    aspectRatio: targetAspect, fit: !item.primary.license.cropAllowed || comparisonContain ? 'contain' as const : 'cover' as const,
+    aspectRatio: targetAspect,
+    fit: !item.primary.license.cropAllowed || comparisonContain || use === 'cover' && item.primary.file.width < item.primary.file.height
+      ? 'contain' as const : 'cover' as const,
     focalX: .5, focalY: .5,
   } : null }));
 }
