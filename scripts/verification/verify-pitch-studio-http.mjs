@@ -5,6 +5,8 @@ import {verifyPitchEcosystem} from './pitch-ecosystem-scenarios.mjs';
 import {verifyPitchAi} from './verify-pitch-ai-http.mjs';
 import {verifyPitchWorkspace} from './pitch-workspace-scenarios.mjs';
 import {verifyPitchBusiness} from './pitch-business-scenarios.mjs';
+import {verifyPitchDocumentDelivery} from './pitch-document-delivery-scenarios.mjs';
+import { loadPitchMigrations } from '../../supabase/tests/pitch-studio/migrations.mjs';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { readFile, mkdir, open } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -44,24 +46,7 @@ try {
    create table if not exists public.user_roles(user_id uuid primary key references auth.users(id),role text not null,email text,chinese_name text,full_name text);
    grant select on public.user_roles to service_role;
  `);
- for (const migration of [
-   '20261125165826_pitch_studio_foundation.sql',
-   '20261125174626_pitch_studio_render_engine.sql',
-   '20261125182357_pitch_studio_material_library.sql',
-   '20261125192547_pitch_studio_business_templates.sql',
-   '20261125201503_pitch_studio_workspace.sql',
-   '20261126083359_pitch_studio_template_ecosystem.sql',
-   '20261126090000_pitch_studio_ai.sql',
-   '20261126163000_pitch_workspace_revision_apply.sql',
-   '20261126180746_pitch_design_candidates.sql',
-   '20261127090006_pitch_workspace_document_jobs.sql',
-   '20261127090106_pitch_document_delivery.sql',
-   '20261127090206_pitch_workspace_bindings.sql',
-   '20261127090306_pitch_workspace_handoff_replay.sql',
-   '20261127090406_pitch_workspace_shares.sql',
-   '20261127090506_pitch_export_file_reuse.sql',
-   '20261127093008_pitch_proposal_parent_revision.sql',
- ]) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
+ await loadPitchMigrations(db);
  await db.query("notify pgrst,'reload schema'");
  const owner=await person('editor'),other=await person('editor'),viewer=await person('viewer'),admin=await person('admin');
  const env={...process.env,NEXT_PUBLIC_SUPABASE_URL:settings.API_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:settings.ANON_KEY,SUPABASE_SECRET_KEY:settings.SERVICE_ROLE_KEY,PITCH_STUDIO_ENABLED:'true',DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'syntheticfixture'};
@@ -159,6 +144,7 @@ try {
    if(format==='svg')assert.match(new TextDecoder().decode(file.body),/<svg/);
    if(format==='xlsx'){const zip=await JSZip.loadAsync(file.body);assert.ok(zip.file('xl/workbook.xml'));}
  });
+ await verifyPitchDocumentDelivery({app,db,owner,other,viewer,scope,call,check,studioProject,studioExport});
  async function library(who,input,write=false){
   const res=await fetch(app+'/api/intelligence/pitch/library'+(write?'':'?'+new URLSearchParams(input)),{method:write?'POST':'GET',headers:{Authorization:'Bearer '+who.token,...(write?{'Content-Type':'application/json'}:{})},...(write?{body:JSON.stringify(input)}:{})});
   return {status:res.status,body:res.headers.get('content-type')?.includes('application/json')?await res.json():new Uint8Array(await res.arrayBuffer())};
