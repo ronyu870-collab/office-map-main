@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, open, readFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile } from "node:fs/promises";
 import { setTimeout as pause } from "node:timers/promises";
 import { createClient } from "@supabase/supabase-js";
 import pg from "pg";
 import { grantQuery } from "../../supabase/tests/ai-query-authority/database.mjs";
 import { BUILDINGS } from "../../supabase/tests/ai-query-authority/snapshot-fixture.mjs";
 import { installPitchDataFixture } from "../../supabase/tests/pitch-studio/business-data-fixture.mjs";
-import { verifyPitchFlagshipBrowser } from "./pitch-workspace-browser.mjs";
+import { verifyPitchBuildingInspectorBrowser, verifyPitchFlagshipBrowser } from "./pitch-workspace-browser.mjs";
 
 assert.equal(process.env.PITCH_TEST_ALLOW_LOCAL, "disposable");
 const settings = JSON.parse(await readFile(process.env.PITCH_AUTH_STATUS, "utf8"));
@@ -29,28 +29,16 @@ const env = {
   OPENAI_API_KEY: "",
   NEXT_PUBLIC_AMAP_KEY: "syntheticfixture",
 };
-const migrations = [
-  "20261125165826_pitch_studio_foundation.sql",
-  "20261125174626_pitch_studio_render_engine.sql",
-  "20261125182357_pitch_studio_material_library.sql",
-  "20261125192547_pitch_studio_business_templates.sql",
-  "20261125201503_pitch_studio_workspace.sql",
-  "20261126083359_pitch_studio_template_ecosystem.sql",
-  "20261126090000_pitch_studio_ai.sql",
-  "20261126163000_pitch_workspace_revision_apply.sql",
-  "20261126180746_pitch_design_candidates.sql",
-  "20261127090006_pitch_workspace_document_jobs.sql",
-  "20261127090106_pitch_document_delivery.sql",
-  "20261127090206_pitch_workspace_bindings.sql",
-];
+const directory = new URL("../../supabase/migrations/", import.meta.url);
 
 async function seed() {
   await db.query(`create schema if not exists private;
     create table if not exists public.user_roles(user_id uuid primary key references auth.users(id),
       role text not null,email text,chinese_name text,full_name text);
     grant select on public.user_roles to service_role`);
+  const migrations = (await readdir(directory)).filter(name => /^\d{14}_pitch_.+\.sql$/.test(name)).sort();
   for (const migration of migrations) {
-    await db.query(await readFile(new URL(`../../supabase/migrations/${migration}`, import.meta.url), "utf8"));
+    await db.query(await readFile(new URL(migration, directory), "utf8"));
   }
   const email = `pitch-flagship-${randomUUID()}@example.invalid`;
   const password = randomBytes(24).toString("base64url") + "aA1!";
@@ -117,7 +105,8 @@ try {
     if (!ready) await pause(200);
   }
   assert.ok(ready && server.exitCode === null, "Local Next app did not start");
-  await verifyPitchFlagshipBrowser({
+  const verify = process.argv.includes("--building-inspector") ? verifyPitchBuildingInspectorBrowser : verifyPitchFlagshipBrowser;
+  await verify({
     app, who, period: "2026-Q3",
     readProject: async (projectId) => {
       const result = await fetch(app + "/api/intelligence/pitch/workspace", {
@@ -132,8 +121,9 @@ try {
 } finally {
   if (server?.exitCode === null) {
     const stopped = once(server, "exit");
+    const forceStop = setTimeout(() => server.kill("SIGKILL"), 5000);
     server.kill("SIGTERM");
-    await stopped;
+    try { await stopped; } finally { clearTimeout(forceStop); }
   }
   await log.close();
   await db.end();

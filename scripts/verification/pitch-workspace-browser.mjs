@@ -275,6 +275,84 @@ function waitForPitchCommand(page, endpoint, action) {
   }, { timeout: 60_000 });
 }
 
+async function closeFlagshipBrowser(browser) {
+  let timer;
+  try {
+    await Promise.race([browser.close(), new Promise((resolve) => { timer = setTimeout(resolve, 5000); })]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function verifyPitchBuildingInspectorBrowser({ app, who, period, readProject }) {
+  assert.equal(new URL(app).hostname, "127.0.0.1");
+  const browser = await launchBrowser();
+  let stage = "creating";
+  try {
+    const context = await openWorkspaceContext(browser, app, who, 1440);
+    const page = await context.newPage();
+    page.setDefaultTimeout(15_000);
+    const button = (name) => page.getByRole("button", { name, exact: true });
+    const workspace = "/api/intelligence/pitch/workspace";
+    await page.goto(app + "/intelligence/pitch");
+    await button("新建空白演示文稿").click();
+    await page.getByLabel("Pitch 名称").fill("隔离楼宇核对");
+    await page.getByText("更多项目设置（可选）", { exact: true }).click();
+    await page.getByLabel("默认季度").fill(period);
+    const [created] = await Promise.all([waitForPitchCommand(page, workspace, "create"), button("创建").click()]);
+    assert.ok(created.ok(), `workspace create HTTP ${created.status()}`);
+    const { project } = await created.json();
+    stage = "searching";
+    await button("数据").click();
+    await page.getByText("查找楼宇数据", { exact: true }).click();
+    await page.getByLabel("搜索楼宇").fill("霄云路33号");
+    await button("霄云路33号").click();
+
+    stage = "reviewing";
+    const [reviewed] = await Promise.all([waitForPitchCommand(page, workspace, "review_handoff"), button("核对季度数据").click()]);
+    assert.ok(reviewed.ok(), `review_handoff HTTP ${reviewed.status()}`);
+    const { handoff } = reviewed.request().postDataJSON();
+    const preview = await reviewed.json();
+    assert.equal(handoff.projectId, project.id);
+    assert.equal(preview.period, period);
+    assert.equal(preview.buildingIds.length, 1);
+    assert.deepEqual(handoff.source.buildingIds, preview.buildingIds);
+    const reviewDialog = page.getByRole("dialog", { name: "加入 Pitch" });
+    const rent = /\b103\b/;
+    const reviewedPage = preview.pages.find((slide) => slide.blocks.some((block) =>
+      block.kind === "table" && block.rows.some((row) => row.some((value) => rent.test(String(value))))));
+    assert.ok(reviewedPage, `source review did not contain the fixture rent: ${JSON.stringify(preview.pages.map(slide => ({
+      title: slide.title, tables: slide.blocks.filter(block => block.kind === "table"),
+    })))}`);
+    const evidence = reviewDialog.locator("details").filter({ has: page.getByText(reviewedPage.title, { exact: true }) });
+    await evidence.waitFor();
+    if (await evidence.getAttribute("open") === null) await evidence.locator("summary").click();
+    await evidence.getByRole("cell", { name: rent }).waitFor();
+    assert.equal(await reviewDialog.getByLabel("目标项目").count(), 0, "current project is already selected");
+    stage = "appending";
+    const [accept] = await Promise.all([
+      waitForPitchCommand(page, workspace, "add_to_pitch"), reviewDialog.getByRole("button", { name: "确认并追加" }).click(),
+    ]);
+    assert.equal(accept.status(), 202);
+    const command = accept.request().postDataJSON();
+    assert.deepEqual(command.handoff, handoff);
+    assert.equal(command.fingerprint, preview.fingerprint);
+    assert.equal(command.target.mode, "append");
+    await reviewDialog.waitFor({ state: "hidden" });
+    await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 60_000 });
+    const saved = await readProject(project.id);
+    assert.ok(saved.project.version > command.target.expectedVersion);
+    assert.ok(saved.slides[0].content.sources.length);
+    assert.deepEqual(saved.workspace.context.buildingIds, preview.buildingIds);
+    console.log("PASS building search, formal evidence, versioned append and saved preview");
+  } catch (error) {
+    console.error(`Building inspector failed while ${stage}`, error);
+    throw error;
+  } finally {
+    await closeFlagshipBrowser(browser);
+  }
+}
+
 export async function verifyPitchFlagshipBrowser({ app, who, period, readProject, requiredVisuals = {} }) {
   assert.equal(new URL(app).hostname, "127.0.0.1");
   const browser = await launchBrowser();
@@ -368,7 +446,7 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
     assert.ok(report.every((value) => value.stage === "completed" && !value.missingPages.length && !value.missingVisuals.length),
       "one or more flagship paths or required evidence are incomplete");
   } finally {
-    await browser.close();
+    await closeFlagshipBrowser(browser);
   }
 }
 

@@ -14,10 +14,12 @@ export function BuildingPicker({
   call,
   ids,
   onChange,
+  disabled = false,
 }: {
   call: Call;
   ids: string[];
   onChange: (ids: string[]) => void;
+  disabled?: boolean;
 }) {
   const [q, setQ] = React.useState(""),
     [items, setItems] = React.useState<{ id: string; name: string }[]>([]),
@@ -50,7 +52,7 @@ export function BuildingPicker({
     };
   }, [q, call]);
   return (
-    <fieldset className={styles.choice}>
+    <fieldset className={styles.choice} disabled={disabled}>
       <legend>关联项目</legend>
       <label>
         搜索楼宇

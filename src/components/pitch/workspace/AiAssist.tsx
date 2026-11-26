@@ -293,7 +293,7 @@ export function AiAssist({
         >
           推荐提纲
         </Button>
-        <p>可用「数据 → 项目设置」中关联的 1–5 栋楼宇和默认季度，加入正式数据章节。仅限内部使用。</p>
+        <p>在「数据」中关联 1–5 栋楼宇并设置默认季度后，可加入正式数据章节。仅供内部使用。</p>
         <label className={styles.check}>
           <input type="checkbox" checked={compareQuarters} disabled={working || busy}
             onChange={event => setCompareQuarters(event.target.checked)} />
