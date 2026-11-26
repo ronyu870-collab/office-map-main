@@ -18,6 +18,7 @@ import { reviewedBuildingData } from "../business/outline-data";
 import { outlineDataParameters, workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
 import { workspaceDetailSchema, type WorkspaceDetail } from "./protocol";
 import { applyObjectMoves, applyObjectTexts, applyObjectOrder, applyObjectGroups } from "./object-layout";
+import { noteSubtitle, workspaceChartTypeSchema } from "./presentation-edits";
 import { captureKey, readCaptures, usesBusinessEvidence } from "./bindingStore";
 import type { DocumentModificationPlan } from "../integration-contracts";
 type Page = WorkspaceDetail["slides"][number];
@@ -127,8 +128,26 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
     const prior = settings[original.id] ?? {};
     const binding = bindings?.get(captureKey(original.asset_id, original.asset_version));
     const changedParagraphs = new Set<number>();
+    const noteChanged = edit.manualNote !== undefined && (edit.manualNote ?? undefined) !== prior.note?.text;
+    let note = prior.note;
     let content: SlideContent = structuredClone(original.content);
     if (edit.title) content.title = edit.title;
+    if (noteChanged) {
+      const baseSubtitle = prior.note ? prior.note.baseSubtitle : original.content.subtitle;
+      note = edit.manualNote ? { text: edit.manualNote, baseSubtitle } : undefined;
+      content.subtitle = note ? noteSubtitle(baseSubtitle, note.text, content.locale) : baseSubtitle;
+    }
+    if (edit.chartPresentation) {
+      const indexes = new Set<number>();
+      for (const chart of edit.chartPresentation) {
+        const block = content.blocks[chart.blockIndex];
+        if (!block || block.kind !== "chart" || indexes.has(chart.blockIndex) ||
+          !workspaceChartTypeSchema.safeParse(block.chartType).success)
+          throw new Error("PITCH_INVALID");
+        indexes.add(chart.blockIndex);
+        content.blocks[chart.blockIndex] = { ...block, chartType: chart.type };
+      }
+    }
     if (edit.paragraphs) {
       if ((original.scene.pagination?.count ?? 1) > 1)
         throw new Error("PITCH_PAGINATED_EDIT");
@@ -203,11 +222,13 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
     const manual =
       prior.manual ||
       !!textChange ||
+      noteChanged ||
       edit.images !== undefined ||
       changedParagraphs.size > 0 ||
       content.title !== original.content.title;
     if (
       textChange ||
+      noteChanged ||
       changedParagraphs.size > 0 ||
       edit.images ||
       content.title !== original.content.title
@@ -278,6 +299,7 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
       settings[id] = {
         ...prior,
         manual: !!manual,
+        note,
         origin:
           prior.origin ??
           (original.content.sources.some((s) =>

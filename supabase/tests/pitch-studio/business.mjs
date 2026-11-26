@@ -76,12 +76,21 @@ try {
    const initial=await workspace.getWorkspace(admin,c.projectId);
    const custom=await workspace.customWorkspace(admin,{action:'custom',projectId:c.projectId,expectedVersion:initial.project.version,
      title:'人工说明',body:'此页由用户维护。'});
-   const page=custom.slides.find(s=>s.content.blocks.some(b=>b.kind==='table'));
-   const unrelated=custom.slides.at(-1);
-   const request={projectId:c.projectId,expectedVersion:custom.project.version,slideId:page.id};
+   const firstTable=custom.slides.find(s=>s.content.blocks.some(b=>b.kind==='table'));
+   const noted=await workspace.applyDocumentModification(admin,{action:'apply_modification',scope:'selected',
+     plan:{id:randomUUID(),projectId:c.projectId,expectedVersion:custom.project.version,
+       basePageVersions:[{id:firstTable.id,version:firstTable.version}],
+       pages:[{id:firstTable.id,manualNote:'面积口径由团队复核。'}]}});
+   const page=noted.slides.find(s=>s.id===firstTable.id);
+   assert.match(page.content.subtitle,/人工说明：面积口径由团队复核/);
+   assert.deepEqual(page.content.blocks,firstTable.content.blocks);
+   assert.equal(page.content.disclosure,'internal');
+   const unrelated=noted.slides.at(-1);
+   const request={projectId:c.projectId,expectedVersion:noted.project.version,slideId:page.id};
    const pinned=await bindings.readDocumentBindings(admin,c.projectId);
    const table=pinned.pages.find(p=>p.id===page.id).objects.find(b=>b.kind==='table');
    assert.equal(table.valueOrigin,'business');
+   assert.equal(pinned.pages.find(p=>p.id===page.id).manualNote,'面积口径由团队复核。');
    assert.deepEqual(table.query.buildingIds,[BUILDINGS[0]]);
    assert.equal(table.binding.dataAsOf,'2026-09-30');
    assert.equal(pinned.pages.find(p=>p.id===unrelated.id).objects[0].valueOrigin,'manual');
@@ -97,14 +106,59 @@ try {
    await assert.rejects(bindings.applyDataRefresh(admin,{...request,action:'apply_data_refresh',fingerprint:first.fingerprint}),/PITCH_DATA_REFRESH_CHANGED/);
    const fresh=await bindings.previewDataRefresh(admin,{...request,action:'preview_data_refresh'});
    const updated=await bindings.applyDataRefresh(admin,{...request,action:'apply_data_refresh',fingerprint:fresh.fingerprint});
-   assert.equal(updated.project.version,custom.project.version+1);
+   assert.equal(updated.project.version,noted.project.version+1);
    const newPage=updated.slides.find(p=>p.id===page.id);
    assert.notDeepEqual(newPage.content.blocks,page.content.blocks);
    assert.equal(newPage.scene.layoutId,page.scene.layoutId);
+   assert.equal(newPage.content.subtitle,page.content.subtitle);
    assert.deepEqual(updated.slides.find(p=>p.id===unrelated.id).content,unrelated.content);
    const previous=await workspace.restoreWorkspace(admin,{action:'restore',projectId:c.projectId,
-     expectedVersion:updated.project.version,revision:custom.project.version});
+     expectedVersion:updated.project.version,revision:noted.project.version});
    assert.deepEqual(previous.slides.find(p=>p.id===page.id).content,page.content);
+   const quarter={year:2026,quarter:2};
+   const reperiod={projectId:c.projectId,expectedVersion:previous.project.version,slideId:page.id,period:quarter};
+   const quarterReview=await bindings.previewDataRefresh(admin,{action:'preview_data_refresh',...reperiod});
+   assert.deepEqual(quarterReview.period,quarter);
+   const earlier=await bindings.applyDataRefresh(admin,{action:'apply_data_refresh',...reperiod,fingerprint:quarterReview.fingerprint});
+   const earlierPage=earlier.slides.find(s=>s.id===page.id);
+   assert.equal(earlierPage.content.dataAsOf,'2026-06-30');
+   assert.match(earlierPage.content.subtitle,/面积口径由团队复核/);
+ });
+ await check('AI chart presentation changes retain bound values, refresh the series, and export the selected native chart',async()=>{
+   const workspace=require('../../../src/lib/pitch/workspace/workflow.ts');
+   const bindings=require('../../../src/lib/pitch/workspace/documentBindings.ts');
+   const c=command([{mode:'dynamic',parameters:dynamicFixture}]);
+   await workflow.generateBusinessProject(admin,c);
+   const initial=await workspace.getWorkspace(admin,c.projectId);
+   const page=initial.slides.find(s=>s.content.blocks.some(b=>b.kind==='chart'));
+   const blockIndex=page.content.blocks.findIndex(block=>block.kind==='chart');
+   const original=page.content.blocks[blockIndex];
+   const update={action:'apply_modification',scope:'selected',plan:{id:randomUUID(),projectId:c.projectId,
+     expectedVersion:initial.project.version,basePageVersions:[{id:page.id,version:page.version}],
+     pages:[{id:page.id, chartPresentation:[{blockIndex,type:'column'}]}]}};
+   const { workspaceCommandSchema }=require('../../../src/lib/pitch/workspace/protocol.ts');
+   assert.equal(workspaceCommandSchema.safeParse({...update,plan:{...update.plan,
+     pages:[{id:page.id, chartPresentation:[{blockIndex,type:'column',series:[0]}]}]}}).success,false);
+   const changed=await workspace.applyDocumentModification(admin,workspaceCommandSchema.parse(update));
+   const edited=changed.slides.find(s=>s.id===page.id);
+   assert.deepEqual(edited.content.blocks[blockIndex],{...original,chartType:'column'});
+   await db.setup.query('update building_metrics set net_effective_rent=net_effective_rent+3 where record_year=2026 and record_quarter=3');
+   const refresh={projectId:c.projectId,expectedVersion:changed.project.version,slideId:page.id};
+   const review=await bindings.previewDataRefresh(admin,{action:'preview_data_refresh',...refresh});
+   const current=await bindings.applyDataRefresh(admin,{action:'apply_data_refresh',...refresh,fingerprint:review.fingerprint});
+   const refreshed=current.slides.find(s=>s.id===page.id).content.blocks[blockIndex];
+   assert.equal(refreshed.chartType,'column');
+   assert.notDeepEqual(refreshed.series,original.series);
+   const exp={action:'export_start',projectId:c.projectId,exportId:randomUUID(),audience:'internal',format:'pptx',
+     page:current.slides.findIndex(slide=>slide.id===page.id)};
+   await render.prepareRenderExport(admin,exp);
+   await render.runRenderExport(admin,exp);
+   const file=await render.downloadArtifact(admin,exp);
+   const zip=await JSZip.loadAsync(file.bytes);
+   assert.ok(current.slides.find(slide=>slide.id===page.id).scene.elements.some(element=>element.kind==='chart'));
+   const chart=Object.values(zip.files).find(file=>/^ppt\/charts\/chart\d+\.xml$/.test(file.name));
+   assert.ok(chart,'selected page contains a native Open XML chart');
+   assert.match(await chart.async('string'),/barDir val="col"/);
  });
  await check('Add to Pitch validates formal project IDs and atomically creates and queues a private project',async()=>{
    const workspace=require('../../../src/lib/pitch/workspace/workflow.ts');
@@ -120,7 +174,10 @@ try {
    assert.equal((await db.setup.query('select 1 from pitch_projects where id=$1',[c.target.projectId])).rowCount,0);
    const queued=await handoff.startHandoff(admin,c);
    await workspace.runWorkspaceTask(admin,c.target.projectId,c.taskId);
+   await db.setup.query('update building_metrics set net_effective_rent=net_effective_rent+1 where building_id=$1 and record_year=2026 and record_quarter=3',[BUILDINGS[0]]);
+   assert.notEqual((await handoff.reviewHandoff(admin,{action:'review_handoff',handoff:input})).fingerprint,review.fingerprint);
    const complete=await handoff.startHandoff(admin,c);
+   await assert.rejects(handoff.startHandoff(admin,{...c,target:{...c.target,title:'不同的项目'}}),/PITCH_CONFLICT/);
    assert.equal(complete.state,'completed');
    assert.equal(complete.source_project_id,queued.source_project_id);
    const opened=await workspace.getWorkspace(admin,c.target.projectId);
@@ -141,10 +198,41 @@ try {
  await check('actual lease adapter requires independent grants, keeps protected customers out and denies old export after revocation',async()=>{
   const ddl=await readFile(new URL('../lease-expiry/fixture.sql',import.meta.url),'utf8');await db.setup.query(ddl.slice(ddl.indexOf('create table public.lease_transactions('),ddl.indexOf('create table public.lease_transactions_history(')));
   await db.setup.query('alter table public.lease_transactions alter column submitter_id type varchar using submitter_id::text');await installLeaseResearchFixture(db.setup);await seedLeaseResearch(db.setup,BUILDINGS);await grantQuery(db,ADMIN,{capabilities:['query:catalog','query:brochure','query:quarter','export:internal'],fields:['totalArea','vacantArea','netEffectiveRent']});
+  const workspace=require('../../../src/lib/pitch/workspace/workflow.ts');
+  const handoff=require('../../../src/lib/pitch/workspace/handoff.ts');
+  const { workspaceCommandSchema }=require('../../../src/lib/pitch/workspace/protocol.ts');
+  const leaseInput={source:{kind:'lease-search',dataset:'combined',from:dynamicFixture.from,to:dynamicFixture.to,
+    buildingIds:[],submarkets:dynamicFixture.submarkets,view:'transactions'},language:'zh'};
+  const leaseReviewCommand=workspaceCommandSchema.parse({action:'review_handoff',handoff:leaseInput});
+  assert.equal(workspaceCommandSchema.safeParse({action:'review_handoff',handoff:{...leaseInput,
+    source:{...leaseInput.source,to:'2020-01-01'}}}).success,false);
+  assert.equal(workspaceCommandSchema.safeParse({action:'review_handoff',handoff:{...leaseInput,
+    source:{...leaseInput.source,rows:[{area:123}]}}}).success,false);
+  await assert.rejects(handoff.reviewHandoff(admin,leaseReviewCommand),/QUERY_DENIED/);
   const input=command([{mode:'dynamic',parameters:{...dynamicFixture,templateId:'lease-industry-distribution',chart:'bar',measure:'area'}}]);await assert.rejects(workflow.generateBusinessProject(admin,input),/QUERY_DENIED/);await grantLeaseResearch(db.setup,ADMIN);await workflow.generateBusinessProject(admin,input);const details=await workflow.generateBusinessProject(admin,command([{mode:'dynamic',parameters:{...dynamicFixture,templateId:'lease-representatives',chart:'table'}}]));assert.ok(details.pages);
   const receipt=await db.rpc(ADMIN,{action:'business_generation',projectId:input.projectId});assert.equal(receipt.snapshots[0].binding.domain,'lease');assert.ok(receipt.snapshots[0].content.some(c=>c.blocks.some(b=>b.kind==='chart')));assert.doesNotMatch(JSON.stringify(receipt),/合成保密客户/);
+  const current=await workspace.getWorkspace(admin,input.projectId);
+  const appendHandoff={...leaseReviewCommand.handoff,projectId:input.projectId};
+  const preview=await handoff.reviewHandoff(admin,{action:'review_handoff',handoff:appendHandoff});
+  assert.equal(preview.binding.domain,'lease');
+  assert.equal(preview.period,'');
+  assert.equal(preview.parameters.from,leaseInput.source.from);
+  assert.deepEqual(preview.parameters.submarkets,leaseInput.source.submarkets);
+  assert.doesNotMatch(JSON.stringify(preview.pages),/合成保密客户/);
+  const append=workspaceCommandSchema.parse({action:'add_to_pitch',handoff:appendHandoff,taskId:randomUUID(),
+    target:{mode:'append',expectedVersion:current.project.version},fingerprint:preview.fingerprint});
+  const queued=await handoff.startHandoff(admin,append);
+  await workspace.runWorkspaceTask(admin,input.projectId,append.taskId);
+  const saved=await workspace.getWorkspace(admin,input.projectId);
+  assert.equal(saved.project.version,current.project.version+1);
+  assert.ok(saved.slides.length>current.slides.length);
+  const appendedReceipt=await db.rpc(ADMIN,{action:'business_generation',projectId:queued.source_project_id});
+  assert.equal(appendedReceipt.snapshots[0].binding.domain,'lease');
+  assert.deepEqual(appendedReceipt.snapshots[0].plans[0].submarkets,leaseInput.source.submarkets);
+  assert.doesNotMatch(JSON.stringify(appendedReceipt),/合成保密客户/);
   const exp={action:'export_start',projectId:input.projectId,exportId:randomUUID(),audience:'internal',format:'pptx'};await render.prepareRenderExport(admin,exp);await render.runRenderExport(admin,exp);assert.ok((await render.downloadArtifact(admin,exp)).bytes.length>1000);
   await db.setup.query('update private.ai_lease_research_grants set enabled=false where user_id=$1',[ADMIN]);await assert.rejects(render.downloadArtifact(admin,exp),/PITCH_DENIED/);
+  await assert.rejects(handoff.startHandoff(admin,append),/PITCH_DENIED/);
  });
  await check('a separately confirmed English asset renders using the same business templates',async()=>{
   const id=await asset('corporate',9,owner,'en');const input={...command([staticPart('corporate-overview',[id])]),language:'en'};const r=await workflow.generateBusinessProject(ordinary,input);assert.ok(r.pages);const p=await db.rpc(OTHER,{action:'get_project',projectId:input.projectId});assert.equal(p.slides[0].content.locale,'en');
