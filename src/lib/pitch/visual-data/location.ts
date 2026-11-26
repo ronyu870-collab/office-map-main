@@ -98,7 +98,7 @@ export function createLocationSchematic(buildings: readonly LocationBuilding[], 
 }
 
 const palette = ['#246781', '#4B775E', '#80663B', '#74577A', '#46579B', '#A35246', '#68694E', '#637C83',
-  '#8E6A54', '#396B55', '#7F5D4E', '#766D86', '#546D9A', '#945D7A', '#7B745A', '#4E8587'];
+  '#8E6A54', '#396B55', '#7F5D4E', '#766D86', '#546D9A', '#945D7A', '#7B745A', '#4E8587', '#926922', '#6E5865'];
 const INK = '#20363F';
 const TEXT = 23;
 
@@ -111,7 +111,13 @@ export async function locationSchematicSvg(scene: LocationSchematic) {
     wrapText(label.replace(/[\p{Cc}\p{Cf}]/gu, ' '), width / 96, TEXT * .75, font)
       .map((line, i, lines) => i < 2 ? drawText(x, y + i * 26, i === 1 && lines.length > 2 ? `${line.slice(0, -1)}…` : line, TEXT, INK) : '').join('');
   const market = scene.marketCoverage.length > 0;
-  const groups = new Map(scene.marketCoverage.map((item, index) => [item.name, palette[index] ?? '#8A9794']));
+  const overflow = scene.marketCoverage.length > palette.length ? scene.marketCoverage.slice(palette.length - 1) : [];
+  const legend = overflow.length ? [...scene.marketCoverage.slice(0, palette.length - 1), {
+    name: `其余 ${overflow.length} 个子市场`,
+    located: overflow.reduce((count, group) => count + group.located, 0),
+    selected: overflow.reduce((count, group) => count + group.selected, 0),
+  }] : scene.marketCoverage;
+  const groups = new Map(legend.map((item, index) => [item.name, overflow.length && index === legend.length - 1 ? '#8A9794' : palette[index]]));
   const missing = scene.markers.filter(marker => !marker.point).length;
   const parts = [`<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">`,
     `<rect width="${WIDTH}" height="${HEIGHT}" fill="#F8F8F5"/>`,
@@ -125,7 +131,7 @@ export async function locationSchematicSvg(scene: LocationSchematic) {
     if (!marker.point) continue;
     const { x, y } = marker.point;
     const color = marker.target ? '#A6522E' : market
-      ? groups.get(normalizeMapSubmarket(marker.building.submarket) || '子市场未标注') ?? palette[0] : palette[0];
+      ? groups.get(normalizeMapSubmarket(marker.building.submarket) || '子市场未标注') ?? '#8A9794' : palette[0];
     if (marker.callout) parts.push(drawLine(x, y, marker.callout.x, marker.callout.y, color));
     parts.push(`<circle cx="${x}" cy="${y}" r="${marker.target ? 11 : market ? 5 : 7}" fill="${color}" stroke="#F8F8F5" stroke-width="2"/>`);
     if (marker.callout) parts.push(
@@ -135,7 +141,7 @@ export async function locationSchematicSvg(scene: LocationSchematic) {
   }
   const legendX = 1374;
   parts.push(drawText(legendX, 210, market ? '子市场 · 已定位 / 样本' : '项目编号', TEXT, INK, 700));
-  if (market) for (const [i, group] of scene.marketCoverage.slice(0, 16).entries()) {
+  if (market) for (const [i, group] of legend.entries()) {
     const y = 252 + i * 37;
     parts.push(`<circle cx="${legendX + 8}" cy="${y - 7}" r="6" fill="${groups.get(group.name)}"/>`,
       drawText(legendX + 30, y, group.name, TEXT, INK),
@@ -147,7 +153,6 @@ export async function locationSchematicSvg(scene: LocationSchematic) {
     parts.push(drawText(x, y, String(marker.number).padStart(2, '0'), TEXT, marker.target ? '#A6522E' : INK, 700),
       drawLabel(label, x + 42, y, scene.markers.length > 10 ? 187 : 416));
   }
-  if (scene.marketCoverage.length > 16) parts.push(drawText(legendX, 872, `另有 ${scene.marketCoverage.length - 16} 个子市场`, TEXT, INK));
   const end = FRAME.left + scene.scale.pixels;
   parts.push(drawLine(FRAME.left, 929, end, 929, INK), drawLine(FRAME.left, 922, FRAME.left, 936, INK),
     drawLine(end, 922, end, 936, INK), drawText(end + 18, 937,

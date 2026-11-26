@@ -16,6 +16,7 @@ import { createLocationSchematic, locationSchematicSvg } from '../location';
 import { createStackingVisual } from '../stacking';
 import { readProposalVisualMaterials } from '../proposal-materials';
 import { resolvePitchVisualAsset, resolveReferencedVisualMedia } from '../resolve';
+import { readStackingAppendix, withAuditedStackingDelivery } from '../stacking-delivery';
 import type { PitchContext } from '../../data/store';
 import type { SlideContent } from '../../contracts/content';
 
@@ -51,8 +52,9 @@ const resolvedBuilding = ({ id, name }: typeof main) => ({ buildingId: id, name,
 
 function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array>; allowed?: boolean; stackingAdmin?: boolean;
   stackingExport?: boolean; revoke?: boolean; incompatiblePhoto?: boolean;
-  buildings?: typeof main[]; ignoreCityFilter?: boolean } = {}) {
+  buildings?: typeof main[]; ignoreCityFilter?: boolean; auditError?: 'intent' | 'completion' } = {}) {
   const calls: string[] = [];
+  const audit: { path: string; body: unknown }[] = [];
   let authReads = 0;
   const rows = options.rows ?? [rowFor(jpeg)];
   const catalog = options.buildings ?? [main, competitor];
@@ -96,6 +98,11 @@ function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array
     if (path === 'stacking_plan_floors') return Response.json(floors);
     if (path === 'stacking_plan_spaces') return Response.json(spaces);
     if (path === 'stacking_plan_sources') return Response.json([source]);
+    if (path === 'audit_operation_receipts' || path === 'audit_complete_operation') {
+      audit.push({ path, body: JSON.parse(String(init?.body)) });
+      if (path === 'audit_complete_operation') return Response.json(options.auditError !== 'completion');
+      return options.auditError === 'intent' ? Response.json({ message: 'Unavailable' }, { status: 503 }) : new Response(null, { status: 201 });
+    }
     if (path === 'audit_logs') return new Response(null, { status: 201 });
     if (url.pathname.startsWith('/storage/v1/object/building-sales-materials/')) {
       const photo = url.pathname.split('/').at(-2)!;
@@ -107,7 +114,7 @@ function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array
   const ctx: PitchContext = { client: createClient('https://isolated.invalid', 'test-only', { global: { fetch: fetcher },
     auth: { autoRefreshToken: false, persistSession: false } }), identity: { actorId: actor, effectiveUserId: actor, sessionId: session,
     expiresAt: Date.now() + 60_000 }, signal: new AbortController().signal };
-  return { ctx, calls };
+  return { ctx, calls, audit };
 }
 
 describe('authorized proposal visual materials', () => {
@@ -161,6 +168,66 @@ describe('authorized proposal visual materials', () => {
     expect(proposal.plan.slides.find(slide => slide.pageKind === 'spatial-distribution')?.visuals).toEqual([pin]);
     expect(pin).toMatchObject({ businessDate: null, sourceDateBasis: 'catalog-observed', buildingIds: [buildingId, secondId] });
     expect(calls.some(call => call.includes('/building_photos'))).toBe(false);
+  });
+});
+
+describe('restricted Stacking Plan appendix and delivery', () => {
+  it('creates a restricted appendix whose PPTX image contains the entire authorized historical snapshot', async () => {
+    const { ctx } = fixture();
+    const result = await readStackingAppendix(ctx, buildingId, { towerIds: [towers[1].id], levelRange: [18, 18] }, 'internal', STUDIO_THEME);
+    expect(result?.content).toMatchObject({ disclosure: 'restricted', dataAsOf: '2026-11-18' });
+    expect(result?.content.subtitle).toContain('历史来源');
+    expect(JSON.stringify(result?.content)).not.toContain('测试租户');
+    const { scenes, reference } = result!;
+    expect(scenes[0].elements.find(item => item.kind === 'image')).toMatchObject({ fit: 'contain' });
+    const media = await resolveReferencedVisualMedia(ctx, [reference], [reference], 'internal');
+    const bytes = await renderPitchPptx('历史楼层分布', scenes.map(scene => ({ scene, theme: STUDIO_THEME })), media);
+    const packageEntries = Object.values((await JSZip.loadAsync(bytes)).files);
+    const images = packageEntries.filter(file => file.name.startsWith('ppt/media/') && !file.dir);
+    expect(await Promise.all(images.map(async file => contentHash(await file.async('uint8array'))))).toContain(contentHash(media[0].bytes));
+    const restricted = fixture();
+    await expect(readStackingAppendix(restricted.ctx, buildingId, {}, 'client', STUDIO_THEME)).rejects.toThrow('QUERY_DENIED');
+    expect(restricted.calls).toEqual([]);
+  });
+
+  it('audits successful downloads against the saved version and requires durable confirmation before returning bytes', async () => {
+    const { ctx, audit } = fixture();
+    const pin = (await readPitchStackingPlan(ctx, buildingId, {}))!.reference;
+    const delivery = { audience: 'internal', format: 'pptx', stage: 'download' } as const;
+    const prepare = vi.fn(async () => {
+      expect(audit[0]).toMatchObject({ path: 'audit_operation_receipts', body: {
+        action_type: 'STACKING_PLAN_EXPORT', actor_id: actor, target_id: buildingId,
+        details: { stage: 'download', source_versions: [{ visual_id: pin.id, version: pin.versionHash }] },
+      } });
+      return new Response('private bytes');
+    });
+    const result = await withAuditedStackingDelivery(ctx, [pin, pin], delivery, prepare);
+    expect(await result.text()).toBe('private bytes');
+    expect(audit).toHaveLength(2);
+    expect(audit[1]).toMatchObject({ path: 'audit_complete_operation', body: { p_state: 'success' } });
+    expect(JSON.stringify(audit)).not.toContain('测试租户');
+    const failedIntent = fixture({ auditError: 'intent' });
+    expect((await withAuditedStackingDelivery(failedIntent.ctx, [pin], delivery, prepare)).status).toBe(503);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    const failedCompletion = fixture({ auditError: 'completion' });
+    const failed = await withAuditedStackingDelivery(failedCompletion.ctx, [pin], delivery, prepare);
+    expect(failed.status).toBe(503);
+    expect(await failed.text()).not.toContain('private bytes');
+  });
+
+  it('rejects client and stale-version downloads before preparing bytes and revocation during preparation', async () => {
+    let admin = true;
+    const { ctx, audit } = fixture({ get stackingAdmin() { return admin; } });
+    const pin = (await readPitchStackingPlan(ctx, buildingId, {}))!.reference;
+    const delivery = { audience: 'internal', format: 'pdf', stage: 'export' } as const;
+    const prepare = vi.fn(async () => { admin = false; return new Response('private bytes'); });
+    await expect(withAuditedStackingDelivery(ctx, [pin], { ...delivery, audience: 'client' }, prepare)).rejects.toThrow('QUERY_DENIED');
+    await expect(withAuditedStackingDelivery(ctx, [{ ...pin, versionHash: 'b'.repeat(64) }], delivery, prepare)).rejects.toThrow('PITCH_SOURCE_CHANGED');
+    expect(prepare).not.toHaveBeenCalled();
+    expect(audit).toEqual([]);
+    await expect(withAuditedStackingDelivery(ctx, [pin], delivery, prepare)).rejects.toThrow('QUERY_DENIED');
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(audit[1]).toMatchObject({ path: 'audit_complete_operation', body: { p_state: 'failed' } });
   });
 });
 
@@ -314,6 +381,19 @@ describe('location and stacking service boundaries', () => {
     expect(map?.scene.marketCoverage).toEqual([{ name: 'CBD', located: 2, selected: 2 }]);
     expect(map?.media).toMatchObject({ mime: 'image/png', width: 2560, height: 1440 });
     expect((await resolvePitchVisualAsset(ctx, map?.reference, 'internal')).reference).toEqual(map?.reference);
+  });
+
+  it('shows all 17 current market groups and labels the shared color when more groups are present', async () => {
+    const catalog = Array.from({ length: 20 }, (_, i) => ({ ...main, id: id(50 + i), submarket: `测试商务区${i + 1}` }));
+    const allCurrent = createLocationSchematic(catalog.slice(0, 17), undefined, true)!;
+    const currentLegend = await locationSchematicSvg(allCurrent);
+    expect(currentLegend).toContain(allCurrent.marketCoverage[16].name);
+    expect(currentLegend).not.toContain('其余');
+    const expanded = createLocationSchematic(catalog, undefined, true)!;
+    const expandedLegend = await locationSchematicSvg(expanded);
+    expect(expandedLegend).toContain('其余 3 个子市场');
+    expect(expandedLegend).toContain('3 / 3');
+    expect(expandedLegend).toContain('#8A9794');
   });
 
   it('rejects denied stacking before reading tenant records, and never labels an undated vacant unit as usable inventory', async () => {
