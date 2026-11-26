@@ -3,7 +3,7 @@ import type { BuildingMetric } from '@/src/types';
 import { buildComparisonSvg, type ComparisonBuilding } from '../components/buildingComparisonExport';
 
 const metric = (year: number, quarter: number, rent: number | null) => ({
-  record_year: year, record_quarter: quarter, net_effective_rent: rent,
+  is_locked: true, is_draft: false, record_year: year, record_quarter: quarter, net_effective_rent: rent,
   vacancy_rate: 0.125, total_area: 10000, face_rent: 245, management_fee: 28,
 } as BuildingMetric);
 

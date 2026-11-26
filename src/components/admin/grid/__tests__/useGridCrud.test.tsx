@@ -19,6 +19,18 @@ function setup(refresh = vi.fn(async () => true), tableConfig: TableConfig = con
 }
 beforeEach(() => { state.traces = []; state.persist.mockReset(); state.persist.mockResolvedValue({ data: [row], error: null }) })
 describe('shared grid write session', () => {
+  it('invalidates map snapshots after a published metric edit', async () => {
+    clearMapReadCache()
+    const readMap = vi.fn(async () => ({}))
+    await readMapDataWithCache('synthetic', '/map', readMap)
+    const { result } = setup(vi.fn(async () => true), { ...config, table: 'building_metrics' })
+    act(() => result.current.startEdit(row))
+    act(() => result.current.setEditBuf({ ...row, amount: 20 }))
+    await act(async () => { expect(await result.current.saveEdit()).toBe(true) })
+    await readMapDataWithCache('synthetic', '/map', readMap)
+    expect(readMap).toHaveBeenCalledTimes(2)
+    clearMapReadCache()
+  })
   it('refuses a mixed rename and other-field edit without sending or losing either input', async () => {
     const { result } = setup(vi.fn(async () => true), { ...config, table: 'buildings' })
     act(() => result.current.startEdit(row))

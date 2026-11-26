@@ -1,10 +1,10 @@
 import { hasLeedCertification, leedFilterLabel } from '@/src/lib/leed-display';
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
-import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { aggregateMarket, type MarketBuilding } from './marketStatistics';
+import { normalizeMapSubmarket, officeGrade } from './marketIdentity';
+export { normalizeMapSubmarket } from './marketIdentity';
 import { matchesMapConditions } from '@/src/utils/mapFilterConditions';
 import { normalizeMapSearchText } from './mapSearchText';
-import { observedVacantArea } from './vacancyMetrics';
-import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 
 export const MAP_SUBMARKETS: string[] = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'];
@@ -86,20 +86,6 @@ export function createDefaultFilterState(): SidebarFilterState {
   };
 }
 
-export function normalizeMapSubmarket(value: unknown): string {
-  const raw = String(value ?? '').trim();
-  if (!raw) return '';
-  const key = raw
-    .replace(/[\s·]/g, '')
-    .replace(/[—–－]/g, '-')
-    .replace(/[\/\\]/g, '-');
-  if (key === '望京酒仙桥' || key === '望京-酒仙桥') return '望京-酒仙桥';
-  if (key === '亦庄经济开发区' || key === '北京经济技术开发区' || key === '亦庄') return '亦庄';
-  if (key.startsWith('其他-') || key.startsWith('其他')) return '其他';
-  return raw;
-}
-
-
 export function isCompareGroupConfigured(group: CompareGroup): boolean {
   return group.submarkets.length > 0 || group.grades.length > 0 || group.districts.length > 0;
 }
@@ -145,13 +131,13 @@ export function filterFutureSupplies(
 
     if (!matchesMapConditions(filterState.numericFilters, field => supply[field])) return false;
 
-    const grade = String(supply?.grade ?? '').trim().toUpperCase();
+    const grade = officeGrade(supply?.grade);
     if (filterState.futureSupplyGrades.length === 0) return false;
     const gradeMatches = pending ? filterState.futureSupplyGrades.includes('pending')
       : commercial ? filterState.futureSupplyGrades.includes('commercial') :
-      (filterState.futureSupplyGrades.includes('BP') && grade.includes('BP'))
-      || (filterState.futureSupplyGrades.includes('A') && (grade.includes('A') || grade.includes('P')) && !grade.includes('BP'))
-      || (filterState.futureSupplyGrades.includes('B') && grade.includes('B') && !grade.includes('BP'));
+      (filterState.futureSupplyGrades.includes('BP') && grade === 'park')
+      || (filterState.futureSupplyGrades.includes('A') && grade === 'a')
+      || (filterState.futureSupplyGrades.includes('B') && grade === 'b');
     if (!gradeMatches) return false;
 
     if (filterState.futureSupplyYears.length === 0) return false;
@@ -209,49 +195,12 @@ export function isDefaultFilterState(state: SidebarFilterState): boolean {
 
 export function computeStatsFromBuildings(buildingsData: unknown[]): MapStatsState {
   const items = Array.isArray(buildingsData) ? buildingsData : [];
-  const projectCount = items.length;
-  let visibleProjectCount = 0;
-  let totalArea = 0;
-  let vacantArea = 0;
-  let vacancyObservedArea = 0;
-  let rentWeightSum = 0;
-  let rentWeightAreaSum = 0;
-
-  for (const building of items as Array<Record<string, any>>) {
-    if (hasMapCoordinates(building)) {
-      visibleProjectCount += 1;
-    }
-
-    const latest = getLatestMetric(building.metrics);
-    if (!latest) continue;
-
-    const area = Number(latest.total_area);
-    const rent = Number(latest.net_effective_rent);
-    const vacArea = observedVacantArea(latest);
-
-    if (Number.isFinite(area) && area > 0) {
-      totalArea += area;
-      if (Number.isFinite(vacArea)) {
-        vacantArea += vacArea;
-        vacancyObservedArea += area;
-      }
-    }
-
-    if (Number.isFinite(area) && area > 0 && Number.isFinite(rent) && rent > 0) {
-      rentWeightAreaSum += area;
-      rentWeightSum += rent * area;
-    }
-  }
-
-  const avgRent = rentWeightAreaSum > 0 ? (rentWeightSum / rentWeightAreaSum).toFixed(1) : '—';
-  const overallVacancyPct = vacancyObservedArea > 0 ? ((vacantArea / vacancyObservedArea) * 100).toFixed(1) : '—';
-
+  const result = aggregateMarket(items as MarketBuilding[]);
   return {
-    totalArea: totalArea > 0 ? Math.round(totalArea).toLocaleString('zh-CN') : '—',
-    avgRent,
-    overallVacancyPct,
-    projectCount: projectCount.toString(),
-    visibleProjectCount: visibleProjectCount.toString(),
+    totalArea: result.areaSamples > 0 ? Math.round(result.stockArea).toLocaleString('zh-CN') : '—',
+    avgRent: result.rent == null ? '—' : result.rent.toFixed(1),
+    overallVacancyPct: result.vacancyPct == null ? '—' : result.vacancyPct.toFixed(1),
+    projectCount: String(result.projectCount), visibleProjectCount: String(result.mappableCount),
   };
 }
 
@@ -311,9 +260,9 @@ export function buildFutureSupplyCalendar(supplies: Array<Record<string, any>>):
     const category = categorizeSupply(supply);
     calendar[category].total += 1;
 
-    const grade = (supply.grade || '').toUpperCase();
+    const grade = officeGrade(supply.grade);
     if (isCommercialFutureSupply(supply)) calendar[category].commercial += 1;
-    else if (grade.includes('BP')) calendar[category].park += 1;
+    else if (grade === 'park') calendar[category].park += 1;
     else calendar[category].office += 1;
   }
 

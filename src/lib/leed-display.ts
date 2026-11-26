@@ -17,6 +17,8 @@ export function leedFilterValue(value: unknown): string {
   const key = text.toUpperCase();
   if (unavailable.has(key)) return 'NULL';
   if (explicitNegative.has(key)) return 'N';
+  const aliases: Record<string, string> = { '金级': 'Gold', '银级': 'Silver', '铂金级': 'Platinum', '白金级': 'Platinum' };
+  if (aliases[key]) return aliases[key];
   const level = ['Platinum', 'Gold', 'Silver'].find(item => item.toUpperCase() === key);
   return level ?? text;
 }

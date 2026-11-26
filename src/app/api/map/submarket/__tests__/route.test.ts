@@ -98,6 +98,10 @@ describe('authorized submarket GET', () => {
     const result = await response.json();
     expect(result.stockCount).toBe(2);
     expect(result.source).toBe('building_metrics');
+    expect(result.scope).toBe('authorized_market');
+    expect(result.publication).toBe('locked_non_draft');
+    expect(mocks.calls).toContainEqual({ table: 'building_metrics', action: 'eq', args: ['is_locked', true] });
+    expect(mocks.calls).toContainEqual({ table: 'building_metrics', action: 'order', args: ['id', { ascending: false }] });
     expect(result.trends.all.at(-1)).toMatchObject({
       period: '2026Q3', rent: 175, vacancyPct: 17.5,
       rentSamples: 2, vacancySamples: 2,

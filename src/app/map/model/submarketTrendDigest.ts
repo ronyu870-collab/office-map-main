@@ -1,18 +1,23 @@
 import type { SubmarketTrendPoint } from './submarketMarketTrend';
+import { quarterKey } from './quarterlyFacts';
+const pointKey = (point: SubmarketTrendPoint) => quarterKey({ record_year: point.year, record_quarter: point.quarter });
 
-/**
- * Present the most recent quarter with an actual observation, not merely the
- * final time-axis slot. Never compare non-adjacent quarters as "previous quarter".
- * A real 0% vacancy rate is an observation, not a missing value.
- */
+/** A real adjacent quarter is required, including when a caller supplies a sparse axis. */
 export function summarizeSubmarketTrend(series: readonly SubmarketTrendPoint[]) {
-  let index = series.length - 1;
-  while (index >= 0 && series[index].rent == null && series[index].vacancyPct == null) index -= 1;
-  const latest = index >= 0 ? series[index] : null;
-  const previous = index > 0 ? series[index - 1] : null;
-  const rentChange = latest?.rent != null && previous?.rent != null
-    ? latest.rent - previous.rent : null;
-  const vacancyChange = latest?.vacancyPct != null && previous?.vacancyPct != null
-    ? latest.vacancyPct - previous.vacancyPct : null;
-  return { latest, previous, rentChange, vacancyChange, hasTrend: latest != null };
+  const observations = [...series].sort((a, b) => (pointKey(a) ?? 0) - (pointKey(b) ?? 0));
+  const latestRent = observations.findLast(point => point.rent != null) ?? null;
+  const latestVacancy = observations.findLast(point => point.vacancyPct != null) ?? null;
+  const latest = observations.findLast(point => point.rent != null || point.vacancyPct != null) ?? null;
+  const key = latest ? pointKey(latest) : null;
+  const previous = key == null ? null : observations.find(point => pointKey(point) === key - 1) ?? null;
+  const yearAgo = key == null ? null : observations.find(point => pointKey(point) === key - 4) ?? null;
+  const comparable = (a: SubmarketTrendPoint | null, b: SubmarketTrendPoint | null, metric: 'rent' | 'vacancyPct') =>
+    a?.[metric] != null && b?.[metric] != null
+      && (metric === 'rent' ? a.rentSamples >= 2 && b.rentSamples >= 2 : a.vacancySamples >= 2 && b.vacancySamples >= 2);
+  const rentChange = comparable(latest, previous, 'rent') ? latest!.rent! - previous!.rent! : null;
+  const vacancyChange = comparable(latest, previous, 'vacancyPct') ? latest!.vacancyPct! - previous!.vacancyPct! : null;
+  const rentQoqPct = rentChange != null && previous!.rent! > 0 ? rentChange / previous!.rent! * 100 : null;
+  const rentYoyPct = comparable(latest, yearAgo, 'rent') && yearAgo!.rent! > 0 ? (latest!.rent! / yearAgo!.rent! - 1) * 100 : null;
+  const vacancyYoyPp = comparable(latest, yearAgo, 'vacancyPct') ? latest!.vacancyPct! - yearAgo!.vacancyPct! : null;
+  return { latest, previous, latestRent, latestVacancy, rentChange, vacancyChange, rentQoqPct, rentYoyPct, vacancyYoyPp, hasTrend: latest != null };
 }

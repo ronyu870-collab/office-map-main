@@ -148,7 +148,7 @@ const BUILDINGS = [
     location_lat: 39.91,
     metrics: [
       {
-        record_year: 2026,
+        is_locked: true, is_draft: false, record_year: 2026,
         record_quarter: 3,
         total_area: 100000,
         vacant_area: 12000,

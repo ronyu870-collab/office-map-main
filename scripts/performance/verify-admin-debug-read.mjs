@@ -21,12 +21,12 @@ const projects = Array.from({ length: 622 }, (_, i) => ({
     id: i * 8 + j + 1, created_at: '2026-01-01T00:00:00Z', building_id: String(i + 1), total_area: 100,
     asking_rent: 130, management_fee: i === 0 ? 13 : 2, face_rent: 130, rent_free_period: 1, net_effective_rent: j === 3 ? 120 : 50,
     vacancy_rate: 0.1, vacant_area: 10, record_year: j < 4 ? 2026 : 2025, record_quarter: j % 4 + 1,
-    is_locked: false, is_draft: false, data_source: '合成来源', locked_at: null, locked_by: null,
+    is_locked: true, is_draft: false, data_source: '合成来源', locked_at: null, locked_by: null,
     rent_qoq_change: 0.15, rent_yoy_change: 0.24, vacant_area_qoq_change: 0.02, updated_at: '2026-11-01T00:00:00Z',
   })),
 }));
 
-function applyPostgrestProjection(select) {
+function applyPostgrestProjection(select, latestOnly) {
   const [, fields, metricFields] = /^([^()]*)\bbuilding_metrics\(([^()]+)\)$/.exec(select) || [];
   assert.ok(fields && metricFields, 'expected a valid buildings and embedded metrics projection');
   const pick = (obj, columns) => columns.includes('*') ? obj : Object.fromEntries(columns.map(k => {
@@ -35,7 +35,7 @@ function applyPostgrestProjection(select) {
   }));
   const outer = fields.split(',').map(v => v.trim()).filter(Boolean);
   const inner = metricFields.split(',').map(v => v.trim());
-  return projects.map(row => ({ ...pick(row, outer), building_metrics: row.building_metrics.map(metric => pick(metric, inner)) }));
+  return projects.map(row => ({ ...pick(row, outer), building_metrics: (latestOnly ? [...row.building_metrics].filter(metric=>metric.is_locked===true && metric.is_draft!==true).sort((a,b)=>b.record_year-a.record_year || b.record_quarter-a.record_quarter || Date.parse(b.updated_at)-Date.parse(a.updated_at) || b.id-a.id).slice(0,1) : row.building_metrics).map(metric => pick(metric, inner)) }));
 }
 
 const fullPayloadBytes = Buffer.byteLength(JSON.stringify(projects));
@@ -58,7 +58,12 @@ try {
           assert.equal(req.method(),'GET');
           assert.equal(url.searchParams.get('is_active'),'eq.true');
           assert.equal(url.searchParams.get('tracking_scope'),'eq.tracked');
-          const data=applyPostgrestProjection(url.searchParams.get('select'));
+          const latestOnly=url.searchParams.get('building_metrics.limit')==='1';
+          if (!baseline) {
+            assert.ok(latestOnly,'diagnostics only need the latest formal observation');
+            assert.equal(url.searchParams.get('building_metrics.is_locked'),'eq.true');
+          }
+          const data=applyPostgrestProjection(url.searchParams.get('select'),latestOnly);
           const json=JSON.stringify(data);
           calls.push(Buffer.byteLength(json));
           if(scenario==='failure' && calls.length===1) return route.fulfill({status:400,headers,json:{code:'42501',message:'fixture failed'}});
@@ -103,7 +108,7 @@ try {
       }
       await page.getByRole('button',{name:/展开贡献明细/}).first().click();
       await page.getByText('2026Q4',{exact:true}).first().waitFor();
-      await page.getByText('无季度数据',{exact:true}).first().waitFor();
+      await page.getByText('无正式季度数据',{exact:true}).first().waitFor();
       await page.getByText('多重筛选',{exact:true}).click();
       await page.getByRole('button',{name:/添加筛选条件/}).click();
       await page.getByRole('combobox').first().selectOption('owner');

@@ -286,10 +286,10 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
 
 function MetricStrip({ stats, busy }: { stats: MapStatsState; busy: boolean }) {
   const metrics = [
-    { label: '净有效租金', value: stats.avgRent, unit: '元/㎡/月' },
-    { label: '空置率', value: stats.overallVacancyPct, unit: '%' },
-    { label: '项目', value: stats.visibleProjectCount, unit: '个' },
-    { label: '总体量', value: stats.totalArea, unit: '㎡' },
+    { label: '筛选存量净有效租金', value: stats.avgRent, unit: '元/㎡/月' },
+    { label: '筛选存量空置率', value: stats.overallVacancyPct, unit: '%' },
+    { label: '有坐标项目', value: stats.visibleProjectCount, unit: '个' },
+    { label: '筛选存量面积', value: stats.totalArea, unit: '㎡', showsUpdating: true },
   ];
 
   const [announcement, setAnnouncement] = React.useState('');
@@ -297,7 +297,7 @@ function MetricStrip({ stats, busy }: { stats: MapStatsState; busy: boolean }) {
   React.useEffect(() => { if (busy) return; const timer = window.setTimeout(() => setAnnouncement(description), 400); return () => window.clearTimeout(timer); }, [busy, description]);
   return (
     <section className="map-live-stats" aria-label="市场实时指标" aria-busy={busy}>
-      <dl className="map-workspace-kpis" aria-live="off">{metrics.map(metric => <MetricValue key={metric.label} metric={metric} updating={busy && metric.label === '总体量'} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
+      <dl className="map-workspace-kpis" aria-live="off">{metrics.map(metric => <MetricValue key={metric.label} metric={metric} updating={busy && Boolean(metric.showsUpdating)} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
     </section>
   );
 }

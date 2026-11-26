@@ -13,6 +13,9 @@ vi.mock('@/src/services/supabaseClient', () => ({
           fields.includes('*') ? row : Object.fromEntries(Object.entries(row).filter(([field]) => fields.includes(field)));
         const query = {
           eq: () => query,
+          or: () => query,
+          order: () => query,
+          limit: () => query,
           abortSignal: () => query,
           then: (resolve: (value: unknown) => void, reject: (reason: unknown) => void) =>
             Promise.resolve(readBuildings()).then(({ data, error }) => ({
@@ -40,9 +43,9 @@ const rows = ['Alpha Holdings', 'Alps Holdings'].map((owner, index) => ({
   location_lng: 121.4,
   location_lat: 31.2,
   building_metrics: [
-    { id: 1, building_id: `fixture-${index}`, record_year: 2025, record_quarter: 4, total_area: 100, net_effective_rent: 20, vacant_area: 1 },
-    { id: 2, building_id: `fixture-${index}`, record_year: 2026, record_quarter: 2, total_area: 100, net_effective_rent: 120, vacant_area: 10, management_fee: index === 0 ? 13 : 2 },
-    { id: 3, building_id: `fixture-${index}`, record_year: 2026, record_quarter: 1, total_area: 100, net_effective_rent: 40, vacant_area: 2 },
+    { id: 1, building_id: `fixture-${index}`, is_locked: true, is_draft: false, record_year: 2025, record_quarter: 4, total_area: 100, net_effective_rent: 20, vacant_area: 1 },
+    { id: 2, building_id: `fixture-${index}`, is_locked: true, is_draft: false, record_year: 2026, record_quarter: 2, total_area: 100, net_effective_rent: 120, vacant_area: 10, management_fee: index === 0 ? 13 : 2 },
+    { id: 3, building_id: `fixture-${index}`, is_locked: true, is_draft: false, record_year: 2026, record_quarter: 1, total_area: 100, net_effective_rent: 40, vacant_area: 2 },
   ],
 }));
 

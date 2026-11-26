@@ -43,6 +43,7 @@ import {
 } from './model/mapDomain';
 import { MapDataStore } from './model/MapDataStore';
 import { normalizeMapSubmarket } from './model/mapDomain';
+import { aggregateFutureSupply } from './model/marketStatistics';
 import { submarketSummary } from './model/submarketOverview';
 import { useMapRuntime } from './runtime/useMapRuntime';
 import { recordMapStartup } from '@/src/utils/mapStartupProbe';
@@ -198,11 +199,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const selectedSubmarket = researchView?.kind === 'submarket' ? researchView.name : null;
 
   const selectedSummary = React.useMemo(() => selectedSubmarket
-    ? submarketSummary(allBuildings, selectedSubmarket) : null, [allBuildings, selectedSubmarket]);
-  const selectedFutureCount = React.useMemo(() => selectedSubmarket
-    ? futureSupplies.filter(supply => !isPendingFutureSupply(supply)
-      && normalizeMapSubmarket(supply.submarket) === selectedSubmarket).length : 0,
-    [futureSupplies, selectedSubmarket]);
+    ? submarketSummary(filteredBuildings, selectedSubmarket) : null, [filteredBuildings, selectedSubmarket]);
+  const selectedFuture = React.useMemo(() => aggregateFutureSupply(selectedSubmarket
+    ? filteredFutureSupplies.filter(supply => normalizeMapSubmarket(supply.submarket) === selectedSubmarket) : []),
+    [filteredFutureSupplies, selectedSubmarket]);
 
   const activeFilterChips = React.useMemo(() => buildActiveFilterChips(filterState), [filterState]);
 
@@ -965,7 +965,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           onClose={closeWorkspace} onDisposeTrend={disposeDetailTrend}
           onAction={(action, trendReading) => { if (action === 'locate' && hasBuildingLocation(buildingDetail.building)) canvasCoordinator.current?.focus({ center: [buildingDetail.building.location_lng!, buildingDetail.building.location_lat!] }); else if (action !== 'locate') controllerRef.current?.runWorkspaceBuildingAction(action, buildingDetail.building, trendReading); }} /> : null}
         submarketDetailPanel={selectedSubmarket && selectedSummary ? <SubmarketDetailPanel key={selectedSubmarket}
-          name={selectedSubmarket} summary={selectedSummary} buildings={allBuildings} futureCount={selectedFutureCount}
+          name={selectedSubmarket} summary={selectedSummary} buildings={filteredBuildings} futureCount={selectedFuture.count} futureArea={selectedFuture.area}
           mapLocationNotice={fullListBusy ? '正在更新当前筛选的地图项目…' : !combinedBuildingList.some(item => normalizeMapSubmarket(item.submarket) === selectedSubmarket && hasBuildingLocation(item)) ? '当前筛选下暂无可定位项目，地图未移动。可调整或清除筛选。' : undefined}
           canEdit={userRole === 'admin' && !getImpersonationTargetUserId()} suspended={workspace.right?.kind !== 'submarket' || workspace.focus}
           onExitGuardChange={registerResearchExitGuard}

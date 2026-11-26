@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingMetric } from '@/src/types';
 import { finiteMetric, hasBuildingLocation, listBuildingValues, sortFullList, type FullListBuilding } from '../model/fullBuildingList';
-const metric = (rent: number | null, year = 2026): BuildingMetric => ({record_year:year,record_quarter:3,net_effective_rent:rent,total_area:0,vacancy_rate:0} as BuildingMetric);
+const metric = (rent: number | null, year = 2026): BuildingMetric => ({is_locked: true, is_draft: false, record_year:year,record_quarter:3,net_effective_rent:rent,total_area:0,vacancy_rate:0} as BuildingMetric);
 const rows: FullListBuilding[] = [
  {id:'missing',name:'无指标',metrics:[]},
  {id:'zero',name:'零值',metrics:[metric(0)]},

@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { MAP_SUBMARKETS, MAP_SUBMARKETS_SECONDARY, normalizeMapSubmarket } from '@/src/app/map/model/mapDomain';
 import { computeSubmarketTrends, type TrendMetricRow } from '@/src/app/map/model/submarketMarketTrend';
+import { submarketDatabaseNames } from '@/src/app/map/model/marketIdentity';
 import { officeGrade } from '@/src/app/map/model/submarketOverview';
 import { readSubmarketProfileRow, submarketProfileSchema } from '@/src/app/map/model/submarketProfile';
 import { publicBriefReviewErrors, visibleSubmarketProfile } from '@/src/app/map/model/submarketPublication';
@@ -31,12 +32,6 @@ function validateName(request: NextRequest): string | null {
   return allowedSubmarkets.has(name) ? name : null;
 }
 
-function databaseNames(name: string) {
-  if (name === '望京-酒仙桥') return [name, '望京酒仙桥', '望京—酒仙桥'];
-  if (name === '亦庄') return [name, '亦庄经济开发区', '北京经济技术开发区'];
-  return [name];
-}
-
 function missingProfileTable(error: { code?: string; message?: string } | null) {
   return error?.code === '42P01' || error?.code === 'PGRST205' || error?.code === 'PGRST116'
     && /schema cache|relation|table/i.test(error?.message ?? '');
@@ -59,7 +54,7 @@ async function readTrend(client: SupabaseClient, name: string, signal: AbortSign
     .eq('is_active', true)
     .eq('tracking_scope', 'tracked')
     .or('project_type.neq.future,project_type.is.null')
-    .in('submarket', databaseNames(name))
+    .in('submarket', submarketDatabaseNames(name))
     .abortSignal(signal);
   if (error) throw new Error('SUBMARKET_BUILDINGS_UNAVAILABLE');
 
@@ -72,11 +67,14 @@ async function readTrend(client: SupabaseClient, name: string, signal: AbortSign
     const group = ids.slice(start, start + 80);
     for (let offset = 0; ; offset += PAGE_SIZE) {
       const result = await client.from('building_metrics')
-        .select('building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,vacancy_rate,is_draft,is_locked,updated_at')
+        .select('id,building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,vacancy_rate,is_draft,is_locked,updated_at,created_at,data_source')
+        .eq('is_locked', true)
+        .or('is_draft.is.null,is_draft.eq.false')
         .in('building_id', group)
         .gte('record_year', currentYear - 4)
         .order('record_year', { ascending: false })
         .order('record_quarter', { ascending: false })
+        .order('id', { ascending: false })
         .range(offset, offset + PAGE_SIZE - 1)
         .abortSignal(signal);
       if (result.error) throw new Error('SUBMARKET_METRICS_UNAVAILABLE');
@@ -89,6 +87,7 @@ async function readTrend(client: SupabaseClient, name: string, signal: AbortSign
 
   return {
     trends: computeSubmarketTrends(offices, rows, 8),
+    scope: 'authorized_market', membershipTime: 'current_catalog', publication: 'locked_non_draft',
     quarterMethod: 'same_quarter_area_weighted',
     source: 'building_metrics',
     stockCount: ids.length,

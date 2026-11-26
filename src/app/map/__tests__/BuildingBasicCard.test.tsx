@@ -3,7 +3,7 @@ import { expect, it, vi } from 'vitest';
 import { BuildingBasicCard } from '../components/BuildingBasicCard';
 import type { BuildingMetric } from '@/src/types';
 
-const metric={record_year:2026,record_quarter:3,net_effective_rent:146.16,vacancy_rate:.211,total_area:80000} as BuildingMetric;
+const metric={is_locked:true,is_draft:false,record_year:2026,record_quarter:3,net_effective_rent:146.16,vacancy_rate:.211,total_area:80000} as BuildingMetric;
 it('keeps future planning and expected dates distinct from linked stock history',()=>{
   render(<BuildingBasicCard building={{id:'f',name:'未来甲楼',_dataType:'future',launch_year:2027,launch_quarter:'Q2',total_area:50000,completion_year:2009,metrics:[metric]}} />);
   expect(screen.getByText('规划总体量')).toBeVisible();expect(screen.getByText('50,000')).toBeVisible();
