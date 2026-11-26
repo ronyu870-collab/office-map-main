@@ -146,6 +146,7 @@ export async function handleAiRequest(
     if (code === "PITCH_AI_PREVIEW_REQUIRED")
       return reply({ code, error: "请重新查看修改前后对照，再确认保存草稿。" }, 409);
     if (code === "PITCH_PROPOSAL_REVIEW_REQUIRED") return reply({ code, error: "来源或范围已变化，请重新审阅提案。" }, 409);
+    if (code === "PITCH_PROPOSAL_GENERATION_UNAVAILABLE") return reply({ code, error: "当前提案暂无可提交的生成路径，请查看审阅缺项。" }, 409);
     if (code === "PITCH_CONFLICT")
       return reply({ error: "版本已更新，请重新读取后再保存。" }, 409);
     if (

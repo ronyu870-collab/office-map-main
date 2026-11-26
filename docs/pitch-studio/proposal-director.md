@@ -9,7 +9,7 @@
 | 动作 | 入参 | 返回 |
 | --- | --- | --- |
 | `proposal_plan` | `input` 包含 `question`，可附当前 `projectId`、明确选择的 `buildingIds`、期间、语言及 `analysisResultId` | 已审阅范围的 Brief、按顺序排列的 ProposalPlan、逐页证据引用与缺项，或明确的待确认状态 |
-| `proposal_generate` | `confirmation` 包含实际项目版本、`taskId`、`planId`、`contextFingerprint` 及原请求 `request` | 现有业务生成链路的私人子项目凭据，须已回读实际页面 |
+| `proposal_generate` | `confirmation` 包含实际项目版本、`taskId`、`planId`、`contextFingerprint` 及原请求 `request` | 现有业务生成链路的私人子项目凭据，须已回读实际页面。归档审阅用 `generationAvailable` 标识是否可提交 |
 | `proposal_revision` | `input` 包含项目、预期版本、用户原话和明确选择的当前页／页面／对象 | 匹配项目和页面版本的结构化审阅计划，或具体修改意图及可用性 |
 
 标准生成使用现有可信查询模板，在原业务生成提交点核对数据。重复提交同一请求及任务 ID 可读取相同授权下的已生成子项目。原项目仅作为作用域、版本和主题来源。专项工作流可通过 `submitConfirmedProposal` 的 `ProposalGenerationPort` 接管任务领取、取消和恢复。
@@ -23,5 +23,6 @@
 - `directProposal` 使用共享 `ProposalBrief`、`PitchContextSnapshot` 和 `ProposalPlan`。`ProposalDirectorPorts` 负责目录、期间和业务页面的授权读取。`composeUnifiedProposalPages` 接收统一数据投影和获权素材，调用四套专业 recipe 并保留必要页面及业务依赖。业务与视觉适配器提供真实身份、期间、来源和版本，业务 recipe 提供实际 `SlideContent`。策划器只选有来源的组合，并保留有待确认项。
 - `previewProposalRevision` 生成带原页版本的 `DocumentModificationPlan`。文字和可用主题返回 Agent 06 的 `apply_modification` 指令，保留原项目和页版本。集成入口可把 Agent 06 的 `previewDataRefresh` 作为 `handleAiRequest` 的第四个参数传入。指定季度且涉及的页面都属于同一份业务快照时，AI 预览返回实际刷新前后值和可确认的 `apply_data_refresh` 指令，附原季度目标和工作流审阅指纹。跨快照、越出所选页范围或需要拆分事务的请求保留原稿。未接入刷新服务时，季度重查询结果标为 `refresh-review`。竞品、照片、重新定位、语言与图表等意图已有结构化枚举，其正式事务需由相应数据、素材及工作流接缝提供。
 - `createUnifiedProposalComposer` 接收 Agent 01 的 `loadUnifiedPitchContext` 和 `requestFromProposalBrief`、Agent 02 的 `getBuildingPhotoChoices` 和 `readPitchLocation`。同一授权身份、范围及取消信号贯穿各读取。先核对正式季度和楼宇身份，再获取实景和地图。招商代理可按明确选定的素材 ID 读取已发布、许可生成的团队与案例版本。计划固定主题、素材版本和原始来源。受限的历史 Stacking Plan 在普通提案计划中保持缺项。
-- 集成入口将统一 composer 通过 `createProposalDirectorPorts` 注册为 `compose`。只有可保存组合页面、业务绑定与固定素材版本的工作流就绪后，才在 `handleAiRequest` 第五个参数中一并注册 director 和 `ProposalGenerationPort`。现有独立入口继续生成标准业务页。英文、子市场季度报告和已授权分析归档走已有确定性路径。独立分支的归档分析目前可审阅，正式生成仍需工作台归档交接。
+- 集成入口将统一 composer 通过 `createProposalDirectorPorts` 注册为 `compose`。只有可保存组合页面、业务绑定与固定素材版本的工作流就绪后，才在 `handleAiRequest` 第五个参数中一并注册 director 和 `ProposalGenerationPort`。现有独立入口继续生成标准业务页。英文、子市场季度报告和已授权分析归档走已有确定性路径。
+- 正式季度的楼宇列表和单指标逐季租金或空置趋势，可按归档原参数重查。只有表格、查询范围和逐项来源一致时，才显示可提交的结构化提案。提交前用现有生成事务再次核验数据、归档授权及父项目版本。归档无法等价重现时，保留原数据审阅和原因。
 - 四个旗舰请求、缺失或同名楼宇、未授权、未完成季度、缺图、季度修订、模型超时／非法响应以及取消均使用本地合成夹具。四个请求均经过 Agent 04 的业务 recipe，代表页由现有渲染器生成 PPTX 并回读原生表格或图表。预提交守卫专项执行既有业务生成路径，核对证据变化时不进入持久化操作。没有真实供应商请求。

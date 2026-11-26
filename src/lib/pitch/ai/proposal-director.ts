@@ -50,6 +50,7 @@ export type ProposalDirectorPorts = {
     gaps: ProposalPlan["gaps"];
     recipeVersion: string;
     theme?: { id: string; version: number };
+    verifySources?: () => Promise<void>;
   }>;
 };
 
@@ -80,6 +81,7 @@ type PlanState = { status: "clarification" | "unavailable"; code: string; messag
     // For the server-side workflow. The prepare HTTP response omits full page content.
     pages: { id: string; content: SlideContent; layoutId: SlideIntent["layoutId"] }[];
     generation: NonNullable<ComposedProposalPage["generation"]>[] | null;
+    verifySources?: () => Promise<void>;
   };
 export type ProposalPlanningResult = PlanState & ModelRoute;
 
@@ -203,7 +205,8 @@ function buildPlan(
     slides, gaps, ...(composition.theme ? { theme: composition.theme } : {}) };
   const generation = validated.every(page => !!page.generation)
     ? [...new Map(validated.map(page => [digest(page.generation!.part), page.generation!])).values()] : null;
-  return { plan, snapshot, generation, pages: validated.map((page, index) => ({ id: ids[index], content: page.content, layoutId: page.layoutId })) };
+  return { plan, snapshot, generation, verifySources: composition.verifySources,
+    pages: validated.map((page, index) => ({ id: ids[index], content: page.content, layoutId: page.layoutId })) };
 }
 
 export async function directProposal(
