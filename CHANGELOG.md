@@ -6,6 +6,10 @@
 
 - 在 PR #323 之上定义跨模块的提案、证据和工作台交接类型，明确专项分工及待验证的实际链路。见[并行开发接口](docs/pitch-studio/parallel-development.md)。
 
+# 2026-11-27 — Pitch Studio 3.0 AI 提案策划（开发分支）
+
+- 增加自然语言提案策划、逐页来源绑定、确认生成及版本化修订审阅。既有确定性模板保留；符合运营许可的复杂需求使用一次结构化模型解释。接口、数据范围及专项回归见[AI Proposal Director](docs/pitch-studio/proposal-director.md)。
+
 # 2026-11-27 — Pitch Studio 2.0 提纲交付（开发分支）
 
 - 从需求进入可审阅的提纲，提示缺项。提交超时后按原任务编号恢复；生成后在同一项目编辑、保存并导出可编辑 PPTX。正式季度页标注仅限内部，环比、同比期间在预览与 PPTX 表头独立成行。浏览器下载、权限拒绝、原生对象及隔离回归见[实施检查点](docs/pitch-studio/native-platform.md#pr-323-提纲到可编辑-pptx)。

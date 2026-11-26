@@ -37,7 +37,8 @@ export async function saveBusinessProfile(ctx:PitchContext,c:{assetId:string;exp
   asset.state='draft';asset.allowClientExport=false;asset.allowExternalAi=false;
   return pitchRpc(ctx,{action:'business_profile_save',assetId:c.assetId,expectedVersion:c.expectedVersion,profile,asset,sha256:hash(asset.content),tokens:documentTokens(JSON.stringify([asset.content,profile])),media:profileMedia(profile)});
 }
-export async function generateBusinessProject(ctx:PitchContext,command:Generation,expectedAssetVersions?:ReadonlyMap<string,number>, expectedDataFingerprint?:string, compareOutline = false) {
+export async function generateBusinessProject(ctx:PitchContext,command:Generation,expectedAssetVersions?:ReadonlyMap<string,number>, expectedDataFingerprint?:string, compareOutline = false,
+  verifyReviewedSources?: (snapshots: readonly PitchDataSnapshot[]) => void | Promise<void>) {
   const registry=z.object({theme:z.object({definition:designThemeSchema})}).parse(await pitchRpc(ctx,{action:'registry',templateId:'business-content',templateVersion:1,themeId:command.themeId,themeVersion:command.themeVersion}));
   const theme=registry.theme.definition,bindings:{id:string;version:number}[]=[],snapshots:PitchDataSnapshot[]=[],recipes:{id:string;revision:number}[]=[],groups:BusinessPage[]=[],mediaRows:z.infer<typeof mediaRowSchema>[]=[];
   const currentPeriods=command.parts.filter(p=>p.mode==='dynamic'&&!p.parameters.templateId.endsWith('-trend')&&!p.parameters.templateId.startsWith('lease-')).map(p=>p.mode==='dynamic'?JSON.stringify(p.parameters.period):'');
@@ -108,6 +109,7 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
   const requestKey=hash(command);
   const input={...command,action:'business_generate_commit',requestKey,bindings,snapshots,recipes,changes,generated,slides:numbered};
   if(Buffer.byteLength(JSON.stringify(input))>8*1024*1024)throw new DocumentError('PITCH_PAGE_LIMIT','本次内容超过生成容量，请缩小范围或拆分提案。');
+  if (verifyReviewedSources) await verifyReviewedSources(snapshots);
   return pitchRpc(ctx,input);
 }
 export async function restoreBusinessProject(ctx:PitchContext,command:{projectId:string;sourceProjectId:string;title:string}) {

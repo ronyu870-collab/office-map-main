@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { nlSchema, recommendationSchema } from "./protocol";
+import { proposalRequestSchema } from "./proposal-brief";
 import { workspaceCommandSchema, saveSchema, pageEditSchema } from "../workspace/protocol";
 const command = <T extends string>(action: T) =>
   workspaceCommandSchema.options.find(
@@ -12,6 +13,7 @@ export const PITCH_TOOL_SCHEMAS = {
   pitch_recommend_cases: recommendationSchema,
   pitch_create_project: command("create"),
   pitch_prepare_slide: nlSchema,
+  pitch_plan_proposal: proposalRequestSchema,
   pitch_generate_slide: command("start"),
   pitch_update_slide: saveSchema.extend({
     pages: z.array(pageEditSchema.omit({ objectMoves: true, objectTexts: true, objectOrder: true, objectGroups: true, resetObjectLayout: true })).max(50),
@@ -42,6 +44,7 @@ export const pitchPreparationTools = () =>
       [
         "pitch_list_templates",
         "pitch_prepare_slide",
+        "pitch_plan_proposal",
         "pitch_recommend_cases",
         "pitch_suggest_outline",
       ].includes(name),
@@ -56,6 +59,7 @@ export const pitchPreparationTools = () =>
               pitch_list_templates: "列出已发布可用 Pitch 模板。",
               pitch_prepare_slide:
                 "将明确单页需求转成待确认模板参数；不生成、不修改文件。未匹配条件需要澄清。",
+              pitch_plan_proposal: "为整套商务提案查询已授权证据并准备结构化计划。仅审阅，不写入项目或导出。",
               pitch_recommend_cases:
                 "在已发布且获权案例中推荐，不发送素材正文。",
               pitch_search_assets: "检索获权企业资产，模型只获ID。",
