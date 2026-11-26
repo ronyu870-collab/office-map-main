@@ -1,0 +1,213 @@
+.map-submarket-workspace[hidden] { display: none; }
+
+.submarket-research-panel {
+  container: submarket-research / inline-size;
+  color: var(--cd-color-text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.submarket-header-context {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  color: var(--cd-color-text-secondary);
+  font-size: 14px;
+}
+.submarket-header-context p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.submarket-header-context .submarket-headline { color: var(--cd-color-text-primary); }
+
+.submarket-research-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  overflow-x: auto;
+  padding-inline: 12px;
+  border-bottom: 1px solid var(--cd-color-border);
+}
+.submarket-research-tabs button {
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding-inline: 10px;
+  border-bottom: 2px solid transparent;
+  color: var(--cd-color-text-secondary);
+}
+.submarket-research-tabs button[aria-selected="true"] { border-color: currentColor; color: var(--cd-color-brand); font-weight: 600; }
+.submarket-research-tabs button:hover { color: var(--cd-color-brand); }
+.submarket-research-tabs button:focus-visible,
+.submarket-grade-selector button:focus-visible,
+.submarket-quiet-action:focus-visible,
+.submarket-link-action:focus-visible,
+.submarket-research-scroll:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: -2px; }
+
+.submarket-research-panel > .submarket-research-scroll { padding: 14px 16px 20px; overscroll-behavior: contain; }
+.submarket-research-content { margin-inline: auto; max-width: 76rem; min-width: 0; }
+.submarket-research-panel[data-submarket-layout="standard"] .submarket-research-content { max-width: 58rem; }
+.submarket-section-flow, .submarket-brief { display: grid; align-items: start; min-width: 0; gap: 16px; }
+.submarket-brief > * { min-width: 0; }
+.submarket-research-chapter, .submarket-editor-surface {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--cd-color-border);
+  border-radius: 8px;
+  background: var(--cd-color-surface);
+}
+.submarket-research-chapter > h3, .submarket-chapter-heading h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.submarket-chapter-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 12px;
+  margin-bottom: 8px;
+}
+.submarket-chapter-heading h3 { margin-bottom: 0; }
+.submarket-grade-selector, .submarket-overview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.submarket-grade-selector { margin-bottom: 12px; gap: 4px; }
+.submarket-grade-selector button {
+  min-height: 44px;
+  padding-inline: 12px;
+  border: 1px solid var(--cd-color-border);
+  border-radius: 6px;
+  color: var(--cd-color-text-secondary);
+}
+.submarket-grade-selector button[aria-pressed="true"] {
+  color: var(--cd-color-brand);
+  border-color: var(--cd-color-brand);
+  background: var(--cd-color-brand-soft);
+}
+.submarket-quiet-action, .submarket-link-action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 4px;
+  color: var(--cd-color-brand);
+  font-size: inherit;
+  text-align: start;
+}
+.submarket-quiet-action { padding-inline: 12px; border: 1px solid var(--cd-color-border); border-radius: 6px; }
+.submarket-quiet-action:hover:not(:disabled) { background: var(--cd-color-brand-soft); }
+.submarket-quiet-action:disabled { opacity: .55; }
+.submarket-link-action:hover { text-decoration: underline; }
+.submarket-read-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-bottom: 12px;
+  color: var(--cd-color-text-secondary);
+}
+.submarket-read-status p, .submarket-overview-profile p { margin: 0; }
+.submarket-overview-profile { border-top: 1px solid var(--cd-color-border); padding-top: 12px; }
+.submarket-overview-profile p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+
+.submarket-editor-surface { max-width: 55rem; margin-inline: auto; }
+.submarket-projects { container: submarket-projects / inline-size; }
+.submarket-editor-form { container: submarket-editor / inline-size; }
+.submarket-project-grid, .submarket-editor-fields { grid-template-columns: minmax(0, 1fr); }
+@container submarket-projects (min-width: 36rem) {
+  .submarket-project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container submarket-editor (min-width: 36rem) {
+  .submarket-editor-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.submarket-profile-copy { white-space: pre-line; overflow-wrap: anywhere; }
+.submarket-profile-groups { display: grid; min-width: 0; gap: 14px; }
+.submarket-profile-group + .submarket-profile-group { padding-top: 12px; border-top: 1px solid var(--cd-color-border); }
+.submarket-profile-group h4 { margin: 0 0 6px; font-size: inherit; font-weight: 600; }
+.submarket-profile-group p, .submarket-profile-group dd { margin: 0; overflow-wrap: anywhere; }
+.submarket-profile-meta { color: var(--cd-color-text-secondary); }
+.submarket-profile-facts, .submarket-profile-records { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.submarket-profile-records li, .submarket-profile-facts > div { padding: 10px 12px; background: var(--cd-color-surface-alt); overflow-wrap: anywhere; }
+.submarket-profile-records li > * + * { margin-top: 4px; }
+
+.submarket-research-panel[data-submarket-layout="quick"] > .submarket-research-scroll { padding-block: 6px 8px; }
+.submarket-quick-summary > [data-workspace-summary] > p { margin: 0 0 4px; color: var(--cd-color-text-secondary); }
+.submarket-quick-fact { margin: 0; color: var(--cd-color-text-secondary); }
+.submarket-quick-summary dl { margin: 0; font-variant-numeric: tabular-nums; }
+.submarket-quick-summary dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; padding-block: 2px; }
+.submarket-quick-summary dt, .submarket-quick-summary dd span { color: var(--cd-color-text-secondary); font-weight: 400; }
+.submarket-quick-summary dd { margin: 0; font-weight: 600; }
+
+@container submarket-research (min-width: 36rem) {
+  .submarket-research-panel > .submarket-research-scroll { padding: 20px 24px 28px; }
+  .submarket-research-tabs { padding-inline: 20px; }
+  .submarket-quick-summary dl, .submarket-profile-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }
+  .submarket-quick-summary dl > div { display: block; }
+}
+@container submarket-research (min-width: 62rem) {
+  .submarket-brief { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 20px; }
+}
+
+.submarket-intelligence,
+.submarket-intelligence-observations,
+.submarket-intelligence-lead {
+  display: grid;
+  gap: 12px;
+}
+.submarket-intelligence-lead h3,
+.submarket-intelligence h4,
+.submarket-intelligence dt {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 600;
+}
+.submarket-intelligence-lead p,
+.submarket-intelligence p,
+.submarket-intelligence dd { margin: 0; overflow-wrap: anywhere; }
+.submarket-intelligence-facts { margin: 0; }
+.submarket-intelligence-facts > div,
+.submarket-intelligence-sources {
+  border-top: 1px solid var(--cd-color-border);
+  padding-block: 10px;
+}
+.submarket-intelligence-sources summary { min-height: 44px; align-content: center; cursor: pointer; }
+.submarket-intelligence-sources ol { padding-inline-start: 22px; }
+.submarket-intelligence-sources li + li { margin-top: 8px; }
+.submarket-intelligence-cites,
+.submarket-intelligence-lines { display: flex; flex-wrap: wrap; gap: 6px; }
+.submarket-intelligence-cites { list-style: none; margin: 0; padding: 0; }
+.submarket-intelligence-cites a {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--cd-color-text-secondary);
+  text-decoration: underline;
+}
+.submarket-intelligence-lines span { border-radius: 4px; padding-inline: 5px; background: var(--cd-color-surface-alt); }
+.submarket-intelligence-editor,
+.submarket-intelligence-editor fieldset {
+  display: grid;
+  gap: 8px;
+  min-inline-size: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.submarket-intelligence-editor legend { font-weight: 600; padding: 0; }
+.submarket-intelligence-editor select {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  padding-inline: 8px;
+  border: 1px solid var(--cd-color-border);
+  border-radius: 6px;
+  background: var(--cd-color-surface);
+}
+.submarket-intelligence-editor-group,
+.submarket-legacy-fields,
+.submarket-intelligence-version { border-top: 1px solid var(--cd-color-border); }
+.submarket-intelligence-editor-group summary,
+.submarket-legacy-fields summary { min-height: 44px; align-content: center; cursor: pointer; }
+.submarket-intelligence-editor-group > fieldset { padding-block: 6px 12px; }
+.submarket-intelligence-editor-group .submarket-quiet-action,
+.submarket-intelligence-editor > .submarket-quiet-action { justify-self: start; }
+.submarket-intelligence-source-choices label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.submarket-intelligence-version { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }

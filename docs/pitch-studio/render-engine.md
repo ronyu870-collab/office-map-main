@@ -1,5 +1,7 @@
 # Pitch Studio 渲染引擎 v2
 
+1.1 扩建：参见[模板生态与验证](template-ecosystem.md)、[完整目录](template-catalog.md)及[许可迁移](template-sources.md)。以下阶段记录保留其历史范围。
+
 实现状态：本地实现与独立 PR，不代表 main 合并、生产迁移或试点开放。依赖阶段 01 PR #309 的 `fef812d3`。新增迁移 `20261125174626_pitch_studio_render_engine.sql` 为增量迁移，保留原 17 张领域表及 v1 图文／研究报告契约。
 
 ## 1. 共享流水线与可替换主题

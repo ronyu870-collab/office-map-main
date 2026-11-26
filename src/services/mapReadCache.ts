@@ -1,3 +1,4 @@
+import { MARKET_CONTRACT_VERSION } from '@/src/app/map/model/quarterlyFacts';
 // Browser memory only. Each identity gets its own short-lived map snapshot.
 const MAP_READ_TTL_MS = 30_000;
 let activeScope: string | null = null;
@@ -14,6 +15,7 @@ export function readMapDataWithCache<T>(scope: string, path: string, load: () =>
     clearMapReadCache();
     activeScope = scope;
   }
+  path = `${MARKET_CONTRACT_VERSION}:${path}`;
   const cached = entries.get(path);
   if (cached && cached.expiresAt > Date.now()) return cached.promise as Promise<T>;
 

@@ -1,32 +1,33 @@
 import * as React from 'react';
 import { MapReadingContext } from '../workspace/continuity';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SubmarketDetailPayload } from '@/src/services/mapDataClient';
+import { aggregateMarket } from '../model/marketStatistics';
 import type { SubmarketSummary } from '../model/submarketOverview';
+import { submarketIntelligenceSchema } from '../model/submarketIntelligence';
+import cbdEdition from '../../../../data/submarket-research/2026-11-27/cbd.json';
+import shangdiEdition from '../../../../data/submarket-research/2026-11-27/shangdi.json';
 import { emptySubmarketProfile } from '../model/submarketProfile';
 import { SubmarketDetailPanel } from '../components/SubmarketDetailPanel';
+import { WorkspacePanelContext } from '../components/WorkspacePanelHeader';
 
 const api = vi.hoisted(() => ({
   audit:vi.fn(),read: vi.fn(),
-  save: vi.fn(),
+  save: vi.fn(), history: vi.fn(),
 }));
 
 vi.mock('@/src/utils/audit',()=>({logAction:api.audit}));
 vi.mock('@/src/services/mapDataClient', () => ({
   fetchSubmarketDetailPayload: api.read,
   saveSubmarketProfile: api.save,
-}));
-
-vi.mock('next/dynamic', () => ({
-  default: () => function MockTrendChart() {
-    return <div data-testid="trend-chart" />;
-  },
+  fetchSubmarketResearchHistory: api.history,
 }));
 
 const summary: SubmarketSummary = {
+  ...aggregateMarket([]),
   name: 'CBD',
   officeCount: 2,
   gradeACount: 1,
@@ -86,6 +87,7 @@ const props = {
     location_lng: 116.45, location_lat: 39.92,
     metrics: [{ record_year: 2026, record_quarter: 3, total_area: 1000 }],
   }],
+  futureState: 'ready' as const,
   futureCount: 3,
   canEdit: true,
   onClose: vi.fn(),
@@ -103,23 +105,112 @@ afterEach(() => {
 });
 
 describe('submarket research workspace', () => {
-  it('keeps the overview all-grade trend after visiting a grade with no observations', async () => {
-    const point={period:'2026Q3',year:2026,quarter:3,rent:180,vacancyPct:10,rentSamples:1,vacancySamples:1,rentArea:100,vacancyArea:100};
-    api.read.mockResolvedValueOnce({...payload,trends:{all:[point],a:[point],b:[]}});
+  it('adds a filtered stock fact and opens the representative projects tab from quick reading', async () => {
+    function CompactWorkspace({ market }: { market: SubmarketSummary }) {
+      const [mode, setMode] = React.useState<'compact' | 'reading' | 'full'>('compact');
+      return <WorkspacePanelContext.Provider value={{ compact: true, mode, setMode }}>
+        <SubmarketDetailPanel {...props} summary={market} />
+      </WorkspacePanelContext.Provider>;
+    }
+    const { rerender } = render(<CompactWorkspace market={{ ...aggregateMarket([]), name: 'CBD' }} />);
+    await screen.findByText(profile.headline);
+    const quick = within(screen.getByRole('region', { name: '市场核心指标' }));
+    expect(quick.queryByText(/存量构成/)).not.toBeInTheDocument();
+    rerender(<CompactWorkspace market={summary} />);
+    const fact = quick.getByText('存量构成：甲级 1 个，乙级 1 个。');
+    expect(fact.closest('[data-workspace-summary]')).toBeNull();
+    expect(screen.queryByRole('button', { name: /测试楼宇/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '查看全部项目' })).toHaveLength(1);
+
+    fireEvent.click(quick.getByRole('button', { name: '查看代表项目' }));
+    const tab = screen.getByRole('tab', { name: '代表项目' });
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(tab).toHaveFocus();
+    expect(within(screen.getByRole('tabpanel')).getByRole('button', { name: /测试楼宇/ })).toBeInTheDocument();
+    expect(props.onShowAll).not.toHaveBeenCalled();
+  });
+
+  it('keeps the region profile tab visible while loading and retries an unavailable profile in place', async () => {
+    api.read.mockResolvedValueOnce({ ...payload, profileAvailable: false, profilePublished: false });
+    let finishRetry!: (value: SubmarketDetailPayload) => void;
+    api.read.mockReturnValueOnce(new Promise<SubmarketDetailPayload>(resolve => { finishRetry = resolve; }));
     render(<SubmarketDetailPanel {...props} />);
-    await screen.findByTestId('trend-chart');
-    fireEvent.click(screen.getByRole('tab',{name:'行情趋势'}));
-    fireEvent.click(screen.getByRole('button',{name:'乙级'}));
-    expect(screen.queryByTestId('trend-chart')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab',{name:'市场概览'}));
-    expect(screen.getByTestId('trend-chart')).toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['市场概览', '行情趋势', '区域画像', '代表项目']);
+    const tab = screen.getByRole('tab', { name: '区域画像' });
+    fireEvent.click(tab);
+    const active = within(screen.getByRole('tabpanel'));
+    expect(active.getByRole('status')).toHaveTextContent('正在读取区域画像');
+    expect(await active.findByRole('button', { name: '重试区域画像' })).toBeInTheDocument();
+    expect(active.getByRole('status')).toHaveTextContent('区域画像暂不可用');
+    fireEvent.click(active.getByRole('button', { name: '重试区域画像' }));
+    expect(active.getByRole('status')).toHaveTextContent('正在读取区域画像');
+    await act(async () => finishRetry(payload));
+    expect(active.getByText(profile.overview)).toBeInTheDocument();
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(api.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows zero future projects only after a successful read and hides unavailable area', async () => {
+    const { rerender } = render(<SubmarketDetailPanel {...props} futureState="loading" futureCount={0} />);
+    await screen.findByText(profile.headline);
+    const composition = () => within(screen.getByRole('region', { name: '楼宇构成' }));
+    const supply = '未来供应（另计）';
+    expect(composition().queryByText(supply)).not.toBeInTheDocument();
+
+    rerender(<SubmarketDetailPanel {...props} futureState="error" futureArea={1000} futureAreaSamples={1} />);
+    expect(composition().getByText(supply).parentElement).toHaveTextContent('暂不可用');
+    expect(composition().queryByText('未来供应已知面积')).not.toBeInTheDocument();
+
+    rerender(<SubmarketDetailPanel {...props} futureState="ready" futureCount={0} />);
+    expect(composition().getByText(supply).parentElement).toHaveTextContent('0 个');
+
+    rerender(<SubmarketDetailPanel {...props} futureState="disabled" />);
+    expect(composition().queryByText(supply)).not.toBeInTheDocument();
+  });
+
+  it('keeps the all-grade overview digest independent of the selected trend grade without rendering a chart', async () => {
+    const point = { period: '2026Q3', year: 2026, quarter: 3, rent: 180, vacancyPct: 10, rentSamples: 1, vacancySamples: 1, rentArea: 100, vacancyArea: 100 };
+    api.read.mockResolvedValueOnce({ ...payload, trends: { all: [point], a: [point], b: [] } });
+    render(<SubmarketDetailPanel {...props} />);
+    await screen.findByText(profile.headline);
+    const overviewDigest = () => within(screen.getByRole('region', { name: '季度变化' }));
+    expect(overviewDigest().getByText('净有效租金', { exact: false })).toHaveTextContent('2026Q3');
+    expect(screen.queryByRole('region', { name: '指标走势' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
+    expect(screen.getByRole('region', { name: '指标走势' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '乙级' }));
+    expect(screen.getByRole('button', { name: '乙级' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('region', { name: '季度行情' })).toHaveTextContent('当前等级暂无已发布的有效季度观测');
+    expect(screen.queryByRole('region', { name: '指标走势' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: '市场概览' }));
+    expect(overviewDigest().getByText('净有效租金', { exact: false })).toHaveTextContent('2026Q3');
+    expect(screen.queryByRole('region', { name: '指标走势' })).not.toBeInTheDocument();
+  });
+
+  it('uses the dedicated trend chapter in full reading without duplicating the quarterly overview', async () => {
+    const point = { period: '2026Q3', year: 2026, quarter: 3, rent: 180, vacancyPct: 10, rentSamples: 1, vacancySamples: 1, rentArea: 100, vacancyArea: 100 };
+    api.read.mockResolvedValueOnce({ ...payload, trends: { all: [point], a: [point], b: [] } });
+    render(<WorkspacePanelContext.Provider value={{ compact: false, mode: 'full', setMode: vi.fn() }}>
+      <SubmarketDetailPanel {...props} />
+    </WorkspacePanelContext.Provider>);
+    expect(await screen.findByRole('region', { name: '指标走势' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '季度变化' })).not.toBeInTheDocument();
+    expect(screen.getByText('季度行情口径与来源').closest('details')).toHaveTextContent('历史按当前楼宇归属及等级统计');
+
+    fireEvent.click(screen.getByRole('button', { name: '甲级' }));
+    expect(screen.getByRole('region', { name: '指标走势' })).toHaveTextContent('2026Q3');
+    expect(screen.getByRole('region', { name: '季度行情' })).toHaveTextContent('完整授权子市场 · 甲级');
+    expect(screen.getAllByText('数据口径与来源')).toHaveLength(1);
   });
 
   it('falls back to building composition when a published profile has only introduction copy', async () => {
     api.read.mockResolvedValueOnce({...payload,profile:{...profile,industries:'',transport:''}});
     render(<SubmarketDetailPanel {...props} />);
     await screen.findByText(profile.headline);
-    expect(screen.getByRole('region',{name:'楼宇结构'})).toHaveTextContent('甲级写字楼');
+    expect(within(screen.getByRole('region', { name: '楼宇构成' })).getByText('甲级写字楼').parentElement).toHaveTextContent('1 个');
     expect(screen.queryByRole('region',{name:'区域特点'})).not.toBeInTheDocument();
     expect(screen.getByRole('tab',{name:'区域画像'})).toBeInTheDocument();
   });
@@ -133,7 +224,9 @@ describe('submarket research workspace', () => {
     await waitFor(() => expect(screen.getByText('金融总部与国际商务服务集聚区')).toBeInTheDocument());
     expect(screen.getByText('186.8')).toBeInTheDocument();
     expect(screen.getByText('12.5')).toBeInTheDocument();
-    expect(screen.getByText('甲级 1 · 乙级 1')).toBeInTheDocument();
+    const composition = within(screen.getByRole('region', { name: '楼宇构成' }));
+    expect(composition.getByText('甲级写字楼').parentElement).toHaveTextContent('1 个');
+    expect(composition.getByText('乙级写字楼').parentElement).toHaveTextContent('1 个');
     expect(screen.getAllByRole('tab')).toHaveLength(4);
     expect(screen.queryByText(/AI公开资料研究|研究草案|待业务团队复核/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: '区域画像' }));
@@ -141,7 +234,7 @@ describe('submarket research workspace', () => {
     expect(screen.getByRole('heading', { name: '人口与就业参考' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '政策与规划' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /政策原文/ })).toHaveAttribute('target', '_blank');
-    expect(api.read).toHaveBeenCalledWith('CBD');
+    expect(api.read).toHaveBeenCalledWith('CBD', expect.any(AbortSignal));
     unmount();
   });
 
@@ -149,7 +242,7 @@ describe('submarket research workspace', () => {
   it('uses the latest quarter containing real observations, not the trailing empty axis cell', async () => {
     const makePoint = (period: string, rent: number | null, vacancyPct: number | null) => ({
       period, year: 2026, quarter: Number(period.slice(-1)), rent, vacancyPct,
-      rentSamples: rent == null ? 0 : 1, vacancySamples: vacancyPct == null ? 0 : 1,
+      rentSamples: rent == null ? 0 : 3, vacancySamples: vacancyPct == null ? 0 : 3,
       rentArea: rent == null ? 0 : 100, vacancyArea: vacancyPct == null ? 0 : 100,
     });
     const series = [
@@ -160,21 +253,29 @@ describe('submarket research workspace', () => {
     api.read.mockResolvedValueOnce({ ...payload, trends: { all: series, a: [], b: [] } });
     render(<SubmarketDetailPanel {...props} />);
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
-    await waitFor(() => expect(screen.getByText('2026Q2')).toBeInTheDocument());
-    expect(screen.getByText('-10.0')).toBeInTheDocument();
-    expect(screen.getByText('+2.0')).toBeInTheDocument();
-    expect(screen.getAllByText(/与相邻季度比较/).length).toBeGreaterThan(0);
+    const digest = within(await screen.findByRole('region', { name: '指标走势' }));
+    const rent = digest.getByRole('heading', { name: '净有效租金' }).closest('figure');
+    const vacancy = digest.getByRole('heading', { name: '空置率' }).closest('figure');
+    expect(rent).toHaveTextContent('2026Q2');
+    expect(rent).toHaveTextContent(/环比 −10\.0 元\/㎡\/月/);
+    expect(vacancy).toHaveTextContent('2026Q2');
+    expect(vacancy).toHaveTextContent(/环比 \+2\.0 百分点/);
+    expect(digest.queryByText('2026Q3')).not.toBeInTheDocument();
   });
 
 
   it('distinguishes temporarily unavailable trend data from genuine missing observations', async () => {
     api.read.mockResolvedValueOnce({ ...payload, trendError: true, trends: emptyTrend });
     render(<SubmarketDetailPanel {...props} />);
-    await waitFor(() => expect(screen.getByText('历史行情暂不可用')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
-    expect(screen.getByText('历史行情暂不可用')).toBeInTheDocument();
-    expect(screen.queryByText('最新有效样本')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '重新加载' })).toBeInTheDocument();
+    const trend = within(screen.getByRole('region', { name: '季度行情' }));
+    await waitFor(() => expect(trend.getByRole('status')).toHaveTextContent('历史行情暂不可用'));
+    expect(trend.queryByText(/暂无已发布的有效季度观测/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '指标走势' })).not.toBeInTheDocument();
+    fireEvent.click(trend.getByRole('button', { name: '重新加载' }));
+    await waitFor(() => expect(trend.getByText(/暂无已发布的有效季度观测/)).toBeInTheDocument());
+    expect(trend.queryByText(/历史行情暂不可用/)).not.toBeInTheDocument();
+    expect(api.read).toHaveBeenCalledTimes(2);
   });
 
   it('supports explicit close and Escape while allowing map interactions', async () => {
@@ -221,12 +322,39 @@ describe('submarket research workspace', () => {
           body: '只供内部讨论', author: '内部研究', asOf: '2026年' }] },
     });
     render(<SubmarketDetailPanel {...props} />);
-    await waitFor(() => expect(screen.getByText('CBD办公市场概览')).toBeInTheDocument());
-    expect(screen.getAllByRole('tab')).toHaveLength(3);
-    expect(screen.queryByText(/研究草案|待业务团队复核|只供内部讨论/)).not.toBeInTheDocument();
+    const edit = await screen.findByRole('button', { name: '维护资料' });
+    expect(screen.getByText('CBD办公市场概览')).toBeInTheDocument();
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
     expect(screen.getByText('186.8')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
+    fireEvent.click(screen.getByRole('tab', { name: '区域画像' }));
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('暂无已发布的区域画像。');
+    expect(screen.queryByText(/研究草案|待业务团队复核|只供内部讨论/)).not.toBeInTheDocument();
+    fireEvent.click(edit);
     expect(screen.getByDisplayValue('客户研究（研究草案）')).toBeInTheDocument();
+  });
+
+  it('discards a late same-name read from an older authorization scope and resets the editor on role loss', async () => {
+    let finishOldRead!: (value: SubmarketDetailPayload) => void;
+    const oldRead = new Promise<SubmarketDetailPayload>(resolve => { finishOldRead = resolve; });
+    api.read.mockReturnValueOnce(oldRead);
+    const view = render(<SubmarketDetailPanel {...props} researchScopeKey="old-session" />);
+    const oldSignal = api.read.mock.calls[0][1] as AbortSignal;
+    expect(oldSignal.aborted).toBe(false);
+
+    view.rerender(<SubmarketDetailPanel {...props} researchScopeKey="new-session" />);
+    expect(oldSignal.aborted).toBe(true);
+    fireEvent.click(await screen.findByRole('button', { name: '维护资料' }));
+    fireEvent.change(screen.getByLabelText('一句话定位'), { target: { value: '旧角色未保存资料' } });
+
+    api.read.mockResolvedValueOnce({ ...payload, draftProfile: undefined });
+    view.rerender(<SubmarketDetailPanel {...props} researchScopeKey="new-session" canEdit={false} />);
+    await screen.findByText(profile.headline);
+    await act(async () => finishOldRead({ ...payload, profile: { ...profile, headline: '旧授权区域资料' } }));
+    expect(screen.queryByText('旧授权区域资料')).not.toBeInTheDocument();
+    expect(screen.getByText(profile.headline)).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('旧角色未保存资料')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '维护资料' })).not.toBeInTheDocument();
+    expect(api.read).toHaveBeenCalledTimes(3);
   });
 
   it('saves and publishes clean submarket copy without a separate approval step', async () => {
@@ -237,9 +365,67 @@ describe('submarket research workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
     expect(screen.queryByRole('button', { name: '核验并发布' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '保存并展示' }));
-    await waitFor(() => expect(api.save).toHaveBeenCalledWith('CBD', expect.objectContaining({ headline: profile.headline }), true));
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith('CBD', expect.objectContaining({ headline: profile.headline }), true, profile.updatedAt));
     expect(confirm).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByRole('tab', { name: '区域画像' })).toBeInTheDocument());
+  });
+
+  it('shows a park edition with citations and opens a curated park in the normal map path', async () => {
+    const research = submarketIntelligenceSchema.parse(shangdiEdition);
+    const parkBuilding = { id: research.projects[0].buildingId, name: '软件园实测项目', grade: 'BP', submarket: '上地' };
+    const onOpenBuilding = vi.fn();
+    api.read.mockResolvedValue({ ...payload, submarket: '上地', stockCount: 0,
+      profile: { ...profile, submarket: '上地', research, headline: research.positioning } });
+    render(<SubmarketDetailPanel {...props} name="上地" canEdit={false} buildings={[parkBuilding]} onOpenBuilding={onOpenBuilding}
+      summary={{ ...aggregateMarket([parkBuilding], 'filtered_market', true), name: '上地' }} />);
+    await screen.findByText(research.positioning);
+    expect(screen.getByText('产业园项目')).toBeInTheDocument();
+    expect(screen.queryByText('甲乙级项目')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: parkBuilding.name }));
+    expect(onOpenBuilding).toHaveBeenCalledWith(parkBuilding.id);
+    fireEvent.click(screen.getByRole('tab', { name: '区域研究' }));
+    expect(screen.getByText('18号线', { exact: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByText('来源与口径（2）'));
+    expect(screen.getByText(research.sources[1].basis)).toBeInTheDocument();
+  });
+
+  it('keeps the structured research signal and adaptive trend details in the same workspace', async () => {
+    const research = submarketIntelligenceSchema.parse(cbdEdition);
+    const early = { period: '2025Q4', year: 2025, quarter: 4, rent: 180, vacancyPct: 0,
+      rentSamples: 2, vacancySamples: 2, rentArea: 100, vacancyArea: 100 };
+    const latest = { ...early, period: '2026Q2', year: 2026, quarter: 2, rent: 190, vacancyPct: 10 };
+    api.read.mockResolvedValue({ ...payload, profile: { ...profile, research, headline: research.positioning },
+      trends: { all: [early, latest], a: [{ ...latest, rent: 210 }], b: [{ ...latest, rent: 170 }] } });
+    render(<SubmarketDetailPanel {...props} />);
+    await screen.findByText('同季度甲乙级租金差');
+    expect(screen.getByText(/2026Q2 甲级减乙级/)).toHaveTextContent('+40 元/㎡/月');
+    expect(screen.queryByRole('region', { name: '季度变化' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
+    const trend = within(screen.getByRole('region', { name: '季度行情' }));
+    expect(trend.getByText('2025Q4 至 2026Q2变化 +10.0 元/㎡/月（+5.6%）')).toBeVisible();
+    fireEvent.click(trend.getByText('查看季度数据'));
+    const table = within(trend.getByRole('table', { name: '季度租金与空置率' }));
+    expect(table.getByRole('row', { name: /^2026Q1/ })).toHaveTextContent('未收录');
+  });
+
+  it('loads an earlier structured edition into the form, then publishes using the current version token', async () => {
+    const research = submarketIntelligenceSchema.parse(shangdiEdition);
+    const earlier = { ...research, positioning: '软件园历史市场定位' };
+    const current = { ...profile, submarket: '上地', headline: research.positioning, research };
+    api.read.mockResolvedValue({ ...payload, submarket: '上地', profile: current, draftProfile: current });
+    api.history.mockResolvedValue({ versions: [{ id: 'version-1', savedAt: '2026-11-20T00:00:00Z', wasPublished: true, research: earlier }], nextOffset: null });
+    api.save.mockResolvedValue({ profile: { ...current, research: earlier }, profilePublished: true });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<SubmarketDetailPanel {...props} name="上地" />);
+    fireEvent.click(await screen.findByRole('button', { name: '维护资料' }));
+    fireEvent.click(screen.getByRole('button', { name: '查看历史版本' }));
+    fireEvent.click(await screen.findByRole('button', { name: '载入版本' }));
+    expect(screen.getByLabelText('市场定位', { exact: true })).toHaveValue(earlier.positioning);
+    expect(api.save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '保存并展示' }));
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith('上地', expect.objectContaining({ research: earlier }), true, current.updatedAt));
+    expect(await screen.findByText(earlier.positioning)).toBeInTheDocument();
   });
 
   it('retains the unsaved-edit confirmation when Escape closes the full-screen dialog', async () => {
@@ -311,11 +497,14 @@ it('observes displayed research sections and suppresses hidden retained views',a
 it('restores submarket section, grade and reading position independently after remount', async () => {
   const store = { submarkets: { CBD: { section: 'trend', grade: 'a', scrollTop: 120 } } };
   const first = render(<MapReadingContext.Provider value={store}><SubmarketDetailPanel {...props} /></MapReadingContext.Provider>);
-  await waitFor(() => expect(api.read).toHaveBeenCalledWith('CBD'));
+  await waitFor(() => expect(api.read).toHaveBeenCalledWith('CBD', expect.any(AbortSignal)));
   expect(screen.getByRole('tab', { name: '行情趋势' })).toHaveAttribute('aria-selected', 'true');
   expect(screen.getByRole('button', { name: /^甲级$/ })).toHaveAttribute('aria-pressed', 'true');
   const scroll = screen.getByRole('tabpanel');
-  scroll.scrollTop = 215; fireEvent.scroll(scroll);
+  expect(scroll.scrollTop).toBe(120);
+  fireEvent.wheel(scroll, { deltaY: 95 });
+  scroll.scrollTop = 215;
+  fireEvent.scroll(scroll);
   first.unmount();
   render(<MapReadingContext.Provider value={store}><SubmarketDetailPanel {...props} /></MapReadingContext.Provider>);
   expect(screen.getByRole('tabpanel').scrollTop).toBe(215);

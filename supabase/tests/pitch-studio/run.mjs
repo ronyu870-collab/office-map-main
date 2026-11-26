@@ -7,7 +7,8 @@ const require=createRequire(import.meta.url);
 const {handlePitchRequest}=require('../../../src/lib/pitch/http.ts');
 const {DEFAULT_THEME}=require('../../../src/lib/pitch/design/theme.ts');
 const {composeProject,previewPage,prepareRenderExport,runRenderExport,downloadArtifact}=require('../../../src/lib/pitch/data/renderWorkflow.ts');
-const {LAYOUTS}=require('../../../src/lib/pitch/layout/definitions.ts');
+const {legacyLayoutIds}=require('../../../src/lib/pitch/contracts/scene.ts');
+const LAYOUTS=legacyLayoutIds.map(id=>({id}));
 const {STUDIO_THEME,VERIFICATION_THEME}=require('../../../src/lib/pitch/design/theme.ts');
 const {STUDIO_TEMPLATE}=require('../../../src/lib/pitch/templates/registry.ts');
 const {BASIC_TEMPLATE}=require('../../../src/lib/pitch/templates/registry.ts');
@@ -163,7 +164,7 @@ try {
  await check('stage 2 registry pins reviewed theme, universal business adapter and twelve distinct layout definitions',async()=>{
   const reg=await db.rpc(OWNER,{action:'registry',templateId:STUDIO_TEMPLATE.id,templateVersion:1,themeId:STUDIO_THEME.id,themeVersion:2});
   assert.deepEqual(reg.template.config,STUDIO_TEMPLATE);assert.deepEqual(reg.theme.definition,STUDIO_THEME);
-  assert.equal((await db.setup.query("select count(*)::int n from pitch_layout_definitions where engine='pitch-layout/2'")).rows[0].n,12);
+  assert.equal((await db.setup.query("select count(*)::int n from pitch_layout_definitions where engine='pitch-layout/2' and id in ('cover','section-divider','image-text','two-columns','kpi','team-profile','case-study','data-table','chart-insight','comparison','map-analysis','strategy-framework')")).rows[0].n,12);
  });
  await check('twelve actual test assets compose into a persisted multi-page project with team media dependencies and deck numbering',async()=>{
   studioParts=[];

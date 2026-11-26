@@ -59,6 +59,27 @@ Pitch AI 已启用现有 DeepSeek 服务端提供方，绑定 `deepseek-flash`�
 
 **仍待完成的线上正向验证**：修正配置后实际供应商响应，以及对客 PPTX 经生产应用生成并下载。浏览器自动连接被审批系统阻止，原因是原生 Chrome 连接可能读取无关私人窗口；专用 Chrome 自动化连接不可用。替代服务端执行方案也被拒绝，因为它需要读取 service role 密钥并使用现有会话 ID 构造上下文。未执行该方案，未提取密钥或模拟会话；不能将权限校验允许、任务启动或本地生成当作上述线上正向验证通过。当前没有新的代码迁移需要重放。
 
+## Pitch Studio 1.1 模板生态正式部署
+
+2026-11-26，用户明确授权合并 PR [#320](https://github.com/ronyu870-collab/office-map-main/pull/320)、执行新增生产迁移及部署，并继续完成外部 AI 与对客导出正向验证。精确 PR head `4d02165691248cc2ef2db5d713013d726b65d96e` 的必需 CI 全部通过：429 个测试文件／3,282 项测试、PG17、真实 Auth／HTTP、桌面／手机及完整全站回归。合并提交为 `fa9d6bb9b12f8fef86f0da240c740f5af517e5de`。
+
+Vercel Production `dpl_HRXPDYhoTcc2oEUDHHaK4jJtVx1S` 已 READY，源码为上述合并提交，已绑定 `www.colliersdata.com` 和 `colliersdata.com`。随后通过 Supabase migration endpoint 仅应用 `20261126083359_pitch_studio_template_ecosystem.sql`，生产版本 `20261126112749`、名称 `pitch_studio_template_ecosystem`。没有重放前六阶段迁移。
+
+生产回读结果：
+
+- 新增 48 种声明式布局，连同原有 12 种渲染布局共 60 种；数据库另保留旧 `text-image/1` 记录，实际注册行数为 61。
+- 新增 80 个业务模板配置，现有企业业务配置共 95 个；结合原有 9 项可用动态能力，系统共 104 项可用业务模板。8 套完整提案随兼容代码部署。
+- 原有 13 行布局版本及 15 行业务模板的整体摘要与迁移前完全一致。没有写入新的正式企业事实、案例或人员资料。
+- 本人原有 grant 仍为 `valid_until='infinity'`，生成、对客导出、外部 AI 均允许；Pitch control 已启用。新迁移未修改这些授权。
+- 生产入口 HTTP 200；匿名实际工作台 API 为 HTTP 401。独立验证浏览器未登录时正确转到系统登录页。
+- 本次部署近 30 分钟 Vercel error／fatal 日志按请求路径分组未返回记录。该结果仅覆盖检查时的部署和时间窗，不能替代登录后的业务验证。
+
+授权用户可刷新 [/intelligence/pitch](https://www.colliersdata.com/intelligence/pitch)，从“模板中心”或“示例与套装”使用扩展目录。合成示例仍仅供本人内部验证；正式页面依然需要已发布、有效且获权的企业素材，不将示例升级为对客资料。
+
+本轮重新检查了 Supabase security／performance advisors，无 ERROR；仍有既有安全及性能告警，不表述为零告警。安全检查包括 [匿名 security definer](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable)、[authenticated security definer](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable) 和 [泄漏密码保护](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) 提示；本次迁移不修改函数、RLS、认证或索引。
+
+**登录后正向验证尚待完成**：新模板在本人会话内生成、保存及实际下载，修正预算后的真实供应商响应，以及对客 PPTX 生成与下载。Chrome 专用连接仍不可用；已打开可用的独立验证浏览器，但它没有本人的登录状态。需要经正常登录取得身份后继续，不提取服务端密钥、不构造或复制现有会话。生产注册成功、授权允许和部署 READY 不冒充这些操作已完成。
+
 ## 停用与后续维护
 
 紧急停用优先关闭数据库 Pitch control，服务端后续操作会重新验证；应用开关关闭并重建可同时移除导航入口。撤销具体 grant 可停止对应用户后续读取、生成和下载，不删除其历史审计及原件。保留迁移及存储，不通过 DROP TABLE 或删除迁移记录回滚上线。

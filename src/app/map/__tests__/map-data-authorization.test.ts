@@ -19,11 +19,11 @@ describe('map data authorization boundary', () => {
     expect(route).toContain("mode === 'future'");
     expect(route).toContain("mode === 'compare'");
     expect(route).toContain("mode === 'trend'");
-    expect(route).toContain(".or('project_type.neq.future,project_type.is.null')");
+    expect(source('src/lib/server/mapInventoryRead.ts')).toContain(".or('project_type.neq.future,project_type.is.null')");
     expect(route).toContain("role === 'viewer' || role === 'editor' || role === 'admin'");
 
     expect(client).toContain('withImpersonationHeaders');
-    expect(controller).toContain('fetchMapBuildingPayload("all")');
+    expect(controller).toContain('fetchMapBuildingPayload("latest")');
     expect(controller).toContain('fetchFutureSupplyPayload()');
     expect(controller).toContain('fetchBuildingTrendPayload(buildingId)');
     expect(startup).toContain("fetchMapBuildingPayload('latest')");

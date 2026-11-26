@@ -35,7 +35,7 @@ const LEDGER_CACHE_KEYS = ['__project_ledger_cache_v4']
 const LEDGER_SOURCE_TABLES = new Set(['buildings', 'building_metrics', 'building_current_data'])
 
 function invalidateLedgerCache(table: string) {
-  if (table === 'buildings' || table === 'future_supplies') clearMapReadCache()
+  if (LEDGER_SOURCE_TABLES.has(table) || table === 'future_supplies') clearMapReadCache()
   if (LEDGER_SOURCE_TABLES.has(table)) {
     for (const key of LEDGER_CACHE_KEYS) {
       try { sessionStorage.removeItem(key) } catch {}

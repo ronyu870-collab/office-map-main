@@ -9,7 +9,9 @@ type Of<K extends Block['kind']> = Extract<Block, { kind: K }>;
 import { LAYOUTS } from './definitions';
 export { LAYOUTS } from './definitions';
 import { sceneComponents } from './components';
-type Tools = ReturnType<typeof sceneComponents>;
+import { tablePages } from './table';
+import { layoutPattern } from './patterns/engine';
+import { PATTERN_BY_ID } from './patterns/catalog';
 function requireBlocks<K extends Block['kind']>(content: SlideContent, kind: K): Of<K>[] {
   const found = content.blocks.filter((b): b is Of<K> => b.kind === kind);
   if (!found.length) throw new LayoutError('PITCH_REQUIRED_CONTENT', `此布局缺少 ${kind} 内容。`);
@@ -19,24 +21,6 @@ function chunk<T>(values: T[], n: number): T[][] { const out: T[][] = []; for (l
 const paragraphText = (content: SlideContent) => content.blocks.filter(b => b.kind === 'paragraph').map(b => b.text).join('\n\n');
 const insightText = (content: SlideContent, en: boolean) => requireBlocks(content, 'insight').map(b => `${b.claim}\n${b.basis}\n${en ? 'Limits' : '边界'}: ${b.limitations.join('；')}`).join('\n\n');
 
-function tablePages(table: Of<'table'>, t: Tools, x: number, y: number, w: number, h: number, emphasizeFirst = false): SceneElement[][] {
-  if (!table.rows.length) throw new LayoutError('PITCH_EMPTY_TABLE', '表格没有数据，未知值请保留为空值。');
-  if (table.columns.length > 6) throw new LayoutError('PITCH_TABLE_COLUMNS', '当前表格最多六列，请选择对比转置变体或减少本页字段。');
-  const weights = table.columns.map((_, i) => emphasizeFirst && i === 0 ? 1.8 : 1);
-  const widths = weights.map(weight => w * weight / weights.reduce((a, b) => a + b, 0));
-  const heightFor = (row: (string | number | null)[]) => Math.max(...row.map((v, i) => t.lines(cellText(v), widths[i] - 2 * t.theme.table.cellPadding).length)) * t.lh + 2 * t.theme.table.cellPadding;
-  const header = heightFor(table.columns), pages: SceneElement[][] = [];
-  let rows: typeof table.rows = [], heights: number[] = [], used = header;
-  const flush = () => { pages.push([{ kind: 'table', x, y, w, h: used, columns: table.columns, rows, columnWidths: widths, rowHeights: [header, ...heights] }]); rows = []; heights = []; used = header; };
-  for (const row of table.rows) {
-    const rh = heightFor(row);
-    if (header + rh > h) throw new LayoutError('PITCH_TABLE_CELL_CAPACITY', '单行内容过长，无法在可读字号下完整展示，请拆分内容。');
-    if (used + rh > h || rows.length >= 10) flush();
-    rows.push(row); heights.push(rh); used += rh;
-  }
-  if (rows.length) flush();
-  return pages;
-}
 
 /** Business meaning -> layout, never a business-specific brand implementation. */
 export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, rawLayout: LayoutId, variant: 'standard' | 'alternate' = 'standard'): Promise<SlideScene[]> {
@@ -47,7 +31,10 @@ export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, raw
   const t = sceneComponents(await sceneFont(), theme), m = theme.margin, width = theme.width - m * 2, gap = theme.gridGap, en = content.locale.startsWith('en');
   const alt = variant === 'alternate', top = content.subtitle ? 1.65 : 1.35, bottom = 5.8, height = bottom - top;
   let groups: SceneElement[][] = [];
-  if (id === 'cover') {
+  if (PATTERN_BY_ID.has(id)) {
+    if(variant!=='standard')throw new LayoutError('PITCH_VARIANT_UNAVAILABLE','此布局仅支持标准变体，请选择其他已注册布局。');
+    groups = layoutPattern(content, t, PATTERN_BY_ID.get(id)!, {x:m,y:top,w:width,h:height});
+  } else if (id === 'cover') {
     if (content.blocks.filter(b => b.kind === 'image').length > 1) throw new LayoutError('PITCH_IMAGE_COUNT', '封面最多接受一张图片；请拆分页面或选择其他布局。');
     const image = content.blocks.find(b => b.kind === 'image');
     const tw = image ? 6.5 : width, ty = alt ? 1.55 : 2.05;

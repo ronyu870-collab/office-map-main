@@ -1,4 +1,5 @@
 'use client';
+import { createSubmarketBubble } from './mapSubmarketPresentation';
 import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
@@ -7,10 +8,12 @@ import { mapBuildingLabel } from './mapMarkerLabel';
 import { markerTextColor } from './mapMarkerContrast';
 
 import type { MapController } from '@/src/services/MapController';
-import { mapOptionalNumber, observedVacantArea } from '../model/vacancyMetrics';
+import { mapOptionalNumber } from '../model/vacancyMetrics';
+import { latestFormalMetric } from '../model/quarterlyFacts';
+import { officeGrade } from '../model/marketIdentity';
 import { summarizeSubmarkets } from '../model/submarketOverview';
 import { normalizeMapSubmarket } from '../model/mapDomain';
-import { createAreaPlaceholder, getAreaFixedRent, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
+import { createAreaPlaceholder, getAreaPlaceholders } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerMode = 'submarket' | 'dot' | 'building';
@@ -82,6 +85,7 @@ export type ControllerInternals = {
   renderFutureMarkers?: (...args: any[]) => void;
   clearFutureMarkers?: () => void;
   isWorkspaceActive?: () => boolean;
+  getWorkspaceSubmarket?: () => string | null;
   setWorkspaceSelectionRenderer?: (renderer: ((building: any) => string) | null) => void;
   refreshWorkspaceSelection?: () => void;
   openBuildingInfoWindow?: (buildingId: string) => void;
@@ -109,10 +113,6 @@ type SubmarketAggregate = {
   latSum: number;
   coordCount: number;
   count: number;
-  totalArea: number;
-  vacantArea: number;
-  rentWeightSum: number;
-  rentWeightAreaSum: number;
   leedCount: number;
 };
 
@@ -162,34 +162,23 @@ function latestMetric(
   if (!building || typeof building !== 'object') return null;
   if (cache.has(building)) return cache.get(building) ?? null;
 
-  let latest: any | null = null;
-  let order = Number.NEGATIVE_INFINITY;
-  for (const metric of Array.isArray(building.metrics) ? building.metrics : []) {
-    const nextOrder =
-      (Number(metric?.record_year) || 0) * 10 +
-      (Number(metric?.record_quarter) || 0);
-    if (nextOrder > order) {
-      latest = metric;
-      order = nextOrder;
-    }
-  }
+  const latest = latestFormalMetric(building.metrics);
   cache.set(building, latest);
   return latest;
 }
 
 function matchesGroupGrades(grade: string, groupGrades: string[]): boolean {
   if (groupGrades.length === 0) return true;
-  const normalized = (grade || '').toUpperCase();
+  const normalized = officeGrade(grade);
   return groupGrades.some(filterGrade => {
-    if (filterGrade === '产业园') return normalized.includes('BP');
+    if (filterGrade === '产业园') return normalized === 'park';
     if (filterGrade === '甲级') {
       return (
-        (normalized.includes('A') || normalized.includes('P')) &&
-        !normalized.includes('BP')
+        normalized === 'a'
       );
     }
     if (filterGrade === '乙级') {
-      return normalized.includes('B') && !normalized.includes('BP');
+      return normalized === 'b';
     }
     return false;
   });
@@ -245,15 +234,15 @@ function buildingVisual(
   let fontSize = 12;
 
   if (mode === 'default') {
-    const grade = String(building?.grade ?? '').toUpperCase();
-    if (grade.includes('BP')) {
+    const grade = officeGrade(building?.grade);
+    if (grade === 'park') {
       background = PALETTE.gradeBP;
       text = 'BP';
       fontSize = 12;
-    } else if (grade.includes('A') || grade.includes('P')) {
+    } else if (grade === 'a') {
       background = PALETTE.gradeA;
       text = 'A';
-    } else if (grade.includes('B')) {
+    } else if (grade === 'b') {
       background = PALETTE.gradeB;
       text = 'B';
     } else {
@@ -261,8 +250,8 @@ function buildingVisual(
       text = '·';
     }
   } else if (mode === 'rent') {
-    const rent = Number(metric?.net_effective_rent);
-    const hasRent = Number.isFinite(rent) && rent > 0;
+    const rent = mapOptionalNumber(metric?.net_effective_rent);
+    const hasRent = Number.isFinite(rent) && rent >= 0;
     text = hasRent ? String(Math.round(rent)) : '–';
     background = scaleColor(rent, hasRent);
     fontSize = text.length > 4 ? 10.5 : 12;
@@ -306,22 +295,6 @@ function buildingVisual(
   }
 
   return { background, border, textColor: markerTextColor(background, textColor), text, fontSize };
-}
-
-function submarketAccent(
-  mode: RenderMode,
-  rent: number,
-  vacancy: number,
-  leed: number,
-): string {
-  if (mode === 'default') return PALETTE.brand;
-  if (mode === 'rent') return scaleColor(rent, rent > 0);
-  if (mode === 'vacancy') return vacancyColor(vacancy, Number.isFinite(vacancy));
-  if (leed >= 60) return '#3f715f';
-  if (leed >= 40) return '#537f6c';
-  if (leed >= 20) return '#6f927f';
-  if (leed > 0) return '#88a493';
-  return PALETTE.neutral;
 }
 
 function svgDataUri(svg: string): string {
@@ -602,10 +575,6 @@ export function installNativeMarkerRenderer(
           latSum: 0,
           coordCount: 0,
           count: 0,
-          totalArea: 0,
-          vacantArea: 0,
-          rentWeightSum: 0,
-          rentWeightAreaSum: 0,
           leedCount: 0,
         };
         aggregateMap.set(name, item);
@@ -618,23 +587,6 @@ export function installNativeMarkerRenderer(
         item.coordCount += 1;
       }
 
-      const metric = latestMetric(building, metricCache);
-      const area = Number(metric?.total_area);
-      const vacantArea = observedVacantArea(metric);
-      const rent = Number(metric?.net_effective_rent);
-      if (Number.isFinite(area) && area > 0 && Number.isFinite(vacantArea)) {
-        item.totalArea += area;
-        item.vacantArea += vacantArea;
-      }
-      if (
-        Number.isFinite(area) &&
-        area > 0 &&
-        Number.isFinite(rent) &&
-        rent > 0
-      ) {
-        item.rentWeightAreaSum += area;
-        item.rentWeightSum += rent * area;
-      }
       if (hasLeedCertification(building?.leed_certification)) {
         item.leedCount += 1;
       }
@@ -651,39 +603,8 @@ export function installNativeMarkerRenderer(
         item.latSum / item.coordCount,
       ];
       const summary = summaries.get(item.name);
-      const rent = summary?.rent ?? getAreaFixedRent(item.name) ?? 0;
-      const vacancy = summary?.vacancyPct ?? Number.NaN;
       const leed = item.count > 0 ? (item.leedCount / item.count) * 100 : 0;
-      const fixedRent = getAreaFixedRent(item.name);
-      const accent = submarketAccent(mode, rent, vacancy, leed);
-      const size = 86 + Math.min(12, Math.round(Math.sqrt(summary?.officeCount ?? item.count) * 1.25));
-
-      const count = summary?.officeCount ?? 0;
-      const nameOnly = isNameOnlyArea(item.name, mode) && count === 0;
-      const bubbleClass = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
-      const isReference = summary?.rent == null && fixedRent !== null;
-      const rentText = rent > 0 ? `¥${rent.toFixed(1)}${isReference ? '*' : ''}` : '¥—';
-      const vacancyText = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '—';
-      const element = document.createElement('button');
-      element.type = 'button';
-      element.className = bubbleClass;
-      element.dataset.renderMode = mode;
-      element.title = `${item.name}，甲乙级${count}个${isReference ? '，*区域参考租金' : ''}`;
-      element.setAttribute('aria-label', `查看${item.name}子市场介绍，甲乙级${count}个`);
-      if (!nameOnly) {
-        element.style.setProperty('--sm-accent', accent);
-        element.style.setProperty('--sm-foreground', markerTextColor(accent));
-      }
-      element.style.setProperty('--sm-size', `${size}px`);
-      const metrics = nameOnly ? '' : `
-        <span class="map-submarket-bubble__metrics">
-          <span class="map-submarket-bubble__primary">${rentText}</span>
-          <span class="map-submarket-bubble__sep">·</span>
-          <span class="map-submarket-bubble__secondary">${vacancyText}</span>
-        </span>
-        <span class="map-submarket-bubble__count">甲乙级 ${count} 个</span>
-        ${mode === 'leed' ? `<span class="map-submarket-bubble__context">LEED ${leed.toFixed(0)}%</span>` : ''}`;
-      element.innerHTML = `<span class="map-submarket-bubble__name">${escapeHtml(item.name)}</span>${metrics}`;
+      const element = createSubmarketBubble({ name: item.name, summary, mode, leed, selected: controller.getWorkspaceSubmarket?.() === item.name });
       const openBrief = () => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: item.name } }));
       element.addEventListener('click', event => { event.stopPropagation(); openBrief(); });
       const marker = new Marker({
@@ -701,7 +622,7 @@ export function installNativeMarkerRenderer(
     for (const { name, center } of getAreaPlaceholders(showAreaPlaceholders, positionedNames)) {
       const content = createAreaPlaceholder(name, () => {
         if (activeTier === 'submarket') window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name } }));
-      }, mode, summaries.get(name));
+      }, mode, summaries.get(name), controller.getWorkspaceSubmarket?.() === name);
       result.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, MARKER_ZOOM.submarketMax], zIndex: 92 }));
     }
     return result;
@@ -854,12 +775,12 @@ export function installNativeMarkerRenderer(
       const metric = latestMetric(building, metricCache);
       const visual = buildingVisual(building, mode, metric, groups);
       const area = Number(metric?.total_area);
-      const grade = String(building?.grade ?? '').toUpperCase();
+      const grade = officeGrade(building?.grade);
       // BP includes "P", so it must be classified before A/P for collision priority.
       const gradeRank =
-        grade.includes('BP')
+        grade === 'park'
           ? 1200
-          : grade.includes('A') || grade.includes('P')
+          : grade === 'a'
             ? 2000
             : 700;
       const rank =

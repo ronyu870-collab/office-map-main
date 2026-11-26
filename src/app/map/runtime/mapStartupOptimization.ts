@@ -58,6 +58,11 @@ function transformBuildingRow(row: Record<string, unknown>): BuildingWithMetrics
       net_effective_rent: mapOptionalNumber(metric.net_effective_rent),
       vacancy_rate: mapOptionalNumber(metric.vacancy_rate),
       vacant_area: mapOptionalNumber(metric.vacant_area),
+      is_locked: metric.is_locked as boolean | null | undefined,
+      is_draft: metric.is_draft as boolean | null | undefined,
+      updated_at: metric.updated_at as string | null | undefined,
+      created_at: metric.created_at as string | null | undefined,
+      data_source: metric.data_source as string | null | undefined,
       record_year: toFiniteNumber(metric.record_year),
       record_quarter: toFiniteNumber(metric.record_quarter),
     }))
@@ -109,7 +114,7 @@ async function fetchSlimStartupData(
 
 /**
  * Apply startup-only optimizations without changing MapController's durable
- * behavior. The instance falls back to the original full-history query if the
+ * behavior. The instance falls back to the original latest-formal query if the
  * optimized PostgREST shape ever becomes unavailable.
  *
  * The local Beijing boundary/subway JSON is also suppressed only while

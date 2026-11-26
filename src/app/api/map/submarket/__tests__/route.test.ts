@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
+import { submarketIntelligenceSchema } from '@/src/app/map/model/submarketIntelligence';
+import edition from '@/data/submarket-research/2026-11-27/cbd.json';
 import { emptySubmarketProfile } from '@/src/app/map/model/submarketProfile';
 import { GET, PUT } from '../route';
 
@@ -34,6 +36,8 @@ const buildingRows = [
   { id: 'a', grade: 'A' }, { id: 'b', grade: 'B' }, { id: 'park', grade: 'BP' },
 ];
 const quarterRows = [
+  { building_id: 'a', record_year: 2023, record_quarter: 4, total_area: 100,
+    net_effective_rent: 150, vacancy_rate: 0, is_draft: false, is_locked: true },
   { building_id: 'a', record_year: 2026, record_quarter: 3, total_area: 100,
     net_effective_rent: 100, vacancy_rate: .1, is_draft: false, is_locked: true },
   { building_id: 'b', record_year: 2026, record_quarter: 3, total_area: 300,
@@ -98,10 +102,16 @@ describe('authorized submarket GET', () => {
     const result = await response.json();
     expect(result.stockCount).toBe(2);
     expect(result.source).toBe('building_metrics');
+    expect(result.scope).toBe('authorized_market');
+    expect(result.publication).toBe('locked_non_draft');
+    expect(mocks.calls).toContainEqual({ table: 'building_metrics', action: 'eq', args: ['is_locked', true] });
+    expect(mocks.calls).toContainEqual({ table: 'building_metrics', action: 'order', args: ['id', { ascending: false }] });
     expect(result.trends.all.at(-1)).toMatchObject({
       period: '2026Q3', rent: 175, vacancyPct: 17.5,
       rentSamples: 2, vacancySamples: 2,
     });
+    expect(result.trends.all[0]).toMatchObject({ period: '2023Q4', rent: 150, vacancyPct: 0 });
+    expect(result.trends.all[1]).toMatchObject({ period: '2024Q1', rent: null, vacancyPct: null });
     expect(result.trends.a.at(-1).rent).toBe(100);
     expect(result.trends.b.at(-1).rent).toBe(200);
     expect(result.profileAvailable).toBe(false);
@@ -110,6 +120,18 @@ describe('authorized submarket GET', () => {
     expect(mocks.calls).toContainEqual({ table: 'buildings', action: 'eq', args: ['tracking_scope', 'tracked'] });
     const metricsQuery = mocks.calls.find(record => record.table === 'building_metrics' && record.action === 'in');
     expect(metricsQuery?.args).toEqual(['building_id', ['a', 'b']]);
+  });
+
+  it('projects a structured edition without legacy draft fields and blocks viewer history', async () => {
+    const research = submarketIntelligenceSchema.parse(edition);
+    mocks.profileAvailable = true;
+    mocks.profileRow = { submarket: 'CBD', is_published: true, headline: '内部提示', research };
+    const result = await (await GET(new NextRequest(baseUrl))).json();
+    expect(result.profile).toMatchObject({ headline: research.positioning, insights: [], research });
+    expect(result.draftProfile).toBeUndefined();
+    expect((await GET(new NextRequest(baseUrl + '&researchHistory=0'))).status).toBe(403);
+    mocks.identity.mockResolvedValue(getIdentity('admin', true));
+    expect((await GET(new NextRequest(baseUrl + '&researchHistory=0'))).status).toBe(403);
   });
 
   it('does not disclose any data when anonymous or role invalid', async () => {

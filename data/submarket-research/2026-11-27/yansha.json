@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "market": "燕莎",
+  "positioning": "亮马河、使馆区和东三环共同支撑的涉外商务市场",
+  "updatedOn": "2026-11-27",
+  "focus": "matched-rent",
+  "sources": [
+    {
+      "id": "river",
+      "title": "亮马河河道治理与商圈联系",
+      "publisher": "北京市水务局",
+      "url": "https://swj.beijing.gov.cn/swdt/ztzl/sstxczl/sstzx/202412/t20241202_3954886.html",
+      "publishedOn": "2024-12-02",
+      "observedAt": "2024-12报道",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "亮马河第二、第三使馆区及沿岸商圈",
+      "basis": "亮马河经过第二、第三使馆区，连接燕莎、蓝色港湾和朝阳公园等节点。"
+    },
+    {
+      "id": "route",
+      "title": "亮马河国际风情水岸运营报道",
+      "publisher": "首都之窗",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202403/t20240317_3591494.html",
+      "publishedOn": "2024-03-17",
+      "observedAt": "2024年春首航",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "燕莎—亮马河沿岸",
+      "basis": "报道列明游览线路串起使馆区和商圈，沿岸包含燕莎友谊商城、凯宾斯基饭店等既有服务设施。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "沿河的涉外区位",
+      "body": "亮马河经过第二、第三使馆区，再连接燕莎及蓝色港湾等商圈。",
+      "kind": "place",
+      "status": "observed",
+      "sourceIds": [
+        "river"
+      ]
+    },
+    {
+      "title": "接待配套与办公同处一个走廊",
+      "body": "燕莎友谊商城及凯宾斯基饭店提供沿河商务接待和会面场景。",
+      "kind": "place",
+      "status": "observed",
+      "sourceIds": [
+        "route"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "与CBD的可替代性主要来自涉外接待需求",
+      "body": "驻华团队或高频国际访客可把使馆区、酒店、会议地点的实际步行联系纳入筛选。预算比较宜按同等级和同一季度做，临河配套、可达性和较旧楼宇的机电条件优先现场核对。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "亮马河沿线及平台燕莎办公项目",
+      "limitation": "公开的涉外设施只能解释区位价值，现有证据不足以推出租户国别占比。",
+      "sourceIds": [
+        "river",
+        "route"
+      ]
+    }
+  ],
+  "projects": []
+}

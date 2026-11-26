@@ -46,7 +46,7 @@ const BUILDINGS = Array.from({ length: 44 }, (_, index) => ({
   district: index < 30 ? '朝阳区' : '海淀区', submarket: index < 30 ? 'CBD' : '中关村',
   property_management: '测试物业', completion_year: '2010', leed_certification: 'Gold',
   location_lng: index === 3 ? null : 116.46 + index / 1000, location_lat: 39.91,
-  metrics: [{ id: `m-${index}`, building_id: `b-${index + 1}`, record_year: 2026, record_quarter: 3,
+  metrics: [{ id: `m-${index}`, building_id: `b-${index + 1}`, is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3,
     total_area: 10000 + index, vacant_area: index, vacancy_rate: index / 1000,
     net_effective_rent: index, asking_rent: index, management_fee: 20, face_rent: index, rent_free_period: 0 }],
 }));

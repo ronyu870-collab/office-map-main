@@ -6,13 +6,13 @@ import { MapDisclosure } from './MapDisclosure';
 import type { SheetMode } from '../workspace/workspaceState';
 
 export const WorkspacePanelContext = React.createContext<{
-  compact: boolean; mode: SheetMode; setMode: (mode: SheetMode) => void; restore?: () => void;
+  compact: boolean; mode: SheetMode; setMode: (mode: SheetMode) => void; restore?: () => void; active?: boolean;
   backLabel?: string | null; onBack?: () => void;
 } | null>(null);
 
 /** Shared navigation belongs in the content title group, never in another toolbar above it. */
-export function WorkspacePanelHeader({ title, subtitle, onClose, closeLabel, actions, primaryAction, titleId, titleRef }: {
-  title: React.ReactNode; subtitle?: React.ReactNode; onClose: () => void; closeLabel: string;
+export function WorkspacePanelHeader({ title, subtitle, metadata, onClose, closeLabel, actions, primaryAction, titleId, titleRef }: {
+  title: React.ReactNode; subtitle?: React.ReactNode; metadata?: React.ReactNode; onClose: () => void; closeLabel: string;
   actions?: React.ReactNode; primaryAction?: React.ReactNode; titleId?: string; titleRef?: React.Ref<HTMLHeadingElement>;
 }) {
   const context = React.useContext(WorkspacePanelContext);
@@ -60,5 +60,6 @@ export function WorkspacePanelHeader({ title, subtitle, onClose, closeLabel, act
       </div>
     </div>
     {subtitle && !inlineSubtitle ? <p className="workspace-panel-subtitle">{subtitle}</p> : null}
+    {metadata != null ? <div className="workspace-panel-metadata">{metadata}</div> : null}
   </header>;
 }

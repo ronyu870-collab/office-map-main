@@ -2,6 +2,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MapDataStore } from '../../model/MapDataStore';
+import { createDefaultFilterState } from '../../model/mapDomain';
+import { submarketSummary } from '../../model/submarketOverview';
 import { MapController } from '@/src/services/MapController';
 import { installMapVisualContinuityV2 } from '../mapVisualContinuityV2';
 import { installMapInteractionHardening } from '../mapInteractionHardening';
@@ -114,7 +117,7 @@ function building(id: string, submarket: string, lng: number, lat: number, rent:
     metrics: [{
       id: `m-${id}`,
       building_id: id,
-      record_year: 2026,
+      is_locked: true, is_draft: false, record_year: 2026,
       record_quarter: 2,
       net_effective_rent: rent,
       vacancy_rate: vacancy,
@@ -231,7 +234,32 @@ afterEach(() => {
 });
 
 describe('native map visual hierarchy', () => {
-  it('shows the supplied rent for the two designated areas and keeps metrics for other markets', async () => {
+  it.each(['native', 'active'])('keeps %s bubbles equal to detail statistics under filters and missing coordinates', async renderer => {
+    const harness = createNativeHarness();
+    const located = { ...building('located', 'CBD', 116.46, 39.91, 100, .1), leed_certification: '金级', district: '朝阳区' };
+    const unlocated = { ...building('unlocated', 'CBD', 116.47, 39.91, 200, .2), location_lng: null, location_lat: null, district: '朝阳区', leed_certification: null };
+    const controller = { AMap: harness.AMap, map: harness.map, _allBuildingsCache: [located, unlocated], renderMarkers: vi.fn(), clearMarkers: vi.fn() };
+    const cleanup = renderer === 'native' ? installNativeMarkerRenderer(controller as never, document.getElementById('map-container')!) : installMapInteractionHardening(controller as never, 'map-container');
+    try {
+      const filterState = createDefaultFilterState();
+      const store = new MapDataStore([located, unlocated] as never);
+      for (const leeds of [filterState.leeds, ['Gold']]) {
+        filterState.leeds = leeds;
+        const rows = store.filter({ filterState, compareGroups: [], role: 'viewer' });
+        const summary = submarketSummary(rows, 'CBD');
+        const before = harness.markerInstances.length;
+        controller.renderMarkers(rows, 'default');
+        await flushFrames();
+        const bubble = harness.markerInstances.slice(before).find(marker => (marker.options.content as HTMLElement)?.title?.startsWith('CBD'))?.options.content as HTMLElement;
+        expect(bubble.textContent).toContain(`甲乙级 ${summary.officeCount} 个`);
+        expect(bubble.textContent).toContain(`¥${summary.rent!.toFixed(1)}`);
+        expect(bubble.textContent).toContain(`${summary.vacancyPct!.toFixed(1)}%`);
+      }
+      expect(submarketSummary([located, unlocated], 'CBD').officeCount).toBe(2);
+    } finally { cleanup?.(); }
+  });
+
+  it('uses published observations and withholds unverified legacy reference rents', async () => {
     const harness = createNativeHarness();
     const controller = {
       AMap: harness.AMap, map: harness.map,
@@ -254,8 +282,8 @@ describe('native map visual hierarchy', () => {
       expect(populated?.querySelector('.map-submarket-bubble__secondary')).not.toBeNull();
       expect(contents.find(node => node.title.startsWith('CBD'))?.textContent).toContain('¥305');
       const pending = contents.find(node => node.title.startsWith('四季青'));
-      expect(pending?.textContent).toBe('四季青¥140*');
-      expect(pending?.querySelector('.map-submarket-bubble__metrics')).not.toBeNull();
+      expect(pending?.textContent).toBe('四季青区域资料');
+      expect(pending?.querySelector('.map-submarket-bubble__metrics')).toBeNull();
       const onAreaOpen = vi.fn();
       window.addEventListener('map-submarket-open', onAreaOpen);
       pending?.click();
@@ -268,12 +296,12 @@ describe('native map visual hierarchy', () => {
       controller.renderMarkers(data, 'default', undefined, undefined, false);
       await flushFrames();
       const filtered = harness.markerInstances.slice(previousMarkers).map(marker => marker.options.content.title);
-      expect(filtered.map(name => name.split(' · ')[0])).toEqual(['玉渊潭', 'CBD']);
+      expect(filtered.map(name => name.split('，')[0])).toEqual(['玉渊潭', 'CBD']);
 
       const beforeEmpty = harness.markerInstances.length;
       controller.renderMarkers([], 'default', undefined, undefined, true);
       await flushFrames();
-      expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.textContent)).toEqual(['玉渊潭¥150*', '四季青¥140*']);
+      expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.textContent)).toEqual(['玉渊潭区域资料', '四季青区域资料']);
     } finally { cleanup?.(); }
   });
 
@@ -295,7 +323,7 @@ describe('native map visual hierarchy', () => {
         expect(yuyuantan?.textContent).toContain('甲乙级 1 个');
         expect(yuyuantan?.querySelector('.map-submarket-bubble__metrics')).not.toBeNull();
         const sijiqing = contents.find(node => node.title.startsWith('四季青'));
-        expect(sijiqing?.textContent).toBe('四季青');
+        expect(sijiqing?.textContent).toBe('四季青区域资料');
         expect(sijiqing?.querySelector('.map-submarket-bubble__metrics')).toBeNull();
       }
     } finally { cleanup?.(); }

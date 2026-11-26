@@ -1,3 +1,4 @@
+import { verifySubmarketDesign } from './workspace-submarket-design.mjs';
 import { verifySupplyLoading } from './workspace-supply-loading.mjs';
 import { verifyShortViewport } from './workspace-short-viewport.mjs';
 import { verifyRouteFocus } from './workspace-route-focus.mjs';
@@ -50,7 +51,7 @@ const stock = [
   { id: 'other', name: '中关村楼·' + '超长项目名称及楼座信息'.repeat(6), submarket: '中关村', location_lng: 116.32, location_lat: 39.98 },
   { id: 'missing', name: '未定位楼', submarket: 'CBD', location_lng: null, location_lat: null },
   { id: 'invalid', name: '坐标越界楼', submarket: 'CBD', location_lng: 40, location_lat: 116 },
-].map(building => ({ ...building, grade: 'A', district: '朝阳区', building_metrics: [{ id: `m-${building.id}`, building_id: building.id, record_year: 2026, record_quarter: 3, total_area: 9019486, net_effective_rent: 146.1, vacancy_rate: .211 }] }));
+].map(building => ({ ...building, grade: 'A', district: '朝阳区', building_metrics: [{ id: `m-${building.id}`, building_id: building.id, is_locked: true, is_draft: false, record_year: 2026, record_quarter: 3, total_area: 9019486, net_effective_rent: 146.1, vacancy_rate: .211 }] }));
 // Unknown financial fields and an older period exercise reading/export semantics.
 Object.assign(stock[1].building_metrics[0], { total_area: null, net_effective_rent: null, face_rent: null,
   management_fee: null, record_year: 2025, record_quarter: 4 });
@@ -159,8 +160,12 @@ try {
       await page.locator('#map-container [data-building-id="10000000-1111-4111-8111-111111111111"]').first().waitFor();
       assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true');
       const liveStats = page.getByRole('region', { name: '市场实时指标', exact: true });
-      await liveStats.getByText('项目', { exact: true }).waitFor();
-      assert.equal(await liveStats.locator('summary,button').count(), 0, 'metrics have no explanation trigger');
+      await liveStats.getByText('有坐标项目', { exact: true }).waitFor();
+      assert.equal(await liveStats.locator('summary').count(), 1, 'only the area precision disclosure is present');
+      await liveStats.locator('summary').click();
+      await page.getByText('36,077,944 平方米',{exact:true}).waitFor();
+      await page.keyboard.press('Escape');
+      await page.getByText('36,077,944 平方米',{exact:true}).waitFor({state:'detached'});
       const metricBounds = await liveStats.boundingBox();
       assert.ok(metricBounds.x >= 0 && metricBounds.x + metricBounds.width <= width, 'metrics fit the viewport');
       if (width > 1100) assert.ok(metricBounds.width <= 520, `content-sized metrics width ${metricBounds.width}`);
@@ -452,13 +457,22 @@ try {
       // filters, controller renderers and sidebar synchronization all remain real.
       await page.evaluate(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } })));
       await page.getByRole('region', { name: 'CBD', exact: true }).waitFor();
+      let resizedResearchWidth;
       if (width === 1536) {
-        await page.waitForTimeout(300);
-        assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 400, 'research has its own reading width');
-        await page.getByRole('separator', { name: '调整业务工作区宽度' }).press('End');
-        await page.waitForTimeout(300);
-        assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 520);
-        assert.ok((await page.locator('#map-container').boundingBox()).width >= width * .5, 'wide research preserves half the viewport for the map');
+        const separator = page.getByRole('separator', { name: '调整业务工作区宽度' });
+        const initialResearchWidth = Number(await separator.getAttribute('aria-valuenow'));
+        assert.ok(initialResearchWidth > 520, 'research gets the wider adaptive desktop split by default');
+        resizedResearchWidth = Number(await separator.getAttribute('aria-valuemax'));
+        assert.ok(resizedResearchWidth > initialResearchWidth, 'research can be widened beyond its default');
+        await separator.press('End');
+        await page.locator(`.map-workspace-right[data-open] [aria-valuenow="${resizedResearchWidth}"]`).waitFor();
+        const split = await page.locator('.map-workspace-layout').evaluate(el => {
+          const right = el.querySelector('.map-workspace-right[data-open]');
+          const left = el.querySelector('.map-workspace-left[data-open]');
+          return { width: el.clientWidth, right: right.offsetWidth, exposedMap: right.offsetLeft - (left ? left.offsetLeft + left.offsetWidth : 0) };
+        });
+        assert.equal(split.right, resizedResearchWidth);
+        assert.ok(split.exposedMap >= split.width * .5 - 1, 'wide research preserves half the stage as uncovered map');
       }
       if (width === 320 || width === 390) assert.ok((await page.getByRole('region', { name: 'CBD', exact: true }).locator('.workspace-scroll').boundingBox()).height >= 80, 'compact research retains a usable reading area');
       await page.screenshot({ path: `/tmp/map-layout-research-${width}.png` });
@@ -488,8 +502,8 @@ try {
       await page.getByRole('button', { name: '返回项目列表', exact: true }).click();
       await page.getByRole('button', { name: '返回子市场研究', exact: true }).click();
       if (width === 1536) {
-        await page.waitForTimeout(300);
-        assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 520, 'return restores research width');
+        await page.getByRole('region', { name: 'CBD', exact: true }).waitFor();
+        assert.equal(await page.locator('.map-workspace-right[data-open]').evaluate(el => el.offsetWidth), resizedResearchWidth, 'return restores the chosen research width');
       }
       await page.getByRole('button', { name: '关闭子市场介绍' }).click();
       assert.equal(await page.getByRole('button', { name: '保留该区域筛选', exact: true }).count(), 0, 'region is retained by default');
@@ -535,7 +549,7 @@ try {
       await page.waitForFunction(() => document.querySelector('.map-selected-marker__badge')?.naturalWidth > 0);
       assert.ok(decodeURIComponent(await futureBadge.getAttribute('src')).includes('>F</text>'), 'selected future has a visible identity badge');
       assert.equal(await page.getByRole('tab',{name:'行情',exact:true}).count(),0);
-      assert.equal(await page.getByText('净有效租金',{exact:true}).count(),1,'only the global market metric remains, not a future project rent');
+      assert.equal(await page.getByRole('region',{name:'市场实时指标',exact:true}).getByText('净有效租金',{exact:true}).count(),1,'only the global market metric remains, not a future project rent');
       assert.match(await page.getByRole('region',{name:'规划指标'}).locator('dd').innerText(),/^80,000\s*㎡$/);
       await page.getByRole('tab', { name: '概览',exact:true }).press('ArrowLeft');
       assert.equal(await page.getByRole('tab', { name: '项目资料' }).getAttribute('aria-selected'),'true');
@@ -610,7 +624,7 @@ try {
         await choices.getByRole('button', { name: '清空关键词', exact: true }).click();
         assert.equal(await search.inputValue(), '');
         assert.ok(await search.evaluate(el => el === document.activeElement));
-        await liveStats.getByText('项目', { exact: true }).waitFor();
+        await liveStats.getByText('有坐标项目', { exact: true }).waitFor();
         await page.keyboard.press('Escape');
         await page.setViewportSize({ width, height });
         await page.waitForTimeout(350);
@@ -819,7 +833,7 @@ try {
           await page.waitForFunction(count=>document.querySelector('.map-live-stats')?.getAttribute('aria-busy')==='false' && document.querySelectorAll('.map-live-stats .map-metric-number')[2]?.textContent===count,count);
           const values=await liveStats.locator('.map-metric-number').allTextContents();
           assert.equal(values[2],count);
-          if (label==='three-digits') assert.equal(values[3],'1,154,494,208');
+          if (label==='three-digits') assert.equal(values[3],'115,449.4');
           else assert.deepEqual([values[0],values[1],values[3]],['—','—','—']);
           assert.ok(await liveStats.evaluate(element=>element.scrollWidth<=element.clientWidth+1),'metric edge content fits its frame');
           const gaps=await liveStats.locator('dd').evaluateAll(elements=>elements.map(element=>{
@@ -830,6 +844,8 @@ try {
           observations.push({width,metricVariant:label,values,numberUnitGaps:gaps});
         }
       }
+
+      if ([1536,390].includes(width)) observations.push(await verifySubmarketDesign(context, { base, width, stock }));
 
       // Use a fresh map page: the full list deliberately remains mounted after
       // closing, while earlier assertions inspect the map's entire DOM text.

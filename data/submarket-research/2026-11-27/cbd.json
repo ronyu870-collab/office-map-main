@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "market": "CBD",
+  "positioning": "国贸及建外商务轴的总部市场，核心区新增甲级办公带来新一轮项目竞争",
+  "updatedOn": "2026-11-27",
+  "focus": "grade-rent",
+  "sources": [
+    {
+      "id": "hq",
+      "title": "北京CBD论坛年会开幕报道",
+      "publisher": "首都之窗",
+      "url": "https://www.beijing.gov.cn/fuwu/lqfw/gggs/202606/t20260616_4701815.html",
+      "publishedOn": "2026-06-16",
+      "observedAt": "2026-06",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "北京CBD官方商务区",
+      "basis": "报道列明区内有125家跨国公司地区总部。"
+    },
+    {
+      "id": "q3",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "publishedOn": "2026-10-12",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "external_market",
+      "scope": "世邦魏理仕北京CBD写字楼监测范围",
+      "basis": "第三季度CBD新增项目结束约一年供应空窗，监测将新供给归入CBD。"
+    },
+    {
+      "id": "tower",
+      "title": "跨国公司总部在北京CBD的公开案例",
+      "publisher": "开放北京",
+      "url": "https://open.beijing.gov.cn/html/chaoyang/gzdt/2025/10/1761276368320.html",
+      "publishedOn": "2025-10-24",
+      "observedAt": "案例为2023年开业",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "project",
+      "scope": "正大中心",
+      "basis": "公开报道记录穆巴达拉投资公司北京办公室于2023年在正大中心开业。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "跨国公司地区总部",
+      "body": "2026年6月论坛报道披露了北京CBD功能区的总部数量。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "hq"
+      ],
+      "measure": {
+        "value": "125",
+        "unit": "家"
+      }
+    },
+    {
+      "title": "核心区进入新供应周期",
+      "body": "世邦魏理仕在第三季度报告中记录CBD新项目入市，结束其监测的北京办公楼供应空窗。",
+      "kind": "supply",
+      "status": "observed",
+      "sourceIds": [
+        "q3"
+      ]
+    },
+    {
+      "title": "国贸片区的国际办公案例",
+      "body": "穆巴达拉投资公司北京办公室是正大中心的公开落位案例。",
+      "kind": "place",
+      "status": "observed",
+      "sourceIds": [
+        "tower"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "同一商务轴上存在两套竞争条件",
+      "body": "总部形象、访客组织和可交付面积让核心区的新旧甲级项目形成直接竞争。为预算约束较强的企业做比选时，优先在同季度分看甲级和乙级，再核对免租及楼层条件。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "CBD存量甲乙级与核心区新供给",
+      "limitation": "官方总部数按功能区认定；外部报告的供给样本独立于地图正式季度。",
+      "sourceIds": [
+        "hq",
+        "q3",
+        "tower"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "buildingId": "ba24c1f5-747f-4f96-b2f1-d75422b167e6",
+      "role": "国际办公案例",
+      "reason": "正大中心有可追溯的国际机构办公室落位案例，可作为总部型楼宇样本。",
+      "sourceIds": [
+        "tower"
+      ]
+    }
+  ]
+}

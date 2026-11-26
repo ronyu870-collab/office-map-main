@@ -40,6 +40,8 @@
 | [历史项目资料与佣金](../HISTORICAL_PROJECT_MATERIALS.md) | 已授权历史楼书、佣金、私有原件导入与地图读取；日期未知保留未知 | 历史资料不进入当前房源或季度填报，现行销控继续执行 DATA-01 |
 | [Pitch Studio 架构](../pitch-studio/architecture.md)／[渲染引擎](../pitch-studio/render-engine.md)／[素材库](../pitch-studio/material-library.md)／[业务模板](../pitch-studio/business-templates.md) | Pitch 素材、模板、主题、私人项目、导出、RLS 或后续阶段接入 | 独立领域协议及实际回归，不替代共同身份、数据与交付规范 |
 | [性能与地图启动基线](../performance-baseline.md) | 包依赖、性能测量、首屏、SDK 与资源时序变更 | 按需测量由 VERIFY-06 定义；历史数字不作为新版本生产结论 |
+| [地图市场事实契约](../map-market/phase-01-contract.md) | 地图统计、季度观测、范围、分类与参考值 | 与季度治理共用正式来源，不授权生产回填或发布 |
+| [子市场研究资料](../map/submarket-research-phase-05.md) | 结构化事实、公开来源、项目选择、研究版本及发布 | 复用地图市场事实契约，资料导入独立授权 |
 | [季度可靠性](../quarterly-reliability-release.md) | 草稿、季度配置、提交或 RPC 相关任务 | 读取相关回归矩阵；历史实施状态不自动成为新任务授权 |
 | [季度发布操作](../quarterly-rollout/README.md) | 季度机制发布或数据迁移 | 保留分阶段保护、隔离检查及生产启用边界 |
 | [楼宇身份治理](../historical-lease-building-alias-governance.md) | 别名、楼座、项目映射及历史成交关联 | 按身份粒度核对；历史生产结果不是当前数据已验证的证据 |

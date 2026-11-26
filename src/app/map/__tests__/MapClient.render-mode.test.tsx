@@ -41,10 +41,11 @@ const controllerRef = vi.hoisted(() => ({ current: controller }));
 
 vi.mock('next/dynamic', () => ({
   default: () => function MockDynamicComponent({
-    name, suspended, onOpenBuilding, onClose,
-  }: { name?: string; suspended?: boolean; onOpenBuilding?: (id: string) => void; onClose?: () => void }) {
+    name, suspended, onOpenBuilding, onClose, futureState, futureCount,
+  }: { name?: string; suspended?: boolean; onOpenBuilding?: (id: string) => void; onClose?: () => void; futureState?: string; futureCount?: number }) {
     if (!name || !onOpenBuilding) return null;
-    return <><button type="button" onClick={onClose}>close-submarket</button><button type="button" disabled={suspended} onClick={() => onOpenBuilding('building-1')}>
+    return <><output aria-label="submarket-future-state">{futureState === 'ready' ? `ready:${futureCount}` : futureState}</output>
+      <button type="button" onClick={onClose}>close-submarket</button><button type="button" disabled={suspended} onClick={() => onOpenBuilding('building-1')}>
       open-submarket-test-building
     </button></>;
   },
@@ -148,7 +149,7 @@ const BUILDINGS = [
     location_lat: 39.91,
     metrics: [
       {
-        record_year: 2026,
+        is_locked: true, is_draft: false, record_year: 2026,
         record_quarter: 3,
         total_area: 100000,
         vacant_area: 12000,
@@ -173,6 +174,27 @@ describe('MapClient render mode synchronization', () => {
       if (building) publish?.({ building, metric: null, photos: [], isDemo: false, canEdit: false, overrides: {} });
     });
     queryBridge.selection = null; queryBridge.publish = undefined;
+  });
+
+  it('passes the actual future supply status for the current research filters', async () => {
+    let resolveSupplies!: (supplies: unknown[]) => void;
+    const pending = new Promise<unknown[]>(resolve => { resolveSupplies = resolve; });
+    controller.fetchFutureSupplies.mockReturnValue(pending);
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    act(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } })));
+    const status = () => screen.getByLabelText('submarket-future-state');
+    expect(status()).toHaveTextContent(/^loading$/);
+    await act(async () => resolveSupplies([]));
+    await waitFor(() => expect(status()).toHaveTextContent(/^ready:0$/));
+
+    controller.fetchFutureSupplies.mockRejectedValue(new Error('future supply unavailable'));
+    fireEvent.click(screen.getByRole('button', { name: 'apply-owner-and-area' }));
+    expect(status()).toHaveTextContent(/^loading$/);
+    await waitFor(() => expect(status()).toHaveTextContent(/^error$/));
+
+    fireEvent.click(screen.getByRole('button', { name: 'close-layer-with-district-filter' }));
+    expect(status()).toHaveTextContent(/^disabled$/);
   });
 
   it('keeps the latest region and displayed projects when closing research', async () => {

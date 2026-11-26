@@ -82,6 +82,29 @@ it('restores list query and scroll after remount and late content, then yields t
   second.unmount(); vi.unstubAllGlobals();
 });
 
+it('restores the research surface after a building drill and persists the scoped reading position', () => {
+  const identity = JSON.stringify([JSON.stringify(['a'.repeat(36), 'broker', 'b'.repeat(36)]), '中央商务区（CBD）']);
+  const key = JSON.stringify(['submarket-scroll', identity, 'buildings']);
+  const reading: MapReturnSnapshot['reading'] = { submarkets: { [identity]: { section: 'buildings', grade: 'all', scrollTop: 0 } } };
+  function Research({ active }: { active: boolean }) {
+    const ref = React.useRef<HTMLDivElement>(null);
+    useMapReadingScroll(ref, key, active, 0, 'submarketScrolls');
+    return <div ref={ref} data-testid="research-reading" />;
+  }
+  const tree = (active: boolean) => <MapReadingContext.Provider value={reading}><Research active={active} /></MapReadingContext.Provider>;
+  const view = render(tree(true));
+  const scroller = screen.getByTestId('research-reading');
+  fireEvent.wheel(scroller); scroller.scrollTop = 238; fireEvent.scroll(scroller);
+  view.rerender(tree(false));
+  scroller.scrollTop = 0; fireEvent.scroll(scroller);
+  view.rerender(tree(true));
+  expect(scroller.scrollTop).toBe(238);
+  saveMapReturn('scope', token, { ...saved(), widths: { submarket: 640 }, reading });
+  expect(readMapReturn('scope', token)).toMatchObject({ widths: { submarket: 640 }, reading: {
+    submarkets: { [identity]: { section: 'buildings' } }, submarketScrolls: { [key]: 238 },
+  } });
+});
+
 it('keeps reading state isolated when the same component changes its object key', () => {
   const store = { first: 'A', second: 'B' };
   function Reader({ id }: { id: string }) { const [value, setValue] = useMapReadingState(id, ''); return <input aria-label="对象阅读" value={value} onChange={event => setValue(event.target.value)} />; }

@@ -39,7 +39,7 @@ const BUILDING_ROW = {
     net_effective_rent: 260,
     vacancy_rate: 0.12,
     vacant_area: 12000,
-    record_year: 2026,
+    is_locked: true, is_draft: false, record_year: 2026,
     record_quarter: 2,
   }],
 };

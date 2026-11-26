@@ -1,8 +1,8 @@
-import { leedFilterValue } from '@/src/lib/leed-display';
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import type { BuildingWithMetrics } from '@/src/types';
 import { getConfiguredCompareGroups, STOCK_PROJECT_TYPES } from './mapDomain';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { officeGrade, normalizeLeed, normalizeMapSubmarket, hasMarketCoordinates } from './marketIdentity';
 import { matchesMapConditions } from '@/src/utils/mapFilterConditions';
 import { normalizeMapSearchText } from './mapSearchText';
 
@@ -40,19 +40,10 @@ function normalizedString(value: unknown): string {
   return text || EMPTY_VALUE;
 }
 
-function normalizedLeed(value: unknown): string {
-  return leedFilterValue(value);
-}
-
 function buildingProjectTypes(grade: unknown): string[] {
-  const normalized = String(grade ?? '').toUpperCase();
-  const types: string[] = [];
-  if (normalized.includes('BP')) types.push('产业园区');
-  else {
-    if (normalized.includes('A') || normalized.includes('P')) types.push('甲级写字楼');
-    if (normalized.includes('B')) types.push('乙级写字楼');
-  }
-  return types;
+  const labels = { a: '甲级写字楼', b: '乙级写字楼', park: '产业园区', other: '' };
+  const label = labels[officeGrade(grade)];
+  return label ? [label] : [];
 }
 
 function unionBuckets(index: StringIndex, keys: readonly string[]): Set<string> {
@@ -82,20 +73,14 @@ function matchesKeyword(building: BuildingWithMetrics, keyword: string): boolean
 }
 
 function matchesCompareGroup(building: BuildingWithMetrics, group: CompareGroup): boolean {
-  if (group.submarkets.length > 0 && (!building.submarket || !group.submarkets.includes(building.submarket))) {
+  if (group.submarkets.length > 0 && (!building.submarket || !group.submarkets.map(normalizeMapSubmarket).includes(normalizeMapSubmarket(building.submarket)))) {
     return false;
   }
 
   if (group.grades.length > 0) {
-    const buildingGrade = String(building.grade || '').toUpperCase();
-    const gradeMatch = group.grades.some(filterGrade => {
-      if (filterGrade === '产业园') return buildingGrade.includes('BP');
-      if (filterGrade === '甲级') {
-        return (buildingGrade.includes('A') || buildingGrade.includes('P')) && !buildingGrade.includes('BP');
-      }
-      if (filterGrade === '乙级') return buildingGrade.includes('B') && !buildingGrade.includes('BP');
-      return false;
-    });
+    const buildingGrade = officeGrade(building.grade);
+    const gradeMatch = group.grades.some(filterGrade =>
+      ({ '产业园': 'park', '甲级': 'a', '乙级': 'b' }[filterGrade] === buildingGrade));
     if (!gradeMatch) return false;
   }
 
@@ -139,9 +124,9 @@ export class MapDataStore {
     for (const building of this.buildings) {
       indexes.buildingIdIndex.set(building.id, building);
       addToIndex(indexes.districtIndex, normalizedString(building.district), building.id);
-      addToIndex(indexes.submarketIndex, normalizedString(building.submarket), building.id);
+      addToIndex(indexes.submarketIndex, normalizedString(normalizeMapSubmarket(building.submarket)), building.id);
       addToIndex(indexes.gradeIndex, normalizedString(building.grade).toUpperCase(), building.id);
-      addToIndex(indexes.leedIndex, normalizedLeed(building.leed_certification), building.id);
+      addToIndex(indexes.leedIndex, normalizeLeed(building.leed_certification), building.id);
       for (const projectType of buildingProjectTypes(building.grade)) {
         addToIndex(indexes.projectTypeIndex, projectType, building.id);
       }
@@ -192,11 +177,11 @@ export class MapDataStore {
     candidateIds = intersectIds(candidateIds, typeIds);
 
     if (filterState.leeds.length > 0) {
-      candidateIds = intersectIds(candidateIds, unionBuckets(this.indexes.leedIndex, filterState.leeds));
+      candidateIds = intersectIds(candidateIds, unionBuckets(this.indexes.leedIndex, filterState.leeds.map(normalizeLeed)));
     }
 
     if (filterState.submarkets.length > 0) {
-      const submarketIds = unionBuckets(this.indexes.submarketIndex, filterState.submarkets);
+      const submarketIds = unionBuckets(this.indexes.submarketIndex, filterState.submarkets.map(normalizeMapSubmarket));
       const emptySubmarketIds = this.indexes.submarketIndex.get(EMPTY_VALUE);
       if (emptySubmarketIds) for (const id of emptySubmarketIds) submarketIds.add(id);
       candidateIds = intersectIds(candidateIds, submarketIds);
@@ -220,6 +205,7 @@ export class MapDataStore {
       if (filterState.subwayStation && filterState.subwayDistance && request.calculateDistance) {
         const stationCenter = filterState.subwayStation?.center;
         if (Array.isArray(stationCenter)) {
+          if (!hasMarketCoordinates(building)) return false;
           const distance = request.calculateDistance(
             [building.location_lng, building.location_lat],
             stationCenter as [number, number],

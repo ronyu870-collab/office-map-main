@@ -33,7 +33,7 @@ function building(
         net_effective_rent: 100,
         vacancy_rate: 0.1,
         vacant_area: 1000,
-        record_year: 2026,
+        is_locked: true, is_draft: false, record_year: 2026,
         record_quarter: 2,
       },
     ],

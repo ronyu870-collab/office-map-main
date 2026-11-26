@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 export async function verifyLeedFilters(page,{width,base}) {
-  const rows=['Gold','N','未认证','','  ','UNKNOWN'].map((leed_certification,index)=>({id:`leed-filter-${index}`,name:['已认证项目','明确未认证项目','中文未认证项目','缺失认证项目','空白认证项目','未知认证项目'][index],leed_certification,grade:'A',district:'朝阳区',submarket:'CBD',location_lng:116.46+index*.001,location_lat:39.91,building_metrics:[{id:`leed-metric-${index}`,building_id:`leed-filter-${index}`,record_year:2026,record_quarter:3,net_effective_rent:146,vacancy_rate:.1,total_area:80000}]}));
+  const rows=['Gold','N','未认证','','  ','UNKNOWN'].map((leed_certification,index)=>({id:`leed-filter-${index}`,name:['已认证项目','明确未认证项目','中文未认证项目','缺失认证项目','空白认证项目','未知认证项目'][index],leed_certification,grade:'A',district:'朝阳区',submarket:'CBD',location_lng:116.46+index*.001,location_lat:39.91,building_metrics:[{id:`leed-metric-${index}`,building_id:`leed-filter-${index}`,is_locked:true,is_draft:false,record_year:2026,record_quarter:3,net_effective_rent:146,vacancy_rate:.1,total_area:80000}]}));
   await page.route('**/api/map/data?*',route=>{
     const mode=new URL(route.request().url()).searchParams.get('mode');
     return mode==='future'?route.fulfill({json:{future_supplies:[]}}):mode==='map'?route.fulfill({json:{buildings:rows,display_overrides:[]}}):route.fallback();

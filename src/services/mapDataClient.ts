@@ -12,8 +12,10 @@ class MapDataRequestError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
 
-async function getMapRequest(path: string) {
+async function getMapRequest(path: string, signal?: AbortSignal) {
+  signal?.throwIfAborted();
   const session = await getSessionFast();
+  signal?.throwIfAborted();
   const token = session?.session?.access_token;
   if (!token) throw new MapDataRequestError('未登录，无法读取地图数据', 401);
 
@@ -26,6 +28,7 @@ async function getMapRequest(path: string) {
       method: 'GET',
       headers,
       cache: 'no-store',
+      ...(signal ? { signal } : {}),
     });
 
     const payload = await response.json().catch(() => ({}));
@@ -40,8 +43,8 @@ async function getMapRequest(path: string) {
   return { scope, load, identity, sessionExpiresAt: session.session.expires_at ? session.session.expires_at * 1000 : undefined };
 }
 
-async function fetchMapJson(path: string, reuseSnapshot = false): Promise<JsonObject> {
-  const { scope, load } = await getMapRequest(path);
+async function fetchMapJson(path: string, reuseSnapshot = false, signal?: AbortSignal): Promise<JsonObject> {
+  const { scope, load } = await getMapRequest(path, signal);
   return reuseSnapshot ? readMapDataWithCache(scope(), path, load) : load();
 }
 
@@ -96,6 +99,9 @@ export async function fetchBuildingTrendPayload(buildingId: string) {
 export type SubmarketDetailPayload = {
   submarket: string;
   stockCount: number;
+  scope?: 'authorized_market';
+  membershipTime?: 'current_catalog';
+  publication?: 'locked_non_draft';
   profileAvailable: boolean;
   profile: import('@/src/app/map/model/submarketProfile').SubmarketProfile;
   /** Accessible only to an actual administrator, never a viewer or impersonator. */
@@ -108,13 +114,21 @@ export type SubmarketDetailPayload = {
 };
 
 /** Read only when an area brief is opened. Auth and impersonation mirror the map endpoint. */
-export async function fetchSubmarketDetailPayload(name: string): Promise<SubmarketDetailPayload> {
+export async function fetchSubmarketDetailPayload(name: string, signal?: AbortSignal): Promise<SubmarketDetailPayload> {
   const params = new URLSearchParams({ submarket: name });
-  const payload = await fetchMapJson(`/api/map/submarket?${params.toString()}`);
+  const payload = await fetchMapJson(`/api/map/submarket?${params.toString()}`, false, signal);
   if (!payload || typeof payload !== 'object' || !payload.trends || !payload.profile) {
     throw new Error('子市场资料响应不完整');
   }
   return payload as SubmarketDetailPayload;
+}
+
+export async function fetchSubmarketResearchHistory(name: string, offset: number, signal?: AbortSignal) {
+  const params = new URLSearchParams({ submarket: name, researchHistory: String(offset) });
+  return await fetchMapJson(`/api/map/submarket?${params}`, false, signal) as {
+    versions: import('@/src/app/map/model/submarketIntelligence').SubmarketResearchVersion[];
+    nextOffset: number | null;
+  };
 }
 
 /** Admin-only editorial update; the API revalidates role and refuses impersonated mutations. */
@@ -122,6 +136,7 @@ export async function saveSubmarketProfile(
   name: string,
   draft: import('@/src/app/map/model/submarketProfile').SubmarketProfileDraft,
   publish = false,
+  expectedUpdatedAt?: string | null,
 ) {
   const session = await getSessionFast();
   const token = session?.session?.access_token;
@@ -133,7 +148,7 @@ export async function saveSubmarketProfile(
   });
   const response = await fetch(`/api/map/submarket?${new URLSearchParams({ submarket: name })}`, {
     method: 'PUT', cache: 'no-store', headers,
-    body: JSON.stringify({ ...draft, publicationIntent: publish ? 'publish' : 'draft' }),
+    body: JSON.stringify({ ...draft, publicationIntent: publish ? 'publish' : 'draft', expectedUpdatedAt }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(String(payload.error ?? '子市场资料保存失败'));

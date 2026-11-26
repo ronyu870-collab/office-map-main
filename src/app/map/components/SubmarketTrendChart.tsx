@@ -1,110 +1,127 @@
 'use client';
 
-import * as React from 'react';
-import * as echarts from 'echarts/core';
-import { LineChart } from 'echarts/charts';
-import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
-import { CanvasRenderer } from 'echarts/renderers';
-import type { SubmarketTrendPoint } from '../model/submarketMarketTrend';
+import dynamic from 'next/dynamic';
+import { useId, useMemo } from 'react';
+import type { SubmarketTrendPoint, SubmarketTrendSeries } from '../model/submarketMarketTrend';
+import {
+  buildTrendTimeline, designMarketTrends, latestGradeComparisons, marketTrendLabels,
+  type MarketTrendPresentation, type MarketTrendRange, type TrendQuarter,
+} from '../model/marketTrendPresentation';
+import { marketTrendChangeText, marketTrendValueText, sameSampleChangeText } from '../model/marketTrendText';
+import { researchNumber, signedResearchNumber } from '../model/submarketResearch';
+import { marketTrendMetrics, trendCoverage, trendSamples, trendValue, type MarketTrendMetric } from '../model/submarketTrendDigest';
+import styles from './SubmarketResearchData.module.css';
 
-echarts.use([LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+const MarketChartCanvas = dynamic(() => import('./MarketChartCanvas').then(module => module.MarketChartCanvas), {
+  ssr: false,
+  loading: () => <div aria-hidden="true" className={styles.chartCanvas} />,
+});
 
-type Props = { data: SubmarketTrendPoint[]; compact?: boolean };
+function QuarterValue({ quarter, metric }: { quarter: TrendQuarter; metric: MarketTrendMetric }) {
+  return <span className={styles.quarterValue}>
+    <span className={styles.secondary}>{quarter.period}</span>
+    <strong>{marketTrendValueText(trendValue(quarter.point, metric)!, metric)}</strong>
+  </span>;
+}
 
-export function SubmarketTrendChart({ data, compact = false }: Props) {
-  const host = React.useRef<HTMLDivElement>(null);
+const isPlot = ({ kind }: MarketTrendPresentation) => kind === 'line' || kind === 'scatter';
 
-  React.useEffect(() => {
-    const element = host.current;
-    if (!element || !data.length) return;
-    const chart = echarts.init(element, undefined, { renderer: 'canvas' });
-    const motion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    const rent = data.map(point => point.rent == null ? null : Number(point.rent.toFixed(1)));
-    const vacancy = data.map(point => point.vacancyPct == null ? null : Number(point.vacancyPct.toFixed(1)));
+function MetricPlot({ plot, active, group }: { plot: MarketTrendPresentation; active: boolean; group?: string }) {
+  const { metric, latest, previous, kind, axis, latestChange, yearlyChange, quality, keepsOtherObservations } = plot;
+  const { name } = marketTrendLabels[metric];
+  const plotted = isPlot(plot);
+  const sameSample = latestChange?.sampleChanged ? sameSampleChangeText(latestChange, metric) : null;
+  const sameYearSample = yearlyChange?.sampleChanged ? sameSampleChangeText(yearlyChange, metric) : null;
+  return <figure className={styles.chartFigure}>
+    <figcaption className={styles.chartCaption}>
+      <h4>{name}</h4>
+      {latest && <div className={styles.latestValues}>
+        {kind === 'comparison' && previous && <QuarterValue quarter={previous} metric={metric} />}
+        <QuarterValue quarter={latest} metric={metric} />
+      </div>}
+    </figcaption>
+    {plotted && <p className={styles.chartRange}>
+      {axis[0].period} 至 {axis.at(-1)!.period}
+      {keepsOtherObservations && ' · 另有早期观测'}{kind === 'scatter' && ' · 离散观测'}
+    </p>}
+    {plotted && <MarketChartCanvas presentation={plot} label={`${name}季度趋势图`} active={active} group={group} />}
+    {!latest && <p className={styles.secondary}>暂无已发布的有效季度观测。</p>}
+    {(latestChange || yearlyChange || quality) && <ul className={styles.changeNotes}>
+      {latestChange && <li>{marketTrendChangeText(latestChange, metric, true)}</li>}
+      {sameSample && <li>{sameSample}</li>}
+      {latestChange?.sampleChanged && !sameSample && <li className={styles.secondary}>同期同样本变化不可比</li>}
+      {yearlyChange && <li>{marketTrendChangeText(yearlyChange, metric, true)}</li>}
+      {sameYearSample && <li>{sameYearSample}</li>}
+      {quality && <li className={styles.secondary}>{quality}</li>}
+    </ul>}
+  </figure>;
+}
 
-    chart.setOption({
-      animation: !motion?.matches,
-      animationDuration: 180,
-      animationDurationUpdate: 180,
-      color: ['#003e7e', '#b77929'],
-      grid: { left: compact ? 52 : 64, right: compact ? 56 : 64, top: 64, bottom: compact ? 32 : 44, containLabel: false },
-      legend: { top: 7, left: compact ? 4 : 12, itemWidth: 23, itemHeight: 3, itemGap: compact ? 12 : 20,
-        textStyle: { color: '#334155', fontSize: 14, fontWeight: 400 }, data: ['净有效租金', '空置率'] },
-      tooltip: {
-        trigger: 'axis', confine: true, appendToBody: false, axisPointer: { type: 'line', lineStyle: { color: '#94a3b8', type: 'dashed' } },
-        backgroundColor: '#ffffff', borderColor: '#d9e0e8', textStyle: { color: '#172033', fontSize: 14 },
-        formatter: (params: unknown) => {
-          const first = Array.isArray(params) ? params[0] : null;
-          const index = Number(first?.dataIndex);
-          const row = data[index];
-          if (!row) return '';
-          const rentValue = row.rent === null ? '暂无数据' : `${row.rent.toFixed(1)} 元/㎡/月（${row.rentSamples} 个样本）`;
-          const vacValue = row.vacancyPct === null ? '暂无数据' : `${row.vacancyPct.toFixed(1)}%（${row.vacancySamples} 个样本）`;
-          return `<strong>${row.period}</strong><div style="margin-top:6px">净有效租金：${rentValue}</div><div>空置率：${vacValue}</div>`;
-        },
-      },
-      xAxis: {
-        type: 'category', boundaryGap: false, data: data.map(row => row.period),
-        axisLine: { lineStyle: { color: '#c3ccd8' } }, axisTick: { show: false },
-        axisLabel: { fontSize: 14, color: '#667085', interval: 'auto', margin: 14 },
-      },
-      yAxis: [
-        {
-          type: 'value', name: '元/㎡/月', nameLocation: 'end',
-          scale: true, nameTextStyle: { color: '#003e7e', fontSize: 14, padding: [0, 0, 0, -6] },
-          axisLabel: { color: '#003e7e', fontSize: 14 },
-          axisLine: { show: false }, splitLine: { lineStyle: { color: '#edf1f5' } },
-        },
-        {
-          type: 'value', name: '%', nameLocation: 'end', min: 0, max: (value: { max: number }) => Math.max(10, Math.ceil(value.max / 5) * 5),
-          nameTextStyle: { color: '#975e1d', fontSize: 14 },
-          axisLabel: { color: '#975e1d', fontSize: 14, formatter: '{value}%' },
-          axisLine: { show: false }, splitLine: { show: false },
-        },
-      ],
-      series: [
-        {
-          name: '净有效租金', type: 'line', yAxisIndex: 0, data: rent,
-          showSymbol: true, symbolSize: compact ? 4 : 6, connectNulls: false, smooth: false,
-          lineStyle: { width: compact ? 2.5 : 3 }, itemStyle: { borderWidth: 2 },
-        },
-        {
-          name: '空置率', type: 'line', yAxisIndex: 1, data: vacancy,
-          showSymbol: true, symbolSize: compact ? 4 : 6, connectNulls: false, smooth: false,
-          lineStyle: { width: compact ? 2 : 2.5, type: 'dashed' }, itemStyle: { borderWidth: 2 },
-        },
-      ],
-    });
+function QuarterData({ timeline }: { timeline: readonly TrendQuarter[] }) {
+  return <details className={styles.quarterData}>
+    <summary>查看季度数据</summary>
+    <table aria-label="季度租金与空置率">
+      <thead><tr><th scope="col">季度</th><th scope="col">净有效租金<br />元/㎡/月</th><th scope="col">空置率<br />%</th></tr></thead>
+      <tbody>{timeline.map(({ key, point, period }) => <tr key={key}>
+        <th scope="row">{period}</th>
+        {marketTrendMetrics.map(metric => {
+          const value = trendValue(point, metric), coverage = trendCoverage(point, metric);
+          const area = metric === 'rent' ? point?.rentArea : point?.vacancyArea;
+          return <td key={metric}>
+            {value == null ? '未收录' : researchNumber(value)}
+            <span>{trendSamples(point, metric)} 个样本</span>
+            {value != null && area != null && area > 0 && <span>{researchNumber(area, 0)} ㎡</span>}
+            {coverage != null && <span>面积覆盖 {researchNumber(coverage * 100)}%</span>}
+          </td>;
+        })}
+      </tr>)}</tbody>
+    </table>
+  </details>;
+}
 
-    const updateMotion = () => chart.setOption({ animation: !motion?.matches });
-    motion?.addEventListener?.('change', updateMotion);
-    const resize = () => chart.resize();
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
-    observer?.observe(element);
-    if (!observer) window.addEventListener('resize', resize);
-    return () => {
-      motion?.removeEventListener?.('change', updateMotion);
-      observer?.disconnect();
-      if (!observer) window.removeEventListener('resize', resize);
-      chart.dispose();
-    };
-  }, [data, compact]);
+export function MarketGradeComparison({ series }: { series: Pick<SubmarketTrendSeries, 'a' | 'b'> }) {
+  const comparisons = useMemo(() => latestGradeComparisons(series), [series]);
+  if (!comparisons.length) return null;
+  return <details className={styles.quarterData}>
+    <summary>比较甲级与乙级</summary>
+    <table aria-label="同季度甲乙级比较">
+      <thead><tr><th scope="col">指标与季度</th><th scope="col">甲级</th><th scope="col">乙级</th></tr></thead>
+      <tbody>{comparisons.map(({ metric, a, b, difference }) => <tr key={metric}>
+        <th scope="row">
+          {marketTrendLabels[metric].name}<span>{a.period}</span>
+          <span className={styles.secondary}>甲级较乙级 {signedResearchNumber(difference)} {marketTrendLabels[metric].changeUnit}</span>
+        </th>
+        {[a, b].map((row, index) => <td key={index}>
+          {marketTrendValueText(trendValue(row.point, metric)!, metric)}
+          <span>{trendSamples(row.point, metric)} 个样本</span>
+        </td>)}
+      </tr>)}</tbody>
+    </table>
+  </details>;
+}
 
-  return (
-    <div>
-      <div ref={host} className={compact ? 'h-[188px] w-full sm:h-[208px]' : 'h-[240px] w-full sm:h-[300px]'} role="img"
-        aria-label="同一季度时间轴上的净有效租金和空置率双纵轴趋势图" />
-      <details className="submarket-quarter-data">
-        <summary>查看季度数据</summary>
-        <table aria-label="季度租金与空置率">
-          <thead><tr><th scope="col">季度</th><th scope="col">租金<br />元/㎡/月</th><th scope="col">空置率<br />%</th></tr></thead>
-          <tbody>{data.map(row => <tr key={row.period}>
-            <th scope="row">{row.period}</th>
-            <td>{row.rent?.toFixed(1) ?? '—'}<span>{row.rentSamples} 个样本</span></td>
-            <td>{row.vacancyPct?.toFixed(1) ?? '—'}<span>{row.vacancySamples} 个样本</span></td>
-          </tr>)}</tbody>
-        </table>
-      </details>
-    </div>
-  );
+export function SubmarketTrendChart({ data, range = 'default', onRangeChange, active = true }: {
+  data: readonly SubmarketTrendPoint[]; range?: MarketTrendRange;
+  onRangeChange?: (range: MarketTrendRange) => void; active?: boolean;
+}) {
+  const timeline = useMemo(() => buildTrendTimeline(data), [data]);
+  const defaults = useMemo(() => designMarketTrends(timeline, 'research'), [timeline]);
+  const offersHistory = defaults.some(plot => plot.offersHistory);
+  const showHistory = offersHistory && range === 'history';
+  const plots = useMemo(() => showHistory ? designMarketTrends(timeline, 'research', 'history') : defaults,
+    [defaults, showHistory, timeline]);
+  const groupId = useId();
+  const [rent, vacancy] = plots;
+  const group = isPlot(rent) && isPlot(vacancy) && rent.axis === vacancy.axis ? groupId : undefined;
+  if (!plots.some(plot => plot.latest)) return <p className={styles.chartStatus}>当前等级暂无已发布的有效季度观测。</p>;
+  return <>
+    {offersHistory && onRangeChange && <button type="button" className={styles.rangeAction}
+      onClick={() => onRangeChange(showHistory ? 'default' : 'history')}>
+      {showHistory ? '返回默认区间' : '查看完整历史'}
+    </button>}
+    <section className={styles.charts} aria-label="指标走势">
+      {plots.map(plot => <MetricPlot key={plot.metric} plot={plot} active={active} group={group} />)}
+    </section>
+    <QuarterData timeline={timeline} />
+  </>;
 }

@@ -26,11 +26,14 @@ import {
   projectContextSchema,
   type WorkspaceDetail,
   type WorkspaceSave,
+  type WorkspacePart,
 } from "@/src/lib/pitch/workspace/protocol";
 import {
   recipeSchema,
   type Generation,
 } from "@/src/lib/pitch/business/protocol";
+import { ECOSYSTEM_BY_ID } from '@/src/lib/pitch/templates/ecosystem';
+import { PATTERN_BY_ID } from '@/src/lib/pitch/layout/patterns/catalog';
 import { LAYOUTS } from "@/src/lib/pitch/layout/definitions";
 import type { LayoutId } from "@/src/lib/pitch/contracts/scene";
 import {
@@ -52,15 +55,17 @@ const AiAssist = dynamic(
   () => import("./workspace/AiAssist").then((m) => m.AiAssist),
   { loading: () => <p>正在打开辅助工具…</p> },
 );
+const Examples = dynamic(()=>import('./workspace/Examples').then(m=>m.Examples),{loading:()=><p>正在打开示例与套装…</p>});
 const Manager = dynamic(
   () => import("./workspace/Manager").then((m) => m.Manager),
   { loading: () => <p>正在打开管理中心…</p> },
 );
-type Panel = "quick" | "templates" | "assets" | "projects" | "admin";
+type Panel = "examples" | "quick" | "templates" | "assets" | "projects" | "admin";
 const tabs: { id: Panel; label: string }[] = [
   { id: "quick", label: "快速生成" },
   { id: "assets", label: "企业素材库" },
   { id: "templates", label: "模板中心" },
+  { id: "examples", label: "示例与套装" },
   { id: "projects", label: "我的 Pitch" },
   { id: "admin", label: "管理中心" },
 ];
@@ -246,6 +251,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
               description: r.description,
               kind: r.accepts[0],
               recipe: r,
+              group:ECOSYSTEM_BY_ID.get(r.id)?.group,
             })),
           ...parsed.dynamic
             .filter(
@@ -596,6 +602,24 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setPanel("quick");
     setMobile("preview");
   }
+  async function addExamples(templateIds:string[],kit?:{id:string;version:number},newDemo=false) {
+    const previous = newDemo && detail ? await flush() : detail;
+    const grant=grants[scopeIndex];
+    let saved:WorkspaceDetail;
+    if(!detail||newDemo){
+      if(!previous&&!grant)throw new Error('请选择获权区域后重试。');
+      saved=workspaceDetailSchema.parse(await call({action:'create',projectId:crypto.randomUUID(),title:(kit?'提案套装演示':'模板示例')+' · 合成资料',scope:previous?{organizationId:previous.project.organization_id,region:previous.project.region,city:previous.project.city,businessLine:previous.project.business_line}:{organizationId:grant.organizationId,region:grant.region,city:grant.city,businessLine:grant.businessLine},themeId:previous?.project.theme_id??catalog!.themes[0].id,themeVersion:previous?.project.theme_version??catalog!.themes[0].current_version,context:previous?.workspace.context??context},true));
+      accept(saved);
+    }else saved=await flush();
+    const taskId=crypto.randomUUID();
+    await call({action:'start',projectId:saved.project.id,expectedVersion:saved.project.version,taskId,part:{mode:'example',templateIds,...(kit?{kit}:{})},replaceIds:[]},true);
+    setTask({id:taskId,state:'queued'});setPanel('quick');setChosen(null);setMobile('preview');
+  }
+  async function addBundle(part:WorkspacePart){
+    if(busy||rendering)return;
+    setBusy(true);
+    try{const saved=await ensureProject(),taskId=crypto.randomUUID();await call({action:'start',projectId:saved.project.id,expectedVersion:saved.project.version,taskId,part,replaceIds:[]},true);setTask({id:taskId,state:'queued'});setPanel('quick');setChosen(null);}finally{setBusy(false);}
+  }
   function reorder(id: string, to: number) {
     edit((d) => {
       const pages = [...d.pages],
@@ -754,6 +778,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
               onFavorite={(id) => void run(() => updatePreference(id))}
             />
           )}
+          {panel === 'examples' && <Examples call={call} templates={templates} busy={busy||rendering||!canGenerate} onExample={async(ids,kit,newDemo)=>{if(busy||rendering)return;setBusy(true);try{await addExamples(ids,kit,newDemo);}finally{setBusy(false);}}} onBundle={addBundle} buildingIds={draft?.context.buildingIds??context.buildingIds} period={draft?.context.period??context.period}/>}
           {panel === "assets" && (
             <div className={styles.content}>
               <AssetPicker
@@ -1263,6 +1288,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                               onChange={(e) =>
                                 editPage({
                                   layoutId: e.target.value as LayoutId,
+                                  variant: "standard",
                                 })
                               }
                             >
@@ -1294,10 +1320,10 @@ function Studio({ session }: { session: AuthSessionResult }) {
                               }
                             >
                               <option value="standard">标准</option>
-                              <option value="alternate">替换布局</option>
+                              {!PATTERN_BY_ID.has(pageEdit?.layoutId??page.scene.layoutId)&&<option value="alternate">替换布局</option>}
                             </select>
                           </label>
-                          {detail.workspace.page_settings[page.id]?.part && (
+                          {detail.workspace.page_settings[page.id]?.part && !detail.workspace.page_settings[page.id]?.example && !detail.workspace.page_settings[page.id]?.kit && (
                             <Button
                               variant="secondary"
                               disabled={rendering || dirty || busy}
