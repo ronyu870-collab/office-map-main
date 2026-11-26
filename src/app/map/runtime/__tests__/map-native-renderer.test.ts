@@ -282,7 +282,7 @@ describe('native map visual hierarchy', () => {
       expect(populated?.querySelector('.map-submarket-bubble__secondary')).not.toBeNull();
       expect(contents.find(node => node.title.startsWith('CBD'))?.textContent).toContain('¥305');
       const pending = contents.find(node => node.title.startsWith('四季青'));
-      expect(pending?.textContent).toBe('四季青');
+      expect(pending?.textContent).toBe('四季青区域资料');
       expect(pending?.querySelector('.map-submarket-bubble__metrics')).toBeNull();
       const onAreaOpen = vi.fn();
       window.addEventListener('map-submarket-open', onAreaOpen);
@@ -296,12 +296,12 @@ describe('native map visual hierarchy', () => {
       controller.renderMarkers(data, 'default', undefined, undefined, false);
       await flushFrames();
       const filtered = harness.markerInstances.slice(previousMarkers).map(marker => marker.options.content.title);
-      expect(filtered.map(name => name.split(' · ')[0])).toEqual(['玉渊潭', 'CBD']);
+      expect(filtered.map(name => name.split('，')[0])).toEqual(['玉渊潭', 'CBD']);
 
       const beforeEmpty = harness.markerInstances.length;
       controller.renderMarkers([], 'default', undefined, undefined, true);
       await flushFrames();
-      expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.textContent)).toEqual(['玉渊潭', '四季青']);
+      expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.textContent)).toEqual(['玉渊潭区域资料', '四季青区域资料']);
     } finally { cleanup?.(); }
   });
 
@@ -323,7 +323,7 @@ describe('native map visual hierarchy', () => {
         expect(yuyuantan?.textContent).toContain('甲乙级 1 个');
         expect(yuyuantan?.querySelector('.map-submarket-bubble__metrics')).not.toBeNull();
         const sijiqing = contents.find(node => node.title.startsWith('四季青'));
-        expect(sijiqing?.textContent).toBe('四季青');
+        expect(sijiqing?.textContent).toBe('四季青区域资料');
         expect(sijiqing?.querySelector('.map-submarket-bubble__metrics')).toBeNull();
       }
     } finally { cleanup?.(); }

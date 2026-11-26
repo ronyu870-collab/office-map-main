@@ -1,3 +1,4 @@
+import { createSubmarketBubble } from './mapSubmarketPresentation';
 import type { SubmarketSummary } from '../model/submarketOverview';
 
 type AreaRenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
@@ -20,26 +21,8 @@ export function isNameOnlyArea(name: string, _mode: AreaRenderMode = 'default'):
 export function getAreaPlaceholders(overview: boolean, positionedNames: ReadonlySet<string>) {
   return overview ? AREA_ANCHORS.filter(({ name }) => !positionedNames.has(name)) : [];
 }
-export function createAreaPlaceholder(name: string, open: () => void, _mode: AreaRenderMode = 'default', summary?: SubmarketSummary): HTMLButtonElement {
-  void _mode;
-  const bubble = document.createElement('button');
-  bubble.type = 'button'; bubble.title = name;
-  bubble.setAttribute('aria-label', `查看${name}子市场介绍`);
-  const hasStock = (summary?.officeCount ?? 0) + (summary?.parkCount ?? 0) > 0;
-  bubble.className = hasStock ? 'map-submarket-bubble' : NAME_ONLY_BUBBLE_CLASS;
-  const heading = document.createElement('span');
-  heading.className = 'map-submarket-bubble__name'; heading.textContent = name; bubble.append(heading);
-  if (hasStock) {
-    const metrics = document.createElement('div'); metrics.className = 'map-submarket-bubble__metrics';
-    const rent = document.createElement('span'); rent.className = 'map-submarket-bubble__primary';
-    rent.textContent = summary?.rent != null ? `¥${summary.rent.toFixed(1)}` : '¥—';
-    const vacant = document.createElement('span'); vacant.className = 'map-submarket-bubble__secondary';
-    vacant.textContent = summary?.vacancyPct != null ? `${summary.vacancyPct.toFixed(1)}%` : '—';
-    metrics.append(rent, vacant);
-    const count = document.createElement('div'); count.className = 'map-submarket-bubble__count';
-    count.textContent = summary?.officeCount ? `甲乙级 ${summary.officeCount} 个` : `产业园 ${summary?.parkCount ?? 0} 个`;
-    bubble.append(metrics, count);
-  }
+export function createAreaPlaceholder(name: string, open: () => void, _mode: AreaRenderMode = 'default', summary?: SubmarketSummary, selected = false): HTMLButtonElement {
+  const bubble = createSubmarketBubble({ name, summary, mode: _mode, selected });
   bubble.addEventListener('click', event => { event.stopPropagation(); open(); });
   return bubble;
 }

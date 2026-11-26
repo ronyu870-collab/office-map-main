@@ -374,7 +374,14 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     return this.baseMapPointsVisible ? ['bg', 'road', 'building', 'point'] : ['bg', 'road', 'building'];
   }
 
-  setWorkspaceSubmarket(name: string | null): void { this.workspaceSubmarket = name; }
+  getWorkspaceSubmarket(): string | null { return this.workspaceSubmarket; }
+  setWorkspaceSubmarket(name: string | null): void {
+    this.workspaceSubmarket = name;
+    const host: HTMLElement | null = this.map?.getContainer?.() ?? document.getElementById('map-container');
+    host?.querySelectorAll<HTMLButtonElement>('.map-submarket-bubble').forEach(bubble => {
+      bubble.setAttribute('aria-pressed', String(bubble.dataset.submarket === name));
+    });
+  }
   isWorkspaceActive(): boolean { return Boolean(this.workspaceDetailHandler); }
   setWorkspaceSelection(building: WorkspaceBuilding | null): void {
     const previousAction = this.workspaceSelectionContent?.querySelector<HTMLButtonElement>('button');

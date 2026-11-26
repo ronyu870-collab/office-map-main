@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { Button, Input } from '@/src/components/ui';
 
 export interface SearchBarProps {
@@ -10,6 +10,8 @@ export interface SearchBarProps {
   placeholder?: string;
   /** Optional accessible name; existing callers keep their current behavior. */
   inputLabel?: string;
+  /** Explicit, touch-accessible clear control for the map workspace. */
+  clearLabel?: string;
   /** Invalidate a retained input's pending search when its workspace changes. */
   searchContextKey?: string | number;
   /**
@@ -75,6 +77,7 @@ function useDebouncedCallback<T extends (...args: any[]) => void>(cb: T, delayMs
 export function SearchBar({
   placeholder = '搜索…',
   inputLabel,
+  clearLabel,
   searchContextKey,
   onSearch,
   onSubmit,
@@ -87,6 +90,7 @@ export function SearchBar({
   const [inner, setInner] = React.useState('');
   const currentValue = isControlled ? value : inner;
   const composing = React.useRef(false);
+  const inputWrap = React.useRef<HTMLDivElement>(null);
 
   const { debounced, flush, cancel } = useDebouncedCallback((v: string, requestedContext: string | number | undefined) => {
     if (searchContextKey !== undefined && (
@@ -117,7 +121,7 @@ export function SearchBar({
 
   return (
     <div className="flex w-full items-center gap-2">
-      <div className="relative flex w-full items-center">
+      <div ref={inputWrap} className="relative flex w-full items-center">
         <span className="pointer-events-none absolute left-3 inline-flex h-5 w-5 items-center justify-center text-[var(--cd-color-text-secondary)]">
           <Search size={16} strokeWidth={1.75} aria-hidden="true" />
         </span>
@@ -152,11 +156,15 @@ export function SearchBar({
             }
           }}
           placeholder={placeholder}
-          className="pl-10"
+          className={clearLabel ? "pl-10 pr-10" : "pl-10"}
           type="search"
           inputMode="search"
           autoComplete="off"
         />
+        {clearLabel && currentValue ? <button type="button" className="search-bar-clear" aria-label={clearLabel} onClick={() => {
+          cancel(); composing.current = false; setValue(''); onSearch('');
+          inputWrap.current?.querySelector('input')?.focus({ preventScroll: true });
+        }}><X size={16} strokeWidth={1.75} aria-hidden="true" /></button> : null}
       </div>
 
       <Button

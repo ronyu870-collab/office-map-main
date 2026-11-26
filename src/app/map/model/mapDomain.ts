@@ -54,6 +54,8 @@ export type MapStatsState = {
   overallVacancyPct: string;
   projectCount: string;
   visibleProjectCount: string;
+  periods?: Record<string, number>;
+  stockArea?: number | null;
 };
 
 export type SupplyCalendarBucket = {
@@ -212,6 +214,7 @@ export function computeStatsFromBuildings(buildingsData: unknown[]): MapStatsSta
     avgRent: result.rent == null ? '—' : result.rent.toFixed(1),
     overallVacancyPct: result.vacancyPct == null ? '—' : result.vacancyPct.toFixed(1),
     projectCount: String(result.projectCount), visibleProjectCount: String(result.mappableCount),
+    periods: result.periods, stockArea: result.areaSamples ? result.stockArea : null,
   };
 }
 

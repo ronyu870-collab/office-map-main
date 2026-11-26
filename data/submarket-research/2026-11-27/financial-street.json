@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "market": "金融街",
+  "positioning": "由金融机构总部、市场基础设施与资管集群支撑的核心金融办公区",
+  "updatedOn": "2026-11-27",
+  "focus": "grade-rent",
+  "sources": [
+    {
+      "id": "am",
+      "title": "金融街资管机构管理规模",
+      "publisher": "首都之窗",
+      "url": "https://www.beijing.gov.cn/ywdt/zwzt/lqjs/wzn/202508/t20250804_4165893.html",
+      "publishedOn": "2025-08-04",
+      "observedAt": "2025-08报道时点",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "北京金融街金融功能区",
+      "basis": "官方公开区内资管机构管理资产规模超过20万亿元。"
+    },
+    {
+      "id": "case",
+      "title": "金融街服贸会资管建设成果",
+      "publisher": "西城区人民政府",
+      "url": "https://www.beijing.gov.cn/ywdt/gqrd/202509/t20250912_4201019.html",
+      "publishedOn": "2025-09-12",
+      "observedAt": "2025年服贸会",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "北京金融街金融功能区",
+      "basis": "公开资料列出国寿资管、工银瑞信基金等机构，另披露金融街驻区机构资产总规模。"
+    },
+    {
+      "id": "lize",
+      "title": "丽泽入驻企业与楼宇运营数据",
+      "publisher": "首都之窗",
+      "url": "https://www.beijing.gov.cn/fuwu/lqfw/gggs/202601/t20260105_4399580.html",
+      "publishedOn": "2026-01-05",
+      "observedAt": "2025年度",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "北京丽泽金融商务区",
+      "basis": "2025年工作数据披露37座楼宇提供219万平方米空间，入驻企业1520家。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "资产管理业务有实体集群",
+      "body": "官方披露的是驻区资管机构管理规模，计量对象为机构管理的资产。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "am"
+      ],
+      "measure": {
+        "value": "超过20",
+        "unit": "万亿元"
+      }
+    },
+    {
+      "title": "金融需求的公开机构案例",
+      "body": "2025年服贸会金融街展示列举了国寿资管和工银瑞信基金等驻区机构。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "case"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "与丽泽的比选取决于业务是否需要核心区邻近",
+      "body": "把总部对监管、同业与专业服务的近距离访问列为必需条件，再与丽泽较集中开发的载体比较。可分置的业务团队，应另查可交付整层、安防和访客条件。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "金融街及丽泽项目比较",
+      "limitation": "功能区资产规模、企业数均无法推出租金溢价；北京基准须与子市场使用相同楼宇等级及季度。",
+      "sourceIds": [
+        "am",
+        "case",
+        "lize"
+      ]
+    }
+  ],
+  "projects": []
+}

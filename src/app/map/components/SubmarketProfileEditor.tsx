@@ -1,27 +1,17 @@
 import * as React from 'react';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { useUnsavedNavigation } from '@/src/lib/broker/useUnsavedNavigation';
+import { SubmarketEditorField as Field } from './SubmarketEditorField';
+import { SubmarketIntelligenceEditor } from './SubmarketIntelligenceEditor';
+import type { MarketBuilding } from '../model/marketStatistics';
 import type { SubmarketProfileDraft } from '../model/submarketProfile';
 
 const quietButton = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[6px] border border-[#d9e0e8] bg-white px-3 text-[14px] text-[#334155] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]';
 const outlineButton = 'workspace-icon';
 
-function Field({ label, value, onChange, multi = false, placeholder }: {
-  label: string; value: string; onChange: (value: string) => void; multi?: boolean; placeholder?: string;
-}) {
-  const common = 'mt-1 w-full rounded-[6px] border border-[#c3ccd8] bg-white px-2.5 py-2 text-[14px] text-[#172033] outline-none focus:border-[#003e7e] focus:ring-1 focus:ring-[#003e7e]';
-  return (
-    <label className="block min-w-0 text-[14px] font-normal text-[#475569]">
-      {label}
-      {multi
-        ? <textarea rows={3} className={common} value={value} placeholder={placeholder} onChange={event => onChange(event.target.value)} />
-        : <input className={common} value={value} placeholder={placeholder} onChange={event => onChange(event.target.value)} />}
-    </label>
-  );
-}
-
-export function SubmarketProfileEditor({ name, value, saving, error, onCancel, onSave }: {
+export function SubmarketProfileEditor({ name, value, saving, error, onCancel, onSave, buildings }: {
   name: string;
+  buildings: readonly MarketBuilding[];
   value: SubmarketProfileDraft;
   saving: boolean;
   error: string | null;
@@ -61,6 +51,10 @@ export function SubmarketProfileEditor({ name, value, saving, error, onCancel, o
       <p className="m-0 text-[14px] leading-6 text-[#667085]">
         正在维护{name}的区域展示资料。保存后自动同步到客户展示页，无需额外审核；请勿填写草稿、内部说明或未经确认的数字。
       </p>
+      <SubmarketIntelligenceEditor name={name} research={draft.research ?? null} buildings={buildings}
+        disabled={saving} onChange={research => setDraft(previous => ({ ...previous, research }))} />
+      <details open={!value.research} className="submarket-legacy-fields space-y-4">
+      <summary>旧版资料</summary>
       <div className="space-y-3">
         <Field label="一句话定位" value={draft.headline} onChange={text => setText('headline', text)} />
         <Field label="区域概况" value={draft.overview} multi onChange={text => setText('overview', text)} />
@@ -123,6 +117,7 @@ export function SubmarketProfileEditor({ name, value, saving, error, onCancel, o
         {addButton('insights', '观点', draft.insights.length >= 12)}
       </div>
 
+      </details>
       {error ? <p role="alert" className="text-[14px] text-[#c9362b]">{error}</p> : null}
       <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#e7ebf0] bg-white py-3">
         <button type="button" className={quietButton} disabled={saving} onClick={() => {

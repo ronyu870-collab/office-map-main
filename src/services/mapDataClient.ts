@@ -123,11 +123,20 @@ export async function fetchSubmarketDetailPayload(name: string, signal?: AbortSi
   return payload as SubmarketDetailPayload;
 }
 
+export async function fetchSubmarketResearchHistory(name: string, offset: number, signal?: AbortSignal) {
+  const params = new URLSearchParams({ submarket: name, researchHistory: String(offset) });
+  return await fetchMapJson(`/api/map/submarket?${params}`, false, signal) as {
+    versions: import('@/src/app/map/model/submarketIntelligence').SubmarketResearchVersion[];
+    nextOffset: number | null;
+  };
+}
+
 /** Admin-only editorial update; the API revalidates role and refuses impersonated mutations. */
 export async function saveSubmarketProfile(
   name: string,
   draft: import('@/src/app/map/model/submarketProfile').SubmarketProfileDraft,
   publish = false,
+  expectedUpdatedAt?: string | null,
 ) {
   const session = await getSessionFast();
   const token = session?.session?.access_token;
@@ -139,7 +148,7 @@ export async function saveSubmarketProfile(
   });
   const response = await fetch(`/api/map/submarket?${new URLSearchParams({ submarket: name })}`, {
     method: 'PUT', cache: 'no-store', headers,
-    body: JSON.stringify({ ...draft, publicationIntent: publish ? 'publish' : 'draft' }),
+    body: JSON.stringify({ ...draft, publicationIntent: publish ? 'publish' : 'draft', expectedUpdatedAt }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(String(payload.error ?? '子市场资料保存失败'));

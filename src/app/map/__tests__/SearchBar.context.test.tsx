@@ -28,6 +28,17 @@ describe('retained search workspace boundaries',()=>{
 
 
 describe('optional keyboard navigation in search candidates', () => {
+ it('clears immediately, cancels an older debounce and returns focus without a locate submission', () => {
+  vi.useFakeTimers(); const onSearch = vi.fn(), onSubmit = vi.fn();
+  function Search() { const [value, setValue] = React.useState(''); return <SearchBar value={value} onChange={setValue} searchContextKey="map:1" clearLabel="清空地图搜索" onSearch={onSearch} onSubmit={onSubmit}/>; }
+  render(<Search/>);
+  const field = screen.getByRole('searchbox');
+  fireEvent.change(field, { target: { value: '望京 ABC' } });
+  fireEvent.click(screen.getByRole('button', { name: '清空地图搜索' }));
+  expect(field).toHaveValue(''); expect(field).toHaveFocus();
+  act(() => vi.advanceTimersByTime(300));
+  expect(onSearch).toHaveBeenCalledExactlyOnceWith(''); expect(onSubmit).not.toHaveBeenCalled();
+ });
  it('enters a result group with ArrowDown without triggering a search or disturbing Enter submit', () => {
   const onSearch = vi.fn(), onArrowDown = vi.fn(), onSubmit = vi.fn();
   render(<SearchBar value="CBD" onSearch={onSearch} onArrowDown={onArrowDown} onSubmit={onSubmit}/>);

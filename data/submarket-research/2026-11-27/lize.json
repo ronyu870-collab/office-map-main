@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "market": "丽泽",
+  "positioning": "西南二、三环之间的集中开发商务区，新金融场景与办公去化同步演进",
+  "updatedOn": "2026-11-27",
+  "focus": "matched-vacancy",
+  "sources": [
+    {
+      "id": "entry",
+      "title": "丽泽保险科技大会及全域场景行动",
+      "publisher": "开放北京",
+      "url": "https://open.beijing.gov.cn/html/kfdt/sddt/2026/7/1784877808756.html",
+      "publishedOn": "2026-07-20",
+      "observedAt": "2026-07会议披露",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "丽泽金融商务区管委会统计范围",
+      "basis": "会议公布入驻企业超过1700家，并发布2026—2028年培育开放高价值场景的行动计划。"
+    },
+    {
+      "id": "lize-metro",
+      "title": "16号线丽泽商务区站开通公告",
+      "publisher": "首都之窗转引北京日报",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202501/t20250119_3992490.html",
+      "publishedOn": "2025-01-19",
+      "observedAt": "2025-01-19起",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "network",
+      "scope": "丽泽商务区站及毗邻楼宇",
+      "basis": "16号线丽泽商务区站与14号线正式换乘，公告列明丽泽SOHO为毗邻项目。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "丽泽商务区站",
+      "body": "16号线丽泽商务区站于2025年1月19日开通，可在站内与14号线换乘。",
+      "kind": "transit",
+      "status": "observed",
+      "sourceIds": [
+        "lize-metro"
+      ],
+      "lines": [
+        "14号线",
+        "16号线"
+      ]
+    },
+    {
+      "title": "入驻企业规模",
+      "body": "2026年7月保险科技大会公布的功能区入驻规模。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "entry"
+      ],
+      "measure": {
+        "value": "超过1700",
+        "unit": "家"
+      }
+    },
+    {
+      "title": "保险科技应用场景",
+      "body": "2026—2028年行动计划拟开放高价值场景，涉及保险科技等方向。",
+      "kind": "policy",
+      "status": "planned",
+      "sourceIds": [
+        "entry"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "判断去化要看同样本空置率与项目投用顺序",
+      "body": "已经兑现的地铁换乘有助于把丽泽纳入总部与后台团队的选址范围。进一步比较金融街时，可观察同一批办公项目的空置变化，并用单独的交付时间表判断供给增量。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "丽泽金融商务区与平台现有写字楼样本",
+      "limitation": "功能区入驻企业包含多种载体；人数、企业数和场景数均无法替代出租面积。",
+      "sourceIds": [
+        "lize-metro",
+        "entry"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "buildingId": "4d674e7b-9f32-465f-8c48-ecd17daf00d4",
+      "role": "换乘站邻近写字楼",
+      "reason": "地铁开通公告确认丽泽SOHO位于丽泽商务区站附近，可作为现有轨道条件下的实地比选样本。",
+      "sourceIds": [
+        "lize-metro"
+      ]
+    }
+  ]
+}

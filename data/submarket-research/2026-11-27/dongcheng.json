@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "market": "东城商务区",
+  "positioning": "东直门至朝阳门一带的东二环总部走廊，与历史街区相邻",
+  "updatedOn": "2026-11-27",
+  "focus": "grade-rent",
+  "sources": [
+    {
+      "id": "street",
+      "title": "东四街道概况",
+      "publisher": "东四街道",
+      "url": "https://www.bjdch.gov.cn/ztzl/dcqjdfw/jdsqgkjs/202208/t20220826_3036171.html",
+      "publishedOn": "2026-05-12",
+      "observedAt": "网页发布时点",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "administrative",
+      "scope": "东四街道",
+      "basis": "东部列有保利、五矿及中海油地标楼宇，西部为传统胡同街区；该资料适用街道，不能外推至整个子市场。"
+    },
+    {
+      "id": "rail",
+      "title": "3号线一期、12号线及昌平线南延开通公告",
+      "publisher": "首都之窗转引北京市交通委",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202412/t20241213_3964726.html",
+      "publishedOn": "2024-12-13",
+      "observedAt": "2024-12-15起",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "network",
+      "scope": "东四十条至东坝北段",
+      "basis": "3号线一期以东四十条为一期首端，东向衔接北京朝阳站。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "东二环总部节点",
+      "body": "东四街道公开资料确认东部街区拥有保利、五矿和中海油等楼宇地标，与西侧胡同片区呈现明显差异。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "street"
+      ]
+    },
+    {
+      "title": "东四十条向东的轨道联系",
+      "body": "3号线一期自东四十条开行，提供到北京朝阳站方向的轨道联系。",
+      "kind": "transit",
+      "status": "observed",
+      "sourceIds": [
+        "rail"
+      ],
+      "lines": [
+        "3号线"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "沿东二环做总部通勤半径，再逐栋比选",
+      "body": "对需要中心城区客户访问、铁路换乘的团队，可先沿东直门、东四十条、朝阳门划定通勤半径。之后将甲乙级同季租金、访客安防与楼宇大堂条件纳入表内。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "东二环平台存量项目",
+      "limitation": "街道的地标案例没有覆盖整个商务带，无法估计行业租赁份额。",
+      "sourceIds": [
+        "street",
+        "rail"
+      ]
+    }
+  ],
+  "projects": []
+}

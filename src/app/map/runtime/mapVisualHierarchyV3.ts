@@ -1,4 +1,5 @@
 'use client';
+import { createSubmarketBubble } from './mapSubmarketPresentation';
 import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
@@ -14,7 +15,7 @@ import { latestFormalMetric } from '../model/quarterlyFacts';
 import { officeGrade } from '../model/marketIdentity';
 import { summarizeSubmarkets } from '../model/submarketOverview';
 import { normalizeMapSubmarket } from '../model/mapDomain';
-import { createAreaPlaceholder, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
+import { createAreaPlaceholder, getAreaPlaceholders } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerTier = 'submarket' | 'dot' | 'building';
@@ -436,40 +437,8 @@ export function installMapVisualHierarchyV3(
       positionedNames.add(aggregate.name);
       const center: [number, number] = [aggregate.lng / aggregate.coords, aggregate.lat / aggregate.coords];
       const summary = summaries.get(aggregate.name);
-      const rent = summary?.rent ?? Number.NaN;
-      const vacancy = summary?.vacancyPct ?? Number.NaN;
       const leedPercent = aggregate.count > 0 ? (aggregate.leed / aggregate.count) * 100 : 0;
-      const accentRent = rent;
-      let accent: string = PALETTE.brand;
-      if (mode === 'rent') accent = !Number.isFinite(accentRent) || accentRent < 0 ? PALETTE.neutral : accentRent >= 300 ? PALETTE.extreme : accentRent >= 200 ? PALETTE.high : accentRent >= 100 ? PALETTE.medium : PALETTE.low;
-      else if (mode === 'vacancy') accent = !Number.isFinite(vacancy) ? PALETTE.neutral : vacancy >= 30 ? PALETTE.extreme : vacancy >= 20 ? PALETTE.high : vacancy >= 10 ? PALETTE.medium : PALETTE.low;
-      else if (mode === 'leed') accent = leedPercent >= 60 ? '#3f715f' : leedPercent >= 40 ? '#537f6c' : leedPercent >= 20 ? '#6f927f' : leedPercent > 0 ? '#88a493' : PALETTE.neutral;
-
-      const count = summary?.officeCount ?? 0;
-      const size = 86 + Math.min(12, Math.round(Math.sqrt(count + (summary?.parkCount ?? 0)) * 1.25));
-      const rentLabel = Number.isFinite(rent) ? `¥${rent.toFixed(1)}` : '¥—';
-      const vacancyLabel = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '—';
-      const nameOnly = isNameOnlyArea(aggregate.name, mode) && count === 0 && (summary?.parkCount ?? 0) === 0;
-      const element = document.createElement('button');
-      element.type = 'button';
-      element.className = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
-      element.dataset.renderMode = mode;
-      element.title = `${aggregate.name} · 甲乙级${count}个`;
-      element.setAttribute('aria-label', `查看${aggregate.name}子市场介绍，甲乙级${count}个，租金${rentLabel}，空置率${vacancyLabel}`);
-      if (!nameOnly) {
-        element.style.setProperty('--sm-accent', accent);
-        element.style.setProperty('--sm-foreground', markerTextColor(accent));
-      }
-      element.style.setProperty('--sm-size', `${size}px`);
-      const metrics = nameOnly ? '' : `
-        <div class="map-submarket-bubble__metrics">
-          <span class="map-submarket-bubble__primary">${rentLabel}</span>
-          <span class="map-submarket-bubble__sep">·</span>
-          <span class="map-submarket-bubble__secondary">${vacancyLabel}</span>
-        </div>
-        <div class="map-submarket-bubble__count">甲乙级 ${count} 个</div>
-        ${mode === 'leed' ? `<span class="map-submarket-bubble__context">LEED ${leedPercent.toFixed(0)}%</span>` : ''}`;
-      element.innerHTML = `<span class="map-submarket-bubble__name">${escapeHtml(aggregate.name)}</span>${metrics}`;
+      const element = createSubmarketBubble({ name: aggregate.name, summary, mode, leed: leedPercent, selected: c.getWorkspaceSubmarket?.() === aggregate.name });
       const openBrief = () => {
         window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: aggregate.name } }));
       };
@@ -497,7 +466,7 @@ export function installMapVisualHierarchyV3(
         if (currentTier === 'submarket' && !zooming) {
           window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name } }));
         }
-      }, mode, summaries.get(name));
+      }, mode, summaries.get(name), c.getWorkspaceSubmarket?.() === name);
       submarkets.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, 20], zIndex: 92, opacity: 0 }));
     }
     if (submarkets.length) map.add?.(submarkets);

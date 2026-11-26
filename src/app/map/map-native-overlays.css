@@ -6,11 +6,11 @@
 
 body:has(#map-container) .map-submarket-bubble {
   --sm-accent: #245b78;
-  --sm-size: 82px;
+  --sm-size: 108px;
   --sm-collision-x: 0px;
   --sm-collision-y: 0px;
   /* Submarket business briefs require a separate third line for A/B inventory. */
-  --sm-render-size: clamp(100px, calc(var(--sm-size) + 6px), 112px);
+  --sm-render-size: 108px;
   width: var(--sm-render-size);
   height: var(--sm-render-size);
   box-sizing: border-box;
@@ -18,18 +18,18 @@ body:has(#map-container) .map-submarket-bubble {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 9px 5px;
+  gap: 4px;
+  padding: 10px 6px;
   appearance: none;
   font: inherit;
   overflow: hidden;
   cursor: pointer;
   user-select: none;
-  border: 2px solid rgba(255, 255, 255, 0.94);
+  border: 1px solid #ffffff;
   border-radius: 50%;
   background: var(--sm-accent);
   color: var(--sm-foreground, #ffffff);
-  box-shadow: 0 5px 16px rgba(23, 42, 58, 0.18), 0 1px 3px rgba(23, 42, 58, 0.12);
+  box-shadow: 0 2px 6px rgb(23 42 58 / .16);
   contain: layout paint style;
   transform: translate3d(var(--sm-collision-x), var(--sm-collision-y), 0) scale(1);
   transform-origin: center;
@@ -62,14 +62,17 @@ body:has(#map-container[data-marker-tier="building"]) .map-submarket-bubble {
   body:has(#map-container) .map-submarket-bubble:hover { filter: brightness(1.04); }
 }
 
+body:has(#map-container) .map-submarket-bubble[aria-pressed="true"] { outline: 2px solid #172033; outline-offset: 2px; }
+body:has(#map-container) .map-submarket-bubble:active { transform: translate3d(var(--sm-collision-x), var(--sm-collision-y), 0) scale(.97); }
+
 body:has(#map-container) .map-submarket-bubble.is-expanding {
   transform: translate3d(var(--sm-collision-x), var(--sm-collision-y), 0) scale(0.94);
   filter: saturate(0.96) brightness(1.025);
 }
 
 body:has(#map-container) .map-submarket-bubble__name {
-  width: calc(var(--sm-render-size) - 18px);
-  max-height: 32px;
+  width: calc(var(--sm-render-size) - 26px);
+  max-height: 36px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -77,9 +80,9 @@ body:has(#map-container) .map-submarket-bubble__name {
   text-align: center;
   overflow-wrap: anywhere;
   font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.18;
+  line-height: 18px;
   letter-spacing: -0.01em;
   color: var(--sm-foreground, #ffffff);
 }
@@ -94,9 +97,9 @@ body:has(#map-container) .map-submarket-bubble__metrics {
   overflow: visible;
   white-space: nowrap;
   font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 400;
-  line-height: 1.1;
+  line-height: 18px;
   color: var(--sm-foreground, #ffffff);
   font-variant-numeric: tabular-nums;
 }
@@ -104,13 +107,13 @@ body:has(#map-container) .map-submarket-bubble__metrics {
 body:has(#map-container) .map-submarket-bubble__primary {
   flex: 0 0 auto;
   color: var(--sm-foreground, #ffffff);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 body:has(#map-container) .map-submarket-bubble__secondary { flex: 0 0 auto; }
 body:has(#map-container) .map-submarket-bubble__sep { flex: 0 0 auto; color: inherit; }
 body:has(#map-container) .map-submarket-bubble__count {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 400;
   line-height: 1.2;
   white-space: nowrap;
@@ -118,7 +121,7 @@ body:has(#map-container) .map-submarket-bubble__count {
   font-variant-numeric: tabular-nums;
 }
 body:has(#map-container) .map-submarket-bubble__context {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1;
   color: var(--sm-foreground, #ffffff);
 }
@@ -212,8 +215,6 @@ body:has(#map-container) .amap-info-content:not(:has(.building-popup)) [data-map
 #map-container.map-marker-swapping { cursor: inherit; }
 
 @media (max-width: 640px) {
-  body:has(#map-container) .map-submarket-bubble { --sm-render-size: 100px; padding: 8px 5px; gap: 3px; }
-  body:has(#map-container) .map-submarket-bubble__name { width: calc(var(--sm-render-size) - 18px); max-height: 29px; font-size: 12px; }
   body:has(#map-container) .map-submarket-bubble__metrics { max-width: calc(var(--sm-render-size) - 12px); gap: 2px; }
   body:has(#map-container) .amap-info-content:not(:has(.building-popup)) [data-map-action] { min-height: 34px; font-size: 11px !important; }
 }

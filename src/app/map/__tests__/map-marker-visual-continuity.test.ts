@@ -12,7 +12,7 @@ describe('map marker visual continuity', () => {
 
     expect(css).toContain('.map-submarket-bubble');
     expect(css).toContain('border-radius: 50%');
-    expect(css).toContain('--sm-size: 82px');
+    expect(css).toContain('--sm-size: 108px');
 
     expect(renderer).toContain('function dotImage');
     expect(renderer).toContain('size: new Size(12, 12)');
