@@ -111,7 +111,7 @@ describe("Pitch parameter and search focus", () => {
     fireEvent.change(asset, { target: { value: "研究" } });
     fireEvent.compositionEnd(asset);
     await waitFor(() =>
-      expect(screen.getByText("暂无适用的已发布素材。")).toBeInTheDocument(),
+      expect(screen.getByText("没有匹配的已发布素材。")).toBeInTheDocument(),
     );
     expect(asset).toHaveFocus();
     expect(screen.getByLabelText("搜索企业素材")).toBe(asset);

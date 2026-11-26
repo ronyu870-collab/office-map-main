@@ -1,4 +1,6 @@
 'use client';
+import { PitchHandoffLink } from '@/src/components/pitch/PitchHandoffLink';
+import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
 import { leedDisplayValue } from '@/src/lib/leed-display';
 import { coordinateNotice } from '@/src/lib/map-coordinates';
 import * as React from 'react';
@@ -133,6 +135,10 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
             {action('楼宇对比', 'building-compare')}
             <button type="button" className="workspace-business-action" aria-expanded={trendOpen} aria-controls="info-chart-panel" onClick={() => { onAction('trend', { value: state.current.trend, onChange: trend => report({ trend, trendHeight: trendHost.current?.getBoundingClientRect().height || state.current.trendHeight }), onReady: () => setTrendPending(false) }); setTrendOpen(current => !current); report({ trendOpen: !trendOpen }); }}>季度趋势</button>
             <button type="button" data-map-action="building-ai" className="workspace-business-action" hidden>AI 分析</button>
+            {!isDemo && !getImpersonationTargetUserId() && <PitchHandoffLink
+              source={{ kind: 'buildings', buildingIds: [building.id] }}
+              period={metric ? `${metric.record_year}-Q${metric.record_quarter}` : undefined}
+              className="workspace-business-action workspace-resource-action" label="将楼宇概况加入 Pitch" />}
           </div> : null}
           {canEdit && !future ? <div className="workspace-maintenance-actions workspace-business-actions">{action('编辑指标', 'edit-metrics', 'edit')}</div> : null}
         </> : null}

@@ -318,7 +318,10 @@ describe("Pitch workspace continuous editing", () => {
     await user.type(brief, "为科技企业制作选址提案");
     await user.click(screen.getByRole("button", { name: "进入提案助手" }));
     expect(writes.some((entry) => entry.action === "create" || entry.action === "prepare")).toBe(false);
-    await user.type(screen.getByLabelText("Pitch 名称"), "选址项目");
+    const projectTitle = screen.getByLabelText("Pitch 名称");
+    expect(projectTitle).toHaveValue("为科技企业制作选址提案");
+    await user.clear(projectTitle);
+    await user.type(projectTitle, "选址项目");
     await user.click(screen.getByRole("button", { name: /^创建$/ }));
     const question = await screen.findByLabelText("需要制作什么页面？");
     expect(question).toHaveValue("为科技企业制作选址提案");
@@ -328,6 +331,7 @@ describe("Pitch workspace continuous editing", () => {
   it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
     expandedCatalog = true;
     const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
     await user.click(screen.getByText("项目设置", { selector: "summary" }));
     fireEvent.change(screen.getByLabelText("默认季度"), {target: {value: "2026-Q4"}});
     await user.click(screen.getByRole("button", {name: "示例与套装"}));
@@ -343,17 +347,40 @@ describe("Pitch workspace continuous editing", () => {
   it("resizes the editor divider with the keyboard without writing project content", async () => {
     await enter();
     const divider = screen.getByRole("separator", { name: "调整左栏宽度" });
+    const inspector = screen.getByRole("separator", { name: "调整右栏宽度" });
     const before = writes.filter((entry) => entry.action === "save").length;
     fireEvent.keyDown(divider, { key: "ArrowRight" });
-    expect(divider).toHaveAttribute("aria-valuenow", "240");
+    expect(divider).toHaveAttribute("aria-valuenow", "220");
     fireEvent.keyDown(divider, { key: "End" });
-    expect(divider).toHaveAttribute("aria-valuenow", "340");
+    expect(divider).toHaveAttribute("aria-valuenow", "288");
+    fireEvent.keyDown(inspector, { key: "ArrowLeft" });
+    expect(inspector).toHaveAttribute("aria-valuenow", "316");
+    fireEvent.keyDown(inspector, { key: "Home" });
+    expect(inspector).toHaveAttribute("aria-valuenow", "260");
     expect(writes.filter((entry) => entry.action === "save")).toHaveLength(before);
+  });
+  it("keeps the assistant draft and page search when returning from the focused canvas", async () => {
+    const user = await enter();
+    const search = screen.getByRole("searchbox", { name: "搜索页面" });
+    await user.type(search, "隔离");
+    await user.click(screen.getByRole("button", { name: "提案助手" }));
+    const question = await screen.findByLabelText("需要制作什么页面？");
+    await user.type(question, "保留我的提案需求");
+    await user.click(screen.getByRole("button", { name: "设计" }));
+    expect(screen.getByLabelText("整套设计主题")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "专注画布" }));
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "页面预览" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "退出专注画布" }));
+    expect(search).toHaveValue("隔离");
+    await user.click(screen.getByRole("button", { name: "提案助手" }));
+    expect(question).toHaveValue("保留我的提案需求");
+    expect(writes.some((entry) => entry.action === "save")).toBe(false);
   });
   it("moves an actual canvas layer with the keyboard and saves the same coordinates after reopening", async () => {
     const user = await enter();
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
-    const layer = await screen.findByRole("button", { name: "对象 1：隔离页面" });
+    const layer = await screen.findByRole("button", { name: "对象 1：隔离页面" }, { timeout: 3000 });
     layer.focus();
     fireEvent.keyDown(layer, { key: "ArrowRight" });
     expect(screen.getByText("横向 1.05 英寸 · 纵向 1.00 英寸")).toBeInTheDocument();
@@ -439,6 +466,24 @@ describe("Pitch workspace continuous editing", () => {
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
     expect(await screen.findByRole("button", { name: "对象 1：形状" })).toBeInTheDocument();
   });
+  it("persists the same equal spacing applied on the real object canvas", async () => {
+    detail.slides[0].scene.elements.push(...[1, 4, 10].map(x => ({
+      kind: "shape" as const, x, y: 4, w: 1, h: 1, fill: "primary" as const,
+      background: false, shape: "rect" as const,
+    })));
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await screen.findByRole("button", { name: "对象 2：形状" });
+    await user.click(screen.getByText("图层（从上到下）"));
+    for (const item of screen.getAllByRole("checkbox", { name: "多选对象：形状" })) await user.click(item);
+    await user.click(screen.getByRole("button", { name: "水平等距分布" }));
+    await user.click(screen.getByRole("button", { name: "应用位置" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[2].x).toBe(5.5), { timeout: 3000 });
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectMoves: [{ id: "object-3", x: 5.5, y: 4 }] },
+    ]);
+    expect(detail.slides[0].scene.elements.slice(1).map(element => element.x)).toEqual([1, 5.5, 10]);
+  });
   it("moves a persistent canvas group together and can dissolve it without moving any member", async () => {
     detail.slides[0].scene.elements.push({
       kind: "shape", x: 2, y: 4, w: 3, h: 1, fill: "primary", background: false, shape: "rect",
@@ -447,8 +492,8 @@ describe("Pitch workspace continuous editing", () => {
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
     await screen.findByRole("button", { name: "对象 2：形状" });
     await user.click(screen.getByText("图层（从上到下）"));
-    await user.click(screen.getByRole("checkbox", { name: "选入组合：形状" }));
-    await user.click(screen.getByRole("checkbox", { name: "选入组合：隔离页面" }));
+    await user.click(screen.getByRole("checkbox", { name: "多选对象：形状" }));
+    await user.click(screen.getByRole("checkbox", { name: "多选对象：隔离页面" }));
     await user.click(screen.getByRole("button", { name: "组合所选对象" }));
     fireEvent.keyDown(screen.getByRole("button", { name: "对象 2：形状" }), { key: "ArrowRight" });
     await user.click(screen.getByRole("button", { name: "应用到页面" }));
@@ -513,7 +558,8 @@ describe("Pitch workspace continuous editing", () => {
   });
   it("combines duplicate, keyboard reorder, selection and deletion without losing unaffected content", async () => {
     const user = await enter();
-    await user.click(screen.getByRole("button", { name: "复制第 1 页" }));
+    await user.click(screen.getByLabelText("选择第 1 页"));
+    await user.click(screen.getByRole("button", { name: "复制选中" }));
     expect(screen.getByText("2 页")).toBeInTheDocument();
     const second = screen.getByRole("button", { name: /打开第 2 页/ });
     fireEvent.keyDown(second, { key: "ArrowLeft", altKey: true });

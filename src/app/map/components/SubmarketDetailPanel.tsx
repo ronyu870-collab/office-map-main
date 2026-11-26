@@ -3,6 +3,9 @@
 import * as React from 'react';
 import { ChevronRight, Pencil } from 'lucide-react';
 import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
+import { useIsDemo } from '@/src/components/demo';
+import { PitchHandoffLink } from '@/src/components/pitch/PitchHandoffLink';
+import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
 import { WorkspacePanelContext, WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { SubmarketProfileEditor } from './SubmarketProfileEditor';
 import { hasSubmarketProfileContent, SubmarketResearchProfile } from './SubmarketResearchProfile';
@@ -58,6 +61,7 @@ function SubmarketWorkspace({
   canEdit, suspended: suspendedProp = false, mapLocationNotice, onExitGuardChange, onClose, onShowAll, onOpenBuilding,
 }: Props & { identity: string }) {
   const workspace = React.useContext(WorkspacePanelContext);
+  const isDemo = useIsDemo();
   const suspended = suspendedProp || workspace?.active === false;
   const expanded = workspace?.mode === 'full';
   const quick = Boolean(workspace?.compact && workspace.mode === 'compact');
@@ -177,6 +181,11 @@ function SubmarketWorkspace({
   const projects = (compact = false) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}
     onOpen={onOpenBuilding} compact={compact} curated={research?.projects} sources={research?.sources} />;
 
+  const pitchHandoff = !parkOnly && !isDemo && !getImpersonationTargetUserId()
+    ? <PitchHandoffLink source={{ kind: 'submarket', key: name }}
+        className="workspace-business-action workspace-resource-action" label="将子市场行情加入 Pitch" />
+    : null;
+
   return <div hidden={suspended || undefined} aria-hidden={suspended || undefined}
     className={suspended ? 'map-submarket-workspace hidden' : 'map-submarket-workspace'}>
     <section data-map-submarket-panel data-submarket-compact={quick && !editing || undefined} data-submarket-layout={layout}
@@ -227,10 +236,12 @@ function SubmarketWorkspace({
             {layout === 'quick' ? <QuickSummary summary={summary} parkOnly={parkOnly} onRead={() => openStandard()}
                 onViewProjects={() => openStandard('buildings')}>
                 {!parkOnly && trendState === 'ready' && <MarketTrendSummary data={allTrend} compact />}
+                {pitchHandoff}
               </QuickSummary>
               : layout === 'expanded' ? <div className="submarket-brief">
                 <section className="submarket-research-chapter submarket-brief-overview" aria-labelledby="submarket-brief-overview">
                   <h3 id="submarket-brief-overview">市场概览</h3>{researchLead}{overview}
+                  {pitchHandoff}
                 </section>
                 <div className="submarket-brief-trend">{trend(true)}</div>
                 <div className="submarket-brief-profile">{profileChapter}</div>
@@ -238,6 +249,7 @@ function SubmarketWorkspace({
               </div> : currentSection === 'overview' ? <div className="submarket-section-flow">
                 {researchLead}
                 {overview}
+                {pitchHandoff}
                 {payload?.trendError ? <div className="submarket-read-status"><p role="status">历史行情暂不可用</p>
                   <button type="button" className="submarket-quiet-action" disabled={detail.loading} onClick={retry}>重新加载</button></div> : null}
                 {research || profile?.overview ? <div className="submarket-overview-profile">

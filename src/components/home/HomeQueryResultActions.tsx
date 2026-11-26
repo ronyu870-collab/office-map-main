@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Check, Copy, FileText, MoreHorizontal } from 'lucide-react';
 import { HomeQueryMenu, queryActionFocus } from './HomeQueryMenu';
+import { PitchHandoffLink } from '@/src/components/pitch/PitchHandoffLink';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { renderResultCopy, type ResultCopyFormat } from '@/src/lib/intelligence/query/resultOutput';
@@ -74,6 +75,9 @@ function ResultActions({ result, requestId, scope, internalExport, children, res
           {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('table', event.currentTarget)}>复制结果表格</Button>}
           {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('figures', event.currentTarget)}><Copy size={16} aria-hidden="true" />复制关键数字</Button>}
           <Button variant="ghost" size="sm" onClick={event => { summaryTrigger.current = event.currentTarget; showSummary(); }}><FileText size={16} aria-hidden="true" />生成分析摘要</Button>
+          {internalExport && ['list', 'fact', 'aggregate'].includes(result.operation) &&
+            <PitchHandoffLink source={{ kind: 'analysis-result', id: requestId }}
+              className={styles.handoffAction} label="将分析结果加入 Pitch" />}
           {responseActions}
       </HomeQueryMenu>
     </div>

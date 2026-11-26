@@ -6,6 +6,15 @@ import { z } from "zod";
 import {
   PanelLeftClose,
   PanelRightClose,
+  PanelLeftOpen,
+  PanelRightOpen,
+  Maximize,
+  Minimize,
+  Undo2,
+  Redo2,
+  Sparkles,
+  Star,
+  Ellipsis,
   ArrowLeft,
   ArrowRight,
   BookOpen,
@@ -35,7 +44,6 @@ import {
   type Generation,
 } from "@/src/lib/pitch/business/protocol";
 import { ECOSYSTEM_BY_ID } from '@/src/lib/pitch/templates/ecosystem';
-import { PATTERN_BY_ID } from '@/src/lib/pitch/layout/patterns/catalog';
 import { LAYOUTS } from "@/src/lib/pitch/layout/definitions";
 import type { LayoutId } from "@/src/lib/pitch/contracts/scene";
 import {
@@ -48,10 +56,15 @@ import {
 } from "./workspace/client";
 import { TemplatePicker, type Template } from "./workspace/TemplatePicker";
 import { TemplateParameters, BuildingPicker } from "./workspace/Parameters";
+import { readPitchHandoff, type PitchHandoffNavigation } from "./PitchHandoffLink";
+import { HandoffReview } from "./workspace/HandoffReview";
+import { LayoutVariants } from "./workspace/LayoutVariants";
+import { DataRefresh } from "./workspace/DataRefresh";
 import { CurrentPageRevision } from "./workspace/CurrentPageRevision";
-import { AssetPicker } from "./workspace/Assets";
+import { AssetPicker, pitchAssetDragType, readAssetTransfer } from "./workspace/Assets";
 import { PagePreview, usePagePreviews } from "./workspace/Preview";
 import { Projects } from "./workspace/Projects";
+import { PanelSeparator } from "./workspace/PanelSeparator";
 import { SlideNavigator } from "./workspace/SlideNavigator";
 import { Presentation } from "./workspace/Presentation";
 import { canMoveObject } from "@/src/lib/pitch/workspace/object-layout";
@@ -70,6 +83,21 @@ const Manager = dynamic(
   { loading: () => <p>正在打开管理中心…</p> },
 );
 type Panel = "home" | "examples" | "quick" | "templates" | "assets" | "projects" | "admin";
+const mobilePanes = [
+  ["pages", "页面"],
+  ["add", "添加内容"],
+  ["preview", "页面预览"],
+  ["edit", "页面编辑"],
+] as const;
+type MobilePane = (typeof mobilePanes)[number][0];
+type Inspector = "properties" | "data" | "assets" | "design" | "assist";
+const inspectorTabs: { id: Inspector; label: string }[] = [
+  { id: "properties", label: "属性" },
+  { id: "data", label: "数据" },
+  { id: "assets", label: "素材" },
+  { id: "design", label: "设计" },
+  { id: "assist", label: "AI" },
+];
 type OutlineStart = Extract<WorkspaceCommand, { action: "start" }> & { part: OutlinePart };
 type TaskReceipt = { id: string; state: string; attempts?: number; error_code?: string };
 type WorkspaceTask = TaskReceipt & { outline?: boolean; unconfirmed?: OutlineStart };
@@ -87,6 +115,12 @@ const tabs: { id: Panel; label: string }[] = [
   { id: "assets", label: "素材库" },
   { id: "examples", label: "示例与套装" },
   { id: "admin", label: "管理中心" },
+];
+const proposalStarts = [
+  { title: "招商代理", question: "为霄云路33号制作招商代理提案。" },
+  { title: "办公选址对比", question: "制作CBD五个甲级写字楼的选址对比。" },
+  { title: "季度市场报告", question: "用最新正式季度制作北京写字楼市场报告。" },
+  { title: "单楼项目推介", question: "为五矿广场制作项目推介。" },
 ];
 const businessCatalog = z.object({
   recipes: z.array(recipeSchema),
@@ -127,6 +161,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
   const [panel, setPanel] = React.useState<Panel>("home"),
     [catalog, setCatalog] = React.useState<Catalog | null>(null),
     [templates, setTemplates] = React.useState<Template[]>([]),
+    [templateCategory, setTemplateCategory] = React.useState<"all" | "favorites">("all"),
+    [handoff, setHandoff] = React.useState<PitchHandoffNavigation | null>(null),
     [preferences, setPreferences] = React.useState({
       favorites: [] as string[],
       recent: [] as string[],
@@ -137,7 +173,9 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [saving, setSaving] = React.useState(false),
     [conflict, setConflict] = React.useState(false),
     [message, setMessage] = React.useState(""),
-    [busy, setBusy] = React.useState(false);
+    [busy, setBusy] = React.useState(false),
+    [addingAssets, setAddingAssets] = React.useState(false);
+  const assetSubmit = React.useRef(false);
   const [exportTrigger, setExportTrigger] = React.useState(0);
   const [createOpen, setCreateOpen] = React.useState(false),
     [name, setName] = React.useState(""),
@@ -149,9 +187,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [buildingSearch, setBuildingSearch] = React.useState(false);
   const [left, setLeft] = React.useState(true),
     [right, setRight] = React.useState(true),
-    [mobile, setMobile] = React.useState("preview"),
-    [leftWidth, setLeftWidth] = React.useState(228),
+    [mobile, setMobile] = React.useState<MobilePane>("preview"),
+    [leftWidth, setLeftWidth] = React.useState(208),
+    [rightWidth, setRightWidth] = React.useState(304),
+    [focusedCanvas, setFocusedCanvas] = React.useState(false),
     [leftTab, setLeftTab] = React.useState("pages"),
+    [inspector, setInspector] = React.useState<Inspector>("properties"),
+    [assistOpened, setAssistOpened] = React.useState(false),
     [pageRevisionBatches, setPageRevisionBatches] = React.useState<Record<string, string>>({}),
     [chosen, setChosen] = React.useState<Template | null>(null),
     [regenerating, setRegenerating] = React.useState(false);
@@ -176,12 +218,15 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [readingResult, setReadingResult] = React.useState(false),
     [historyOpen, setHistoryOpen] = React.useState(false),
     [objectPage, setObjectPage] = React.useState<string | null>(null),
+    [objectSelection, setObjectSelection] = React.useState<{ ids: string[]; dirty: boolean }>({ ids: [], dirty: false }),
+    [reviewUndo, setReviewUndo] = React.useState<{ version: number; revision: number; projectId: string }>(),
     [savedCanvasHistory, setSavedCanvasHistory] = React.useState<SavedCanvasHistory | null>(null);
   const life = React.useRef(new AbortController()),
     current = React.useRef({ detail, draft, dirty }),
     pending = React.useRef<Promise<WorkspaceDetail> | null>(null),
-    draftSequence = React.useRef(0),
-    resizeStart = React.useRef<{ x: number; width: number } | null>(null);
+    draftSequence = React.useRef(0);
+  const shortcutMenu = React.useRef<HTMLDivElement>(null);
+  const shortcutTrigger = React.useRef<HTMLButtonElement>(null);
   React.useEffect(() => {
     current.current = { detail, draft, dirty };
   }, [detail, draft, dirty]);
@@ -311,6 +356,15 @@ function Studio({ session }: { session: AuthSessionResult }) {
       if (previous?.unconfirmed?.projectId === value.project.id && receipt?.id !== previous.id) return previous;
       return receipt && (receipt.state !== "completed" || receipt.outline) ? receipt : null;
     });
+  }, []);
+  React.useEffect(() => {
+    const incoming = readPitchHandoff(window.location.hash);
+    if (!incoming) return;
+    const timer = setTimeout(() => {
+      setHandoff(incoming);
+      window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
   const linkedProjectRead = React.useRef(false);
   React.useEffect(() => {
@@ -448,6 +502,9 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setMobile("preview");
     setLeftTab("pages");
     setAssistSeed("");
+    setAssistOpened(false);
+    setInspector("properties");
+    setFocusedCanvas(false);
     setObjectPage(null);
   };
   async function copyProjectLink(id: string) {
@@ -478,6 +535,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
       setCreateOpen(true);
     } else {
       setPanel("quick");
+      setFocusedCanvas(false);
       setRight(true);
       setMobile("edit");
     }
@@ -574,7 +632,10 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 setChosen(null);
                 setRegenerating(false);
                 setMobile("preview");
-                if (result.outline) setLeftTab("pages");
+                if (result.outline) {
+                  setLeftTab("pages");
+                  setInspector("properties");
+                }
                 setMessage(result.outline ? "" : "页面已生成并保存。");
               }
             } else {
@@ -651,9 +712,64 @@ function Studio({ session }: { session: AuthSessionResult }) {
       title: p.title ?? source?.content.title ?? "新页面",
       image: previews.images[sourceId],
       error: previews.errors[sourceId],
+      section: (p.layoutId ?? source?.scene.layoutId) === "section-divider",
     };
   }) ?? [];
-  const resizeLeft = (width: number) => setLeftWidth(Math.round(Math.max(196, Math.min(340, width))));
+  function createBrief(question: string) {
+    const request = question.trim();
+    if (!request || !canGenerate) return;
+    setChosen(null);
+    setBrief(request);
+    setCreateFromBrief(true);
+    setName(request.replace(/[。！？!?]+$/u, "").slice(0, 160));
+    setContext(projectContextSchema.parse({}));
+    setCreateOpen(true);
+  }
+  function openInspector(tab: Inspector) {
+    setChosen(null);
+    setRegenerating(false);
+    setFocusedCanvas(false);
+    setRight(true);
+    setMobile("edit");
+    setInspector(tab);
+    if (tab === "assist") setAssistOpened(true);
+  }
+  function acceptReviewedChange(result: WorkspaceDetail, expectedVersion: number, feedback: string) {
+    if (current.current.detail?.project.id !== result.project.id) return;
+    if (current.current.dirty || current.current.detail.project.version !== expectedVersion) {
+      setConflict(true);
+      setMessage("修改已保存。当前编辑仍保留，可重新读取项目或另存副本。");
+      return;
+    }
+    accept(result);
+    if (result.project.version !== expectedVersion) {
+      setReviewUndo({ version: result.project.version, revision: expectedVersion, projectId: result.project.id });
+    }
+    setMessage(feedback);
+  }
+  function changeMobilePane(id: MobilePane) {
+    setFocusedCanvas(false);
+    if (id === "pages") setLeftTab("pages");
+    if (id === "add") setLeftTab("templates");
+    setMobile(id);
+  }
+  function openCanvas() {
+    setMobile("preview");
+    setFocusedCanvas((value) => !value);
+  }
+  function openCustomPage() {
+    setCustomOpen(true);
+    void call<{ items: typeof media }>({
+      action: "search", kind: "media", state: "published", validity: "valid",
+    }, false, "library")
+      .then((result) => setMedia(result.items))
+      .catch((error) => setMessage(error.message));
+  }
+  function fromProjectMenu(action: () => void) {
+    shortcutMenu.current?.hidePopover?.();
+    shortcutTrigger.current?.focus();
+    action();
+  }
   const rendering = !!task && ["queued", "processing"].includes(task.state);
   const generationPending = rendering || !!task?.unconfirmed;
   const editPage = (change: Partial<WorkspaceSave["pages"][number]>) => {
@@ -664,6 +780,17 @@ function Studio({ session }: { session: AuthSessionResult }) {
       }));
   };
   async function addAssets(ids: string[], layout: LayoutId) {
+    if (assetSubmit.current || busy || generationPending || conflict) throw new Error("请先完成当前项目操作。");
+    assetSubmit.current = true;
+    setAddingAssets(true);
+    try {
+      await composeAssets(ids, layout);
+    } finally {
+      assetSubmit.current = false;
+      setAddingAssets(false);
+    }
+  }
+  async function composeAssets(ids: string[], layout: LayoutId) {
     const saved = await ensureProject(),
       sourceProjectId = crypto.randomUUID();
     await call(
@@ -682,19 +809,19 @@ function Studio({ session }: { session: AuthSessionResult }) {
       true,
       "",
     );
-    accept(
-      workspaceDetailSchema.parse(
-        await call(
-          {
-            action: "append",
-            projectId: saved.project.id,
-            expectedVersion: saved.project.version,
-            sourceProjectId,
-          },
-          true,
-        ),
-      ),
-    );
+    const result = workspaceDetailSchema.parse(await call({
+      action: "append",
+      projectId: saved.project.id,
+      expectedVersion: saved.project.version,
+      sourceProjectId,
+    }, true));
+    if (current.current.detail?.project.id !== saved.project.id) return;
+    if (current.current.dirty) {
+      setConflict(true);
+      setMessage("素材已加入。当前编辑仍保留，可重新读取项目或另存副本。");
+      return;
+    }
+    accept(result);
     setPanel("quick");
     setMobile("preview");
   }
@@ -879,7 +1006,10 @@ function Studio({ session }: { session: AuthSessionResult }) {
             <button
               key={t.id}
               aria-current={panel === t.id ? "page" : undefined}
-              onClick={() => setPanel(t.id)}
+              onClick={() => {
+                if (t.id === "templates") setTemplateCategory("all");
+                setPanel(t.id);
+              }}
             >
               {t.label}
             </button>
@@ -890,6 +1020,26 @@ function Studio({ session }: { session: AuthSessionResult }) {
           {message}
         </p>
       )}
+      {panel === "quick" && reviewUndo?.projectId === detail?.project.id &&
+        reviewUndo?.version === detail?.project.version && !dirty && !saving && !conflict && (
+          <div className={styles.notice}>
+            <Button variant="ghost" disabled={busy || generationPending} onClick={() => void run(async () => {
+              const before = reviewUndo!;
+              const restored = workspaceDetailSchema.parse(await call({
+                action: "restore", projectId: before.projectId, expectedVersion: before.version, revision: before.revision,
+              }, true));
+              if (current.current.detail?.project.id !== before.projectId) return;
+              setReviewUndo(undefined);
+              if (current.current.dirty) {
+                setConflict(true);
+                setMessage("上次修改已撤销。当前编辑仍保留，可重新读取项目或另存副本。");
+                return;
+              }
+              accept(restored);
+              setMessage("已撤销上次修改。");
+            })}>撤销上次修改</Button>
+          </div>
+        )}
       {conflict && (
         <div className={styles.actions}>
           <Button
@@ -925,6 +1075,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
         <>
           {panel === "templates" && (
             <TemplatePicker
+              key={templateCategory}
+              initialCategory={templateCategory}
               call={call}
               templates={templates}
               onChoose={(t) => void choose(t)}
@@ -939,7 +1091,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
               <AssetPicker
                 call={call}
                 onAdd={addAssets}
-                busy={busy || !canGenerate}
+                busy={busy || addingAssets || !canGenerate}
               />
             </div>
           )}
@@ -960,12 +1112,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 <h2 id="pitch-create-heading">创建演示文稿</h2>
                 <form className={styles.composer} onSubmit={(e) => {
                   e.preventDefault();
-                  if (!canGenerate || !brief.trim()) return;
-                  setChosen(null);
-                  setCreateFromBrief(true);
-                  setName("");
-                  setContext(projectContextSchema.parse({}));
-                  setCreateOpen(true);
+                  createBrief(brief);
                 }}>
                   <label htmlFor="pitch-brief">你想制作什么？</label>
                   <textarea
@@ -974,11 +1121,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
                     maxLength={1000}
                     value={brief}
                     onChange={(e) => setBrief(e.target.value)}
-                    placeholder="例如：为一家科技企业制作北京办公选址提案"
+                    placeholder="为霄云路33号制作招商代理提案"
                   />
-                  <Button type="submit" disabled={!canGenerate || !brief.trim()}>
-                    进入提案助手 <ArrowRight size={16} />
-                  </Button>
+                  <div className={styles.composerActions}>
+                    <Button type="submit" disabled={!canGenerate || !brief.trim()}>
+                      进入提案助手 <ArrowRight size={16} />
+                    </Button>
+                  </div>
                 </form>
                 <div className={styles.homeActions}>
                   <Button variant="ghost" disabled={!canGenerate} onClick={() => {
@@ -990,8 +1139,17 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   }}>
                     <FilePlus2 size={16} /> 新建空白演示文稿
                   </Button>
-                  <Button variant="ghost" onClick={() => setPanel("templates")}>
-                    <BookOpen size={16} /> 浏览模板
+                  <Button variant="ghost" onClick={() => {
+                    setTemplateCategory("all");
+                    setPanel("templates");
+                  }}>
+                    <BookOpen size={16} /> 专业模板
+                  </Button>
+                  <Button variant="ghost" onClick={() => {
+                    setTemplateCategory("favorites");
+                    setPanel("templates");
+                  }}>
+                    <Star size={16} /> 收藏模板
                   </Button>
                   <Button variant="ghost" onClick={() => setPanel("assets")}>
                     <Images size={16} /> 浏览企业素材
@@ -1000,6 +1158,16 @@ function Studio({ session }: { session: AuthSessionResult }) {
                     <Layers size={16} /> 查看提案套装
                   </Button>
                 </div>
+              </section>
+              <section aria-labelledby="pitch-scenarios-heading">
+                <h2 id="pitch-scenarios-heading">按业务场景创建</h2>
+                <ul className={styles.proposalStarts}>
+                  {proposalStarts.map(({ title, question }) => <li key={title}>
+                    <Button variant="ghost" disabled={!canGenerate} onClick={() => createBrief(question)}>
+                      {title} <ArrowRight size={16} />
+                    </Button>
+                  </li>)}
+                </ul>
               </section>
               <section className={styles.homeRecent} aria-labelledby="pitch-recent-heading">
                 <div className={styles.sectionTitle}>
@@ -1015,6 +1183,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
               <header className={styles.projectBar}>
                 <IconButton
                   label="返回我的 Pitch"
+                  variant="ghost"
                   onClick={() => setPanel("projects")}
                 >
                   <ArrowLeft size={18} />
@@ -1045,11 +1214,20 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 >
                   保存
                 </Button>
-                <IconButton label="复制项目链接" onClick={() => void run(() => copyProjectLink(detail.project.id))}>
-                  <Link2 size={16} />
-                </IconButton>
-                <Button variant="ghost" onClick={() => setHistoryOpen(true)}>
-                  历史
+                <div className={styles.projectTools} role="group" aria-label="画布操作">
+                  <IconButton variant="ghost" label="撤销已保存的调整"
+                    disabled={busy || dirty || saving || conflict || rendering || !savedCanvas?.undo.length}
+                    onClick={() => void restoreCanvas("undo")}>
+                    <Undo2 size={16} />
+                  </IconButton>
+                  <IconButton variant="ghost" label="重做已保存的调整"
+                    disabled={busy || dirty || saving || conflict || rendering || !savedCanvas?.redo.length}
+                    onClick={() => void restoreCanvas("redo")}>
+                    <Redo2 size={16} />
+                  </IconButton>
+                </div>
+                <Button variant="ghost" disabled={!canGenerate} onClick={() => openInspector("assist")}>
+                  <Sparkles size={16} /> 提案助手
                 </Button>
                 <Presentation slides={slidesForDisplay} active={active} onRetry={previews.retry} disabled={dirty || saving || conflict} />
                 <ExportPanel
@@ -1063,6 +1241,18 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   disabled={busy || conflict || generationPending}
                   outlineReady={task?.outline && task.state === "completed"}
                 />
+                <IconButton ref={shortcutTrigger} variant="ghost" label="项目操作"
+                  popoverTarget="pitch-project-actions">
+                  <Ellipsis size={16} />
+                </IconButton>
+                <div ref={shortcutMenu} id="pitch-project-actions" popover="auto" className={styles.projectMenu}
+                  role="group" aria-label="项目操作">
+                  <Button variant="ghost" onClick={() => fromProjectMenu(() => void run(() => copyProjectLink(detail.project.id)))}>
+                    <Link2 size={16} /> 复制项目链接
+                  </Button>
+                  <Button variant="ghost" onClick={() => fromProjectMenu(() => setHistoryOpen(true))}>历史版本</Button>
+                  <Button variant="ghost" onClick={() => fromProjectMenu(() => openInspector("design"))}>项目设计</Button>
+                </div>
               </header>
               {task && (rendering || task.unconfirmed || task.state !== "completed" || task.outline) && (
                 <div role="status" className={styles.task}>
@@ -1160,97 +1350,59 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   ) : null}
                 </div>
               )}
-              <div
-                className={styles.mobileTabs}
-                role="tablist"
-                aria-label="工作区面板"
-              >
-                {[
-                  ["pages", "页面"],
-                  ["add", "添加内容"],
-                  ["preview", "页面预览"],
-                  ["edit", "页面编辑"],
-                ].map(([id, label]) => (
-                  <button
-                    role="tab"
-                    key={id}
-                    aria-selected={mobile === id}
-                    onClick={() => {
-                      if (id === "pages") setLeftTab("pages");
-                      if (id === "add" && leftTab === "pages") setLeftTab("templates");
-                      setMobile(id);
-                    }}
-                  >
+              <div className={styles.mobileTabs} role="tablist" aria-label="工作区面板"
+                onKeyDown={(event) => {
+                  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                  const current = mobilePanes.findIndex(([id]) => id === (focusedCanvas ? "preview" : mobile));
+                  const next = event.key === "Home" ? 0 : event.key === "End" ? mobilePanes.length - 1
+                    : (current + (event.key === "ArrowLeft" ? -1 : 1) + mobilePanes.length) % mobilePanes.length;
+                  const id = mobilePanes[next][0];
+                  event.preventDefault();
+                  changeMobilePane(id);
+                  event.currentTarget.querySelector<HTMLButtonElement>(`[data-pane="${id}"]`)?.focus();
+                }}>
+                {mobilePanes.map(([id, label]) => {
+                  const active = (focusedCanvas ? "preview" : mobile) === id;
+                  return <button type="button" role="tab" key={id} data-pane={id}
+                    aria-controls={id === "preview" ? "pitch-canvas" : id === "edit" ? "pitch-inspector" : "pitch-navigation"}
+                    aria-selected={active} tabIndex={active ? 0 : -1} onClick={() => changeMobilePane(id)}>
                     {label}
-                  </button>
-                ))}
+                  </button>;
+                })}
               </div>
-              <div className={styles.panelTools}>
-                <Button
-                  variant="ghost"
-                  onClick={() => setLeft((v) => !v)}
-                  aria-expanded={left}
-                >
-                  <PanelLeftClose size={16} />
-                  {left ? "收起左栏" : "显示左栏"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => setRight((v) => !v)}
-                  aria-expanded={right}
-                >
-                  <PanelRightClose size={16} />
-                  {right ? "收起编辑" : "编辑页面"}
-                </Button>
+              <div className={styles.panelTools} role="group" aria-label="工作区布局">
+                <IconButton variant="ghost" label={left && !focusedCanvas ? "收起左栏" : "显示左栏"}
+                  onClick={() => { setFocusedCanvas(false); setLeft((value) => focusedCanvas || !value); }}
+                  aria-expanded={!focusedCanvas && left} className={styles.panelToggle}>
+                  {left && !focusedCanvas ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+                </IconButton>
+                <IconButton variant="ghost" label={focusedCanvas ? "退出专注画布" : "专注画布"}
+                  onClick={openCanvas} aria-pressed={focusedCanvas}>
+                  {focusedCanvas ? <Minimize size={16} /> : <Maximize size={16} />}
+                </IconButton>
+                <IconButton variant="ghost" label={right && !focusedCanvas ? "收起编辑" : "编辑页面"}
+                  onClick={() => { setFocusedCanvas(false); setRight((value) => focusedCanvas || !value); }}
+                  aria-expanded={!focusedCanvas && right} className={styles.panelToggle}>
+                  {right && !focusedCanvas ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+                </IconButton>
               </div>
               <div
                 className={styles.editor}
-                style={
-                  {
-                    "--pitch-left": `${left ? leftWidth : 0}px`,
-                    "--pitch-right": `${right ? 280 : 0}px`,
-                  } as React.CSSProperties
-                }
-                data-mobile={mobile}
+                style={{
+                  "--pitch-left": `${left && !focusedCanvas ? leftWidth : 0}px`,
+                  "--pitch-right": `${right && !focusedCanvas ? rightWidth : 0}px`,
+                } as React.CSSProperties}
+                data-mobile={focusedCanvas ? "preview" : mobile}
               >
-                {left && <div
-                  className={styles.resizeLeft}
-                  role="separator"
-                  aria-label="调整左栏宽度"
-                  aria-orientation="vertical"
-                  aria-valuemin={196}
-                  aria-valuemax={340}
-                  aria-valuenow={leftWidth}
-                  tabIndex={0}
-                  onPointerDown={(event) => {
-                    if (event.button !== 0) return;
-                    resizeStart.current = { x: event.clientX, width: leftWidth };
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                  }}
-                  onPointerMove={(event) => {
-                    const start = resizeStart.current;
-                    if (start) resizeLeft(start.width + event.clientX - start.x);
-                  }}
-                  onLostPointerCapture={() => { resizeStart.current = null; }}
-                  onKeyDown={(event) => {
-                    const target = event.key === "ArrowLeft" ? leftWidth - 12
-                      : event.key === "ArrowRight" ? leftWidth + 12
-                      : event.key === "Home" ? 196 : event.key === "End" ? 340 : null;
-                    if (target !== null) {
-                      event.preventDefault();
-                      resizeLeft(target);
-                    }
-                  }}
-                />}
-                <aside
-                  className={`${styles.left} ${!left ? styles.collapsed : ""}`}
+                {left && !focusedCanvas && <PanelSeparator side="left" width={leftWidth} min={176} max={288} onResize={setLeftWidth} />}
+                {right && !focusedCanvas && <PanelSeparator side="right" width={rightWidth} min={260} max={396} onResize={setRightWidth} />}
+                <aside id="pitch-navigation" aria-label="页面与模板"
+                  className={`${styles.left} ${!left ? styles.collapsed : ""} ${focusedCanvas ? styles.focusedAside : ""}`}
                 >
                   <div className={styles.modeTabs}>
                     {[
                       ["pages", "页面"],
                       ["templates", "模板"],
-                      ["assets", "素材"],
-                      ["assist", "辅助"],
                     ].map(([id, label]) => (
                       <button
                         key={id}
@@ -1265,22 +1417,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
                     ))}
                     <Button
                       variant="ghost"
-                      disabled={busy || rendering}
-                      onClick={() => {
-                        setCustomOpen(true);
-                        void call<{ items: typeof media }>(
-                          {
-                            action: "search",
-                            kind: "media",
-                            state: "published",
-                            validity: "valid",
-                          },
-                          false,
-                          "library",
-                        )
-                          .then((r) => setMedia(r.items))
-                          .catch((e) => setMessage(e.message));
-                      }}
+                      disabled={busy || rendering || !canGenerate}
+                      onClick={openCustomPage}
                     >
                       自定义
                     </Button>
@@ -1298,18 +1436,17 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       }}
                       onSelect={setSelected}
                       onMove={reorder}
-                      onCopy={(i) => edit((value) => {
-                        const page = value.pages[i];
-                        if (!page) return value;
-                        return {
+                      onCopy={(ids) => {
+                        const copies = new Map(ids.map(id => [id, crypto.randomUUID()]));
+                        edit((value) => ({
                           ...value,
-                          pages: [
-                            ...value.pages.slice(0, i + 1),
-                            { ...page, id: crypto.randomUUID(), duplicateOf: page.duplicateOf ?? page.id },
-                            ...value.pages.slice(i + 1),
-                          ],
-                        };
-                      })}
+                          pages: value.pages.flatMap((page) => {
+                            const id = copies.get(page.id);
+                            return id ? [page, { ...page, id, duplicateOf: page.duplicateOf ?? page.id }] : [page];
+                          }),
+                        }));
+                        setSelected([]);
+                      }}
                       onRemove={(ids) => void remove(ids)}
                       onUndoSave={!dirty && !saving && detail.history[0] ? () => void run(async () => {
                         accept(workspaceDetailSchema.parse(await call({
@@ -1320,33 +1457,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                         }, true)));
                       }) : undefined}
                     />
-                  ) : leftTab === "assist" ? (
-                    <AiAssist
-                      key={detail.project.id}
-                      initialQuestion={assistSeed}
-                      call={call}
-                      projectId={detail.project.id}
-                      buildingIds={draft.context.buildingIds}
-                      period={draft.context.period}
-                      language={draft.context.language}
-                      admin={catalog.scopes.some((s) => s.canAdmin)}
-                      busy={busy || generationPending || conflict}
-                      outlineCanResubmit={task?.outline && ["cancelled", "not_accepted"].includes(task.state)}
-                      onGenerate={generate}
-                      revisionDestination={catalog.categories.find(c => c.system_code === "general" && c.enabled) &&
-                        catalog.scopes.some(s => s.canAdmin && s.canMaintain && s.organizationId === detail.project.organization_id &&
-                          (s.region === null || s.region === detail.project.region) && (s.city === null || s.city === detail.project.city) &&
-                          (s.businessLine === null || s.businessLine === detail.project.business_line)) ? {
-                            categoryId: catalog.categories.find(c => c.system_code === "general" && c.enabled)!.id,
-                            scope: { organizationId: detail.project.organization_id, region: detail.project.region,
-                              city: detail.project.city, businessLine: detail.project.business_line },
-                          } : undefined}
-                      canvasTarget={canvasRevisionTarget}
-                      onCanvasSaved={result => accept(workspaceDetailSchema.parse(result))}
-                      onGenerateOutline={startOutline}
-                      onExport={() => setExportTrigger((v) => v + 1)}
-                    />
-                  ) : leftTab === "templates" ? (
+                  ) : (
                     <TemplatePicker
                       call={call}
                       compact
@@ -1356,15 +1467,23 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       recent={preferences.recent}
                       onFavorite={(id) => void run(() => updatePreference(id))}
                     />
-                  ) : (
-                    <AssetPicker
-                      call={call}
-                      onAdd={addAssets}
-                      busy={busy || rendering}
-                    />
                   )}
                 </aside>
-                <div className={styles.center}>
+                <div id="pitch-canvas" className={styles.center}
+                  onDragOver={(event) => {
+                    if (!canGenerate || busy || addingAssets || generationPending || conflict ||
+                      objectPage === active && !!objectPage || !event.dataTransfer.types.includes(pitchAssetDragType)) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "copy";
+                  }}
+                  onDrop={(event) => {
+                    if (!event.dataTransfer.types.includes(pitchAssetDragType)) return;
+                    event.preventDefault();
+                    if (!canGenerate || busy || addingAssets || generationPending || conflict || objectPage === active && !!objectPage) return;
+                    const asset = readAssetTransfer(event.dataTransfer);
+                    if (asset?.projectId === detail.project.id) void addAssets(asset.ids, asset.layout)
+                      .catch((error: Error) => setMessage(error.message));
+                  }}>
                   {page && active && objectPage === active ? (
                     <ObjectCanvas
                       key={`${detail.project.id}:${page.id}:${detail.project.version}`}
@@ -1378,6 +1497,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       pendingTexts={pageEdit?.objectTexts}
                       pendingOrder={pageEdit?.objectOrder}
                       pendingGroups={pageEdit?.objectGroups}
+                      onSelectionChange={setObjectSelection}
                       onClose={() => setObjectPage(null)}
                       onApply={({ moves, texts, order, groups }) => {
                         editPage({ objectMoves: moves.length ? moves : undefined, objectTexts: texts.length ? texts : undefined, objectOrder: order, objectGroups: groups });
@@ -1393,12 +1513,6 @@ function Studio({ session }: { session: AuthSessionResult }) {
                             onClick={() => setObjectPage(active)}>
                             调整画布对象
                           </Button>
-                          {savedCanvas && <>
-                            <Button variant="ghost" disabled={busy || dirty || saving || conflict || rendering || !savedCanvas.undo.length}
-                              onClick={() => void restoreCanvas("undo")}>撤销已保存的调整</Button>
-                            <Button variant="ghost" disabled={busy || dirty || saving || conflict || rendering || !savedCanvas.redo.length}
-                              onClick={() => void restoreCanvas("redo")}>重做已保存的调整</Button>
-                          </>}
                           {(pageEdit?.objectMoves || pageEdit?.objectTexts || pageEdit?.objectOrder || pageEdit?.objectGroups) && (
                             <Button variant="ghost" disabled={saving} onClick={() => editPage({ objectMoves: undefined, objectTexts: undefined, objectOrder: undefined, objectGroups: undefined })}>
                               丢弃未保存的对象修改
@@ -1440,9 +1554,58 @@ function Studio({ session }: { session: AuthSessionResult }) {
                     </div>
                   )}
                 </div>
-                <aside
-                  className={`${styles.right} ${!right ? styles.collapsed : ""}`}
+                <aside id="pitch-inspector" aria-label="页面检查器"
+                  className={`${styles.right} ${!right ? styles.collapsed : ""} ${focusedCanvas ? styles.focusedAside : ""}`}
                 >
+                  <div className={styles.modeTabs} role="group" aria-label="检查器">
+                    {inspectorTabs.map(({ id, label }) => (
+                      <button type="button" key={id} aria-pressed={!chosen && inspector === id}
+                        disabled={id === "assist" && !canGenerate} onClick={() => openInspector(id)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {assistOpened && <div hidden={!!chosen || inspector !== "assist"}>
+                    <AiAssist
+                      key={detail.project.id}
+                      initialQuestion={assistSeed}
+                      autoPlan={!!assistSeed}
+                      city={detail.project.city}
+                      projectVersion={detail.project.version}
+                      onProposalGenerated={open}
+                      revision={{
+                        detail, active: active ?? undefined, selected,
+                        objectIds: objectPage && objectPage === active ? objectSelection.ids : [],
+                        disabled: busy || saving || dirty || generationPending || conflict || (!!objectPage && objectSelection.dirty),
+                        onApplied: (value, previous) => {
+                          acceptReviewedChange(value, previous, "AI 修改已应用。");
+                          setObjectPage(null);
+                        },
+                        onOpenData: () => openInspector("data"),
+                      }}
+                      call={call}
+                      projectId={detail.project.id}
+                      buildingIds={draft.context.buildingIds}
+                      period={draft.context.period}
+                      language={draft.context.language}
+                      admin={catalog.scopes.some((s) => s.canAdmin)}
+                      busy={busy || generationPending || conflict}
+                      outlineCanResubmit={task?.outline && ["cancelled", "not_accepted"].includes(task.state)}
+                      onGenerate={generate}
+                      revisionDestination={catalog.categories.find(c => c.system_code === "general" && c.enabled) &&
+                        catalog.scopes.some(s => s.canAdmin && s.canMaintain && s.organizationId === detail.project.organization_id &&
+                          (s.region === null || s.region === detail.project.region) && (s.city === null || s.city === detail.project.city) &&
+                          (s.businessLine === null || s.businessLine === detail.project.business_line)) ? {
+                            categoryId: catalog.categories.find(c => c.system_code === "general" && c.enabled)!.id,
+                            scope: { organizationId: detail.project.organization_id, region: detail.project.region,
+                              city: detail.project.city, businessLine: detail.project.business_line },
+                          } : undefined}
+                      canvasTarget={canvasRevisionTarget}
+                      onCanvasSaved={result => accept(workspaceDetailSchema.parse(result))}
+                      onGenerateOutline={startOutline}
+                      onExport={() => setExportTrigger((v) => v + 1)}
+                    />
+                  </div>}
                   {chosen ? (
                     <>
                       <Button
@@ -1471,9 +1634,12 @@ function Studio({ session }: { session: AuthSessionResult }) {
                         }
                       />
                     </>
-                  ) : (
+                  ) : inspector === "assets" ? (
+                    <AssetPicker key={detail.project.id} call={call} onAdd={addAssets} projectId={detail.project.id}
+                      busy={busy || addingAssets || generationPending || conflict || !canGenerate} />
+                  ) : inspector === "properties" ? (
                     <div className={styles.form}>
-                      {page && (
+                      {page ? (
                         <>
                           <h2>当前页面</h2>
                           {canvasRevisionTarget && catalog.scopes.some(s =>
@@ -1533,14 +1699,10 @@ function Studio({ session }: { session: AuthSessionResult }) {
                           </label>
                           {page.content.blocks.some(
                             (b) => b.kind === "paragraph",
-                          ) && (
+                          ) && (detail.workspace.page_settings[page.id]?.origin === "data" ? (
+                            <Button variant="ghost" onClick={() => openInspector("data")}>查看数据与来源</Button>
+                          ) : (
                             <>
-                              <p>
-                                {detail.workspace.page_settings[page.id]
-                                  ?.origin === "data"
-                                  ? "正式数据保持绑定，正文改写将标为用户输入。"
-                                  : "正文改写仅保存到此 Pitch。"}
-                              </p>
                               {(page.scene.pagination?.count ?? 1) > 1 ? (
                                 <p>
                                   此内容已分页。请在素材库修改后重新生成整组。
@@ -1577,7 +1739,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                                   ))
                               )}
                             </>
-                          )}
+                          ))}
                           {page.content.blocks.some(
                             (b) => b.kind === "image",
                           ) && (
@@ -1659,48 +1821,20 @@ function Studio({ session }: { session: AuthSessionResult }) {
                                 ))}
                             </details>
                           )}
-                          <label>
-                            页面布局
-                            <select
-                              value={pageEdit?.layoutId ?? page.scene.layoutId}
-                              onChange={(e) =>
-                                editPage({
-                                  layoutId: e.target.value as LayoutId,
-                                  variant: "standard",
-                                })
-                              }
-                            >
-                              {LAYOUTS.filter((l) =>
-                                page.content.blocks.every((b) =>
-                                  l.kinds.includes(b.kind),
-                                ),
-                              ).map((l) => (
-                                <option key={l.id} value={l.id}>
-                                  {l.zh}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label>
-                            布局变体
-                            <select
-                              value={
-                                pageEdit?.variant ??
-                                page.scene.variant ??
-                                "standard"
-                              }
-                              onChange={(e) =>
-                                editPage({
-                                  variant: e.target.value as
-                                    | "standard"
-                                    | "alternate",
-                                })
-                              }
-                            >
-                              <option value="standard">标准</option>
-                              {!PATTERN_BY_ID.has(pageEdit?.layoutId??page.scene.layoutId)&&<option value="alternate">替换布局</option>}
-                            </select>
-                          </label>
+                        </>
+                      ) : <p>选择页面以编辑属性。</p>}
+                    </div>
+                  ) : inspector === "data" ? (
+                    <div className={styles.form}>
+                      {page ? (
+                        <>
+                          {detail.workspace.page_settings[page.id]?.origin === "data" && active === page.id && (
+                            <DataRefresh key={`${detail.project.id}:${detail.project.version}:${page.id}`}
+                              call={call} detail={detail} slideId={page.id}
+                              disabled={dirty || saving || busy || addingAssets || generationPending || conflict}
+                              onApplied={(result, expectedVersion) => acceptReviewedChange(result, expectedVersion, "正式数据已更新。")}
+                            />
+                          )}
                           {detail.workspace.page_settings[page.id]?.part && !detail.workspace.page_settings[page.id]?.example && !detail.workspace.page_settings[page.id]?.kit && (
                             <Button
                               variant="secondary"
@@ -1739,12 +1873,50 @@ function Studio({ session }: { session: AuthSessionResult }) {
                             </ul>
                           </details>
                         </>
-                      )}
+                      ) : <p>选择页面以查看数据和来源。</p>}
                       <details>
                         <summary>项目设置</summary>
-                        <div className={styles.form}>
+                        <ContextFields buildingSearch={buildingSearch} call={call} value={draft.context}
+                          onChange={(value) => edit((d) => ({ ...d, context: value }))} />
+                      </details>
+                    </div>
+                  ) : inspector === "design" ? (
+                    <div className={styles.form}>
+                      {page && <>
                           <label>
-                            设计主题
+                            页面布局
+                            <select
+                              disabled={page.scene.elements.some(element => element.editorId)}
+                              value={pageEdit?.layoutId ?? page.scene.layoutId}
+                              onChange={(e) =>
+                                editPage({
+                                  layoutId: e.target.value as LayoutId,
+                                  variant: "standard",
+                                })
+                              }
+                            >
+                              {LAYOUTS.filter((l) =>
+                                page.content.blocks.every((b) =>
+                                  l.kinds.includes(b.kind),
+                                ),
+                              ).map((l) => (
+                                <option key={l.id} value={l.id}>
+                                  {l.zh}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          {active === page.id && !page.scene.elements.some(element => element.editorId) && (
+                            <LayoutVariants key={`${detail.project.version}:${page.id}`} call={call}
+                              projectId={detail.project.id} pageIndex={detail.slides.indexOf(page)}
+                              layoutId={pageEdit?.layoutId ?? page.scene.layoutId}
+                              value={pageEdit?.variant ?? page.scene.variant ?? "standard"}
+                              disabled={dirty || saving || busy || generationPending || conflict}
+                              onChange={variant => editPage({ variant })} />
+                          )}
+                      </>}
+                      <label>
+                            整套设计主题
                             <select
                               value={JSON.stringify([
                                 draft.themeId,
@@ -1770,24 +1942,18 @@ function Studio({ session }: { session: AuthSessionResult }) {
                               ))}
                             </select>
                           </label>
-                          <ContextFields
-                            buildingSearch={buildingSearch}
-                            call={call}
-                            value={draft.context}
-                            onChange={(value) =>
-                              edit((d) => ({ ...d, context: value }))
-                            }
-                          />
-                        </div>
-                      </details>
                     </div>
-                  )}
+                  ) : null}
                 </aside>
               </div>
             </>
           )}
         </>
       )}
+      {handoff && catalog && <HandoffReview source={handoff} call={call} theme={catalog.themes[0]}
+        grants={grants.flatMap(scope => scope.region && scope.city && scope.businessLine
+          ? [{ ...scope, region: scope.region, city: scope.city, businessLine: scope.businessLine }] : [])}
+        onOpen={open} onClose={() => setHandoff(null)} />}
       <Dialog
         open={createOpen}
         onOpenChange={(value) => {
@@ -1827,8 +1993,11 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 setPanel("quick");
                 setLeft(true);
                 setRight(true);
-                setLeftTab(createFromBrief ? "assist" : "templates");
-                setMobile(chosen && !createFromBrief ? "edit" : "add");
+                setFocusedCanvas(false);
+                setLeftTab(createFromBrief ? "pages" : "templates");
+                setInspector(createFromBrief ? "assist" : "properties");
+                setAssistOpened(createFromBrief);
+                setMobile(chosen || createFromBrief ? "edit" : "add");
                 setAssistSeed(createFromBrief ? brief.trim() : "");
                 if (createFromBrief) setBrief("");
                 setCreateFromBrief(false);
