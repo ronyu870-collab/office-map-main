@@ -16,3 +16,6 @@
   .root button { min-height: 44px; min-width: 44px; }
   .fallback textarea { font-size: 16px; }
 }
+
+.handoffAction { display: flex; align-items: center; gap: 8px; min-height: 44px; padding-inline: 8px; color: var(--cd-color-text-secondary); text-decoration: none; }
+.handoffAction:hover, .handoffAction:focus-visible { color: var(--cd-color-brand); }

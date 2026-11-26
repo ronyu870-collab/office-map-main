@@ -2,11 +2,11 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, Copy, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Ellipsis, Trash2 } from "lucide-react";
 import { Button, IconButton } from "@/src/components/ui";
 import styles from "./workspace.module.css";
 
-type Slide = { id: string; title: string; image?: string };
+type Slide = { id: string; title: string; image?: string; section?: boolean };
 type Props = {
   slides: Slide[];
   active: string | null;
@@ -14,11 +14,58 @@ type Props = {
   disabled: boolean;
   onOpen: (id: string) => void;
   onSelect: (ids: string[]) => void;
-  onCopy: (index: number) => void;
+  onCopy: (ids: string[]) => void;
   onRemove: (ids: string[]) => void;
   onMove: (id: string, index: number) => void;
   onUndoSave?: () => void;
 };
+
+function PageActions({ id, page, canCopy, canMoveUp, canMoveDown, onCopy, onRemove, onMove }: {
+  id: string;
+  page: number;
+  canCopy: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onCopy: Props["onCopy"];
+  onRemove: Props["onRemove"];
+  onMove: Props["onMove"];
+}) {
+  const menuId = React.useId();
+  const trigger = React.useRef<HTMLButtonElement>(null);
+  const panel = React.useRef<HTMLDivElement>(null);
+
+  function act(run: () => void) {
+    panel.current?.hidePopover?.();
+    trigger.current?.focus();
+    run();
+  }
+
+  return (
+    <>
+      <IconButton variant="ghost" size="sm" label={`第 ${page} 页操作`}
+        ref={trigger} popoverTarget={menuId} data-slide-actions="">
+        <Ellipsis size={14} />
+      </IconButton>
+      <div id={menuId} ref={panel} popover="auto" className={styles.projectMenu}
+        role="group" aria-label={`第 ${page} 页操作`}>
+        <Button variant="ghost" disabled={!canCopy} aria-label={`复制第 ${page} 页`} onClick={() => act(() => onCopy([id]))}>
+          <Copy size={14} /> 复制页面
+        </Button>
+        <Button variant="ghost" disabled={!canMoveUp} aria-label={`前移第 ${page} 页`} onClick={() => act(() => onMove(id, page - 2))}>
+          <ArrowUp size={14} /> 向前移动
+        </Button>
+        <Button variant="ghost" disabled={!canMoveDown} aria-label={`后移第 ${page} 页`} onClick={() => act(() => onMove(id, page))}>
+          <ArrowDown size={14} /> 向后移动
+        </Button>
+        <Button variant="ghost" aria-label={`删除第 ${page} 页`} onClick={() => act(() => onRemove([id]))}>
+          <Trash2 size={14} /> 删除页面
+        </Button>
+      </div>
+    </>
+  );
+}
+
+const maxPages = 50;
 
 export function SlideNavigator({
   slides, active, selected, disabled, onOpen, onSelect, onCopy, onRemove,
@@ -31,6 +78,7 @@ export function SlideNavigator({
   const visible = slides.map((slide, i) => ({ ...slide, i })).filter(
     ({ title, i }) => !q || title.toLocaleLowerCase().includes(q) || String(i + 1) === q,
   );
+  const sections = slides.filter(slide => slide.section);
   const ids = new Set(selected);
   const allVisible = visible.length > 0 && visible.every((slide) => ids.has(slide.id));
 
@@ -62,6 +110,11 @@ export function SlideNavigator({
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
+      {sections.length > 0 && <select aria-label="跳转章节" value=""
+        onChange={(event) => { if (event.target.value) onOpen(event.target.value); }}>
+        <option value="">跳转章节</option>
+        {sections.map(({ id, title }) => <option key={id} value={id}>{title}</option>)}
+      </select>}
       <div className={styles.actions}>
         <label className={styles.check}>
           <input
@@ -73,20 +126,38 @@ export function SlideNavigator({
           {q ? "选中结果" : "全选"}
         </label>
         <span>{selected.length ? `已选 ${selected.length} 页` : `${slides.length} 页`}</span>
-        <IconButton
+        {selected.length > 0 && <IconButton variant="ghost" size="sm" label="复制选中"
+          disabled={disabled || slides.length + selected.length > maxPages} onClick={() => onCopy(selected)}>
+          <Copy size={16} />
+        </IconButton>}
+        {selected.length > 0 && <IconButton variant="ghost" size="sm"
           label="删除选中"
           disabled={disabled || !selected.length}
           onClick={() => onRemove(selected)}
         >
           <Trash2 size={16} />
-        </IconButton>
+        </IconButton>}
       </div>
       {onUndoSave && <Button variant="ghost" disabled={disabled} onClick={onUndoSave}>撤销上次保存</Button>}
       {!visible.length && <p>{q ? "没有匹配的页面。" : "尚无页面。"}</p>}
       <ol className={styles.ribbon}>
-        {visible.map(({ id, title, image, i }) => (
-          <li key={id} data-active={active === id} draggable={!disabled && !q}
-            onDragStart={() => { drag.current = id; }}
+        {visible.map(({ id, title, image, section, i }) => (
+          <li key={id} data-active={active === id} data-section={section || undefined} draggable={!disabled && !q}
+            onContextMenu={(event) => {
+              const button = event.currentTarget.querySelector<HTMLButtonElement>("[data-slide-actions]");
+              const menu = button?.popoverTargetElement;
+              if (!(menu instanceof HTMLElement) || !menu.showPopover) return;
+              event.preventDefault();
+              if (!menu.matches(":popover-open")) {
+                button?.focus();
+                button?.click();
+              }
+            }}
+            onDragStart={(event) => {
+              drag.current = id;
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("application/x-colliers-pitch-slide", id);
+            }}
             onDragEnd={() => { drag.current = null; }}
             onDragOver={(event) => { if (drag.current) event.preventDefault(); }}
             onDrop={(event) => {
@@ -102,9 +173,9 @@ export function SlideNavigator({
                 />
                 {i + 1}
               </label>
-              <IconButton label={`复制第 ${i + 1} 页`} disabled={disabled} onClick={() => onCopy(i)}>
-                <Copy size={14} />
-              </IconButton>
+              {!disabled && <PageActions id={id} page={i + 1} canCopy={slides.length < maxPages}
+                canMoveUp={!q && i > 0} canMoveDown={!q && i < slides.length - 1}
+                onCopy={onCopy} onRemove={onRemove} onMove={onMove} />}
             </div>
             <button type="button" className={styles.thumbButton}
               aria-label={`打开第 ${i + 1} 页：${title}`}
@@ -119,17 +190,11 @@ export function SlideNavigator({
                   onMove(id, i + offset);
                 }
               }}>
-              {image && <img src={image} alt="" />}
+              {image
+                ? <img src={image} alt="" loading="lazy" draggable={false} />
+                : <span className={styles.slidePlaceholder} aria-hidden="true" /> }
               <span>{title}</span>
             </button>
-            <div className={styles.thumbMoves}>
-              <IconButton label={`前移第 ${i + 1} 页`} disabled={disabled || !!q || i === 0} onClick={() => onMove(id, i - 1)}>
-                <ArrowUp size={14} />
-              </IconButton>
-              <IconButton label={`后移第 ${i + 1} 页`} disabled={disabled || !!q || i === slides.length - 1} onClick={() => onMove(id, i + 1)}>
-                <ArrowDown size={14} />
-              </IconButton>
-            </div>
           </li>
         ))}
       </ol>

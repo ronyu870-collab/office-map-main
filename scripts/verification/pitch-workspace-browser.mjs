@@ -119,9 +119,15 @@ export async function verifyPitchWorkspaceBrowser({
           "no horizontal document overflow",
         );
         if (width < 700) {
-          await page
-            .getByRole("tab", { name: "页面编辑", exact: true })
-            .click();
+          await page.getByRole("tab", { name: "页面", exact: true }).click();
+          await page.getByRole("button", { name: "第 1 页操作", exact: true }).click();
+          const actions = page.getByRole("group", { name: "第 1 页操作" });
+          await actions.getByRole("button", { name: "复制第 1 页" }).waitFor();
+          await page.keyboard.press("Escape");
+          await actions.waitFor({ state: "hidden" });
+          await page.getByRole("button", { name: "提案助手", exact: true }).click();
+          await page.getByLabel("需要制作什么页面？").fill("在窄屏保留提案草稿");
+          await page.getByRole("button", { name: "属性", exact: true }).click();
           await page
             .getByLabel("页面标题", { exact: true })
             .fill("隔离移动编辑 " + width);
@@ -140,6 +146,22 @@ export async function verifyPitchWorkspaceBrowser({
           await target.press("ArrowLeft");
           assert.notEqual(await location.textContent(), original, "native layer moves without saving");
           await objects.getByRole("button", { name: "返回预览", exact: true }).click();
+          const rightDivider = page.getByRole("separator", { name: "调整右栏宽度" });
+          await rightDivider.press("ArrowLeft");
+          assert.equal(await rightDivider.getAttribute("aria-valuenow"), "316");
+
+          const firstPage = page.getByRole("button", { name: /^打开第 1 页/ });
+          await firstPage.click({ button: "right" });
+          const actions = page.getByRole("group", { name: "第 1 页操作" });
+          await actions.getByRole("button", { name: "复制第 1 页" }).waitFor();
+          await page.keyboard.press("Escape");
+          await actions.waitFor({ state: "hidden" });
+
+          const preview = page.getByRole("region", { name: "页面预览", exact: true });
+          const beforeFocus = (await preview.boundingBox()).width;
+          await page.getByRole("button", { name: "专注画布", exact: true }).click();
+          assert.ok((await preview.boundingBox()).width > beforeFocus + 300);
+          await page.getByRole("button", { name: "退出专注画布", exact: true }).click();
           await page
             .getByRole("button", { name: "收起左栏", exact: true })
             .click();

@@ -7,7 +7,7 @@ afterEach(cleanup);
 
 const slides = [
   { id: "cover", title: "招商提案" },
-  { id: "market", title: "市场分析" },
+  { id: "market", title: "市场分析", section: true },
   { id: "strategy", title: "招商策略" },
 ];
 
@@ -26,6 +26,9 @@ it("searches by title or original page number without silently dropping selected
   fireEvent.click(screen.getByRole("checkbox", { name: "选择第 3 页" }), { shiftKey: true });
   expect(screen.getByRole("checkbox", { name: "选择第 2 页" })).toBeChecked();
 
+  fireEvent.change(screen.getByRole("combobox", { name: "跳转章节" }), { target: { value: "market" } });
+  expect(onOpen).toHaveBeenCalledWith("market");
+  onOpen.mockClear();
   const search = screen.getByRole("searchbox", { name: "搜索页面" });
   fireEvent.change(search, { target: { value: "市场" } });
   expect(screen.queryByRole("button", { name: /打开第 1 页/ })).not.toBeInTheDocument();

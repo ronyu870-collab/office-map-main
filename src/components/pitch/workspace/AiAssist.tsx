@@ -7,9 +7,11 @@ import {
   type Understanding,
 } from "@/src/lib/pitch/ai/protocol";
 import type { Generation } from "@/src/lib/pitch/business/protocol";
-import { outlineBuildingIds, outlineQuarter, outlinePartSchema, type OutlinePart } from "@/src/lib/pitch/workspace/protocol";
+import { outlineBuildingIds, outlineQuarter, outlinePartSchema, type OutlinePart, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import type { PreparedPitch } from "@/src/lib/pitch/ai/routing";
 import type { Call } from "./client";
+import { ProposalRevision } from "./ProposalRevision";
+import { ProposalPreview } from "./ProposalPreview";
 import { RevisionReview, type RevisionDestination, type CanvasRevisionTarget } from "./RevisionReview";
 import styles from "./workspace.module.css";
 type Asset = {
@@ -49,6 +51,11 @@ const stateLabel: Record<string, string> = {
 export function AiAssist({
   call,
   initialQuestion = "",
+  autoPlan = false,
+  city,
+  projectVersion,
+  onProposalGenerated,
+  revision,
   projectId,
   buildingIds,
   period,
@@ -65,6 +72,19 @@ export function AiAssist({
 }: {
   call: Call;
   initialQuestion?: string;
+  autoPlan?: boolean;
+  city?: string;
+  projectVersion?: number;
+  onProposalGenerated?: (id: string) => Promise<void>;
+  revision?: {
+    detail: WorkspaceDetail;
+    active?: string;
+    selected: string[];
+    objectIds: string[];
+    disabled: boolean;
+    onApplied: (result: WorkspaceDetail, expectedVersion: number) => void;
+    onOpenData: () => void;
+  };
   projectId: string;
   buildingIds: string[];
   period: string;
@@ -234,7 +254,7 @@ export function AiAssist({
     });
   return (
     <div className={styles.form} aria-label="Pitch 辅助">
-      <h2>{initialQuestion ? "提案助手" : "快速配置"}</h2>
+      <h2>提案助手</h2>
       <label>
         需要制作什么页面？
         <textarea
@@ -245,6 +265,11 @@ export function AiAssist({
           placeholder="生成燕莎空置率趋势页面"
         />
       </label>
+      {projectVersion && onProposalGenerated && <ProposalPreview call={call} projectId={projectId} city={city}
+        question={question} language={language} period={period} buildingIds={buildingIds}
+        initialQuestion={autoPlan ? initialQuestion : undefined} projectVersion={projectVersion}
+        onGenerated={onProposalGenerated} disabled={busy} />}
+      {revision?.detail.slides.length ? <ProposalRevision call={call} question={question} {...revision} /> : null}
       <details open={initialQuestion.trim() ? true : undefined}>
         <summary>提案结构建议</summary>
         <Button
@@ -268,7 +293,7 @@ export function AiAssist({
         >
           推荐提纲
         </Button>
-        <p>可用「项目设置」中关联的 1–5 栋楼宇和默认季度，加入正式数据章节。仅限内部使用。</p>
+        <p>可用「数据 → 项目设置」中关联的 1–5 栋楼宇和默认季度，加入正式数据章节。仅限内部使用。</p>
         <label className={styles.check}>
           <input type="checkbox" checked={compareQuarters} disabled={working || busy}
             onChange={event => setCompareQuarters(event.target.checked)} />
