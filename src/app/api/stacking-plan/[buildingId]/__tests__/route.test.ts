@@ -1,3 +1,5 @@
+// @vitest-environment node
+// Exercise the server's real Request/FormData/File implementation, not jsdom's.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { Blob as NodeBlob } from 'node:buffer';
@@ -26,7 +28,7 @@ const req = (method = 'GET', body?: unknown, headers?: Record<string, string>) =
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 const params = { params: Promise.resolve({ buildingId: ID }) };
-// Real HTTP multipart bytes avoid jsdom's incompatible File/FormData constructors.
+// Keep real multipart HTTP bytes so the native server parser is exercised.
 const pngMultipartRequest = (bytes: Uint8Array) => {
   const boundary = 'colliers-stacking-test-boundary';
   const prefix = Buffer.from(
