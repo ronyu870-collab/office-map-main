@@ -260,6 +260,118 @@ export async function verifyPitchWorkspaceBrowser({
   );
 }
 
+const flagshipScenarios = [
+  { button: "招商代理", scenario: "leasing-agency", buildings: 1, pages: ["cover", "profile", "implementation"] },
+  { button: "办公选址对比", scenario: "site-selection", buildings: 5, pages: ["cover", "scope", "next-steps"] },
+  { button: "季度市场报告", scenario: "market-report", buildings: 0, pages: ["cover", "key-indicators", "methodology"] },
+  { button: "单楼项目推介", scenario: "building-promotion", buildings: 1, pages: ["cover", "profile", "next-steps"] },
+];
+
+function waitForPitchCommand(page, endpoint, action) {
+  return page.waitForResponse((response) => {
+    const request = response.request();
+    return new URL(response.url()).pathname === endpoint &&
+      request.method() === "POST" && request.postDataJSON()?.action === action;
+  }, { timeout: 60_000 });
+}
+
+export async function verifyPitchFlagshipBrowser({ app, who, period, readProject, requiredVisuals = {} }) {
+  assert.equal(new URL(app).hostname, "127.0.0.1");
+  const browser = await launchBrowser();
+  const report = [];
+  try {
+    const context = await openWorkspaceContext(browser, app, who, 1440);
+    const page = await context.newPage();
+    page.setDefaultTimeout(15_000);
+    const button = (name) => page.getByRole("button", { name, exact: true });
+    for (const scenario of flagshipScenarios) {
+      const result = { scenario: scenario.scenario, stage: "planning" };
+      report.push(result);
+      try {
+        await page.goto(app + "/intelligence/pitch");
+        const [planHttp] = await Promise.all([
+          waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_plan"),
+          button(scenario.button).click(),
+        ]);
+        assert.ok(planHttp.ok(), `proposal_plan HTTP ${planHttp.status()}`);
+        const plan = await planHttp.json();
+        assert.equal(plan.status, "ready", plan.code ?? plan.message);
+        assert.equal(plan.brief.scenario, scenario.scenario);
+        assert.equal(plan.brief.period, period);
+        assert.equal(plan.brief.buildingIds.length, scenario.buildings);
+        const pageKinds = new Set(plan.plan.slides.map((slide) => slide.pageKind));
+        const visualKinds = new Set(plan.plan.slides.flatMap((slide) => slide.visuals ?? []).map((visual) => visual.kind));
+        result.missingPages = scenario.pages.filter((kind) => !pageKinds.has(kind));
+        result.missingVisuals = (requiredVisuals[scenario.scenario] ?? []).filter((kind) => !visualKinds.has(kind));
+
+        result.stage = "generating";
+        const generationEndpoint = "/api/intelligence/pitch/ai";
+        let action = button("确认并生成 Pitch");
+        let receipt;
+        for (let attempt = 0; attempt < 30; attempt++) {
+          const [reply] = await Promise.all([
+            waitForPitchCommand(page, generationEndpoint, "proposal_generate"),
+            action.click(),
+          ]);
+          assert.ok(reply.ok(), `proposal_generate HTTP ${reply.status()}`);
+          receipt = await reply.json();
+          if (receipt.state === "completed") break;
+          assert.ok(["queued", "running"].includes(receipt.state), `generation state ${receipt.state}`);
+          action = button("查询生成进度");
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        assert.equal(receipt?.state, "completed", "generation did not complete");
+        assert.ok(receipt.projectId);
+
+        result.stage = "editing";
+        await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+        const created = await readProject(receipt.projectId);
+        assert.ok(created.slides.length, "the completed project has no pages");
+        const editedTitle = `隔离验收 · ${scenario.button}`;
+        await page.getByLabel("页面标题", { exact: true }).fill(editedTitle);
+        const [savedResponse] = await Promise.all([
+          waitForPitchCommand(page, "/api/intelligence/pitch/workspace", "save"),
+          button("保存").click(),
+        ]);
+        assert.ok(savedResponse.ok(), `workspace save HTTP ${savedResponse.status()}`);
+        const reopened = await readProject(receipt.projectId);
+        assert.ok(reopened.project.version > created.project.version);
+        assert.equal(reopened.slides[0].content.title, editedTitle);
+
+        result.stage = "presenting";
+        await button("演示").click();
+        const presentation = page.getByRole("dialog", { name: "演示文稿" });
+        await presentation.getByRole("region", { name: "演示画布" }).getByRole("img").waitFor({ timeout: 45_000 });
+        await presentation.getByRole("button", { name: "退出演示" }).click();
+
+        result.stage = "exporting";
+        await button("导出").click();
+        const exportDialog = page.getByRole("dialog", { name: "导出 Pitch" });
+        await exportDialog.getByRole("button", { name: "生成文件" }).click();
+        const downloadButton = exportDialog.getByRole("button", { name: "下载已生成文件" });
+        await downloadButton.waitFor({ timeout: 60_000 });
+        const [download] = await Promise.all([page.waitForEvent("download"), downloadButton.click()]);
+        assert.match(download.suggestedFilename(), /\.pptx$/i);
+        const archive = await JSZip.loadAsync(await readFile(await download.path()), { checkCRC32: true });
+        const names = Object.keys(archive.files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name));
+        assert.equal(names.length, reopened.slides.length);
+        const first = await archive.file("ppt/slides/slide1.xml").async("string");
+        assert.ok(first.includes(editedTitle), "export omitted the saved title");
+        assert.match(first, /<p:sp>/);
+        result.stage = "completed";
+        result.pages = names.length;
+      } catch (error) {
+        result.error = String(error instanceof Error ? error.message : error).split("\n")[0];
+      }
+    }
+    console.log(JSON.stringify(report));
+    assert.ok(report.every((value) => value.stage === "completed" && !value.missingPages.length && !value.missingVisuals.length),
+      "one or more flagship paths or required evidence are incomplete");
+  } finally {
+    await browser.close();
+  }
+}
+
 export async function verifyPitchOutlineBrowser({ app, who, buildingName, period, changeQuarter, readProject, assertClientDenied, research, image }) {
   const browser = await launchBrowser();
   const output = "tmp/pitch-workspace-browser";
