@@ -21,7 +21,11 @@ it("keeps the quarter field focused while typing, then applies only the reviewed
     slides: [], tasks: [], exports: [], history: [],
   } as unknown as WorkspaceDetail;
   const revision = (dataAsOf: string, value: number) => ({
-    dataAsOf, blocks: [{ kind: "metric", label: "平均净有效租金", unit: "元/㎡/月", value }],
+    dataAsOf, blocks: [
+      { kind: "metric", label: "平均净有效租金", unit: "元/㎡/月", value },
+      { kind: "chart", chartType: "line", categories: ["CBD"],
+        series: [{ name: "季度租金", unit: "元/㎡/月", values: [value] }] },
+    ],
   });
   const reply = {
     projectVersion: expectedVersion, fingerprint, changed: true, needsConclusionReview: true,
@@ -52,6 +56,9 @@ it("keeps the quarter field focused while typing, then applies only the reviewed
   expect(screen.getByRole("button", { name: "关闭" })).toHaveFocus();
   expect(screen.getByText("350 元/㎡/月")).toBeInTheDocument();
   expect(screen.getByText("392 元/㎡/月")).toBeInTheDocument();
+  expect(screen.getAllByRole("columnheader", { name: "季度租金（元/㎡/月）" })).toHaveLength(2);
+  expect(screen.getByRole("cell", { name: "350" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "392" })).toBeInTheDocument();
   expect(screen.getByText("应用后请复核相关分析结论。")).toBeInTheDocument();
   expect(vi.mocked(call).mock.calls.some(([data]) => data.action === "apply_data_refresh")).toBe(false);
   await user.click(screen.getByRole("button", { name: "应用数据更新" }));
