@@ -10,6 +10,7 @@ import type { Generation } from "@/src/lib/pitch/business/protocol";
 import { outlineBuildingIds, outlineQuarter, outlinePartSchema, type OutlinePart } from "@/src/lib/pitch/workspace/protocol";
 import type { PreparedPitch } from "@/src/lib/pitch/ai/routing";
 import type { Call } from "./client";
+import { RevisionReview, type RevisionDestination } from "./RevisionReview";
 import styles from "./workspace.module.css";
 type Asset = {
   id: string;
@@ -54,6 +55,7 @@ export function AiAssist({
   busy,
   onGenerate,
   onGenerateOutline,
+  revisionDestination,
   onExport,
 }: {
   call: Call;
@@ -66,6 +68,7 @@ export function AiAssist({
   busy: boolean;
   onGenerate: (part: Generation["parts"][number]) => Promise<void>;
   onGenerateOutline: (outline: OutlinePart) => Promise<void>;
+  revisionDestination?: RevisionDestination;
   onExport: () => void;
 }) {
   const [question, setQuestion] = React.useState(initialQuestion),
@@ -673,7 +676,9 @@ export function AiAssist({
                         : "未通过处理校验")
                   : ""}
               </p>
-              {t.result && (
+              {t.request.task === "revise-text" && t.state === "completed" && t.authorized && t.result &&
+                <RevisionReview call={call} taskId={t.id} disabled={busy || working} destination={revisionDestination} />}
+              {t.result && t.request.task !== "revise-text" && (
                 <>
                   <p>{t.result.purpose}</p>
                   {t.result.revisions.map((r, i) => (

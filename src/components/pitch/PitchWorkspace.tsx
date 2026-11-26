@@ -1199,6 +1199,14 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       admin={catalog.scopes.some((s) => s.canAdmin)}
                       busy={busy || rendering || conflict}
                       onGenerate={generate}
+                      revisionDestination={catalog.categories.find(c => c.system_code === "general" && c.enabled) &&
+                        catalog.scopes.some(s => s.canAdmin && s.canMaintain && s.organizationId === detail.project.organization_id &&
+                          (s.region === null || s.region === detail.project.region) && (s.city === null || s.city === detail.project.city) &&
+                          (s.businessLine === null || s.businessLine === detail.project.business_line)) ? {
+                            categoryId: catalog.categories.find(c => c.system_code === "general" && c.enabled)!.id,
+                            scope: { organizationId: detail.project.organization_id, region: detail.project.region,
+                              city: detail.project.city, businessLine: detail.project.business_line },
+                          } : undefined}
                       onGenerateOutline={startOutline}
                       onExport={() => setExportTrigger((v) => v + 1)}
                     />

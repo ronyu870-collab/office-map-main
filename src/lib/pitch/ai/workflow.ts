@@ -28,6 +28,8 @@ import {
   validateUnderstanding,
 } from "./understanding";
 
+import { prepareRevision, type RevisionPreview } from "./revision-preview";
+
 export const hash = (v: unknown) =>
   digest(new TextEncoder().encode(JSON.stringify(v)));
 type Adapters = Partial<Record<ProviderId, ModelAdapter>>;
@@ -232,77 +234,70 @@ export async function runAiBatch(
     }
   }
 }
+async function readyUnderstanding(ctx: PitchContext, taskId: string) {
+  const task = taskRowSchema.parse(await pitchRpc(ctx, { action: "ai_result", taskId }));
+  if (!task.result) throw new Error("PITCH_INVALID");
+  const stored = z.object({
+    asset: z.object({ organization_id: z.string(), region: z.string(), city: z.string(), business_line: z.string() }),
+    version: z.object({ version: z.number(), content: slideContentSchema }),
+  })
+    .parse(await pitchRpc(ctx, { action: "get_asset", assetId: task.asset_id }));
+  if (stored.version.version !== task.asset_version) throw new Error("PITCH_CONFLICT");
+  const { organization_id, region, city, business_line } = stored.asset;
+  return { task, original: stored.version.content, result: understandingSchema.parse(task.result),
+    scope: { organizationId: organization_id, region, city, businessLine: business_line } };
+}
+function reviewedRevision(taskId: string, original: Awaited<ReturnType<typeof readyUnderstanding>>) {
+  const { task, result } = original;
+  if (task.request.task !== "revise-text") throw new Error("PITCH_AI_REVISION");
+  const prepared = prepareRevision(original.original, result.revisions, task.request.language);
+  const fingerprint = hash([taskId, task.asset_id, task.asset_version, original.original, prepared.content]);
+  return { ...prepared, fingerprint };
+}
+export async function previewRevision(ctx: PitchContext, taskId: string): Promise<RevisionPreview> {
+  const ready = await readyUnderstanding(ctx, taskId);
+  const { changes, redacted, preservedBlocks, fingerprint, content } = reviewedRevision(taskId, ready);
+  // Recheck the exact policy after reading the pinned source. Do not preview text
+  // from a revoked model run, and never return the unredacted source for a scrubbed run.
+  await pitchRpc(ctx, { action: "ai_result", taskId });
+  return {
+    changes, redacted, preservedBlocks, fingerprint,
+    scope: ready.scope, sourceVersion: ready.task.asset_version, dataAsOf: content.dataAsOf,
+    beforeLanguage: redacted ? null : ready.original.locale, afterLanguage: content.locale,
+  };
+}
 export async function adoptUnderstanding(
   ctx: PitchContext,
   c: Extract<AiCommand, { action: "materialize" | "candidate_materialize" }>,
 ) {
   let sourceId: string, sourceVersion: number, content;
   if (c.action === "materialize") {
-    const task = taskRowSchema.parse(
-      await pitchRpc(ctx, { action: "ai_result", taskId: c.taskId }),
-    );
-    if (!task.result) throw new Error("PITCH_INVALID");
-    const stored = z
-      .object({ version: z.object({ content: slideContentSchema }) })
-      .parse(
-        await pitchRpc(ctx, { action: "get_asset", assetId: task.asset_id }),
-      );
-    const original = stored.version.content;
-    const result = understandingSchema.parse(task.result);
-    // Original evidence, tables and charts remain intact. Generated opinions are
-    // explicitly tagged and stay private/internal until the existing review flow.
-    content = slideContentSchema.parse({
-      ...original,
-      title: original.title,
-      disclosure: "internal",
-      blocks: [
-        ...original.blocks,
-        ...result.summaries.map((s) => ({
-          kind: "insight",
-          claim: s.text,
-          basis: "AI 辅助建议，待核对。\n资料日期：" + original.dataAsOf,
-          limitations: ["建议不属于已核验业务事实"],
-          sourceIds: original.sources.map((s) => s.id),
-        })),
-      ],
-    });
+    const ready = await readyUnderstanding(ctx, c.taskId);
+    const { task, original, result } = ready;
     if (task.request.task === "revise-text") {
-      if (!result.revisions.length) throw new Error("PITCH_AI_REVISION");
-      if (result.revisions.some((r) => r.ref === "approved:0")) {
-        // A redacted authorization does not imply permission to translate the
-        // rest of the private page. Explicitly scoped standalone revision.
-        content = slideContentSchema.parse({
-          ...original,
-          locale: task.request.language,
-          disclosure: "internal",
-          title:
-            task.request.language === "en"
-              ? "Reviewed material"
-              : original.title,
-          subtitle:
-            task.request.language === "en"
-              ? "Revision of approved text; full material retained at source"
-              : "仅修订获批脱敏文字；完整内容保留在来源",
-          blocks: result.revisions.map((r) => ({
-            kind: "paragraph",
-            text: r.text,
-            sourceIds: original.sources.map((s) => s.id),
+      const preview = reviewedRevision(c.taskId, ready);
+      if (!Object.entries(ready.scope).every(([key, value]) => c.scope[key as keyof typeof c.scope] === value))
+        throw new Error("PITCH_DENIED");
+      if (!c.revisionFingerprint || c.revisionFingerprint !== preview.fingerprint)
+        throw new Error("PITCH_AI_PREVIEW_REQUIRED");
+      if (!preview.changes.length && original.locale === preview.content.locale)
+        throw new Error("PITCH_AI_REVISION");
+      content = preview.content;
+    } else {
+      content = slideContentSchema.parse({
+        ...original,
+        disclosure: "internal",
+        blocks: [
+          ...original.blocks,
+          ...result.summaries.map(s => ({
+            kind: "insight",
+            claim: s.text,
+            basis: "AI 辅助建议，待核对。\n资料日期：" + original.dataAsOf,
+            limitations: ["建议不属于已核验业务事实"],
+            sourceIds: original.sources.map(source => source.id),
           })),
-        });
-      } else {
-        const revisions = new Map(result.revisions.map((r) => [r.ref, r.text]));
-        content = slideContentSchema.parse({
-          ...original,
-          locale: task.request.language,
-          disclosure: "internal",
-          title: revisions.get("title") ?? original.title,
-          blocks: original.blocks.map((b, i) =>
-            b.kind === "paragraph"
-              ? { ...b, text: revisions.get(`block:${i}`) ?? b.text }
-              : b,
-          ),
-        });
-      }
+        ],
+      });
     }
     sourceId = task.asset_id;
     sourceVersion = task.asset_version;

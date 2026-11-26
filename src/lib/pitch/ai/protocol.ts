@@ -284,8 +284,10 @@ export const aiCommandSchema = z.discriminatedUnion("action", [
     categoryId: id,
     scope: scopeSchema,
   }),
+  z.strictObject({ action: z.literal("revision_preview"), taskId: id }),
   z.strictObject({
     action: z.literal("materialize"),
+    revisionFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     taskId: id,
     assetId: id,
     categoryId: id,

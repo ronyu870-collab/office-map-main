@@ -759,3 +759,23 @@
 .layerRow { display: flex; align-items: center; gap: 8px; padding-inline: 8px; }
 .layerRow > button { min-width: 0; }
 .objectTarget[data-group-member="true"] { border: 1px dashed var(--cd-color-brand, #003e7e); }
+
+.revisionChange h3 {
+  margin: 0 0 8px;
+}
+.revisionColumns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: 12px;
+}
+.revisionColumns > div {
+  min-width: 0;
+  border: 1px solid var(--pitch-border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.revisionColumns p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

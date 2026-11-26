@@ -704,14 +704,18 @@ try {
           return result;
         });
       assert.equal(r[0].state, "completed");
+      const taskId = r[0].id;
+      const preview = await ai.previewRevision(admin, taskId);
+      assert.equal(preview.redacted, true);
+      assert.equal(preview.changes[0].before, null);
+      assert.match(preview.changes[0].after, /Source period: 2025/);
+      await assert.rejects(ai.previewRevision(ordinary, taskId), /PITCH_DENIED/);
       const id = randomUUID();
-      await ai.adoptUnderstanding(admin, {
-        action: "materialize",
-        taskId: r[0].id,
-        assetId: id,
-        categoryId: category,
-        scope,
-      });
+      const materialize = { action: "materialize", taskId, assetId: id, categoryId: category, scope };
+      await assert.rejects(ai.adoptUnderstanding(admin, materialize), /PITCH_AI_PREVIEW_REQUIRED/);
+      await assert.rejects(ai.adoptUnderstanding(admin, { ...materialize, revisionFingerprint: "0".repeat(64) }), /PITCH_AI_PREVIEW_REQUIRED/);
+      await assert.rejects(ai.adoptUnderstanding(admin, { ...materialize, scope: { ...scope, city: "other" }, revisionFingerprint: preview.fingerprint }), /PITCH_DENIED/);
+      await ai.adoptUnderstanding(admin, { ...materialize, revisionFingerprint: preview.fingerprint });
       const candidate = await library.assetContext(admin, id);
       assert.equal(candidate.version.content.locale, "en");
       assert.match(
