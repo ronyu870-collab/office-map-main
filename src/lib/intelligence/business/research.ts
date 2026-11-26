@@ -15,7 +15,7 @@ import { BUSINESS_DOMAIN, BUSINESS_TOOL_SCHEMAS, businessPlanSchema, businessSna
 // Source panels and manifests use physical columns, never the tool's semantic aliases.
 const sourceColumns: Record<string, Record<string, string>> = {
   buildings: {name:'name',building:'name',district:'district',submarket:'submarket',grade:'grade',completionYear:'completion_year',leasableArea:'leasable_area'},
-  building_brochure_data: {address:'address',brochureDistrict:'district',completionDate:'completion_date',gfaTotal:'gfa_total',gfaOffice:'gfa_office',standardFloorArea:'standard_floor_area',height:'building_height',floors:'building_floors',floorsAbove:'floors_above',floorsBelow:'floors_below',parking:'parking_total',metro:'metro_access',leed:'leed_certification',well:'well_certification',greenStandard:'green_building_standard',propertyManagement:'property_management',delivery:'delivery_standard',elevators:'elevator_passenger',telecom:'telecom_provider',hvac:'hvac_system'},
+  building_brochure_data: {nameEn:'name_en',brochureNameCn:'name_cn',brochureSubmarket:'submarket',brochureGrade:'grade',address:'address',brochureDistrict:'district',completionDate:'completion_date',gfaTotal:'gfa_total',gfaOffice:'gfa_office',standardFloorArea:'standard_floor_area',height:'building_height',floors:'building_floors',floorsAbove:'floors_above',floorsBelow:'floors_below',parking:'parking_total',metro:'metro_access',leed:'leed_certification',well:'well_certification',greenStandard:'green_building_standard',propertyManagement:'property_management',delivery:'delivery_standard',elevators:'elevator_passenger',telecom:'telecom_provider',hvac:'hvac_system'},
   building_metrics: {availablePeriods:'record_year / record_quarter (non-draft record)'},
   map_submarket_profiles: {name:'submarket',headline:'headline',overview:'overview',industries:'industries',transport:'transport'},
   future_supplies: {name:'name',submarket:'submarket',district:'district',grade:'grade',launchYear:'launch_year',launchQuarter:'launch_quarter',catalogArea:'total_area',status:'status',entered:'is_entered_market',linkedBuilding:'building_id'},
@@ -27,7 +27,9 @@ const sourceColumns: Record<string, Record<string, string>> = {
 };
 
 const digest = (v:unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
-export async function loadBusinessSnapshot(client:SupabaseClient, identity:VerifiedQueryIdentity, signal:AbortSignal, plan:BusinessPlan) {
+type BusinessSnapshotPlan = BusinessPlan | { tool: 'query_building_towers'; buildingIds: string[] };
+
+export async function loadBusinessSnapshot(client:SupabaseClient, identity:VerifiedQueryIdentity, signal:AbortSignal, plan:BusinessSnapshotPlan) {
   if (identity.expiresAt<=Date.now() || identity.actorId!==identity.effectiveUserId) throw new Error('QUERY_DENIED');
   const {data,error}=await client.rpc('ai_business_research_snapshot',{p_actor:identity.actorId,p_effective:identity.effectiveUserId,
     p_session:identity.sessionId,p_plan:plan}).abortSignal(signal);

@@ -151,3 +151,7 @@ export async function runPitchDataAdapter(ctx:PitchContext,p:DynamicParameters,l
   }
   return {adapter:'pitch-data/1',binding,parameters:p,plans,capturedAt:new Date().toISOString(),dataAsOf:asOf,dataVersion:hash(results.map(r=>r.dataVersion)),results,content};
 }
+
+export { loadUnifiedPitchContext, loadPitchDemoContext } from "./unified-context";
+export { requestFromProposalBrief } from "./unified-context-protocol";
+export type { PitchDemo, UnifiedPitchContext, UnifiedPitchRequest } from "./unified-context-protocol";

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { createAiQueryTestDatabase, grantQuery, SESSION } from '../ai-query-authority/database.mjs';
 import { addSnapshotFixture, BUILDINGS } from '../ai-query-authority/snapshot-fixture.mjs';
 import { loadAuditPrerequisites, applyAdminOnly } from '../ai-admin-only/database.mjs';
@@ -21,6 +22,26 @@ try{
   assert.equal(data[0].values.leasableArea,'8800');assert.equal(data[0].values.completionYear,'2015');
   assert.equal(data[1].values.gfaTotal,'12345.67');assert.equal(data[1].values.parking,'0');assert.equal(data[1].values.completionDate,'2016-03-01');
   assert.deepEqual([...new Set(data.slice(2).map(d=>d.values.availablePeriods))],['2026Q2','2026Q3']);assert.ok(data.slice(2).every(d=>d.id!==BUILDINGS[0]&&d.period.year===2026));assert.equal(JSON.stringify(r).includes('contact_phone'),false);
+ });
+ await check('Pitch dossier adds only explicitly opted-in names and preserves raw catalog/brochure differences',async()=>{
+  const fields=['nameEn','brochureNameCn','brochureSubmarket','brochureGrade','grade','submarket'];
+  const plan={tool:'query_building_dossier',buildingIds:[BUILDINGS[0]],fields};
+  assert.equal((await snap(plan)).allowed,false);
+  await db.setup.query(await readFile(new URL('../../migrations/20261126181849_pitch3_building_dossier_fields.sql',import.meta.url),'utf8'));
+  assert.equal((await snap(plan)).allowed,false);
+  assert.equal((await snap()).allowed,true);
+  await db.setup.query("update public.building_brochure_data set name_en='Synthetic Office',name_cn='合成楼书名',submarket='合成楼书区域',grade='合成楼书分级' where building_id=$1",[BUILDINGS[0]]);
+  await grantBusiness(db.setup,OWNER,{fields});
+  const allowed=await snap(plan), records=allowed.records[0].data;
+  assert.equal(allowed.allowed,true);
+  assert.equal(records[0].values.submarket,'CBD');
+  assert.equal(records[1].values.brochureSubmarket,'合成楼书区域');
+  assert.equal(records[1].values.nameEn,'Synthetic Office');
+  assert.equal(records[1].values.brochureNameCn,'合成楼书名');
+  assert.equal(records[1].values.brochureGrade,'合成楼书分级');
+  assert.match(records[1].version,/^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(records).includes('contact_phone'),false);
+  await grantBusiness(db.setup,OWNER);
  });
  await check('field restrictions and legacy brochure/quarter grants intersect',async()=>{
   await grantBusiness(db.setup,OWNER,{fields:['address']});assert.equal((await snap()).allowed,false);assert.equal((await snap({...profile,fields:['address']})).allowed,true);
@@ -46,6 +67,18 @@ try{
   await db.setup.query("update public.stacking_plan_sources set as_of_kind='source_data_as_of',review_state='verified' where id='synthetic-business-source'");assert.equal((await snap({tool:'query_stacking_plan',buildingIds:[BUILDINGS[0]]})).records[0].data[4].asOf,'2026-01-01');
   await db.setup.query("update public.stacking_plan_sources set source_as_of=null,as_of_kind='unknown',review_state='pending_source_date' where id='synthetic-business-source'");
   const brief=await snap({tool:'query_submarket_profile',submarkets:['CBD']});assert.equal(brief.records[0].data[0].asOf,null);
+ });
+ await check('Pitch tower identity includes empty towers and retains existing stacking permissions',async()=>{
+  const request={tool:'query_building_towers',buildingIds:[BUILDINGS[0]]};
+  await db.setup.query("insert into public.stacking_plan_towers(building_id,code,display_name) values($1,'B','合成空B座')",[BUILDINGS[0]]);
+  const r=await snap(request);
+  assert.equal(r.allowed,true);
+  assert.deepEqual(r.records.map(item=>item.data[0].values.towerCode).sort(),['A','B']);
+  assert.ok(r.records.every(item=>item.buildingId===BUILDINGS[0]&&item.data.length===1&&item.data[0].table==='stacking_plan_towers'));
+  assert.equal((await snap(request,OTHER)).allowed,false);
+  await grantBusiness(db.setup,OWNER,{modules:['profile']});
+  assert.equal((await snap(request)).allowed,false);
+  await grantBusiness(db.setup,OWNER);
  });
  await check('viewer/editor, cross-user, expired/revoked research and stale sessions fail closed',async()=>{
   for(const role of ['viewer','editor']){await db.setup.query('update public.user_roles set role=$1 where user_id=$2',[role,OWNER]);assert.equal((await snap({tool:'query_stacking_plan',buildingIds:[BUILDINGS[0]]})).allowed,false);}
