@@ -18,6 +18,17 @@
 .submarket-header-context p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .submarket-header-context .submarket-headline { color: var(--cd-color-text-primary); }
 
+/* The compact sheet is used to fit the map camera before the profile loads. */
+.submarket-research-panel[data-submarket-layout="quick"] .submarket-header-context {
+  display: block;
+  min-block-size: 1.5em;
+}
+.submarket-research-panel[data-submarket-layout="quick"] .submarket-headline {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .submarket-research-tabs {
   display: flex;
   flex: 0 0 auto;

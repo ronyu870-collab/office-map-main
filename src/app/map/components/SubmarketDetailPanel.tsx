@@ -184,8 +184,8 @@ function SubmarketWorkspace({
       aria-labelledby="submarket-dialog-heading" className="map-submarket-workspace-panel submarket-research-panel">
       <WorkspacePanelHeader title={name} titleId="submarket-dialog-heading" onClose={closePanel} closeLabel="关闭子市场介绍"
         metadata={!editing ? <div className="submarket-header-context">
-          {profile?.headline && <p className="submarket-headline">{profile.headline}</p>}
-          {periodLabel && trendState !== 'error' ? <p>{periodLabel}</p> : null}
+          {profile?.headline && <p className="submarket-headline" title={quick ? profile.headline : undefined}>{profile.headline}</p>}
+          {!quick && periodLabel && trendState !== 'error' ? <p>{periodLabel}</p> : null}
         </div> : null}
         primaryAction={!editing ? <button type="button" className="workspace-panel-primary-action" aria-label="查看全部项目" onClick={onShowAll}>全部项目</button> : null}
         actions={canEdit && payload?.profileAvailable && !editing && !detail.loading && !detail.error

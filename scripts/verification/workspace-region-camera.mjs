@@ -12,6 +12,16 @@ export async function verifyRegionCamera(page, { width, base }) {
   // Let startup settle; this is a test observation boundary, not application
   // timing or a camera correction chain.
   await page.waitForTimeout(600);
+  const holdProfile = Boolean(base) && width === 390;
+  let delayedProfile = false;
+  if (holdProfile) {
+    await page.route('**/api/map/submarket?*', async route => {
+      // Consume the profile after the initial compact sheet has been measured.
+      await page.waitForTimeout(220);
+      delayedProfile = true;
+      await route.fallback();
+    });
+  }
   const result = await page.evaluate(async () => {
     const map = window.__workspaceMap, original = map.setZoomAndCenter;
     const commands = [];
@@ -33,6 +43,10 @@ export async function verifyRegionCamera(page, { width, base }) {
     } finally { map.setZoomAndCenter = original; }
   });
   await page.getByRole('region', { name: 'CBD', exact: true }).waitFor();
+  if (holdProfile) {
+    assert.ok(delayedProfile, 'the compact camera check exercises a delayed profile response');
+    await page.locator('[data-map-submarket-panel] .submarket-headline').waitFor();
+  }
   assert.ok(result.commands.length, 'the region actually issued a camera command');
   const keys = result.commands.map(command => JSON.stringify([
     ...command.center.map(value => Number(value.toFixed(6))), Number(command.zoom.toFixed(6)),
