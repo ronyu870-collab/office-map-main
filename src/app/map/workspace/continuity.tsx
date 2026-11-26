@@ -5,7 +5,7 @@ import { restoreLeedFilterCatalog } from '@/src/lib/leed-display';
 import { mapBuildingHref } from '@/src/lib/broker/links';
 import { z } from 'zod';
 import { mapFilterCriteria } from '../model/mapFilterPreference';
-import type { WorkspaceState, WorkspaceView } from './workspaceState';
+import { panelWidth, type WorkspaceState, type WorkspaceView } from './workspaceState';
 import type { FullListBuilding } from '../model/fullBuildingList';
 
 const view = z.object({ kind: z.enum(['building', 'submarket', 'list', 'supply', 'search', 'compare', 'full-list']), id: z.string().max(100).optional(), future: z.boolean().optional(), name: z.string().max(100).optional() });
@@ -22,14 +22,15 @@ const readingSchema = z.object({
   previousSheetModes: z.record(z.string().max(30), z.enum(['compact', 'reading', 'full'])).optional(),
   filterSections: z.record(z.string().max(40), z.boolean()).optional(), filterScroll: scrollPosition.optional(),
   supplyExpanded: z.record(z.string().max(80), z.boolean()).optional(), supplyScroll: scrollPosition.optional(),
-  submarkets: z.record(z.string().max(100), z.object({ section: z.enum(['overview', 'trend', 'profile', 'buildings']), grade: z.enum(['all', 'a', 'b']), scrollTop: scrollPosition })).optional(),
+  submarkets: z.record(z.string().max(256), z.object({ section: z.enum(['overview', 'trend', 'profile', 'buildings']), grade: z.enum(['all', 'a', 'b']), scrollTop: scrollPosition })).optional(),
+  submarketScrolls: z.record(z.string().max(320), scrollPosition).optional(),
   buildings: z.record(z.string().max(110), z.object({ tab: z.string().max(20).refine(value => ['overview', 'market', 'materials'].includes(value)), scrollTop: scrollPosition, scrolls: z.record(z.string().max(20), scrollPosition).optional(), trendOpen: z.boolean().optional(), trendHeight: scrollPosition.optional(), trend: z.object({ metric: z.enum(['rent', 'vac']), tableOpen: z.boolean() }).optional(), photo: z.object({ open: z.boolean(), index: z.number().int().min(0).max(10000) }).optional() })).optional(),
 });
 const snapshot = z.object({
   leedCatalogVersion: z.literal(2).optional(), savedAt: z.number(), focus: z.boolean().optional(), selected: z.string().max(100).nullable(),
   camera: z.object({ center: z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]), zoom: z.number().min(3).max(22) }).nullable(),
   mode: z.enum(['default', 'rent', 'vacancy', 'leed']), input: z.string().max(200), filters: mapFilterCriteria.nullable(),
-  right: view.nullable(), history: z.array(view).max(20), leftOpen: z.boolean(), widths: z.record(z.string(), z.number().min(280).max(600)),
+  right: view.nullable(), history: z.array(view).max(20), leftOpen: z.boolean(), widths: z.record(z.string(), z.number().min(280).max(640)),
   reading: readingSchema, comparison: z.array(z.string().max(110)).max(500),
   competitors: z.array(z.string().max(100)).max(1000).nullable(), target: z.string().max(100).nullable(),
   groups: z.array(z.object({ id: z.string().max(100), name: z.string().max(100), color: z.string().max(50), submarkets: z.array(z.string()).max(100), grades: z.array(z.string()).max(100), districts: z.array(z.string()).max(100) })).max(20).default([]),
@@ -108,7 +109,7 @@ export function restoreWorkspace(saved: MapReturnSnapshot, buildings: FullListBu
   };
   const right = hydrate(saved.right);
   return { leftOpen: saved.leftOpen, right, history: saved.history.map(hydrate).filter((item): item is WorkspaceView => Boolean(item)),
-    width: saved.widths[right?.kind ?? 'list'] ?? 320, widths: saved.widths, focus: saved.focus ?? false, research: saved.research };
+    width: panelWidth(right?.kind ?? 'list', saved.widths), widths: saved.widths, focus: saved.focus ?? false, research: saved.research };
 }
 
 export type ReadingStore = Record<string, unknown>;
@@ -137,18 +138,27 @@ export function useMapObjectReadingState<T>(collection: string, identity: string
   return [value, update] as const;
 }
 /** Restore after late content/size changes without stealing the user's scroll. */
-export function useMapReadingScroll(ref: React.RefObject<HTMLDivElement | null>, key: string, active = true, initial = 0) {
+export function useMapReadingScroll(ref: React.RefObject<HTMLDivElement | null>, key: string, active = true, initial = 0, collection?: 'submarketScrolls') {
   const store = React.useContext(MapReadingContext);
   const reset = React.useRef<((position: number) => void) | null>(null);
+  const storePosition = React.useCallback((position: number) => {
+    if (!store) return;
+    const positions = collection ? (store[collection] ??= {}) as Record<string, number> : store;
+    positions[key] = position;
+  }, [collection, key, store]);
   const resetScroll = React.useCallback((position = 0) => {
-    if (store) store[key] = Math.max(0, position);
     if (reset.current) reset.current(position);
-    else if (ref.current) ref.current.scrollTop = position;
-  }, [key, ref, store]);
+    else {
+      storePosition(Math.max(0, position));
+      if (ref.current) ref.current.scrollTop = position;
+    }
+  }, [ref, storePosition]);
   React.useLayoutEffect(() => {
     const element = ref.current;
     if (!element || !active) return;
-    let desired = typeof store?.[key] === 'number' ? Math.max(0, store[key] as number) : initial;
+    const positions = collection ? store?.[collection] as Record<string, number> | undefined : store;
+    const saved = positions?.[key];
+    let desired = typeof saved === 'number' ? Math.max(0, saved) : initial;
     let restoring = true;
     const measure = () => ({ height: element.clientHeight, total: element.scrollHeight });
     let geometry = measure();
@@ -163,7 +173,7 @@ export function useMapReadingScroll(ref: React.RefObject<HTMLDivElement | null>,
         // A fresh user scroll can arrive in the same turn as late content.
         // Only a position explained by either range is a layout clamp.
         desired = element.scrollTop;
-        if (store) store[key] = desired;
+        storePosition(desired);
       }
       geometry = next;
       // Expanding a sheet can make its content fit and clamp scrollTop to 0.
@@ -172,7 +182,7 @@ export function useMapReadingScroll(ref: React.RefObject<HTMLDivElement | null>,
     };
     const takeOver = () => {
       restoring = false; desired = element.scrollTop; geometry = measure();
-      if (store) store[key] = desired;
+      storePosition(desired);
     };
     const save = () => {
       const next = measure();
@@ -184,10 +194,10 @@ export function useMapReadingScroll(ref: React.RefObject<HTMLDivElement | null>,
       const clamped = clamp(desired, next);
       if (Math.abs(element.scrollTop - clamped) < 1) return;
       desired = element.scrollTop;
-      if (store) store[key] = desired;
+      storePosition(desired);
     };
     reset.current = position => {
-      desired = Math.max(0, position); if (store) store[key] = desired; restoring = true; restore();
+      desired = Math.max(0, position); storePosition(desired); restoring = true; restore();
     };
     restore();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(restore);
@@ -197,6 +207,6 @@ export function useMapReadingScroll(ref: React.RefObject<HTMLDivElement | null>,
     element.addEventListener('keydown', takeOver); element.addEventListener('scroll', save);
     return () => { reset.current = null; observer?.disconnect(); element.removeEventListener('wheel', takeOver); element.removeEventListener('pointerdown', takeOver);
       element.removeEventListener('keydown', takeOver); element.removeEventListener('scroll', save); };
-  }, [active, initial, key, ref, store]);
+  }, [active, collection, initial, key, ref, store, storePosition]);
   return resetScroll;
 }

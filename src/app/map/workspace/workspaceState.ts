@@ -15,7 +15,7 @@ export const PANEL_SIZES: Record<WorkspaceKind, { initial: number; min: number; 
   list: { initial: 320, min: 300, max: 400 },
   supply: { initial: 336, min: 320, max: 420 },
   building: { initial: 376, min: 344, max: 480 },
-  submarket: { initial: 400, min: 360, max: 520 },
+  submarket: { initial: 480, min: 360, max: 640 },
   compare: { initial: 360, min: 320, max: 420 },
   'full-list': { initial: 400, min: 320, max: 520 },
 };
@@ -76,16 +76,20 @@ export function mapCanvasMinimum(width: number, both = false) {
   return Math.max(Math.min(560, Math.max(420, width - 344)), width * (both ? .5 : .56));
 }
 /** Reserve a real map column. Narrow layouts use vertical drawers instead. */
-export function workspaceColumns(width: number, left: boolean, right: boolean, preferred: number, kind: WorkspaceKind = 'list', height = Infinity) {
+export function workspaceColumns(width: number, left: boolean, right: boolean, preferred: number | undefined, kind: WorkspaceKind = 'list', height = Infinity) {
   const range = PANEL_SIZES[kind];
   // A landscape sheet can leave only a few pixels of map below the toolbar.
   // Keep the two work surfaces beside each other when each has usable width.
   const landscape = width >= 760 && height > 0 && height < 360;
   const mapMinimum = landscape ? Math.min(mapCanvasMinimum(width), Math.max(360, width * .5)) : mapCanvasMinimum(width);
+  const maxRight = Math.min(range.max, Math.floor(width - mapMinimum));
   if (width < 760 || (right && width - range.min < mapMinimum) || (!right && left && width - 248 < mapMinimum)) {
-    return { left: 0, right: 0, compact: true, leftCollapsed: false };
+    return { left: 0, right: 0, compact: true, leftCollapsed: false, maxRight };
   }
-  let rightWidth = right ? Math.max(range.min, Math.min(range.max, preferred, width - mapMinimum)) : 0;
+  // Default research width tracks the stage, but it never claims the map's
+  // reserved space. A requested user width is retained independently.
+  const target = preferred ?? (kind === 'submarket' ? Math.max(range.initial, Math.round(width * .36)) : range.initial);
+  let rightWidth = right ? Math.max(range.min, Math.min(range.max, target, kind === 'submarket' ? maxRight : width - mapMinimum)) : 0;
   let leftWidth = 0;
   if (left) {
     // Budget both panels before temporarily yielding the filter. Never mutate the user's open intent.
@@ -93,7 +97,7 @@ export function workspaceColumns(width: number, left: boolean, right: boolean, p
     if (room >= 248) leftWidth = Math.min(280, room);
   }
   if (right && !leftWidth) rightWidth = Math.min(rightWidth, width - mapMinimum);
-  return { left: leftWidth, right: rightWidth, compact: false, leftCollapsed: left && !leftWidth };
+  return { left: leftWidth, right: rightWidth, compact: false, leftCollapsed: left && !leftWidth, maxRight };
 }
 
 export type SheetMode = 'compact' | 'reading' | 'full';
