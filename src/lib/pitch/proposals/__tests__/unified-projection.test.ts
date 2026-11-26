@@ -21,12 +21,7 @@ it('从统一数据上下文投影正式楼宇、原始凭据和真实零值，�
   const { snapshot, data } = projectUnifiedProposalContext(context, { ...template.brief, period: null }, template.scope);
   const { pages, plan } = buildProposal({ ...snapshot, isTestData: true }, data, { theme: STUDIO_THEME });
   const leasing = pages.find(page => page.pageKind === 'leasing-evidence')!;
-  const [source] = leasing.content.sources;
-  expect(leasing.content.blocks).toEqual([{ kind: 'metric', label: '空置率', value: 0, unit: '%', sourceIds: [source.id] }]);
-  const replay = projectUnifiedProposalContext({ ...context, results: context.results.map(item => ({ ...item,
-    result: { ...item.result, resultId: id(334), snapshotId: 'another-read' },
-  })) }, template.brief, template.scope);
-  expect(replay.data.buildings[0].quarter?.sources).toEqual([source]);
+  expect(leasing.content.blocks).toEqual([{ kind: 'metric', label: '空置率', value: 0, unit: '%', sourceIds: [selected.resultId] }]);
   expect(plan.slides.find(slide => slide.pageKind === 'leasing-evidence')?.data).toEqual([binding]);
   expect(pages.find(page => page.pageKind === 'arrival')?.content.blocks[0]).toMatchObject({ kind: 'paragraph', text: '隔离结构样本 · 样本站' });
   expect(() => projectUnifiedProposalContext(context, { ...template.brief, period: '2026-Q3' }, template.scope)).toThrow('PITCH_PROPOSAL_PERIOD_REQUIRED');

@@ -67,12 +67,10 @@ function sourceId(key: string) {
 
 /** Bind content to the original receipt and its result lookup. The underlying result retains field-level provenance. */
 function receipt<T>(context: UnifiedProposalContext, value: T, records: readonly UnifiedResult[], date: string): Evidence<T> {
-  const sources = records.length ? records.map(record => {
-    const id = sourceId(JSON.stringify([record.id, record.entityId, record.binding.dataVersion]));
-    return { id, kind: 'record' as const,
-      label: record.binding.domain === 'lease' ? '租赁成交库' : record.binding.domain === 'business' ? '楼书及项目档案' : '正式季度库',
-      recordId: id, locator: `${record.id} · ${record.entityId}`, version: record.binding.dataVersion, dataAsOf: date };
-  }) : [{ id: sourceId(context.fingerprint + ':catalog'), kind: 'record' as const, label: '楼宇目录',
+  const sources = records.length ? records.map(record => ({ id: record.result.resultId, kind: 'record' as const,
+    label: record.binding.domain === 'lease' ? '租赁成交库' : record.binding.domain === 'business' ? '楼书及项目档案' : '正式季度库',
+    recordId: record.result.resultId, locator: `${record.id} · ${record.result.resultId}`, version: record.binding.dataVersion, dataAsOf: date,
+  })) : [{ id: sourceId(context.fingerprint + ':catalog'), kind: 'record' as const, label: '楼宇目录',
     recordId: context.fingerprint, locator: `楼宇目录快照 ${context.fingerprint}`, version: context.fingerprint, dataAsOf: context.capturedAt.slice(0, 10) }];
   return { value, disclosure: context.disclosure, sources, data: context.bindings.filter(binding => records.some(record => record.binding.domain === binding.domain && record.binding.dataVersion === binding.dataVersion)) };
 }
