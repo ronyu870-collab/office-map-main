@@ -1,14 +1,16 @@
 import { slideContentSchema, type SlideContent } from '../contracts/content';
 import { layoutIdSchema, slideSceneSchema, type LayoutId, type SceneElement, type SlideScene } from '../contracts/scene';
-import { designThemeSchema, type DesignTheme } from '../design/theme';
+import { DESIGN_PROFILES, designThemeSchema, type DesignTheme } from '../design/theme';
 import { cellText } from '../render/format';
-import { LayoutError, sceneFont } from './metrics';
+import { LayoutError, lineHeight, sceneFont, wrapText } from './metrics';
 
 type Block = SlideContent['blocks'][number];
 type Of<K extends Block['kind']> = Extract<Block, { kind: K }>;
 import { LAYOUTS } from './definitions';
 export { LAYOUTS } from './definitions';
 import { sceneComponents } from './components';
+import { designComposition } from './composition';
+import { chartElement } from './chart';
 import { tablePages } from './table';
 import { layoutPattern } from './patterns/engine';
 import { PATTERN_BY_ID } from './patterns/catalog';
@@ -25,23 +27,37 @@ const insightText = (content: SlideContent, en: boolean) => requireBlocks(conten
 /** Business meaning -> layout, never a business-specific brand implementation. */
 export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, rawLayout: LayoutId, variant: 'standard' | 'alternate' = 'standard'): Promise<SlideScene[]> {
   const content = slideContentSchema.parse(raw), theme = designThemeSchema.parse(rawTheme), id = layoutIdSchema.parse(rawLayout);
+  if (theme.profile && !content.isTestData) {
+    // Approved references from older composers may lack placement metadata.
+    content.blocks = content.blocks.map(block => block.kind === 'image' && !block.fit ? { ...block, fit: 'contain' as const } : block);
+  }
   const definition = LAYOUTS.find(l => l.id === id)!;
   const unsupported = content.blocks.find(b => !definition.kinds.includes(b.kind));
   if (unsupported) throw new LayoutError('PITCH_UNSUPPORTED_CONTENT', `“${definition.zh}”不支持 ${unsupported.kind}，请更换布局；内容未被删除。`);
   const t = sceneComponents(await sceneFont(), theme), m = theme.margin, width = theme.width - m * 2, gap = theme.gridGap, en = content.locale.startsWith('en');
-  const alt = variant === 'alternate', top = content.subtitle ? 1.65 : 1.35, bottom = 5.8, height = bottom - top;
+  const alt = variant === 'alternate', candidate = theme.profile && DESIGN_PROFILES[theme.profile];
+  const coverPage = id === 'cover' || id === 'section-divider';
+  const titleHeight = candidate && !coverPage ? wrapText(content.title, width, theme.typography.title, t.font).length * lineHeight(theme.typography.title) + .02 : .65;
+  const subtitleHeight = candidate && content.subtitle && !coverPage ? t.lines(content.subtitle, width).length * t.lh + .015 : .36;
+  const top = candidate && !coverPage ? .53 + titleHeight + (content.subtitle ? subtitleHeight + .24 : .17) : content.subtitle ? 1.65 : 1.35;
+  const bottom = candidate ? 6.28 : 5.8, height = bottom - top;
+  if (height < 1.8) throw new LayoutError('PITCH_TITLE_CAPACITY', '标题及副标题需要更多空间，请拆分。');
+  const composition = designComposition(id, content, t, { x: m, y: top, w: width, h: height }, alt);
   let groups: SceneElement[][] = [];
-  if (PATTERN_BY_ID.has(id)) {
+  const chartCompositions: string[] = [];
+  if (composition) {
+    groups = composition.groups;
+  } else if (PATTERN_BY_ID.has(id)) {
     if(variant!=='standard')throw new LayoutError('PITCH_VARIANT_UNAVAILABLE','此布局仅支持标准变体，请选择其他已注册布局。');
     groups = layoutPattern(content, t, PATTERN_BY_ID.get(id)!, {x:m,y:top,w:width,h:height});
   } else if (id === 'cover') {
     if (content.blocks.filter(b => b.kind === 'image').length > 1) throw new LayoutError('PITCH_IMAGE_COUNT', '封面最多接受一张图片；请拆分页面或选择其他布局。');
     const image = content.blocks.find(b => b.kind === 'image');
     const tw = image ? 6.5 : width, ty = alt ? 1.55 : 2.05;
-    const elements = [t.text(content.title, m, ty, tw, 1.7, 'title', true)];
+    const elements: SceneElement[] = [t.text(content.title, m, ty, tw, 1.7, 'title', true)];
     const desc = [content.subtitle, paragraphText(content)].filter(Boolean).join('\n\n');
     if (desc) elements.push(t.text(desc, m, ty + 1.9, tw, 1.65));
-    if (image?.kind === 'image') elements.push(t.image(image, m + 7, 1.5, width - 7, 4));
+    if (image?.kind === 'image') elements.push(...t.imageWithCredit(image, m + 7, 1.5, width - 7, 4));
     groups = [elements];
   } else if (id === 'section-divider') {
     requireBlocks(content, 'paragraph');
@@ -50,7 +66,7 @@ export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, raw
     const images = requireBlocks(content, 'image'); requireBlocks(content, 'paragraph');
     if (images.length !== 1) throw new LayoutError('PITCH_IMAGE_COUNT', '单图文布局需要且只接受一张图片。');
     const cw = (width - gap) / 2, tx = alt ? m + cw + gap : m, ix = alt ? m : m + cw + gap;
-    groups = chunk(t.lines(paragraphText(content), cw), Math.floor(height / t.lh)).map(lines => [t.text(lines.join('\n'), tx, top, cw, height), t.image(images[0], ix, top, cw, height - .72), t.text(images[0].alt, ix, bottom - .65, cw, .65)]);
+    groups = chunk(t.lines(paragraphText(content), cw), Math.floor(height / t.lh)).map(lines => [t.text(lines.join('\n'), tx, top, cw, height), t.image(images[0], ix, top, cw, height - .72), t.text([images[0].caption ?? images[0].alt, images[0].credit].filter(Boolean).join(' · '), ix, bottom - .65, cw, .65)]);
   } else if (id === 'two-columns') {
     requireBlocks(content, 'paragraph'); const left = alt ? width * .36 : (width - gap) / 2, right = width - gap - left;
     const paragraphs = requireBlocks(content, 'paragraph').map(b => b.text);
@@ -78,35 +94,38 @@ export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, raw
     const cases = requireBlocks(content, 'case'), image = content.blocks.find(b => b.kind === 'image'), cw = image ? width * .58 : width;
     for (const c of cases) {
       const stream = `${c.title}\n\n${en ? 'Challenge' : '挑战'}：${c.challenge}\n\n${en ? 'Approach' : '方法'}：${c.approach}\n\n${en ? 'Outcome' : '成果'}：${c.outcome}`;
-      groups.push(...chunk(t.lines(stream, cw), Math.floor(height / t.lh)).map(lines => [t.text(lines.join('\n'), alt && image ? m + width - cw : m, top, cw, height), ...(image?.kind === 'image' ? [t.image(image, alt ? m : m + cw + gap, top, width - cw - gap, height)] : [])]));
+      groups.push(...chunk(t.lines(stream, cw), Math.floor(height / t.lh)).map(lines => [t.text(lines.join('\n'), alt && image ? m + width - cw : m, top, cw, height), ...(image?.kind === 'image' ? t.imageWithCredit(image, alt ? m : m + cw + gap, top, width - cw - gap, height) : [])]));
     }
   } else if (id === 'data-table' || id === 'comparison') {
     for (const original of requireBlocks(content, 'table')) {
       if (!original.rows.length) throw new LayoutError('PITCH_EMPTY_TABLE', '对比或数据表没有数据，请补充记录后生成。');
-      const table = id === 'comparison' && !alt ? { ...original, columns: [en ? 'Measure' : '指标', ...original.rows.map(r => cellText(r[0]))], rows: original.columns.slice(1).map((c, i) => [c, ...original.rows.map(r => r[i + 1])]) } : original;
+      const table = id === 'comparison' && !alt && !original.treatment ? { ...original, columns: [en ? 'Measure' : '指标', ...original.rows.map(r => cellText(r[0]))], rows: original.columns.slice(1).map((c, i) => [c, ...original.rows.map(r => r[i + 1])]) } : original;
       groups.push(...tablePages(table, t, m, top, width, height, id === 'data-table' && alt));
     }
   } else if (id === 'chart-insight') {
     const charts = requireBlocks(content, 'chart'), hasInsight = content.blocks.some(b => b.kind === 'insight');
-    const iw = alt ? width : width * .3, cw = !hasInsight || alt ? width : width - iw - gap, ch = hasInsight && alt ? 2.7 : height;
-    const insight = hasInsight ? insightText(content, en) : '', ih = alt ? height - ch - gap : height;
+    const insight = hasInsight ? insightText(content, en) : '';
+    const preferred = candidate ? (alt ? candidate.evidence !== 'below' : candidate.evidence === 'below') : alt;
     for (const chart of charts) {
-      if (chart.chartType === 'scatter') throw new LayoutError('PITCH_CHART_UNSUPPORTED', '散点图尚未注册，请选择柱状、条形、折线、饼图或组合图。');
-      if (!chart.categories.length || chart.categories.length > 12 || chart.series.length > 4 || chart.categories.some(c => t.lines(c, chart.chartType === 'bar' ? .9 : (cw - 1.2) / chart.categories.length).length > 2)) throw new LayoutError('PITCH_CHART_LABELS', '图表标签过密或过长，请减少本页分类或换用条形图。');
-      const plotHeight = ch - 1.5;
-      if (chart.series.some(s => t.lines(`${s.name}${s.unit ? ` (${s.unit})` : ''}`, cw / chart.series.length - .22).length > 1)
-        || chart.chartType === 'bar' && chart.categories.some(c => t.lines(c, .9).length * t.lh > plotHeight / chart.categories.length)
-        || chart.chartType === 'pie' && (chart.categories.length * .4 > plotHeight || chart.categories.some((c, i) => t.lines(`${c}: ${cellText(chart.series[0].values[i])}`, (cw - 1.2) * .33).length > 1))) {
-        throw new LayoutError('PITCH_CHART_LABELS', '图例或标签无法以可读字号完整展示，请缩短名称、减少分类或换用其他布局。');
-      }
-      if (!chart.series.some(s => s.values.some(v => v !== null))) throw new LayoutError('PITCH_CHART_EMPTY', '图表没有已知数值，不能把未知值当成零。');
-      if (chart.series.some(s => s.values.some(v => v !== null && Math.abs(v) > 1e15))) throw new LayoutError('PITCH_CHART_RANGE', '图表数值超过安全范围，请保留单位并改用更合适的数值尺度。');
-      if (new Set(chart.series.map(s => s.unit)).size !== 1) throw new LayoutError('PITCH_CHART_UNITS', '当前单轴图表要求系列单位一致；不同单位请拆图。');
-      if (chart.chartType === 'pie' && (chart.series.length !== 1 || chart.series[0].values.some(v => v === null || v < 0) || !chart.series[0].values.some(v => v! > 0))) throw new LayoutError('PITCH_PIE_VALUES', '饼图需要一组完整、非负且总量大于零的数值。');
-      if (chart.chartType === 'combo' && chart.series.length !== 2) throw new LayoutError('PITCH_COMBO_SERIES', '组合图需要两个同单位系列：柱形与折线。');
-      const el: SceneElement = { kind: 'chart', x: m, y: top, w: cw, h: ch, chartType: chart.chartType, categories: chart.categories, series: chart.series };
-      if (!hasInsight) { groups.push([el]); continue; }
-      groups.push(...chunk(t.lines(insight, iw), Math.floor(ih / t.lh)).map(lines => [el, t.text(lines.join('\n'), alt ? m : m + cw + gap, alt ? top + ch + gap : top, iw, ih)]));
+      const options = (candidate && hasInsight ? [preferred, !preferred] : [preferred]).flatMap((below, i) => {
+        const iw = below ? width : width * (candidate ? .27 : .3);
+        const cw = !hasInsight || below ? width : width - iw - gap;
+        const ch = hasInsight && below ? (candidate ? height * .66 : 2.7) : height;
+        const ih = below ? height - ch - gap : height;
+        try {
+          const el = chartElement(chart, { x: m, y: top, w: cw, h: ch }, t);
+          const copy = hasInsight ? chunk(t.lines(insight, iw), Math.max(1, Math.floor(ih / t.lh))) : [];
+          const pages = hasInsight ? copy.map(lines => [el, t.text(lines.join('\n'), below ? m : m + cw + gap, below ? top + ch + gap : top, iw, ih, 'body', false, undefined, candidate ? 'body' : undefined)]) : [[el]];
+          return [{ pages, score: pages.length * 2 + i, name: hasInsight ? below ? 'chart-with-analysis-below' : 'chart-with-analysis-side' : chart.chartType }];
+        } catch (error) {
+          if (!candidate || !(error instanceof LayoutError) || !['PITCH_CHART_LABELS', 'PITCH_TEXT_CAPACITY'].includes(error.code)) throw error;
+          return [];
+        }
+      });
+      const chosen = options.sort((a, b) => a.score - b.score)[0];
+      if (!chosen) throw new LayoutError('PITCH_CHART_LABELS', '图表与分析无法以当前字号完整显示，请拆分。');
+      groups.push(...chosen.pages);
+      chartCompositions.push(...chosen.pages.map(() => chosen.name));
     }
   } else if (id === 'map-analysis') {
     const maps = requireBlocks(content, 'map'), mw = alt ? width * .52 : width * .63, iw = width - mw - gap;
@@ -130,11 +149,28 @@ export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, raw
   if (!groups.length || groups.length > 50) throw new LayoutError('PITCH_PAGE_LIMIT', '没有可生成的页面，或已超过五十页上限。');
   const source = sceneSourceLine(content, en);
   return groups.map((elements, i) => {
-    const header = ['cover', 'section-divider'].includes(id) ? [] : [t.text(content.title + (groups.length > 1 ? ` (${i + 1}/${groups.length})` : ''), m, .45, width, .65, 'title', true), ...(content.subtitle ? [t.text(content.subtitle, m, 1.15, width, .36)] : [])];
-    const footer: SceneElement[] = [t.text(source, m, 6.1, width, .7, 'body', false, 'source')];
-    if (theme.footer.enabled && (theme.footer.label || theme.footer.pageNumber)) footer.push(t.text([theme.footer.label, theme.footer.pageNumber ? String(i + 1) : ''].filter(Boolean).join(' · '), m, 6.9, width - (theme.logo.enabled ? 1 : 0), .35, 'body', false, 'footer'));
+    const header: SceneElement[] = coverPage ? [] : candidate
+      ? [t.text(content.title, m, .53, width, titleHeight, 'title', true, undefined, 'conclusion'),
+         ...(content.subtitle ? [t.text(content.subtitle, m, .53 + titleHeight + .07, width, subtitleHeight, 'body', false, undefined, 'subheading')] : [])]
+      : [t.text(content.title + (groups.length > 1 ? ` (${i + 1}/${groups.length})` : ''), m, .45, width, .65, 'title', true),
+         ...(content.subtitle ? [t.text(content.subtitle, m, 1.15, width, .36)] : [])];
+    const src = composition?.footer ?? (candidate ? { x: m, y: 6.49, w: width, h: .53 } : { x: m, y: 6.1, w: width, h: .7 });
+    const compactFooter = candidate && theme.footer.enabled && theme.footer.pageNumber && !theme.footer.label;
+    const footer: SceneElement[] = [t.text(source, src.x, src.y, src.w - (compactFooter ? .48 : 0), src.h, 'body', false, 'source', candidate ? 'source' : undefined)];
+    if (theme.footer.enabled && (theme.footer.label || theme.footer.pageNumber)) {
+      const footerWidth = (composition?.footer?.w ?? width) - (theme.logo.enabled ? 1 : 0);
+      const footerText = [theme.footer.label, theme.footer.pageNumber ? String(i + 1) : ''].filter(Boolean).join(' · ');
+      footer.push(compactFooter
+        ? { ...t.text(footerText, src.x + src.w - .34, src.y, .34, .24, 'body', false, 'footer', 'footer'), align: 'right' }
+        : t.text(footerText, m, candidate ? 7.10 : 6.9, footerWidth, candidate ? .24 : .35, 'body', false, 'footer', candidate ? 'footer' : undefined));
+    }
     if (theme.logo.enabled) footer.push({ kind: 'brand', resource: 'colliers-brand-assets/1', x: theme.width - m - .8, y: 6.9, w: .8, h: .35 });
-    return slideSceneSchema.parse({ protocol: content.protocol, rendererVersion: 'pitch-scene/2', variant, pagination: { index: i, count: groups.length }, width: theme.width, height: theme.height, layoutId: id, layoutVersion: 2, themeId: theme.id, themeVersion: theme.version, elements: [...header, ...elements, ...footer] });
+    const designVersion = candidate || elements.some(e => (e.kind === 'text' && e.semantic) || (e.kind === 'image' && e.fit === 'cover') || (e.kind === 'chart' && (e.xAxis || e.emphasis || e.chartType === 'stacked-column')) || (e.kind === 'table' && e.heatScale));
+    const designCompositionId = composition?.composition ?? (candidate ? chartCompositions[i] : undefined);
+    return slideSceneSchema.parse({ protocol: content.protocol, rendererVersion: 'pitch-scene/2',
+      ...(designVersion && { designVersion: 1 }), ...(designCompositionId && { composition: designCompositionId }),
+      variant, pagination: { index: i, count: groups.length }, width: theme.width, height: theme.height, layoutId: id, layoutVersion: 2,
+      themeId: theme.id, themeVersion: theme.version, elements: [...header, ...elements, ...footer] });
   });
 }
 

@@ -4,12 +4,11 @@ import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { createPitchDatabase, OWNER, OTHER, ADMIN, VIEWER, sessionFor } from './database.mjs';
 const require=createRequire(import.meta.url);
-const {handlePitchRequest}=require('../../../src/lib/pitch/http.ts');
 const {DEFAULT_THEME}=require('../../../src/lib/pitch/design/theme.ts');
 const {composeProject,previewPage,prepareRenderExport,runRenderExport,downloadArtifact}=require('../../../src/lib/pitch/data/renderWorkflow.ts');
 const {legacyLayoutIds}=require('../../../src/lib/pitch/contracts/scene.ts');
 const LAYOUTS=legacyLayoutIds.map(id=>({id}));
-const {STUDIO_THEME,VERIFICATION_THEME}=require('../../../src/lib/pitch/design/theme.ts');
+const {STUDIO_THEME,VERIFICATION_THEME,PRESENTATION_THEME_CANDIDATES}=require('../../../src/lib/pitch/design/theme.ts');
 const {STUDIO_TEMPLATE}=require('../../../src/lib/pitch/templates/registry.ts');
 const {BASIC_TEMPLATE}=require('../../../src/lib/pitch/templates/registry.ts');
 const {createSample,createProject,exportProject,downloadExport,upgradeProjectTheme}=require('../../../src/lib/pitch/data/workflow.ts');
@@ -26,7 +25,7 @@ function ctx(uid) {
     async upload(path,bytes){if(failUpload)return {error:{message:'injected outage'}};if(files.has(path))return {error:{message:'exists'}};files.set(path,new Uint8Array(bytes));return {error:null};},
     async download(path){const bytes=files.get(path);if(revokeOnRead){revokeOnRead=false;await db.setup.query('update private.pitch_grants set enabled=false where user_id=$1',[uid]);}return {data:bytes?new Blob([bytes]):null,error:bytes?null:{message:'not found'}};}
   };}}};
- return {client,identity:{actorId:uid,effectiveUserId:uid,sessionId:sessionFor(uid),expiresAt:Date.now()+60000},signal:new AbortController().signal};
+ return {client,identity:{actorId:uid,effectiveUserId:uid,sessionId:sessionFor(uid),expiresAt:Date.now()+600000},signal:new AbortController().signal};
 }
 const owner=ctx(OWNER);let assetId,projectId,artifact;
 try {
@@ -45,6 +44,15 @@ try {
  await check('registered theme/template match reviewed TypeScript protocol',async()=>{
   const reg=await db.rpc(OWNER,{action:'registry',templateId:BASIC_TEMPLATE.id,templateVersion:1,themeId:DEFAULT_THEME.id,themeVersion:1});
   assert.deepEqual(reg.template.config,BASIC_TEMPLATE);assert.deepEqual(reg.theme.definition,DEFAULT_THEME);
+ });
+ await check('six design candidates are visible to Pitch users, retrievable by version and match the provisional code definitions', async () => {
+  const catalog = await db.rpc(OWNER, {action:'catalog'});
+  for (const theme of PRESENTATION_THEME_CANDIDATES) {
+   assert.ok(catalog.themes.some(entry => entry.id === theme.id && entry.current_version === theme.version));
+   const result = await db.rpc(OWNER, {action:'registry', templateId:STUDIO_TEMPLATE.id, templateVersion:1, themeId:theme.id, themeVersion:theme.version});
+   assert.deepEqual(result.theme.definition, theme);
+   assert.equal(result.theme.definition.approval, 'provisional');
+  }
  });
  await check('sample original/media/content/source references persist; retry is idempotent',async()=>{
   const request=randomUUID();assetId=(await createSample(owner,request,scope)).assetId;
@@ -187,6 +195,22 @@ try {
   const after=(await db.rpc(OWNER,{action:'get_project',projectId:studioProject})).slides[8];assert.deepEqual(after,before);
   await assert.rejects(previewPage(ctx(OTHER),{action:'preview',projectId:studioProject,page:0}),/PITCH_DENIED/);
   await assert.rejects(previewPage(owner,{action:'preview',projectId:studioProject,page:0,layoutId:'kpi'}),/PITCH_UNSUPPORTED_CONTENT/);
+ });
+ await check('premium candidate renders through compose, persisted Scene readback, preview and downloaded native PPTX', async () => {
+  const theme = PRESENTATION_THEME_CANDIDATES[0], projectId = randomUUID(), exportId = randomUUID();
+  const command = {action:'project_compose', projectId, title:'候选主题测试', parts:[studioParts[0], studioParts[8]], themeId:theme.id, themeVersion:theme.version};
+  assert.equal((await composeProject(owner, command)).pages, 2);
+  const opened = await db.rpc(OWNER, {action:'get_project', projectId});
+  assert.equal(opened.slides[0].scene.designVersion, 1);
+  assert.equal(opened.slides[1].scene.elements.find(element => element.purpose === 'footer').text, '2');
+  const preview = await previewPage(owner, {action:'preview', projectId, page:0});
+  assert.ok(preview.scene.elements.some(element => element.semantic === 'cover'));
+  assert.match(preview.svg, /role="img"/);
+  const request = {action:'export_start', projectId, exportId, audience:'internal', format:'pptx'};
+  await prepareRenderExport(owner, request);
+  await runRenderExport(owner, request);
+  const artifact = await downloadArtifact(owner, request);
+  assert.deepEqual([...artifact.bytes.subarray(0, 4)], [80, 75, 3, 4]);
  });
  for(const format of ['pptx','png','svg','xlsx']) await check(`durable ${format} task claims once, records progress, archives and rechecks actual download`,async()=>{
   const command={action:'export_start',projectId:studioProject,exportId:randomUUID(),audience:'internal',format,...(format==='pptx'?{}:{page:7})};

@@ -1,3 +1,4 @@
+import { candidateThemeLabel } from '@/src/lib/pitch/design/theme';
 import type {
   ProjectContext,
   WorkspaceDetail,
@@ -53,7 +54,7 @@ export const themeLabel = (id: string) =>
     ? "标准主题"
     : id === "colliers-render-verification"
       ? "替换验证主题"
-      : id;
+      : candidateThemeLabel(id) ?? id;
 export function downloadBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob),
     a = document.createElement("a");

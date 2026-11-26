@@ -1,3 +1,4 @@
+import { seriesLabel } from './geometry';
 import type { SlideScene } from '../contracts/scene';
 import { spreadsheetSafeText } from '@/src/lib/intelligence/query/exports';
 import { presentWorkbook } from '@/src/lib/intelligence/query/workbookPresentation';
@@ -9,7 +10,11 @@ export async function renderSceneXlsx(scenes: SlideScene[]) {
   for (const [i, scene] of scenes.entries()) for (const [j, el] of scene.elements.entries()) {
     let rows: (string | number | null)[][];
     if (el.kind === 'table') rows = [el.columns, ...el.rows];
-    else if (el.kind === 'chart') rows = [['', ...el.series.map(s => `${s.name} (${s.unit})`)], ...el.categories.map((c, n) => [c, ...el.series.map(s => s.values[n])])];
+    else if (el.kind === 'chart') {
+      const xAxis = el.xAxis;
+      rows = [['', ...(xAxis ? [seriesLabel({ name: xAxis.label, unit: xAxis.unit })] : []), ...el.series.map(seriesLabel)],
+        ...el.categories.map((category, n) => [category, ...(xAxis ? [xAxis.values[n]] : []), ...el.series.map(s => s.values[n])])];
+    }
     else if (el.kind === 'map') rows = [['地点 / Location', '经度 / Longitude', '纬度 / Latitude'], ...el.points.map(p => [p.label, p.longitude, p.latitude])];
     else continue;
     rows.push([], ...scene.elements.filter(e => e.kind === 'text' && e.purpose === 'source').map(e => [e.kind === 'text' ? e.text : '']));
