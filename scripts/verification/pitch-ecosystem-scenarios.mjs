@@ -13,6 +13,11 @@ export async function verifyPitchEcosystem({app,owner,other,scope,call,check,unt
   const reopened=await workspace(owner,{action:'get',projectId});assert.equal(reopened.status,200);assert.ok(reopened.body.slides.length>=10);for(const id of ids)assert.ok(reopened.body.slides.some(s=>s.content.sources.some(source=>source.locator==='template-example:'+id)));
   assert.equal((await workspace(other,{action:'get',projectId})).status,403);
   const exportId=randomUUID();assert.equal((await call(owner,{action:'export_start',projectId,exportId,audience:'client',format:'pptx'},true)).status,403);assert.equal((await call(owner,{action:'export_start',projectId,exportId,audience:'internal',format:'pptx'},true)).status,202);
-  await until(async()=>{const receipt=await call(owner,{action:'export_status',projectId,exportId});assert.notEqual(receipt.body.state,'failed',JSON.stringify(receipt.body));return receipt.body.state==='ready';},'ecosystem native export');const file=await call(owner,{action:'download',projectId,exportId,audience:'internal'});assert.equal(file.status,200);const zip=await JSZip.loadAsync(file.body);assert.ok(zip.file('ppt/charts/chart1.xml'));assert.match(await zip.file('ppt/slides/slide1.xml').async('string'),/<a:t>/);
+  await until(async()=>{const receipt=await call(owner,{action:'export_status',projectId,exportId});assert.notEqual(receipt.body.state,'failed',JSON.stringify(receipt.body));return receipt.body.state==='ready';},'ecosystem native export');const file=await call(owner,{action:'download',projectId,exportId,audience:'internal'});assert.equal(file.status,200);const zip=await JSZip.loadAsync(file.body);// PptxGenJS increments its chart counter across decks in one server process.
+  const charts=Object.keys(zip.files).filter(name=>/^ppt\/charts\/chart\d+[.]xml$/.test(name));
+  assert.ok(charts.length>0,'Native chart parts required');
+  for(const name of charts)assert.match(await zip.file(name).async('string'),/<c:chartSpace/);
+  const slideXml=(await Promise.all(Object.keys(zip.files).filter(name=>/^ppt\/slides\/slide\d+[.]xml$/.test(name)).map(name=>zip.file(name).async('string')))).join('');
+  assert.match(slideXml,/<c:chart /);assert.match(await zip.file('ppt/slides/slide1.xml').async('string'),/<a:t>/);
  });
 }
