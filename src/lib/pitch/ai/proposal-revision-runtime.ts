@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { quarterSchema } from "@/src/lib/intelligence/query/contracts";
+import { layoutIdSchema } from "../contracts/scene";
+import { studioRegistry } from "../data/renderWorkflow";
 import { pitchRpc, type PitchContext } from "../data/store";
+import { layoutSlides } from "../layout/engine";
+import { LayoutError } from "../layout/metrics";
 import { objectId, textAnchors } from "../workspace/object-layout";
-import { workspaceDetailSchema, type WorkspaceSave } from "../workspace/protocol";
+import { pageEditSchema, workspaceCommandSchema, workspaceDetailSchema, type WorkspaceSave } from "../workspace/protocol";
 import { proposalRequestSchema, readProposalBrief } from "./proposal-brief";
+import { compileProposalChartEdits, type ProposalChartChange } from "./proposal-chart-revision";
 import type { ProposalScenario } from "../integration-contracts";
 import type { ProposalRevisionRequest } from "./proposal-edit-intent";
 import { prepareProposal } from "./proposal-runtime";
@@ -45,6 +50,7 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   await pitchRpc(ctx, { action: "catalog" });
   let scope: "selected" | "document" = "selected";
   let theme: { id: string; version: number } | undefined;
+  let chartPreview: ({ pageId: string } & ProposalChartChange)[] | undefined;
   let refreshPlan: Extract<Awaited<ReturnType<typeof prepareProposal>>, { status: "ready" }> | undefined;
   let quarterTransaction: { review: z.infer<typeof quarterReviewSchema>; command: {
     action: "apply_data_refresh"; projectId: string; slideId: string; expectedVersion: number;
@@ -60,6 +66,34 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
       const pageEdits = new Map<string, WorkspaceSave["pages"][number]>(base.map(page => [page.id, { id: page.id }]));
       for (const operation of target.operations) {
         signal.throwIfAborted();
+        if (operation.kind === "set-chart") {
+          if (target.operations.length !== 1 || !("chartPresentation" in pageEditSchema.shape)) return null;
+          if (slides.some(slide => slide.scene.themeId !== project.theme_id || slide.scene.themeVersion !== project.theme_version)) return null;
+          const selectedIds = new Set(selected.map(page => page.id));
+          const changes = compileProposalChartEdits(target.target, operation, slides.filter(slide => selectedIds.has(slide.id)));
+          if (!changes) return null;
+          const registry = await studioRegistry(ctx, project.theme_id, project.theme_version);
+          for (const { slide, changes: charts } of changes) {
+            signal.throwIfAborted();
+            const types = new Map(charts.map(chart => [chart.blockIndex, chart.type]));
+            const blocks = slide.content.blocks.map((block, index) => block.kind === "chart"
+              ? { ...block, chartType: types.get(index) ?? block.chartType } : block);
+            const layout = layoutIdSchema.safeParse(slide.scene.layoutId);
+            if (!layout.success) return null;
+            try {
+              const preview = await layoutSlides({ ...slide.content, blocks }, registry.theme.definition, layout.data, slide.scene.variant);
+              const count = preview[0]?.elements.filter(element => element.kind === "chart").length;
+              if (preview.length !== 1 || count !== blocks.filter(block => block.kind === "chart").length) return null;
+            } catch (error) {
+              if (error instanceof LayoutError) return null;
+              throw error;
+            }
+            pageEdits.set(slide.id, pageEditSchema.parse({ id: slide.id,
+              chartPresentation: charts.map(({ blockIndex, type }) => ({ blockIndex, type })) }));
+          }
+          chartPreview = changes.flatMap(({ slide, changes: charts }) => charts.map(chart => ({ pageId: slide.id, ...chart })));
+          continue;
+        }
         if (operation.kind === "set-period") {
           if (target.operations.length !== 1) return null;
           if (previewQuarter && operation.period) {
@@ -158,5 +192,6 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   // proposal has its own source review and can't be applied as a page edit.
   if (refreshPlan) return { ...outcome, status: "refresh-review" as const, scope, ...(theme ? { theme } : {}), refreshPlan };
   const command = { action: "apply_modification" as const, plan: outcome.plan, scope, ...(theme ? { theme } : {}) };
-  return { ...outcome, scope, ...(theme ? { theme } : {}), command };
+  if (chartPreview) workspaceCommandSchema.parse(command);
+  return { ...outcome, scope, ...(theme ? { theme } : {}), ...(chartPreview ? { chartPreview } : {}), command };
 }

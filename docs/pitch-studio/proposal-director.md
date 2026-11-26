@@ -21,7 +21,7 @@
 ## 集成接口与验收范围
 
 - `directProposal` 使用共享 `ProposalBrief`、`PitchContextSnapshot` 和 `ProposalPlan`。`ProposalDirectorPorts` 负责目录、期间和业务页面的授权读取。`composeUnifiedProposalPages` 接收统一数据投影和获权素材，调用四套专业 recipe 并保留必要页面及业务依赖。业务与视觉适配器提供真实身份、期间、来源和版本，业务 recipe 提供实际 `SlideContent`。策划器只选有来源的组合，并保留有待确认项。
-- `previewProposalRevision` 生成带原页版本的 `DocumentModificationPlan`。文字和可用主题返回 Agent 06 的 `apply_modification` 指令，保留原项目和页版本。集成入口可把 Agent 06 的 `previewDataRefresh` 作为 `handleAiRequest` 的第四个参数传入。指定季度且涉及的页面都属于同一份业务快照时，AI 预览返回实际刷新前后值和可确认的 `apply_data_refresh` 指令，附原季度目标和工作流审阅指纹。跨快照、越出所选页范围或需要拆分事务的请求保留原稿。未接入刷新服务时，季度重查询结果标为 `refresh-review`。竞品、照片、重新定位、语言与图表等意图已有结构化枚举，其正式事务需由相应数据、素材及工作流接缝提供。
+- `previewProposalRevision` 生成带原页版本的 `DocumentModificationPlan`。文字和可用主题返回 Agent 06 的 `apply_modification` 指令，保留原项目和页版本。集成入口可把 Agent 06 的 `previewDataRefresh` 作为 `handleAiRequest` 的第四个参数传入。指定季度且涉及的页面都属于同一份业务快照时，AI 预览返回实际刷新前后值和可确认的 `apply_data_refresh` 指令，附原季度目标和工作流审阅指纹。跨快照、越出所选页范围或需要拆分事务的请求保留原稿。未接入刷新服务时，季度重查询结果标为 `refresh-review`。原生条形、柱状和折线图可按所选对象、指定页面或整套提案切换。预览显示原类型和目标类型，固定工作区与页面版本。图表保留原分类、系列、数值、单位和来源。已手工定位或分页的图表保持原样。此能力随 Agent 06 的图表事务注册后自动可用。竞品、照片、重新定位和语言调整仍需相应数据、素材和工作流接缝。
 - `createUnifiedProposalComposer` 接收 Agent 01 的 `loadUnifiedPitchContext` 和 `requestFromProposalBrief`、Agent 02 的 `getBuildingPhotoChoices` 和 `readPitchLocation`。同一授权身份、范围及取消信号贯穿各读取。先核对正式季度和楼宇身份，再获取实景和地图。招商代理可按明确选定的素材 ID 读取已发布、许可生成的团队与案例版本。计划固定主题、素材版本和原始来源。受限的历史 Stacking Plan 在普通提案计划中保持缺项。
 - 集成入口将统一 composer 通过 `createProposalDirectorPorts` 注册为 `compose`。只有可保存组合页面、业务绑定与固定素材版本的工作流就绪后，才在 `handleAiRequest` 第五个参数中一并注册 director 和 `ProposalGenerationPort`。现有独立入口继续生成标准业务页。英文、子市场季度报告和已授权分析归档走已有确定性路径。
 - 正式季度的楼宇列表和单指标逐季租金或空置趋势，可按归档原参数重查。只有表格、查询范围和逐项来源一致时，才显示可提交的结构化提案。提交前用现有生成事务再次核验数据、归档授权及父项目版本。归档无法等价重现时，保留原数据审阅和原因。

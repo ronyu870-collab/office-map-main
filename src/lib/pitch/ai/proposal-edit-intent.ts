@@ -19,6 +19,7 @@ export const proposalRevisionRequestSchema = z.strictObject({
 });
 
 export type ProposalRevisionRequest = z.infer<typeof proposalRevisionRequestSchema>;
+export type ProposalChart = "table" | "bar" | "column" | "line" | "scatter";
 export type ProposalEditIntent =
   | { kind: "revise-text"; request: string }
   | { kind: "shorten"; pages: number | null }
@@ -27,7 +28,7 @@ export type ProposalEditIntent =
   | { kind: "set-period"; period: string | null }
   | { kind: "add-competitor"; buildingQuery: string }
   | { kind: "replace-photo"; category: "exterior" | "lobby" | "interior" | "any" }
-  | { kind: "set-chart"; chart: "table" | "bar" | "column" | "line" | "scatter" }
+  | { kind: "set-chart"; chart: ProposalChart; from?: ProposalChart; all?: true }
   | { kind: "retarget"; targetClient: string };
 
 export type ProposalEditTarget =
@@ -40,6 +41,24 @@ type EditRequest =
   | { kind: "intent"; target: ProposalEditTarget; operations: ProposalEditIntent[]; verifyFacts: boolean };
 
 const reviseText = /改写|重写|润色|(?:调整|改)(?:标题|正文|文字|表达)|(?:标题|正文|文字|对象|\btitle\b|\bbody\b).{0,22}(?:改为|改成|替换为|replace|change)|改(?:这页|当前页|所选对象)|rewrite|rephrase|polish/i;
+const chartTypes = [
+  ["table", /表格|\btable\b/i],
+  ["bar", /条形|横条|\bbar(?: chart)?\b/i],
+  ["column", /柱状|柱形|\bcolumn(?: chart)?\b/i],
+  ["line", /折线|\bline(?: chart)?\b/i],
+  ["scatter", /散点|\bscatter(?: plot)?\b/i],
+] as const;
+
+function chartOperation(question: string): Extract<ProposalEditIntent, { kind: "set-chart" }> | null {
+  if (!/改|调整|换|转换|use|change|switch|convert/i.test(question)) return null;
+  const matches = (text: string) => chartTypes.filter(([, pattern]) => pattern.test(text)).map(([type]) => type);
+  const to = /改为|改成|换成|换为|换到|调整为|替换为|切换到|转换成|改用|\b(?:to|as|into|use)\s+/i.exec(question);
+  const target = matches(to ? question.slice(to.index + to[0].length) : question);
+  const from = to ? matches(question.slice(0, to.index)) : [];
+  if (target.length !== 1 || from.length > 1) return null;
+  return { kind: "set-chart", chart: target[0], ...(from[0] ? { from: from[0] } : {}),
+    ...(/(?:全部|所有)图表|all charts/i.test(question) ? { all: true as const } : {}) };
+}
 
 function editOperation(question: string, literal: string): ProposalEditIntent | null {
   const periods = proposalQuarters(question);
@@ -57,17 +76,8 @@ function editOperation(question: string, literal: string): ProposalEditIntent | 
         : /内景|室内|interior/i.test(question) ? "interior" : "any";
     return { kind: "replace-photo", category };
   }
-  const chart = [
-    ["table", /表格|\btable\b/i],
-    ["bar", /条形|\bbar(?: chart)?\b/i],
-    ["column", /柱状|\bcolumn(?: chart)?\b/i],
-    ["line", /折线|\bline(?: chart)?\b/i],
-    ["scatter", /散点|\bscatter(?: plot)?\b/i],
-  ] as const;
-  const selectedChart = chart.find(([, pattern]) => pattern.test(question));
-  if (selectedChart && /改|调整|换|use|change|switch/i.test(question)) {
-    return { kind: "set-chart", chart: selectedChart[0] };
-  }
+  const chart = chartOperation(question);
+  if (chart) return chart;
   if (/(?:改|换|切换|翻译|translate|switch).{0,28}(?:英文版?|英语|English)/i.test(question)) return { kind: "set-language", language: "en" };
   if (/(?:改|换|切换|翻译|translate|switch).{0,28}(?:中文版?|汉语|Chinese)/i.test(question)) return { kind: "set-language", language: "zh" };
   if (/风格|style|theme/i.test(question)) {
@@ -142,6 +152,7 @@ export function readProposalEdit(input: ProposalRevisionRequest): EditRequest {
     kind: "intent",
     target,
     operations,
-    verifyFacts: operations.some(item => ["set-period", "add-competitor", "replace-photo", "retarget", "set-chart"].includes(item.kind)),
+    verifyFacts: operations.some(item => ["set-period", "add-competitor", "replace-photo", "retarget"].includes(item.kind)
+      || item.kind === "set-chart" && (item.chart === "table" || item.chart === "scatter")),
   };
 }
