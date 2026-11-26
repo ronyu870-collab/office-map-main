@@ -128,7 +128,8 @@ const handoffPartSchema = z.strictObject({
   mode: z.literal("handoff"), parameters: dynamicParametersSchema, language: z.enum(["zh", "en"]),
   dataVersion: outlineFingerprint, permissionRevision: z.string().min(1).max(160), policyVersion: z.string().min(1).max(160),
 });
-export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema,outlinePartSchema,handoffPartSchema]);
+const editableWorkspacePartSchema = z.union([generationPartSchema, examplePartSchema, bundlePartSchema, outlinePartSchema]);
+export const workspacePartSchema = z.union([editableWorkspacePartSchema, handoffPartSchema]);
 const leaseHandoffSourceSchema = z.strictObject({
   kind: z.literal("lease-search"),
   dataset: z.enum(["live", "history", "combined"]),
@@ -158,7 +159,7 @@ const handoffTargetSchema = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("create"), projectId: id, title, scope: scopeSchema,
     themeId: z.string().min(1).max(100), themeVersion: z.number().int().positive() }),
 ]);
-export type WorkspacePart=z.infer<typeof workspacePartSchema>;
+export type WorkspacePart = z.infer<typeof editableWorkspacePartSchema>;
 const revisionCanvasOptions = {
   projectId: id, slideId: id, taskId: id, expectedVersion: z.number().int().positive(),
   selectedRefs: revisionRefs.optional(), revisionFingerprint: outlineFingerprint,
@@ -219,7 +220,7 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     projectId: id,
     expectedVersion: z.number().int().positive(),
     taskId: id,
-    part: workspacePartSchema,
+    part: editableWorkspacePartSchema,
     replaceIds: z.array(id).max(50).default([]),
   }),
   z.strictObject({

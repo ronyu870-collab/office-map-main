@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { dynamicFixture } from "../../supabase/tests/pitch-studio/business-fixtures.mjs";
 
-export async function verifyPitchDocumentDelivery({ app, db, owner, other, viewer, scope, call, check, studioProject, studioExport }) {
+export async function verifyPitchDocumentDelivery({ app, db, owner, other, viewer, scope, call, check, until, studioProject, studioExport }) {
   async function workspace(who, input, write = true) {
     const url = app + "/api/intelligence/pitch/workspace" + (write ? "" : "?" + new URLSearchParams(input));
     const response = await fetch(url, {
@@ -35,6 +36,83 @@ export async function verifyPitchDocumentDelivery({ app, db, owner, other, viewe
     assert.deepEqual(repeated.body, original.body);
     assert.equal((await call(other, download)).status, 403);
     assert.equal((await call(owner, { ...download, audience: "client" })).status, 403);
+  });
+
+  await check("status recovers a committed export whose original worker never started", async () => {
+    const exportId = randomUUID();
+    const sessionId = JSON.parse(Buffer.from(owner.token.split(".")[1], "base64url")).session_id;
+    const { rows: [{ receipt }] } = await db.query(
+      "select public.pitch_studio_access($1,$2,$3) receipt", [owner.id, sessionId, {
+        action: "export_prepare", projectId: studioProject, exportId, audience: "internal", format: "png",
+        page: 0, asynchronous: true, pipeline: "delivery/1", filename: "中断恢复.png",
+      }],
+    );
+    assert.equal(receipt.state, "pending");
+    const status = { action: "export_status", projectId: studioProject, exportId };
+    assert.equal((await call(other, status)).status, 403);
+    for (const result of await Promise.all([call(owner, status), call(owner, status)])) {
+      assert.equal(result.status, 200, JSON.stringify(result.body));
+      assert.equal(result.body.id, exportId);
+    }
+    await until(async () => {
+      const result = await call(owner, status);
+      assert.equal(result.status, 200);
+      assert.notEqual(result.body.state, "failed", JSON.stringify(result.body));
+      return result.body.state === "ready";
+    }, "resume original export worker");
+    const download = { action: "download", projectId: studioProject, exportId, audience: "internal" };
+    const png = await call(owner, download);
+    assert.equal(png.status, 200);
+    assert.deepEqual([...png.body.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+    assert.equal((await call(owner, { ...download, audience: "client" })).status, 403);
+  });
+
+  await check("an interrupted generation resumes its queued task through ordinary authenticated status polling", async () => {
+    const projectId = randomUUID(), taskId = randomUUID(), sourceProjectId = randomUUID();
+    const created = await workspace(owner, {
+      action: "create", projectId, title: "隔离任务恢复", scope, themeId: "colliers-default-v1",
+      themeVersion: 2, context: { language: "zh" },
+    });
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    const expectedVersion = created.body.project.version;
+    const part = { mode: "example", templateIds: ["corporate-overview"] };
+    const denied = await workspace(owner, {
+      action: "start", projectId, expectedVersion, taskId, part: {
+        mode: "handoff", parameters: dynamicFixture, language: "zh", dataVersion: "0".repeat(64),
+        permissionRevision: "fixture", policyVersion: "fixture",
+      },
+    });
+    assert.equal(denied.status, 422, JSON.stringify(denied.body));
+    const sessionId = JSON.parse(Buffer.from(owner.token.split(".")[1], "base64url")).session_id;
+    const command = {
+      action: "workspace_task_start", projectId, expectedVersion, taskId, sourceProjectId,
+      command: { part, replaceIds: [] },
+    };
+    // Stop after the same database admission used by the route. No worker has
+    // been scheduled and the client will only resume its previous status poll.
+    const { rows: [{ receipt }] } = await db.query(
+      "select public.pitch_studio_access($1,$2,$3) receipt", [owner.id, sessionId, command],
+    );
+    assert.equal(receipt.state, "queued");
+    assert.equal(receipt.attempts, 0);
+    const status = { action: "status", projectId, taskId };
+    assert.equal((await workspace(other, status)).status, 403);
+    for (const result of await Promise.all([workspace(owner, status), workspace(owner, status)])) {
+      assert.equal(result.status, 200, JSON.stringify(result.body));
+      assert.equal(result.body.id, taskId);
+    }
+    await until(async () => {
+      const result = await workspace(owner, status);
+      assert.equal(result.status, 200, JSON.stringify(result.body));
+      assert.notEqual(result.body.state, "failed", JSON.stringify(result.body));
+      if (result.body.state !== "completed") return false;
+      assert.equal(result.body.attempts, 1);
+      return true;
+    }, "resume original workspace task");
+    const saved = await workspace(owner, { action: "get", projectId });
+    assert.equal(saved.body.project.version, expectedVersion + 1);
+    assert.ok(saved.body.slides.length);
+    assert.equal((await db.query("select id from public.pitch_projects where id=$1", [sourceProjectId])).rowCount, 1);
   });
 
   await check("real Auth serves only the named reader's pinned slides and promptly revokes the presentation", async () => {

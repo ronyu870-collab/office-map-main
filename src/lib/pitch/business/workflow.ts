@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { designThemeSchema } from '../design/theme';
 import { slideContentSchema } from '../contracts/content';
-import { pitchRpc, mediaRowSchema, readFile, digest, type PitchContext } from '../data/store';
+import { pitchRpc, mediaRowSchema, digest, type PitchContext } from '../data/store';
+import { loadMedia } from '../data/renderWorkflow';
 import { assetContext, assetInput } from '../library/workflow';
 import { documentTokens } from '@/src/lib/intelligence/knowledge/parser';
 import { DocumentError } from '@/src/lib/intelligence/knowledge/safeArchive';
@@ -12,7 +13,6 @@ import { normalizationPlan } from '../library/normalize';
 import { numberDeckPages } from '../layout/pagination';
 import { LayoutError } from '../layout/metrics';
 import { assertSceneQuality } from '../layout/quality';
-import { inspectMedia, sceneMediaReferences, type SceneMedia } from '../render/media';
 import { businessProfileSchema, recipeSchema, type Generation, type BusinessProfile } from './protocol';
 import { assertBusinessScope, buildBusinessPages, caseDisplay, validateBusinessProfile, type BusinessAsset, type BusinessPage } from './content';
 import { runPitchDataAdapter, type DataBinding, type PitchDataSnapshot } from './adapter';
@@ -111,12 +111,8 @@ export async function prepareBusinessProject(ctx:PitchContext,command:Generation
     for(const part of parts)for(const scene of part.scenes)slides.push({slideId:randomUUID(),assetId,assetVersion:1,content:part.content,scene,theme});
     if(slides.length>50)throw new DocumentError('PITCH_PAGE_LIMIT','本次生成超过 50 页，请拆为多个 Pitch；未静默删减内容。');
   }
-  const media:SceneMedia[]=[];
-  for(const ref of sceneMediaReferences(slides.map(p=>p.scene))) {
-    const row=mediaRows.find(m=>m.id===ref.id&&m.version===ref.version);if(!row)throw new Error('PITCH_DENIED');
-    media.push({id:row.id,version:row.version,mime:row.mime,bytes:await readFile(ctx,{bucket:'pitch-studio-private',path:row.storage_path,mime:row.mime,size:row.size_bytes,sha256:row.sha256})});
-  }
-  const inspected=await inspectMedia(media);for(const p of slides)await assertSceneQuality(p.scene,theme,inspected);
+  const media = await loadMedia(ctx, mediaRows, slides.map(page => page.scene), 'PITCH_DENIED');
+  for (const page of slides) await assertSceneQuality(page.scene, theme, media);
   const numbered=numberDeckPages(slides).map(({slideId,assetId,assetVersion,content,scene})=>({slideId,assetId,assetVersion,content,scene}));
   const requestKey=hash(command);
   const input={...command,action:'business_generate_commit',requestKey,bindings,snapshots,recipes,changes,generated,slides:numbered};
