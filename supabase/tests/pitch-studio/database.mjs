@@ -37,6 +37,7 @@ export async function createPitchDatabase() {
     await setup.query(await readFile(new URL('../../migrations/20261127090206_pitch_workspace_bindings.sql',import.meta.url),'utf8'));
     await setup.query(await readFile(new URL('../../migrations/20261127090306_pitch_workspace_handoff_replay.sql',import.meta.url),'utf8'));
     await setup.query(await readFile(new URL('../../migrations/20261127090406_pitch_workspace_shares.sql',import.meta.url),'utf8'));
+    await setup.query(await readFile(new URL('../../migrations/20261127090506_pitch_export_file_reuse.sql',import.meta.url),'utf8'));
     return {setup,config,database,
       async grant(uid,region='test-region',extra={}) {
         await setup.query(`insert into private.pitch_grants(user_id,organization_id,region,city,business_line,can_generate,maintainer,can_client_export,can_external_ai,valid_until,granted_by)

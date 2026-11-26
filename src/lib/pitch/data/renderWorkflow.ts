@@ -12,6 +12,9 @@ import { artifactName, exportFormats, MIME } from '../render/format';
 import { inspectMedia, sceneMediaReferences, type SceneMedia } from '../render/media';
 import { makeFile, mediaRowSchema, pitchRpc, readFile, uploadFile, type PitchContext } from './store';
 
+// Include the deployed build so an updated renderer cannot silently reuse a
+// package produced with earlier rendering code.
+const deliveryRevision = 'pitch-export-output/1' + (process.env.VERCEL_GIT_COMMIT_SHA ? '/' + process.env.VERCEL_GIT_COMMIT_SHA : '');
 const pageSchema = z.object({ id: z.uuid(), content: slideContentSchema, scene: slideSceneSchema });
 const previewContextSchema = z.object({ slides: z.array(pageSchema).min(1).max(50), themes: z.array(z.object({ definition: designThemeSchema })), media: z.array(mediaRowSchema) });
 export async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>[], scenes: z.infer<typeof slideSceneSchema>[]) {
@@ -84,7 +87,7 @@ export async function prepareRenderExport(ctx: PitchContext, command: Extract<Pi
       projectVersion: z.number().int(), audienceAllowed: z.boolean(),
       pages: z.array(z.object({ id: z.uuid(), position: z.number().int(), reasons: z.array(z.string()) })),
     }).optional(),
-  }).passthrough().parse(await pitchRpc(ctx, { ...command, action: 'export_prepare', asynchronous: true, pipeline: 'delivery/1', filename: artifactName(current.project.title, command.format, command.page) }));
+  }).passthrough().parse(await pitchRpc(ctx, { ...command, action: 'export_prepare', asynchronous: true, pipeline: 'delivery/1', deliveryRevision, filename: artifactName(current.project.title, command.format, command.page) }));
   if (receipt.blocked) throw new ExportEligibilityError(receipt.blocked);
   return receipt;
 }
