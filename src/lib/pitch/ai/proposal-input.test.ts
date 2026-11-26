@@ -128,7 +128,13 @@ describe("proposal edit intentions", () => {
     });
     expect(revise("调整成柱状图", { pageIds: [pageId, secondPageId] })).toMatchObject({
       kind: "intent", target: { kind: "pages", pageIds: [pageId, secondPageId] },
-      operations: [{ kind: "set-chart", chart: "column" }], verifyFacts: true,
+      operations: [{ kind: "set-chart", chart: "column" }], verifyFacts: false,
+    });
+    expect(revise("将柱状图换成折线图")).toMatchObject({
+      operations: [{ kind: "set-chart", from: "column", chart: "line" }], verifyFacts: false,
+    });
+    expect(revise("Change the line chart to a table")).toMatchObject({
+      operations: [{ kind: "set-chart", from: "line", chart: "table" }], verifyFacts: true,
     });
     expect(revise("润色标题")).toMatchObject({ target: { kind: "pages", pageIds: [pageId] }, verifyFacts: false });
     expect(revise("加一栋成交过的虚构楼宇")).toMatchObject({ kind: "clarification" });
