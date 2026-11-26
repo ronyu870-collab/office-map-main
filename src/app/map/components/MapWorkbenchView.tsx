@@ -632,7 +632,8 @@ export function MapWorkbenchView({
   );
   const effectiveKind = rightKind ?? (isSupplyOpen ? 'supply' : isListVisible ? 'list' : submarketDetailPanel ? 'submarket' : null);
   const panelKind = (searchChoicesVisible ? 'search' : effectiveKind ?? 'list') as WorkspaceKind;
-  const preferredWidth = rightWidths ? rightWidths[panelKind] ?? contentPanelWidth(panelKind, panelKind === 'search' ? searchChoices.matchedCount : panelKind === 'supply' ? futureSupplies.length : combinedBuildingList.length, rightView?.kind === 'building' ? rightView.building.name ?? '' : '') : rightWidth;
+  const preferredWidth = panelKind === 'submarket' ? rightWidths?.submarket
+    : rightWidths ? rightWidths[panelKind] ?? contentPanelWidth(panelKind, panelKind === 'search' ? searchChoices.matchedCount : panelKind === 'supply' ? futureSupplies.length : combinedBuildingList.length, rightView?.kind === 'building' ? rightView.building.name ?? '' : '') : rightWidth;
   const rightOpen = Boolean(effectiveKind || searchChoicesVisible);
   const [listVisited, setListVisited] = React.useState(false);
   if (!listVisited && (effectiveKind === 'list' || effectiveKind === 'compare')) setListVisited(true);

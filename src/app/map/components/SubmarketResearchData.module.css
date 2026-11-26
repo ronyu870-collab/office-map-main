@@ -1,0 +1,120 @@
+.research {
+  /* Full-width panel and split brief sections each respond to their own reading width. */
+  container: submarket-research / inline-size;
+  display: grid;
+  gap: var(--cd-space-5);
+  min-width: 0;
+  color: var(--cd-color-text-primary);
+  font-size: var(--cd-font-size-md);
+  line-height: var(--cd-line-height-normal);
+}
+
+.research :where(h3, h4, p, dl, dt, dd) { margin: 0; }
+.research :where(h3, h4) { font-size: inherit; font-weight: 600; }
+.secondary, .scope, .metricDetail { color: var(--cd-color-text-secondary); }
+.scope { margin-bottom: var(--cd-space-2); }
+
+.metrics {
+  display: grid;
+  border-block: 1px solid var(--cd-color-border);
+}
+
+.metric {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  align-content: start;
+  column-gap: var(--cd-space-2);
+  row-gap: var(--cd-space-1);
+  min-width: 0;
+  padding-block: var(--cd-space-2);
+}
+
+.metric + .metric { border-top: 1px solid var(--cd-color-border); }
+.metricDetail { grid-column: 1 / -1; }
+.metricValue { display: flex; align-items: baseline; gap: var(--cd-space-1); font-variant-numeric: tabular-nums; }
+.metricValue strong { font-weight: 600; }
+.metricValue span { color: var(--cd-color-text-secondary); white-space: nowrap; }
+
+.block { display: grid; gap: var(--cd-space-2); }
+.changeList, .facts, .supplement { font-variant-numeric: tabular-nums; }
+.changeRow, .supplement > div, .facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--cd-space-4);
+  row-gap: var(--cd-space-1);
+  align-items: baseline;
+}
+.changeRow { padding-block: var(--cd-space-1); }
+.changeRow dt { flex-basis: 100%; }
+.facts { display: grid; gap: var(--cd-space-1); }
+.facts > div, .supplement > div { justify-content: space-between; }
+.facts dd { white-space: nowrap; }
+.supplement dd { overflow-wrap: anywhere; }
+.supplement {
+  display: grid;
+  gap: var(--cd-space-1);
+  padding-top: var(--cd-space-2);
+  border-top: 1px solid var(--cd-color-border);
+  color: var(--cd-color-text-secondary);
+}
+
+.source, .quarterData { color: var(--cd-color-text-secondary); }
+.source { border-top: 1px solid var(--cd-color-border); }
+.source summary, .quarterData summary {
+  width: fit-content;
+  min-height: var(--cd-control-height-md);
+  padding-block: var(--cd-space-2);
+  color: var(--cd-color-brand);
+  cursor: pointer;
+}
+.source summary:focus-visible, .quarterData summary:focus-visible, .retry:focus-visible {
+  outline: 2px solid var(--cd-color-brand);
+  outline-offset: 2px;
+}
+.source summary:hover, .quarterData summary:hover { text-decoration: underline; }
+.source div { display: grid; gap: var(--cd-space-2); }
+
+.charts { display: grid; gap: var(--cd-space-4); }
+.chartFigure { margin: 0; min-width: 0; }
+.chartCaption { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--cd-space-1) var(--cd-space-2); }
+.chartCanvas { height: 12rem; width: 100%; min-width: 0; }
+.chartStatus { min-height: 4rem; padding-block: var(--cd-space-3); color: var(--cd-color-text-secondary); }
+.chartStatus .retry {
+  min-width: 44px;
+  min-height: var(--cd-control-height-md);
+  padding-inline: var(--cd-space-3);
+  margin-top: var(--cd-space-2);
+  border: 1px solid var(--cd-color-border);
+  border-radius: var(--cd-radius-md);
+  background: var(--cd-color-surface);
+  color: var(--cd-color-brand);
+}
+.chartStatus .retry:hover { background: var(--cd-color-surface-alt); }
+.quarterData table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.quarterData :is(th, td) { padding: var(--cd-space-2); border-top: 1px solid var(--cd-color-border); text-align: right; }
+.quarterData :is(th, td):first-child { padding-left: 0; text-align: left; }
+.quarterData :is(th, td):last-child { padding-right: 0; }
+.quarterData td span { display: block; }
+.quarterData th { color: var(--cd-color-text-primary); font-weight: 600; }
+
+@container submarket-research (min-width: 36rem) {
+  .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .metric { grid-template-columns: minmax(0, 1fr); padding: var(--cd-space-3) var(--cd-space-4); }
+  .metric:first-child { padding-left: 0; }
+  .metric + .metric { border-top: 0; border-left: 1px solid var(--cd-color-border); }
+  .changeRow dt { flex-basis: 11rem; }
+  .changeRow dd:first-of-type { min-width: 14rem; }
+  .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--cd-space-4); }
+  .facts > div { justify-content: flex-start; }
+  .supplement > div { justify-content: flex-start; }
+}
+
+@container submarket-research (min-width: 46rem) {
+  .charts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cd-space-6); }
+  .chartCanvas { height: 14rem; }
+}
+
+@media (pointer: coarse), (max-width: 639px) {
+  .source summary, .quarterData summary, .chartStatus .retry { min-height: 44px; }
+}

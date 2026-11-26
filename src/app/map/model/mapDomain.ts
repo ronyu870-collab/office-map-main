@@ -185,6 +185,17 @@ export function isDefaultStockFilterState(state: SidebarFilterState): boolean {
   );
 }
 
+/** Undo only the temporary research selection, never an explicitly narrowed submarket scope. */
+export function getBeijingBenchmarkFilters(
+  state: SidebarFilterState | null, original: SidebarFilterState | undefined, selectedSubmarket: string | null,
+): SidebarFilterState | undefined {
+  if (!state || !original || !selectedSubmarket || state.submarkets.length !== 1
+    || normalizeMapSubmarket(state.submarkets[0]) !== selectedSubmarket
+    || !hasSameSelections(original.submarkets, [...MAP_SUBMARKETS, ...MAP_SUBMARKETS_SECONDARY])
+    || !original.submarkets.some(name => normalizeMapSubmarket(name) === selectedSubmarket)) return undefined;
+  return { ...state, submarkets: original.submarkets };
+}
+
 function hasDefaultFutureSupply(state: SidebarFilterState): boolean {
   return state.showFutureSupply
     && hasSameSelections(state.futureSupplyGrades, FUTURE_SUPPLY_TYPES)
