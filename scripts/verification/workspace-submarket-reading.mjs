@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { clickWorkspaceAction } from './workspace-actions.mjs';
 
 export async function verifySubmarketReading(page,{width,base,evidencePrefix='map-submarket'}) {
-  const points=[['2025Q4',180,10],['2026Q1',0,0],['2026Q2',null,null],['2026Q3',170,13]].map(([period,rent,vacancyPct])=>({period,year:Number(period.slice(0,4)),quarter:Number(period.at(-1)),rent,vacancyPct,rentSamples:rent==null?0:2,vacancySamples:vacancyPct==null?0:3,rentArea:100,vacancyArea:100}));
+  const points=[['2025Q4',180,10],['2026Q1',0,0],['2026Q2',null,null],['2026Q3',170,13],['2026Q4',165,10],['2027Q1',160,9]].map(([period,rent,vacancyPct])=>({period,year:Number(period.slice(0,4)),quarter:Number(period.at(-1)),rent,vacancyPct,rentSamples:rent==null?0:2,vacancySamples:vacancyPct==null?0:3,rentArea:100,vacancyArea:100}));
   let withTrend=true;
   await page.route('**/api/map/submarket?*',route=>route.fulfill({json:{
     submarket:'CBD',stockCount:3,profileAvailable:true,profilePublished:true,
@@ -99,14 +99,32 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   const grade=label=>grades.getByRole('button',{name:label,exact:true});
   const canvasLabels=['净有效租金季度趋势图','空置率季度趋势图'];
   const waitForCharts=async()=>{
-    for(const label of canvasLabels){
-      const canvas=trend.getByRole('img',{name:label,exact:true}).locator('canvas');
-      await canvas.waitFor();
-      assert.ok(await canvas.evaluate(el=>el.width>0 && el.height>0),`${label} has a drawable canvas`);
+    for(const [index,label] of canvasLabels.entries()){
+      const rgb=index===0 ? [0,62,126] : [50,106,120];
+      await page.waitForFunction(({label,rgb})=>{
+        const canvas=document.querySelector(`[aria-label="${label}"] canvas`);
+        if(!canvas?.width || !canvas.height)return false;
+        const pixels=canvas.getContext('2d')?.getImageData(0,0,canvas.width,canvas.height).data;
+        if(!pixels)return false;
+        for(let i=0;i<pixels.length;i+=4){
+          if(pixels[i]===rgb[0] && pixels[i+1]===rgb[1] && pixels[i+2]===rgb[2] && pixels[i+3]===255)return true;
+        }
+        return false;
+      },{label,rgb});
     }
   };
   await waitForCharts();
   assert.equal(await grade('甲乙级').getAttribute('aria-pressed'),'true');
+  const rentCanvas=trend.getByRole('img',{name:'净有效租金季度趋势图',exact:true}).locator('canvas').first();
+  const originalCanvas=await rentCanvas.elementHandle();
+  await trend.getByRole('button',{name:'查看完整历史',exact:true}).click();
+  assert.equal(await trend.getByText('2025Q4 至 2027Q1 · 离散观测',{exact:true}).count(),2);
+  await waitForCharts();
+  assert.ok(await rentCanvas.evaluate((next,original)=>next===original,originalCanvas),'history updates the existing chart canvas');
+  await originalCanvas.dispose();
+  await trend.getByRole('button',{name:'返回默认区间',exact:true}).click();
+  assert.equal(await trend.getByText('2026Q3 至 2027Q1 · 另有早期观测',{exact:true}).count(),2);
+
   await grade('甲级').click();
   assert.equal(await grade('甲级').getAttribute('aria-pressed'),'true');
   await grade('乙级').click();
@@ -140,9 +158,9 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   const table=trend.getByRole('table',{name:'季度租金与空置率',exact:true});
   await summary.focus();await page.keyboard.press('Enter');
   await table.waitFor();
-  const rows=table.getByRole('row');assert.equal(await rows.count(),5);
-  assert.match(await rows.nth(2).innerText(),/2026Q1\s+0\.0\s*2 个样本\s+0\.0\s*3 个样本/);
-  assert.match(await rows.nth(3).innerText(),/2026Q2\s+—\s*0 个样本\s+—\s*0 个样本/);
+  const rows=table.getByRole('row');assert.equal(await rows.count(),7);
+  assert.match(await rows.nth(2).innerText(),/2026Q1\s+0\.0\s*2 个样本\s*100 ㎡\s+0\.0\s*3 个样本/);
+  assert.match(await rows.nth(3).innerText(),/2026Q2\s+未收录\s*0 个样本\s+未收录\s*0 个样本/);
   await rows.last().scrollIntoViewIfNeeded();
   const tableBox=await table.boundingBox(), bounds=await scroller.boundingBox(), lastRow=await rows.last().boundingBox();
   assert.ok(tableBox.x>=bounds.x-1 && tableBox.x+tableBox.width<=bounds.x+bounds.width+1,'quarter table fits the reading area');
