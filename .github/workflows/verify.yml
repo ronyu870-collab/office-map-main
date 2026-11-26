@@ -12,12 +12,15 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: '17 18 * * *' # 02:17 Beijing time, daily full regression
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: verify-${{ github.workflow }}-${{ github.ref }}
+  group: verify-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -27,7 +30,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       docs_only: ${{ steps.scope.outputs.docs_only }}
-      quick_only: ${{ steps.scope.outputs.quick_only }}
+      full_only: ${{ steps.scope.outputs.full_only }}
+      map_browser: ${{ steps.scope.outputs.map_browser }}
+      ai_browser: ${{ steps.scope.outputs.ai_browser }}
+      comparison_sha: ${{ steps.scope.outputs.comparison_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,7 +47,8 @@ jobs:
         run: node scripts/verification/ci-scope.mjs
         env:
           CI_COMPARISON_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          CI_QUICK_REQUESTED: ${{ startsWith(github.head_ref, 'codex/quick-') || contains(github.event.head_commit.message, '[quick]') }}
+          CI_FORCE_FULL: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+          CI_POST_MERGE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
   search-focus:
     needs: changes
@@ -70,14 +77,14 @@ jobs:
       - name: Run regressions for affected entrypoints
         run: node scripts/search-focus-gate.mjs
         env:
-          SEARCH_FOCUS_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          SEARCH_FOCUS_BASE_SHA: ${{ needs.changes.outputs.comparison_sha }}
 
-  quick:
-    name: Quick UI update
+  standard:
+    name: Routine engineering checks
     needs: changes
-    if: ${{ needs.changes.outputs.quick_only == 'true' }}
+    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.full_only != 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -87,13 +94,55 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run verify:quick
+      - name: Audit coverage contract
+        run: npm run audit:coverage
         env:
-          CI_COMPARISON_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          AUDIT_COVERAGE_BASE_SHA: ${{ needs.changes.outputs.comparison_sha }}
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Check schema dictionary catalog and search index
+        run: node scripts/generate-schema-dictionary.mjs --check
+      - name: Lint
+        run: npm run lint
+      - name: Unit and component tests
+        run: npm run test
+      - name: Offline AI evaluation (affected module)
+        if: ${{ needs.changes.outputs.ai_browser == 'true' }}
+        run: npm run test:ai-eval
+      - name: Production build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_AMAP_KEY: syntheticfixture
+      - name: Affected map and AI browser functional regressions
+        if: ${{ needs.changes.outputs.map_browser == 'true' || needs.changes.outputs.ai_browser == 'true' }}
+        shell: bash
+        env:
+          MAP_BROWSER: ${{ needs.changes.outputs.map_browser }}
+          AI_BROWSER: ${{ needs.changes.outputs.ai_browser }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/performance-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/performance-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          export PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/performance-browser/node_modules/playwright-core"
+          export PERF_BROWSER_CHANNEL=chromium
+          node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3210 > "$RUNNER_TEMP/routine-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3210/login > /dev/null; then break; fi
+            sleep 1
+          done
+          if [ "$MAP_BROWSER" = true ]; then
+            node scripts/verification/verify-map-workspace.mjs http://127.0.0.1:3210
+            node scripts/verification/verify-map-continuity.mjs http://127.0.0.1:3210
+          fi
+          if [ "$AI_BROWSER" = true ]; then
+            node scripts/verification/home-entry-browser.mjs after http://127.0.0.1:3210
+            HOME_QUERY_P2_BUILD_MODE=production HOME_QUERY_P2_EVIDENCE_DIR="$RUNNER_TEMP/colliers-ai-experience-p2" node scripts/verification/home-query-experience-p2-browser.mjs after http://127.0.0.1:3210
+          fi
 
   engineering:
     needs: changes
-    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.quick_only != 'true' }}
+    if: ${{ needs.changes.outputs.full_only == 'true' }}
     name: Engineering regressions
     runs-on: >-
       ${{ github.event_name == 'pull_request'
@@ -139,7 +188,7 @@ jobs:
       - name: Audit coverage contract
         run: npm run audit:coverage
         env:
-          AUDIT_COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          AUDIT_COVERAGE_BASE_SHA: ${{ needs.changes.outputs.comparison_sha }}
 
       - name: Typecheck
         run: npm run typecheck
@@ -525,7 +574,7 @@ jobs:
 
   ai-query-auth:
     needs: changes
-    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.quick_only != 'true' }}
+    if: ${{ needs.changes.outputs.full_only == 'true' }}
     name: Real Auth trusted query HTTP integration
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -582,7 +631,7 @@ jobs:
 
   lease-expiry-auth:
     needs: changes
-    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.quick_only != 'true' }}
+    if: ${{ needs.changes.outputs.full_only == 'true' }}
     name: Real Auth lease expiry integration
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -627,7 +676,7 @@ jobs:
   verify:
     name: Typecheck, lint, test and build
     if: ${{ always() }}
-    needs: [changes, search-focus, quick, engineering, ai-query-auth, lease-expiry-auth]
+    needs: [changes, search-focus, standard, engineering, ai-query-auth, lease-expiry-auth]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
