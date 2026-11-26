@@ -2,6 +2,7 @@
 import * as React from 'react';
 import Image from 'next/image';
 import { Button } from '@/src/components/ui';
+import { candidateThemeLabel } from '@/src/lib/pitch/design/theme';
 import { LAYOUTS } from '@/src/lib/pitch/layout/definitions';
 import type { LayoutId, SlideScene } from '@/src/lib/pitch/contracts/scene';
 import type { ExportFormat } from '@/src/lib/pitch/render/format';
@@ -69,7 +70,7 @@ export function ScenePreview({ project, slides, themes, call, canGenerate, onSav
       {slides[page]?.scene.rendererVersion && <>
         <label>布局<select value={layout} onChange={e => setLayout(e.target.value)}>{LAYOUTS.map(l => <option key={l.id} value={l.id}>{l.zh}</option>)}</select></label>
         <label>变体<select value={variant} onChange={e => setVariant(e.target.value as typeof variant)}><option value="standard">标准</option><option value="alternate">替换结构</option></select></label>
-        <label>主题<select value={theme} onChange={e => setTheme(e.target.value)}>{Array.from(new Map([[theme, { id: slides[page].scene.themeId, current_version: slides[page].scene.themeVersion }], ...themes.map(t => [JSON.stringify([t.id, t.current_version]), t] as const)]).entries()).map(([key, t]) => <option key={key} value={key}>{t.id === 'colliers-default-v1' ? '临时主题' : '验证主题'} · v{t.current_version}</option>)}</select></label>
+        <label>主题<select value={theme} onChange={e => setTheme(e.target.value)}>{Array.from(new Map([[theme, { id: slides[page].scene.themeId, current_version: slides[page].scene.themeVersion }], ...themes.map(t => [JSON.stringify([t.id, t.current_version]), t] as const)]).entries()).map(([key, t]) => <option key={key} value={key}>{t.id === 'colliers-default-v1' ? '临时主题' : candidateThemeLabel(t.id) ?? '验证主题'} · v{t.current_version}</option>)}</select></label>
         <Button variant="secondary" disabled={working || loading || !preview || !canGenerate} onClick={() => void savePreview()}>将此内容另存为新提案</Button>
       </>}
     </div>
