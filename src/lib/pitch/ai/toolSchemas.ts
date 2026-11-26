@@ -14,7 +14,7 @@ export const PITCH_TOOL_SCHEMAS = {
   pitch_prepare_slide: nlSchema,
   pitch_generate_slide: command("start"),
   pitch_update_slide: saveSchema.extend({
-    pages: z.array(pageEditSchema.omit({ objectMoves: true, objectTexts: true, resetObjectLayout: true })).max(50),
+    pages: z.array(pageEditSchema.omit({ objectMoves: true, objectTexts: true, objectOrder: true, resetObjectLayout: true })).max(50),
   }),
   pitch_add_slide: command("append"),
   pitch_reorder_slides: z.strictObject({

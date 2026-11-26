@@ -4,6 +4,8 @@ import type { DesignTheme } from '../design/theme';
 import { lineHeight, sceneFont, wrapText, LayoutError } from './metrics';
 export type MediaSize = { id: string; version: number; width: number; height: number };
 export type QualityIssue = { code: string; element: number; message: string; severity: 'error' | 'warning' };
+const overlapsIntentionally = (element: SlideScene['elements'][number]) =>
+  (element.kind === 'image' || (element.kind === 'shape' && !element.background)) && element.allowOverlap === true;
 export async function checkScene(raw: SlideScene, theme: DesignTheme, media: MediaSize[] = []): Promise<QualityIssue[]> {
   const issues: QualityIssue[] = [], add = (code: string, element: number, message: string, severity: 'error' | 'warning' = 'error') => issues.push({ code, element, message, severity });
   if (!slideSceneSchema.safeParse(raw).success) { add('SCENE_SCHEMA', -1, '页面结构或元素坐标不合法。'); return issues; }
@@ -34,6 +36,7 @@ export async function checkScene(raw: SlideScene, theme: DesignTheme, media: Med
     for (let j = 0; j < i; j++) {
       const other = raw.elements[j];
       if (el.kind === 'line' || other.kind === 'line' || el.kind === 'shape' && el.background || other.kind === 'shape' && other.background) continue;
+      if (overlapsIntentionally(el) && overlapsIntentionally(other)) continue;
       const neighbor = visualBoxes[j];
       const dx = Math.min(bounds.x + bounds.w, neighbor.x + neighbor.w) - Math.max(bounds.x, neighbor.x),
         dy = Math.min(bounds.y + bounds.h, neighbor.y + neighbor.h) - Math.max(bounds.y, neighbor.y);

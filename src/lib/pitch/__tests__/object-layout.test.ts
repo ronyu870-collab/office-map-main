@@ -7,7 +7,7 @@ import { layoutSlides } from "../layout/engine";
 import { layoutFixture } from "../fixtures/layouts";
 import { renderPitchPptx } from "../render/pptx";
 import { renderSceneSvg } from "../render/svg";
-import { applyObjectMoves, applyObjectTexts, constrainedPosition, constrainedScale, objectId, textAnchors } from "../workspace/object-layout";
+import { applyObjectMoves, applyObjectOrder, applyObjectTexts, constrainedPosition, constrainedScale, objectId, textAnchors } from "../workspace/object-layout";
 import { pageEditSchema } from "../workspace/protocol";
 
 const page = async () => (await layoutSlides(layoutFixture("executive-summary"), STUDIO_THEME, "executive-summary"))[0];
@@ -77,6 +77,33 @@ describe("editable scene positions", () => {
     const neighbor = { ...shape, x: 3.8, y: 1.7, w: .5, h: .4 };
     expect(await checkScene({ ...edited, elements: [edited.elements[0], neighbor] }, STUDIO_THEME))
       .toEqual(expect.arrayContaining([expect.objectContaining({ code: "ELEMENT_OVERLAP" })]));
+  });
+
+  it("reorders native objects and permits only explicitly overlapping graphics", async () => {
+    const base = await page();
+    const rect = { kind: "shape", shape: "rect", fill: "primary", background: false, x: 2, y: 3, w: 3, h: 1 } as const;
+    const ellipse = { ...rect, shape: "ellipse", x: 3, fill: "secondary" } as const;
+    const footer = { kind: "text", x: 2, y: 6.9, w: 3, h: .4, text: "固定页脚", role: "body", bold: false, purpose: "footer" } as const;
+    const scene = { ...base, elements: [rect, footer, ellipse] };
+    expect(await checkScene(scene, STUDIO_THEME)).toEqual(expect.arrayContaining([expect.objectContaining({ code: "ELEMENT_OVERLAP" })]));
+    const accepted = applyObjectMoves(scene, [
+      { id: "object-1", x: 2, y: 3, allowOverlap: true },
+      { id: "object-3", x: 3, y: 3, allowOverlap: true },
+    ]);
+    const ordered = applyObjectOrder(accepted, ["object-3", "object-1"]);
+    expect(ordered.elements.map((element, i) => objectId(element, i))).toEqual(["object-3", "object-2", "object-1"]);
+    expect(ordered.elements[1]).toEqual(footer);
+    expect(await checkScene(ordered, STUDIO_THEME)).toEqual([]);
+    expect(() => applyObjectOrder(accepted, ["object-3", "object-2"])).toThrow("PITCH_OBJECT_ORDER_INVALID");
+    expect(() => applyObjectOrder(accepted, ["object-3", "object-3"])).toThrow("PITCH_OBJECT_ORDER_INVALID");
+    const protectedOverlap = { ...ordered, elements: [ordered.elements[0], { ...footer, x: 3, y: 3 }, ordered.elements[2]] };
+    expect(await checkScene(protectedOverlap, STUDIO_THEME)).toEqual(expect.arrayContaining([expect.objectContaining({ severity: "error" })]));
+    const svg = await renderSceneSvg(ordered, STUDIO_THEME, [], true);
+    expect(svg.indexOf('data-pitch-object="object-3"')).toBeLessThan(svg.indexOf('data-pitch-object="object-1"'));
+    const deck = await JSZip.loadAsync(await renderPitchPptx("原生层次验证", [{ scene: ordered, theme: STUDIO_THEME }], []));
+    const xml = await deck.file("ppt/slides/slide1.xml")!.async("string");
+    expect(xml).toContain('prst="ellipse"');
+    expect(xml.indexOf('prst="ellipse"')).toBeLessThan(xml.lastIndexOf('prst="rect"'));
   });
 
   it("updates canonical content and native text together without touching ambiguous or managed content", async () => {

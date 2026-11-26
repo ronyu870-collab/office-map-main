@@ -129,7 +129,7 @@ export async function runPitchTool(
   }
   if (name === "pitch_update_slide") {
     const command = saveSchema.parse(args);
-    if (command.pages.some(page => page.objectMoves || page.objectTexts || page.resetObjectLayout))
+    if (command.pages.some(page => page.objectMoves || page.objectTexts || page.objectOrder || page.resetObjectLayout))
       throw new Error("PITCH_OBJECT_LAYOUT_RESET_REQUIRED");
     await saveWorkspace(ctx, command);
     return { status: "ready", saved: true };

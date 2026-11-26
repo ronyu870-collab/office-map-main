@@ -156,6 +156,8 @@ export async function handleWorkspaceRequest(
                 ? "此页的原版本已不可恢复，请从项目历史核对。"
               : code === "PITCH_OBJECT_TEXT_INVALID"
                 ? "这段文字不能直接修改，请检查是否为跨页或受保护的内容。"
+              : code === "PITCH_OBJECT_ORDER_INVALID"
+                ? "图层已变化，请重新打开页面后再调整顺序。"
               : code === "PITCH_OBJECT_LAYOUT_INVALID"
                 ? "对象已变更或位置超出页面，请重试。"
               : code === "PITCH_THEME_REPAGINATION"

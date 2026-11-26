@@ -269,6 +269,22 @@ export async function verifyPitchWorkspace({
       assert.equal(redone.status, 200, JSON.stringify(redone.body));
       detail = redone.body;
       assert.equal(detail.slides[0].content.title, "画布内修改的标题");
+      const layers = detail.slides[0].scene.elements.flatMap((element, index) => {
+        const allowed = (element.kind === "shape" && !element.background) ||
+          (element.kind === "text" && (!element.purpose || element.purpose === "content")) ||
+          ["image", "table", "chart", "map"].includes(element.kind);
+        return allowed ? [element.editorId ?? `object-${index + 1}`] : [];
+      });
+      assert.ok(layers.length >= 2);
+      const reorder = save(), expectedOrder = [...layers].reverse();
+      reorder.pages[0].objectOrder = [layers[0], ...layers.slice(0, -1)];
+      assert.equal((await workspace(admin, reorder)).status, 422);
+      reorder.pages[0].objectOrder = expectedOrder;
+      const layered = await workspace(admin, reorder);
+      assert.equal(layered.status, 200, JSON.stringify(layered.body));
+      detail = layered.body;
+      assert.deepEqual(detail.slides[0].scene.elements.flatMap(element => element.editorId ? [element.editorId] : []), expectedOrder);
+      assert.equal(detail.slides[0].content.title, "画布内修改的标题");
     },
   );
   await check(

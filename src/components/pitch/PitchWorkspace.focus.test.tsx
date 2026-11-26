@@ -1,5 +1,5 @@
 import * as React from "react";
-import { applyObjectMoves, applyObjectTexts, objectId, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
+import { applyObjectMoves, applyObjectOrder, applyObjectTexts, objectId, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
 import { slideContentSchema } from "@/src/lib/pitch/contracts/content";
 import { slideSceneSchema, type SlideScene } from "@/src/lib/pitch/contracts/scene";
 import { BUSINESS_RECIPES } from "@/src/lib/pitch/business/recipes";
@@ -260,16 +260,18 @@ beforeEach(() => {
                 paragraphs?: string[];
                 objectMoves?: ObjectMove[];
                 objectTexts?: ObjectText[];
+                objectOrder?: string[];
               }) => {
                 const original = detail.slides.find(
                   (s) => s.id === (p.duplicateOf ?? p.id),
                 )!;
                 const patchedText = p.objectTexts && applyObjectTexts(slideSceneSchema.parse(original.scene), slideContentSchema.parse(original.content), p.objectTexts);
                 const patchedScene = patchedText ? patchedText.scene : slideSceneSchema.parse(original.scene);
+                const positioned = p.objectMoves ? applyObjectMoves(patchedScene, p.objectMoves) : patchedScene;
                 return {
                   ...original,
                   id: p.id,
-                  scene: (p.objectMoves ? applyObjectMoves(patchedScene, p.objectMoves) : patchedScene),
+                  scene: p.objectOrder ? applyObjectOrder(positioned, p.objectOrder) : positioned,
                   content: {
                     ...original.content,
                     title: p.title ?? (patchedText ? patchedText.content.title : original.content.title),
@@ -415,6 +417,25 @@ describe("Pitch workspace continuous editing", () => {
     await user.click(screen.getByRole("button", { name: "重做已保存的调整" }));
     await waitFor(() => expect(detail.slides[0].scene.elements[1].w).toBeCloseTo(2.4));
     expect(writes.filter(entry => entry.action === "restore_page").map(entry => entry.revision)).toEqual([1, 2]);
+  });
+  it("saves layer order and preserves stable IDs when the page is reopened", async () => {
+    detail.slides[0].scene.elements.push({
+      kind: "shape", x: 2, y: 4, w: 3, h: 1, fill: "primary", background: false, shape: "rect",
+    });
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: "对象 2：形状" }));
+    await user.click(screen.getByText("图层（从上到下）"));
+    await user.click(screen.getByRole("button", { name: "下移一层" }));
+    await user.click(screen.getByRole("button", { name: "应用到页面" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements.map(el => el.editorId)).toEqual(["object-2", "object-1"]), { timeout: 3000 });
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectOrder: ["object-2", "object-1"] },
+    ]);
+    cleanup();
+    await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    expect(await screen.findByRole("button", { name: "对象 1：形状" })).toBeInTheDocument();
   });
   it("keeps project name focused through continuous typing and cursor edits", async () => {
     const user = await enter(),

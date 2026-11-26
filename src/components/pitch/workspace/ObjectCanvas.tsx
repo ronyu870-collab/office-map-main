@@ -5,13 +5,13 @@ import { Button } from "@/src/components/ui";
 import type { SlideContent } from "@/src/lib/pitch/contracts/content";
 import { boxFits, normalizedRotation, rotateVector } from "@/src/lib/pitch/contracts/scene-geometry";
 import type { SlideScene, SceneElement } from "@/src/lib/pitch/contracts/scene";
-import { canMoveObject, canScaleObject, constrainedPosition, constrainedScale, objectId, objectRotation, textAnchors, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
+import { canMoveObject, canScaleObject, constrainedPosition, constrainedScale, objectId, objectOverlap, objectRotation, sceneLayerEntries, textAnchors, validObjectOrder, type ObjectMove, type ObjectText } from "@/src/lib/pitch/workspace/object-layout";
 import type { Call } from "./client";
 import styles from "./workspace.module.css";
 
 type Layer = { id: string | null; url: string };
-type Position = Pick<ObjectMove, "x" | "y" | "scale" | "rotation">;
-type Changes = { moves: ObjectMove[]; texts: ObjectText[] };
+type Position = Pick<ObjectMove, "x" | "y" | "scale" | "rotation" | "allowOverlap">;
+type Changes = { moves: ObjectMove[]; texts: ObjectText[]; order?: string[] };
 type History = { past: Changes[]; present: Changes; future: Changes[] };
 type HistoryAction = { type: "record"; update: (value: Changes) => Changes } | { type: "undo" | "redo" };
 function editHistory(state: History, action: HistoryAction): History {
@@ -42,7 +42,7 @@ export function splitLayers(svg: string): Layer[] {
   });
 }
 
-export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, pendingMoves, pendingTexts, onApply, onClose }: {
+export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, pendingMoves, pendingTexts, pendingOrder, onApply, onClose }: {
   call: Call;
   projectId: string;
   slideId: string;
@@ -51,6 +51,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   allowParagraphs: boolean;
   pendingMoves?: ObjectMove[];
   pendingTexts?: ObjectText[];
+  pendingOrder?: string[];
   onApply: (changes: Changes) => void;
   onClose: () => void;
 }) {
@@ -60,15 +61,20 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   const [angleInput, setAngleInput] = React.useState<{ id: string; value: string } | null>(null);
   const [selected, setSelected] = React.useState<string | null>(null);
   const [history, dispatch] = React.useReducer(editHistory, {
-    past: [], present: { moves: pendingMoves ?? [], texts: pendingTexts ?? [] }, future: [],
+    past: [], present: { moves: pendingMoves ?? [], texts: pendingTexts ?? [], order: pendingOrder }, future: [],
   });
-  const { moves, texts } = history.present;
+  const { moves, texts, order } = history.present;
   const [typing, setTyping] = React.useState<{ id: string; value: string } | null>(null);
   const [dragMove, setDragMove] = React.useState<ObjectMove | null>(null);
   const board = React.useRef<HTMLDivElement | null>(null);
   const drag = React.useRef<{ id: string; pointer: number; startX: number; startY: number; origin: Position; rect: DOMRect; resizing?: boolean } | null>(null);
   const sceneKey = JSON.stringify(scene);
   const entries = scene.elements.map((element, i) => ({ element, id: objectId(element, i) }));
+  const originalOrder = entries.filter(entry => canMoveObject(entry.element)).map(entry => entry.id);
+  const validOrder = !order || validObjectOrder(originalOrder, order);
+  const orderedEntries = validOrder ? sceneLayerEntries(entries, order) : entries;
+  const currentOrder = validOrder && order ? order : originalOrder;
+  const layerById = new Map(layers.map(layer => [layer.id, layer]));
   const anchors = React.useMemo(() => textAnchors(scene, content, allowParagraphs), [scene, content, allowParagraphs]);
   const canonicalText = (id: string) => {
     const anchor = anchors.get(id);
@@ -76,7 +82,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
     const block = anchor?.kind === "paragraph" ? content.blocks[anchor.block] : undefined;
     return block?.kind === "paragraph" ? block.text : "";
   };
-  const hasChanges = !!(moves.length || texts.length);
+  const hasChanges = !!(moves.length || texts.length || order);
   React.useEffect(() => {
     const request = new AbortController();
     void call<{ svg: string; scene: SlideScene }>({
@@ -97,7 +103,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
 
   function position(id: string, fallback: SceneElement): Position {
     const local = dragMove?.id === id ? dragMove : moves.find(move => move.id === id);
-    return { x: fallback.x, y: fallback.y, rotation: objectRotation(fallback), ...local };
+    return { x: fallback.x, y: fallback.y, rotation: objectRotation(fallback), allowOverlap: objectOverlap(fallback), ...local };
   }
   function place(id: string, next: Position) {
     const entry = entries.find(value => value.id === id);
@@ -107,20 +113,21 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
       const rest = previous.moves.filter(move => move.id !== id);
       const { x, y, scale } = next;
       const angleChanged = next.rotation !== undefined && next.rotation !== objectRotation(entry.element);
-      const moves = x === entry.element.x && y === entry.element.y && (scale ?? 1) === 1 && !angleChanged
+      const overlapChanged = next.allowOverlap !== undefined && next.allowOverlap !== objectOverlap(entry.element);
+      const moves = x === entry.element.x && y === entry.element.y && (scale ?? 1) === 1 && !angleChanged && !overlapChanged
         ? rest : [...rest, { id, x, y, ...(scale !== undefined && scale !== 1 ? { scale } : {}),
-          ...(angleChanged ? { rotation: next.rotation } : {}) }];
+          ...(angleChanged ? { rotation: next.rotation } : {}), ...(overlapChanged ? { allowOverlap: next.allowOverlap } : {}) }];
       return { ...previous, moves };
     } });
   }
   function moveFrom(at: Position, element: Pick<SlideScene["elements"][number], "w" | "h">, x: number, y: number) {
     const scale = at.scale ?? 1;
     return { ...constrainedPosition(scene, { w: element.w * scale, h: element.h * scale }, x, y, at.rotation),
-      rotation: at.rotation, ...(scale !== 1 ? { scale } : {}) };
+      rotation: at.rotation, allowOverlap: at.allowOverlap, ...(scale !== 1 ? { scale } : {}) };
   }
 
   function resizeFrom(at: Position, element: Pick<SlideScene["elements"][number], "w" | "h">, scale: number) {
-    return { x: at.x, y: at.y, rotation: at.rotation, scale: constrainedScale(scene, element, at, scale, at.rotation) };
+    return { x: at.x, y: at.y, rotation: at.rotation, allowOverlap: at.allowOverlap, scale: constrainedScale(scene, element, at, scale, at.rotation) };
   }
   function changeRotation(id: string, element: SceneElement, angle: number) {
     const at = position(id, element), rotation = normalizedRotation(angle), scale = at.scale ?? 1;
@@ -130,6 +137,19 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
     }
     place(id, { ...at, rotation });
   }
+  function changeLayer(id: string, delta: -1 | 1) {
+    dispatch({ type: "record", update: previous => {
+      const order = [...(previous.order && validObjectOrder(originalOrder, previous.order) ? previous.order : originalOrder)];
+      const from = order.indexOf(id), to = from + delta;
+      if (from < 0 || to < 0 || to >= order.length) return previous;
+      [order[from], order[to]] = [order[to], order[from]];
+      return { ...previous, order: order.every((item, index) => item === originalOrder[index]) ? undefined : order };
+    } });
+  }
+  const layerName = (id: string, element: SceneElement) => element.kind === "text"
+    ? (texts.find(change => change.id === id)?.text ?? element.text).slice(0, 55)
+    : element.kind === "image" ? element.alt || "图片"
+    : ({ chart: "图表", table: "表格", shape: "形状", map: "地图", brand: "品牌标识", line: "版式线条" } as Record<string,string>)[element.kind] ?? "对象";
   function startTyping(id: string) {
     if (anchors.has(id)) setTyping({ id, value: texts.find(text => text.id === id)?.text ?? canonicalText(id) });
   }
@@ -171,15 +191,17 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
         <Button variant="ghost" disabled={!!typing || !history.future.length} onClick={() => dispatch({ type: "redo" })}>重做画布操作</Button>
         {picked && anchors.has(picked.id) && !typing &&
           <Button variant="ghost" onClick={() => startTyping(picked.id)}>编辑所选文字</Button>}
-        <Button disabled={!!error || !layers.length || !hasChanges || !!typing}
-          onClick={() => onApply(history.present)}>{texts.length ? "应用到页面" : "应用位置"}</Button>
+        <Button disabled={!!error || !layers.length || !hasChanges || !!typing || !validOrder}
+          onClick={() => onApply(history.present)}>{texts.length || order ? "应用到页面" : "应用位置"}</Button>
       </div>
       {error && <p role="alert">{error}</p>}
+      {!validOrder && <p role="alert">图层已变化，请丢弃未应用的调整后重试。</p>}
       {boundsMessage && <p role="status">{boundsMessage}</p>}
       {!layers.length && !error && <p role="status">正在读取页面对象…</p>}
       {layers.length > 0 && <div ref={board} className={styles.objectBoard}>
-        {layers.map((layer, index) => {
-          const element = entries[index - 1]?.element;
+        {[{ id: null, element: undefined }, ...orderedEntries].map(({ id, element }) => {
+          const layer = layerById.get(id);
+          if (!layer) return null;
           const p = layer.id && element ? position(layer.id, element) : null;
           const text = layer.id ? texts.find(change => change.id === layer.id)?.text : undefined;
           if (layer.id && element?.kind === "text" && p && (text || typing?.id === layer.id)) {
@@ -196,7 +218,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
           return <img key={layer.id ?? "background"} draggable={false} alt="" src={layer.url}
             style={transform ? { transformOrigin: "0 0", transform } : undefined} />;
         })}
-        {entries.filter(({ element }) => canMoveObject(element)).map(({ id, element }, index) => {
+        {orderedEntries.filter(({ element }) => canMoveObject(element)).map(({ id, element }, index) => {
           const p = position(id, element);
           const factor = p.scale ?? 1;
           const bounds = { left: `${p.x / scene.width * 100}%`, top: `${p.y / scene.height * 100}%`,
@@ -209,9 +231,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
               if (event.key === "Escape") { event.preventDefault(); setTyping(null); }
               if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); commitText(); }
             }} />;
-          const label = element.kind === "text" ? (texts.find(change => change.id === id)?.text ?? element.text).slice(0, 55)
-            : element.kind === "image" ? element.alt || "图片"
-            : ({ chart: "图表", table: "表格", shape: "形状", map: "地图" } as Record<string,string>)[element.kind] ?? "对象";
+          const label = layerName(id, element);
           return <button
             key={id} type="button" aria-label={`对象 ${index + 1}：${label}`} aria-pressed={selected === id}
             className={styles.objectTarget}
@@ -294,6 +314,26 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
           />
         )}
       </div>}
+      {layers.length > 0 && <details className={styles.layerPanel}>
+        <summary>图层（从上到下）</summary>
+        <ol>
+          {[...orderedEntries].reverse().map(({ id, element }) => (
+            <li key={id}>
+              {canMoveObject(element)
+                ? <button type="button" aria-pressed={selected === id}
+                    onClick={() => setSelected(id)}>{layerName(id, element)}</button>
+                : <span>{element.kind === "text" && element.purpose
+                    ? (element.purpose === "source" ? "来源" : "页脚") : layerName(id, element)}（受保护）</span>}
+            </li>
+          ))}
+        </ol>
+        <div className={styles.objectTools}>
+          <Button variant="ghost" disabled={!selected || !!typing || currentOrder.indexOf(selected) < 0 || currentOrder.indexOf(selected) >= currentOrder.length - 1}
+            onClick={() => selected && changeLayer(selected, 1)}>上移一层</Button>
+          <Button variant="ghost" disabled={!selected || !!typing || currentOrder.indexOf(selected) <= 0}
+            onClick={() => selected && changeLayer(selected, -1)}>下移一层</Button>
+        </div>
+      </details>}
       {typing && <div className={styles.objectTools}>
         <Button variant="ghost" onClick={() => setTyping(null)}>取消文字修改</Button>
         <Button variant="secondary" disabled={!typing.value.trim()} onClick={commitText}>完成文字编辑</Button>
@@ -336,6 +376,11 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             />
           </label>
           <output aria-label="所选对象角度">{position(picked.id, picked.element).rotation ?? 0}°</output>
+          <label className={styles.overlapField}>
+            <input type="checkbox" checked={position(picked.id, picked.element).allowOverlap ?? false}
+              onChange={event => place(picked.id, { ...position(picked.id, picked.element), allowOverlap: event.target.checked })} />
+            允许与其他已开启的图片或形状叠放
+          </label>
         </div>
       )}
       {picked && <output aria-live="polite" className={styles.objectPosition}>

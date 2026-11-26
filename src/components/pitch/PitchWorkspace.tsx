@@ -370,7 +370,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
       pending.current = work;
       try {
         const saved = await work;
-        const edited = value.draft.pages.filter(page => !!(page.objectMoves || page.objectTexts));
+        const edited = value.draft.pages.filter(page => !!(page.objectMoves || page.objectTexts || page.objectOrder));
         if (edited.length === 1 && !edited[0].duplicateOf) {
           const slideId = edited[0].id, from = value.detail.project.version;
           setSavedCanvasHistory(previous => ({
@@ -1205,9 +1205,10 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       allowParagraphs={detail.workspace.page_settings[page.id]?.origin !== "data"}
                       pendingMoves={pageEdit?.objectMoves}
                       pendingTexts={pageEdit?.objectTexts}
+                      pendingOrder={pageEdit?.objectOrder}
                       onClose={() => setObjectPage(null)}
-                      onApply={({ moves, texts }) => {
-                        editPage({ objectMoves: moves.length ? moves : undefined, objectTexts: texts.length ? texts : undefined });
+                      onApply={({ moves, texts, order }) => {
+                        editPage({ objectMoves: moves.length ? moves : undefined, objectTexts: texts.length ? texts : undefined, objectOrder: order });
                         setObjectPage(null);
                       }}
                     />
@@ -1216,7 +1217,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       {canGenerate && page.scene.rendererVersion === "pitch-scene/2" &&
                         page.scene.elements.some(canMoveObject) && (
                         <div className={styles.objectTools}>
-                          <Button variant="ghost" disabled={busy || saving || conflict || rendering || (dirty && !pageEdit?.objectMoves && !pageEdit?.objectTexts)}
+                          <Button variant="ghost" disabled={busy || saving || conflict || rendering || (dirty && !pageEdit?.objectMoves && !pageEdit?.objectTexts && !pageEdit?.objectOrder)}
                             onClick={() => setObjectPage(active)}>
                             调整画布对象
                           </Button>
@@ -1226,13 +1227,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
                             <Button variant="ghost" disabled={busy || dirty || saving || conflict || rendering || !savedCanvas.redo.length}
                               onClick={() => void restoreCanvas("redo")}>重做已保存的调整</Button>
                           </>}
-                          {(pageEdit?.objectMoves || pageEdit?.objectTexts) && (
-                            <Button variant="ghost" disabled={saving} onClick={() => editPage({ objectMoves: undefined, objectTexts: undefined })}>
+                          {(pageEdit?.objectMoves || pageEdit?.objectTexts || pageEdit?.objectOrder) && (
+                            <Button variant="ghost" disabled={saving} onClick={() => editPage({ objectMoves: undefined, objectTexts: undefined, objectOrder: undefined })}>
                               丢弃未保存的对象修改
                             </Button>
                           )}
                           {page.scene.elements.some(element => element.editorId) && (
-                            <Button variant="ghost" disabled={busy || saving || conflict || rendering || !!pageEdit?.objectMoves || !!pageEdit?.objectTexts}
+                            <Button variant="ghost" disabled={busy || saving || conflict || rendering || !!pageEdit?.objectMoves || !!pageEdit?.objectTexts || !!pageEdit?.objectOrder}
                               onClick={() => setConfirmation({
                                 title: "恢复自动布局？",
                                 body: "此页手动摆放的位置将被替换。已保存的旧版仍可从项目历史恢复。",

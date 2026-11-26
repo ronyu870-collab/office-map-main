@@ -2,12 +2,15 @@ import { z } from "zod";
 import { boxFits, visualBounds } from "../contracts/scene-geometry";
 import { slideSceneSchema, type SceneElement, type SlideScene } from "../contracts/scene";
 
+const objectKeySchema = z.string().regex(/^object-[0-9]{1,3}$/);
+export const objectOrderSchema = z.array(objectKeySchema).min(2).max(150);
 export const objectMoveSchema = z.strictObject({
-  id: z.string().regex(/^object-[0-9]{1,3}$/),
+  id: objectKeySchema,
   x: z.number().min(0).max(13.334),
   y: z.number().min(0).max(7.5),
   scale: z.number().min(.1).max(4).optional(),
   rotation: z.number().int().min(-180).max(179).optional(),
+  allowOverlap: z.boolean().optional(),
 });
 export type ObjectMove = z.infer<typeof objectMoveSchema>;
 
@@ -18,6 +21,9 @@ export const canMoveObject = (element: SceneElement) =>
 
 export const canScaleObject = (element: SceneElement) =>
   element.kind === "image" || (element.kind === "shape" && !element.background);
+
+export const objectOverlap = (element: SceneElement) =>
+  (element.kind === "image" || element.kind === "shape") && element.allowOverlap === true;
 
 export const objectRotation = (element: SceneElement) =>
   element.kind === "image" || element.kind === "shape" ? element.rotation ?? 0 : 0;
@@ -69,7 +75,7 @@ export function applyObjectMoves(scene: SlideScene, value: ObjectMove[]): SlideS
       return element;
     }
     if (!move) return { ...element, editorId: id };
-    if ((move.scale !== undefined || move.rotation !== undefined) && !canScaleObject(element)) throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
+    if ((move.scale !== undefined || move.rotation !== undefined || move.allowOverlap !== undefined) && !canScaleObject(element)) throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
     const w = element.w * (move.scale ?? 1), h = element.h * (move.scale ?? 1);
     const rotated = { x: move.x, y: move.y, w, h, rotation: move.rotation ?? objectRotation(element) };
     if (!boxFits(scene, rotated))
@@ -78,14 +84,40 @@ export function applyObjectMoves(scene: SlideScene, value: ObjectMove[]): SlideS
     return {
       ...element, editorId: id, x: move.x, y: move.y, w, h,
       ...(move.rotation !== undefined ? { rotation: move.rotation } : {}),
+      ...(move.allowOverlap !== undefined ? { allowOverlap: move.allowOverlap } : {}),
     };
   });
   if (pending.size) throw new Error("PITCH_OBJECT_LAYOUT_INVALID");
   return slideSceneSchema.parse({ ...scene, elements });
 }
 
+export function validObjectOrder(originalOrder: string[], next: string[]) {
+  const ids = new Set(originalOrder);
+  return originalOrder.length === next.length && new Set(next).size === next.length && next.every(id => ids.has(id));
+}
+
+export function sceneLayerEntries<T extends { element: SceneElement; id: string }>(entries: T[], order?: string[]): T[] {
+  if (!order) return entries;
+  const editable = new Map(entries.filter(entry => canMoveObject(entry.element)).map(entry => [entry.id, entry]));
+  if (!validObjectOrder([...editable.keys()], order))
+    throw new Error("PITCH_OBJECT_ORDER_INVALID");
+  let i = 0;
+  return entries.map(entry => canMoveObject(entry.element) ? editable.get(order[i++])! : entry);
+}
+
+export function applyObjectOrder(scene: SlideScene, value: string[]): SlideScene {
+  const order = objectOrderSchema.parse(value);
+  if (scene.rendererVersion !== "pitch-scene/2") throw new Error("PITCH_OBJECT_ORDER_INVALID");
+  const entries = scene.elements.map((element, index) => ({ element, id: objectId(element, index) }));
+  return slideSceneSchema.parse({
+    ...scene,
+    elements: sceneLayerEntries(entries, order).map(({ element, id }) =>
+      canMoveObject(element) ? { ...element, editorId: id } : element),
+  });
+}
+
 export const objectTextSchema = z.strictObject({
-  id: z.string().regex(/^object-[0-9]{1,3}$/),
+  id: objectKeySchema,
   text: z.string().trim().min(1).max(4000),
 });
 export type ObjectText = z.infer<typeof objectTextSchema>;
