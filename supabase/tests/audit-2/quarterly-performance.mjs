@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { readFile,writeFile,mkdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { createLeaseTestDatabase,OWNER } from '../lease-change-history/database.mjs';
-const db=await createLeaseTestDatabase();
+import { assessLatencyBudget, assertLatencyBudgets, withLatencyRecheck, writeLatencyEvidence } from './latency-budget.mjs';
 const sql=path=>readFile(new URL(path,import.meta.url),'utf8');
+async function verifyQuarterly(attempt) {
+const db=await createLeaseTestDatabase();
 try{
  // Reuse the existing isolated database owner, then load the actual quarterly
  // fixture/functions into its own disposable database. Never touches remote DBs.
@@ -52,10 +54,13 @@ try{
  }
  await db.setup.query(await sql('../../migrations/20261121105118_audit_2_query_and_session_governance.sql'));
  const after=await benchmark();
- for(const operation of ['draft','submit'])assert.ok(after[operation].p95Ms-before[operation].p95Ms<=Math.max(10,before[operation].p95Ms*.03),operation+' P95 budget');
+ const latency=['draft','submit'].map(operation=>assessLatencyBudget(operation,before[operation],after[operation]));
  const counts=(await db.setup.query('select (select count(*)::int from private.quarterly_submission_requests) requests,(select count(*)::int from public.quarterly_submission_provenance) provenance')).rows[0];
+ const result={projectsPerSubmit:payload.length,environment:'Real PostgreSQL 17; existing quarterly SQL/RPC and synthetic fixture; 10 warmup +100 measured per operation; draft includes revision read; not an HTTP or production CPU measurement',version:db.version,before,after,counts,latency};
+ await writeLatencyEvidence('quarterly-performance',attempt,result);
  assert.equal(counts.requests,220);assert.equal(counts.provenance,220*payload.length);
- await mkdir('verification/audit-2',{recursive:true});
- const result={projectsPerSubmit:payload.length,environment:'Real PostgreSQL 17; existing quarterly SQL/RPC and synthetic fixture; 10 warmup +100 measured per operation; draft includes revision read; not an HTTP or production CPU measurement',version:db.version,before,after,counts};
- await writeFile('verification/audit-2/quarterly-performance.json',JSON.stringify(result,null,2));console.log(JSON.stringify({status:'pass',...result}));
+ assertLatencyBudgets(latency);
+ console.log(JSON.stringify({status:'pass',attempt,...result}));
 }finally{await db.close();}
+}
+await withLatencyRecheck(verifyQuarterly);

@@ -515,7 +515,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
         {busy && <QueryWorkingIndicator />}{message}
       </div>
       {busy && streamDraft && <HomeQueryMarkdown text={streamDraft} streaming aria-label="正在生成的部分回答" />}
-      {(reply?.status === 'assistant' || ready || assistantHelp) && <HomeQueryResponse message={reply?.message} answerSelection={reply?.answerSelection} result={ready ? reply?.result : undefined} executionStatus={reply?.agent?.executionStatus} delivery={reply ?? undefined} requestId={reply?.requestId} scope={scope} internalExport={access.internalExport === true} presentation={presentation} onExpand={expandWorkspace} collapsed={collapsed} onReveal={() => setCollapsed(false)} responseActions={ready && attempt ? <>
+      {(reply?.status === 'assistant' || ready || assistantHelp) && <HomeQueryResponse question={attempt?.question} message={reply?.message} answerSelection={reply?.answerSelection} result={ready ? reply?.result : undefined} executionStatus={reply?.agent?.executionStatus} delivery={reply ?? undefined} requestId={reply?.requestId} scope={scope} internalExport={access.internalExport === true} presentation={presentation} onExpand={expandWorkspace} collapsed={collapsed} onReveal={() => setCollapsed(false)} responseActions={ready && attempt ? <>
         <Button variant="ghost" onClick={reexecute} disabled={!attempt.question || !attempt.requestId || busy}>重新查询</Button>
         {longResult(reply?.result) && <Button variant="ghost" aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>收起本次结果</Button>}
       </> : undefined} />}
@@ -583,7 +583,7 @@ const PreviousTurn = React.memo(function PreviousTurn({ turn, scope, internalExp
         <Button className={styles.resultDisclosure} variant="ghost" aria-expanded={open} aria-controls={resultPanelId} data-query-result-disclosure={result.resultId}
           onClick={() => { setOpen(value => !value); setMounted(true); }}>{open ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}{open ? '收起数据与来源' : '展开数据与来源'}</Button>
         <div id={resultPanelId} hidden={!open}>
-          {mounted && <HomeQueryResponse message={turn.reply?.message} answerSelection={turn.reply?.answerSelection} result={result} executionStatus={turn.reply?.agent?.executionStatus} delivery={turn.reply ?? undefined} requestId={turn.reply?.requestId} scope={scope} internalExport={internalExport} presentation={presentation} onExpand={onExpand} collapsed={!open} />}
+          {mounted && <HomeQueryResponse question={turn.attempt.question} message={turn.reply?.message} answerSelection={turn.reply?.answerSelection} result={result} executionStatus={turn.reply?.agent?.executionStatus} delivery={turn.reply ?? undefined} requestId={turn.reply?.requestId} scope={scope} internalExport={internalExport} presentation={presentation} onExpand={onExpand} collapsed={!open} />}
           {open && controls}
         </div>
       </> : <>

@@ -19,6 +19,15 @@ describe('production-shaped safe operational projection',()=>{
   expect(operationMetadata('succeeded',sanitizeAuditContent({executionStatus:'limited'}))).toMatchObject({status:'incomplete'});
   expect(operationMetadata('correction',sanitizeAuditContent({delivery:'not_sent',reason:'authorization_changed_before_response'}))).toMatchObject({status:'denied',formalResult:false,filesCompleted:0});
  });
+ it('does not count a technically completed but incomplete formal answer as business success',()=>{
+  const project=(answerStatus:string,executionStatus='completed')=>operationMetadata('succeeded',sanitizeAuditContent({provider:'server_policy',executionStatus,answerStatus,notice:'private business text'}));
+  expect(project('answered')).toMatchObject({status:'completed'});
+  expect(project('partial')).toMatchObject({status:'partial',errorCode:'answer_incomplete',errorCategory:'data'});
+  expect(project('unavailable')).toMatchObject({status:'incomplete',errorCode:'answer_data_unavailable',errorCategory:'data'});
+  expect(project('needs_conditions')).toMatchObject({status:'clarification'});
+  expect(project('answered','partial')).toMatchObject({status:'partial'});
+  expect(JSON.stringify(project('partial'))).not.toContain('private business text');
+ });
  it('tracks explicit legal recovery and removes success after a final authorization correction',()=>{
   expect(operationMetadata('running',{phase:'result_recovery',recoveryRequested:true})).toMatchObject({recoveryRequested:true});
   expect(operationMetadata('succeeded',{recoveryCompleted:true})).toMatchObject({status:'completed',recoveryCompleted:true});

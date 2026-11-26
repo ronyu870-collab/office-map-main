@@ -9,7 +9,7 @@ import { projectResultTable } from './tableView';
 
 export { chartRequestSchema, type ChartRequest } from './chartSpec';
 import { chartRequestSchema, type ChartRequest } from './chartSpec';
-import { buildCartesianChart, configureChart, renderCartesianSvg } from './chartWorkspace';
+import { axisText, axisTicks, buildCartesianChart, configureChart, renderCartesianSvg } from './chartWorkspace';
 type CellBinding = { entityId: string; key: string; sourceIds: readonly string[]; analysisPath?: readonly (string|number)[] };
 export type ChartPoint = { label: string; x: number | string | null; y: number | null; xText: string; yText: string;
   xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number; outlier?: boolean | null };
@@ -232,15 +232,31 @@ export function chartBounds(chart: ResultChart, axis: 'x' | 'y'): [number, numbe
   return [config?.min ?? bounds[0], config?.max ?? bounds[1]];
 }
 
+/** Nice, finite zero-based default; custom bounds and percentage axes remain
+ * explicit. Never round source values or clip data to improve appearances. */
+export function lineAxisDomain(raw: [number, number], unit: string | null, axis: { min?: number; max?: number } | undefined, count = 5): [number, number] {
+  const [lo,hi]=raw;
+  if (![lo,hi,hi-lo].every(Number.isFinite) || lo>hi) throw new Error('CHART_RANGE_UNSUPPORTED');
+  if (axis?.min !== undefined || axis?.max !== undefined || unit === 'ratio') return [lo, hi === lo ? lo+1 : hi];
+  if (lo===hi) return [lo,hi+1];
+  const rough=(hi-lo)/(count-1), power=10**Math.floor(Math.log10(rough));
+  const step=[1,2,2.5,5,10].map(n=>n*power).find(n=>n>=rough) ?? rough;
+  const min=Math.floor(lo/step)*step, max=Math.ceil(hi/step)*step;
+  return Number.isFinite(max-min) && max>min ? [min,max] : [lo,hi];
+}
+
 /** Shared chronological layout. Never join points across a null quarter. */
-export function lineGeometry(chart: ResultChart, width=Math.max(640,chart.points.length*76+110), height=380, sharedBounds?: [number, number]) {
+export function lineGeometry(chart: ResultChart, width=Math.max(640,chart.points.length*76+110), height=chart.points.length <= 4 ? 240 : 320, sharedBounds?: [number, number]) {
   if(chart.kind!=='line' || chart.points.length<1 || chart.points.length>40)throw new Error('CHART_TREND_REQUIRED');
-  const [min,max]=sharedBounds??chartBounds(chart,'y'),top=30,bottom=height-70,left=70,right=width-30;
+  const raw=sharedBounds??chartBounds(chart,'y');
+  const count=chart.request.yAxis?.ticks ?? 5;
+  const [min,max]=lineAxisDomain(raw,chart.yUnit,chart.request.yAxis,count),top=30,bottom=height-46,left=90,right=width-42;
+  const ticks=axisTicks([min,max],count).map(value=>({ value, label:axisText(value,chart.yUnit,(max-min)/(count-1)), y:bottom-(value-min)/(max-min)*(bottom-top) }));
   const points=chart.points.map((p,i)=>({point:p,x:left+(chart.points.length === 1 ? .5 : i/(chart.points.length-1))*(right-left),y:p.y===null?null:bottom-(p.y-min)/(max-min||1)*(bottom-top)}));
   const segments:string[]=[];let run:string[]=[];
   const flush=()=>{if(run.length>1)segments.push(run.join(' '));run=[];};
   for(const p of points){if(p.y===null)flush();else run.push(`${p.x},${p.y}`);}flush();
-  return {width,height,top,bottom,left,right,min,max,points,segments};
+  return {width,height,top,bottom,left,right,min,max,points,segments,ticks};
 }
 
 export function chartFacets(chart: ResultChart): ResultChart[] {
@@ -319,11 +335,13 @@ export function renderChartSvg(chart: ResultChart, options?: { provenance: 'atta
     const parts = chart.kind === 'faceted_line' ? chartFacets(chart) : [chart];
     for (const part of parts) {
     if (chart.kind === 'faceted_line') y = paragraph(part.title, y + 12);
-    const plot=lineGeometry(part,width,chart.kind==='faceted_line'?250:380,chartBounds(chart,'y'));const offset=y+8;
+    const plot=lineGeometry(part,width,chart.kind==='faceted_line'?250:part.points.length <= 4 ? 240 : 320,chartBounds(chart,'y'));const offset=y+8;
     elements.push(`<g transform="translate(0 ${offset})"><path d="M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}" fill="none" stroke="#667085"/>`);
     for(const segment of plot.segments)elements.push(`<polyline points="${segment}" fill="none" stroke="#003e7e" stroke-width="2"/>`);
     for(const p of plot.points)if(p.y!==null)elements.push(`<circle cx="${p.x}" cy="${p.y}" r="4" fill="#003e7e"><title>${xml(p.point.label+'：'+p.point.yText)}</title></circle>`);
-    elements.push('</g>');text(plot.left-10,offset+plot.top+5,String(plot.max),'text-anchor="end"');text(plot.left-10,offset+plot.bottom,String(plot.min),'text-anchor="end"');
+    elements.push('</g>');
+    for (const tick of plot.ticks) text(plot.left-10,offset+tick.y+4,tick.label,'text-anchor="end"');
+    if (plot.points.length <= 4) for (const p of plot.points) if (p.y !== null) text(p.x + (p.x === plot.left ? 8 : p.x === plot.right ? -8 : 0),offset+Math.max(16,p.y-10),p.point.yText,`text-anchor="${p.x === plot.left ? 'start' : p.x === plot.right ? 'end' : 'middle'}"`);
     const every=Math.ceil(plot.points.length/8);
     plot.points.forEach((p,i)=>{if(i%every===0 || i===plot.points.length-1)text(p.x,offset+plot.bottom+26,p.point.label,'text-anchor="middle"');});
     y=offset+plot.height;
@@ -337,8 +355,8 @@ export function renderChartSvg(chart: ResultChart, options?: { provenance: 'atta
     const sy = (n: number) => plotBottom - (n - ymin) / (ymax - ymin || 1) * 320;
     elements.push(`<path d="M120 ${plotTop} V${plotBottom} H780" fill="none" stroke="#667085"/>`);
     for (const p of valid) elements.push(`<circle cx="${sx(p.x as number)}" cy="${sy(p.y!)}" r="4" fill="#003e7e"><title>${xml(`${p.label}：${p.xText}，${p.yText}`)}</title></circle>`);
-    text(100, plotTop + 5, String(ymax), 'text-anchor="end"'); text(100, plotBottom, String(ymin), 'text-anchor="end"');
-    text(120, plotBottom + 24, String(xmin)); text(780, plotBottom + 24, String(xmax), 'text-anchor="end"');
+    text(100, plotTop + 5, axisText(ymax,chart.yUnit), 'text-anchor="end"'); text(100, plotBottom, axisText(ymin,chart.yUnit), 'text-anchor="end"');
+    text(120, plotBottom + 24, axisText(xmin,chart.xUnit)); text(780, plotBottom + 24, axisText(xmax,chart.xUnit), 'text-anchor="end"');
     y = paragraph(`${chart.xLabel}（${units[chart.xUnit ?? ''] ?? chart.xUnit ?? ''}）`, plotBottom + 52);
   }
   y += 24;

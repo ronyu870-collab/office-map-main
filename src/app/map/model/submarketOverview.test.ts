@@ -67,15 +67,27 @@ describe('same-quarter historical trends', () => {
     expect(trends.all.at(-2)?.period).toBe('2025Q1');
     expect(trends.all.at(-2)?.rent).toBeCloseTo(175);
     expect(trends.all.at(-1)?.rent).toBeCloseTo(170);
-    expect(trends.all.at(-1)?.vacancyPct).toBeCloseTo(15);
+    // Q1 has rate-only records. Q2's A-grade rate-only zero is not a
+    // physical vacancy observation; only B's 60/300 qualifies formally.
+    expect(trends.all.at(-2)).toMatchObject({ vacancyPct: null, vacancySamples: 0, vacancyArea: 0 });
+    expect(trends.all.at(-1)).toMatchObject({ vacancyPct: 20, vacancySamples: 1, vacancyArea: 300 });
+    expect(trends.all.at(-1)?.sameSampleQoq?.vacancy).toMatchObject({ samples: 0, vacancyPp: null });
   });
 
-  it('separates A, B, preserves zero vacancy and leaves missing quarters null', () => {
+  it('separates A, B, excludes rate-only records and leaves missing quarters null', () => {
     const trends = computeSubmarketTrends(members, rows);
-    expect(trends.a.at(-1)?.vacancyPct).toBe(0);
+    expect(trends.a.at(-1)).toMatchObject({ vacancyPct: null, vacancySamples: 0, vacancyArea: 0 });
     expect(trends.b.at(-1)?.rent).toBe(190);
     expect(trends.all[0]?.rent).toBeNull();
     expect(trends.all[0]?.rentSamples).toBe(0);
+  });
+
+  it('preserves actual zero vacancy in formal quarterly statistics, even with a conflicting ratio', () => {
+    const physicalRows = rows.map(row => row.building_id === 'a' && row.record_quarter === 2
+      ? { ...row, vacant_area: 0, vacancy_rate: .5 } : row);
+    const trends = computeSubmarketTrends(members, physicalRows);
+    expect(trends.a.at(-1)).toMatchObject({ vacancyPct: 0, vacancySamples: 1, vacancyArea: 100 });
+    expect(trends.all.at(-1)).toMatchObject({ vacancyPct: 15, vacancySamples: 2, vacancyArea: 400 });
   });
 
   it('returns no fake chart when only draft metrics exist', () => {

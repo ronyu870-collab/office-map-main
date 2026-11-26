@@ -87,7 +87,12 @@ describe('qualifying a same-quarter Beijing benchmark', () => {
 
 describe('quarterly observations', () => {
   const offices = [{ id: 'a', grade: 'A' }, { id: 'b', grade: 'B' }];
-  const rows = (observation: ReturnType<typeof fact>): TrendMetricRow[] => offices.map(({ id }) => ({ building_id: id, ...observation }));
+  // Formal historical observations use recorded physical vacant area, not the
+  // legacy rate-only estimate used by the current-market fixture above.
+  const rows = (observation: ReturnType<typeof fact>): TrendMetricRow[] => offices.map(({ id }) => ({
+    building_id: id, ...observation,
+    vacant_area: observation.vacancy_rate === null ? null : observation.total_area * observation.vacancy_rate,
+  }));
 
   it('keeps independent latest periods and requires the real preceding quarter and year', () => {
     const points = computeSubmarketTrends(offices, [

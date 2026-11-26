@@ -53,3 +53,16 @@
 .root[data-nested-scroll="false"] .scroll { max-height: none; overflow-y: visible; }
 .root > details { margin-block: var(--cd-space-2); }
 .root > details > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; }
+
+/* Short research answers are reading tables, not miniature admin grids. */
+.root[data-reading="true"] .toolbar { justify-content: flex-end; padding-block: 0 var(--cd-space-1); }
+.root[data-reading="true"] .scroll { border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-lg); max-height: none; }
+.root[data-reading="true"] .scroll :is(th, td) { min-width: 0; padding: var(--cd-space-2) var(--cd-space-3); }
+.root[data-reading="true"] .scroll th { white-space: normal; background: var(--cd-color-surface-alt); }
+.root[data-reading="true"] .scroll .number { white-space: nowrap; }
+.root[data-reading="true"] .scroll tr:last-child td { border-bottom: 0; }
+.root[data-reading="true"] .cell { text-decoration: none; }
+.root[data-reading="true"] .cell:hover { text-decoration: underline; }
+.root[data-reading="true"] .scroll .name { position: static; border-inline-end: 0; }
+.root[data-reading="true"] .primaryActions > button { color: var(--cd-color-text-secondary); }
+@media (max-width: 639px) { .root[data-reading="true"] .scroll :is(th, td) { min-width: 72px; padding-inline: var(--cd-space-2); } }

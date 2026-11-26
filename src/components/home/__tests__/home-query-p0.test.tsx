@@ -41,10 +41,10 @@ describe('homepage AI P0 behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: /查看来源：面积加权净有效租金 170/ }));
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveTextContent('net_effective_rent'); expect(client.chart).not.toHaveBeenCalled();
   });
-  it('automatically draws one same-result trend in StrictMode without another query or download', async () => {
+  it('draws one explicitly requested same-result trend in StrictMode without another query or download', async () => {
     const result = resultViewSchema.parse(buildTrendResult([fixture({ year: 2026, quarter: 2 }), fixture({ year: 2026, quarter: 3 })], 'rent', 'per_period'));
     client.submit.mockResolvedValue({ status: 'ready', requestId, result });
-    render(<React.StrictMode><HomeQuery scope={scope} /></React.StrictMode>); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled()); send(input, '租金趋势');
+    render(<React.StrictMode><HomeQuery scope={scope} /></React.StrictMode>); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled()); send(input, '画一张折线图');
     expect(await screen.findByRole('figure', { name: '同源查询图表' })).toBeInTheDocument();
     expect(client.chart).toHaveBeenCalledOnce(); expect(client.chart.mock.calls[0][3]).toEqual({ kind: 'time_series' });
     expect(client.submit).toHaveBeenCalledOnce(); expect(client.download).not.toHaveBeenCalled();

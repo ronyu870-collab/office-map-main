@@ -25,6 +25,21 @@ const longResult = () => resultViewSchema.parse(buildTrendResult(Array.from({ le
 describe('progressive research result in one retained workspace', () => {
   beforeEach(() => { vi.resetAllMocks(); client.reportDelivery.mockResolvedValue(true); client.chart.mockImplementation(async (_scope, _id, result, request) => buildResultChart(result, request)); });
   afterEach(cleanup);
+  it('shows the two-quarter sample table first, with no automatic chart request', async () => {
+    const result = resultViewSchema.parse(buildTrendResult([fixture({year: 2026, quarter: 1}), fixture({year: 2026, quarter: 2})], 'rent', 'per_period'));
+    render(<HomeQueryResult result={result} requestId={requestId} scope={scope} question="CBD净有效租金2026Q1至2026Q2趋势各期样本" />);
+    const table = screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' });
+    expect(table).toBeVisible();
+    expect(table).toHaveTextContent('2026-Q1');
+    expect(table).toHaveTextContent('2026-Q2');
+    expect(table).toHaveTextContent('有效样本');
+    await ticks();
+    expect(client.chart).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('查看图表'));
+    fireEvent.click(screen.getByRole('button', { name: '查看折线图' }));
+    expect(await screen.findByRole('figure', { name: '同源查询图表' })).toBeVisible();
+    expect(client.chart).toHaveBeenCalledOnce();
+  });
   it('keeps a short metric immediately available, including its authorized source action', async () => {
     const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
     render(<HomeQueryResult result={result} presentation="compact" />);

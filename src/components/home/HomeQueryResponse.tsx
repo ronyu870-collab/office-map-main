@@ -12,7 +12,7 @@ import { responseBlockRenderers } from './HomeQueryResponseBlocks';
 
 type Props = { message?: string; result?: QueryResultView; executionStatus?: 'completed' | 'partial' | 'limited';
   requestId?: string; scope: QueryClientScope; delivery?: object; internalExport: boolean;
-  presentation: 'compact' | 'expanded'; onExpand: () => void; collapsed?: boolean; onReveal?: () => void; answerSelection?: AnswerSelection; responseActions?: React.ReactNode };
+  presentation: 'compact' | 'expanded'; onExpand: () => void; collapsed?: boolean; onReveal?: () => void; answerSelection?: AnswerSelection; responseActions?: React.ReactNode; question?: string };
 /** Shared entry point for live and restored messages. Narrative is optional;
  * formal results always use the versioned adapter and verified result renderer. */
 export const HomeQueryResponse = React.memo(function HomeQueryResponse({ message, result, executionStatus, collapsed = false, answerSelection, onReveal, ...props }: Props) {

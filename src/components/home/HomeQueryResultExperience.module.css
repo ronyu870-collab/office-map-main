@@ -104,3 +104,28 @@
 }
 .result > [aria-label="查询数据状态"] { width: 100%; max-width: var(--cd-ai-reading-width); margin-inline: auto; }
 .readingVisual { width: 100%; max-width: var(--cd-ai-reading-width); margin-inline: auto; }
+
+/* Clear reading axis; full data tables can extend beyond it. */
+.answer .conclusion { max-width: none; font-size: var(--cd-ai-body-size); line-height: 1.75; margin: 0; }
+.scope { margin-top: var(--cd-space-2); }
+.readingSection { margin-block: var(--cd-space-4); }
+.readingSection + .readingSection { margin-top: var(--cd-space-4); }
+.details { margin-block: var(--cd-space-1); }
+.chartSettings { margin-block-start: var(--cd-space-1); }
+.sourceSummary { padding-top: var(--cd-space-2); border-top: 1px solid var(--cd-color-border); }
+.resultActions { margin-top: var(--cd-space-2); }
+
+.sampleSummary { margin-top: var(--cd-space-3); color: var(--cd-color-text-secondary); line-height: 1.7; }
+.sampleSummary > p { margin-block: var(--cd-space-2) 0; }
+.sampleSummary strong { color: var(--cd-color-text-primary); font-weight: 600; }
+
+.membership { margin: var(--cd-space-4) auto; width: 100%; max-width: var(--cd-ai-reading-width); color: var(--cd-color-text-primary); }
+.membership p { color: var(--cd-color-text-secondary); margin-block: var(--cd-space-2); }
+.membership label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cd-space-2); }
+.membership select { max-width: 100%; font: inherit; color: inherit; background: var(--cd-color-surface-alt); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-md); padding: var(--cd-space-2); }
+.memberList { padding-inline-start: var(--cd-space-5); margin-block: var(--cd-space-2); }
+.memberList li { padding-block: var(--cd-space-1); border-bottom: 1px solid var(--cd-color-border); }
+.memberList button, .memberPagination button { font: inherit; color: var(--cd-color-brand); text-align: left; min-height: 32px; }
+.memberPagination { display: flex; align-items: center; gap: var(--cd-space-3); color: var(--cd-color-text-secondary); }
+.memberPagination button:disabled { opacity: .45; cursor: not-allowed; }
+@media (pointer: coarse) { .memberList button, .memberPagination button, .membership select { min-height: 44px; } }

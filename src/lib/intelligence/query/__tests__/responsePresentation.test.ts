@@ -1,8 +1,10 @@
 import { expect, it } from 'vitest';
-import { composeResponse, responseNarrative, responseDecision, responseFactCells } from '../responsePresentation';
+import { composeResponse, responseNarrative, responseDecision, responseFactCells, responseResultContent } from '../responsePresentation';
 import { buildListResult, buildTrendResult } from '../result';
 import { resultViewSchema, type QueryResultView } from '../presentation';
 import { fixture } from './fixtures';
+import { attachResearchAnalysis } from '../researchAnalysis';
+import { researchAnalysisSchema } from '../researchAnalysisView';
 const result = () => resultViewSchema.parse(buildListResult(fixture(), ['height']));
 it('preserves prose about servers and arbitrary user content without keyword removal', () => {
   expect(responseNarrative('服务器如何生成 Excel？')).toBe('服务器如何生成 Excel？');
@@ -77,4 +79,31 @@ it('degrades a trend with its only valid point after missing periods to that exa
   expect(facts[0].cell).toBe(point.cells.value);
   expect(facts[0].label).toContain('2026-Q4');
   expect(JSON.stringify(value)).toBe(original);
+});
+
+
+it('uses an inline two-quarter sample table rather than generating a chart by default', () => {
+  const snapshots = [fixture({ year: 2026, quarter: 1 }), fixture({ year: 2026, quarter: 2 })];
+  const result = resultViewSchema.parse(attachResearchAnalysis(buildTrendResult(snapshots, 'rent', 'per_period'), snapshots));
+  const before = JSON.stringify(result);
+  const question = 'CBD净有效租金2026Q1至2026Q2趋势各期样本';
+  expect(responseDecision(result, 'trend', question)).toMatchObject({ primaryExpression: 'table', details: 'inline' });
+  const types = composeResponse(undefined, result, 'trend', question).blocks.map(block => block.type);
+  expect(types.indexOf('table')).toBeLessThan(types.indexOf('analysis'));
+  expect(result.table.rows.map(row => row.cells.usedCount)).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'number' })]));
+  const research = researchAnalysisSchema.parse(result.parameters.researchAnalysis);
+  const content = responseResultContent(result, research);
+  expect(content.conclusion).toContain('下降');
+  expect(content.conclusion).not.toContain('逐季连续');
+  expect(research.findings[0].text).not.toContain('逐季连续');
+  expect(responseDecision(result, 'trend', '画一张折线图')).toMatchObject({ primaryExpression: 'chart', details: 'inline' });
+  expect(responseDecision(result, 'trend', '用表格，不要图')).toMatchObject({ primaryExpression: 'table', details: 'inline' });
+  expect(JSON.stringify(result)).toBe(before);
+});
+it('keeps longer time series visual and respects explicit sample-table requests', () => {
+  const result = resultViewSchema.parse(buildTrendResult([1,2,3,4].map(quarter => fixture({ year: 2026, quarter })), 'rent', 'per_period'));
+  expect(responseDecision(result, 'trend', '过去四季度租金趋势')).toMatchObject({ primaryExpression: 'chart', details: 'inline' });
+  const types = composeResponse(undefined, result, 'trend', '过去四季度各期样本').blocks.map(block => block.type);
+  expect(types.indexOf('table')).toBeLessThan(types.indexOf('analysis'));
+  expect(responseDecision(result, 'trend', '用表格，不要图').primaryExpression).toBe('table');
 });

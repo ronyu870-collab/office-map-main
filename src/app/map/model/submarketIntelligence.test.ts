@@ -45,6 +45,8 @@ describe('quarterly research signal', () => {
   const rows = [1, 2].flatMap(quarter => buildings.map(({ id }, index) => ({
     building_id: id, record_year: 2026, record_quarter: quarter, total_area: 250, is_locked: true,
     net_effective_rent: (200 - index * 30) * (quarter === 2 ? 0.9 : 1),
+    // Formal quarter observations require recorded physical vacancy area.
+    vacant_area: 25 + quarter * 2.5,
     vacancy_rate: 0.1 + quarter * 0.01,
   })));
   it('recomputes weighted gaps and same-cohort changes after the next quarter is formally released', () => {
@@ -52,10 +54,19 @@ describe('quarterly research signal', () => {
     const trend = computeSubmarketTrends(buildings, [...rows, pending]);
     expect(submarketResearchSignal('grade-rent', trend, 'ready')?.text).toContain('2026Q2 甲级减乙级 +54');
     expect(submarketResearchSignal('matched-rent', trend, 'ready')?.text).toContain('2026Q2 -10%');
+    expect(trend.all.at(-1)).toMatchObject({ vacancyPct: 12, vacancySamples: 4, vacancyArea: 1000 });
     expect(submarketResearchSignal('matched-vacancy', trend, 'ready')?.text).toContain('2026Q2 +1 个百分点');
     const release = computeSubmarketTrends(buildings, [...rows, ...rows.slice(4).map(row => ({ ...row, record_quarter: 3 }))]);
     expect(submarketResearchSignal('matched-rent', release, 'ready')?.text).toContain('2026Q3 0%');
     expect(submarketResearchSignal('matched-rent', release, 'error')).toBeNull();
+  });
+
+  it('excludes rate-only observations from formal same-cohort vacancy signals', () => {
+    const rateOnly = computeSubmarketTrends(buildings, rows.map(row => ({ ...row, vacant_area: null })));
+    expect(rateOnly.all.at(-1)).toMatchObject({ vacancyPct: null, vacancySamples: 0, vacancyArea: 0 });
+    expect(submarketResearchSignal('matched-vacancy', rateOnly, 'ready')?.text).toContain('缺少连续两季的可比项目');
+    // The rent cohort is still valid; missing vacancy never excludes a valid rent observation.
+    expect(submarketResearchSignal('matched-rent', rateOnly, 'ready')?.text).toContain('2026Q2 -10%');
   });
 
   it('avoids using an earlier period, a single building or a filtered office proxy', () => {

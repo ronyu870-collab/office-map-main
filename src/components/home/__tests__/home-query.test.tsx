@@ -91,7 +91,7 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     const figure = await screen.findByRole('figure', { name: '同源查询图表' });
     expect(figure.querySelectorAll('svg')).toHaveLength(2);
     fireEvent.click(screen.getByText('图表设置'));
-    expect(screen.getByText(/各组共用相同纵轴范围/)).toBeVisible();
+    expect(screen.getByText(/各组共用同一纵轴/)).toBeVisible();
     expect(screen.getByRole('img', { name: /^CBD，面积加权净有效租金季度趋势/ })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /^金融街，面积加权净有效租金季度趋势/ })).toBeInTheDocument();
     await waitFor(() => expect(client.reportDelivery.mock.calls.some(call => call[3]?.layout === 'faceted_line_all')).toBe(true));
@@ -202,6 +202,10 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
     fireEvent.change(input, { target: { value: '2026Q3CBD空置率' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
     expect(input).toHaveValue(''); fireEvent.change(input, { target: { value: '尚未提交的新问题' } });
+    expect(await screen.findByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' })).toBeVisible();
+    expect(client.chart).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('查看图表'));
+    fireEvent.click(screen.getByRole('button', { name: '查看折线图' }));
     await screen.findByRole('figure', { name: '同源查询图表' });
     fireEvent.click(screen.getByRole('button', { name: '查看柱状图' }));
     const chart = await screen.findByRole('figure', { name: '同源查询图表' }); expect(chart).toHaveTextContent('17.5');
@@ -220,7 +224,11 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     client.submit.mockResolvedValue({ requestId, status: 'ready', result }); client.chart.mockReturnValue(pending.promise);
     render(view()); await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '2026Q3CBD净有效租金' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
-    await screen.findByText('下载本次结果'); await waitFor(() => expect(client.chart).toHaveBeenCalledOnce());
+    await screen.findByText('下载本次结果');
+    expect(client.chart).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('查看图表'));
+    fireEvent.click(screen.getByRole('button', { name: '查看折线图' }));
+    await waitFor(() => expect(client.chart).toHaveBeenCalledOnce());
     client.capabilities.mockResolvedValue({ enabled: false, examples: [] }); fireEvent.focus(window);
     await waitFor(() => expect(screen.getByRole('textbox')).toBeDisabled());
     await act(async () => pending.resolve(buildResultChart(resultViewSchema.parse(result), { kind: 'time_series' })));

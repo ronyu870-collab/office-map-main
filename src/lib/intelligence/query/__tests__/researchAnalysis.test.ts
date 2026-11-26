@@ -253,3 +253,10 @@ describe('deterministic research analysis from the original authorized snapshot'
     expect(analysis(result).findings.every(item => item.sourceIds.every(id => sourceIds.has(id)))).toBe(true);
   });
 });
+
+it('does not report a sustained decline from only a single quarter-on-quarter change', () => {
+  const research = analysis(trend([snapshot(q(1), [211.5912619372]), snapshot(q(2), [205.324590694378])]));
+  expect(research.findings[0].text).toContain('205.32');
+  expect(research.findings[0].text).not.toContain('逐季连续下降');
+  expect(analysis(trend([snapshot(q(1), [220]), snapshot(q(2), [210]), snapshot(q(3), [200])])).findings[0].text).toContain('逐季连续下降');
+});

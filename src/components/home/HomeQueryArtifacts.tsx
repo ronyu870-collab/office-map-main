@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { agentChartDescriptorSchema } from '@/src/lib/intelligence/query/chartProtocol';
+import { axisText } from '@/src/lib/intelligence/query/chartWorkspace';
 import { chartBounds, distributionGeometry, chartFacets, heatmapFill, heatmapLegend, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
 import { defaultResultChartRequest, resultChartEligibility, resultNumericColumns } from '@/src/lib/intelligence/query/resultEligibility';
 import { distributionStatLabels } from '@/src/lib/intelligence/query/distribution';
@@ -19,9 +20,9 @@ import styles from './HomeQuery.module.css';
 import experienceStyles from './HomeQueryResultExperience.module.css';
 
 type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean; visible?: boolean;
-  actionContainer?: HTMLElement | null; responseActions?: React.ReactNode;
+  actionContainer?: HTMLElement | null; responseActions?: React.ReactNode; autoChart?: boolean;
   onSource: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void };
-export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource, visible = true, actionContainer, responseActions }: Props) {
+export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource, visible = true, actionContainer, responseActions, autoChart = true }: Props) {
   const numeric = React.useMemo(() => resultNumericColumns(result), [result]);
   const [field, setField] = React.useState(typeof result.parameters.field === 'string' && numeric.some(column => column.key === result.parameters.field) ? result.parameters.field : numeric[0]?.key ?? '');
   const metrics = React.useMemo(() => resultMetrics(result), [result]);
@@ -88,7 +89,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const eligible = resultChartEligibility(result, request).eligible;
   const canVisualize = eligible && result.operation !== 'aggregate' && (result.table.rows.length > 1 || result.operation === 'compare');
   const canConfigure = canVisualize || multipleMetrics && result.operation !== 'aggregate' && metrics.some(metric => defaultResultChartRequest(result, metric));
-  const canAuto = !result.parameters.agentChart && !!defaultResultChartRequest(result, selectedMetric) && eligible;
+  const canAuto = autoChart && !result.parameters.agentChart && !!defaultResultChartRequest(result, selectedMetric) && eligible;
   React.useEffect(() => {
     let disposed = false;
     if (canAuto && visible) queueMicrotask(() => {
@@ -130,9 +131,9 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
       </> : chart.kind==='faceted_line'?<>{chartFacets(chart).map((part,i)=><div key={chart.facets![i].key}><p>{part.title}</p><TrendLine chart={part} onSource={onSource} height={250} bounds={[min,max]}/></div>)}</>:chart.kind==='line'?<TrendLine chart={chart} onSource={onSource}/>:<Scatter chart={chart} onSource={onSource} />}
       {chart.kind === 'scatter' && <p className={styles.notice}>仅含两个字段均有效的联合样本，不代表因果关系。</p>}
     </figure></HomeQueryChartFrame>}
-    {!result.parameters.agentChart && canConfigure && <details className={experienceStyles.chartSettings}><summary>图表设置</summary>
+    {!result.parameters.agentChart && canConfigure && <details className={experienceStyles.chartSettings}><summary>{!autoChart && !chart && ['trend', 'compare'].includes(result.operation) ? '查看图表' : '图表设置'}</summary>
       {chart?.kind === 'bar' && <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>}
-      {chart?.kind === 'faceted_line' && <p className={styles.notice}>各组共用相同纵轴范围 {min}–{max}，不连接不同组。</p>}
+      {chart?.kind === 'faceted_line' && <p className={styles.notice}>各组共用同一纵轴，不连接不同组。</p>}
       {(chart?.kind === 'line' || chart?.kind === 'faceted_line') && <p className={styles.notice}>季度连续排列，可横向滚动查看全部季度；点选图元查看数值与来源。</p>}
       <div className={`${styles.actions} ${experienceStyles.chartTools}`}>
       {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
@@ -166,23 +167,22 @@ function Scatter({ chart, onSource }: { chart: ResultChart; onSource: Props['onS
     <ChartGrid left={70} right={600} top={30} bottom={320} />
     <path d="M70 30 V320 H600" fill="none" stroke="var(--cd-color-border-strong)" />
     {valid.map((p, i) => <circle key={i} tabIndex={0} role="button" aria-label={`${p.label}：${p.xText}，${p.yText}`} onClick={() => setSelected(i)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(i); } }} cx={70 + ((p.x as number) - xmin) / (xmax - xmin || 1) * 530} cy={320 - (p.y! - ymin) / (ymax - ymin || 1) * 290} r="4" fill="var(--cd-color-brand)"><title>{p.label}：{p.xText}，{p.yText}</title></circle>)}
-    <text x="60" y="35" textAnchor="end">{ymax}</text><text x="60" y="320" textAnchor="end">{ymin}</text><text x="70" y="344">{xmin}</text><text x="600" y="344" textAnchor="end">{xmax}</text>
+    <text x="60" y="35" textAnchor="end">{axisText(ymax, chart.yUnit)}</text><text x="60" y="320" textAnchor="end">{axisText(ymin, chart.yUnit)}</text><text x="70" y="344">{axisText(xmin, chart.xUnit)}</text><text x="600" y="344" textAnchor="end">{axisText(xmax, chart.xUnit)}</text>
     <text x="70" y="370">{chart.xLabel}（{units[chart.xUnit ?? ''] ?? chart.xUnit}）</text>
   </svg></div>{selected !== null && <ChartPoint point={valid[selected]} onSource={onSource} />}</>;
 }
 
-function TrendLine({chart,onSource,height=380,bounds}:{chart:ResultChart;onSource:Props['onSource'];height?:number;bounds?:[number,number]}) {
+function TrendLine({chart,onSource,height=chart.points.length <= 4 ? 240 : 320,bounds}:{chart:ResultChart;onSource:Props['onSource'];height?:number;bounds?:[number,number]}) {
   const [selected, setSelected] = React.useState<number | null>(null);
   const plot=lineGeometry(chart,undefined,height,bounds);
   return <><div className={styles.scatterScroll} tabIndex={0} aria-label="季度趋势图，可横向滚动；缺期断线，来源见原表">
-    <svg width={plot.width} height={plot.height} role="img" aria-label={`${chart.title}，${chart.yLabel}季度趋势，${chart.points.length}个季度，${chart.unknownCount}个季度未知`}>
-      <ChartGrid left={plot.left} right={plot.right} top={plot.top} bottom={plot.bottom} />
+    <svg viewBox={`0 0 ${plot.width} ${plot.height}`} width={plot.width} height={plot.height} style={{ maxWidth: chart.points.length <= 8 ? '100%' : undefined, height: 'auto' }} role="img" aria-label={`${chart.title}，${chart.yLabel}季度趋势，${chart.points.length}个季度，${chart.unknownCount}个季度未知`}>
+      <g aria-hidden="true" stroke="var(--cd-color-border)" strokeDasharray="3 4">{plot.ticks.slice(1).map(tick => <line key={tick.value} x1={plot.left} x2={plot.right} y1={tick.y} y2={tick.y} />)}</g>
       <path d={`M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}`} fill="none" stroke="var(--cd-color-border-strong)"/>
       {plot.segments.map((segment,i)=><polyline key={i} points={segment} fill="none" stroke="var(--cd-color-brand)" strokeWidth="2" strokeLinejoin="round"/>)}
       {plot.points.map((p,index)=><g key={p.point.label}>{p.y!==null&&<circle tabIndex={0} role="button" aria-label={`${p.point.label}：${p.point.yText}`} onClick={() => setSelected(index)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(index); } }} cx={p.x} cy={p.y} r="4" fill="var(--cd-color-brand)"><title>{p.point.label}：{p.point.yText}</title></circle>}<text x={p.x} y={plot.bottom+26} textAnchor="middle">{p.point.label}</text></g>)}
-      {[.25, .5, .75].map(fraction => <text key={fraction} x={plot.left-10} y={plot.bottom-(plot.bottom-plot.top)*fraction+5} textAnchor="end">{new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(plot.min+(plot.max-plot.min)*fraction)}</text>)}
-      <text x={plot.left-10} y={plot.top+5} textAnchor="end">{plot.max}</text><text x={plot.left-10} y={plot.bottom} textAnchor="end">{plot.min}</text>
-      <text x={plot.left} y={plot.height-8}>季度；{chart.yLabel}（{units[chart.yUnit]??chart.yUnit}）</text>
+      {plot.ticks.map(tick => <text key={tick.value} x={plot.left-10} y={tick.y+4} textAnchor="end">{tick.label}</text>)}
+      {plot.points.length <= 4 && plot.points.map(p => p.y !== null && <text key={p.point.label} x={p.x + (p.x === plot.left ? 8 : p.x === plot.right ? -8 : 0)} y={Math.max(16, p.y - 10)} textAnchor={p.x === plot.left ? 'start' : p.x === plot.right ? 'end' : 'middle'} fontWeight="600">{p.point.yText}</text>)}
     </svg>
   </div>{selected !== null && <ChartPoint point={chart.points[selected]} onSource={onSource} />}</>;
 }

@@ -184,12 +184,12 @@ function seriesFindings(series: ResearchSeries): ResearchAnalysis['findings'] {
   if (overall) {
     const first = overall.baseValue ? `${formatExact(overall.baseValue, series.unit)} ${unit}` : '未知';
     const last = overall.currentValue ? `${formatExact(overall.currentValue, series.unit)} ${unit}` : '未知';
-    const direction = { increasing: '逐季连续上升', decreasing: '逐季连续下降', stable: '各季持平',
+    const direction = { increasing: series.periods.length > 2 ? '逐季连续上升' : '', decreasing: series.periods.length > 2 ? '逐季连续下降' : '', stable: series.periods.length > 2 ? '各季持平' : '两期持平',
       fluctuating: '各季有波动或持平', incomplete: '期间有缺期或缺值，不判断连续涨跌', single_period: '' }[series.direction];
     findings.push({ id: `${series.key}/trend`, kind: 'trend', title: `${series.label || '当前范围'}${series.label.endsWith(` · ${label}`) ? '' : label}变化`,
       text: `${prefix}${quarterKey(overall.base)} 为 ${first}，${quarterKey(overall.current)} 为 ${last}。${overall.difference
         ? series.metric === 'vacancy' ? `变化 ${changeText(overall)}。` : `绝对变化 ${formatExact(overall.difference, overall.differenceUnit)} ${units[overall.differenceUnit]}；相对变化 ${changeText(overall)}。`
-        : '起止值不完整，不计算总体变化。'}${direction}。`,
+        : '起止值不完整，不计算总体变化。'}${direction ? direction + '。' : ''}`,
       sourceIds: overall.sourceIds, evidence: { seriesKey: series.key, calculation: 'overall', direction: series.direction, formulaVersion: series.formulaVersion, mode: series.mode },
     });
     const recent = series.quarterOnQuarter.at(-1);

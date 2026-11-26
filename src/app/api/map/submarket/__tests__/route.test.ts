@@ -37,7 +37,7 @@ const buildingRows = [
 ];
 const quarterRows = [
   { building_id: 'a', record_year: 2023, record_quarter: 4, total_area: 100,
-    net_effective_rent: 150, vacancy_rate: 0, is_draft: false, is_locked: true },
+    net_effective_rent: 150, vacant_area: 0, is_draft: false, is_locked: true },
   { building_id: 'a', record_year: 2026, record_quarter: 3, total_area: 100,
     net_effective_rent: 100, vacancy_rate: .1, is_draft: false, is_locked: true },
   { building_id: 'b', record_year: 2026, record_quarter: 3, total_area: 300,
@@ -107,13 +107,14 @@ describe('authorized submarket GET', () => {
     expect(mocks.calls).toContainEqual({ table: 'building_metrics', action: 'eq', args: ['is_locked', true] });
     expect(mocks.calls).toContainEqual({ table: 'building_metrics', action: 'order', args: ['id', { ascending: false }] });
     expect(result.trends.all.at(-1)).toMatchObject({
-      period: '2026Q3', rent: 175, vacancyPct: 17.5,
-      rentSamples: 2, vacancySamples: 2,
+      // The A record contains only a ratio; formal vacancy uses B's physical area.
+      period: '2026Q3', rent: 175, vacancyPct: 20,
+      rentSamples: 2, rentArea: 400, vacancySamples: 1, vacancyArea: 300,
     });
     expect(result.trends.all[0]).toMatchObject({ period: '2023Q4', rent: 150, vacancyPct: 0 });
     expect(result.trends.all[1]).toMatchObject({ period: '2024Q1', rent: null, vacancyPct: null });
-    expect(result.trends.a.at(-1).rent).toBe(100);
-    expect(result.trends.b.at(-1).rent).toBe(200);
+    expect(result.trends.a.at(-1)).toMatchObject({ rent: 100, vacancyPct: null, vacancySamples: 0, vacancyArea: 0 });
+    expect(result.trends.b.at(-1)).toMatchObject({ rent: 200, vacancyPct: 20, vacancySamples: 1, vacancyArea: 300 });
     expect(result.profileAvailable).toBe(false);
     expect(result.profile.policies).toEqual([]);
     expect(mocks.calls).toContainEqual({ table: 'buildings', action: 'eq', args: ['is_active', true] });

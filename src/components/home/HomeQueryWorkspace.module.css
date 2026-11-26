@@ -175,3 +175,7 @@
 }
 
 .body:has(> aside:not([hidden])) .main { flex: 1 1 42%; min-width: 0; }
+
+/* Keep the home entry compact; the dedicated reading surface is neutral. */
+.surface:is([data-mode="focus"], [data-mode="expanded"])[data-empty="false"] .main,
+.surface:is([data-mode="focus"], [data-mode="expanded"])[data-empty="false"] .inputDock { background: var(--cd-color-surface); }

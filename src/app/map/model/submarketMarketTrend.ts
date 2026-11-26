@@ -51,7 +51,7 @@ export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows:
       for (const [id, grade] of selectedMembers) {
         const row = byEntityPeriod.get(`${id}:${key}`);
         if (!row) continue;
-        const stats = aggregateMarket([{ id, grade, metrics: [row] }]);
+        const stats = aggregateMarket([{ id, grade, metrics: [row] }], 'quarterly_market');
         if (stats.rentSampleCount > 0) result.rent.push(id);
         if (stats.vacancySampleCount > 0) result.vacancy.push(id);
       }
@@ -62,7 +62,7 @@ export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows:
       const previousIds = new Set(sampleIds(key - offset, metric));
       const ids = sampleIds(key, metric).filter(id => previousIds.has(id));
       if (ids.length < 2) return { samples: ids.length, rentPct: null, vacancyPp: null };
-      const stats = (period: number) => aggregateMarket(ids.map(id => ({ id, metrics: [byEntityPeriod.get(`${id}:${period}`)!] })));
+      const stats = (period: number) => aggregateMarket(ids.map(id => ({ id, metrics: [byEntityPeriod.get(`${id}:${period}`)!] })), 'quarterly_market');
       const now = stats(key), before = stats(key - offset);
       return { samples: ids.length,
         rentPct: metric === 'rent' && now.rent != null && before.rent != null && before.rent > 0 ? (now.rent / before.rent - 1) * 100 : null,

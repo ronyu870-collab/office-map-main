@@ -5,7 +5,7 @@ import { agentChartDescriptorSchema } from './chartProtocol';
 import { resultBuildingRows } from './buildingCards';
 import { resultAvailability } from './resultAvailability';
 import { defaultResultChartRequest, resultNumericColumns } from './resultEligibility';
-import { cellText, resultSummary, units, type QueryResultView } from './presentation';
+import { cellText, formatExact, resultSummary, units, type QueryResultView } from './presentation';
 import { resultMetrics, resultMetricColumns, metricLabels } from './multiMetricView';
 import type { ResearchAnalysis } from './researchAnalysisView';
 
@@ -32,7 +32,24 @@ export type ResponseDecision = {
 
 /** Selects expression, never recalculates facts or infers authorization. The
  * source-bound operation, cells and delivery descriptors own structured data. */
-export function responseDecision(result: QueryResultView, task?: string): ResponseDecision {
+/** A chart may be technically valid but not useful as the primary answer. */
+export function answerDisplayPreferences(question?: string) {
+  const text = question ?? '';
+  const tableOnly = /不要(?:画|绘制|生成|显示|展示)?(?:图表|折线图|柱状图|图)|不需要(?:图表|图)|只(?:用|要|看)表格|不用(?:图表|图)/.test(text);
+  const wantsTable = tableOnly || /(?:用|给出|展示|列出|提供|生成|看)(?:一张|一个)?表格|表格形式/.test(text);
+  const wantsChart = !tableOnly && /(?:画|绘制|生成|展示|提供|给出|看)(?:一张|一个)?(?:折线图|柱状图|散点图|图表|趋势图)|可视化|作图/.test(text);
+  const wantsSamples = /样本|参与计算|覆盖率|分母/.test(text);
+  return { tableOnly, wantsTable, wantsChart, wantsSamples };
+}
+function isQuarterlyAnswer(result: QueryResultView) {
+  return ['trend', 'group_trend', 'cross_trend', 'compare'].includes(result.operation) && resultMetrics(result).length > 0;
+}
+function preferTable(result: QueryResultView, question?: string) {
+  const prefs = answerDisplayPreferences(question);
+  return prefs.wantsTable || !prefs.wantsChart && isQuarterlyAnswer(result)
+    && (result.operation === 'compare' || result.table.rows.length <= 2 || prefs.wantsSamples);
+}
+export function responseDecision(result: QueryResultView, task?: string, question?: string): ResponseDecision {
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
   const report = reportDescriptorSchema.safeParse(result.parameters.agentReport).data;
   const chart = agentChartDescriptorSchema.safeParse(result.parameters.agentChart).data;
@@ -43,12 +60,19 @@ export function responseDecision(result: QueryResultView, task?: string): Respon
   const buildings = resultBuildingRows(result);
   const numeric = responseFactCells(result, task);
   const leaseDetails = z.array(z.object({ plan: z.object({ mode: z.literal('details') }) })).safeParse(result.parameters.leaseBindings).success;
-  if (chart || defaultResultChartRequest(result) && result.operation !== 'list') return { ...base,
+  const prefs = answerDisplayPreferences(question);
+  const inlineTable = preferTable(result, question);
+  const defaultChart = defaultResultChartRequest(result);
+  const shortComparison = isQuarterlyAnswer(result) && (result.operation === 'compare' || result.table.rows.length <= 2);
+  if (!prefs.tableOnly && (chart || defaultChart && result.operation !== 'list' && (prefs.wantsChart || !prefs.wantsTable && !shortComparison))) return { ...base,
     task: result.operation === 'rank' ? 'ranking' : ['trend', 'group_trend', 'cross_trend'].includes(result.operation) ? 'trend' : 'research',
-    status: 'answered', primaryExpression: 'chart', details: 'on_demand' };
+    status: 'answered', primaryExpression: 'chart', details: inlineTable || isQuarterlyAnswer(result) && prefs.wantsSamples || ['trend', 'compare'].includes(result.operation) && result.table.rows.length <= 10 ? 'inline' : 'on_demand' };
+  if (inlineTable && (prefs.wantsTable || defaultChart || isQuarterlyAnswer(result) && result.table.rows.length > 1 && numeric.length > 1)) return { ...base,
+    task: isQuarterlyAnswer(result) ? 'trend' : result.operation === 'rank' ? 'ranking' : 'list',
+    status: 'answered', primaryExpression: 'table', details: 'inline' };
   if ((buildings.length === 1 || leaseDetails) && result.table.rows.length === 1) return { ...base, task: 'fact', status: 'answered', primaryExpression: 'entity', details: 'on_demand' };
   if (numeric.length && (task === 'record' && result.parameters.dataDomain === 'lease-research/1' || result.operation === 'aggregate' || result.table.rows.length === 1 || ['trend', 'group_trend', 'cross_trend'].includes(result.operation)))
-    return { ...base, task: 'fact', status: 'answered', primaryExpression: 'fact', details: result.table.columns.length > numeric.length || result.table.rows.length > 1 ? 'on_demand' : 'none' };
+    return { ...base, task: 'fact', status: 'answered', primaryExpression: 'fact', details: prefs.wantsSamples && result.table.rows.length ? 'inline' : result.table.columns.length > numeric.length || result.table.rows.length > 1 ? 'on_demand' : 'none' };
   return { ...base, task: result.operation === 'rank' ? 'ranking' : 'list', status: 'answered', primaryExpression: 'table', details: 'inline' };
 }
 
@@ -94,7 +118,7 @@ export function responseFactCells(result: QueryResultView, task?: string) {
   })).slice(0, 3);
 }
 
-export function composeResponse(message: string | undefined, result?: QueryResultView, task?: string): ResponseDocument {
+export function composeResponse(message: string | undefined, result?: QueryResultView, task?: string, question?: string): ResponseDocument {
   if (!result) return { version: 'response/1', layout: 'conversation', blocks: message ? [{ type: 'text', text: message }] : [] };
   const presentation = responsePresentationSchema.safeParse(result.parameters.responsePresentation).data;
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
@@ -103,7 +127,8 @@ export function composeResponse(message: string | undefined, result?: QueryResul
   const legacyDelivery = result.parameters.responsePresentation == null && !!(exported || report || chart);
   const narrative = presentation ? presentation.narrativeRole === 'analysis' : !legacyDelivery;
   const resultId = result.resultId;
-  const decision = responseDecision(result, task);
+  const decision = responseDecision(result, task, question);
+  const tableFirst = decision.details === 'inline' && preferTable(result, question) && decision.primaryExpression !== 'file' && decision.primaryExpression !== 'research';
   const blocks: ResponseBlock[] = [];
   if (narrative && message) blocks.push({ type: 'text', text: message });
   if (decision.primaryExpression === 'file') {
@@ -115,10 +140,11 @@ export function composeResponse(message: string | undefined, result?: QueryResul
     if (['chart', 'table'].includes(decision.primaryExpression)) blocks.push({ type: 'summary', resultId });
     if (decision.primaryExpression === 'fact') blocks.push({ type: 'metrics', resultId });
     if (decision.primaryExpression === 'entity') blocks.push({ type: 'building', resultId });
-    if (chart) blocks.push({ type: 'chart', resultId });
+    if (tableFirst) blocks.push({ type: 'table', resultId });
+    if (chart && !answerDisplayPreferences(question).tableOnly) blocks.push({ type: 'chart', resultId });
     else blocks.push({ type: 'analysis', resultId });
   }
-  if (result.table.rows.length && decision.details !== 'none') blocks.push({ type: 'table', resultId });
+  if (result.table.rows.length && decision.details !== 'none' && !blocks.some(block => block.type === 'table')) blocks.push({ type: 'table', resultId });
   blocks.push({ type: 'sources', resultId });
   return { version: 'response/1', layout: decision.task, blocks };
 }
@@ -144,7 +170,22 @@ export function responseResultContent(result: QueryResultView, research: Researc
       const column = result.table.columns.find(item => item.key === key), cell = result.table.rows[0].cells[key];
       return column && cell ? [`${metricLabels[metric]}为 ${cellText(cell, column.unit)}${cell.kind === 'number' ? ` ${units[column.unit ?? ''] ?? column.unit ?? ''}` : ''}`] : [];
     }).join('；') : '';
-  const conclusion = primaryFinding?.text ?? (result.parameters.dataDomain === 'lease-research/1' ? '成交汇总' : aggregate ? `${aggregate}。` : summary[index] ?? summary[0]);
+  const series = primaryFinding && research?.series.find(item => primaryFinding.evidence.seriesKey === item.key);
+  const shortTrend = series?.periods.length === 2 && series.overall ? series.overall : null;
+  const shortLead = shortTrend?.baseValue && shortTrend.currentValue && series ? (() => {
+    const value = formatExact(shortTrend.currentValue!, series.unit);
+    const base = formatExact(shortTrend.baseValue!, series.unit);
+    const scope = series.label ? series.label + '：' : '';
+    const change = shortTrend.difference;
+    const movement = change && change.numeric !== 0 ? change.numeric < 0 ? '下降' : '上升' : '持平';
+    const period = (p: { year: number; quarter: number }) => p.year + ' Q' + p.quarter;
+    const label = series.metric === 'rent' ? '面积加权净有效租金' : metricLabels[series.metric];
+    const unit = units[series.unit] ?? series.unit;
+    const magnitude = (v: Parameters<typeof formatExact>[0], u: string) => formatExact(v, u).replace(/^-/, '');
+    const delta = change && change.numeric !== 0 ? (series.metric === 'vacancy' ? magnitude(change, 'percentage_point') + ' 个百分点' : shortTrend.change ? magnitude(shortTrend.change, shortTrend.changeUnit) + '%（' + magnitude(change, series.unit) + ' ' + unit + '）' : magnitude(change, series.unit) + ' ' + unit) : '';
+    return scope + period(shortTrend.current) + ' ' + label + '为 ' + value + ' ' + unit + '，较 ' + period(shortTrend.base) + ' 的 ' + base + ' ' + unit + ' ' + movement + delta + '。';
+  })() : undefined;
+  const conclusion = shortLead ?? primaryFinding?.text ?? (result.parameters.dataDomain === 'lease-research/1' ? '成交汇总' : aggregate ? `${aggregate}。` : summary[index] ?? summary[0]);
   return { conclusion, primaryFinding, context: summary.filter((line, i) => (primaryFinding || i !== index) && line !== conclusion) };
 }
 
@@ -155,6 +196,7 @@ export function responseTableTitle(result: QueryResultView): string {
   const scope = z.object({ submarkets: z.array(z.string()).optional() }).safeParse(result.parameters.scope).data;
   const object = scope?.submarkets?.join('、') ?? '';
   const field = typeof result.parameters.field === 'string' ? result.table.columns.find(column => column.key === result.parameters.field)?.label : null;
+  if (['trend', 'group_trend', 'cross_trend', 'compare'].includes(result.operation)) return object + '季度数据与样本';
   return result.operation === 'rank' ? `${object}${field ?? '楼宇'}排名`
     : result.operation === 'list' ? `${object}楼宇清单` : `${object}数据明细`;
 }
