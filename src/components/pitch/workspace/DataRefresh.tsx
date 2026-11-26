@@ -40,9 +40,13 @@ const refreshSchema = z.object({
 type Review = z.infer<typeof refreshSchema>;
 type Quarter = z.infer<typeof periodSchema>;
 const periodLabel = ({ year, quarter }: Quarter) => `${year}-Q${quarter}`;
-const refreshBlockSchema = z.discriminatedUnion("kind",
-  contentBlockSchema.options.map(option => option.omit({ sourceIds: true })));
-
+const [paragraphBlock, metricBlock, , tableBlock, chartBlock] = contentBlockSchema.options;
+const refreshBlockSchema = z.discriminatedUnion("kind", [
+  paragraphBlock.omit({ sourceIds: true }),
+  metricBlock.omit({ sourceIds: true }),
+  tableBlock.omit({ sourceIds: true }),
+  chartBlock.omit({ sourceIds: true }),
+]);
 
 function ValueTable({ columns, rows }: { columns: string[]; rows: (string | number | null)[][] }) {
   return <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="数据预览">
