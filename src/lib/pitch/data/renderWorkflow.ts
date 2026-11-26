@@ -10,6 +10,7 @@ import { assertSceneQuality } from '../layout/quality';
 import { buildTemplateContent, templateConfigSchema } from '../templates/registry';
 import { artifactName, exportFormats, MIME } from '../render/format';
 import { inspectMedia, sceneMediaReferences, type SceneMedia } from '../render/media';
+import { getVisualPageReceipts, resolveReferencedVisualMedia } from '../visual-data/resolve';
 import { makeFile, mediaRowSchema, pitchRpc, readFile, uploadFile, type PitchContext } from './store';
 
 // Include the deployed build so an updated renderer cannot silently reuse a
@@ -17,10 +18,11 @@ import { makeFile, mediaRowSchema, pitchRpc, readFile, uploadFile, type PitchCon
 const deliveryRevision = 'pitch-export-output/1' + (process.env.VERCEL_GIT_COMMIT_SHA ? '/' + process.env.VERCEL_GIT_COMMIT_SHA : '');
 const pageSchema = z.object({ id: z.uuid(), content: slideContentSchema, scene: slideSceneSchema });
 const previewContextSchema = z.object({ slides: z.array(pageSchema).min(1).max(50), themes: z.array(z.object({ definition: designThemeSchema })), media: z.array(mediaRowSchema) });
-export async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>[], scenes: z.infer<typeof slideSceneSchema>[], missing = 'PITCH_MEDIA_UNAVAILABLE') {
-  const refs = sceneMediaReferences(scenes), files: SceneMedia[] = [];
+export async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>[], scenes: z.infer<typeof slideSceneSchema>[],
+  { missing = 'PITCH_MEDIA_UNAVAILABLE', resolved = [] }: { missing?: string; resolved?: readonly SceneMedia[] } = {}) {
+  const refs = sceneMediaReferences(scenes), files: SceneMedia[] = [...resolved];
   const available = new Map(rows.map(row => [`${row.id}:${row.version}`, row]));
-  const seen = new Set<string>();
+  const seen = new Set(resolved.map(row => `${row.id}:${row.version}`));
   for (const ref of refs) {
     const key = `${ref.id}:${ref.version}`;
     if (seen.has(key)) continue;
@@ -60,7 +62,7 @@ export async function previewPage(ctx: PitchContext, command: Extract<PitchComma
   const page = command.editorSlideId ? stored.slides.find(slide => slide.id === command.editorSlideId) : stored.slides[command.page];
   if (!page) throw new Error(command.editorSlideId ? 'PITCH_CONFLICT' : 'PITCH_INVALID');
   if (command.editorSlideId && (command.layoutId || command.variant || command.themeId || command.themeVersion)) throw new Error('PITCH_INVALID');
-  let scene = page.scene, theme = pageTheme(scene, stored.themes);
+  let scene = page.scene, theme = pageTheme(scene, stored.themes), pageCount = scene.pagination?.count ?? 1;
   if (command.layoutId && command.layoutId !== scene.layoutId || command.variant && command.variant !== scene.variant || command.themeId && (command.themeId !== theme.id || command.themeVersion !== theme.version)) {
     const registry = await studioRegistry(ctx, command.themeId ?? theme.id, command.themeVersion ?? theme.version);
     theme = registry.theme.definition;
@@ -68,15 +70,20 @@ export async function previewPage(ctx: PitchContext, command: Extract<PitchComma
     // Parameter editing refreshes only the selected content group. Additional
     // generated pages are reported, never silently discarded from a saved deck.
     scene = numberDeckPages([{ scene: scenes[page.scene.pagination?.index ?? 0] ?? scenes[0], theme }], command.page)[0].scene;
-    const media = await loadMedia(ctx, stored.media, scenes);
-    const { renderSceneSvg } = await import('../render/svg');
-    const svg = await renderSceneSvg(scene, theme, media);
-    await pitchRpc(ctx, input);
-    return { svg, scene, pageCount: scenes.length, quality: await assertSceneQuality(scene, theme, media), font: 'Noto Sans SC', fontMode: 'bundled-glyph-outlines' };
+    pageCount = scenes.length;
   }
-  const media = await loadMedia(ctx, stored.media, [scene]), { renderSceneSvg } = await import('../render/svg');
-  const svg = await renderSceneSvg(scene, theme, media, !!command.editorSlideId); await pitchRpc(ctx, input);
-  return { svg, scene, pageCount: scene.pagination?.count ?? 1, quality: await assertSceneQuality(scene, theme, media), font: 'Noto Sans SC', fontMode: 'bundled-glyph-outlines' };
+  const pins = getVisualPageReceipts([page.content]);
+  const resolved = await resolveReferencedVisualMedia(ctx, pins, sceneMediaReferences([scene]), 'internal');
+  const contained = resolved.filter(item => !item.reference.rights.cropAllowed);
+  if (contained.length) scene = { ...scene, elements: scene.elements.map(element => element.kind === 'image'
+    && contained.some(item => item.id === element.mediaAssetId && item.version === element.mediaVersion)
+    ? { ...element, fit: 'contain' } : element) };
+  const media = await loadMedia(ctx, stored.media, [scene], { resolved }), { renderSceneSvg } = await import('../render/svg');
+  const svg = await renderSceneSvg(scene, theme, media, !!command.editorSlideId);
+  const quality = await assertSceneQuality(scene, theme, media);
+  await resolveReferencedVisualMedia(ctx, pins, [], 'internal');
+  await pitchRpc(ctx, input);
+  return { svg, scene, pageCount, quality, font: 'Noto Sans SC', fontMode: 'bundled-glyph-outlines' };
 }
 export async function prepareRenderExport(ctx: PitchContext, command: Extract<PitchCommand, { action: 'export_start' }>) {
   if (command.pages && (command.page !== undefined || ['png','svg'].includes(command.format))) throw new Error('PITCH_INVALID');

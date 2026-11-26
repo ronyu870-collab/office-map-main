@@ -112,7 +112,7 @@ export async function prepareBusinessProject(ctx:PitchContext,command:BusinessGe
     for(const part of parts)for(const scene of part.scenes)slides.push({slideId:randomUUID(),assetId,assetVersion:1,content:part.content,scene,theme});
     if(slides.length>50)throw new DocumentError('PITCH_PAGE_LIMIT','本次生成超过 50 页，请拆为多个 Pitch；未静默删减内容。');
   }
-  const media = await loadMedia(ctx, mediaRows, slides.map(page => page.scene), 'PITCH_DENIED');
+  const media = await loadMedia(ctx, mediaRows, slides.map(page => page.scene), { missing: 'PITCH_DENIED' });
   for (const page of slides) await assertSceneQuality(page.scene, theme, media);
   const numbered=numberDeckPages(slides).map(({slideId,assetId,assetVersion,content,scene})=>({slideId,assetId,assetVersion,content,scene}));
   const requestKey=hash(command);
