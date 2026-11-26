@@ -5,6 +5,7 @@ import { stableId } from "../library/extract";
 import type {
   BusinessDataBinding, PitchContextSnapshot, ProposalBrief, ProposalPlan, SlideIntent, VisualAssetReference,
 } from "../integration-contracts";
+import type { UnifiedProposalContext } from "../proposals/unified-projection";
 import type { ProposalRequest } from "./proposal-brief";
 import { interpretProposal, type ProposalModel } from "./proposal-interpretation";
 import {
@@ -13,6 +14,7 @@ import {
 
 type AssetReference = { id: string; version: number };
 type Chart = Extract<SlideContent["blocks"][number], { kind: "chart" }>["chartType"] | "table";
+type QueryReceipt = UnifiedProposalContext["results"][number];
 
 export type ComposedProposalPage = {
   pageKind: string;
@@ -50,6 +52,7 @@ export type ProposalDirectorPorts = {
     gaps: ProposalPlan["gaps"];
     recipeVersion: string;
     theme?: { id: string; version: number };
+    queryReceipts?: readonly QueryReceipt[];
     verifySources?: () => Promise<void>;
   }>;
 };
@@ -81,6 +84,7 @@ type PlanState = { status: "clarification" | "unavailable"; code: string; messag
     // For the server-side workflow. The prepare HTTP response omits full page content.
     pages: { id: string; content: SlideContent; layoutId: SlideIntent["layoutId"] }[];
     generation: NonNullable<ComposedProposalPage["generation"]>[] | null;
+    queryReceipts?: readonly QueryReceipt[];
     verifySources?: () => Promise<void>;
   };
 export type ProposalPlanningResult = PlanState & ModelRoute;
@@ -162,15 +166,36 @@ function buildPlan(
   const data = uniqueSorted(validated.flatMap(page => page.data), item => digest(item));
   const visuals = uniqueSorted(validated.flatMap(page => page.visuals), item => `${item.id}:${item.version}:${item.versionHash}`);
   const gaps = [...composition.gaps, ...omitted];
+  const receipts = new Map<string, { receipt: QueryReceipt; key: string }>();
+  for (const receipt of composition.queryReceipts ?? []) {
+    const { id, entityId, binding, result } = receipt;
+    if (binding.disclosure !== "internal") continue;
+    const key = digest([id, entityId, binding, result.operation, result.registryVersion, result.scopeFingerprint]);
+    const existing = receipts.get(result.resultId);
+    if (existing && existing.key !== key) throw new Error("PITCH_PROPOSAL_RECIPE_BINDING_MISMATCH");
+    receipts.set(result.resultId, { receipt, key });
+  }
+  const citedReceipts = new Set<QueryReceipt>();
   // Source IDs can be request-local. Hash actual source locators, versions and
   // content after replacing their per-request identifiers with stable positions.
   const narrative = validated.map(({ content, ...page }) => {
     const indices = new Map(content.sources.map((source, index) => [source.id, index]));
+    const sources = content.sources.map(({ id, ...source }) => {
+      const match = receipts.get(id);
+      // Keep the original receipt on the page. Only the comparison uses the
+      // stable receipt key supplied by the authorized query adapter.
+      if (match && source.kind === "record" && source.recordId === id && source.locator === `${match.receipt.id} · ${id}`
+        && source.version === match.receipt.binding.dataVersion) {
+        citedReceipts.add(match.receipt);
+        return { ...source, recordId: match.key, locator: match.key };
+      }
+      return source;
+    });
     return {
       ...page,
       content: {
         ...content,
-        sources: content.sources.map(source => ({ ...source, id: undefined })),
+        sources,
         blocks: content.blocks.map(({ sourceIds, ...block }) => ({ ...block, sourceRefs: sourceIds.map(id => indices.get(id)) })),
       },
     };
@@ -206,6 +231,7 @@ function buildPlan(
   const generation = validated.every(page => !!page.generation)
     ? [...new Map(validated.map(page => [digest(page.generation!.part), page.generation!])).values()] : null;
   return { plan, snapshot, generation, verifySources: composition.verifySources,
+    ...(citedReceipts.size ? { queryReceipts: [...citedReceipts] } : {}),
     pages: validated.map((page, index) => ({ id: ids[index], content: page.content, layoutId: page.layoutId })) };
 }
 

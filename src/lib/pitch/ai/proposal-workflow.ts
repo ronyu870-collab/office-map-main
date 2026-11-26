@@ -14,6 +14,7 @@ export type ProposalGenerationPort = {
   // The existing workflow owns idempotency, version checks, lease, revalidation
   // at execution and completion, and cancellation/resumption of persisted tasks.
   // A reviewed source can supply a final authorization check before commit.
+  // queryReceipts contains the exact authorized results cited by the pages.
   find(input: ConfirmedProposal, signal: AbortSignal): Promise<Receipt | null>;
   enqueue(input: ConfirmedProposal, reviewed: ReviewedProposal, signal: AbortSignal): Promise<Receipt>;
 };
