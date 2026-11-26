@@ -123,7 +123,9 @@ export function readProposalBrief(input: ProposalRequest): ProposalBrief {
     : [];
   const englishBuilding = /(?:leasing (?:agency|mandate)|landlord representation|building (?:profile|presentation)|property showcase)\s+(?:proposal\s+)?(?:for|of)\s+([^,.;!]{2,60})(?=[,.;!]|$)/i.exec(question)?.[1];
   const building = namedBuilding ?? suffixBuilding ?? englishBuilding;
-  const buildingQuery = building?.replace(/^[「“"]|[」”"]$/g, "").trim();
+  const buildingPhrase = building?.replace(/^[「“"]|[」”"]$/g, "").trim();
+  const buildingQuery = buildingPhrase && !/^(?:所选|当前|该|这栋)(?:项目|楼宇|建筑)?$|^(?:the selected|this|the current) (?:building|property)$/i.test(buildingPhrase)
+    ? buildingPhrase : undefined;
   const count = /([一二两三四五六七八九十\d]{1,3})\s*栋/i.exec(question);
   const pageCount = naturalNumber(/([一二两三四五六七八九十\d]{1,3})\s*(?:页|slides?\b)/i.exec(question)?.[1]);
   const explicitPriorities = priorityRules.filter(([, test]) => test.test(question)).map(([priority]) => priority);

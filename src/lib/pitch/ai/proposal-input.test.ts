@@ -30,6 +30,11 @@ describe("proposal request understanding", () => {
     expect(readProposalBrief(request(question))).toMatchObject(expected);
   });
 
+  it("uses selected property IDs when the request refers to the current building", () => {
+    const input = proposalRequestSchema.parse({ question: "2026Q2，为所选楼宇制作项目推介", buildingIds: [projectId] });
+    expect(readProposalBrief(input)).toMatchObject({ buildingQueries: [], buildingIds: [projectId], period: "2026-Q2" });
+  });
+
   it("does not adjudicate conflicting explicit quarters on its own", () => {
     expect(readProposalBrief(request("制作2026Q2和2026Q3北京写字楼市场报告")).periodConflict).toBe(true);
   });
