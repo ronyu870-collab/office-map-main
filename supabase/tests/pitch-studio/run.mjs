@@ -263,20 +263,34 @@ try {
   await db.rpc(OWNER,{action:'workspace_custom',projectId:project,assetId:visualAsset,content,
    sha256:digest(Buffer.from(JSON.stringify(content)))});
   const [scene]=await layoutSlides(content,STUDIO_THEME,'two-columns');
-  const slideId=randomUUID();
-  const save=workspace=>db.rpc(OWNER,{action:'workspace_save',projectId:project,expectedVersion:workspace.project.version,
+  const slideId=randomUUID(), plainSlideId=randomUUID();
+  const plainSource={...reference.source};
+  delete plainSource.visual;
+  const plainContent={...content,sources:[plainSource]};
+  const save=(workspace, mainContent=content)=>db.rpc(OWNER,{action:'workspace_save',projectId:project,expectedVersion:workspace.project.version,
    title:workspace.project.title,themeId:STUDIO_THEME.id,themeVersion:STUDIO_THEME.version,activeSlide:slideId,
    context:workspace.workspace.context,settings:{},slides:[{id:slideId,assetId:visualAsset,assetVersion:1,
-    templateId:STUDIO_TEMPLATE.id,templateVersion:1,content,scene}]});
+    templateId:STUDIO_TEMPLATE.id,templateVersion:1,content:mainContent,scene},{id:plainSlideId,assetId:visualAsset,assetVersion:1,
+    templateId:STUDIO_TEMPLATE.id,templateVersion:1,content:plainContent,scene}]});
   await save(current);
   const reopened=await getWorkspace(owner,project);
   assert.deepEqual(getVisualPageReceipts(reopened.slides.map(slide=>slide.content)),[reference.source.visual]);
-  const persisted=(await db.setup.query('select source_snapshot from pitch_project_slides where project_id=$1',[project])).rows[0].source_snapshot;
+  const persisted=(await db.setup.query('select source_snapshot from pitch_project_slides where id=$1',[slideId])).rows[0].source_snapshot;
   assert.deepEqual(persisted,[reference.source]);
   await save(reopened);
   const revision=await db.rpc(OWNER,{action:'workspace_revision',projectId:project,revision:reopened.project.version});
   assert.deepEqual(revision.slides[0].source_snapshot,[reference.source]);
   await assert.rejects(getWorkspace(ctx(OTHER),project),/PITCH_DENIED/);
+  const selected=randomUUID(), unrelated=randomUUID();
+  const capture=(exportId,page)=>prepareRenderExport(owner,{action:'export_start',projectId:project,exportId,audience:'internal',format:'svg',page});
+  await capture(selected,0);
+  await capture(unrelated,1);
+  const sources=async exportId=>(await db.setup.query('select visual_source_snapshot from pitch_exports where id=$1',[exportId])).rows[0].visual_source_snapshot;
+  assert.deepEqual(await sources(selected),[reference.source]);
+  assert.deepEqual(await sources(unrelated),[]);
+  await save(await getWorkspace(owner,project),plainContent);
+  assert.deepEqual(await sources(selected),[reference.source]);
+  await assert.rejects(db.setup.query("update pitch_exports set visual_source_snapshot='[]' where id=$1",[selected]),e=>e.code==='23505');
  });
  console.log(`PASS ${count} Pitch Studio PostgreSQL 17 and application workflow scenarios; synthetic isolated data only`);
 }finally{await db.close();}

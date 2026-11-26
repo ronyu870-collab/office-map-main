@@ -6,7 +6,7 @@ import { STUDIO_THEME } from '../../design/theme';
 import { layoutSlides } from '../../layout/engine';
 import { renderPitchPptx } from '../../render/pptx';
 import { renderSceneSvg } from '../../render/svg';
-import { previewPage } from '../../data/renderWorkflow';
+import { downloadArtifact, previewPage, runRenderExport } from '../../data/renderWorkflow';
 import { buildProposal } from '../../proposals';
 import { proposalFixture } from '../../proposals/__tests__/fixture';
 import { contentHash, inspectPhotoBytes } from '../photo-file';
@@ -53,7 +53,8 @@ const resolvedBuilding = ({ id, name }: typeof main) => ({ buildingId: id, name,
 
 function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array>; allowed?: boolean; stackingAdmin?: boolean;
   stackingExport?: boolean; revoke?: boolean; incompatiblePhoto?: boolean;
-  buildings?: typeof main[]; ignoreCityFilter?: boolean; auditError?: 'intent' | 'completion'; previewSnapshot?: unknown } = {}) {
+  buildings?: typeof main[]; ignoreCityFilter?: boolean; auditError?: 'intent' | 'completion'; previewSnapshot?: unknown;
+  pitch?: (input: Record<string, unknown>) => unknown } = {}) {
   const calls: string[] = [];
   const audit: { path: string; body: unknown }[] = [];
   let authReads = 0;
@@ -64,9 +65,13 @@ function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array
     const path = url.pathname.split('/').at(-1)!;
     calls.push(url.pathname);
     const revision = (options.revoke && authReads > 0 ? 'b' : 'a').repeat(64);
-    if (path === 'pitch_studio_access' && options.previewSnapshot) {
-      const input = JSON.parse(String(init?.body));
-      if (input.p_input.action === 'preview_context') return Response.json(options.previewSnapshot);
+    if (path === 'pitch_studio_access') {
+      const input = JSON.parse(String(init?.body)).p_input;
+      if (input.action === 'preview_context' && options.previewSnapshot) return Response.json(options.previewSnapshot);
+      if (options.pitch) {
+        const result = options.pitch(input);
+        return result instanceof Response ? result : Response.json(result);
+      }
     }
     if (path === 'ai_query_authority') {
       authReads++;
@@ -301,6 +306,103 @@ describe('project preview visual sources', () => {
     expect(checks).toBe(3);
     expect(calls.filter(path => path.endsWith('/pitch_studio_access'))).toHaveLength(1);
     expect(calls.filter(path => path.endsWith('/stacking_plan_spaces'))).toHaveLength(1);
+  });
+});
+
+describe('archived visual export manifest', () => {
+  const command = { action: 'export_start', projectId: id(110), exportId: id(111), format: 'pptx', audience: 'internal' } as const;
+  const path = `exports/${actor}/${command.projectId}/${command.exportId}.pptx`;
+
+  function useArchive(ctx: PitchContext, bytes?: Uint8Array) {
+    const from = ctx.client.storage.from.bind(ctx.client.storage);
+    const download = vi.fn(async () => ({ data: bytes ? new Blob([Buffer.from(bytes)]) : null, error: null }));
+    const upload = vi.fn(async (_path: string, body: Uint8Array) => {
+      bytes = body;
+      return { error: null, data: { path, id: command.exportId, fullPath: `pitch-studio-private/${path}` } };
+    });
+    vi.spyOn(ctx.client.storage, 'from').mockImplementation(name => name === 'pitch-studio-private'
+      ? Object.assign(from(name), { upload, download }) : from(name));
+    return { download, upload, bytes: () => bytes! };
+  }
+
+  it('renders exact photo bytes, binds the saved receipt, and rechecks the photo grant when downloading', async () => {
+    const { ctx: sourceCtx } = fixture();
+    const photo = (await getBuildingPhotoChoices(sourceCtx, { buildingIds: [buildingId], use: 'cover' }))[0].primary!;
+    const content: SlideContent = { protocol: 'colliers-pitch/1', locale: 'zh', title: '历史制品照片',
+      dataAsOf: photo.source.dataAsOf, disclosure: 'internal', isTestData: false, sources: [photo.source],
+      blocks: [{ kind: 'image', mediaAssetId: photo.id, mediaVersion: photo.version, alt: photo.caption, sourceIds: [photo.source.id] }] };
+    const [scene] = await layoutSlides(content, STUDIO_THEME, 'cover');
+    const document = { slides: [{ id: id(112), content, scene }], themes: [{ definition: STUDIO_THEME }], media: [], project: { title: content.title } };
+    const captured = { storage_path: path, format: 'pptx', render_options: {}, visual_source_snapshot: [photo.source] };
+    let manifest = captured, allowed = true;
+    const operations: Record<string, unknown>[] = [];
+    const { ctx } = fixture({ get allowed() { return allowed; }, pitch: input => {
+      operations.push(input);
+      if (input.action === 'export_claim') return { claimed: true };
+      if (input.action === 'export_context') return { ...document, export: manifest };
+      if (input.action === 'export_download') return { ...captured, sha256: contentHash(archive.bytes()), size_bytes: archive.bytes().length };
+      return {};
+    } });
+    const archive = useArchive(ctx);
+    manifest = { ...captured, visual_source_snapshot: [] };
+    await runRenderExport(ctx, command);
+    expect(archive.upload).not.toHaveBeenCalled();
+    expect(operations.at(-1)).toMatchObject({ action: 'export_fail', errorCode: 'PITCH_SOURCE_CHANGED' });
+    manifest = captured;
+    await runRenderExport(ctx, command);
+    expect(operations.at(-1)).toMatchObject({ action: 'export_complete', sha256: contentHash(archive.bytes()) });
+    const file = await downloadArtifact(ctx, command);
+    const zip = await JSZip.loadAsync(file.bytes);
+    const images = Object.values(zip.files).filter(entry => entry.name.startsWith('ppt/media/') && !entry.dir);
+    expect(await Promise.all(images.map(async entry => contentHash(await entry.async('uint8array'))))).toContain(photo.contentHash);
+    allowed = false;
+    await expect(downloadArtifact(ctx, command)).rejects.toThrow('QUERY_DENIED');
+    expect(archive.download).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds the archived administrator file until source audit is durably confirmed', async () => {
+    const { ctx: sourceCtx } = fixture();
+    const plan = (await readPitchStackingPlan(sourceCtx, buildingId, {}))!;
+    const bytes = Buffer.from('isolated archived content');
+    const artifact = { storage_path: path, format: 'pptx', sha256: contentHash(bytes), size_bytes: bytes.length,
+      visual_source_snapshot: [plan.reference.source] };
+    const audited = fixture({ pitch: () => artifact });
+    useArchive(audited.ctx, bytes);
+    expect(Buffer.from((await downloadArtifact(audited.ctx, command)).bytes)).toEqual(bytes);
+    expect(audited.audit[1]).toMatchObject({ path: 'audit_complete_operation', body: { p_state: 'success' } });
+    const failed = fixture({ pitch: () => artifact, auditError: 'completion' });
+    useArchive(failed.ctx, bytes);
+    await expect(downloadArtifact(failed.ctx, command)).rejects.toThrow('PITCH_SOURCE_AUDIT_UNAVAILABLE');
+    let checked = false;
+    const revoked = fixture({ pitch: () => {
+      if (checked) return Response.json({ code: '42501', message: 'PITCH_DENIED' }, { status: 403 });
+      checked = true;
+      return artifact;
+    } });
+    useArchive(revoked.ctx, bytes);
+    await expect(downloadArtifact(revoked.ctx, command)).rejects.toThrow('PITCH_DENIED');
+    expect(revoked.audit[1]).toMatchObject({ path: 'audit_complete_operation', body: { p_state: 'success' } });
+  });
+
+  it('keeps a restricted export from becoming ready if the source audit cannot complete', async () => {
+    const { ctx: sourceCtx } = fixture();
+    const appendix = (await readStackingAppendix(sourceCtx, buildingId, {}, 'internal', STUDIO_THEME))!;
+    const operations: Record<string, unknown>[] = [];
+    const failed = fixture({ auditError: 'completion', pitch: input => {
+      operations.push(input);
+      if (input.action === 'export_claim') return { claimed: true };
+      if (input.action === 'export_context') return {
+        slides: [{ id: id(112), content: appendix.content, scene: appendix.scenes[0] }],
+        themes: [{ definition: STUDIO_THEME }], media: [], project: { title: appendix.content.title },
+        export: { storage_path: path, format: 'pptx', render_options: {}, visual_source_snapshot: [appendix.reference.source] },
+      };
+      return {};
+    } });
+    const archive = useArchive(failed.ctx);
+    await runRenderExport(failed.ctx, command);
+    expect(archive.upload).toHaveBeenCalledTimes(1);
+    expect(operations.some(input => input.action === 'export_complete')).toBe(false);
+    expect(operations.at(-1)).toMatchObject({ action: 'export_fail', errorCode: 'PITCH_SOURCE_AUDIT_UNAVAILABLE' });
   });
 });
 

@@ -7,6 +7,15 @@ import { readPitchLocation, readPitchStackingPlan } from './derived-assets';
 import { loadBuildingPhotoMedia } from './photos';
 import { assertVisualVersion, pinnedVisualInput, stableVisualId, type PinnedVisualReference } from './reference';
 
+export type ResolvedVisualMedia = SceneMedia & { reference: PinnedVisualReference };
+
+export function fitResolvedVisualImages(scene: SlideScene, visualMedia: readonly ResolvedVisualMedia[]): SlideScene {
+  const uncropped = visualMedia.filter(item => !item.reference.rights.cropAllowed);
+  return uncropped.length ? { ...scene, elements: scene.elements.map(element => element.kind === 'image'
+    && uncropped.some(item => item.id === element.mediaAssetId && item.version === element.mediaVersion)
+    ? { ...element, fit: 'contain' } : element) } : scene;
+}
+
 /** Every replay goes back through the original permission and source-version checks. */
 export async function resolvePitchVisualAsset(ctx: PitchContext, input: unknown, audience: ProposalAudience,
   options: { stackingImage?: boolean; recordPhotoAccess?: boolean } = {}) {
@@ -39,7 +48,7 @@ export async function resolveReferencedVisualMedia(ctx: PitchContext, pins: read
     if (previous && JSON.stringify(previous) !== JSON.stringify(reference)) throw new Error('PITCH_SOURCE_CHANGED');
     selected.set(identifier, reference);
   }
-  const media: (SceneMedia & { reference: PinnedVisualReference })[] = [];
+  const media: ResolvedVisualMedia[] = [];
   for (const reference of selected.values()) {
     const needsImage = used.has(key(reference));
     const resolved = await resolvePitchVisualAsset(ctx, reference, audience, { stackingImage: needsImage, recordPhotoAccess: needsImage });
