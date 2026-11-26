@@ -37,10 +37,14 @@ export async function generateConfirmedProposal(ctx: PitchContext, input: Confir
         themeId: project.theme_id, themeVersion: project.theme_version, parts: reviewed.generation.map(entry => entry.part) });
       const expectedEvidence = reviewed.generation.map(item => item.evidenceVersion);
       await generateBusinessProject(context, { ...command, expectedParentVersion: input.expectedVersion }, undefined, undefined, false, async snapshots => {
+        signal.throwIfAborted();
         if (JSON.stringify(snapshots.map(item => proposalEvidenceVersion(item.results))) !== JSON.stringify(expectedEvidence)) {
           throw new Error("PITCH_PROPOSAL_REVIEW_REQUIRED");
         }
+        await reviewed.verifySources?.();
+        signal.throwIfAborted();
         const latest = await getWorkspace(context, input.projectId);
+        signal.throwIfAborted();
         if (latest.project.version !== input.expectedVersion) throw new Error("PITCH_CONFLICT");
       });
       // Read the existing persisted result before reporting completion.

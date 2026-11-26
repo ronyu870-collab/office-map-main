@@ -1,22 +1,72 @@
+import { z } from "zod";
+import { quarterKey } from "@/src/lib/intelligence/query/contracts";
+import { planSchema } from "@/src/lib/intelligence/query/plan";
 import { queryHttpDependencies } from "@/src/lib/intelligence/query/http";
-import { cellText, resultViewSchema, units } from "@/src/lib/intelligence/query/presentation";
+import { cellText, resultViewSchema, units, type QueryResultView } from "@/src/lib/intelligence/query/presentation";
 import { readOwnResult, recoverOwnResult } from "@/src/lib/intelligence/query/recovery";
 import { loadDataAuthority } from "@/src/lib/intelligence/query/serverAuthority";
 import { FIELD_REGISTRY_VERSION } from "@/src/lib/intelligence/query/registry";
-import type { PitchContext } from "../data/store";
+import { runPitchDataAdapter } from "../business/adapter";
+import { dynamicParametersSchema } from "../business/protocol";
+import { pitchRpc, type PitchContext } from "../data/store";
+import type { ProposalBrief } from "../integration-contracts";
 import { stableId } from "../library/extract";
-import type { ProposalDirectorPorts } from "./proposal-director";
+import type { ComposedProposalPage, ProposalDirectorPorts } from "./proposal-director";
+import { proposalEvidenceVersion } from "./proposal-runtime";
+
+function replayParameters(snapshot: QueryResultView, brief: ProposalBrief) {
+  const plan = planSchema.safeParse(snapshot.parameters.executedPlan);
+  if (!plan.success || plan.data.operation !== snapshot.operation || plan.data.filter) return;
+  const source = plan.data;
+  const scope = source.scope;
+  if (source.operation === "list") {
+    if (!scope.buildingIds?.length || !source.fields.length) return;
+  } else if (source.operation !== "trend" || source.mode !== "per_period" || source.metrics
+    || (source.metric !== "rent" && source.metric !== "vacancy")) return;
+  if (brief.submarkets.some(submarket => !scope.submarkets?.includes(submarket))) return;
+  const isTrend = source.operation === "trend";
+  const period = isTrend ? source.end : source.period;
+  if (!period || (brief.period && brief.period !== quarterKey(period))) return;
+  const parameters = dynamicParametersSchema.safeParse({
+    templateId: isTrend ? source.metric === "rent" ? "rent-trend" : "vacancy-trend"
+      : scope.buildingIds?.length === 1 ? "building-profile" : "project-comparison",
+    buildingIds: scope.buildingIds ?? [], submarkets: scope.submarkets ?? [], inventory: scope.inventory,
+    period, start: isTrend ? source.start : period, end: period,
+    fields: isTrend ? [] : source.fields, direction: "asc", chart: "table",
+    from: "2000-01-01", to: "2000-01-01", leaseSource: "combined", measure: "count",
+  });
+  if (parameters.success) return parameters.data;
+}
+
+async function replayAnalysis(ctx: PitchContext, archived: QueryResultView, brief: ProposalBrief) {
+  const parameters = replayParameters(archived, brief);
+  if (!parameters) return;
+  const { allowedDynamic } = z.object({ allowedDynamic: z.array(z.string()) })
+    .parse(await pitchRpc(ctx, { action: "workspace_capabilities" }));
+  if (!allowedDynamic.includes(parameters.templateId)) return;
+  try {
+    const fresh = await runPitchDataAdapter(ctx, parameters, brief.language);
+    ctx.signal.throwIfAborted();
+    const evidenceVersion = proposalEvidenceVersion([archived]);
+    if (proposalEvidenceVersion(fresh.results) === evidenceVersion) return { fresh, evidenceVersion, parameters };
+  } catch (error) {
+    ctx.signal.throwIfAborted();
+    if (!error || typeof error !== "object" || !("code" in error) || error.code !== "PITCH_DATA_UNAVAILABLE") throw error;
+  }
+}
 
 export async function composeArchivedAnalysis(
-  ctx: PitchContext, requestId: string, language: "zh" | "en",
+  ctx: PitchContext, requestId: string, brief: ProposalBrief,
 ): Promise<Awaited<ReturnType<ProposalDirectorPorts["compose"]>>> {
   const { client, identity, signal } = ctx;
   const authority = await loadDataAuthority(client, identity, signal);
   if (!authority.grants.includes("export:internal")) throw new Error("QUERY_DENIED");
-  const { keys } = queryHttpDependencies();
+  const { keys, enabled } = queryHttpDependencies();
+  if (!enabled) throw new Error("QUERY_DENIED");
   const archived = await readOwnResult(client, identity, requestId, "archive", signal);
   const result = await recoverOwnResult(client, identity, keys, requestId, archived, signal, { exporting: true, reauthorizedHistory: true });
   const snapshot = resultViewSchema.parse(result.result);
+  const { language } = brief;
   const english = language === "en";
   const empty = (reason: string) => ({ pages: [], gaps: [{ pageKind: "verified-analysis", reason }], recipeVersion: "archived-analysis/1" });
   // Only the numeric, authorized query-domain result is carried forward. Other
@@ -31,8 +81,24 @@ export async function composeArchivedAnalysis(
     : source.period ? [new Date(Date.UTC(source.period.year, source.period.quarter * 3, 0)).toISOString().slice(0, 10)] : []).sort();
   const asOf = dates.at(-1) ?? snapshot.createdAt.slice(0, 10);
   const reference = stableId(`pitch-archived-analysis/1:${requestId}:${snapshot.resultId}:${snapshot.dataVersion}`);
+  const replay = await replayAnalysis(ctx, snapshot, brief);
   await result.recheck();
   signal.throwIfAborted();
+  if (replay && replay.fresh.content.length && replay.fresh.content.length <= brief.pages) {
+    const { parameters, evidenceVersion, fresh } = replay;
+    const generation = { part: { mode: "dynamic" as const, parameters }, evidenceVersion };
+    const pages = fresh.content.map((content, index): ComposedProposalPage => ({
+      pageKind: index ? "analysis-methodology" : "verified-analysis",
+      businessIntent: index ? "fact" : "analysis",
+      layoutId: content.blocks.some(block => block.kind === "table") ? "data-table" : "two-columns",
+      content: { ...content, sources: content.sources.map(source => ({
+        ...source, recordId: snapshot.resultId, locator: `query/${requestId}`, version: evidenceVersion,
+      })) },
+      visuals: [], essential: true, generation, dependencyKinds: index ? ["verified-analysis"] : [],
+      data: [{ ...fresh.binding, dataVersion: evidenceVersion, dataAsOf: fresh.dataAsOf }],
+    }));
+    return { pages, gaps: [], recipeVersion: "archived-analysis-replay/1", verifySources: result.recheck };
+  }
   return {
     pages: [{
       pageKind: "verified-analysis", businessIntent: "analysis", layoutId: "data-table", visuals: [],
@@ -49,6 +115,8 @@ export async function composeArchivedAnalysis(
       },
       uncertainties: !dates.length ? [english ? "The displayed date marks the original analysis capture." : "日期为分析快照生成日，实际业务截至日未确认。"] : [],
     }],
-    gaps: [], recipeVersion: "archived-analysis/1",
+    gaps: [{ pageKind: "generation", reason: english
+      ? "The archive could not be reproduced in a supported generation template with the same data and sources."
+      : "现有生成模板无法用一致的数据和来源重现这份归档，当前仅供审阅。" }], recipeVersion: "archived-analysis/1",
   };
 }

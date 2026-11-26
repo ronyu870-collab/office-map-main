@@ -101,7 +101,7 @@ function createStandardComposer(ctx: PitchContext): ProposalDirectorPorts["compo
     if (brief.audience === "client") throw new Error("PITCH_DENIED");
     if (brief.scenario === "analysis-briefing" && analysisResultId) {
       const { composeArchivedAnalysis } = await import("./proposal-archived-analysis");
-      return composeArchivedAnalysis({ ...ctx, signal }, analysisResultId, brief.language);
+      return composeArchivedAnalysis({ ...ctx, signal }, analysisResultId, brief);
     }
     const trusted = await loadDataAuthority(ctx.client, ctx.identity, signal);
     if (!trusted.grants.includes("export:internal")) throw new Error("QUERY_DENIED");
@@ -184,6 +184,7 @@ export async function prepareProposal(ctx: PitchContext, input: ProposalRequest,
   return {
     status: result.status, plan: result.plan, brief: result.snapshot.brief, selection: result.selection,
     modelCalls: result.modelCalls, modelStatus: result.modelStatus,
+    ...(result.snapshot.brief.scenario === "analysis-briefing" ? { generationAvailable: !!result.generation?.length } : {}),
   };
 }
 
