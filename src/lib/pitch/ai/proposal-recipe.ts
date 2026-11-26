@@ -39,5 +39,5 @@ export function composeUnifiedProposalPages(
   options: ProposalOptions, materials?: ProposalMaterials,
 ): Composition {
   const { snapshot, data } = projectUnifiedProposalContext(context, brief, scope, materials);
-  return composeRecipePages(snapshot, data, options);
+  return { ...composeRecipePages(snapshot, data, options), queryReceipts: context.results };
 }

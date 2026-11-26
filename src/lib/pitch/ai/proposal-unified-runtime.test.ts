@@ -6,6 +6,7 @@ import { id, period } from "../proposals/__tests__/fixture";
 import type { UnifiedProposalContext } from "../proposals/unified-projection";
 import { confirmedProposalSchema, proposalRequestSchema } from "./proposal-brief";
 import { directProposal, type ProposalDirectorPorts } from "./proposal-director";
+import { prepareProposal } from "./proposal-runtime";
 import { createUnifiedProposalComposer, type UnifiedProposalReaders } from "./proposal-unified-runtime";
 import { submitConfirmedProposal } from "./proposal-workflow";
 
@@ -62,6 +63,18 @@ function promotion() {
   return proposalRequestSchema.parse({ projectId: id(20), question: "为霄云路33号制作高端项目推介" });
 }
 
+function contextWithDossier(resultId: string, dataVersion = "brochure/1"): UnifiedProposalContext {
+  const context = signedContext();
+  const dossier: UnifiedProposalContext["results"][number] = {
+    id: "building-dossier", entityId: buildings[0].id, binding: { domain: "business", dataVersion, disclosure: "internal" },
+    result: { resultId, dataVersion: "request-specific/1", snapshotId: resultId,
+      createdAt: context.capturedAt, scopeFingerprint: "authorized-portfolio", registryVersion: "fixture",
+      operation: "list", parameters: {}, analysis: null, sources: [], limitations: [],
+      table: { id: "dossier-fixture", columns: [], rows: [] } },
+  };
+  return { ...context, results: [dossier, { ...dossier, id: "uncited-result", result: { ...dossier.result, resultId: id(59) } }] };
+}
+
 describe("authorized proposal recipe sources", () => {
   it("hands only pinned, correctly scoped assets into confirmed workflow pages", async () => {
     const { director, readers, signal } = fixture();
@@ -85,6 +98,39 @@ describe("authorized proposal recipe sources", () => {
     workflow.find.mockResolvedValue(receipt);
     await expect(submitConfirmedProposal(input, director, workflow, signal)).resolves.toEqual(receipt);
     expect(readers.load).toHaveBeenCalledTimes(3);
+  });
+
+  it("confirms unchanged source versions across new query receipts while keeping original evidence references", async () => {
+    const { director, readers, signal } = fixture();
+    const question = promotion();
+    const receipt = { taskId: id(21), projectId: id(22), state: "completed" } as const;
+    readers.load.mockResolvedValueOnce(contextWithDossier(id(40))).mockResolvedValueOnce(contextWithDossier(id(41)))
+      .mockResolvedValueOnce(contextWithDossier(id(42), "brochure/2"));
+    const preview = await directProposal(question, director, signal);
+    if (preview.status !== "ready") throw new Error(preview.code);
+    expect(preview.plan.slides.find(slide => slide.pageKind === "profile")?.keyMessages[0].sourceIds).toEqual([id(40)]);
+    const confirmation = confirmedProposalSchema.parse({ request: question, projectId: question.projectId, taskId: receipt.taskId,
+      expectedVersion: 1, planId: preview.plan.id, contextFingerprint: preview.plan.contextFingerprint });
+    const workflow = { find: vi.fn().mockResolvedValue(null), enqueue: vi.fn().mockResolvedValue(receipt) };
+    await expect(submitConfirmedProposal(confirmation, director, workflow, signal)).resolves.toEqual(receipt);
+    const accepted = workflow.enqueue.mock.calls[0][1];
+    const profileId = preview.plan.slides.find(slide => slide.pageKind === "profile")?.id;
+    expect(accepted.pages.find((page: { id: string }) => page.id === profileId)?.content.sources)
+      .toEqual([expect.objectContaining({ id: id(41), recordId: id(41), locator: `building-dossier · ${id(41)}` })]);
+    expect(accepted.queryReceipts).toEqual([expect.objectContaining({
+      id: "building-dossier", result: expect.objectContaining({ resultId: id(41) }),
+    })]);
+    await expect(submitConfirmedProposal(confirmation, director, workflow, signal)).rejects.toThrow("PITCH_PROPOSAL_REVIEW_REQUIRED");
+    expect(workflow.enqueue).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the raw query receipts out of the client plan", async () => {
+    const { director, readers, signal } = fixture();
+    readers.load.mockResolvedValueOnce(contextWithDossier(id(40)));
+    const result = await prepareProposal({ signal } as PitchContext, promotion(), undefined, director);
+    expect(result.status).toBe("ready");
+    expect(result).not.toHaveProperty("queryReceipts");
+    expect(result).not.toHaveProperty("pages");
   });
 
   it("skips all asset reads for a stale quarter or a revoked building", async () => {
