@@ -6,6 +6,8 @@ import '@testing-library/jest-dom/vitest';
 beforeAll(() => {
   // Store original Image
   const OriginalImage = global.Image;
+  // Server-route suites use Node's native web APIs and have no DOM Image.
+  if (typeof OriginalImage !== 'function') return;
   
   // Mock Image to allow testing without actual image loading
   global.Image = class MockImage extends OriginalImage {
@@ -35,5 +37,5 @@ beforeAll(() => {
 
 afterEach(() => {
   // Clean up DOM
-  document.body.innerHTML = '';
+  if (typeof document !== 'undefined') document.body.innerHTML = '';
 });
