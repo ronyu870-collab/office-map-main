@@ -74,9 +74,18 @@ export async function renderSceneSvg(raw: SlideScene, rawTheme: DesignTheme, raw
       parts.push(`<image x="${px(el.x)}" y="${px(el.y)}" width="${px(el.w)}" height="${px(el.h)}" preserveAspectRatio="xMidYMid meet" href="${COLLIERS_LOGO_DATA_URI}"/>`);
     } else if (el.kind === 'shape') {
       const fill = theme.colors[el.fill];
+      parts.push(`<g opacity="${el.opacity??1}">`);
       if (el.shape === 'ellipse') parts.push(`<ellipse cx="${px(el.x + el.w / 2)}" cy="${px(el.y + el.h / 2)}" rx="${px(el.w / 2)}" ry="${px(el.h / 2)}" fill="#${fill}"/>`);
-      else if (el.shape === 'arrow') parts.push(`<path d="M${px(el.x)} ${px(el.y)} H${px(el.x + el.w - .18)} L${px(el.x + el.w)} ${px(el.y + el.h / 2)} L${px(el.x + el.w - .18)} ${px(el.y + el.h)} H${px(el.x)}Z" fill="#${fill}"/>`);
-      else parts.push(rect(el.x, el.y, el.w, el.h, fill));
+      else if (el.shape === 'arrow') {
+        // Match DrawingML chevron's default 50% of the short side adjustment.
+        const tip = Math.min(el.w, el.h) / 2;
+        parts.push(`<path d="M${px(el.x)} ${px(el.y)} H${px(el.x + el.w - tip)} L${px(el.x + el.w)} ${px(el.y + el.h / 2)} L${px(el.x + el.w - tip)} ${px(el.y + el.h)} H${px(el.x)} L${px(el.x + tip)} ${px(el.y + el.h / 2)}Z" fill="#${fill}"/>`);
+      }
+      else if(el.shape==='triangle'||el.shape==='trapezoid') {
+        const points=el.shape==='triangle'?[[.5,0],[1,1],[0,1]]:[[.25,0],[.75,0],[1,1],[0,1]];
+        parts.push(`<polygon points="${points.map(([x,y])=>`${px(el.x+x*el.w)},${px(el.y+y*el.h)}`).join(' ')}" fill="#${fill}"/>`);
+      } else parts.push(rect(el.x, el.y, el.w, el.h, fill));
+      parts.push('</g>');
     } else if (el.kind === 'line') parts.push(line(el.x, el.y, el.x + (el.direction === 'horizontal' ? el.w : 0), el.y + (el.direction === 'vertical' ? el.h : 0)));
     else if (el.kind === 'chart') parts.push(chartSvg(el));
     else if (el.kind === 'table') {

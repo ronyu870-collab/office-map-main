@@ -1,5 +1,7 @@
 # Colliers Pitch Studio 公共架构与协议
 
+1.1 扩建：参见[模板生态与验证](template-ecosystem.md)、[完整目录](template-catalog.md)及[许可迁移](template-sources.md)。以下阶段记录保留其历史范围。
+
 阶段 01–06，公共协议 `colliers-pitch/1`；新布局引擎 `pitch-layout/2`，场景渲染标记 `pitch-scene/2`。阶段 02 依赖阶段 01 PR #309 的已验证提交 `fef812d3`，不从缺失基础表、权限与注册表的旧 main 重建。渲染细则见 [渲染引擎](render-engine.md)。阶段 03 基于阶段 02 已验证提交 `ab6b9b15`，企业素材库协议、真实任务执行、权限边界与限制见 [素材库](material-library.md)。
 
 已提供真实的「测试素材归档 → 结构化内容与独立布局 → 私人单页／多页项目 → 共享场景预览 → PPTX／PNG／SVG／Excel → 私有归档与项目重开」闭环。原件、业务内容、视觉布局、主题及用户作品分别管理。产品以可编辑单页／多页 PPT 为核心，独立素材导出为兼容方向，AI 完整提案为后续方向。

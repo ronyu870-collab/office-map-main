@@ -12,6 +12,7 @@ export type Template = {
   description: string;
   kind: string;
   recipe?: BusinessRecipe;
+  group?: string;
 };
 export function TemplatePicker({
   call,
@@ -21,6 +22,8 @@ export function TemplatePicker({
   recent,
   onFavorite,
   compact = false,
+  exampleMode = false,
+  disabled = false,
 }: {
   call: Call;
   templates: Template[];
@@ -29,6 +32,8 @@ export function TemplatePicker({
   recent: string[];
   onFavorite: (id: string) => void;
   compact?: boolean;
+  exampleMode?: boolean;
+  disabled?: boolean;
 }) {
   const [q, setQ] = React.useState(""),
     [category, setCategory] = React.useState("all"),
@@ -40,7 +45,7 @@ export function TemplatePicker({
       (category === "all" ||
         (category === "favorites" && favorites.includes(t.id)) ||
         (category === "recent" && recent.includes(t.id)) ||
-        t.kind === category) &&
+        (t.group ?? t.kind) === category) &&
       `${t.name} ${t.description}`.toLowerCase().includes(q.toLowerCase()),
   );
   const visible = filtered.slice(0, limit),
@@ -111,6 +116,7 @@ export function TemplatePicker({
               research: "市场研究",
               dynamic: "业务数据",
               custom: "自定义",
+              proposal:"提案与决策", building:"楼宇展示", occupier:"租户与选址", leasing:"招商策略", market:"市场分析", delivery:"项目交付", commercial:"商务方案", governance:"风险与复核",
             }).map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -125,6 +131,7 @@ export function TemplatePicker({
           <article key={t.id} className={styles.template}>
             <button
               className={styles.templateChoose}
+              disabled={disabled}
               onClick={() => onChoose(t)}
             >
               {thumbs[t.id] ? (
@@ -138,8 +145,9 @@ export function TemplatePicker({
               )}
               <strong>{t.name}</strong>
               <span>{t.description}</span>
+              {exampleMode&&<span>复制示例到当前 Pitch</span>}
             </button>
-            <Button
+            {!exampleMode&&<Button
               variant="ghost"
               aria-label={`${favorites.includes(t.id) ? "取消收藏" : "收藏"}${t.name}`}
               aria-pressed={favorites.includes(t.id)}
@@ -149,7 +157,7 @@ export function TemplatePicker({
                 size={16}
                 fill={favorites.includes(t.id) ? "currentColor" : "none"}
               />
-            </Button>
+            </Button>}
           </article>
         ))}
       </div>

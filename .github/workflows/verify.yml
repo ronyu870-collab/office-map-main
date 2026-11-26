@@ -102,7 +102,9 @@ jobs:
           && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
           && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
           || 'ubuntu-24.04' }}
-    timeout-minutes: 35
+    # Full native Pitch fixture generation and existing browser regressions run here.
+    # The measured combined job exceeded 35 minutes without a test failure.
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:17.6
@@ -173,6 +175,8 @@ jobs:
 
       - name: Real PostgreSQL 17 Pitch Studio foundation and PPTX regressions
         run: |
+          node scripts/verification/generate-pitch-ecosystem-fixtures.mjs
+          node supabase/tests/pitch-studio/ecosystem.mjs
           node supabase/tests/pitch-studio/render.mjs
           node supabase/tests/pitch-studio/run.mjs
           node supabase/tests/pitch-studio/library-parser.mjs
@@ -490,6 +494,15 @@ jobs:
             verification/ai-admin-only/results.json
             verification/ai-audit-people/results.json
             verification/ai-audit-export/results.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Retain generated editable Pitch template and kit samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitch-template-ecosystem
+          path: tmp/pitch-ecosystem-fixtures/
           if-no-files-found: ignore
           retention-days: 7
 

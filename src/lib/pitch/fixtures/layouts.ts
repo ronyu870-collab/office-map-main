@@ -1,7 +1,10 @@
 import { PROTOCOL, slideContentSchema, type SlideContent } from '../contracts/content';
+import { patternFixture } from './patterns';
 import type { LayoutId } from '../contracts/scene';
 /** Isolated synthetic fixtures, never a real Colliers case or query response. */
 export function layoutFixture(id: LayoutId, language: 'zh' | 'en' = 'zh', sourceId = '55555555-5555-4555-8555-555555555555', mediaId = '66666666-6666-4666-8666-666666666666'): SlideContent {
+  const expanded=patternFixture(id,language,sourceId,mediaId);
+  if(expanded)return slideContentSchema.parse(expanded);
   const en = language === 'en', refs = { sourceIds: [sourceId] }, image = { kind: 'image' as const, mediaAssetId: mediaId, mediaVersion: 1, alt: en ? 'Synthetic office illustration' : '合成办公空间示意图', ...refs };
   const paragraph = (zh: string, english: string) => ({ kind: 'paragraph' as const, text: en ? english : zh, ...refs });
   const insight = { kind: 'insight' as const, claim: en ? 'Compare periods on the same basis.' : '以相同口径观察期间变化。', basis: en ? 'Synthetic sample, consistent unit.' : '合成样本，单位与范围保持一致。', limitations: [en ? 'Illustration only; no investment advice.' : '仅为测试示意，不代表投资判断。'], ...refs };
@@ -23,6 +26,7 @@ export function layoutFixture(id: LayoutId, language: 'zh' | 'en' = 'zh', source
     'map-analysis': { title: en ? 'Locations and context' : '区位与业务背景', blocks: [{ kind: 'map', mapId: 'synthetic-coordinate-map', snapshotVersion: '1', buildingIds: [], bounds: [116.3, 39.8, 116.6, 40.05], points: [{ label: en ? 'Test location A' : '测试点 A', longitude: 116.38, latitude: 39.92 }, { label: en ? 'Test location B' : '测试点 B', longitude: 116.5, latitude: 39.98 }], ...refs }, insight] },
     'strategy-framework': { title: en ? 'A practical delivery framework' : '可执行的交付框架', blocks: [{ kind: 'timeline', entries: ['01', '02', '03'].map((v, i) => ({ date: `2026-0${i + 1}-01`, title: en ? ['Define', 'Evaluate', 'Deliver'][i] : ['明确问题', '评估选项', '组织交付'][i], description: en ? 'Maintain explicit scope, evidence and accountable actions.' : '保持明确范围、可追溯证据与责任动作。' })), ...refs }] },
   };
+  if(!byId[id])throw new Error('PITCH_LAYOUT_UNAVAILABLE');
   return slideContentSchema.parse({ protocol: PROTOCOL, locale: language, title: byId[id].title, blocks: byId[id].blocks,
     sources: [{ id: sourceId, kind: 'synthetic', label: en ? 'Synthetic test material' : '合成测试素材', locator: `fixture:${id}`, version: '2', dataAsOf: '2026-01-01' }],
     dataAsOf: '2026-01-01', disclosure: 'internal', isTestData: true });

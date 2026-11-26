@@ -7,6 +7,7 @@ import { QUESTION_SUBMARKETS } from "@/src/lib/intelligence/query/question";
 import { parseQueryPlan } from "@/src/lib/intelligence/query/plan";
 import { pitchRpc, type PitchContext } from "../data/store";
 import {
+  recipeSchema,
   generationPartSchema,
   dynamicParametersSchema,
   type Generation,
@@ -225,6 +226,17 @@ export async function preparePitch(
       explanation: "所选成员按人数自动排版及分页；档案不会被改写。",
       modelCalls: 0,
     };
+  }
+  const requestedName=q.replace(/^(?:请|帮我)?(?:生成|制作|使用|create|generate)\s*(?:一页)?/i,'').replace(/(?:页面|页)?[。.!！]?$/,'').trim();
+  if(requestedName){
+    const catalog=z.object({recipes:z.array(recipeSchema)}).parse(await pitchRpc(ctx,{action:'business_catalog'}));
+    const selected=catalog.recipes.filter(r=>r.enabled&&[r.id,...Object.values(r.names)].some(name=>name.toLowerCase()===requestedName.toLowerCase()));
+    if(selected.length===1){
+      if(!input.assetIds.length)return clarify('请先选择此模板所需的已发布素材。');
+      const recipe=selected[0];
+      if(input.assetIds.length>recipe.maxAssets)return clarify('所选素材超过模板容量，请减少数量。');
+      return {status:'ready',part:generationPartSchema.parse({mode:input.assetIds.length>1?'semi-dynamic':'static',templateId:recipe.id,assetIds:input.assetIds,length:'brief',allowFallback:false,variant:'standard'}),explanation:recipe.description,modelCalls:0};
+    }
   }
   const comparison =
     /^(?:用|将|把)(?:这[五几些]个|选中的?)(?:楼宇|项目)(?:制作|生成)(?:项目)?对比(?:PPT|页面|页)?$/i.test(

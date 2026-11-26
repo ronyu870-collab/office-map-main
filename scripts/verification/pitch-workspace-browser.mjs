@@ -177,6 +177,12 @@ export async function verifyPitchWorkspaceBrowser({
             "隔离移动编辑 " + width,
           );
         }
+        await page.getByRole('button',{name:'示例与套装',exact:true}).click();
+        await page.getByRole('tab',{name:'提案套装',exact:true}).click();
+        await page.getByLabel('提案套装',{exact:true}).selectOption('market-review');
+        assert.equal(await page.getByRole('checkbox').count(),10);
+        assert.ok(await page.getByRole('button',{name:'创建演示 Pitch',exact:true}).isEnabled());
+        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'example library fits viewport');
         assert.deepEqual(errors, []);
         observations.push({
           width,

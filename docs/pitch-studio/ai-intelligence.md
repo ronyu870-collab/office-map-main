@@ -1,5 +1,7 @@
 # Pitch Studio AI、资料处理与持续学习
 
+1.1 扩建：参见[模板生态与验证](template-ecosystem.md)、[完整目录](template-catalog.md)及[许可迁移](template-sources.md)。以下阶段记录保留其历史范围。
+
 阶段 06 基线：阶段 05 `ceec2d288280f8029224e2f6ec60ae466bfca1a3`（PR #313）。迁移 `20261126090000_pitch_studio_ai.sql` 只增加结构与默认关闭配置，不开启试点、不授予账号权限、不上传生产事实。前五阶段协议与内部研究报告契约保持兼容。
 
 ## 使用入口
