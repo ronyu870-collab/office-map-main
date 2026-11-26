@@ -357,7 +357,7 @@ describe('submarket research workspace', () => {
     });
     render(<SubmarketDetailPanel {...props} />);
     const edit = await screen.findByRole('button', { name: '维护资料' });
-    expect(screen.getByRole('heading', { name: 'CBD', exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^CBD$/ })).toBeInTheDocument();
     expect(screen.getAllByRole('tab')).toHaveLength(4);
     expect(screen.getByText('186.8')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: '区域画像' }));
