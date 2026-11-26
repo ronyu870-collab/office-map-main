@@ -7,8 +7,10 @@ import {
   type Understanding,
 } from "@/src/lib/pitch/ai/protocol";
 import type { Generation } from "@/src/lib/pitch/business/protocol";
+import { outlineBuildingIds, outlineQuarter, outlinePartSchema, type OutlinePart } from "@/src/lib/pitch/workspace/protocol";
 import type { PreparedPitch } from "@/src/lib/pitch/ai/routing";
 import type { Call } from "./client";
+import { RevisionReview, type RevisionDestination, type CanvasRevisionTarget } from "./RevisionReview";
 import styles from "./workspace.module.css";
 type Asset = {
   id: string;
@@ -18,9 +20,18 @@ type Asset = {
   templateId: string;
   reasons: string[];
 };
-type Section = { id: string; title: string; part: Generation["parts"][number] };
+type Material = { id: string; version: number; title: string };
+type DataReview = {
+  fingerprint: string;
+  comparisons?: { metric: string; note: string; columns: string[]; rows: string[][] }[];
+  buildings: { id: string; name: string; facts: { label: string; value: string }[] }[];
+  parameters: Extract<Generation["parts"][number], { mode: "dynamic" }>["parameters"];
+};
+type Section = { id: string; title: string; part: Generation["parts"][number]; materials: Material[]; review?: DataReview };
 type Task = {
   id: string;
+  asset_id?: string;
+  asset_version?: number;
   state: string;
   request: { task: AiTask };
   result: Understanding | null;
@@ -37,6 +48,7 @@ const stateLabel: Record<string, string> = {
 };
 export function AiAssist({
   call,
+  initialQuestion = "",
   projectId,
   buildingIds,
   period,
@@ -44,10 +56,15 @@ export function AiAssist({
   admin,
   busy,
   onGenerate,
-  onReload,
+  onGenerateOutline,
+  outlineCanResubmit,
+  revisionDestination,
+  canvasTarget,
+  onCanvasSaved,
   onExport,
 }: {
   call: Call;
+  initialQuestion?: string;
   projectId: string;
   buildingIds: string[];
   period: string;
@@ -55,10 +72,14 @@ export function AiAssist({
   admin: boolean;
   busy: boolean;
   onGenerate: (part: Generation["parts"][number]) => Promise<void>;
-  onReload: () => Promise<void>;
+  onGenerateOutline: (outline: OutlinePart) => Promise<void>;
+  outlineCanResubmit?: boolean;
+  revisionDestination?: RevisionDestination;
+  canvasTarget?: CanvasRevisionTarget & { assetId: string; assetVersion: number };
+  onCanvasSaved?: (result: unknown) => void;
   onExport: () => void;
 }) {
-  const [question, setQuestion] = React.useState(""),
+  const [question, setQuestion] = React.useState(initialQuestion),
     [plan, setPlan] = React.useState<PreparedPitch | null>(null),
     [q, setQ] = React.useState(""),
     [kind, setKind] = React.useState("case"),
@@ -71,6 +92,9 @@ export function AiAssist({
     [batch, setBatch] = React.useState(""),
     [tasks, setTasks] = React.useState<Task[]>([]),
     [sections, setSections] = React.useState<Section[]>([]),
+    [outlineMissing, setOutlineMissing] = React.useState<string[] | null>(null),
+    [compareQuarters, setCompareQuarters] = React.useState(false),
+    [submitted, setOutlineSent] = React.useState(false),
     [pollFailed, setPollFailed] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => controller.current?.abort(), []);
@@ -162,75 +186,55 @@ export function AiAssist({
       setItems(r.items);
       setSelected([]);
     });
+  const outlineSent = submitted && !outlineCanResubmit;
+  const dataReview = sections.find(section => section.review)?.review;
+  const reviewMatches = !dataReview || (
+    Boolean(dataReview.comparisons?.length) === compareQuarters &&
+    period === dataReview.parameters.period.year + "-Q" + dataReview.parameters.period.quarter &&
+    buildingIds.length === dataReview.buildings.length &&
+    buildingIds.every(id => dataReview.buildings.some(building => building.id === id))
+  );
+  const reviewData = () => perform(async (signal) => {
+    const review = await call<DataReview>(
+      { action: "review_outline_data", projectId, buildingIds, period, ...(compareQuarters ? { compareQuarters: true } : {}) }, true, "workspace", signal,
+    );
+    if (signal.aborted) return;
+    const title = buildingIds.length === 1
+      ? (language === "en" ? "Building profile" : "目标项目概况")
+      : (language === "en" ? "Building comparison" : "所选项目横向对比");
+    const next: Section = { id: "reviewed-building-data", title, materials: [], review,
+      part: { mode: "dynamic", parameters: review.parameters } };
+    setSections(previous => {
+      const existing = previous.findIndex(section => section.id === next.id);
+      if (existing < 0) return [...previous, next];
+      return previous.map((section, i) => i === existing ? { ...next, title: section.title } : section);
+    });
+    setOutlineSent(false);
+  });
   const generateOutline = () =>
-    perform(async (signal) => {
-      // Confirmation is this explicit button. Every step uses the existing durable
-      // workspace executor and current optimistic version; failures preserve prior pages.
-      for (const section of sections.slice(0, 8)) {
-        signal.throwIfAborted();
-        const current = await call<{ project: { version: number } }>(
-            { action: "get", projectId },
-            true,
-            "workspace",
-            signal,
-          ),
-          taskId = crypto.randomUUID();
-        await call(
-          {
-            action: "start",
-            projectId,
-            taskId,
-            expectedVersion: current.project.version,
-            part: { ...section.part, title: section.title },
-            replaceIds: [],
-          },
-          true,
-          "workspace",
-          signal,
-        );
-        let done = false;
-        for (let attempt = 0; attempt < 75; attempt++) {
-          await new Promise<void>((resolve, reject) => {
-            const abort = () => {
-              clearTimeout(timer);
-              reject(new DOMException("Aborted", "AbortError"));
-            };
-            const timer = setTimeout(() => {
-              signal.removeEventListener("abort", abort);
-              resolve();
-            }, 800);
-            signal.addEventListener("abort", abort, { once: true });
-            if (signal.aborted) abort();
-          });
-          const receipt = await call<{ state: string }>(
-            { action: "status", projectId, taskId },
-            true,
-            "workspace",
-            signal,
-          );
-          if (receipt.state === "completed") {
-            done = true;
-            break;
-          }
-          if (["failed", "cancelled"].includes(receipt.state))
-            throw new Error("本页未完成，已生成页面保留。");
-        }
-        if (!done)
-          throw new Error("任务尚未完成，请在当前项目任务记录中继续查看。");
-        await feedback(
-          "accepted",
-          undefined,
-          section.part.mode === "dynamic"
-            ? section.part.parameters.templateId
-            : section.part.templateId,
-        );
+    perform(async () => {
+      if (!reviewMatches) throw new Error("关联楼宇或季度已变化，请重新核对正式数据。");
+      const pinned = new Map<string, number>();
+      for (const section of sections) for (const source of section.materials ?? []) {
+        const prior = pinned.get(source.id);
+        if (prior !== undefined && prior !== source.version)
+          throw new Error("素材版本已变化，请重新推荐提纲。");
+        pinned.set(source.id, source.version);
       }
-      await onReload();
-      setSections([]);
+      const result = outlinePartSchema.safeParse({
+        mode: "outline",
+        parts: sections.map(section => ({ ...section.part, title: section.title })),
+        bindings: [...pinned].map(([id, version]) => ({ id, version })),
+        ...(dataReview ? { dataFingerprint: dataReview.fingerprint,
+          ...(dataReview.comparisons?.length ? { compareQuarters: true } : {}) } : {}),
+      });
+      if (!result.success) throw new Error("请补全章节标题和对应素材，再重新确认。");
+      await onGenerateOutline(result.data);
+      setOutlineSent(true);
     });
   return (
     <div className={styles.form} aria-label="Pitch 辅助">
-      <h2>快速配置</h2>
+      <h2>{initialQuestion ? "提案助手" : "快速配置"}</h2>
       <label>
         需要制作什么页面？
         <textarea
@@ -241,6 +245,159 @@ export function AiAssist({
           placeholder="生成燕莎空置率趋势页面"
         />
       </label>
+      <details open={initialQuestion.trim() ? true : undefined}>
+        <summary>提案结构建议</summary>
+        <Button
+          disabled={working || busy}
+          variant={sections.length ? "secondary" : "primary"}
+          onClick={() =>
+            void perform(async (signal) => {
+              const r = await call<{ sections: Section[]; missing: string[] }>(
+                { action: "outline", projectId, query: { q, objective: question.trim().slice(0, 200), language, limit: 5 } },
+                true,
+                "ai",
+                signal,
+              );
+              setSections(previous => [...r.sections, ...previous.filter(section => section.review)]);
+              setOutlineMissing(r.missing ?? []);
+              setOutlineSent(false);
+              if (!r.sections.length)
+                setError("当前范围没有可用的发布素材。可调整关键词，或先加入正式数据。");
+            })
+          }
+        >
+          推荐提纲
+        </Button>
+        <p>可用「项目设置」中关联的 1–5 栋楼宇和默认季度，加入正式数据章节。仅限内部使用。</p>
+        <label className={styles.check}>
+          <input type="checkbox" checked={compareQuarters} disabled={working || busy}
+            onChange={event => setCompareQuarters(event.target.checked)} />
+          同时核对租金和空置率的环比、同比
+        </label>
+        <Button
+          variant="secondary"
+          disabled={working || busy || (!dataReview && sections.length >= 8) ||
+            !outlineBuildingIds.safeParse(buildingIds).success || !outlineQuarter.safeParse(period).success}
+          onClick={() => void reviewData()}
+        >
+          {dataReview ? "重新核对正式数据" : "核对并加入正式数据"}
+        </Button>
+        {!reviewMatches && <p role="status">关联楼宇或季度已变化，或已切换对比方式。请重新核对或移除正式数据章节。</p>}
+        <ol>
+          {sections.map((s, i) => {
+            const sectionPart = s.part;
+            const alternatives = sectionPart.mode === "dynamic" ? [] : items.filter(item =>
+              selected.includes(item.id) && item.templateId === sectionPart.templateId);
+            return <li key={s.id}>
+              <input
+                aria-label="章节标题"
+                disabled={working || busy || outlineSent}
+                maxLength={160}
+                value={s.title}
+                onChange={(e) =>
+                  setSections((v) =>
+                    v.map((x) =>
+                      x.id === s.id ? { ...x, title: e.target.value } : x,
+                    ),
+                  )
+                }
+              />
+              {s.review && <div>
+                <p>正式季度：{s.review.parameters.period.year}-Q{s.review.parameters.period.quarter} · 仅限内部</p>
+                <p>缺失值原样标记；不替换楼宇或季度。</p>
+                <ul aria-label="已核对楼宇">
+                  {s.review.buildings.map(building => <li key={building.id}>
+                    <strong>{building.name}</strong>
+                    <ul>{building.facts.map(fact => <li key={fact.label}>{fact.label}：{fact.value}</li>)}</ul>
+                  </li>)}
+                </ul>
+                {s.review.comparisons?.map(comparison => <div key={comparison.metric}>
+                  <div className={styles.tableScroll}>
+                  <table className={styles.comparisonTable}>
+                    <caption>{comparison.metric}</caption>
+                    <thead><tr>{comparison.columns.map(column => <th scope="col" key={column}>{column}</th>)}</tr></thead>
+                    <tbody>{comparison.rows.map((row, i) => <tr key={s.review?.buildings[i].id ?? i}>
+                      <th scope="row">{row[0]}</th>
+                      {row.slice(1).map((cell, j) => <td key={comparison.columns[j + 1]}>{cell}</td>)}
+                    </tr>)}</tbody>
+                  </table>
+                  </div>
+                  <p>{comparison.note}</p>
+                </div>)}
+              </div>}
+              {s.materials?.length > 0 && <ul aria-label="已选素材">
+                {s.materials.map(material => <li key={material.id}>{material.title} · v{material.version}</li>)}
+              </ul>}
+              <Button
+                variant="ghost"
+                disabled={!i || working || busy || outlineSent}
+                onClick={() =>
+                  setSections((v) => {
+                    const next = [...v];
+                    [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                    return next;
+                  })
+                }
+              >
+                上移
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={working || busy || outlineSent}
+                onClick={() =>
+                  setSections((v) => v.filter((x) => x.id !== s.id))
+                }
+              >
+                移除
+              </Button>
+              {!!alternatives.length && alternatives.length === selected.length && (
+                <Button
+                  variant="ghost"
+                  disabled={working || busy || outlineSent}
+                  onClick={() =>
+                    setSections((v) =>
+                      v.map((x) =>
+                        x.id === s.id && x.part.mode !== "dynamic"
+                          ? {
+                              ...x,
+                              materials: alternatives.map(({ id, title, version }) => ({ id, title, version })),
+                              part: {
+                                ...x.part,
+                                mode:
+                                  alternatives.length === 1
+                                    ? "static"
+                                    : "semi-dynamic",
+                                assetIds: alternatives.map(item => item.id),
+                              },
+                            }
+                          : x,
+                      ),
+                    )
+                  }
+                >
+                  替换为所选素材
+                </Button>
+              )}
+            </li>;
+          })}
+        </ol>
+        {(outlineMissing || dataReview) && (outlineMissing?.length || !dataReview) ? <div>
+          <strong>未包含的部分</strong>
+          <ul>
+            {outlineMissing?.map(note => <li key={note}>{note}</li>)}
+            {!dataReview && <li>尚未加入正式楼宇季度数据。</li>}
+          </ul>
+        </div> : null}
+
+        {!!sections.length && (
+          <Button
+            disabled={working || busy || outlineSent || !reviewMatches || sections.some(section => !section.title.trim())}
+            onClick={() => void generateOutline()}
+          >
+            确认生成 {sections.length} 个板块
+          </Button>
+        )}
+      </details>
       <Button
         disabled={working || busy || !question.trim()}
         onClick={() =>
@@ -405,100 +562,6 @@ export function AiAssist({
           用所选素材生成
         </Button>
       )}
-      <details>
-        <summary>提案结构建议</summary>
-        <Button
-          disabled={working}
-          variant="secondary"
-          onClick={() =>
-            void perform(async (signal) => {
-              const r = await call<{ sections: Section[] }>(
-                { action: "outline", query: { q, language, limit: 5 } },
-                true,
-                "ai",
-                signal,
-              );
-              setSections(r.sections);
-              if (!r.sections.length)
-                setError("没有满足条件的正式素材，请先选择或维护素材。");
-            })
-          }
-        >
-          推荐提纲
-        </Button>
-        <ol>
-          {sections.map((s, i) => (
-            <li key={s.id}>
-              <input
-                aria-label="章节标题"
-                value={s.title}
-                onChange={(e) =>
-                  setSections((v) =>
-                    v.map((x) =>
-                      x.id === s.id ? { ...x, title: e.target.value } : x,
-                    ),
-                  )
-                }
-              />
-              <Button
-                variant="ghost"
-                disabled={!i}
-                onClick={() =>
-                  setSections((v) => {
-                    const next = [...v];
-                    [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                    return next;
-                  })
-                }
-              >
-                上移
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  setSections((v) => v.filter((x) => x.id !== s.id))
-                }
-              >
-                移除
-              </Button>
-              {!!selected.length && (
-                <Button
-                  variant="ghost"
-                  onClick={() =>
-                    setSections((v) =>
-                      v.map((x) =>
-                        x.id === s.id && x.part.mode !== "dynamic"
-                          ? {
-                              ...x,
-                              part: {
-                                ...x.part,
-                                mode:
-                                  selected.length === 1
-                                    ? "static"
-                                    : "semi-dynamic",
-                                assetIds: selected,
-                              },
-                            }
-                          : x,
-                      ),
-                    )
-                  }
-                >
-                  替换为所选素材
-                </Button>
-              )}
-            </li>
-          ))}
-        </ol>
-        {!!sections.length && (
-          <Button
-            disabled={working || busy}
-            onClick={() => void generateOutline()}
-          >
-            确认生成 {Math.min(8, sections.length)} 个板块
-          </Button>
-        )}
-      </details>
       {admin && (
         <details>
           <summary>辅助理解所选资料</summary>
@@ -625,7 +688,12 @@ export function AiAssist({
                         : "未通过处理校验")
                   : ""}
               </p>
-              {t.result && (
+              {t.request.task === "revise-text" && t.state === "completed" && t.authorized && t.result &&
+                <RevisionReview call={call} taskId={t.id} disabled={busy || working} destination={revisionDestination}
+                  canvasTarget={canvasTarget && canvasTarget.assetId === t.asset_id && canvasTarget.assetVersion === t.asset_version
+                    ? { projectId: canvasTarget.projectId, slideId: canvasTarget.slideId, expectedVersion: canvasTarget.expectedVersion } : undefined}
+                  onCanvasSaved={onCanvasSaved} />}
+              {t.result && t.request.task !== "revise-text" && (
                 <>
                   <p>{t.result.purpose}</p>
                   {t.result.revisions.map((r, i) => (

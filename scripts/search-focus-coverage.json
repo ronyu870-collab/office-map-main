@@ -527,6 +527,16 @@
     ]
   },
   {
+    "id": "pitch-slide-navigator",
+    "roots": [
+      "src/components/pitch/workspace/SlideNavigator.tsx"
+    ],
+    "file": "src/components/pitch/workspace/SlideNavigator.focus.test.tsx",
+    "cases": [
+      "keeps page search focused through empty results and Chinese input"
+    ]
+  },
+  {
     "id": "pitch-material-library",
     "roots": [
       "src/components/pitch/library/MaterialLibrary.tsx"

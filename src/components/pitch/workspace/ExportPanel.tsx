@@ -13,8 +13,10 @@ export function ExportPanel({
   canClient,
   disabled,
   openSignal = 0,
+  outlineReady = false,
 }: {
   openSignal?: number;
+  outlineReady?: boolean;
   call: Call;
   detail: WorkspaceDetail;
   active: string | null;
@@ -150,9 +152,16 @@ export function ExportPanel({
     <>
       <Button
         disabled={disabled || !detail.slides.length}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (outlineReady && !running) {
+            setFormat("pptx");
+            setRange("all");
+            setAudience("internal");
+          }
+          setOpen(true);
+        }}
       >
-        导出
+        {outlineReady ? "导出可编辑 PPTX" : "导出"}
       </Button>
       <Dialog
         open={open || openSignal > dismissedSignal}

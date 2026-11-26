@@ -1,18 +1,18 @@
-/* eslint-disable @next/next/no-img-element -- private server-rendered page thumbnails. */
 "use client";
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import {
-  Plus,
   PanelLeftClose,
   PanelRightClose,
   ArrowLeft,
-  ArrowUp,
-  ArrowDown,
-  Copy,
-  Trash2,
+  ArrowRight,
+  BookOpen,
+  FilePlus2,
+  Images,
+  Layers,
+  Link2,
 } from "lucide-react";
 import { useAppSession } from "@/src/components/SessionProvider";
 import { WorkspaceShell } from "@/src/components/layout";
@@ -27,6 +27,8 @@ import {
   type WorkspaceDetail,
   type WorkspaceSave,
   type WorkspacePart,
+  type OutlinePart,
+  type WorkspaceCommand,
 } from "@/src/lib/pitch/workspace/protocol";
 import {
   recipeSchema,
@@ -46,9 +48,16 @@ import {
 } from "./workspace/client";
 import { TemplatePicker, type Template } from "./workspace/TemplatePicker";
 import { TemplateParameters, BuildingPicker } from "./workspace/Parameters";
+import { CurrentPageRevision } from "./workspace/CurrentPageRevision";
 import { AssetPicker } from "./workspace/Assets";
 import { PagePreview, usePagePreviews } from "./workspace/Preview";
 import { Projects } from "./workspace/Projects";
+import { SlideNavigator } from "./workspace/SlideNavigator";
+import { Presentation } from "./workspace/Presentation";
+import { canMoveObject } from "@/src/lib/pitch/workspace/object-layout";
+const ObjectCanvas = dynamic(() => import("./workspace/ObjectCanvas").then(module => module.ObjectCanvas), {
+  loading: () => <p role="status">正在打开对象编辑…</p>,
+});
 import { ExportPanel } from "./workspace/ExportPanel";
 import styles from "./workspace/workspace.module.css";
 const AiAssist = dynamic(
@@ -60,13 +69,23 @@ const Manager = dynamic(
   () => import("./workspace/Manager").then((m) => m.Manager),
   { loading: () => <p>正在打开管理中心…</p> },
 );
-type Panel = "examples" | "quick" | "templates" | "assets" | "projects" | "admin";
+type Panel = "home" | "examples" | "quick" | "templates" | "assets" | "projects" | "admin";
+type OutlineStart = Extract<WorkspaceCommand, { action: "start" }> & { part: OutlinePart };
+type TaskReceipt = { id: string; state: string; attempts?: number; error_code?: string };
+type WorkspaceTask = TaskReceipt & { outline?: boolean; unconfirmed?: OutlineStart };
+type SavedCanvasHistory = {
+  projectId: string;
+  slideId: string;
+  version: number;
+  undo: number[];
+  redo: number[];
+};
 const tabs: { id: Panel; label: string }[] = [
-  { id: "quick", label: "快速生成" },
-  { id: "assets", label: "企业素材库" },
-  { id: "templates", label: "模板中心" },
-  { id: "examples", label: "示例与套装" },
+  { id: "home", label: "工作台" },
   { id: "projects", label: "我的 Pitch" },
+  { id: "templates", label: "模板库" },
+  { id: "assets", label: "素材库" },
+  { id: "examples", label: "示例与套装" },
   { id: "admin", label: "管理中心" },
 ];
 const businessCatalog = z.object({
@@ -105,7 +124,7 @@ export function PitchWorkspace() {
   );
 }
 function Studio({ session }: { session: AuthSessionResult }) {
-  const [panel, setPanel] = React.useState<Panel>("quick"),
+  const [panel, setPanel] = React.useState<Panel>("home"),
     [catalog, setCatalog] = React.useState<Catalog | null>(null),
     [templates, setTemplates] = React.useState<Template[]>([]),
     [preferences, setPreferences] = React.useState({
@@ -124,22 +143,20 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [name, setName] = React.useState(""),
     [context, setContext] = React.useState(projectContextSchema.parse({})),
     [scopeIndex, setScopeIndex] = React.useState(0),
-    [quickMode, setQuickMode] = React.useState("template"),
+    [brief, setBrief] = React.useState(""),
+    [assistSeed, setAssistSeed] = React.useState(""),
+    [createFromBrief, setCreateFromBrief] = React.useState(false),
     [buildingSearch, setBuildingSearch] = React.useState(false);
   const [left, setLeft] = React.useState(true),
     [right, setRight] = React.useState(true),
     [mobile, setMobile] = React.useState("preview"),
-    [width, setWidth] = React.useState(260),
-    [leftTab, setLeftTab] = React.useState("templates"),
+    [leftWidth, setLeftWidth] = React.useState(228),
+    [leftTab, setLeftTab] = React.useState("pages"),
+    [pageRevisionBatches, setPageRevisionBatches] = React.useState<Record<string, string>>({}),
     [chosen, setChosen] = React.useState<Template | null>(null),
     [regenerating, setRegenerating] = React.useState(false);
   const [selected, setSelected] = React.useState<string[]>([]),
-    [task, setTask] = React.useState<{
-      id: string;
-      state: string;
-      attempts?: number;
-      error_code?: string;
-    } | null>(null),
+    [task, setTask] = React.useState<WorkspaceTask | null>(null),
     [customOpen, setCustomOpen] = React.useState(false),
     [custom, setCustom] = React.useState({
       title: "",
@@ -157,12 +174,14 @@ function Studio({ session }: { session: AuthSessionResult }) {
     } | null>(null),
     [taskPollFailed, setTaskPollFailed] = React.useState(false),
     [readingResult, setReadingResult] = React.useState(false),
-    [historyOpen, setHistoryOpen] = React.useState(false);
+    [historyOpen, setHistoryOpen] = React.useState(false),
+    [objectPage, setObjectPage] = React.useState<string | null>(null),
+    [savedCanvasHistory, setSavedCanvasHistory] = React.useState<SavedCanvasHistory | null>(null);
   const life = React.useRef(new AbortController()),
     current = React.useRef({ detail, draft, dirty }),
     pending = React.useRef<Promise<WorkspaceDetail> | null>(null),
     draftSequence = React.useRef(0),
-    drag = React.useRef<string | null>(null);
+    resizeStart = React.useRef<{ x: number; width: number } | null>(null);
   React.useEffect(() => {
     current.current = { detail, draft, dirty };
   }, [detail, draft, dirty]);
@@ -282,22 +301,16 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setConflict(false);
     current.current = { detail: value, draft: draftOf(value), dirty: false };
     setSelected((v) => v.filter((id) => value.slides.some((p) => p.id === id)));
-    const work =
-      value.tasks.find((t) =>
-        ["queued", "processing"].includes(String(t.state)),
-      ) ??
-      value.tasks.find((t) =>
-        ["failed", "cancelled"].includes(String(t.state)),
-      );
-    setTask(
-      work
-        ? {
-            id: String(work.id),
-            state: String(work.state),
-            attempts: Number(work.attempts),
-          }
-        : null,
-    );
+    const work = value.tasks.find(t => t.state === "queued" || t.state === "processing") ?? value.tasks[0];
+    setTask(previous => {
+      const receipt = work && {
+        id: String(work.id), state: String(work.state), attempts: Number(work.attempts),
+        error_code: typeof work.error_code === "string" ? work.error_code : undefined,
+        outline: previous?.id === work.id && previous?.outline,
+      };
+      if (previous?.unconfirmed?.projectId === value.project.id && receipt?.id !== previous.id) return previous;
+      return receipt && (receipt.state !== "completed" || receipt.outline) ? receipt : null;
+    });
   }, []);
   const linkedProjectRead = React.useRef(false);
   React.useEffect(() => {
@@ -353,12 +366,36 @@ function Studio({ session }: { session: AuthSessionResult }) {
       pending.current = work;
       try {
         const saved = await work;
+        const edited = value.draft.pages.filter(page => !!(page.objectMoves || page.objectTexts || page.objectOrder || page.objectGroups));
+        if (edited.length === 1 && !edited[0].duplicateOf) {
+          const slideId = edited[0].id, from = value.detail.project.version;
+          setSavedCanvasHistory(previous => ({
+            slideId, projectId: saved.project.id, version: saved.project.version,
+            undo: [
+              ...(previous?.projectId === saved.project.id && previous.slideId === slideId && previous.version === from
+                ? previous.undo : []),
+              from,
+            ].slice(-12),
+            redo: [],
+          }));
+        } else {
+          // Navigation and metadata saves can retain history; content/geometry changes
+          // on that page or an external version change invalidate it.
+          setSavedCanvasHistory(previous => {
+            if (!previous || previous.projectId !== saved.project.id || previous.version !== value.detail?.project.version)
+              return null;
+            const before = value.detail.slides.find(slide => slide.id === previous.slideId);
+            const after = saved.slides.find(slide => slide.id === previous.slideId);
+            return before && after && JSON.stringify(before) === JSON.stringify(after)
+              ? { ...previous, version: saved.project.version } : null;
+          });
+        }
+
         if (sequence === draftSequence.current) accept(saved);
         else {
           setDetail(saved);
           current.current = { ...current.current, detail: saved };
         }
-        setMessage("已保存");
         return saved;
       } catch (e) {
         if (e instanceof WorkspaceError && e.status === 409) setConflict(true);
@@ -409,7 +446,16 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setPanel("quick");
     setChosen(null);
     setMobile("preview");
+    setLeftTab("pages");
+    setAssistSeed("");
+    setObjectPage(null);
   };
+  async function copyProjectLink(id: string) {
+    const url = new URL("/intelligence/pitch", window.location.origin);
+    url.searchParams.set("project", id);
+    await navigator.clipboard.writeText(url.toString());
+    setMessage("已复制项目链接。项目权限未更改。");
+  }
   async function ensureProject() {
     if (detail) return flush();
     setCreateOpen(true);
@@ -474,7 +520,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
       setPreferences(value);
       void call({ action: "preferences", value }, true).catch(() => {});
     };
-    if (ids.some((id) => saved.workspace.page_settings[id]?.manual)) {
+    if (ids.some((id) => saved.workspace.page_settings[id]?.manual || saved.slides.find(slide => slide.id === id)?.scene.elements.some(element => element.editorId))) {
       setConfirmation({
         title: "重新生成这组页面？",
         body: "已有正文改写将被新结果替换。旧版本保留在历史记录中，可恢复。",
@@ -500,8 +546,9 @@ function Studio({ session }: { session: AuthSessionResult }) {
           "workspace",
           c.signal,
         )
-          .then(async (result) => {
+          .then(async (receipt) => {
             if (c.signal.aborted) return;
+            const result: WorkspaceTask = { ...receipt, outline: task.outline };
             setTaskPollFailed(false);
             if (result.state === "completed") {
               setReadingResult(true);
@@ -527,7 +574,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 setChosen(null);
                 setRegenerating(false);
                 setMobile("preview");
-                setMessage("页面已生成并保存。");
+                if (result.outline) setLeftTab("pages");
+                setMessage(result.outline ? "" : "页面已生成并保存。");
               }
             } else {
               setReadingResult(false);
@@ -555,11 +603,59 @@ function Studio({ session }: { session: AuthSessionResult }) {
     canGenerate = catalog?.scopes.some((s) => s.canGenerate) ?? false,
     canManage =
       catalog?.scopes.some((s) => s.canMaintain || s.canAdmin) ?? false;
+  const canvasRevisionTarget = detail && page && active === page.id && page.content.disclosure === "internal" &&
+    !dirty && !saving && !detail.workspace.page_settings[page.id]?.manual &&
+    detail.workspace.page_settings[page.id]?.origin !== "data" && !detail.workspace.page_settings[page.id]?.example &&
+    !page.scene.elements.some(element => element.editorId) && (page.scene.pagination?.count ?? 1) === 1 ? {
+      projectId: detail.project.id, slideId: page.id, expectedVersion: detail.project.version,
+      assetId: page.asset_id, assetVersion: page.asset_version,
+    } : undefined;
+  const savedCanvas = savedCanvasHistory?.projectId === detail?.project.id &&
+    savedCanvasHistory?.version === detail?.project.version && savedCanvasHistory?.slideId === active
+    ? savedCanvasHistory : null;
+  async function restoreCanvas(direction: "undo" | "redo") {
+    if (!savedCanvas || !detail || current.current.dirty || saving || pending.current) return;
+    const revision = savedCanvas[direction].at(-1);
+    if (revision === undefined) return;
+    await run(async () => {
+      const base = detail.project.version, sequence = draftSequence.current;
+      const result = workspaceDetailSchema.parse(await call({
+        action: "restore_page", projectId: detail.project.id, slideId: savedCanvas.slideId,
+        expectedVersion: base, revision,
+      }, true));
+      if (current.current.detail?.project.id !== result.project.id) return;
+      if (draftSequence.current !== sequence || current.current.dirty) {
+        // Keep concurrent edits instead of replacing them with the response.
+        setSavedCanvasHistory(null);
+        setConflict(true);
+        setMessage("页面历史已更新。另有尚未保存的编辑，请重新读取或另存副本。");
+        return;
+      }
+      accept(result);
+      setSavedCanvasHistory({
+        ...savedCanvas, version: result.project.version,
+        undo: direction === "undo" ? savedCanvas.undo.slice(0, -1) : [...savedCanvas.undo, base].slice(-12),
+        redo: direction === "redo" ? savedCanvas.redo.slice(0, -1) : [...savedCanvas.redo, base].slice(-12),
+      });
+    });
+  }
   const grants =
     catalog?.scopes.filter(
       (s) => s.canGenerate && s.region && s.city && s.businessLine,
     ) ?? [];
+  const slidesForDisplay = draft?.pages.map((p) => {
+    const sourceId = p.duplicateOf ?? p.id;
+    const source = detail?.slides.find((slide) => slide.id === sourceId);
+    return {
+      id: p.id,
+      title: p.title ?? source?.content.title ?? "新页面",
+      image: previews.images[sourceId],
+      error: previews.errors[sourceId],
+    };
+  }) ?? [];
+  const resizeLeft = (width: number) => setLeftWidth(Math.round(Math.max(196, Math.min(340, width))));
   const rendering = !!task && ["queued", "processing"].includes(task.state);
+  const generationPending = rendering || !!task?.unconfirmed;
   const editPage = (change: Partial<WorkspaceSave["pages"][number]>) => {
     if (active)
       edit((d) => ({
@@ -620,6 +716,63 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setBusy(true);
     try{const saved=await ensureProject(),taskId=crypto.randomUUID();await call({action:'start',projectId:saved.project.id,expectedVersion:saved.project.version,taskId,part,replaceIds:[]},true);setTask({id:taskId,state:'queued'});setPanel('quick');setChosen(null);}finally{setBusy(false);}
   }
+  function trackOutlineReceipt(receipt: TaskReceipt) {
+    // Completed receipts still need to load the saved pages through the same path as polling.
+    setTask({ ...receipt, state: receipt.state === "completed" ? "processing" : receipt.state, outline: true });
+    setTaskPollFailed(false);
+  }
+  function readOutlineReceipt({ projectId, taskId }: OutlineStart) {
+    return call<TaskReceipt>({ action: "status", projectId, taskId }, true);
+  }
+  async function startOutline(part: OutlinePart) {
+    if (busy || generationPending || conflict) throw new Error("当前项目正忙，请处理后再提交。");
+    setBusy(true);
+    setMessage("");
+    try {
+      const saved = await flush();
+      const command: OutlineStart = { action: "start", projectId: saved.project.id,
+        expectedVersion: saved.project.version, taskId: crypto.randomUUID(), part, replaceIds: [] };
+      try {
+        trackOutlineReceipt(await call<TaskReceipt>(command, true));
+      } catch (error) {
+        if (error instanceof WorkspaceError && error.status < 500 && error.status !== 408) throw error;
+        try {
+          trackOutlineReceipt(await readOutlineReceipt(command));
+        } catch {
+          setTask({ id: command.taskId, state: "unconfirmed", outline: true, unconfirmed: command });
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function recoverOutline(command: OutlineStart) {
+    try {
+      trackOutlineReceipt(await readOutlineReceipt(command));
+    } catch (error) {
+      if (!(error instanceof WorkspaceError) || error.status !== 403)
+        throw new Error("暂时无法查询原任务，请稍后再查。");
+      // A missing receipt uses the same 403 as revoked access. The existing
+      // start authorization/version checks still apply to an idempotent replay.
+      try {
+        trackOutlineReceipt(await call<TaskReceipt>(command, true));
+      } catch (replayError) {
+        if (replayError instanceof WorkspaceError && replayError.status < 500 && replayError.status !== 408) {
+          try {
+            trackOutlineReceipt(await readOutlineReceipt(command));
+          } catch (lookupError) {
+            if (replayError.status === 403) throw replayError;
+            if (!(lookupError instanceof WorkspaceError) || lookupError.status !== 403)
+              throw new Error("原任务仍在确认中，请稍后再查。");
+            setTask({ id: command.taskId, state: "not_accepted", outline: true });
+            throw replayError;
+          }
+        } else {
+          throw new Error("原任务仍在确认中，请稍后再查。");
+        }
+      }
+    }
+  }
   function reorder(id: string, to: number) {
     edit((d) => {
       const pages = [...d.pages],
@@ -648,6 +801,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
       ids.some(
         (id) =>
           detail?.workspace.page_settings[id]?.manual ||
+          detail?.slides.find(slide => slide.id === id)?.scene.elements.some(element => element.editorId) ||
           draft?.pages.find((p) => p.id === id)?.paragraphs,
       )
     ) {
@@ -659,6 +813,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     } else await perform();
   }
   async function copyProject(id: string, title: string) {
+    if (current.current.dirty) await flush();
     const value = workspaceDetailSchema.parse(
       await call(
         {
@@ -799,83 +954,61 @@ function Studio({ session }: { session: AuthSessionResult }) {
               onProject={open}
             />
           )}
-          {panel === "quick" && !detail && (
-            <section className={styles.content}>
-              <div className={styles.actions}>
-                <Button
-                  onClick={() => setCreateOpen(true)}
-                  disabled={!canGenerate}
-                >
-                  <Plus size={16} />
-                  新建 Pitch
-                </Button>
-              </div>
-              <div
-                className={styles.modeTabs}
-                role="tablist"
-                aria-label="生成方式"
-              >
-                {[
-                  ["project", "按项目生成"],
-                  ["template", "按模板生成"],
-                  ["asset", "按素材生成"],
-                ].map(([id, label]) => (
-                  <button
-                    role="tab"
-                    aria-selected={quickMode === id}
-                    key={id}
-                    onClick={() => setQuickMode(id)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {quickMode === "project" ? (
-                <div className={styles.form}>
-                  <label>
-                    项目名称
-                    <input
-                      value={name}
-                      maxLength={160}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                  </label>
-                  {buildingSearch && (
-                    <BuildingPicker
-                      call={call}
-                      ids={context.buildingIds}
-                      onChange={(buildingIds) =>
-                        setContext((v) => ({ ...v, buildingIds }))
-                      }
-                    />
-                  )}
-                  <Button
-                    disabled={!canGenerate}
-                    onClick={() => setCreateOpen(true)}
-                  >
-                    选择模板
+          {panel === "home" && (
+            <div className={styles.home}>
+              <section className={styles.homeCreate} aria-labelledby="pitch-create-heading">
+                <h2 id="pitch-create-heading">创建演示文稿</h2>
+                <form className={styles.composer} onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!canGenerate || !brief.trim()) return;
+                  setChosen(null);
+                  setCreateFromBrief(true);
+                  setName("");
+                  setContext(projectContextSchema.parse({}));
+                  setCreateOpen(true);
+                }}>
+                  <label htmlFor="pitch-brief">你想制作什么？</label>
+                  <textarea
+                    id="pitch-brief"
+                    rows={2}
+                    maxLength={1000}
+                    value={brief}
+                    onChange={(e) => setBrief(e.target.value)}
+                    placeholder="例如：为一家科技企业制作北京办公选址提案"
+                  />
+                  <Button type="submit" disabled={!canGenerate || !brief.trim()}>
+                    进入提案助手 <ArrowRight size={16} />
+                  </Button>
+                </form>
+                <div className={styles.homeActions}>
+                  <Button variant="ghost" disabled={!canGenerate} onClick={() => {
+                    setChosen(null);
+                    setCreateFromBrief(false);
+                    setName("");
+                    setContext(projectContextSchema.parse({}));
+                    setCreateOpen(true);
+                  }}>
+                    <FilePlus2 size={16} /> 新建空白演示文稿
+                  </Button>
+                  <Button variant="ghost" onClick={() => setPanel("templates")}>
+                    <BookOpen size={16} /> 浏览模板
+                  </Button>
+                  <Button variant="ghost" onClick={() => setPanel("assets")}>
+                    <Images size={16} /> 浏览企业素材
+                  </Button>
+                  <Button variant="ghost" onClick={() => setPanel("examples")}>
+                    <Layers size={16} /> 查看提案套装
                   </Button>
                 </div>
-              ) : quickMode === "asset" ? (
-                <AssetPicker
-                  call={call}
-                  onAdd={addAssets}
-                  busy={busy || !canGenerate}
-                />
-              ) : (
-                <TemplatePicker
-                  call={call}
-                  templates={templates}
-                  onChoose={(t) => void choose(t)}
-                  favorites={preferences.favorites}
-                  recent={preferences.recent}
-                  onFavorite={(id) => void run(() => updatePreference(id))}
-                  compact
-                />
-              )}
-              <h2>最近编辑</h2>
-              <Projects call={call} onOpen={open} onCopy={copyProject} />
-            </section>
+              </section>
+              <section className={styles.homeRecent} aria-labelledby="pitch-recent-heading">
+                <div className={styles.sectionTitle}>
+                  <h2 id="pitch-recent-heading">最近编辑</h2>
+                  <Button variant="ghost" onClick={() => setPanel("projects")}>查看全部</Button>
+                </div>
+                <Projects call={call} onOpen={open} onCopy={copyProject} recentOnly />
+              </section>
+            </div>
           )}
           {panel === "quick" && detail && draft && (
             <>
@@ -912,9 +1045,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 >
                   保存
                 </Button>
+                <IconButton label="复制项目链接" onClick={() => void run(() => copyProjectLink(detail.project.id))}>
+                  <Link2 size={16} />
+                </IconButton>
                 <Button variant="ghost" onClick={() => setHistoryOpen(true)}>
                   历史
                 </Button>
+                <Presentation slides={slidesForDisplay} active={active} onRetry={previews.retry} disabled={dirty || saving || conflict} />
                 <ExportPanel
                   openSignal={exportTrigger}
                   call={call}
@@ -923,15 +1060,113 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   selected={selected}
                   flush={flush}
                   canClient={catalog.scopes.some((s) => s.canClientExport)}
-                  disabled={busy || conflict || rendering}
+                  disabled={busy || conflict || generationPending}
+                  outlineReady={task?.outline && task.state === "completed"}
                 />
               </header>
+              {task && (rendering || task.unconfirmed || task.state !== "completed" || task.outline) && (
+                <div role="status" className={styles.task}>
+                  {task.unconfirmed ? (
+                    <>
+                      <span>提交结果待确认。再次查询会使用原任务编号。</span>
+                      <Button variant="secondary" disabled={busy}
+                        onClick={() => {
+                          const command = task.unconfirmed;
+                          if (command) void run(() => recoverOutline(command));
+                        }}>
+                        重新查询生成进度
+                      </Button>
+                    </>
+                  ) : rendering ? (
+                    <>
+                      <span>
+                        {readingResult
+                          ? "页面已生成，正在读取结果"
+                          : task.state === "queued"
+                            ? (task.outline ? "提纲已确认，正在排队" : "页面正在排队")
+                            : (task.outline ? "正在按已审阅提纲生成" : "正在生成页面，原页面可继续查看")}
+                      </span>
+                      {!readingResult && (
+                        <Button
+                          variant="ghost"
+                          onClick={() =>
+                            void run(async () => {
+                              const r = await call<typeof task>(
+                                {
+                                  action: "cancel",
+                                  projectId: detail.project.id,
+                                  taskId: task.id,
+                                },
+                                true,
+                              );
+                              setTask(r && { ...r, outline: task.outline });
+                            })
+                          }
+                        >
+                          取消生成
+                        </Button>
+                      )}
+                      {taskPollFailed && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setTaskPollFailed(false);
+                            setMessage("");
+                            setTask({ ...task });
+                          }}
+                        >
+                          重新查询生成进度
+                        </Button>
+                      )}
+                    </>
+                  ) : task.state === "failed" ? (
+                    <>
+                      <span>
+                        生成未完成，原页面已保留。
+                        {task.error_code === "PITCH_CONFLICT"
+                          ? "项目已更新，请按最新参数重新生成。"
+                          : task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED"
+                            ? "素材版本已变化，请重新推荐并确认提纲。"
+                            : task.error_code === "PITCH_OUTLINE_DATA_CHANGED"
+                              ? "楼宇数据、季度或权限已变化，请重新核对正式数据。"
+                              : ""}
+                      </span>
+                      <Button
+                        variant="secondary"
+                        disabled={(task.attempts ?? 0) >= 3 || task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED" || task.error_code === "PITCH_OUTLINE_DATA_CHANGED"}
+                        onClick={() =>
+                          void run(async () => {
+                            const r = await call<typeof task>(
+                              {
+                                action: "retry",
+                                projectId: detail.project.id,
+                                taskId: task.id,
+                              },
+                              true,
+                            );
+                            setTask(r && { ...r, outline: task.outline });
+                          })
+                        }
+                      >
+                        重试生成
+                      </Button>
+                    </>
+                  ) : task.state === "not_accepted" ? (
+                    <span>生成请求未被接受。请核对当前项目和提纲后重新提交。</span>
+                  ) : task.state === "cancelled" ? (
+                    <span>生成已取消，原页面保留。</span>
+                  ) : task.outline && task.state === "completed" ? (
+                    <span>提案已生成并保存。确认页面后即可导出可编辑 PPTX。</span>
+                  ) : null}
+                </div>
+              )}
               <div
                 className={styles.mobileTabs}
                 role="tablist"
                 aria-label="工作区面板"
               >
                 {[
+                  ["pages", "页面"],
                   ["add", "添加内容"],
                   ["preview", "页面预览"],
                   ["edit", "页面编辑"],
@@ -940,7 +1175,11 @@ function Studio({ session }: { session: AuthSessionResult }) {
                     role="tab"
                     key={id}
                     aria-selected={mobile === id}
-                    onClick={() => setMobile(id)}
+                    onClick={() => {
+                      if (id === "pages") setLeftTab("pages");
+                      if (id === "add" && leftTab === "pages") setLeftTab("templates");
+                      setMobile(id);
+                    }}
                   >
                     {label}
                   </button>
@@ -953,21 +1192,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   aria-expanded={left}
                 >
                   <PanelLeftClose size={16} />
-                  {left ? "收起内容" : "添加内容"}
+                  {left ? "收起左栏" : "显示左栏"}
                 </Button>
-                {left && (
-                  <label className={styles.widthControl}>
-                    内容区宽度
-                    <input
-                      type="range"
-                      min={220}
-                      max={360}
-                      step={10}
-                      value={width}
-                      onChange={(e) => setWidth(+e.target.value)}
-                    />
-                  </label>
-                )}
                 <Button
                   variant="ghost"
                   onClick={() => setRight((v) => !v)}
@@ -981,17 +1207,47 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 className={styles.editor}
                 style={
                   {
-                    "--pitch-left": `${left ? width : 0}px`,
+                    "--pitch-left": `${left ? leftWidth : 0}px`,
                     "--pitch-right": `${right ? 280 : 0}px`,
                   } as React.CSSProperties
                 }
                 data-mobile={mobile}
               >
+                {left && <div
+                  className={styles.resizeLeft}
+                  role="separator"
+                  aria-label="调整左栏宽度"
+                  aria-orientation="vertical"
+                  aria-valuemin={196}
+                  aria-valuemax={340}
+                  aria-valuenow={leftWidth}
+                  tabIndex={0}
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) return;
+                    resizeStart.current = { x: event.clientX, width: leftWidth };
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  }}
+                  onPointerMove={(event) => {
+                    const start = resizeStart.current;
+                    if (start) resizeLeft(start.width + event.clientX - start.x);
+                  }}
+                  onLostPointerCapture={() => { resizeStart.current = null; }}
+                  onKeyDown={(event) => {
+                    const target = event.key === "ArrowLeft" ? leftWidth - 12
+                      : event.key === "ArrowRight" ? leftWidth + 12
+                      : event.key === "Home" ? 196 : event.key === "End" ? 340 : null;
+                    if (target !== null) {
+                      event.preventDefault();
+                      resizeLeft(target);
+                    }
+                  }}
+                />}
                 <aside
                   className={`${styles.left} ${!left ? styles.collapsed : ""}`}
                 >
                   <div className={styles.modeTabs}>
                     {[
+                      ["pages", "页面"],
                       ["templates", "模板"],
                       ["assets", "素材"],
                       ["assist", "辅助"],
@@ -999,7 +1255,10 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       <button
                         key={id}
                         aria-pressed={leftTab === id}
-                        onClick={() => setLeftTab(id)}
+                        onClick={() => {
+                          setLeftTab(id);
+                          setMobile(id === "pages" ? "pages" : "add");
+                        }}
                       >
                         {label}
                       </button>
@@ -1026,18 +1285,65 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       自定义
                     </Button>
                   </div>
-                  {leftTab === "assist" ? (
+                  {leftTab === "pages" ? (
+                    <SlideNavigator
+                      key={detail.project.id}
+                      slides={slidesForDisplay}
+                      active={active}
+                      selected={selected}
+                      disabled={busy || rendering || conflict}
+                      onOpen={(id) => {
+                        if (id !== active) edit((value) => ({ ...value, activeSlide: id }));
+                        setMobile("preview");
+                      }}
+                      onSelect={setSelected}
+                      onMove={reorder}
+                      onCopy={(i) => edit((value) => {
+                        const page = value.pages[i];
+                        if (!page) return value;
+                        return {
+                          ...value,
+                          pages: [
+                            ...value.pages.slice(0, i + 1),
+                            { ...page, id: crypto.randomUUID(), duplicateOf: page.duplicateOf ?? page.id },
+                            ...value.pages.slice(i + 1),
+                          ],
+                        };
+                      })}
+                      onRemove={(ids) => void remove(ids)}
+                      onUndoSave={!dirty && !saving && detail.history[0] ? () => void run(async () => {
+                        accept(workspaceDetailSchema.parse(await call({
+                          action: "restore",
+                          projectId: detail.project.id,
+                          expectedVersion: detail.project.version,
+                          revision: detail.history[0].version,
+                        }, true)));
+                      }) : undefined}
+                    />
+                  ) : leftTab === "assist" ? (
                     <AiAssist
                       key={detail.project.id}
+                      initialQuestion={assistSeed}
                       call={call}
                       projectId={detail.project.id}
                       buildingIds={draft.context.buildingIds}
                       period={draft.context.period}
                       language={draft.context.language}
                       admin={catalog.scopes.some((s) => s.canAdmin)}
-                      busy={busy || rendering || conflict}
+                      busy={busy || generationPending || conflict}
+                      outlineCanResubmit={task?.outline && ["cancelled", "not_accepted"].includes(task.state)}
                       onGenerate={generate}
-                      onReload={() => open(detail.project.id)}
+                      revisionDestination={catalog.categories.find(c => c.system_code === "general" && c.enabled) &&
+                        catalog.scopes.some(s => s.canAdmin && s.canMaintain && s.organizationId === detail.project.organization_id &&
+                          (s.region === null || s.region === detail.project.region) && (s.city === null || s.city === detail.project.city) &&
+                          (s.businessLine === null || s.businessLine === detail.project.business_line)) ? {
+                            categoryId: catalog.categories.find(c => c.system_code === "general" && c.enabled)!.id,
+                            scope: { organizationId: detail.project.organization_id, region: detail.project.region,
+                              city: detail.project.city, businessLine: detail.project.business_line },
+                          } : undefined}
+                      canvasTarget={canvasRevisionTarget}
+                      onCanvasSaved={result => accept(workspaceDetailSchema.parse(result))}
+                      onGenerateOutline={startOutline}
                       onExport={() => setExportTrigger((v) => v + 1)}
                     />
                   ) : leftTab === "templates" ? (
@@ -1059,14 +1365,65 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   )}
                 </aside>
                 <div className={styles.center}>
-                  {page ? (
-                    <PagePreview
-                      src={previews.images[page.id]}
-                      error={previews.errors[page.id]}
-                      title={pageEdit?.title ?? page.content.title}
-                      pending={dirty || saving}
-                      onRetry={previews.retry}
+                  {page && active && objectPage === active ? (
+                    <ObjectCanvas
+                      key={`${detail.project.id}:${page.id}:${detail.project.version}`}
+                      call={call}
+                      projectId={detail.project.id}
+                      slideId={page.id}
+                      scene={page.scene}
+                      content={page.content}
+                      allowParagraphs={detail.workspace.page_settings[page.id]?.origin !== "data"}
+                      pendingMoves={pageEdit?.objectMoves}
+                      pendingTexts={pageEdit?.objectTexts}
+                      pendingOrder={pageEdit?.objectOrder}
+                      pendingGroups={pageEdit?.objectGroups}
+                      onClose={() => setObjectPage(null)}
+                      onApply={({ moves, texts, order, groups }) => {
+                        editPage({ objectMoves: moves.length ? moves : undefined, objectTexts: texts.length ? texts : undefined, objectOrder: order, objectGroups: groups });
+                        setObjectPage(null);
+                      }}
                     />
+                  ) : page ? (
+                    <>
+                      {canGenerate && page.scene.rendererVersion === "pitch-scene/2" &&
+                        page.scene.elements.some(canMoveObject) && (
+                        <div className={styles.objectTools}>
+                          <Button variant="ghost" disabled={busy || saving || conflict || rendering || (dirty && !pageEdit?.objectMoves && !pageEdit?.objectTexts && !pageEdit?.objectOrder && !pageEdit?.objectGroups)}
+                            onClick={() => setObjectPage(active)}>
+                            调整画布对象
+                          </Button>
+                          {savedCanvas && <>
+                            <Button variant="ghost" disabled={busy || dirty || saving || conflict || rendering || !savedCanvas.undo.length}
+                              onClick={() => void restoreCanvas("undo")}>撤销已保存的调整</Button>
+                            <Button variant="ghost" disabled={busy || dirty || saving || conflict || rendering || !savedCanvas.redo.length}
+                              onClick={() => void restoreCanvas("redo")}>重做已保存的调整</Button>
+                          </>}
+                          {(pageEdit?.objectMoves || pageEdit?.objectTexts || pageEdit?.objectOrder || pageEdit?.objectGroups) && (
+                            <Button variant="ghost" disabled={saving} onClick={() => editPage({ objectMoves: undefined, objectTexts: undefined, objectOrder: undefined, objectGroups: undefined })}>
+                              丢弃未保存的对象修改
+                            </Button>
+                          )}
+                          {page.scene.elements.some(element => element.editorId) && (
+                            <Button variant="ghost" disabled={busy || saving || conflict || rendering || !!pageEdit?.objectMoves || !!pageEdit?.objectTexts || !!pageEdit?.objectOrder || !!pageEdit?.objectGroups}
+                              onClick={() => setConfirmation({
+                                title: "恢复自动布局？",
+                                body: "此页手动摆放的位置将被替换。已保存的旧版仍可从项目历史恢复。",
+                                run: async () => editPage({ resetObjectLayout: true }),
+                              })}>
+                              恢复自动布局
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      <PagePreview
+                        src={previews.images[page.id]}
+                        error={previews.errors[page.id]}
+                        title={pageEdit?.title ?? page.content.title}
+                        pending={dirty || saving}
+                        onRetry={previews.retry}
+                      />
+                    </>
                   ) : (
                     <div className={styles.empty}>
                       <h2>添加第一张页面</h2>
@@ -1074,6 +1431,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       <Button
                         onClick={() => {
                           setLeft(true);
+                          setLeftTab("templates");
                           setMobile("add");
                         }}
                       >
@@ -1118,6 +1476,26 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       {page && (
                         <>
                           <h2>当前页面</h2>
+                          {canvasRevisionTarget && catalog.scopes.some(s =>
+                            s.canAdmin && s.organizationId === detail.project.organization_id &&
+                            (s.region === null || s.region === detail.project.region) &&
+                            (s.city === null || s.city === detail.project.city) &&
+                            (s.businessLine === null || s.businessLine === detail.project.business_line)) &&
+                            <CurrentPageRevision key={page.id} call={call}
+                              target={{ projectId: canvasRevisionTarget.projectId, slideId: canvasRevisionTarget.slideId,
+                                expectedVersion: canvasRevisionTarget.expectedVersion }}
+                              batchId={pageRevisionBatches[page.id]}
+                              rememberBatch={id => setPageRevisionBatches(previous => {
+                                const next = { ...previous };
+                                if (id) next[page.id] = id;
+                                else delete next[page.id];
+                                return next;
+                              })}
+                              onCanvasSaved={result => {
+                                accept(workspaceDetailSchema.parse(result));
+                                setMessage("所选文字已应用到当前页，原稿可从历史版本恢复。");
+                              }}
+                              disabled={busy || rendering || conflict} />}
                           <Button
                             variant="ghost"
                             disabled={busy || rendering || conflict}
@@ -1406,261 +1784,16 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   )}
                 </aside>
               </div>
-              {task && (
-                <div role="status" className={styles.task}>
-                  {rendering ? (
-                    <>
-                      <span>
-                        {readingResult
-                          ? "页面已生成，正在读取结果"
-                          : task.state === "queued"
-                            ? "页面正在排队"
-                            : "正在生成页面，原页面可继续查看"}
-                      </span>
-                      {!readingResult && (
-                        <Button
-                          variant="ghost"
-                          onClick={() =>
-                            void run(async () => {
-                              const r = await call<typeof task>(
-                                {
-                                  action: "cancel",
-                                  projectId: detail.project.id,
-                                  taskId: task.id,
-                                },
-                                true,
-                              );
-                              setTask(r);
-                            })
-                          }
-                        >
-                          取消生成
-                        </Button>
-                      )}
-                      {taskPollFailed && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setTaskPollFailed(false);
-                            setMessage("");
-                            setTask({ ...task });
-                          }}
-                        >
-                          重新查询生成进度
-                        </Button>
-                      )}
-                    </>
-                  ) : task.state === "failed" ? (
-                    <>
-                      <span>
-                        生成未完成，原页面已保留。
-                        {task.error_code === "PITCH_CONFLICT"
-                          ? "项目已更新，请按最新参数重新生成。"
-                          : ""}
-                      </span>
-                      <Button
-                        variant="secondary"
-                        disabled={(task.attempts ?? 0) >= 3}
-                        onClick={() =>
-                          void run(async () => {
-                            const r = await call<typeof task>(
-                              {
-                                action: "retry",
-                                projectId: detail.project.id,
-                                taskId: task.id,
-                              },
-                              true,
-                            );
-                            setTask(r);
-                          })
-                        }
-                      >
-                        重试生成
-                      </Button>
-                    </>
-                  ) : task.state === "cancelled" ? (
-                    <span>生成已取消，原页面保留。</span>
-                  ) : null}
-                </div>
-              )}
-              <section className={styles.basket} aria-label="Pitch 页面">
-                <div className={styles.actions}>
-                  <label className={styles.check}>
-                    <input
-                      type="checkbox"
-                      checked={
-                        draft.pages.length > 0 &&
-                        selected.length === draft.pages.length
-                      }
-                      onChange={(e) =>
-                        setSelected(
-                          e.target.checked ? draft.pages.map((p) => p.id) : [],
-                        )
-                      }
-                    />
-                    全选
-                  </label>
-                  <span>{draft.pages.length} 页</span>
-                  <Button
-                    variant="ghost"
-                    disabled={!selected.length}
-                    onClick={() => void remove(selected)}
-                  >
-                    <Trash2 size={16} />
-                    删除选中
-                  </Button>
-                  {detail.history[0] && (
-                    <Button
-                      variant="ghost"
-                      disabled={busy || dirty || rendering}
-                      onClick={() =>
-                        void run(async () => {
-                          accept(
-                            workspaceDetailSchema.parse(
-                              await call(
-                                {
-                                  action: "restore",
-                                  projectId: detail.project.id,
-                                  expectedVersion: detail.project.version,
-                                  revision: detail.history[0].version,
-                                },
-                                true,
-                              ),
-                            ),
-                          );
-                        })
-                      }
-                    >
-                      撤销上次保存
-                    </Button>
-                  )}
-                </div>
-                <ol className={styles.ribbon}>
-                  {draft.pages.map((p, i) => {
-                    const original = detail.slides.find(
-                      (s) => s.id === (p.duplicateOf ?? p.id),
-                    );
-                    return (
-                      <li
-                        key={p.id}
-                        data-active={active === p.id}
-                        draggable={!busy && !rendering}
-                        onDragStart={() => {
-                          drag.current = p.id;
-                        }}
-                        onDragEnd={() => {
-                          drag.current = null;
-                        }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          if (drag.current) reorder(drag.current, i);
-                        }}
-                      >
-                        <div className={styles.thumbHeader}>
-                          <label className={styles.check}>
-                            <input
-                              type="checkbox"
-                              aria-label={`选择第 ${i + 1} 页`}
-                              checked={selected.includes(p.id)}
-                              onChange={(e) =>
-                                setSelected((v) =>
-                                  e.target.checked
-                                    ? [...v, p.id]
-                                    : v.filter((id) => id !== p.id),
-                                )
-                              }
-                            />
-                            {i + 1}
-                          </label>
-                          <IconButton
-                            label={`复制第 ${i + 1} 页`}
-                            onClick={() =>
-                              edit((d) => ({
-                                ...d,
-                                pages: [
-                                  ...d.pages.slice(0, i + 1),
-                                  {
-                                    ...p,
-                                    id: crypto.randomUUID(),
-                                    duplicateOf: p.duplicateOf ?? p.id,
-                                  },
-                                  ...d.pages.slice(i + 1),
-                                ],
-                              }))
-                            }
-                          >
-                            <Copy size={14} />
-                          </IconButton>
-                        </div>
-                        <button
-                          className={styles.thumbButton}
-                          aria-label={`打开第 ${i + 1} 页：${p.title ?? original?.content.title ?? "页面"}`}
-                          aria-current={active === p.id ? "page" : undefined}
-                          onClick={() =>
-                            edit((d) => ({ ...d, activeSlide: p.id }))
-                          }
-                          onKeyDown={(e) => {
-                            if (
-                              e.altKey &&
-                              [
-                                "ArrowLeft",
-                                "ArrowUp",
-                                "ArrowRight",
-                                "ArrowDown",
-                              ].includes(e.key)
-                            ) {
-                              e.preventDefault();
-                              reorder(
-                                p.id,
-                                i +
-                                  (["ArrowLeft", "ArrowUp"].includes(e.key)
-                                    ? -1
-                                    : 1),
-                              );
-                            }
-                          }}
-                        >
-                          {previews.images[p.duplicateOf ?? p.id] ? (
-                            <img
-                              src={previews.images[p.duplicateOf ?? p.id]}
-                              alt=""
-                            />
-                          ) : (
-                            <span>预览加载中</span>
-                          )}
-                          <span>
-                            {p.title ?? original?.content.title ?? "新页面"}
-                          </span>
-                        </button>
-                        <div className={styles.thumbMoves}>
-                          <IconButton
-                            label={`前移第 ${i + 1} 页`}
-                            disabled={i === 0}
-                            onClick={() => reorder(p.id, i - 1)}
-                          >
-                            <ArrowUp size={14} />
-                          </IconButton>
-                          <IconButton
-                            label={`后移第 ${i + 1} 页`}
-                            disabled={i === draft.pages.length - 1}
-                            onClick={() => reorder(p.id, i + 1)}
-                          >
-                            <ArrowDown size={14} />
-                          </IconButton>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </section>
             </>
           )}
         </>
       )}
       <Dialog
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        onOpenChange={(value) => {
+          setCreateOpen(value);
+          if (!value) setCreateFromBrief(false);
+        }}
         title="新建 Pitch"
         size="md"
         footer={
@@ -1668,6 +1801,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
             disabled={busy || !name.trim() || !grants.length}
             onClick={() =>
               void run(async () => {
+                if (current.current.dirty) await flush();
                 const g = grants[scopeIndex] ?? grants[0],
                   value = workspaceDetailSchema.parse(
                     await call(
@@ -1691,7 +1825,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 accept(value);
                 setCreateOpen(false);
                 setPanel("quick");
-                setMobile(chosen ? "edit" : "add");
+                setLeft(true);
+                setRight(true);
+                setLeftTab(createFromBrief ? "assist" : "templates");
+                setMobile(chosen && !createFromBrief ? "edit" : "add");
+                setAssistSeed(createFromBrief ? brief.trim() : "");
+                if (createFromBrief) setBrief("");
+                setCreateFromBrief(false);
                 setName("");
               })
             }

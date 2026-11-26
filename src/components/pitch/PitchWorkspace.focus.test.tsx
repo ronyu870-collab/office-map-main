@@ -1,4 +1,7 @@
 import * as React from "react";
+import { applyObjectMoves, applyObjectOrder, applyObjectGroups, applyObjectTexts, objectId, type ObjectMove, type ObjectText, type ObjectGroup } from "@/src/lib/pitch/workspace/object-layout";
+import { slideContentSchema } from "@/src/lib/pitch/contracts/content";
+import { slideSceneSchema, type SlideScene } from "@/src/lib/pitch/contracts/scene";
 import { BUSINESS_RECIPES } from "@/src/lib/pitch/business/recipes";
 import { Manager } from "./workspace/Manager";
 import type { Catalog, Call } from "./workspace/client";
@@ -88,8 +91,9 @@ const content = {
   disclosure: "internal",
   isTestData: true,
 };
-const scene = {
+const scene: SlideScene = {
   protocol: "colliers-pitch/1",
+  rendererVersion: "pitch-scene/2",
   width: 13.333333,
   height: 7.5,
   layoutId: "two-columns",
@@ -150,6 +154,7 @@ const initial = () => ({
 });
 let detail: ReturnType<typeof initial>,
   writes: Record<string, unknown>[],
+  revisions: Map<number, ReturnType<typeof initial>>,
   failTaskPoll = false,
   failCompletedRead = false,
   completedTask = false,
@@ -166,6 +171,7 @@ beforeEach(() => {
   completedTask = false;
   detail = clone(initial());
   writes = [];
+  revisions = new Map();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -211,13 +217,29 @@ beforeEach(() => {
         };
       } else if (c.action === "preview")
         body = {
-          svg: '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><text>实际测试场景</text></svg>',
+          svg: c.editorSlideId
+            ?  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect width="1280" height="720"/>${detail.slides[0].scene.elements.map((element, index) => `<g data-pitch-object="${objectId(element, index)}"/>`).join("")}</svg>`
+            : '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><text>实际测试场景</text></svg>',
+          scene: slideSceneSchema.parse(detail.slides[0].scene),
         };
+      else if (c.action === "restore_page") {
+        const old = revisions.get(c.revision)?.slides.find(slide => slide.id === c.slideId);
+        if (!old || c.expectedVersion !== detail.project.version) {
+          status = 409;
+          body = { error: "版本已变化" };
+        } else {
+          revisions.set(detail.project.version, clone(detail));
+          detail = { ...detail, project: { ...detail.project, version: detail.project.version + 1 },
+            slides: detail.slides.map(slide => slide.id === c.slideId ? clone(old) : slide) };
+          body = detail;
+        }
+      }
       else if (c.action === "save") {
         if (rejectSave) {
           status = 409;
           body = { error: "其他窗口已更新，编辑保留。" };
         } else {
+          revisions.set(detail.project.version, clone(detail));
           detail = {
             ...detail,
             project: {
@@ -236,16 +258,25 @@ beforeEach(() => {
                 duplicateOf?: string;
                 title?: string;
                 paragraphs?: string[];
+                objectMoves?: ObjectMove[];
+                objectTexts?: ObjectText[];
+                objectOrder?: string[];
+                objectGroups?: ObjectGroup[];
               }) => {
                 const original = detail.slides.find(
                   (s) => s.id === (p.duplicateOf ?? p.id),
                 )!;
+                const patchedText = p.objectTexts && applyObjectTexts(slideSceneSchema.parse(original.scene), slideContentSchema.parse(original.content), p.objectTexts);
+                const patchedScene = patchedText ? patchedText.scene : slideSceneSchema.parse(original.scene);
+                const positioned = p.objectMoves ? applyObjectMoves(patchedScene, p.objectMoves) : patchedScene;
+                const ordered = p.objectOrder ? applyObjectOrder(positioned, p.objectOrder) : positioned;
                 return {
                   ...original,
                   id: p.id,
+                  scene: p.objectGroups ? applyObjectGroups(ordered, p.objectGroups) : ordered,
                   content: {
                     ...original.content,
-                    title: p.title ?? original.content.title,
+                    title: p.title ?? (patchedText ? patchedText.content.title : original.content.title),
                     blocks: p.paragraphs
                       ? original.content.blocks.map((b, i) => ({
                           ...b,
@@ -280,6 +311,20 @@ async function enter() {
   return user;
 }
 describe("Pitch workspace continuous editing", () => {
+  it("takes a workbench brief to the real project assistant only after project creation", async () => {
+    const user = userEvent.setup();
+    render(<PitchWorkspace />);
+    const brief = await screen.findByLabelText("你想制作什么？");
+    await user.type(brief, "为科技企业制作选址提案");
+    await user.click(screen.getByRole("button", { name: "进入提案助手" }));
+    expect(writes.some((entry) => entry.action === "create" || entry.action === "prepare")).toBe(false);
+    await user.type(screen.getByLabelText("Pitch 名称"), "选址项目");
+    await user.click(screen.getByRole("button", { name: /^创建$/ }));
+    const question = await screen.findByLabelText("需要制作什么页面？");
+    expect(question).toHaveValue("为科技企业制作选址提案");
+    expect(writes.filter((entry) => entry.action === "create")).toHaveLength(1);
+    expect(writes.some((entry) => entry.action === "prepare")).toBe(false);
+  });
   it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
     expandedCatalog = true;
     const user = await enter();
@@ -294,6 +339,131 @@ describe("Pitch workspace continuous editing", () => {
     expect(created.projectId).not.toBe(projectId);
     const saveAt = writes.findIndex(c => c.action === "save"), createAt = writes.findIndex(c => c.action === "create");
     expect(saveAt).toBeGreaterThanOrEqual(0); expect(saveAt).toBeLessThan(createAt);
+  });
+  it("resizes the editor divider with the keyboard without writing project content", async () => {
+    await enter();
+    const divider = screen.getByRole("separator", { name: "调整左栏宽度" });
+    const before = writes.filter((entry) => entry.action === "save").length;
+    fireEvent.keyDown(divider, { key: "ArrowRight" });
+    expect(divider).toHaveAttribute("aria-valuenow", "240");
+    fireEvent.keyDown(divider, { key: "End" });
+    expect(divider).toHaveAttribute("aria-valuenow", "340");
+    expect(writes.filter((entry) => entry.action === "save")).toHaveLength(before);
+  });
+  it("moves an actual canvas layer with the keyboard and saves the same coordinates after reopening", async () => {
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    const layer = await screen.findByRole("button", { name: "对象 1：隔离页面" });
+    layer.focus();
+    fireEvent.keyDown(layer, { key: "ArrowRight" });
+    expect(screen.getByText("横向 1.05 英寸 · 纵向 1.00 英寸")).toBeInTheDocument();
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "应用位置" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[0].x).toBe(1.05), { timeout: 3000 });
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectMoves: [{ id: "object-1", x: 1.05, y: 1 }] },
+    ]);
+    cleanup();
+    await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: "对象 1：隔离页面" }));
+    expect(screen.getByText("横向 1.05 英寸 · 纵向 1.00 英寸")).toBeInTheDocument();
+  });
+  it("edits a real title inside the canvas, undoing and redoing before applying", async () => {
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    const layer = await screen.findByRole("button", { name: "对象 1：隔离页面" });
+    fireEvent.doubleClick(layer);
+    const input = screen.getByRole("textbox", { name: "画布文字" });
+    fireEvent.change(input, { target: { value: "画布新标题" } });
+    await user.click(screen.getByRole("button", { name: "完成文字编辑" }));
+    expect(screen.getByRole("button", { name: "对象 1：画布新标题" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "撤销画布操作" }));
+    expect(screen.getByRole("button", { name: "对象 1：隔离页面" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "重做画布操作" }));
+    expect(screen.getByRole("button", { name: "对象 1：画布新标题" })).toBeInTheDocument();
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "应用到页面" }));
+    await waitFor(() => expect(detail.slides[0].content.title).toBe("画布新标题"), { timeout: 3000 });
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectTexts: [{ id: "object-1", text: "画布新标题" }] },
+    ]);
+  });
+  it("rescales a shape in the canvas and saves proportional dimensions", async () => {
+    detail.slides[0].scene.elements.push({
+      kind: "shape", x: 2, y: 4, w: 3, h: 1, fill: "primary", background: false, shape: "rect",
+    });
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: "对象 2：形状" }));
+    await user.click(screen.getByRole("button", { name: "缩小所选" }));
+    expect(screen.getByLabelText("所选对象缩放")).toHaveTextContent("90%");
+    const control = screen.getByRole("button", { name: "缩放所选对象" });
+    fireEvent.keyDown(control, { key: "ArrowLeft", shiftKey: true });
+    expect(screen.getByLabelText("所选对象缩放")).toHaveTextContent("80%");
+    await user.click(screen.getByRole("button", { name: "右转 15°" }));
+    expect(screen.getByLabelText("所选对象角度")).toHaveTextContent("15°");
+    const angle = screen.getByRole("spinbutton", { name: "旋转角度" });
+    fireEvent.change(angle, { target: { value: "25" } });
+    fireEvent.blur(angle);
+    expect(screen.getByLabelText("所选对象角度")).toHaveTextContent("25°");
+    await user.click(screen.getByRole("button", { name: "应用位置" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[1].w).toBeCloseTo(2.4), { timeout: 3000 });
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectMoves: [{ id: "object-2", x: 2, y: 4, scale: .8, rotation: 25 }] },
+    ]);
+    expect(detail.slides[0].scene.elements[1].h).toBeCloseTo(.8);
+    expect(detail.slides[0].scene.elements[1]).toMatchObject({ rotation: 25 });
+    await user.click(await screen.findByRole("button", { name: "撤销已保存的调整" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[1].w).toBe(3));
+    await user.click(screen.getByRole("button", { name: "重做已保存的调整" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[1].w).toBeCloseTo(2.4));
+    expect(writes.filter(entry => entry.action === "restore_page").map(entry => entry.revision)).toEqual([1, 2]);
+  });
+  it("saves layer order and preserves stable IDs when the page is reopened", async () => {
+    detail.slides[0].scene.elements.push({
+      kind: "shape", x: 2, y: 4, w: 3, h: 1, fill: "primary", background: false, shape: "rect",
+    });
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: "对象 2：形状" }));
+    await user.click(screen.getByText("图层（从上到下）"));
+    await user.click(screen.getByRole("button", { name: "下移一层" }));
+    await user.click(screen.getByRole("button", { name: "应用到页面" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements.map(el => el.editorId)).toEqual(["object-2", "object-1"]), { timeout: 3000 });
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectOrder: ["object-2", "object-1"] },
+    ]);
+    cleanup();
+    await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    expect(await screen.findByRole("button", { name: "对象 1：形状" })).toBeInTheDocument();
+  });
+  it("moves a persistent canvas group together and can dissolve it without moving any member", async () => {
+    detail.slides[0].scene.elements.push({
+      kind: "shape", x: 2, y: 4, w: 3, h: 1, fill: "primary", background: false, shape: "rect",
+    });
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await screen.findByRole("button", { name: "对象 2：形状" });
+    await user.click(screen.getByText("图层（从上到下）"));
+    await user.click(screen.getByRole("checkbox", { name: "选入组合：形状" }));
+    await user.click(screen.getByRole("checkbox", { name: "选入组合：隔离页面" }));
+    await user.click(screen.getByRole("button", { name: "组合所选对象" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: "对象 2：形状" }), { key: "ArrowRight" });
+    await user.click(screen.getByRole("button", { name: "应用到页面" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[1].x).toBeCloseTo(2.05), { timeout: 3000 });
+    const saved = detail.slides[0].scene.elements;
+    expect(saved[0].x).toBeCloseTo(1.05);
+    expect(saved[0].editorGroup).toBeDefined();
+    expect(saved[0].editorGroup).toBe(saved[1].editorGroup);
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: "对象 2：形状" }));
+    await user.click(screen.getByText("图层（从上到下）"));
+    await user.click(screen.getByRole("button", { name: "取消所选组合" }));
+    await user.click(screen.getByRole("button", { name: "应用到页面" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements.every(el => !el.editorGroup)).toBe(true), { timeout: 3000 });
+    expect(detail.slides[0].scene.elements[1].x).toBeCloseTo(2.05);
   });
   it("keeps project name focused through continuous typing and cursor edits", async () => {
     const user = await enter(),

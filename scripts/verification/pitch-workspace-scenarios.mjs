@@ -10,6 +10,7 @@ export async function verifyPitchWorkspace({
   admin,
   scope,
   call,
+  library,
   check,
   until,
   ids,
@@ -172,6 +173,142 @@ export async function verifyPitchWorkspace({
       );
     },
   );
+  await check("a reviewed outline is a single version-pinned job and failure never changes destination pages", async () => {
+    const projectId = randomUUID();
+    const created = await workspace(admin, {
+      action: "create", projectId, title: "隔离多章节提案", themeId: "colliers-default-v1",
+      themeVersion: 2, scope, context,
+    });
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    const assets = await db.query("select id, current_version from public.pitch_content_assets where id=any($1::uuid[])", [[ids.corporate, ids.research]]);
+    const versions = new Map(assets.rows.map(asset => [asset.id, asset.current_version]));
+    const part = { mode: "static", templateId: "corporate-overview", assetIds: [ids.corporate],
+      length: "brief", allowFallback: false, variant: "standard" };
+    const start = { action: "start", projectId, expectedVersion: created.body.project.version,
+      replaceIds: [], part: { mode: "outline", parts: [
+        { ...part, title: "公司资料之一" },
+        { ...part, assetIds: [ids.research], templateId: "research-page", title: "市场研究章节" },
+      ], bindings: [{ id: ids.corporate, version: versions.get(ids.corporate) },
+        { id: ids.research, version: versions.get(ids.research) + 999 }] } };
+    const failId = randomUUID();
+    assert.equal((await workspace(admin, { ...start, taskId: failId })).status, 202);
+    await until(async () => {
+      const r = await workspace(admin, { action: "status", projectId, taskId: failId });
+      assert.equal(r.status, 200);
+      if (r.body.state !== "failed") return false;
+      assert.equal(r.body.error_code, "PITCH_OUTLINE_SOURCE_CHANGED");
+      return true;
+    }, "reject stale outline materials");
+    const same = await workspace(admin, { action: "get", projectId });
+    assert.equal(same.body.project.version, created.body.project.version);
+    assert.equal(same.body.slides.length, 0);
+    const taskId = randomUUID();
+    start.part.bindings[1].version = versions.get(ids.research);
+    assert.equal((await workspace(admin, { ...start, taskId })).status, 202);
+    await until(async () => {
+      const r = await workspace(admin, { action: "status", projectId, taskId });
+      assert.equal(r.status, 200);
+      assert.notEqual(r.body.state, "failed", JSON.stringify(r.body));
+      return r.body.state === "completed";
+    }, "atomic outline append");
+    const generated = await workspace(admin, { action: "get", projectId });
+    assert.equal(generated.body.project.version, created.body.project.version + 1);
+    const titles = generated.body.slides.map(slide => slide.content.title);
+    assert.deepEqual([...new Set(titles)], ["公司资料之一", "市场研究章节"]);
+    for (const page of generated.body.slides) assert.ok(page.content.sources.length);
+  });
+  await check("mixed reviewed outline is atomic, uses the exact formal quarter and cannot be exported to clients", async () => {
+    const building = randomUUID(), projectId = randomUUID(), period = "2026-Q3";
+    await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,'提纲核对测试楼','CBD','A','tracked')", [building]);
+    await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft)
+      values($1,2026,3,10000,100,1000,false),($1,2026,2,10000,80,800,false),($1,2025,3,10000,0,null,false)`, [building]);
+    const created = await workspace(admin, {
+      action: "create", projectId, title: "隔离楼宇与素材混合提案", themeId: "colliers-default-v1",
+      themeVersion: 2, scope, context: { ...context, buildingIds: [building], period },
+    });
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    const command = { action: "review_outline_data", projectId, buildingIds: [building], period, compareQuarters: true };
+    assert.equal((await workspace(other, command)).status, 403);
+    const missing = await workspace(admin, { ...command, period: "2025-Q2" });
+    assert.equal(missing.status, 422, JSON.stringify(missing.body));
+    assert.equal(missing.body.code, "PITCH_OUTLINE_DATA_CHANGED");
+    const review = await workspace(admin, command);
+    assert.equal(review.status, 200, JSON.stringify(review.body));
+    assert.equal(review.body.buildings[0].name, "提纲核对测试楼");
+    assert.ok(review.body.buildings[0].facts.some(fact => fact.value === "10,000"));
+    assert.deepEqual(review.body.comparisons[0].rows[0], ["提纲核对测试楼", "100", "+25%", "基期无有效值"]);
+    assert.deepEqual(review.body.comparisons[1].rows[0], ["提纲核对测试楼", "10", "+2 个百分点", "基期无有效值"]);
+    const version = (await db.query("select current_version from public.pitch_content_assets where id=$1", [ids.corporate])).rows[0].current_version;
+    const outline = { mode: "outline", dataFingerprint: review.body.fingerprint, compareQuarters: true,
+      parts: [
+        { mode: "static", templateId: "corporate-overview", assetIds: [ids.corporate],
+          length: "brief", allowFallback: false, variant: "standard", title: "团队正式素材" },
+        { mode: "dynamic", parameters: review.body.parameters, title: "目标楼宇正式数据" },
+      ], bindings: [{ id: ids.corporate, version }] };
+    const start = { action: "start", projectId, expectedVersion: created.body.project.version, replaceIds: [] };
+    await db.query("update public.building_metrics set net_effective_rent=50 where building_id=$1 and record_year=2026 and record_quarter=2", [building]);
+    const staleId = randomUUID();
+    const stale = await workspace(admin, { ...start, taskId: staleId, part: outline });
+    assert.equal(stale.status, 202, JSON.stringify(stale.body));
+    await until(async () => {
+      const r = await workspace(admin, { action: "status", projectId, taskId: staleId });
+      if (r.body.state === "failed") assert.equal(r.body.error_code, "PITCH_OUTLINE_DATA_CHANGED");
+      assert.notEqual(r.body.state, "completed");
+      return r.body.state === "failed";
+    }, "reject changed formal evidence");
+    assert.equal((await workspace(admin, { action: "get", projectId })).body.slides.length, 0);
+    const fresh = await workspace(admin, command);
+    assert.equal(fresh.status, 200, JSON.stringify(fresh.body));
+    assert.notEqual(fresh.body.fingerprint, review.body.fingerprint);
+    assert.equal(fresh.body.comparisons[0].rows[0][2], "+100%");
+    const taskId = randomUUID();
+    const begun = await workspace(admin, { ...start, taskId, part: { ...outline, dataFingerprint: fresh.body.fingerprint } });
+    assert.equal(begun.status, 202, JSON.stringify(begun.body));
+    await until(async () => {
+      const r = await workspace(admin, { action: "status", projectId, taskId });
+      assert.notEqual(r.body.state, "failed", JSON.stringify(r.body));
+      return r.body.state === "completed";
+    }, "append both chapters together");
+    const generated = (await workspace(admin, { action: "get", projectId })).body;
+    assert.equal(generated.project.version, created.body.project.version + 1);
+    assert.deepEqual([...new Set(generated.slides.map(slide => slide.content.title))],
+      ["团队正式素材", "目标楼宇正式数据"]);
+    const data = generated.slides.find(page => page.content.title === "目标楼宇正式数据");
+    assert.equal(data.content.dataAsOf, "2026-09-30");
+    assert.match(data.content.subtitle, /2026 Q3 · 仅限内部/);
+    assert.ok(data.content.sources.length);
+    assert.match(JSON.stringify(data.content.blocks), /提纲核对测试楼/);
+    const changes = generated.slides.find(page => page.content.subtitle?.includes("净有效租金 · 环比"));
+    assert.ok(changes?.content.blocks.some(block => block.kind === "table" && block.rows[0]?.includes("+100%")));
+    assert.equal(changes?.content.sources.length, 3);
+    assert.equal(generated.workspace.page_settings[data.id].origin, "data");
+    const gates = await db.query("select allow_client_export from public.pitch_content_assets where id=any($1::uuid[])", [generated.slides.map(p => p.asset_id)]);
+    assert.ok(gates.rows.length > 0 && gates.rows.every(asset => asset.allow_client_export === false));
+    if (process.env.PITCH_WORKSPACE_BROWSER === "true") {
+      const { verifyPitchOutlineBrowser } = await import("./pitch-workspace-browser.mjs");
+      const research = (await db.query("select id, current_version as version from public.pitch_content_assets where id=$1", [ids.research])).rows[0];
+      const media = await library(admin, { action: "search", kind: "media", state: "published", validity: "valid" });
+      assert.equal(media.status, 200, JSON.stringify(media.body));
+      const image = media.body.items.find(item => item.mime === "image/png");
+      assert.ok(image, "published synthetic image from the imported historical PPTX");
+      await verifyPitchOutlineBrowser({ app, who: admin, buildingName: "提纲核对测试楼", period, research, image,
+        changeQuarter: () => db.query("update public.building_metrics set net_effective_rent=80 where building_id=$1 and record_year=2026 and record_quarter=2", [building]),
+        readProject: async projectId => (await workspace(admin, { action: "get", projectId })).body,
+        assertClientDenied: async projectId => {
+          const gate = await db.query("select id, can_client_export from private.pitch_grants where user_id=$1 and region=$2", [admin.id, scope.region]);
+          assert.equal(gate.rows.length, 1);
+          const grant = gate.rows[0];
+          await db.query("update private.pitch_grants set can_client_export=true where id=$1", [grant.id]);
+          try {
+            const out = await call(admin, { action: "export_start", projectId, exportId: randomUUID(), audience: "client", format: "pptx" }, true);
+            assert.equal(out.status, 403, JSON.stringify(out.body));
+          } finally {
+            await db.query("update private.pitch_grants set can_client_export=$1 where id=$2", [grant.can_client_export, grant.id]);
+          }
+        },
+      });
+    }
+  });
   await check(
     "workspace HTTP saves configuration, content, order and active page across new requests; stale save returns 409",
     async () => {
@@ -210,6 +347,89 @@ export async function verifyPitchWorkspace({
       });
       assert.equal(theme.status, 200, JSON.stringify(theme.body));
       detail = theme.body;
+    },
+  );
+  await check(
+    "workspace object placement round trips through real Postgres; unknown and managed objects are rejected",
+    async () => {
+      const before = detail.slides[0], command = save();
+      const targetIndex = before.scene.elements.findIndex(
+        (element) => element.kind === "text" && element.role === "title" && !element.purpose && element.x >= .05,
+      );
+      assert.notEqual(targetIndex, -1);
+      const target = before.scene.elements[targetIndex], id = `object-${targetIndex + 1}`;
+      const move = { id, x: target.x - .05, y: target.y };
+      for (const invalid of [{ ...move, id: "object-999" }, { ...move, x: 13 }, { ...move, scale: .8 }, { ...move, rotation: 15 }]) {
+        const rejected = await workspace(admin, { ...command, pages: command.pages.map((page, index) =>
+          index ? page : { ...page, objectMoves: [invalid] },
+        ) });
+        assert.equal(rejected.status, 422, JSON.stringify(rejected.body));
+      }
+      const saved = await workspace(admin, { ...command, pages: command.pages.map((page, index) =>
+        index ? page : { ...page, objectMoves: [move] },
+      ) });
+      assert.equal(saved.status, 200, JSON.stringify(saved.body));
+      detail = (await workspace(admin, { action: "get", projectId: detail.project.id })).body;
+      const reopened = detail.slides.find((page) => page.id === before.id);
+      assert.deepEqual(reopened.content, before.content, "source facts and disclosure stay unchanged");
+      assert.equal(reopened.scene.elements[targetIndex].editorId, id);
+      assert.equal(reopened.scene.elements[targetIndex].x, move.x);
+      const editor = { action: "preview", projectId: detail.project.id, page: 0, editorSlideId: before.id };
+      const preview = await call(admin, editor, true);
+      assert.equal(preview.status, 200, JSON.stringify(preview.body));
+      assert.match(preview.body.svg, new RegExp(`data-pitch-object="${id}"`));
+      assert.equal(preview.body.scene.elements[targetIndex].x, move.x);
+      assert.equal((await call(other, editor, true)).status, 403);
+      const blocked = await workspace(admin, { ...save(), pages: save().pages.map((page, index) =>
+        index ? page : { ...page, title: "不应覆盖手工摆放" },
+      ) });
+      assert.equal(blocked.status, 422, JSON.stringify(blocked.body));
+      const textCommand = save();
+      textCommand.pages[0].objectTexts = [{ id, text: "画布内修改的标题" }];
+      const textSaved = await workspace(admin, textCommand);
+      assert.equal(textSaved.status, 200, JSON.stringify(textSaved.body));
+      detail = (await workspace(admin, { action: "get", projectId: detail.project.id })).body;
+      assert.equal(detail.slides[0].content.title, "画布内修改的标题");
+      assert.equal(detail.slides[0].content.disclosure, "internal");
+      assert.equal(detail.slides[0].scene.elements[targetIndex].x, move.x);
+      assert.ok(detail.slides[0].scene.elements.some(e => e.purpose === "source" && e.text.replace(/\s/g, "").includes("未经业务数据核验")));
+      const newVersion = detail.project.version;
+      const otherPages = detail.slides.slice(1).map(slide => ({ id: slide.id, content: slide.content, scene: slide.scene }));
+      const restore = { action: "restore_page", projectId: detail.project.id, slideId: before.id,
+        expectedVersion: newVersion, revision: textCommand.expectedVersion };
+      assert.equal((await workspace(admin, { ...restore, expectedVersion: newVersion - 1 })).status, 409);
+      const undone = await workspace(admin, restore);
+      assert.equal(undone.status, 200, JSON.stringify(undone.body));
+      assert.equal(undone.body.slides[0].content.title, before.content.title);
+      assert.deepEqual(undone.body.slides.slice(1).map(slide => ({ id: slide.id, content: slide.content, scene: slide.scene })), otherPages);
+      const redone = await workspace(admin, { ...restore, expectedVersion: undone.body.project.version, revision: newVersion });
+      assert.equal(redone.status, 200, JSON.stringify(redone.body));
+      detail = redone.body;
+      assert.equal(detail.slides[0].content.title, "画布内修改的标题");
+      const layers = detail.slides[0].scene.elements.flatMap((element, index) => {
+        const allowed = (element.kind === "shape" && !element.background) ||
+          (element.kind === "text" && (!element.purpose || element.purpose === "content")) ||
+          ["image", "table", "chart", "map"].includes(element.kind);
+        return allowed ? [element.editorId ?? `object-${index + 1}`] : [];
+      });
+      assert.ok(layers.length >= 2);
+      const reorder = save(), expectedOrder = [...layers].reverse();
+      reorder.pages[0].objectOrder = [layers[0], ...layers.slice(0, -1)];
+      assert.equal((await workspace(admin, reorder)).status, 422);
+      reorder.pages[0].objectOrder = expectedOrder;
+      const layered = await workspace(admin, reorder);
+      assert.equal(layered.status, 200, JSON.stringify(layered.body));
+      detail = layered.body;
+      assert.deepEqual(detail.slides[0].scene.elements.flatMap(element => element.editorId ? [element.editorId] : []), expectedOrder);
+      assert.equal(detail.slides[0].content.title, "画布内修改的标题");
+      const groupCommand = save(), groupId = randomUUID();
+      groupCommand.pages[0].objectGroups = [{ id: groupId, memberIds: [expectedOrder[0], "object-999"] }];
+      assert.equal((await workspace(admin, groupCommand)).status, 422);
+      groupCommand.pages[0].objectGroups = [{ id: groupId, memberIds: expectedOrder.slice(0, 2) }];
+      const grouped = await workspace(admin, groupCommand);
+      assert.equal(grouped.status, 200, JSON.stringify(grouped.body));
+      detail = (await workspace(admin, { action: "get", projectId: detail.project.id })).body;
+      assert.deepEqual(detail.slides[0].scene.elements.filter(element => element.editorGroup === groupId).map(element => element.editorId), expectedOrder.slice(0, 2));
     },
   );
   await check(
@@ -259,6 +479,8 @@ export async function verifyPitchWorkspace({
         assert.ok(file.body.length > 100);
         if (format === "pptx") {
           const zip = await JSZip.loadAsync(file.body);
+          const firstSlide = await zip.file("ppt/slides/slide1.xml").async("string");
+          assert.ok(firstSlide.includes("<a:t>画布内修改的标题</a:t>"), "saved text is a native PPTX text run");
           assert.equal(
             Object.keys(zip.files).filter((p) =>
               /^ppt\/slides\/slide\d+\.xml$/.test(p),
@@ -275,6 +497,15 @@ export async function verifyPitchWorkspace({
       }
     },
   );
+  await check("workspace restores automated layout only by an explicit reset", async () => {
+    const command = save();
+    command.pages[0].resetObjectLayout = true;
+    command.pages[0].title = "用户编辑市场页面标题";
+    const reset = await workspace(admin, command);
+    assert.equal(reset.status, 200, JSON.stringify(reset.body));
+    detail = reset.body;
+    assert.ok(detail.slides[0].scene.elements.every((element) => !element.editorId));
+  });
   if (process.env.PITCH_WORKSPACE_BROWSER === "true")
     await check(
       "automated desktop and mobile editor persists actual HTTP changes and exports downloadable files",

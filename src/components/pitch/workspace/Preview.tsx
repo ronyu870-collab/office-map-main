@@ -6,21 +6,26 @@ import { Maximize2, Minus, Plus } from "lucide-react";
 import type { WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import type { Call } from "./client";
 import styles from "./workspace.module.css";
+const previewSceneKey = (project: string, page: WorkspaceDetail["slides"][number]) =>
+  JSON.stringify([project, page.id, page.scene]);
+type PreviewEntry = { key: string; value: string };
+
 export function usePagePreviews(
   call: Call,
   detail: WorkspaceDetail | null,
   active: string | null,
 ) {
-  const [images, setImages] = React.useState<Record<string, string>>({}),
-    [errors, setErrors] = React.useState<Record<string, string>>({}),
+  const [images, setImages] = React.useState<Record<string, PreviewEntry>>({}),
+    [errors, setErrors] = React.useState<Record<string, PreviewEntry>>({}),
     [retry, setRetry] = React.useState(0);
   const cache = React.useRef(new Map<string, string>());
+  const sceneKeys = React.useMemo(() => new Map(detail?.slides.map(page => [page.id, previewSceneKey(detail.project.id, page)])), [detail]);
   React.useEffect(() => {
     if (!detail?.slides.length) return;
     const c = new AbortController(),
       memory = cache.current;
     const work = detail.slides
-      .map((page, i) => ({ page, i, key: JSON.stringify(page.scene) }))
+      .map((page, i) => ({ page, i, key: sceneKeys.get(page.id)! }))
       .sort(
         (a, b) => Number(b.page.id === active) - Number(a.page.id === active),
       );
@@ -32,12 +37,14 @@ export function usePagePreviews(
           try {
             let svg = memory.get(key);
             if (!svg) {
-              const result = await call<{ svg: string }>(
+              const result = await call<{ svg: string; scene: typeof page.scene }>(
                 { action: "preview", projectId: detail.project.id, page: i },
                 true,
                 "",
                 c.signal,
               );
+              if (JSON.stringify(result.scene) !== JSON.stringify(page.scene))
+                throw new Error("页面版本已变化，请重新打开项目。");
               svg =
                 "data:image/svg+xml;charset=utf-8," +
                 encodeURIComponent(result.svg);
@@ -46,23 +53,28 @@ export function usePagePreviews(
               if (memory.size > 100) memory.delete(memory.keys().next().value!);
             }
             if (!c.signal.aborted) {
-              setImages((v) => ({ ...v, [page.id]: svg! }));
-              setErrors((v) => ({ ...v, [page.id]: "" }));
+              setImages((v) => ({ ...Object.fromEntries(Object.entries(v).filter(([id]) => sceneKeys.has(id))), [page.id]: { key, value: svg! } }));
+              setErrors((v) => ({ ...v, [page.id]: { key, value: "" } }));
             }
           } catch (error) {
             if (!c.signal.aborted)
               setErrors((v) => ({
-                ...v,
-                [page.id]:
-                  error instanceof Error ? error.message : "页面预览未完成",
+                ...Object.fromEntries(Object.entries(v).filter(([id]) => sceneKeys.has(id))),
+                [page.id]: { key, value: error instanceof Error ? error.message : "页面预览未完成" },
               }));
           }
         }
       }),
     );
     return () => c.abort();
-  }, [call, detail, active, retry]);
-  return { images, errors, retry: () => setRetry((v) => v + 1) };
+  }, [call, detail, active, retry, sceneKeys]);
+  const matching = (entries: Record<string, PreviewEntry>) => Object.fromEntries(
+    [...sceneKeys.entries()].flatMap(([id, key]) => {
+      const entry = entries[id];
+      return entry?.key === key ? [[id, entry.value]] : [];
+    }),
+  );
+  return { images: matching(images), errors: matching(errors), retry: () => setRetry((v) => v + 1) };
 }
 export function PagePreview({
   src,

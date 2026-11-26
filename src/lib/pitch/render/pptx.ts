@@ -58,10 +58,10 @@ function addNativeScene(slide: PptxGenJS.Slide, scene: SlideScene, theme: Design
     else if (el.kind === 'image') {
       const image = media.find(m => m.id === el.mediaAssetId && m.version === el.mediaVersion)!;
       const data = image.mime + ';base64,' + Buffer.from(image.bytes).toString('base64');
-      slide.addImage({ data, ...contain(el, image.width, image.height), altText: el.alt });
+      slide.addImage({ data, ...contain(el, image.width, image.height), altText: el.alt, rotate: el.rotation ?? 0 });
     } else if (el.kind === 'brand') {
       slide.addImage({ data: COLLIERS_LOGO_DATA_URI, ...contain(el, 400, 225) });
-    } else if (el.kind === 'shape') slide.addShape(el.shape === 'arrow' ? 'chevron' : el.shape, { x, y, w, h, fill: { color: theme.colors[el.fill], transparency: Math.round((1-(el.opacity??1))*100) }, line: { color: theme.colors[el.fill], transparency: 100 } });
+    } else if (el.kind === 'shape') slide.addShape(el.shape === 'arrow' ? 'chevron' : el.shape, { x, y, w, h, rotate: el.rotation ?? 0, fill: { color: theme.colors[el.fill], transparency: Math.round((1-(el.opacity??1))*100) }, line: { color: theme.colors[el.fill], transparency: 100 } });
     else if (el.kind === 'line') slide.addShape('line', { x, y, w: el.direction === 'horizontal' ? w : 0, h: el.direction === 'vertical' ? h : 0, line: { color: theme.table.border, width: 1, ...(el.arrow ? { endArrowType: 'triangle' as const } : {}) } });
     else if (el.kind === 'table') {
       // Rows are measured and paginated before Office; PptxGenJS must never

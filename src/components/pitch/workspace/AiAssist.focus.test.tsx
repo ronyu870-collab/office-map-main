@@ -11,6 +11,7 @@ import {
 import { describe, it, expect, vi, afterEach } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { AiAssist } from "./AiAssist";
+import { outlineDataParameters } from "@/src/lib/pitch/workspace/protocol";
 import type { Call } from "./client";
 const id = "11111111-1111-4111-8111-111111111111";
 afterEach(cleanup);
@@ -38,7 +39,7 @@ describe("Pitch optional assistant behavior", () => {
         admin={false}
         busy={false}
         onGenerate={onGenerate}
-        onReload={async () => {}}
+        onGenerateOutline={async () => {}}
         onExport={() => {}}
       />,
     );
@@ -84,13 +85,13 @@ describe("Pitch optional assistant behavior", () => {
         admin={false}
         busy={false}
         onGenerate={onGenerate}
-        onReload={async () => {}}
+        onGenerateOutline={async () => {}}
         onExport={() => {}}
       />,
     );
     fireEvent.click(screen.getByText("查找适用素材"));
     await screen.findByText(/相同服务类型/);
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("checkbox", { name: /匿名隔离案例/ }));
     fireEvent.click(screen.getByText("用所选素材生成"));
     await waitFor(() =>
       expect(onGenerate).toHaveBeenCalledWith(
@@ -144,13 +145,13 @@ describe("Pitch optional assistant behavior", () => {
         admin
         busy={false}
         onGenerate={onGenerate}
-        onReload={async () => {}}
+        onGenerateOutline={async () => {}}
         onExport={() => {}}
       />,
     );
     fireEvent.click(screen.getByText("查找适用素材"));
     await screen.findByText("隔离素材");
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("checkbox", { name: /隔离素材/ }));
     fireEvent.click(screen.getByText("辅助理解所选资料"));
     fireEvent.click(screen.getByText("开始整理"));
     await screen.findByText(/未获模型处理授权/);
@@ -163,6 +164,7 @@ describe("Pitch optional assistant behavior", () => {
         {
           id,
           title: "隔离公司",
+          materials: [{ id, title: "隔离企业素材", version: 2 }],
           part: {
             mode: "static",
             templateId: "corporate-overview",
@@ -184,7 +186,7 @@ describe("Pitch optional assistant behavior", () => {
         admin={false}
         busy={false}
         onGenerate={async () => {}}
-        onReload={async () => {}}
+        onGenerateOutline={async () => {}}
         onExport={() => {}}
       />,
     );
@@ -199,6 +201,85 @@ describe("Pitch optional assistant behavior", () => {
     fireEvent.click(screen.getByText("移除"));
     expect(screen.queryByText("确认生成 1 个板块")).toBeNull();
   });
+  it("submits the reviewed order and pinned asset versions as one background outline", async () => {
+    const secondId = "22222222-2222-4222-8222-222222222222";
+    const part = (assetId: string) => ({ mode: "static", templateId: "corporate-overview",
+      assetIds: [assetId], length: "brief", allowFallback: false, variant: "standard" });
+    const call = vi.fn(async (input: Record<string, unknown>) => input.action === "outline" ? ({
+      sections: [
+        { id, title: "原公司", part: part(id), materials: [{ id, title: "已发布公司资料", version: 3 }] },
+        { id: secondId, title: "原市场", part: part(secondId), materials: [{ id: secondId, title: "已审阅资料", version: 7 }] },
+      ], missing: ["缺少正式竞品数据"],
+    }) : {});
+    const onGenerateOutline = vi.fn(async () => {});
+    render(<AiAssist call={call as Call} projectId={id} buildingIds={[]} period="" language="zh"
+      initialQuestion="为北京客户做办公选址提案" admin={false} busy={false}
+      onGenerate={async () => {}} onGenerateOutline={onGenerateOutline} onExport={() => {}} />);
+    fireEvent.click(screen.getByText("提案结构建议"));
+    fireEvent.click(screen.getByText("推荐提纲"));
+    await screen.findByText("已审阅资料 · v7");
+    expect(screen.getByText("缺少正式竞品数据")).toBeInTheDocument();
+    expect(onGenerateOutline).not.toHaveBeenCalled();
+    fireEvent.change(screen.getAllByLabelText("章节标题")[1], { target: { value: "先看市场" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "上移" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "确认生成 2 个板块" }));
+    await waitFor(() => expect(onGenerateOutline).toHaveBeenCalledExactlyOnceWith({
+      mode: "outline", parts: [{ ...part(secondId), title: "先看市场" }, { ...part(id), title: "原公司" }],
+      bindings: [{ id: secondId, version: 7 }, { id, version: 3 }],
+    }));
+    expect(screen.getByRole("button", { name: "确认生成 2 个板块" })).toBeDisabled();
+    expect(call.mock.calls.some(([request]) => request.action === "start" || request.action === "status")).toBe(false);
+  });
+
+  it("reviews exact building names before permitting generation, and blocks if the selected quarter changes", async () => {
+    const parameters = outlineDataParameters([id], "2026-Q3");
+    const fingerprint = "b".repeat(64);
+    const call = vi.fn(async () => ({ parameters, fingerprint, buildings: [{ id, name: "合成甲座", facts: [{ label: "总面积（㎡）", value: "10,000" }] }] }));
+    const onGenerateOutline = vi.fn(async () => {});
+    const renderAt = (period: string) => <AiAssist call={call as Call} projectId={id}
+      buildingIds={[id]} period={period} language="zh" admin={false} busy={false}
+      onGenerate={async () => {}} onGenerateOutline={onGenerateOutline} onExport={() => {}} />;
+    const { rerender } = render(renderAt("2026-Q3"));
+    fireEvent.click(screen.getByText("提案结构建议"));
+    fireEvent.click(screen.getByRole("button", { name: "核对并加入正式数据" }));
+    await screen.findByText("合成甲座");
+    expect(screen.getByText("总面积（㎡）：10,000")).toBeInTheDocument();
+    expect(onGenerateOutline).not.toHaveBeenCalled();
+    expect(call).toHaveBeenCalledWith({ action: "review_outline_data", projectId: id,
+      buildingIds: [id], period: "2026-Q3" }, true, "workspace", expect.anything());
+    rerender(renderAt("2026-Q4"));
+    expect(screen.getByRole("button", { name: "确认生成 1 个板块" })).toBeDisabled();
+    expect(screen.getByText(/关联楼宇或季度已变化/)).toBeInTheDocument();
+    rerender(renderAt("2026-Q3"));
+    fireEvent.click(screen.getByRole("button", { name: "确认生成 1 个板块" }));
+    await waitFor(() => expect(onGenerateOutline).toHaveBeenCalledExactlyOnceWith({
+      mode: "outline", parts: [{ mode: "dynamic", title: "目标项目概况", parameters }],
+      bindings: [], dataFingerprint: fingerprint,
+    }));
+  });
+
+  it("requires re-review after enabling comparisons and submits the confirmed rates", async () => {
+    const parameters = outlineDataParameters([id], "2026-Q3");
+    const fingerprint = "c".repeat(64), building = { id, name: "国贸测试楼", facts: [] };
+    const call = vi.fn(async (input: Record<string, unknown>) => ({
+      parameters, fingerprint, buildings: [building],
+      ...(input.compareQuarters ? { comparisons: [{ metric: "净有效租金", note: "基期为零时不计算。",
+        columns: ["楼宇", "本期", "环比", "同比"], rows: [["国贸测试楼", "100", "+25%", "基期为零"]] }] } : {}),
+    }));
+    const onGenerateOutline = vi.fn(async () => {});
+    render(<AiAssist call={call as Call} projectId={id} buildingIds={[id]} period="2026-Q3"
+      language="zh" admin={false} busy={false} onGenerate={async () => {}} onGenerateOutline={onGenerateOutline} onExport={() => {}} />);
+    fireEvent.click(screen.getByText("提案结构建议"));
+    fireEvent.click(screen.getByRole("button", { name: "核对并加入正式数据" }));
+    const submit = await screen.findByRole("button", { name: "确认生成 1 个板块" });
+    fireEvent.click(screen.getByRole("checkbox", { name: "同时核对租金和空置率的环比、同比" }));
+    expect(submit).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "重新核对正式数据" }));
+    expect(await screen.findByRole("cell", { name: "+25%" })).toBeInTheDocument();
+    fireEvent.click(submit);
+    await waitFor(() => expect(onGenerateOutline).toHaveBeenCalledWith(expect.objectContaining({ dataFingerprint: fingerprint, compareQuarters: true })));
+  });
+
 });
 
 it("keeps assistant keywords focused through delayed results, middle edits and Chinese IME", async () => {
@@ -221,7 +302,7 @@ it("keeps assistant keywords focused through delayed results, middle edits and C
       admin={false}
       busy={false}
       onGenerate={async () => {}}
-      onReload={async () => {}}
+      onGenerateOutline={async () => {}}
       onExport={() => {}}
     />,
   );

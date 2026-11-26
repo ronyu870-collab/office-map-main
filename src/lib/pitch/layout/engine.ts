@@ -128,7 +128,7 @@ export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, raw
     }));
   }
   if (!groups.length || groups.length > 50) throw new LayoutError('PITCH_PAGE_LIMIT', '没有可生成的页面，或已超过五十页上限。');
-  const source = `${en ? 'As of' : '期间'} ${content.dataAsOf} · ${en ? 'Source' : '来源'}：${content.sources.map(s => s.label).join('；')}${content.isTestData ? (en ? ' · TEST DATA' : ' · 测试数据，非真实案例') : ''}`;
+  const source = sceneSourceLine(content, en);
   return groups.map((elements, i) => {
     const header = ['cover', 'section-divider'].includes(id) ? [] : [t.text(content.title + (groups.length > 1 ? ` (${i + 1}/${groups.length})` : ''), m, .45, width, .65, 'title', true), ...(content.subtitle ? [t.text(content.subtitle, m, 1.15, width, .36)] : [])];
     const footer: SceneElement[] = [t.text(source, m, 6.1, width, .7, 'body', false, 'source')];
@@ -136,4 +136,8 @@ export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, raw
     if (theme.logo.enabled) footer.push({ kind: 'brand', resource: 'colliers-brand-assets/1', x: theme.width - m - .8, y: 6.9, w: .8, h: .35 });
     return slideSceneSchema.parse({ protocol: content.protocol, rendererVersion: 'pitch-scene/2', variant, pagination: { index: i, count: groups.length }, width: theme.width, height: theme.height, layoutId: id, layoutVersion: 2, themeId: theme.id, themeVersion: theme.version, elements: [...header, ...elements, ...footer] });
   });
+}
+
+export function sceneSourceLine(content: SlideContent, english = content.locale.startsWith('en')) {
+  return `${english ? 'As of' : '期间'} ${content.dataAsOf} · ${english ? 'Source' : '来源'}：${content.sources.map(s => s.label).join('；')}${content.isTestData ? (english ? ' · TEST DATA' : ' · 测试数据，非真实案例') : ''}`;
 }
