@@ -742,11 +742,12 @@ function Studio({ session }: { session: AuthSessionResult }) {
     if (current.current.dirty) await flush();
     const scope = { organizationId: homeGrant.organizationId, region: homeGrant.region,
       city: homeGrant.city, businessLine: homeGrant.businessLine };
+    const theme = input.theme ?? { id: "colliers-default-v1", version: 2 };
     let source: WorkspaceDetail;
     try {
       source = workspaceDetailSchema.parse(await call({
         action: "create", projectId: input.id, title: input.title, scope,
-        themeId: "colliers-default-v1", themeVersion: 2,
+        themeId: theme.id, themeVersion: theme.version,
         context: projectContextSchema.parse({ language: input.language, buildingIds: input.buildingIds, period: input.period }),
       }, true));
     } catch (cause) {
@@ -757,7 +758,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
         throw cause;
       }
     }
-    if (source.project.id !== input.id || source.slides.length)
+    if (source.project.id !== input.id || source.slides.length ||
+      source.project.theme_id !== theme.id || source.project.theme_version !== theme.version)
       throw new Error("提案项目已变化，请重新核对。");
     return { id: source.project.id, version: source.project.version };
   }

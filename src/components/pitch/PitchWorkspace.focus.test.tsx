@@ -225,6 +225,7 @@ beforeEach(() => {
         body = readyProposal ? {
           status: "ready", selection: "scoped-sample",
           plan: { id: sourceId, version: 1, title: "CBD 选址方案", contextFingerprint: "a".repeat(64),
+            theme: { id: "colliers-default-v1", version: 3 },
             slides: [{ id: pageId, title: "楼宇参数对比" }], gaps: [] },
           brief: { city: "北京", submarkets: ["CBD"], period: "2026-Q3", language: "zh", buildingIds: [assetId] },
         } : { status: "clarification", message: "请确认选址范围。" };
@@ -389,6 +390,7 @@ describe("Pitch workspace continuous editing", () => {
     await screen.findByLabelText("页面标题");
     const creates = writes.filter(entry => entry.action === "create");
     expect(creates).toHaveLength(1);
+    expect(creates[0]).toMatchObject({ themeId: "colliers-default-v1", themeVersion: 3 });
     expect(creates[0].context).toMatchObject({ buildingIds: [assetId], period: "2026-Q3" });
     expect(writes.find(entry => entry.action === "proposal_generate")?.confirmation).toEqual(expect.objectContaining({
       projectId: creates[0].projectId, expectedVersion: 1, contextFingerprint: "a".repeat(64),
