@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
+import { runAiBatch } from "../ai/workflow";
 import {
   authorizePitch,
   pitchRpc,
@@ -17,6 +18,11 @@ import {
   customWorkspace,
   copyWorkspace,
   restoreWorkspace,
+  restoreWorkspacePage,
+  reviewOutlineData,
+  startCanvasText,
+  previewCanvasRevision,
+  applyCanvasRevision,
   startWorkspaceTask,
   runWorkspaceTask,
 } from "./workflow";
@@ -81,11 +87,21 @@ export async function handleWorkspaceRequest(
     }
     const c = workspaceCommandSchema.parse(raw);
     if (c.action === "get") return reply(await getWorkspace(ctx, c.projectId));
+    if (c.action === "start_canvas_text") {
+      if (!schedule) throw new Error("PITCH_WORKER_UNAVAILABLE");
+      const receipt = await startCanvasText(ctx, c);
+      schedule(() => runAiBatch({ ...ctx, signal: AbortSignal.timeout(30000) }, c.batchId));
+      return reply(receipt, 202);
+    }
+    if (c.action === "preview_canvas_revision") return reply(await previewCanvasRevision(ctx, c));
+    if (c.action === "apply_canvas_revision") return reply(await applyCanvasRevision(ctx, c));
+    if (c.action === "review_outline_data") return reply(await reviewOutlineData(ctx, c));
     if (c.action === "save") return reply(await saveWorkspace(ctx, c));
     if (c.action === "append") return reply(await appendWorkspace(ctx, c));
     if (c.action === "custom") return reply(await customWorkspace(ctx, c));
     if (c.action === "copy") return reply(await copyWorkspace(ctx, c));
     if (c.action === "restore") return reply(await restoreWorkspace(ctx, c));
+    if (c.action === "restore_page") return reply(await restoreWorkspacePage(ctx, c));
     if (c.action === "start" || c.action === "retry") {
       if (!schedule) throw new Error("PITCH_WORKER_UNAVAILABLE");
       const receipt =
@@ -127,6 +143,12 @@ export async function handleWorkspaceRequest(
         { error: "素材已撤回、过期或当前权限不足，请重新选择内容。" },
         403,
       );
+    if (code === "PITCH_CANVAS_REVISION_PERMISSION")
+      return reply({ code, error: "本素材没有仍有效的完整文字处理授权，未启动模型。" }, 403);
+    if (code === "PITCH_CANVAS_REVISION_UNAVAILABLE")
+      return reply({ code, error: "当前页不是原素材的未编辑单页，或无法完整预览。可以保留为私有素材草稿。" }, 422);
+    if (code === "PITCH_AI_PREVIEW_REQUIRED")
+      return reply({ code, error: "修订版本已变化，请重新确认已选文字。" }, 409);
     if (code === "PITCH_CONFLICT")
       return reply(
         {
@@ -146,8 +168,22 @@ export async function handleWorkspaceRequest(
         {
           code,
           error:
-            code === "PITCH_PAGINATED_EDIT"
+            code === "PITCH_OUTLINE_DATA_CHANGED"
+              ? "关联楼宇或季度已变化，请重新核对提纲里的正式数据。"
+              : code === "PITCH_PAGINATED_EDIT"
               ? "此内容已自动分页，请修改原素材后重新生成整组页面。"
+              : code === "PITCH_OBJECT_LAYOUT_RESET_REQUIRED"
+                ? "此页已手动摆放对象。若要重新排版，请先明确恢复自动布局。"
+              : code === "PITCH_OBJECT_HISTORY_UNAVAILABLE"
+                ? "此页的原版本已不可恢复，请从项目历史核对。"
+              : code === "PITCH_OBJECT_TEXT_INVALID"
+                ? "这段文字不能直接修改，请检查是否为跨页或受保护的内容。"
+              : code === "PITCH_OBJECT_GROUP_INVALID"
+                ? "组合只能包含当前页面的可编辑对象，每个对象最多属于一个组合。"
+              : code === "PITCH_OBJECT_ORDER_INVALID"
+                ? "图层已变化，请重新打开页面后再调整顺序。"
+              : code === "PITCH_OBJECT_LAYOUT_INVALID"
+                ? "对象已变更或位置超出页面，请重试。"
               : code === "PITCH_THEME_REPAGINATION"
                 ? "新设计改变了分页数量，请重新生成整组页面；旧页面已保留。"
                 : "配置不完整或超过页面容量，请调整后重试。",

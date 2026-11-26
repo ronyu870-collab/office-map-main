@@ -704,14 +704,23 @@ try {
           return result;
         });
       assert.equal(r[0].state, "completed");
+      const taskId = r[0].id;
+      const preview = await ai.previewRevision(admin, taskId);
+      assert.equal(preview.redacted, true);
+      assert.equal(preview.changes[0].before, null);
+      assert.match(preview.changes[0].after, /Source period: 2025/);
+      await assert.rejects(ai.previewRevision(ordinary, taskId), /PITCH_DENIED/);
       const id = randomUUID();
-      await ai.adoptUnderstanding(admin, {
-        action: "materialize",
-        taskId: r[0].id,
-        assetId: id,
-        categoryId: category,
-        scope,
-      });
+      const materialize = { action: "materialize", taskId, assetId: id, categoryId: category, scope };
+      await assert.rejects(ai.adoptUnderstanding(admin, materialize), /PITCH_AI_PREVIEW_REQUIRED/);
+      await assert.rejects(ai.adoptUnderstanding(admin, { ...materialize, revisionFingerprint: "0".repeat(64) }), /PITCH_AI_PREVIEW_REQUIRED/);
+      await assert.rejects(ai.adoptUnderstanding(admin, { ...materialize, scope: { ...scope, city: "other" }, revisionFingerprint: preview.fingerprint }), /PITCH_DENIED/);
+      await assert.rejects(ai.adoptUnderstanding(admin, { ...materialize,
+        selectedRefs: ["title"], revisionFingerprint: preview.fingerprint }), /PITCH_AI_PREVIEW_REQUIRED/);
+      const reviewed = await ai.previewRevision(admin, taskId, { selectedRefs: ["approved:0"], visual: true });
+      assert.equal(reviewed.visual, null);
+      await ai.adoptUnderstanding(admin, { ...materialize, selectedRefs: reviewed.selectedRefs,
+        revisionFingerprint: reviewed.fingerprint });
       const candidate = await library.assetContext(admin, id);
       assert.equal(candidate.version.content.locale, "en");
       assert.match(
@@ -722,6 +731,69 @@ try {
       assert.equal(candidate.asset.allow_client_export, false);
     },
   );
+  await check("confirmed canvas revision uses original layout and project version, preserves history and rechecks approval", async () => {
+    const draftAsset = randomUUID(), projectId = randomUUID(), record = randomUUID();
+    const content = { protocol: "colliers-pitch/1", locale: "zh", title: "原画布报告",
+      blocks: [{ kind: "paragraph", text: "原稿第一段。", sourceIds: [record] },
+        { kind: "paragraph", text: "原稿第二段。", sourceIds: [record] }],
+      sources: [{ id: record, kind: "record", label: "隔离素材", recordId: "synthetic", version: "1",
+        locator: "隔离材料", dataAsOf: "2026-09-30" }], dataAsOf: "2026-09-30", disclosure: "internal", isTestData: false };
+    await db.rpc(ADMIN, { action: "asset_save", assetId: draftAsset, expectedVersion: 0, sha256: ai.hash(content),
+      asset: { categoryId: category, scope, names: { zh: content.title }, content, tags: [],
+        state: "published", visibility: "private", allowInternalGeneration: true, allowClientExport: false, allowExternalAi: true } });
+    const rule = { action: "ai_policy_save", assetId: draftAsset, version: 1, mode: "approved_provider",
+      provider: "deepseek", model: "synthetic-text-model", approvedText: "", reason: "隔离非脱敏测试",
+      expiresAt: new Date(Date.now() + 3600000).toISOString() };
+    await db.setup.query("update private.pitch_grants set can_external_ai=true where user_id=$1", [ADMIN]);
+    await db.rpc(ADMIN, { ...rule, expectedRevision: 0 });
+    await render.composeProject(admin, { action: "project_compose", projectId, title: "真实版式修订隔离项目",
+      parts: [{ assetId: draftAsset, layoutId: "two-columns", variant: "standard" }], themeId: "colliers-default-v1", themeVersion: 2 });
+    const original = await workspace.getWorkspace(admin, projectId), slide = original.slides[0];
+    const bid = randomUUID(), startCanvas = { action: "start_canvas_text", projectId,
+      slideId: slide.id, expectedVersion: original.project.version, batchId: bid };
+    const queued = await workspace.startCanvasText(admin, startCanvas);
+    assert.equal(queued.batchId, bid);
+    assert.equal(queued.tasks[0].state, "queued");
+    assert.equal(queued.tasks[0].request.canvasOnly, true);
+    assert.equal(queued.tasks[0].request.assetId, draftAsset);
+    assert.equal((await workspace.startCanvasText(admin, startCanvas)).tasks[0].id, queued.tasks[0].id);
+    const [task] = await run(bid, async (...args) => {
+      const output = await mock(...args), result = JSON.parse(output.message.content);
+      result.revisions = [{ ref: "title", text: "经审阅的新标题" },
+        { ref: "block:0", text: "经审阅的第一段。" }, { ref: "block:1", text: "不选的第二段。" }];
+      output.message.content = JSON.stringify(result);
+      return output;
+    });
+    assert.equal(task.state, "completed", JSON.stringify(task));
+    const revision = await ai.previewRevision(admin, task.id, { selectedRefs: ["block:0"] });
+    const input = { projectId, slideId: slide.id, taskId: task.id, expectedVersion: original.project.version,
+      revisionFingerprint: revision.fingerprint, selectedRefs: revision.selectedRefs };
+    const seen = await workspace.previewCanvasRevision(admin, { ...input, action: "preview_canvas_revision" });
+    assert.match(seen.before, /<svg/);
+    assert.notEqual(seen.before, seen.after);
+    assert.equal((await workspace.getWorkspace(admin, projectId)).project.version, original.project.version);
+    await assert.rejects(workspace.applyCanvasRevision(admin, { ...input, action: "apply_canvas_revision", canvasFingerprint: "a".repeat(64) }), /PITCH_CONFLICT/);
+    const saved = await workspace.applyCanvasRevision(admin, { ...input, action: "apply_canvas_revision", canvasFingerprint: seen.canvasFingerprint });
+    assert.equal(saved.slides[0].content.title, "原画布报告");
+    assert.deepEqual(saved.slides[0].content.blocks.map(block => block.text), ["经审阅的第一段。", "原稿第二段。"]);
+    assert.equal(saved.slides[0].scene.layoutId, slide.scene.layoutId);
+    assert.equal(saved.slides[0].content.sources.length, 2);
+    assert.ok(saved.history.some(entry => entry.version === original.project.version));
+    await assert.rejects(render.prepareRenderExport(admin, { action: "export_start", projectId,
+      exportId: randomUUID(), format: "pptx", audience: "client" }), /PITCH_DENIED/);
+    await assert.rejects(workspace.applyCanvasRevision(admin, { ...input, action: "apply_canvas_revision", canvasFingerprint: seen.canvasFingerprint }), /PITCH_CONFLICT/);
+    const restored = await workspace.restoreWorkspacePage(admin, { action: "restore_page", projectId,
+      slideId: slide.id, expectedVersion: saved.project.version, revision: original.project.version });
+    assert.deepEqual(restored.slides[0].content, slide.content);
+    await db.rpc(ADMIN, { ...rule, expectedRevision: 1, mode: "deterministic_only", provider: null, model: null });
+    await assert.rejects(workspace.previewCanvasRevision(admin, { ...input, expectedVersion: restored.project.version, action: "preview_canvas_revision" }), /PITCH_DENIED/);
+    await assert.rejects(workspace.startCanvasText(admin, { ...startCanvas,
+      expectedVersion: restored.project.version, batchId: randomUUID() }), /PITCH_CANVAS_REVISION_PERMISSION/);
+    const beforeUnapproved = calls;
+    assert.equal((await run(await start("revise-text", { canvasOnly: true })))[0].error_code, "authorization_denied");
+    assert.equal(calls, beforeUnapproved);
+    await db.setup.query("update private.pitch_grants set can_external_ai=false where user_id=$1", [ADMIN]);
+  });
   await check(
     "expired worker lease is reconciled and resumed; competing claims do not duplicate paid attempts",
     async () => {
@@ -878,6 +950,12 @@ try {
       );
       assert.equal(outline.sections.length, 4);
       assert.equal(outline.confirmed, false);
+      const unavailable = await routing.suggestOutline(
+        ordinary,
+        protocol.recommendationSchema.parse({ language: "zh", city: "nonexistent-fixture-city" }),
+      );
+      assert.deepEqual(unavailable.sections, []);
+      assert.ok(unavailable.missing.includes("市场研究缺少可用的已发布素材。"));
     },
   );
   await check(

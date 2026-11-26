@@ -74,14 +74,11 @@ export async function runPitchTool(
       workspace: "/intelligence/pitch",
     };
   }
-  if (name === "pitch_suggest_outline")
-    return {
-      status: "ready",
-      ...(await suggestOutline(
-        ctx,
-        PITCH_TOOL_SCHEMAS.pitch_suggest_outline.parse(args),
-      )),
-    };
+  if (name === "pitch_suggest_outline") {
+    const result = await suggestOutline(ctx, PITCH_TOOL_SCHEMAS.pitch_suggest_outline.parse(args));
+    // Asset titles are for the authenticated workspace UI, not an ordinary agent observation.
+    return { status: "ready", ...result, sections: result.sections.map(({ id, title, part }) => ({ id, title, part })) };
+  }
   if (name === "pitch_export") {
     const c = PITCH_TOOL_SCHEMAS.pitch_export.parse(args),
       command = {
@@ -128,7 +125,10 @@ export async function runPitchTool(
     return { status: "ready", projectId: c.projectId };
   }
   if (name === "pitch_update_slide") {
-    await saveWorkspace(ctx, saveSchema.parse(args));
+    const command = saveSchema.parse(args);
+    if (command.pages.some(page => page.objectMoves || page.objectTexts || page.objectOrder || page.objectGroups || page.resetObjectLayout))
+      throw new Error("PITCH_OBJECT_LAYOUT_RESET_REQUIRED");
+    await saveWorkspace(ctx, command);
     return { status: "ready", saved: true };
   }
   const c = workspaceCommandSchema.parse(args);

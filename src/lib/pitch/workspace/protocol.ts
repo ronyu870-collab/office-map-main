@@ -5,7 +5,10 @@ import {
   variantSchema,
   slideSceneSchema,
 } from "../contracts/scene";
-import { generationPartSchema } from "../business/protocol";
+import { objectMoveSchema, objectTextSchema, objectOrderSchema, objectGroupsSchema } from "./object-layout";
+import { dynamicParametersSchema, generationPartSchema } from "../business/protocol";
+import { revisionRefs } from "../ai/protocol";
+import { quarterSchema } from "@/src/lib/intelligence/query/contracts";
 const id = z.uuid(),
   title = z.string().trim().min(1).max(160);
 export const projectContextSchema = z.strictObject({
@@ -38,6 +41,11 @@ export const pageEditSchema = z.strictObject({
     .optional(),
   layoutId: layoutIdSchema.optional(),
   variant: variantSchema.optional(),
+  objectMoves: z.array(objectMoveSchema).min(1).max(100).optional(),
+  objectTexts: z.array(objectTextSchema).min(1).max(30).optional(),
+  objectOrder: objectOrderSchema.optional(),
+  objectGroups: objectGroupsSchema.optional(),
+  resetObjectLayout: z.literal(true).optional(),
 });
 export const saveSchema = z.strictObject({
   action: z.literal("save"),
@@ -60,8 +68,54 @@ export const examplePartSchema = z.strictObject({
   kit:z.strictObject({id:z.string().max(100),version:z.number().int().positive()}).optional(),
 });
 export const bundlePartSchema=z.strictObject({mode:z.literal('bundle'),kit:z.strictObject({id:z.string().max(100),version:z.number().int().positive()}),parts:z.array(generationPartSchema).min(1).max(12)});
-export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema]);
+export const outlineBuildingIds = z.array(id).min(1).max(5)
+  .refine(ids => new Set(ids).size === ids.length);
+export const outlineQuarter = z.string().regex(/^\d{4}-Q[1-4]$/).refine(value =>
+  quarterSchema.safeParse({ year: Number(value.slice(0, 4)), quarter: Number(value.at(-1)) }).success);
+export const outlineFingerprint = z.string().regex(/^[a-f0-9]{64}$/);
+export function outlineDataParameters(buildingIds: string[], period: string) {
+  const ids = outlineBuildingIds.parse(buildingIds), key = outlineQuarter.parse(period);
+  const quarter = quarterSchema.parse({ year: Number(key.slice(0, 4)), quarter: Number(key.at(-1)) });
+  return dynamicParametersSchema.parse({
+    templateId: ids.length === 1 ? "building-profile" : "project-comparison",
+    buildingIds: ids, inventory: "tracked", submarkets: [],
+    period: quarter, start: quarter, end: quarter,
+    fields: ["totalArea", "vacantArea", "netEffectiveRent"],
+    direction: "asc", chart: "table", from: quarter.year + "-01-01",
+    to: quarter.year + "-12-31", leaseSource: "combined", measure: "count",
+  });
+}
+export const outlinePartSchema = z.strictObject({
+  mode: z.literal("outline"),
+  parts: z.array(generationPartSchema).min(1).max(8),
+  bindings: z.array(z.strictObject({ id, version: z.number().int().positive() })).max(80),
+  dataFingerprint: outlineFingerprint.optional(),
+  compareQuarters: z.literal(true).optional(),
+}).superRefine((outline, ctx) => {
+  const dynamic = outline.parts.filter(part => part.mode === "dynamic");
+  const wanted = new Set(outline.parts.flatMap(part => part.mode === "dynamic" ? [] : part.assetIds));
+  const pinned = new Set(outline.bindings.map(binding => binding.id));
+  const invalidDynamic = dynamic.some(({ parameters, researchAssetId }) => {
+    const { year, quarter } = parameters.period;
+    if (researchAssetId || !outlineBuildingIds.safeParse(parameters.buildingIds).success) return true;
+    return JSON.stringify(parameters) !== JSON.stringify(outlineDataParameters(parameters.buildingIds, year + "-Q" + quarter));
+  });
+  if ((outline.compareQuarters && (!dynamic.length || dynamic[0].parameters.period.year < 1901)) ||
+    dynamic.length > 1 || Boolean(dynamic.length) !== Boolean(outline.dataFingerprint) || invalidDynamic ||
+    outline.parts.some(part => !part.title || (part.mode !== "dynamic" &&
+      (part.allowFallback || new Set(part.assetIds).size !== part.assetIds.length))) ||
+    pinned.size !== outline.bindings.length || pinned.size !== wanted.size ||
+    [...wanted].some(assetId => !pinned.has(assetId))) {
+    ctx.addIssue({ code: "custom", message: "Outline must pin every material and the explicitly reviewed building and quarter data" });
+  }
+});
+export type OutlinePart = z.infer<typeof outlinePartSchema>;
+export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema,outlinePartSchema]);
 export type WorkspacePart=z.infer<typeof workspacePartSchema>;
+const revisionCanvasOptions = {
+  projectId: id, slideId: id, taskId: id, expectedVersion: z.number().int().positive(),
+  selectedRefs: revisionRefs.optional(), revisionFingerprint: outlineFingerprint,
+};
 export const workspaceCommandSchema = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("create"),
@@ -72,6 +126,14 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     themeVersion: z.number().int().positive(),
     context: projectContextSchema,
   }),
+  z.strictObject({
+    action: z.literal("review_outline_data"), projectId: id,
+    buildingIds: outlineBuildingIds, period: outlineQuarter, compareQuarters: z.literal(true).optional(),
+  }),
+  z.strictObject({ action: z.literal("start_canvas_text"), projectId: id, slideId: id,
+    expectedVersion: z.number().int().positive(), batchId: id }),
+  z.strictObject({ action: z.literal("preview_canvas_revision"), ...revisionCanvasOptions }),
+  z.strictObject({ action: z.literal("apply_canvas_revision"), ...revisionCanvasOptions, canvasFingerprint: outlineFingerprint }),
   z.strictObject({ action: z.literal("get"), projectId: id }),
   saveSchema,
   z.strictObject({
@@ -106,6 +168,13 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     action: z.enum(["status", "cancel", "retry"]),
     projectId: id,
     taskId: id,
+  }),
+  z.strictObject({
+    action: z.literal("restore_page"),
+    projectId: id,
+    slideId: id,
+    expectedVersion: z.number().int().positive(),
+    revision: z.number().int().positive(),
   }),
   z.strictObject({
     action: z.literal("restore"),

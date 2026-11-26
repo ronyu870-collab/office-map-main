@@ -50,7 +50,9 @@ function pageTheme(scene: z.infer<typeof slideSceneSchema>, themes: { definition
 }
 export async function previewPage(ctx: PitchContext, command: Extract<PitchCommand, { action: 'preview' }>) {
   const input = { action: 'preview_context', projectId: command.projectId }, stored = previewContextSchema.parse(await pitchRpc(ctx, input));
-  const page = stored.slides[command.page]; if (!page) throw new Error('PITCH_INVALID');
+  const page = command.editorSlideId ? stored.slides.find(slide => slide.id === command.editorSlideId) : stored.slides[command.page];
+  if (!page) throw new Error(command.editorSlideId ? 'PITCH_CONFLICT' : 'PITCH_INVALID');
+  if (command.editorSlideId && (command.layoutId || command.variant || command.themeId || command.themeVersion)) throw new Error('PITCH_INVALID');
   let scene = page.scene, theme = pageTheme(scene, stored.themes);
   if (command.layoutId && command.layoutId !== scene.layoutId || command.variant && command.variant !== scene.variant || command.themeId && (command.themeId !== theme.id || command.themeVersion !== theme.version)) {
     const registry = await studioRegistry(ctx, command.themeId ?? theme.id, command.themeVersion ?? theme.version);
@@ -66,7 +68,7 @@ export async function previewPage(ctx: PitchContext, command: Extract<PitchComma
     return { svg, scene, pageCount: scenes.length, quality: await assertSceneQuality(scene, theme, media), font: 'Noto Sans SC', fontMode: 'bundled-glyph-outlines' };
   }
   const media = await loadMedia(ctx, stored.media, [scene]), { renderSceneSvg } = await import('../render/svg');
-  const svg = await renderSceneSvg(scene, theme, media); await pitchRpc(ctx, input);
+  const svg = await renderSceneSvg(scene, theme, media, !!command.editorSlideId); await pitchRpc(ctx, input);
   return { svg, scene, pageCount: scene.pagination?.count ?? 1, quality: await assertSceneQuality(scene, theme, media), font: 'Noto Sans SC', fontMode: 'bundled-glyph-outlines' };
 }
 export async function prepareRenderExport(ctx: PitchContext, command: Extract<PitchCommand, { action: 'export_start' }>) {

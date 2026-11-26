@@ -12,6 +12,7 @@ import {
   startAiBatch,
   runAiBatch,
   adoptUnderstanding,
+  previewRevision,
   operationsSummary,
 } from "./workflow";
 import { recommendAssets, preparePitch, suggestOutline } from "./routing";
@@ -71,7 +72,8 @@ export async function handleAiRequest(
       return reply(await recommendAssets(ctx, c.query));
     if (c.action === "prepare") return reply(await preparePitch(ctx, c.input));
     if (c.action === "outline")
-      return reply(await suggestOutline(ctx, c.query));
+      return reply(await suggestOutline(ctx, c.query, c.projectId));
+    if (c.action === "revision_preview") return reply(await previewRevision(ctx, c.taskId, c));
     if (c.action === "materialize" || c.action === "candidate_materialize")
       return reply(await adoptUnderstanding(ctx, c));
     const result = await pitchRpc(ctx, { ...c, action: "ai_" + c.action });
@@ -115,6 +117,8 @@ export async function handleAiRequest(
     }
     if (code === "QUERY_UNAUTHENTICATED")
       return reply({ error: "登录状态已变化，请重新进入。" }, 401);
+    if (code === "PITCH_AI_PREVIEW_REQUIRED")
+      return reply({ code, error: "请重新查看修改前后对照，再确认保存草稿。" }, 409);
     if (code === "PITCH_CONFLICT")
       return reply({ error: "版本已更新，请重新读取后再保存。" }, 409);
     if (

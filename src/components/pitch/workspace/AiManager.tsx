@@ -15,6 +15,7 @@ import {
   type SlideContent,
 } from "@/src/lib/pitch/contracts/content";
 import type { Call, Catalog } from "./client";
+import { RevisionReview } from "./RevisionReview";
 import styles from "./workspace.module.css";
 type Task = {
   id: string;
@@ -641,7 +642,16 @@ export function AiManager({ call, catalog }: { call: Call; catalog: Catalog }) {
                           恢复本人任务
                         </Button>
                       )}
-                      {t.state === "completed" && (
+                      {t.state === "completed" && t.task === "revise-text" && (
+                        <RevisionReview call={call} taskId={t.id} disabled={busy}
+                          destination={category && scopes[scopeIndex] ? {
+                            categoryId: category,
+                            scope: { organizationId: scopes[scopeIndex].organizationId,
+                              region: scopes[scopeIndex].region!, city: scopes[scopeIndex].city!,
+                              businessLine: scopes[scopeIndex].businessLine! },
+                          } : undefined} />
+                      )}
+                      {t.state === "completed" && t.task !== "revise-text" && (
                         <Button
                           variant="ghost"
                           disabled={busy || !scopes.length}
