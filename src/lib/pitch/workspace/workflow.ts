@@ -11,6 +11,7 @@ import { generateBusinessProject } from "../business/workflow";
 import { generationSchema } from "../business/protocol";
 import { workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
 import { workspaceDetailSchema, type WorkspaceDetail } from "./protocol";
+import { applyObjectMoves } from "./object-layout";
 type Page = WorkspaceDetail["slides"][number];
 type Settings = WorkspaceDetail["workspace"]["page_settings"];
 export async function getWorkspace(ctx: PitchContext, id: string) {
@@ -202,8 +203,13 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
       original.scene.themeVersion !== theme.version ||
       (edit.layoutId && edit.layoutId !== original.scene.layoutId) ||
       (edit.variant && edit.variant !== original.scene.variant);
+    const hasObjectLayout = original.scene.elements.some(element => element.editorId);
+    // Don't silently discard placed objects while regenerating text, theme or layout.
+    if ((edit.objectMoves && (changed || edit.resetObjectLayout)) ||
+      (changed && hasObjectLayout && !edit.resetObjectLayout))
+      throw new Error("PITCH_OBJECT_LAYOUT_RESET_REQUIRED");
     let scenes = [original.scene];
-    if (changed) {
+    if (changed || edit.resetObjectLayout) {
       scenes = await layoutSlides(
         slideContentSchema.parse(content),
         theme,
@@ -218,6 +224,12 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
       }
       const media = await loadMedia(ctx, mediaContext.media, scenes);
       for (const scene of scenes) await assertSceneQuality(scene, theme, media);
+    }
+    if (edit.objectMoves) {
+      const scene = applyObjectMoves(original.scene, edit.objectMoves);
+      const media = await loadMedia(ctx, mediaContext.media, [scene]);
+      await assertSceneQuality(scene, theme, media);
+      scenes = [scene];
     }
     for (const [index, scene] of scenes.entries()) {
       const id = index === 0 ? edit.id : randomUUID();

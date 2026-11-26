@@ -148,6 +148,10 @@ export async function handleWorkspaceRequest(
           error:
             code === "PITCH_PAGINATED_EDIT"
               ? "此内容已自动分页，请修改原素材后重新生成整组页面。"
+              : code === "PITCH_OBJECT_LAYOUT_RESET_REQUIRED"
+                ? "此页已手动摆放对象。若要重新排版，请先明确恢复自动布局。"
+              : code === "PITCH_OBJECT_LAYOUT_INVALID"
+                ? "对象已变更或位置超出页面，请重试。"
               : code === "PITCH_THEME_REPAGINATION"
                 ? "新设计改变了分页数量，请重新生成整组页面；旧页面已保留。"
                 : "配置不完整或超过页面容量，请调整后重试。",

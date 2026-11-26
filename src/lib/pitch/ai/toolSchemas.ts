@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { nlSchema, recommendationSchema } from "./protocol";
-import { workspaceCommandSchema, saveSchema } from "../workspace/protocol";
+import { workspaceCommandSchema, saveSchema, pageEditSchema } from "../workspace/protocol";
 const command = <T extends string>(action: T) =>
   workspaceCommandSchema.options.find(
     (s) =>
@@ -13,7 +13,9 @@ export const PITCH_TOOL_SCHEMAS = {
   pitch_create_project: command("create"),
   pitch_prepare_slide: nlSchema,
   pitch_generate_slide: command("start"),
-  pitch_update_slide: saveSchema,
+  pitch_update_slide: saveSchema.extend({
+    pages: z.array(pageEditSchema.omit({ objectMoves: true, resetObjectLayout: true })).max(50),
+  }),
   pitch_add_slide: command("append"),
   pitch_reorder_slides: z.strictObject({
     projectId: z.uuid(),

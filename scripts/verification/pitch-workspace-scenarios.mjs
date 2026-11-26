@@ -213,6 +213,43 @@ export async function verifyPitchWorkspace({
     },
   );
   await check(
+    "workspace object placement round trips through real Postgres; unknown and managed objects are rejected",
+    async () => {
+      const before = detail.slides[0], command = save();
+      const targetIndex = before.scene.elements.findIndex(
+        (element) => element.kind === "text" && element.role === "title" && !element.purpose && element.x >= .05,
+      );
+      assert.notEqual(targetIndex, -1);
+      const target = before.scene.elements[targetIndex], id = `object-${targetIndex + 1}`;
+      const move = { id, x: target.x - .05, y: target.y };
+      for (const invalid of [{ ...move, id: "object-999" }, { ...move, x: 13 }]) {
+        const rejected = await workspace(admin, { ...command, pages: command.pages.map((page, index) =>
+          index ? page : { ...page, objectMoves: [invalid] },
+        ) });
+        assert.equal(rejected.status, 422, JSON.stringify(rejected.body));
+      }
+      const saved = await workspace(admin, { ...command, pages: command.pages.map((page, index) =>
+        index ? page : { ...page, objectMoves: [move] },
+      ) });
+      assert.equal(saved.status, 200, JSON.stringify(saved.body));
+      detail = (await workspace(admin, { action: "get", projectId: detail.project.id })).body;
+      const reopened = detail.slides.find((page) => page.id === before.id);
+      assert.deepEqual(reopened.content, before.content, "source facts and disclosure stay unchanged");
+      assert.equal(reopened.scene.elements[targetIndex].editorId, id);
+      assert.equal(reopened.scene.elements[targetIndex].x, move.x);
+      const editor = { action: "preview", projectId: detail.project.id, page: 0, editorSlideId: before.id };
+      const preview = await call(admin, editor, true);
+      assert.equal(preview.status, 200, JSON.stringify(preview.body));
+      assert.match(preview.body.svg, new RegExp(`data-pitch-object="${id}"`));
+      assert.equal(preview.body.scene.elements[targetIndex].x, move.x);
+      assert.equal((await call(other, editor, true)).status, 403);
+      const blocked = await workspace(admin, { ...save(), pages: save().pages.map((page, index) =>
+        index ? page : { ...page, title: "不应覆盖手工摆放" },
+      ) });
+      assert.equal(blocked.status, 422, JSON.stringify(blocked.body));
+    },
+  );
+  await check(
     "workspace HTTP selected PPTX, full PPTX, PNG, SVG and data Excel return actual private downloadable bytes",
     async () => {
       for (const [format, pages] of [
@@ -275,6 +312,14 @@ export async function verifyPitchWorkspace({
       }
     },
   );
+  await check("workspace restores automated layout only by an explicit reset", async () => {
+    const command = save();
+    command.pages[0].resetObjectLayout = true;
+    const reset = await workspace(admin, command);
+    assert.equal(reset.status, 200, JSON.stringify(reset.body));
+    detail = reset.body;
+    assert.ok(detail.slides[0].scene.elements.every((element) => !element.editorId));
+  });
   if (process.env.PITCH_WORKSPACE_BROWSER === "true")
     await check(
       "automated desktop and mobile editor persists actual HTTP changes and exports downloadable files",

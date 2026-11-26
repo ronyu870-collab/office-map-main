@@ -1,4 +1,6 @@
 import * as React from "react";
+import { applyObjectMoves, type ObjectMove } from "@/src/lib/pitch/workspace/object-layout";
+import { slideSceneSchema } from "@/src/lib/pitch/contracts/scene";
 import { BUSINESS_RECIPES } from "@/src/lib/pitch/business/recipes";
 import { Manager } from "./workspace/Manager";
 import type { Catalog, Call } from "./workspace/client";
@@ -90,6 +92,7 @@ const content = {
 };
 const scene = {
   protocol: "colliers-pitch/1",
+  rendererVersion: "pitch-scene/2",
   width: 13.333333,
   height: 7.5,
   layoutId: "two-columns",
@@ -211,7 +214,10 @@ beforeEach(() => {
         };
       } else if (c.action === "preview")
         body = {
-          svg: '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><text>实际测试场景</text></svg>',
+          svg: c.editorSlideId
+            ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect width="1280" height="720"/><g data-pitch-object="object-1"><text>实际测试场景</text></g></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><text>实际测试场景</text></svg>',
+          scene: slideSceneSchema.parse(detail.slides[0].scene),
         };
       else if (c.action === "save") {
         if (rejectSave) {
@@ -236,6 +242,7 @@ beforeEach(() => {
                 duplicateOf?: string;
                 title?: string;
                 paragraphs?: string[];
+                objectMoves?: ObjectMove[];
               }) => {
                 const original = detail.slides.find(
                   (s) => s.id === (p.duplicateOf ?? p.id),
@@ -243,6 +250,7 @@ beforeEach(() => {
                 return {
                   ...original,
                   id: p.id,
+                  scene: p.objectMoves ? applyObjectMoves(slideSceneSchema.parse(original.scene), p.objectMoves) as typeof scene : original.scene,
                   content: {
                     ...original.content,
                     title: p.title ?? original.content.title,
@@ -318,6 +326,25 @@ describe("Pitch workspace continuous editing", () => {
     fireEvent.keyDown(divider, { key: "End" });
     expect(divider).toHaveAttribute("aria-valuenow", "340");
     expect(writes.filter((entry) => entry.action === "save")).toHaveLength(before);
+  });
+  it("moves an actual canvas layer with the keyboard and saves the same coordinates after reopening", async () => {
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    const layer = await screen.findByRole("button", { name: "对象 1：隔离页面" });
+    layer.focus();
+    fireEvent.keyDown(layer, { key: "ArrowRight" });
+    expect(screen.getByText("横向 1.05 英寸 · 纵向 1.00 英寸")).toBeInTheDocument();
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "应用位置" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[0].x).toBe(1.05), { timeout: 3000 });
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectMoves: [{ id: "object-1", x: 1.05, y: 1 }] },
+    ]);
+    cleanup();
+    await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: "对象 1：隔离页面" }));
+    expect(screen.getByText("横向 1.05 英寸 · 纵向 1.00 英寸")).toBeInTheDocument();
   });
   it("keeps project name focused through continuous typing and cursor edits", async () => {
     const user = await enter(),

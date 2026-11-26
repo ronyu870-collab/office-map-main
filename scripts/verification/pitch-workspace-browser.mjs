@@ -119,8 +119,18 @@ export async function verifyPitchWorkspaceBrowser({
             .getByRole("tab", { name: "页面预览", exact: true })
             .click();
         } else {
+          await page.getByRole("button", { name: "调整画布对象", exact: true }).click();
+          const objects = page.getByRole("region", { name: "画布对象编辑" });
+          const target = objects.getByRole("button", { name: /对象 \d+：用户编辑市场页面标题/ });
+          await target.waitFor({ timeout: 45000 });
+          await target.focus();
+          const location = objects.locator('output');
+          const original = await location.textContent();
+          await target.press("ArrowLeft");
+          assert.notEqual(await location.textContent(), original, "native layer moves without saving");
+          await objects.getByRole("button", { name: "返回预览", exact: true }).click();
           await page
-            .getByRole("button", { name: "收起内容", exact: true })
+            .getByRole("button", { name: "收起左栏", exact: true })
             .click();
           await page
             .getByRole("button", { name: "收起编辑", exact: true })

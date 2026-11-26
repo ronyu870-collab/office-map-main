@@ -5,6 +5,7 @@ import {
   variantSchema,
   slideSceneSchema,
 } from "../contracts/scene";
+import { objectMoveSchema } from "./object-layout";
 import { generationPartSchema } from "../business/protocol";
 const id = z.uuid(),
   title = z.string().trim().min(1).max(160);
@@ -38,6 +39,8 @@ export const pageEditSchema = z.strictObject({
     .optional(),
   layoutId: layoutIdSchema.optional(),
   variant: variantSchema.optional(),
+  objectMoves: z.array(objectMoveSchema).min(1).max(100).optional(),
+  resetObjectLayout: z.literal(true).optional(),
 });
 export const saveSchema = z.strictObject({
   action: z.literal("save"),

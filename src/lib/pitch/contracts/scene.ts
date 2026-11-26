@@ -7,7 +7,7 @@ export const layoutIds = [...legacyLayoutIds, ...PATTERN_BY_ID.keys()];
 export const layoutIdSchema = z.string().min(1).max(100).refine(id => layoutIds.includes(id), 'Unregistered layout');
 export type LayoutId = z.infer<typeof layoutIdSchema>;
 export const variantSchema = z.enum(['standard', 'alternate']);
-const box = { x: z.number().min(0).max(13.334), y: z.number().min(0).max(7.5), w: z.number().positive().max(13.334), h: z.number().positive().max(7.5) };
+const box = { editorId: z.string().regex(/^object-[0-9]{1,3}$/).optional(), x: z.number().min(0).max(13.334), y: z.number().min(0).max(7.5), w: z.number().positive().max(13.334), h: z.number().positive().max(7.5) };
 const cell = z.union([z.string().max(4000), z.number().finite(), z.null()]);
 const elementSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('text'), ...box, text: z.string().min(1).max(6000), role: z.enum(['title', 'body']), bold: z.boolean(), purpose: z.enum(['content', 'source', 'footer']).optional() }),
@@ -27,6 +27,8 @@ export const slideSceneSchema = z.strictObject({
   pagination: z.strictObject({ index: z.number().int().min(0).max(49), count: z.number().int().min(1).max(50) }).optional(),
   elements: z.array(elementSchema).min(1).max(150),
 }).superRefine((scene, ctx) => {
+  const editorIds = scene.elements.flatMap(element => element.editorId ? [element.editorId] : []);
+  if (new Set(editorIds).size !== editorIds.length) ctx.addIssue({ code: 'custom', message: 'Duplicate scene object identifier' });
   for (const b of scene.elements) if (b.x + b.w > scene.width + .001 || b.y + b.h > scene.height + .001) ctx.addIssue({ code: 'custom', message: 'Scene element outside page' });
   for (const b of scene.elements) {
     if (b.kind === 'table' && (b.rows.some(r => r.length !== b.columns.length) || b.columnWidths.length !== b.columns.length || b.rowHeights.length !== b.rows.length + 1)) ctx.addIssue({ code: 'custom', message: 'Scene table shape mismatch' });

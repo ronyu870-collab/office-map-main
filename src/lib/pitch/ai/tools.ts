@@ -128,7 +128,10 @@ export async function runPitchTool(
     return { status: "ready", projectId: c.projectId };
   }
   if (name === "pitch_update_slide") {
-    await saveWorkspace(ctx, saveSchema.parse(args));
+    const command = saveSchema.parse(args);
+    if (command.pages.some(page => page.objectMoves || page.resetObjectLayout))
+      throw new Error("PITCH_OBJECT_LAYOUT_RESET_REQUIRED");
+    await saveWorkspace(ctx, command);
     return { status: "ready", saved: true };
   }
   const c = workspaceCommandSchema.parse(args);

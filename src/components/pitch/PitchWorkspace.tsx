@@ -51,6 +51,10 @@ import { PagePreview, usePagePreviews } from "./workspace/Preview";
 import { Projects } from "./workspace/Projects";
 import { SlideNavigator } from "./workspace/SlideNavigator";
 import { Presentation } from "./workspace/Presentation";
+import { canMoveObject } from "@/src/lib/pitch/workspace/object-layout";
+const ObjectCanvas = dynamic(() => import("./workspace/ObjectCanvas").then(module => module.ObjectCanvas), {
+  loading: () => <p role="status">正在打开对象编辑…</p>,
+});
 import { ExportPanel } from "./workspace/ExportPanel";
 import styles from "./workspace/workspace.module.css";
 const AiAssist = dynamic(
@@ -161,7 +165,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
     } | null>(null),
     [taskPollFailed, setTaskPollFailed] = React.useState(false),
     [readingResult, setReadingResult] = React.useState(false),
-    [historyOpen, setHistoryOpen] = React.useState(false);
+    [historyOpen, setHistoryOpen] = React.useState(false),
+    [objectPage, setObjectPage] = React.useState<string | null>(null);
   const life = React.useRef(new AbortController()),
     current = React.useRef({ detail, draft, dirty }),
     pending = React.useRef<Promise<WorkspaceDetail> | null>(null),
@@ -414,6 +419,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setMobile("preview");
     setLeftTab("pages");
     setAssistSeed("");
+    setObjectPage(null);
   };
   async function copyProjectLink(id: string) {
     const url = new URL("/intelligence/pitch", window.location.origin);
@@ -485,7 +491,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
       setPreferences(value);
       void call({ action: "preferences", value }, true).catch(() => {});
     };
-    if (ids.some((id) => saved.workspace.page_settings[id]?.manual)) {
+    if (ids.some((id) => saved.workspace.page_settings[id]?.manual || saved.slides.find(slide => slide.id === id)?.scene.elements.some(element => element.editorId))) {
       setConfirmation({
         title: "重新生成这组页面？",
         body: "已有正文改写将被新结果替换。旧版本保留在历史记录中，可恢复。",
@@ -670,6 +676,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
       ids.some(
         (id) =>
           detail?.workspace.page_settings[id]?.manual ||
+          detail?.slides.find(slide => slide.id === id)?.scene.elements.some(element => element.editorId) ||
           draft?.pages.find((p) => p.id === id)?.paragraphs,
       )
     ) {
@@ -1125,14 +1132,54 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   )}
                 </aside>
                 <div className={styles.center}>
-                  {page ? (
-                    <PagePreview
-                      src={previews.images[page.id]}
-                      error={previews.errors[page.id]}
-                      title={pageEdit?.title ?? page.content.title}
-                      pending={dirty || saving}
-                      onRetry={previews.retry}
+                  {page && active && objectPage === active ? (
+                    <ObjectCanvas
+                      key={`${detail.project.id}:${page.id}:${detail.project.version}`}
+                      call={call}
+                      projectId={detail.project.id}
+                      slideId={page.id}
+                      scene={page.scene}
+                      pendingMoves={pageEdit?.objectMoves}
+                      onClose={() => setObjectPage(null)}
+                      onApply={(objectMoves) => {
+                        editPage({ objectMoves });
+                        setObjectPage(null);
+                      }}
                     />
+                  ) : page ? (
+                    <>
+                      {canGenerate && page.scene.rendererVersion === "pitch-scene/2" &&
+                        page.scene.elements.some(canMoveObject) && (
+                        <div className={styles.objectTools}>
+                          <Button variant="ghost" disabled={busy || saving || conflict || rendering || (dirty && !pageEdit?.objectMoves)}
+                            onClick={() => setObjectPage(active)}>
+                            调整画布对象
+                          </Button>
+                          {pageEdit?.objectMoves && (
+                            <Button variant="ghost" disabled={saving} onClick={() => editPage({ objectMoves: undefined })}>
+                              丢弃未保存的移动
+                            </Button>
+                          )}
+                          {page.scene.elements.some(element => element.editorId) && (
+                            <Button variant="ghost" disabled={busy || saving || conflict || rendering || !!pageEdit?.objectMoves}
+                              onClick={() => setConfirmation({
+                                title: "恢复自动布局？",
+                                body: "此页手动摆放的位置将被替换。已保存的旧版仍可从项目历史恢复。",
+                                run: async () => editPage({ resetObjectLayout: true }),
+                              })}>
+                              恢复自动布局
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      <PagePreview
+                        src={previews.images[page.id]}
+                        error={previews.errors[page.id]}
+                        title={pageEdit?.title ?? page.content.title}
+                        pending={dirty || saving}
+                        onRetry={previews.retry}
+                      />
+                    </>
                   ) : (
                     <div className={styles.empty}>
                       <h2>添加第一张页面</h2>
