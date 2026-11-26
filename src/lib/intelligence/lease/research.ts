@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VerifiedQueryIdentity } from '../query/serverAuthority';
 import type { QueryResult, ResultCell } from '../query/result';
+import type { SourceRef } from '../query/contracts';
 import { Decimal } from '../query/decimal';
 import { FIELD_REGISTRY_VERSION } from '../query/registry';
 import { LEASE_DOMAIN, leaseBindingSchema, leaseFinancialFields, leasePlanSchema, leaseSnapshotSchema,
@@ -48,7 +49,22 @@ export function authorizeLeasePlan(plan: LeasePlan, snapshot: LeaseSnapshot) {
   if (required.some(s => !snapshot.sources.includes(s as 'live' | 'history'))) throw new Error('QUERY_DENIED');
 }
 
-export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryResult {
+const areaBands = [
+  { upper: Decimal.parse('500')!, label: '0–<500 ㎡' },
+  { upper: Decimal.parse('1000')!, label: '500–<1,000 ㎡' },
+  { upper: Decimal.parse('3000')!, label: '1,000–<3,000 ㎡' },
+] as const;
+
+function areaBand(raw: LeaseRow['area']) {
+  const area = Decimal.parse(raw);
+  if (!area || area.compare(Decimal.zero()) < 0) return { key: 'area:unknown', label: '无有效面积' };
+  const index = areaBands.findIndex(band => area.compare(band.upper) < 0);
+  return index === -1 ? { key: 'area:3', label: '≥3,000 ㎡' }
+    : { key: 'area:' + index, label: areaBands[index].label };
+}
+
+export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown,
+  options: { includeDetailSources?: boolean } = {}): QueryResult {
   const plan = leasePlanSchema.parse(raw); authorizeLeasePlan(plan, snapshot);
   const dedup = deduplicateLeaseRows(snapshot, plan.source);
   let uncertainDates = 0, boundaryDates = 0;
@@ -95,6 +111,7 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
         key = row.buildingId && ['exact', 'reference'].includes(row.match) ? row.buildingId : row.match + ':' + (row.alias ?? '未知');
         label = (row.building ?? '未知项目') + (row.match === 'project' ? '（项目，未分摊楼座）' : row.match === 'unmapped' ? '（未匹配）' : row.match === 'reference' ? '（参考楼宇）' : '');
       } else if (plan.groupBy === 'total') { key = 'total'; label = '全部获权样本'; }
+      else if (plan.groupBy === 'area_band') ({ key, label } = areaBand(row.area));
       else { key = row[plan.groupBy] ?? 'unknown'; label = row[plan.groupBy] ?? '未知'; }
       const group = groups.get(key) ?? { label, rows: [] }; group.rows.push(row); groups.set(key, group);
     }
@@ -138,7 +155,22 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
   const version = leaseSnapshotHash(snapshot), scope = hash(plan);
   // A snapshot-level provenance reference exposes no original row values or customer IDs.
   const sourceId = 'lease:' + version + ':' + scope;
-  resultRows = resultRows.map(row => ({ ...row, cells: Object.fromEntries(fields.map(f => [f, { ...row.cells[f], sourceIds: [sourceId] }])) }));
+  const detailSources: SourceRef[] = [];
+  const detailRows = options.includeDetailSources && plan.mode === 'details' ? new Map(rows.map(row => [hash(row.id), row])) : null;
+  resultRows = resultRows.map(row => {
+    const record = detailRows?.get(row.entityId);
+    return { ...row, cells: Object.fromEntries(fields.map(f => {
+      const cell = row.cells[f];
+      if (!record) return [f, { ...cell, sourceIds: [sourceId] }];
+      const id = 'lease-detail:' + row.entityId + ':' + f + ':' + record.fingerprint;
+      detailSources.push({ id, table: 'lease_research_snapshot', recordId: row.entityId,
+        entityId: row.entityId, field: f, recordVersion: record.fingerprint,
+        rawValue: cell.kind === 'unknown' ? null : cell.value, unit: column(f).unit ?? 'text',
+        period: null, recordedAt: null, businessAsOf: record.start === record.end ? record.start : null,
+        verification: 'database_only', original: null });
+      return [f, { ...cell, sourceIds: [id] }];
+    })) };
+  });
   return {
     resultId: randomUUID(), createdAt: new Date().toISOString(), snapshotId: version, dataVersion: version,
     scopeFingerprint: scope, registryVersion: FIELD_REGISTRY_VERSION, operation: 'list', analysis: null,
@@ -146,9 +178,9 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
       leaseCoverage: { matchedRows, returnedRows: resultRows.length, uncertainDates, boundaryDates, uncertainQuarter,
         verifiedDuplicates: dedup.verified, staleDuplicateLinks: dedup.stale },
       scope: { from: plan.from, to: plan.to, source: plan.source, groupBy: plan.groupBy, mode: plan.mode } },
-    table: { id: 'lease-research', columns: fields.map(f => f === 'group' ? { key: 'group', label: plan.groupBy === 'quarter' ? '季度' : '分组', unit: null } : column(f)), rows: resultRows },
+    table: { id: 'lease-research', columns: fields.map(f => f === 'group' ? { key: 'group', label: plan.groupBy === 'quarter' ? '季度' : plan.groupBy === 'area_band' ? '成交面积区间' : '分组', unit: null } : column(f)), rows: resultRows },
     sources: [{ id: sourceId, table: 'lease_research_snapshot', recordId: version, entityId: version.slice(0, 8) + '-' + version.slice(8, 12) + '-4' + version.slice(13, 16) + '-a' + version.slice(17, 20) + '-' + version.slice(20, 32), field: 'authorized_projection',
-      recordVersion: version, rawValue: null, unit: 'snapshot', period: null, recordedAt: null, businessAsOf: plan.to, verification: 'database_only', original: null }],
+      recordVersion: version, rawValue: null, unit: 'snapshot', period: null, recordedAt: null, businessAsOf: plan.to, verification: 'database_only', original: null }, ...detailSources],
     limitations: ['仅反映获权成交记录，不代表市场全集；成交面积不是净吸纳量。',
       '行业按已存字段精确筛选；TMT原始标签不自动扩展或等同于其他科技、媒体、通信分类，组合行业需明确指定。',
       '当前与历史表仅按人工核验的记录身份关联去重，默认保留当前记录；公司或面积相似不作重复依据，仍可能存在未经核验的跨表重叠。',
@@ -161,6 +193,7 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
       '缺失面积不当成零，面积合计仅含有效面积，成交笔数同时列出有效面积样本数。',
       '两表租金分别保留原始面价和有效租金口径；历史有效租金未认定为净有效租金，原始租金和物业费单位待核验，不跨表计算平均租金，不推算普通或净有效租金。',
       ...(!snapshot.details ? [`聚合专用资格：少于 ${snapshot.minGroupSize} 条的分组不交付；面积有效样本不足该阈值时面积值不交付，不提供原始明细。未交付内容不能用于推断分组是否存在或其数量；该披露规则不构成差分隐私保证。`] : []),
+      ...(plan.groupBy === 'area_band' ? ['面积区间按左闭右开分组；零值属于首组，无有效面积单列。'] : []),
       ...(plan.topN ? [`Top ${plan.topN} 保留末位并列，共 ${matchedRows} 个匹配结果，交付 ${resultRows.length} 个。`] : [])],
   };
 }
