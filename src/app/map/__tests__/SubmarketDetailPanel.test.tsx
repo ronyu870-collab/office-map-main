@@ -7,19 +7,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SubmarketDetailPayload } from '@/src/services/mapDataClient';
 import { aggregateMarket } from '../model/marketStatistics';
 import type { SubmarketSummary } from '../model/submarketOverview';
+import { submarketIntelligenceSchema } from '../model/submarketIntelligence';
+import shangdiEdition from '../../../../data/submarket-research/2026-11-27/shangdi.json';
 import { emptySubmarketProfile } from '../model/submarketProfile';
 import { SubmarketDetailPanel } from '../components/SubmarketDetailPanel';
 import { WorkspacePanelContext } from '../components/WorkspacePanelHeader';
 
 const api = vi.hoisted(() => ({
   audit:vi.fn(),read: vi.fn(),
-  save: vi.fn(),
+  save: vi.fn(), history: vi.fn(),
 }));
 
 vi.mock('@/src/utils/audit',()=>({logAction:api.audit}));
 vi.mock('@/src/services/mapDataClient', () => ({
   fetchSubmarketDetailPayload: api.read,
   saveSubmarketProfile: api.save,
+  fetchSubmarketResearchHistory: api.history,
 }));
 
 vi.mock('next/dynamic', () => ({
@@ -368,9 +371,47 @@ describe('submarket research workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
     expect(screen.queryByRole('button', { name: '核验并发布' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '保存并展示' }));
-    await waitFor(() => expect(api.save).toHaveBeenCalledWith('CBD', expect.objectContaining({ headline: profile.headline }), true));
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith('CBD', expect.objectContaining({ headline: profile.headline }), true, profile.updatedAt));
     expect(confirm).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByRole('tab', { name: '区域画像' })).toBeInTheDocument());
+  });
+
+  it('shows a park edition with citations and opens a curated park in the normal map path', async () => {
+    const research = submarketIntelligenceSchema.parse(shangdiEdition);
+    const parkBuilding = { id: research.projects[0].buildingId, name: '软件园实测项目', grade: 'BP', submarket: '上地' };
+    const onOpenBuilding = vi.fn();
+    api.read.mockResolvedValue({ ...payload, submarket: '上地', stockCount: 0,
+      profile: { ...profile, submarket: '上地', research, headline: research.positioning } });
+    render(<SubmarketDetailPanel {...props} name="上地" canEdit={false} buildings={[parkBuilding]} onOpenBuilding={onOpenBuilding}
+      summary={{ ...aggregateMarket([parkBuilding], 'filtered_market', true), name: '上地' }} />);
+    await screen.findByText(research.positioning);
+    expect(screen.getByText('产业园项目')).toBeInTheDocument();
+    expect(screen.queryByText('甲乙级项目')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: parkBuilding.name }));
+    expect(onOpenBuilding).toHaveBeenCalledWith(parkBuilding.id);
+    fireEvent.click(screen.getByRole('tab', { name: '区域研究' }));
+    expect(screen.getByText('18号线', { exact: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByText('来源与口径（2）'));
+    expect(screen.getByText(research.sources[1].basis)).toBeInTheDocument();
+  });
+
+  it('loads an earlier structured edition into the form, then publishes using the current version token', async () => {
+    const research = submarketIntelligenceSchema.parse(shangdiEdition);
+    const earlier = { ...research, positioning: '软件园历史市场定位' };
+    const current = { ...profile, submarket: '上地', headline: research.positioning, research };
+    api.read.mockResolvedValue({ ...payload, submarket: '上地', profile: current, draftProfile: current });
+    api.history.mockResolvedValue({ versions: [{ id: 'version-1', savedAt: '2026-11-20T00:00:00Z', wasPublished: true, research: earlier }], nextOffset: null });
+    api.save.mockResolvedValue({ profile: { ...current, research: earlier }, profilePublished: true });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<SubmarketDetailPanel {...props} name="上地" />);
+    fireEvent.click(await screen.findByRole('button', { name: '维护资料' }));
+    fireEvent.click(screen.getByRole('button', { name: '查看历史版本' }));
+    fireEvent.click(await screen.findByRole('button', { name: '载入版本' }));
+    expect(screen.getByLabelText('市场定位', { exact: true })).toHaveValue(earlier.positioning);
+    expect(api.save).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '保存并展示' }));
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith('上地', expect.objectContaining({ research: earlier }), true, current.updatedAt));
+    expect(await screen.findByText(earlier.positioning)).toBeInTheDocument();
   });
 
   it('retains the unsaved-edit confirmation when Escape closes the full-screen dialog', async () => {

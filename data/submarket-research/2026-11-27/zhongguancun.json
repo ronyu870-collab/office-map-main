@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "market": "中关村",
+  "positioning": "连接高校科研、创业服务与成熟写字楼的海淀核心办公市场",
+  "updatedOn": "2026-11-27",
+  "focus": "matched-rent",
+  "sources": [
+    {
+      "id": "avenue",
+      "title": "中关村大街重生",
+      "publisher": "北京市科委、中关村管委会",
+      "url": "https://kw.beijing.gov.cn/xwdt/kcyx/xwdtyqqy/202305/t20230510_3821284.html",
+      "publishedOn": "2023-05-10",
+      "observedAt": "截至2023-05报道",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "functional",
+      "scope": "中关村大街及西区",
+      "basis": "报道以未来科技大厦为参照，列出3公里内高校院所，并记录该楼实际开展科创路演活动。"
+    },
+    {
+      "id": "campus",
+      "title": "中关村街道融科活动报道",
+      "publisher": "海淀区人民政府",
+      "url": "https://www.bjhd.gov.cn/ztzx/2026/2026cj/nwhd/202602/t20260210_4805395.shtml",
+      "publishedOn": "2026-02-10",
+      "observedAt": "2026-02-04",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "project",
+      "scope": "融科资讯中心",
+      "basis": "活动在融科资讯中心地下B1层举行，空间与周边办公人群、街区商业联动。"
+    },
+    {
+      "id": "q3",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "publishedOn": "2026-10-12",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "scopeType": "external_market",
+      "scope": "世邦魏理仕中关村写字楼样本",
+      "basis": "该机构报告中，中关村租金出现回升，企业升级搬迁与扩租带动净吸纳。"
+    }
+  ],
+  "facts": [
+    {
+      "title": "大街沿线的科研联系",
+      "body": "未来科技大厦周边集中了北大、清华及中科院等科研资源。大厦内已有科创路演空间投入使用。",
+      "kind": "industry",
+      "status": "observed",
+      "sourceIds": [
+        "avenue"
+      ]
+    },
+    {
+      "title": "融科资讯中心的街区界面",
+      "body": "融科地下商业层承接了街道组织的科技主题市集，提供了写字楼与街区服务衔接的实例。",
+      "kind": "place",
+      "status": "observed",
+      "sourceIds": [
+        "campus"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "title": "靠近科创服务与满足研发工艺是两种选址目标",
+      "body": "面向招聘、融资和客户接待的科技团队，可优先比较大街核心办公楼。需要整栋、大单元或专业实验条件的团队，再到上地、北清路核对园区产品。2026Q3已有外部监测录得中关村租金回升，持续性仍需观察。",
+      "kind": "inference",
+      "asOf": "2026-11",
+      "scope": "中关村大街及平台甲乙级项目",
+      "limitation": "单季外部报告无法判断市场见底；办公楼与园区租金不直接拼接。",
+      "sourceIds": [
+        "avenue",
+        "campus",
+        "q3"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "buildingId": "9e03a3a5-473d-4c9d-b3dd-2ec8530ca3a6",
+      "role": "核心区办公样本",
+      "reason": "融科资讯中心是中关村核心区的综合载体，平台以A座楼宇身份关联。",
+      "sourceIds": [
+        "campus"
+      ]
+    }
+  ]
+}

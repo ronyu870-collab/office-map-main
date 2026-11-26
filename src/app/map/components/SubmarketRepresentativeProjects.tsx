@@ -5,10 +5,11 @@ import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger } from '
 import { hasMarketCoordinates, normalizeMapSubmarket, officeGrade } from '../model/marketIdentity';
 import type { MarketBuilding } from '../model/marketStatistics';
 import { latestFormalMetric, quarterKey } from '../model/quarterlyFacts';
+import type { SubmarketIntelligence } from '../model/submarketIntelligence';
 import { mapOptionalNumber } from '../model/vacancyMetrics';
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
-const gradeNames = { a: '甲级', b: '乙级' } as const;
+const gradeNames = { a: '甲级', b: '乙级', park: '产业园', other: '等级未收录' } as const;
 const number = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 });
 
 type Project = {
@@ -22,7 +23,18 @@ type Project = {
   vacancy: number;
   building: MarketBuilding & { photos?: unknown };
 };
-type Example = { project: Project; role: string; reason: string; detailReason?: string };
+type Example = { project: Project; role: string; reason: string; detailReason?: string; sourceIds?: string[] };
+
+function projectRecord(building: MarketBuilding, id: string, grade: Project['grade']): Project {
+  const fact = latestFormalMetric(building.metrics);
+  return {
+    id, name: building.name?.trim() || '未命名项目', grade, building,
+    period: fact ? `${fact.record_year}Q${fact.record_quarter}` : '',
+    quarter: fact ? quarterKey(fact) : null,
+    area: mapOptionalNumber(fact?.total_area), rent: mapOptionalNumber(fact?.net_effective_rent),
+    vacancy: mapOptionalNumber(fact?.vacancy_rate),
+  };
+}
 
 /** Examples describe evidence in the visible set, not recommendations or deal quality. */
 export function selectRepresentativeProjects(buildings: readonly MarketBuilding[], submarket: string): Example[] {
@@ -34,14 +46,7 @@ export function selectRepresentativeProjects(buildings: readonly MarketBuilding[
     const grade = officeGrade(building.grade);
     if (!id || eligible.has(id) || (grade !== 'a' && grade !== 'b') ||
         normalizeMapSubmarket(building.submarket) !== target || !hasMarketCoordinates(building)) continue;
-    const fact = latestFormalMetric(building.metrics);
-    eligible.set(id, {
-      id, name: building.name?.trim() || '未命名项目', grade, building,
-      period: fact ? `${fact.record_year}Q${fact.record_quarter}` : '',
-      quarter: fact ? quarterKey(fact) : null,
-      area: mapOptionalNumber(fact?.total_area), rent: mapOptionalNumber(fact?.net_effective_rent),
-      vacancy: mapOptionalNumber(fact?.vacancy_rate),
-    });
+    eligible.set(id, projectRecord(building, id, grade));
   }
 
   const candidates = [...eligible.values()];
@@ -60,7 +65,7 @@ export function selectRepresentativeProjects(buildings: readonly MarketBuilding[
     add(largest, '规模样本', `${largest.period} 已发布面积 ${number.format(largest.area)} ㎡，为当前 ${sizes.length} 个有面积记录的可定位甲乙级项目中的最大值。`);
   }
 
-  const gradeGroups = (Object.keys(gradeNames) as Project['grade'][]).map(grade => candidates.filter(project => project.grade === grade));
+  const gradeGroups = (['a', 'b'] as const).map(grade => candidates.filter(project => project.grade === grade));
   const comparisons = gradeGroups.flatMap(group => {
     const cohorts = new Map<number, Project[]>();
     for (const project of group) {
@@ -114,27 +119,42 @@ function ProjectPhotos({ id, name, photos }: { id: string; name: string; photos:
   return <div ref={root} className="workspace-building-photos mt-2" dangerouslySetInnerHTML={markup} />;
 }
 
-export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, compact = false }: {
+export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, compact = false, curated, sources }: {
   buildings: readonly MarketBuilding[];
   submarket: string;
   onOpen: (id: string) => void;
   compact?: boolean;
+  curated?: SubmarketIntelligence['projects'];
+  sources?: SubmarketIntelligence['sources'];
 }) {
-  const examples = React.useMemo(() => selectRepresentativeProjects(buildings, submarket), [buildings, submarket]);
+  const curatedExamples = React.useMemo((): Example[] => {
+    if (!curated?.length) return [];
+    const market = normalizeMapSubmarket(submarket);
+    const available = new Map(buildings.filter(building => normalizeMapSubmarket(building.submarket) === market)
+      .map(building => [building.id, building]));
+    return curated.flatMap(entry => {
+      const building = available.get(entry.buildingId);
+      return building ? [{ ...entry, project: projectRecord(building, entry.buildingId, officeGrade(building.grade)) }] : [];
+    });
+  }, [buildings, submarket, curated]);
+  const examples = React.useMemo(() => curatedExamples.length ? curatedExamples
+    : selectRepresentativeProjects(buildings, submarket), [buildings, submarket, curatedExamples]);
   const heading = React.useId();
   return (
     <section aria-labelledby={heading} className="submarket-research submarket-projects rounded-[9px] border border-[#d9e0e8] bg-white px-4 py-3">
       <h3 id={heading} className="m-0 text-[14px] font-semibold text-[#172033]">代表性项目</h3>
-      <p className="mb-0 mt-1 text-[14px] leading-5 text-[#667085]">从当前筛选内可定位的甲乙级项目选取，不作为推荐排名。</p>
+      <p className="mb-0 mt-1 text-[14px] leading-5 text-[#667085]">{curatedExamples.length ? '按区域研究选取，跟随当前项目筛选。' : '从当前筛选内可定位的甲乙级项目选取，不作为推荐排名。'}</p>
       {!examples.length ? <p className="mb-0 mt-3 text-[14px] text-[#667085]">当前筛选内暂无可定位的甲乙级项目。</p> : (
         <ul className="submarket-project-grid m-0 mt-2 grid list-none gap-x-5 p-0">
-          {examples.map(({ project, role, reason, detailReason }) => (
+          {examples.map(({ project, role, reason, detailReason, sourceIds }) => (
             <li key={project.id} className="min-w-0 border-t border-[#d9e0e8] pb-3">
               <button type="button" onClick={() => onOpen(project.id)} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-[4px] text-left text-[14px] font-semibold text-[#003e7e] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]">
                 <span className="min-w-0 break-words">{project.name}</span><ChevronRight size={15} aria-hidden="true" className="shrink-0" />
               </button>
               {!compact && <ProjectMetrics project={project} />}
               <p className="m-0 text-[14px] leading-5 text-[#667085]"><span className="font-semibold text-[#172033]">{role}</span>{role === `${gradeNames[project.grade]}样本` ? '' : ` · ${gradeNames[project.grade]}`} · {compact ? reason : detailReason ?? reason}</p>
+              {!compact && sourceIds ? sources?.filter(source => sourceIds.includes(source.id)).map(source =>
+                <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" className="submarket-link-action">{source.title}</a>) : null}
               {!compact && <ApprovedProjectPhotos project={project} />}
             </li>
           ))}
