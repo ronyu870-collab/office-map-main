@@ -6,7 +6,7 @@ import { cellText, resultScopeText, units, type QueryResultView } from '@/src/li
 import { researchAnalysisSchema, type ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnalysisView';
 import { metricLabels, resultMetrics, resultMetricAnalysis } from '@/src/lib/intelligence/query/multiMetricView';
 import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailability';
-import { composeResponse, responseDecision, responseFactCells, responseResultContent, responseTableTitle } from '@/src/lib/intelligence/query/responsePresentation';
+import { composeResponse, responseDecision, responseBuildingLocation, responseFactCells, responseResultContent, responseTableTitle } from '@/src/lib/intelligence/query/responsePresentation';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryResearch } from './HomeQueryResearch';
@@ -77,6 +77,14 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
           onClick={event => showSources(primaryFinding.sourceIds, primaryFinding.title, event.currentTarget)}>依据</button>}
       </p>
     </div>),
+    location: () => {
+      const location = responseBuildingLocation(result);
+      return location && <p className={experienceStyles.conclusion}>
+        {location.subject}{location.scope}
+        <button type="button" className={experienceStyles.citation} aria-label={`查看 ${location.submarket} 子市场依据`}
+          onClick={event => showSources(location.sourceIds, '子市场依据', event.currentTarget)}>{location.submarket}</button> 子市场。
+      </p>;
+    },
     metrics: () => (<section className={`${styles.multiMetrics} ${experienceStyles.metrics}`} aria-label={facts.length === 1 ? "核心指标" : "关键结果"}>
       <p className={experienceStyles.factScope} aria-label="结果范围">{resultScopeText(result)}</p>
       {facts.map(({ column, cell, label, entityId }) => <section key={`${entityId}/${column.key}`} className={experienceStyles.fact} aria-label={`${label}指标`}>
@@ -138,9 +146,9 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       {!availability && ['summary', 'metrics', 'building'].includes(block.type) && <ResultBoundary result={result} research={research} />}
     </div>)}
     {membershipMode && ['aggregate', 'group_aggregate', 'cross_aggregate', 'trend', 'group_trend', 'cross_trend', 'compare'].includes(result.operation) && result.parameters.dataDomain !== 'lease-research/1' && <HomeQuerySampleMembership key={result.resultId + ':' + membershipMode} result={result} mode={membershipMode} onSource={showSources} />}
-    <div ref={setActionContainer} className={experienceStyles.resultActions}>
+    {!blocks.some(block => block.type === 'location') && <div ref={setActionContainer} className={experienceStyles.resultActions}>
       {!blocks.some(block => block.type === 'analysis') && requestId && scope && <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport} responseActions={responseActions} />}
-    </div>
+    </div>}
     {selected && (!detail || detail.active?.id === sourceDetailId) && <HomeQuerySources detailId={sourceDetailId} result={result} research={research} context={context} selected={selected} sources={sources} sourcePage={sourcePage} setSourcePage={setSourcePage} onClose={closeSources} panelRef={sourcePanel} />}
   </section>;
 });

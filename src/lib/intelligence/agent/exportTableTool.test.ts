@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import { buildLeaseResult } from '../lease/research';
 import { combineMetricResults } from '../query/multiMetric';
 import { resultMetrics } from '../query/multiMetricView';
 import { buildListResult, buildAggregateResult } from '../query/result';
@@ -16,19 +17,20 @@ const owner: WorksetOwner = { requestId: randomUUID(), actorId: randomUUID(),
   effectiveUserId: randomUUID(), sessionId: randomUUID(), policyVersion: 'test', permissionRevision: 'r1' };
 const plan = { operation: 'list', fields: ['height', 'netEffectiveRent', 'totalArea'],
   scope: { inventory: 'tracked', submarkets: ['CBD'] }, period: { year: 2026, quarter: 3 } };
-function fullResult(quarter = 3) {
-  const snap = fixture({ year: 2026, quarter });
+function fullResult(quarter = 3, catalog = false) {
+  const original = fixture({ year: 2026, quarter });
+  const snap = { ...original, period: catalog ? null : original.period };
+  const fields = catalog ? ['height'] as const : ['height', 'netEffectiveRent', 'totalArea'] as const;
   const rows = Array.from({ length: 137 }, (_, i) => {
     const id = randomUUID(), name = i === 0 ? '=恶意公式("中文")' : `北京合成楼宇${i}`;
     return { id, name, nameSource: nameSource(id, name),
       dimensions: { submarket: { value: 'CBD', source: { ...nameSource(id, 'CBD'), id: 'market/' + id, field: 'submarket' } } },
-      facts: Object.fromEntries(['height', 'netEffectiveRent', 'totalArea'].map(field => {
-        const f = field as 'height' | 'netEffectiveRent' | 'totalArea';
+      facts: Object.fromEntries(fields.map(f => {
         return [f, resolveNumericFact(f, id, [source(id, f, 1000 + i, f === 'height' ? null : snap.period)], f === 'height' ? null : snap.period)];
       })) };
   });
-  const result = buildListResult({ ...snap, rows, expectedCount: rows.length }, ['height', 'netEffectiveRent', 'totalArea']);
-  return { ...result, parameters: { ...result.parameters, executedPlan: { ...plan, period: snap.period } } };
+  const result = buildListResult({ ...snap, rows, expectedCount: rows.length }, [...fields]);
+  return { ...result, parameters: { ...result.parameters, executedPlan: { ...plan, fields, period: snap.period } } };
 }
 async function fileFor(result: ReturnType<typeof prepareExportResult>, format: 'xlsx' | 'csv_zip' = 'xlsx') {
   const file = await buildResultArtifact(result, { requestId: owner.requestId, resultId: result.resultId, action: 'export', format });
@@ -119,6 +121,42 @@ describe('authorized Agent table exports read real final XLSX/CSV bytes', () => 
     expect(rows[1][1]).toContain('"quarter":2'); expect(rows[138][1]).toContain('"quarter":3');
     expect(out.parameters.exportPlans).toHaveLength(2);
     expect(rows).toHaveLength(275);
+  });
+
+  it('exports heterogeneous catalog, official statistic and transaction sheets in one verified workbook', async () => {
+    const catalog = fullResult(3, true);
+    const aggregate = buildAggregateResult(fixture(), 'rent');
+    const quarter = { ...aggregate, parameters: { ...aggregate.parameters,
+      executedPlan: { operation: 'aggregate', scope: plan.scope, period: plan.period, metric: 'rent' } } };
+    const lease = buildLeaseResult({ allowed: true, version: 'lease-research/1', permission_revision: 'b'.repeat(64),
+      sources: ['live'], details: true, financials: false, export: true, minGroupSize: 3, links: [],
+      rows: [{ id: 'live:' + randomUUID(), source: 'live', fingerprint: 'a'.repeat(64), buildingId: null,
+        building: '=HYPERLINK("unsafe")', alias: null, match: 'unmapped', submarket: 'CBD', industry: '金融',
+        start: '2026-02-01', end: '2026-02-01', precision: 'date', area: '2300', quality: 'SYNTHETIC', financials: {} }],
+    }, { source: 'live', from: '2026-01-01', to: '2026-06-30', mode: 'details', sort: 'area' });
+    const workset = new AuthorizedResultWorkset(owner);
+    const snapshots = [catalog, quarter, lease];
+    snapshots.forEach(snapshot => workset.register(snapshot, owner));
+    const args = { resultIds: snapshots.map(result => result.resultId), format: 'xlsx' };
+    const exported = await exportAuthorizedTable(workset, owner, args, ['export:internal']);
+    const bytes = (await fileFor(exported.result)).bytes;
+    const zip = await JSZip.loadAsync(bytes);
+    const readXml = async (file: string) => new DOMParser().parseFromString(await zip.file(file)!.async('string'), 'application/xml');
+    const workbook = await readXml('xl/workbook.xml');
+    expect([...workbook.getElementsByTagName('sheet')].slice(0, 3).map(sheet => sheet.getAttribute('name')))
+      .toEqual(['楼宇参数', '季度指标', '成交明细']);
+    for (const [index, snapshot] of snapshots.entries()) {
+      const worksheet = await readXml(`xl/worksheets/sheet${index + 1}.xml`);
+      expect(worksheet.getElementsByTagName('row')).toHaveLength(snapshot.table.rows.length + 1);
+      expect(worksheet.getElementsByTagName('f')).toHaveLength(0);
+    }
+    const details = XLSX.read(bytes, { type: 'array' });
+    const detailRows = XLSX.utils.sheet_to_json<(string | number)[]>(details.Sheets['成交明细'], { header: 1 });
+    expect(detailRows[1]).toContain(2300);
+    expect(JSON.stringify(XLSX.utils.sheet_to_json(details.Sheets['来源'], { header: 1 }))).toContain(lease.resultId);
+    await expect(exportAuthorizedTable(workset, owner, args, ['query:catalog'])).rejects.toThrow('AGENT_EXPORT_DENIED');
+    expect(() => prepareExportResult(snapshots, { ...args, filters: [{ field: 'area', operator: 'gte', value: 500 }] }))
+      .toThrow('AGENT_EXPORT_INCOMPATIBLE_COLUMNS');
   });
 
   it('exports combined metric summaries without retaining incompatible renderer metadata or stale research findings', async () => {

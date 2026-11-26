@@ -21,7 +21,7 @@ const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequenc
 const historySchema = z.array(z.strictObject({
   user: z.string().min(1).max(1800), assistant: z.string().min(1).max(3000),
 })).max(8);
-export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextResults?: QueryResult[]; contextRecheck?: () => Promise<void> };
+export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextResults?: QueryResult[]; contextComparisonIds?: string[]; contextRecheck?: () => Promise<void> };
 
 /** Load only server-side encrypted previous answers from the existing owner/session-bound
  * RPC; never accept arbitrary client-provided history text as context. */
@@ -96,6 +96,11 @@ export async function readAgentHistory(
       && !restored.answerSelection?.results.some(item => item.result.resultId === chartContext.resultId)) throw new Error('QUERY_DENIED');
     history.contextResult = restored.result as QueryResult;
     history.contextResults = restored.answerSelection?.results.map(item => item.result as QueryResult);
+    if (restored.answerSelection?.task === 'comparison') {
+      history.contextComparisonIds = restored.answerSelection.results
+        .filter(item => item.role === 'primary' || item.role === 'comparison')
+        .map(item => item.result.resultId);
+    }
     history.contextRecheck = restored.recheck;
     if (chartContext) history.contextChart = chartContext;
   }

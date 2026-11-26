@@ -1,3 +1,4 @@
+import { readWorkbookBundle } from './workbookBundle';
 import { selectExportRows, tableExportSelectionSchema } from './exportSelection';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
@@ -22,6 +23,10 @@ async function renderResultArtifact(rawResult: unknown, input: ArtifactInput) {
   input = artifactInputSchema.parse(input);
   const view = resultViewSchema.parse(rawResult);
   if (view.resultId !== input.resultId) throw new Error('ARTIFACT_RESULT_MISMATCH');
+  if (input.action === 'export' && view.parameters.agentWorkbook !== undefined) {
+    if (input.format !== 'xlsx' || input.selection) throw new Error('ARTIFACT_SELECTION_INVALID');
+    readWorkbookBundle(view.parameters);
+  }
   // Keep the archived object intact for its digest and export metadata.
   const original = rawResult as QueryResult;
   if (input.action === 'export' && input.selection && !['xlsx', 'csv_zip'].includes(input.format)) throw new Error('ARTIFACT_SELECTION_INVALID');

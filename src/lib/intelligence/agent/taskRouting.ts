@@ -1,4 +1,5 @@
 import { resolveSemanticQuestion, type SemanticContext } from '../query/semanticPlanner';
+import { buildingLocationTarget } from '../query/buildingIntent';
 import { requiresDataFactEvidence } from './queryObligation';
 import type { QueryPlan } from '../query/plan';
 import { restoredResultTableView, type ResultTableView, type ResultTableReference } from '../query/tableView';
@@ -13,6 +14,9 @@ export type TaskRoute = {
   reply?: string;
   exportFormat?: 'xlsx' | 'csv_zip';
   reusePrevious?: boolean;
+  reuseComparison?: boolean;
+  catalogLocation?: boolean;
+  planNotices?: string[];
   capabilities?: boolean;
   availablePeriods?: boolean;
   tableView?: ResultTableView;
@@ -42,12 +46,12 @@ function englishQuery(text: string): string {
 
 /** Full consumption is owned by the existing semantic planner. Wrappers below
  * remove only an entire, supported delivery suffix, never arbitrary conditions. */
-export function routeTask(question: string, contextPlan?: QueryPlan, research = false, hasPreviousResult = false, previousResult?: ResultTableReference): TaskRoute {
+export function routeTask(question: string, contextPlan?: QueryPlan, research = false, hasPreviousResult = false, previousResult?: ResultTableReference, hasPreviousComparison = false): TaskRoute {
   const text = question.normalize('NFKC').trim().replace(/[。！？.!?]+$/u, '').trim();
   if (externalModelForbidden(text)) {
     const local = text.replace(/[,，;；]?\s*(?:不要|不得|禁止)(?:发送给?|发给|传给)(?:外部模型|第三方模型|外部供应商)$/u, '').trim();
     if (local && local !== text) {
-      const task = routeTask(local, contextPlan, research, hasPreviousResult, previousResult);
+      const task = routeTask(local, contextPlan, research, hasPreviousResult, previousResult, hasPreviousComparison);
       if (['direct_response', 'deterministic_query'].includes(task.route)) return { ...task, question, modelForbidden: true };
     }
     return { route: 'direct_response', taskType: 'analysis', question, modelForbidden: true,
@@ -65,6 +69,19 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
     return { route: 'direct_response', taskType: 'query', question, capabilities: true };
   if (/^(?:你能够查询哪些季度|你能查询哪些季度|有哪些可用季度|可以查询哪些季度|which quarters are available)$/i.test(text))
     return { route: 'direct_response', taskType: 'query', question, capabilities: true, availablePeriods: true };
+  if (buildingLocationTarget(text)) return { route: 'deterministic_query', taskType: 'query', catalogLocation: true, question: text };
+  const priorComparison = /^(?:请)?(?:把|将)(?:刚才|上次|前面)的?(?:对比|比较)(?:结果|表格)?\s*导出(?:为|成)?\s*(Excel|xlsx|CSV)(?:文件)?$/i.exec(text)
+    ?? /^(?:请)?导出(?:刚才|上次|前面)的?(?:对比|比较)(?:结果|表格)?(?:为|成)?\s*(Excel|xlsx|CSV)?(?:文件)?$/i.exec(text);
+  if (priorComparison) {
+    const format = /CSV/i.test(priorComparison[1] ?? '') ? 'csv_zip' : 'xlsx';
+    if (hasPreviousComparison)
+      return { route: 'deterministic_query', taskType: 'artifact', question, reuseComparison: true, exportFormat: format };
+    const comparison = previousResult && ['compare', 'group_aggregate', 'group_trend', 'cross_aggregate', 'cross_trend']
+      .includes(String(previousResult.parameters.executedPlan && (previousResult.parameters.executedPlan as { operation?: unknown }).operation));
+    if (comparison)
+      return { route: 'deterministic_query', taskType: 'artifact', question, reusePrevious: true, exportFormat: format };
+    return { route: 'direct_response', taskType: 'artifact', question, reply: '当前会话没有可重新核验的对比结果。请打开原对比后再导出。' };
+  }
   if (previousResult && hasPreviousResult) {
     const exportedChart = /^(?:请)?(?:(?:把|将)?(?:刚才|当前)的?(?:图表|图))?导出(?:为)?(PNG|SVG)$/i.exec(text)
       ?? /^export (?:the current chart as )?(PNG|SVG)$/i.exec(text);
@@ -117,7 +134,7 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
   const resolution = standalone.kind === 'plan' || !context ? standalone
     : resolveSemanticQuestion({ question: query, context, now: new Date(), availablePeriods: [] });
   if (resolution.kind === 'plan') return { route: 'deterministic_query', taskType: exportFormat ? 'artifact' : 'query',
-    question: query, plan: resolution.plan, ...(exportFormat ? { exportFormat } : {}), ...(chartType ? { chartType } : {}) };
+    question: query, plan: resolution.plan, planNotices: resolution.interpretation.notices, ...(exportFormat ? { exportFormat } : {}), ...(chartType ? { chartType } : {}) };
   // A narrow semantic extraction gets no domain tools and cannot recurse into
   // the Agent. Unknown conditions stay fail-closed in the formal planner.
   if (!/成交|租赁|楼书|文档|资料|报告|Stacking|供应|地图|图|横轴|纵轴|[xy]轴|原因|为什么|分析差异|核对|检查|并|综合|研究|lease|transaction|document|report|axis|why|research/i.test(query)

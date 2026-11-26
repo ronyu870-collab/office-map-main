@@ -52,6 +52,7 @@ import { REGISTERED_AGENT_TOOL_NAMES, STRUCTURED_DATA_TOOL_NAMES, WORKSET_TOOL_N
 import { AuthorizedResultWorkset, type WorksetOwner } from './resultWorkset';
 import { PRESENTATION_TOOL_NAMES, runResultPresentationTool } from './resultTools';
 import { AGENT_CONVERSATION_PROTOCOL, readAgentHistory, trimAgentHistory } from './agentConversation';
+import { responseBuildingLocation } from '../query/responsePresentation';
 import { resultAvailability } from '../query/resultAvailability';
 import { selectedAnswerResult, type AnswerSelection } from '../query/answerSelection';
 import { answerTask, applyAnswerPolicy, hasExplicitLeaseWindow, isLatestLeaseQuestion } from './answerPolicy';
@@ -300,14 +301,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       && (!selectedAnswer || comparisonRequested && !selectedAnswer.results.some(item => item.role === 'comparison'));
 
     const previousResult = history.contextResults?.length ? history.contextResults.length === 1 ? history.contextResults[0] : undefined : history.contextResult;
-    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult);
+    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult, (history.contextComparisonIds?.length ?? 0) > 1);
     await audit.append(requestId, 'tool_finished', { executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), phase: 'task_routed' });
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
         taskRoute, previousResultId: history.contextResults?.length === 1 ? history.contextResults[0].resultId : history.contextResult?.resultId,
-        history, memory: history.memory, limits: runtime.limits,
+        previousComparisonIds: history.contextComparisonIds, history, memory: history.memory, limits: runtime.limits,
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
         contextChart: history.contextChart,
@@ -569,6 +570,10 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             observation = await executeStructuredDataTool({ client, keys, identity: actor, audit: audit!,
               requestId, authority, signal: toolSignal }, name as StructuredDataToolName, args);
           } else throw new Error('AGENT_UNREGISTERED_TOOL');
+          if (observation.result && name === 'execute_query_plan' && taskRoute.planNotices?.length) {
+            observation.result = { ...observation.result,
+              limitations: [...new Set([...observation.result.limitations, ...taskRoute.planNotices])] };
+          }
           if (observation.result) {
             queriedIds.add(observation.result.resultId);
             const manifest = workset.register(observation.result, worksetOwner);
@@ -649,7 +654,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     }
     if (preparedExport && !preparedChart) {
       execution.result = preparedExport;
-      execution.answer = '服务器已生成 ' + preparedExport.table.rows.length
+      execution.answer = '服务器已生成 ' + (preparedExport.parameters.agentExport as { exportedRows: number }).exportedRows
         + ' 行' + ((preparedExport.parameters.agentExport as { format: string }).format === 'xlsx' ? ' Excel 文件' : ' CSV 与来源包')
         + '，可通过本条回答的下载操作获取；尚未发起浏览器下载，也未确认本机保存。'
         + (execution.unresolvedFailures.length ? '\n其余步骤未全部完成。' : '');
@@ -783,6 +788,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     }
     if (execution.result) {
       const primary = execution.result;
+      const location = responseBuildingLocation(primary as AnswerSelection['results'][number]['result']);
+      if (location) execution.answer = location.subject + location.scope + location.submarket + ' 子市场。';
       if (generatedResults.length) {
         // Keep trusted, deterministic analysis on its original data shape.
         // An export is a derived list and must not inherit incompatible
@@ -859,7 +866,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const businessAnswer=execution.result && isBusinessResult(execution.result);
     const leaseAnswer = execution.result && isLeaseResult(execution.result);
     const researchAnswer = execution.result && isResearchResult(execution.result);
-    const answerPlan = execution.result && !researchAnswer && !leaseAnswer && !businessAnswer && !knowledgeAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
+    const answerPlan = execution.result && !researchAnswer && !leaseAnswer && !businessAnswer && !knowledgeAnswer && !execution.result.parameters.agentWorkbook ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
     const archivedCharts = selectedAnswer?.results.map(item => item.result).filter(r => r.parameters.agentChart) ?? [];
     const archivedChart = archivedCharts.find(r => r.resultId === preparedChart?.resultId) ?? archivedCharts.at(-1);
     const archivedChartFile = archivedChart && generatedChartFiles.find(file => file.resultId === archivedChart.resultId);
@@ -882,7 +889,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       ...(preparedReport ? { reportFile } : {}),
       ...(archivedChart ? { chartContext: { resultId: archivedChart.resultId, chart: (archivedChart.parameters.agentChart as { request: ChartRequest }).request },
         ...(archivedChartFile ? { chartFile: archivedChartFile } : {}), ...(generatedChartFiles.length ? { chartFiles: generatedChartFiles } : {}) } : {}),
-      ...(preparedExport && !isLeaseResult(preparedExport) && !isBusinessResult(preparedExport) && !isKnowledgeResult(preparedExport) ? { exportFiles, exportContext: {
+      ...(preparedExport && !preparedExport.parameters.agentWorkbook && !isLeaseResult(preparedExport) && !isBusinessResult(preparedExport) && !isKnowledgeResult(preparedExport) ? { exportFiles, exportContext: {
         plans: preparedExport.parameters.exportPlans,
         selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {
           selection: { resultIds: string[] } }).selection; void _ids; return selection; })(),
@@ -918,9 +925,10 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     try {
       await history.contextRecheck?.();
       await recheckLeases();
-      if (preparedReport || researchAnswer) {
+      const workbookDelivered = generatedResults.some(result => result.parameters.agentWorkbook !== undefined);
+      if (preparedReport || researchAnswer || workbookDelivered) {
         const read = await readOwnResult(client, actor, requestId, 'archive', signal);
-        await recoverOwnResult(client, actor, keys, requestId, read, signal);
+        await recoverOwnResult(client, actor, keys, requestId, read, signal, workbookDelivered ? { exporting: true } : undefined);
       }
     } catch (error) {
       await audit.append(requestId, 'correction', { reason: 'artifact_sources_changed_before_response', delivery: 'not_sent' });

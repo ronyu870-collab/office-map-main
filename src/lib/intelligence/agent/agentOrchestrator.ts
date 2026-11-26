@@ -32,6 +32,7 @@ export type AgentDependencies<T> = {
   question: string;
   taskRoute?: TaskRoute;
   previousResultId?: string;
+  previousComparisonIds?: readonly string[];
   history?: Array<{ user: string; assistant: string }>;
   /** Server-validated prior plan only. Never accepts a browser-claimed result. */
   contextPlan?: QueryPlan;
@@ -190,11 +191,13 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
         : '当前未开放数值字段；实际范围和操作仍受独立资格约束。';
     }
   } else if (task.plan) await run('execute_query_plan', { plan: task.plan });
+  else if (task.reuseComparison && task.exportFormat && input.previousComparisonIds?.length)
+    await run('export_table', { resultIds: input.previousComparisonIds, format: task.exportFormat });
   else if (task.reusePrevious && input.previousResultId) {
     // Materialize the full authorized result through the executor, no snapshot read.
     const observed = await run('select_answer_results', { primaryResultId: input.previousResultId, auxiliary: [], task: task.tableView ? 'fact' : 'file', status: 'answered' });
     if (!observed?.result) failures.push({ tool: 'select_answer_results', code: 'result_not_found' });
-  } else if (task.route === 'single_interpretation') {
+  } else if (task.route === 'single_interpretation' || task.catalogLocation) {
     const observed = await run('query_verified_real_estate', { question: task.question });
     if (observed) { const payload = JSON.parse(observed.content); if (payload.status === 'requires_clarification') clarification = payload.message; }
   } else if (!task.reply) failures.push({ tool: 'verified_data', code: 'result_not_found' });
@@ -212,7 +215,7 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
   if (task.chartExport && result && !failures.length) {
     const view = resultViewSchema.parse(result); await run('export_chart', { resultId: view.resultId, format: task.chartExport });
   }
-  if (task.exportFormat && result && !failures.length) {
+  if (task.exportFormat && !task.reuseComparison && result && !failures.length) {
     const source = resultViewSchema.parse(result);
     // A follow-up export inherits the archived view, including all bounds and
     // ordering, but never its page. The executor still reads the full sealed

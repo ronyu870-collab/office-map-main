@@ -31,6 +31,23 @@ describe('P2 query failure, empty results and recovery lifecycle', () => {
     expect(await screen.findByText(error)).toBeInTheDocument();
     expect(client.submit).toHaveBeenCalledOnce();
   });
+  it.each(['json', 'stream'])('keeps the expanded workspace and lease question available after a %s service failure', async transport => {
+    const error = '查询服务暂时不可用。';
+    if (transport === 'json') client.submit.mockResolvedValueOnce({ requestId, status: 'unavailable', error });
+    else client.submit.mockRejectedValueOnce(new QueryClientError('service', error));
+    render(<HomeQuery scope={scope} />);
+    await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: '展开 Colliers AI 工作空间' }));
+    await screen.findByRole('dialog', { name: 'Colliers AI 工作空间' });
+    const question = '查询2026上半年面积最大的十笔单笔租赁成交';
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: question } });
+    fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
+    await screen.findByText(/查询服务暂时不可用/);
+    expect(screen.getByRole('dialog', { name: 'Colliers AI 工作空间' })).toBeInTheDocument();
+    expect(screen.getAllByText(question).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: '重试本次请求' })).toBeEnabled();
+  });
+
   it('keeps arbitrary transport content out of service failure messages', async () => {
     client.submit.mockResolvedValue({ requestId, status: 'unavailable', error: 'synthetic-private-credential' });
     render(<HomeQuery scope={scope} />); await submit();

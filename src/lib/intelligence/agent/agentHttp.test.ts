@@ -84,6 +84,34 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it('exports only the reauthorized comparison snapshots and avoids a fresh model or catalog query', async () => {
+    const quarter = { year: 2026, quarter: 3 };
+    const makeResult = (submarket: string) => {
+      const raw = buildAggregateResult(fixture(quarter), 'rent');
+      return { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({
+        operation: 'aggregate', period: quarter, metric: 'rent',
+        scope: { inventory: 'tracked', submarkets: [submarket] },
+      }) } };
+    };
+    const left = makeResult('CBD'), right = makeResult('金融街');
+    const contextRecheck = vi.fn().mockResolvedValue(undefined);
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    state.history.mockResolvedValue(Object.assign([], { contextResult: left, contextResults: [left, right],
+      contextComparisonIds: [left.resultId, right.resultId], contextRecheck }));
+    const response = await handleAgentSubmission(fakeRequest('把刚才的对比导出 Excel').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.result?.parameters?.agentExport).toMatchObject({
+      format: 'xlsx', selection: { resultIds: [left.resultId, right.resultId] },
+    });
+    const saved = state.append.mock.calls.find(entry => entry[1] === 'response_generated')?.[2].result;
+    expect(saved.results[0].result.parameters.exportPlans.map((item: { scope: { submarkets: string[] } }) => item.scope.submarkets))
+      .toEqual([['CBD'], ['金融街']]);
+    expect(state.provider).not.toHaveBeenCalled();
+    expect(state.structured).not.toHaveBeenCalled();
+    expect(contextRecheck).toHaveBeenCalled();
+  });
+
   it('does not widen an archived numeric view when exporting the previous result', async () => {
     const raw = buildListResult(fixture(), ['height']);
     const prior = { ...raw, parameters: { ...raw.parameters,

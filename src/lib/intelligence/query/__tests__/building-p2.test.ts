@@ -4,7 +4,9 @@ import { resultBuildingRows } from '../buildingCards';
 import { buildingAnalysisHref, readMapQueryContext, parseQueryMapContext, queryMapHref } from '../buildingNavigation';
 import { buildListResult } from '../result';
 import { resultViewSchema } from '../presentation';
-import { fixture } from './fixtures';
+import { composeResponse } from '../responsePresentation';
+import { routeTask } from '../../agent/taskRouting';
+import { fixture, nameSource } from './fixtures';
 import { mapPresentationQuestion } from '../mapPresentationQuestion';
 import { resolveSemanticQuestion } from '../semanticPlanner';
 
@@ -23,6 +25,29 @@ describe('P2 building identity and result contract', () => {
     expect(resolveBuildingCandidates('同名别称', duplicate).candidates).toHaveLength(2);
     expect(resolveBuildingCandidates('无权别称', rows, [{ building_id: 'outside' }]).unique).toBeNull();
   });
+  it.each(['合成中心在哪个子市场？', '测试大厦属于哪个子市场'])('routes location facts through authorized building resolution: %s', question => {
+    expect(routeTask(question)).toMatchObject({ route: 'deterministic_query', taskType: 'query', catalogLocation: true });
+  });
+
+  it('uses a concise source-linked fact for exact candidate rows sharing one submarket', () => {
+    const original = fixture();
+    const candidates = original.rows.slice(0, 2).map(row => ({
+      ...row, dimensions: { ...row.dimensions,
+        submarket: { value: 'CBD', source: { ...nameSource(row.id, 'CBD'), id: `market/${row.id}`, field: 'submarket' } },
+      },
+    }));
+    const result = buildListResult({ ...original, rows: candidates, expectedCount: candidates.length }, []);
+    const view = resultViewSchema.parse({ ...result, parameters: { ...result.parameters,
+      interpretation: { buildingLocation: { subject: '合成中心', submarket: 'CBD' } },
+    } });
+    expect(composeResponse(undefined, view).blocks).toEqual([
+      { type: 'location', resultId: view.resultId },
+    ]);
+    const changed = structuredClone(view);
+    changed.table.rows[1].cells.submarket = { kind: 'text', value: '金融街', sourceIds: [] };
+    expect(composeResponse(undefined, changed).blocks.some(block => block.type === 'location')).toBe(false);
+  });
+
   it('T01/T17 binds UUID actions to same-row name source, not a fabricated entity label', () => {
     const result = resultViewSchema.parse(buildListResult(fixture(), ['height']));
     const first = result.table.rows[0], original = result.sources.find(source => source.id === first.cells.name.sourceIds[0])!;

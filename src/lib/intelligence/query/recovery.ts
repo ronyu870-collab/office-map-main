@@ -19,6 +19,7 @@ import type { QueryPlan } from './plan';
 import { decodeGeneratedArchive } from './resultArchive';
 import { FIELD_REGISTRY_VERSION } from './registry';
 import { loadDataAuthority, type DataAuthority, type VerifiedQueryIdentity } from './serverAuthority';
+import { readWorkbookBundle } from './workbookBundle';
 import { answerSelectionSchema, selectedAnswerResult, type AnswerSelection } from './answerSelection';
 
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
@@ -163,6 +164,12 @@ async function recheckSelectedSnapshot(client: SupabaseClient, identity: Verifie
   const authority = await loadDataAuthority(client, identity, signal);
   if (authority.permissionRevision !== revision || !authority.grants.includes('query:catalog')
     || options.exporting && !authority.grants.includes('export:internal')) throw new Error('QUERY_DENIED');
+  const workbook = readWorkbookBundle(result.parameters);
+  if (workbook) {
+    for (const sheet of workbook.sheets) await recheckSelectedSnapshot(client, identity, signal, requestId,
+      sheet.snapshot, revision, { ...options, exporting: true });
+    return;
+  }
   if (isResearchResult(result)) {
     await recheckResearchResult(client, identity, signal, requestId, result, revision,
       { archived: true, exporting: options.exporting });

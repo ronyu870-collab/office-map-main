@@ -34,6 +34,7 @@ export type SemanticInterpretation = {
   unavailablePeriods: Quarter[];
   inherited: string[];
   notices: string[];
+  buildingLocation?: { subject: string; submarket: string };
 };
 export type SemanticResolution =
   | { kind: 'plan'; plan: QueryPlan; context: SemanticContext; interpretation: SemanticInterpretation; limitations: string[] }

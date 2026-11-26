@@ -1,3 +1,5 @@
+import { isKnowledgeResult } from '../knowledge/protocol';
+import { readWorkbookBundle } from '../query/workbookBundle';
 import { isBusinessResult, BUSINESS_DOMAIN, businessBindingSchema } from '../business/protocol';
 import { isLeaseResult, LEASE_DOMAIN, leaseBindingSchema } from '../lease/protocol';
 import { createHash, randomUUID } from 'node:crypto';
@@ -20,6 +22,49 @@ function compare(a: ResultCell, b: ResultCell): number {
   return a.kind === 'text' && b.kind === 'text' ? a.value.localeCompare(b.value, 'zh-CN') : 0;
 }
 
+function prepareMixedWorkbook(results: readonly QueryResult[], args: ReturnType<typeof exportTableSchema.parse>): QueryResult {
+  if (args.format !== 'xlsx' || args.singleSheet || args.fields || args.filters.length || args.sort || args.topN)
+    throw new Error('AGENT_EXPORT_INCOMPATIBLE_COLUMNS');
+  if (results.some(result => isKnowledgeResult(result) || result.parameters.researchTask || result.parameters.agentExport))
+    throw new Error('AGENT_EXPORT_DENIED');
+  const usedNames = new Map<string, number>();
+  const sheets = results.map(snapshot => {
+    const base = isLeaseResult(snapshot) ? snapshot.operation === 'list' ? '成交明细' : '成交统计'
+      : isBusinessResult(snapshot) ? '业务资料'
+      : snapshot.operation === 'list' && !snapshot.parameters.period ? '楼宇参数' : '季度指标';
+    const count = (usedNames.get(base) ?? 0) + 1;
+    usedNames.set(base, count);
+    return { name: base + (count > 1 ? ` ${count}` : ''), snapshot };
+  });
+  const rows = sheets.map(({ name, snapshot }) => {
+    const count = projectResultTable(resultViewSchema.parse(snapshot)).table.rows.length;
+    return { entityId: snapshot.resultId, cells: {
+      sheet: { kind: 'text' as const, value: name, sourceIds: [] },
+      count: { kind: 'number' as const, value: { numeric: count, exact: { numerator: String(count), denominator: '1' } }, sourceIds: [] },
+    } };
+  });
+  const exportedRows = rows.reduce((count, row) => count + row.cells.count.value.numeric, 0);
+  const result: QueryResult = { ...results[0], resultId: randomUUID(), operation: 'list', analysis: null, sources: [],
+    dataVersion: createHash('sha256').update(JSON.stringify(results.map(item => item.dataVersion))).digest('hex'),
+    parameters: { agentWorkbook: { version: 'agent-workbook/1', sheets },
+      agentExport: { version: 'agent-export/1', format: 'xlsx', singleSheet: false, matchedRows: exportedRows,
+        exportedRows, selection: args } },
+    table: { id: 'workbook', columns: [
+      { key: 'sheet', label: '工作表', unit: null }, { key: 'count', label: '数据行数', unit: null },
+    ], rows },
+    limitations: ['各工作表保留原查询范围、已确认筛选和排序，来源可按工作表追溯。汇总与逐笔记录各自独立。'],
+  };
+  readWorkbookBundle(result.parameters);
+  return result;
+}
+
+function validateExportResult(result: QueryResult): QueryResult {
+  resultViewSchema.parse(result);
+  try { sanitizeAuditContent({ result }); } catch { throw new Error('AGENT_EXPORT_ARCHIVE_LIMIT'); }
+  if (Buffer.byteLength(JSON.stringify(result)) > 15 * 1024 * 1024) throw new Error('AGENT_EXPORT_ARCHIVE_LIMIT');
+  return result;
+}
+
 /** Full server results only. No model-provided cells, source references or paths. */
 export function prepareExportResult(results: readonly QueryResult[], raw: unknown): QueryResult {
   const args = exportTableSchema.parse(raw);
@@ -29,12 +74,13 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
   const base = results[0];
   const lease = isLeaseResult(base);
   const business=isBusinessResult(base);
-  if(results.some(r=>isBusinessResult(r)!==business || business && r.parameters.businessTool!==base.parameters.businessTool)) throw new Error('AGENT_EXPORT_INCOMPATIBLE_DOMAIN');
-  if (results.some(result => isLeaseResult(result) !== lease)) throw new Error('AGENT_EXPORT_INCOMPATIBLE_DOMAIN');
-  if (results.some(result => JSON.stringify(result.table.columns) !== JSON.stringify(base.table.columns)))
-    throw new Error('AGENT_EXPORT_INCOMPATIBLE_COLUMNS');
   if (results.reduce((sum, result) => sum + result.table.rows.length, 0) > WORKSET_LIMITS.totalRows)
     throw new Error('AGENT_WORKSET_LIMIT');
+  if (results.some(result => result.parameters.agentWorkbook !== undefined)) throw new Error('AGENT_EXPORT_INCOMPATIBLE_COLUMNS');
+  const differentDomains = results.some(result => isLeaseResult(result) !== lease || isBusinessResult(result) !== business
+    || business && result.parameters.businessTool !== base.parameters.businessTool);
+  const differentColumns = results.some(result => JSON.stringify(result.table.columns) !== JSON.stringify(base.table.columns));
+  if (differentDomains || differentColumns) return validateExportResult(prepareMixedWorkbook(results, args));
   const columns = base.table.columns;
   const check = (key: string) => {
     if (!columns.some(column => column.key === key)) throw new Error('AGENT_FIELD_NOT_AVAILABLE');
@@ -120,10 +166,7 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
     sources: [...sources.values()], limitations: [...new Set(results.flatMap(result => result.limitations)),
       '导出读取完整正式结果，不受界面分页或模型预览限制；来源、期间及原始统计口径保留。',
       ...(args.topN ? ['Top N 保留末位并列；缺失值排在最后，不当成零。'] : [])] };
-  resultViewSchema.parse(result);
-  try { sanitizeAuditContent({ result }); } catch { throw new Error('AGENT_EXPORT_ARCHIVE_LIMIT'); }
-  if (Buffer.byteLength(JSON.stringify(result)) > 15 * 1024 * 1024) throw new Error('AGENT_EXPORT_ARCHIVE_LIMIT');
-  return result;
+  return validateExportResult(result);
 }
 
 export async function exportAuthorizedTable(workset: AuthorizedResultWorkset, owner: WorksetOwner,
@@ -138,7 +181,7 @@ export async function exportAuthorizedTable(workset: AuthorizedResultWorkset, ow
   if (file.type !== 'download') throw new Error('AGENT_EXPORT_NOT_GENERATED');
   return { result, content: JSON.stringify({ status: 'ready', state: 'server_generated',
     sourceResultIds: args.resultIds, resultId: result.resultId, format: args.format, filename: file.filename,
-    bytes: file.bytes.byteLength, sha256: file.sha256, exportedRows: result.table.rows.length,
+    bytes: file.bytes.byteLength, sha256: file.sha256, exportedRows: (result.parameters.agentExport as { exportedRows: number }).exportedRows,
     matchedRows: (result.parameters.agentExport as { matchedRows: number }).matchedRows,
     note: '服务器已真实生成文件；回答将显示可信下载操作。文件resultId仅用于交付，继续处理请使用sourceResultIds。尚未发起浏览器下载，不能声称已保存到本机。' }) };
 }

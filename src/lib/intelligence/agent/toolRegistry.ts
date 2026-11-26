@@ -213,7 +213,7 @@ export const WORKSET_TOOLS = [
     name === 'plan_research_task' ? ['submarkets'] : name === 'generate_research_deliverable' ? ['taskId', 'formats'] : ['taskId'])),
   def('generate_pdf_report', '真实生成内部PDF研究报告。只接受本轮完整获权resultIds（含服务器重新授权导入的当前对话reportResults），允许不同列结构的多个结果组合；租金、空置率、面积应分别查询完整期间后一起提交。正文、KPI、研究结论、同比环比只来自正式结果，禁止模型提供数字或自写分析。可指定现有chart规格，默认复用已准备图表或原确定性图种。purpose=internal；client用途须另行正式发布授权，本工具不发布对客文件。成功仅表示服务器生成，回答提供可信下载，不能声称本机保存。历史未导入的ID须重新查询。',
     z.toJSONSchema(reportRequestSchema).properties as Record<string, unknown>, ['resultIds']),
-  def('export_table', '真实生成内部Excel或CSV与来源ZIP。只接受本轮完整正式resultIds，不能提交数值/SQL/路径。可选择现有列、组合筛选、排序、Top N；默认全部行，超限明确失败。多结果按同列结构纵向合并并保留结果ID/期间，禁止重算均值。singleSheet=true明确只生成一个工作表。跨轮“刚才结果”须按历史条件重新查询再导出。先获取合法resultId及列key；本工具成功只表示服务器生成，下载由回答中的真实操作交付，不表示本机已保存。',
+  def('export_table', '真实生成内部Excel或CSV与来源ZIP。只接受本轮完整正式resultIds，不能提交数值/SQL/路径。可选择现有列、组合筛选、排序、Top N；默认全部行，超限明确失败。同列结果纵向合并并保留结果ID/期间；不同列结构的 Excel 使用独立工作表，保留每表已确认的视图，不能接收全局跨表筛选。singleSheet=true明确只生成一个工作表。跨轮“刚才结果”只使用服务器重新核验导入的原结果引用。先获取合法resultId及列key；本工具成功只表示服务器生成，下载由回答中的真实操作交付，不表示本机已保存。',
     z.toJSONSchema(exportTableSchema).properties as Record<string, unknown>, ['resultIds', 'format']),
   def('summarize_result', '汇总本次请求中某一完整可信结果的总行数、正式结论、列有效样本数，非前8行。',
     { resultId: ref.properties.resultId }, ['resultId']),

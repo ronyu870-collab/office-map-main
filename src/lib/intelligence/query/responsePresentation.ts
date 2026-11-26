@@ -18,7 +18,7 @@ export const responsePresentationSchema = z.object({
 });
 export type ResponseBlock =
   | { type: 'text'; text: string }
-  | { type: 'summary' | 'metrics' | 'table' | 'chart' | 'building' | 'sources' | 'map' | 'suggestions' | 'analysis' | 'research'; resultId: string }
+  | { type: 'summary' | 'metrics' | 'table' | 'chart' | 'building' | 'sources' | 'map' | 'suggestions' | 'analysis' | 'research' | 'location'; resultId: string }
   | { type: 'file'; resultId: string; format: 'xlsx' | 'csv_zip' | 'pdf' };
 export type ResponseDocument = { version: 'response/1'; layout?: 'conversation' | 'fact' | 'list' | 'ranking' | 'trend' | 'delivery' | 'research'; blocks: ResponseBlock[] };
 
@@ -118,8 +118,31 @@ export function responseFactCells(result: QueryResultView, task?: string) {
   })).slice(0, 3);
 }
 
+export function responseBuildingLocation(result: QueryResultView) {
+  const location = z.object({ buildingLocation: z.object({ subject: z.string().min(1).max(80), submarket: z.string().min(1).max(80) }) })
+    .safeParse(result.parameters.interpretation).data?.buildingLocation;
+  const rows = result.table.rows;
+  if (!location || result.operation !== 'list' || !rows.length) return undefined;
+  const sources = new Map(result.sources.map(source => [source.id, source]));
+  const sourceIds = new Set<string>();
+  for (const row of rows) {
+    const cell = row.cells.submarket;
+    if (cell?.kind !== 'text' || cell.value !== location.submarket) return undefined;
+    const evidence = cell.sourceIds.filter(id => {
+      const source = sources.get(id);
+      return source?.entityId === row.entityId && source.table === 'buildings'
+        && source.field === 'submarket' && source.rawValue === location.submarket;
+    });
+    if (!evidence.length) return undefined;
+    evidence.forEach(id => sourceIds.add(id));
+  }
+  return { ...location, scope: rows.length > 1 ? '的获权楼座位于 ' : '位于 ',
+    sourceIds: [...sourceIds] };
+}
+
 export function composeResponse(message: string | undefined, result?: QueryResultView, task?: string, question?: string): ResponseDocument {
   if (!result) return { version: 'response/1', layout: 'conversation', blocks: message ? [{ type: 'text', text: message }] : [] };
+  if (responseBuildingLocation(result)) return { version: 'response/1', layout: 'fact', blocks: [{ type: 'location', resultId: result.resultId }] };
   const presentation = responsePresentationSchema.safeParse(result.parameters.responsePresentation).data;
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
   const report = reportDescriptorSchema.safeParse(result.parameters.agentReport).data;
