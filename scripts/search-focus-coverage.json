@@ -584,6 +584,16 @@
     ]
   },
   {
+    "id": "pitch-workspace-handoff-review",
+    "roots": [
+      "src/components/pitch/workspace/HandoffReview.tsx"
+    ],
+    "file": "src/components/pitch/workspace/PitchWorkflow.test.tsx",
+    "cases": [
+      "keeps the handoff quarter focused while projects load and confirms the reviewed selection once"
+    ]
+  },
+  {
     "id": "pitch-ai-assist",
     "roots": [
       "src/components/pitch/workspace/AiAssist.tsx"

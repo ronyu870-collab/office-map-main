@@ -162,7 +162,7 @@ export function buildProposal(snapshot: PitchContextSnapshot, data: ProposalData
     }
     return ([draft].flat() as PageDraft[]).map((page, index) => {
       const layoutId = layoutFor(page, config?.layoutId);
-      const content = composeContent(page.title, page.subtitle ?? periodLabel(period), page.blocks, period, brief.audience, snapshot.isTestData);
+      const content = composeContent(page.title, page.subtitle ?? periodLabel(period), page.blocks, period, brief.audience, snapshot.isTestData, page.dataAsOf);
       const evidence = page.blocks.flatMap(block => block.evidence);
       const usedData = new Set(evidence.flatMap(item => item.data ?? []).map(bindingKey));
       const usedVisuals = new Set(evidence.flatMap(item => item.visual ? [item.visual] : []).map(visualKey));

@@ -26,7 +26,7 @@ export const prose = (text: string, evidence: readonly Evidence<unknown>[]) => b
 export const table = (columns: Table['columns'], rows: Table['rows'], evidence: readonly Evidence<unknown>[]) => bind({ kind: 'table', columns, rows }, evidence);
 export const chart = (chartType: Chart['chartType'], categories: string[], series: Chart['series'], evidence: readonly Evidence<unknown>[]) => bind({ kind: 'chart', chartType, categories, series }, evidence);
 
-export function composeContent(title: string, subtitle: string, blocks: readonly BoundBlock[], period: Period, audience: PageAudience, isTestData: boolean) {
+export function composeContent(title: string, subtitle: string, blocks: readonly BoundBlock[], period: Period, audience: PageAudience, isTestData: boolean, dataAsOf = periodEnd(period)) {
   const evidence = blocks.flatMap(item => item.evidence);
   if (!evidence.every(item => usableEvidence(item, audience))) throw new Error('Page requires evidence cleared for its audience.');
   const byId = new Map<string, Evidence<unknown>['sources'][number]>();
@@ -45,7 +45,7 @@ export function composeContent(title: string, subtitle: string, blocks: readonly
     subtitle,
     blocks: blocks.map(({ block, evidence }) => ({ ...block, sourceIds: [...new Set(evidence.flatMap(item => item.sources.map(source => source.id)))] })),
     sources,
-    dataAsOf: periodEnd(period),
+    dataAsOf,
     disclosure: audience === 'client' ? 'client_approved' : 'internal',
     isTestData: isTestData || evidence.some(item => item.isTestData) || sources.some(source => source.kind === 'synthetic'),
   });

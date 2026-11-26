@@ -47,16 +47,18 @@ it("uses the actual proposal review and reuses the generation task after a lost 
   }) });
 });
 
-it("preserves source selection through review and confirms one versioned handoff", async () => {
+it("keeps the handoff quarter focused while projects load and confirms the reviewed selection once", async () => {
   const user = userEvent.setup();
   const source = { kind: "buildings" as const, buildingIds: [buildingId, secondBuildingId] };
   const transfer = JSON.stringify({ source, period: "2026-Q3", ignored: "client content" });
   const item = readPitchHandoff("#add-to-pitch=" + encodeURIComponent(transfer));
   expect(item).toEqual({ source, period: "2026-Q3" });
   const requests: Record<string, unknown>[] = [];
+  let finishList!: (reply: { items: { id: string; title: string }[] }) => void;
+  const projectList = new Promise<{ items: { id: string; title: string }[] }>(resolve => { finishList = resolve; });
   const call = vi.fn(async (request: Record<string, unknown>) => {
     requests.push(request);
-    if (request.action === "list") return { items: [] };
+    if (request.action === "list") return projectList;
     if (request.action === "review_handoff") return {
       status: "ready", fingerprint, period: "2026-Q3", submarkets: [], buildingIds: source.buildingIds,
       binding: { dataAsOf: "2026-09-30" }, pages: [{ title: "已选楼宇对比", sources: [{ label: "正式季度数据" }] }],
@@ -67,6 +69,16 @@ it("preserves source selection through review and confirms one versioned handoff
   const onClose = vi.fn();
   render(<HandoffReview source={item!} call={call} grants={[scope]}
     theme={{ id: "colliers-default-v1", current_version: 2 }} onOpen={onOpen} onClose={onClose} />);
+  const quarter = screen.getByLabelText("正式季度");
+  await user.clear(quarter);
+  await user.type(quarter, "2026-Q");
+  finishList({ items: [{ id: newId, title: "已存项目" }] });
+  await screen.findByRole("option", { name: "已存项目" });
+  expect(quarter).toHaveFocus();
+  expect(quarter).toHaveValue("2026-Q");
+  expect(screen.getByRole("button", { name: "核对来源" })).toBeDisabled();
+  await user.keyboard("3");
+  expect(quarter).toHaveFocus();
   await user.click(screen.getByRole("button", { name: "核对来源" }));
   expect(await screen.findByText("正式季度数据")).toBeInTheDocument();
   expect(requests.find(entry => entry.action === "review_handoff")).toEqual({ action: "review_handoff", handoff: { source, period: "2026-Q3" } });

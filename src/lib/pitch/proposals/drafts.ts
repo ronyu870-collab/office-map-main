@@ -7,6 +7,7 @@ import type { Distribution, Evidence, Field, Metrics, Photo } from './projection
 export interface PageDraft {
   title: string;
   subtitle?: string;
+  dataAsOf?: string;
   composition: LayoutId;
   blocks: BoundBlock[];
 }

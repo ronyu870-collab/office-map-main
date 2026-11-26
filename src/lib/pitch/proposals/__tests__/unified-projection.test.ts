@@ -58,7 +58,7 @@ it('仅把同一子市场已发布并带来源的区域研究编入招商提案'
   const result = projectUnifiedProposalContext(context, brief, template.scope);
   const { pages } = buildProposal(result.snapshot, result.data, { theme: STUDIO_THEME });
   const research = pages.find(page => page.pageKind === 'submarket-research');
-  expect(research?.content.subtitle).toBe('已发布区域概况 · 2026-08-06');
+  expect(research?.content).toMatchObject({ subtitle: '已发布区域概况', dataAsOf: '2026-08-06' });
   expect(research?.content.sources[0]).toMatchObject({ recordId: 'Y-01', locator: 'map_submarket_profiles/Y-01/overview', version: 'v1' });
   expect(projectUnifiedProposalContext({ ...context, results: context.results.slice(0, 1) }, brief, template.scope).data.market?.spotlight).toBeUndefined();
 });
