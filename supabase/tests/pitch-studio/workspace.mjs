@@ -639,6 +639,35 @@ try {
     },
   );
   await check(
+    "fifty saved pages reopen with stable IDs and a sparse export preserves selection order",
+    async () => {
+      let full = await create(ordinary, "五十页隔离压力夹具");
+      full = await workspace.customWorkspace(ordinary, {
+        action: "custom", projectId: full.project.id, expectedVersion: full.project.version,
+        title: "首张说明", body: "同一素材版本的多页保存回归。",
+      });
+      const first = full.slides[0];
+      const pages = [{ id: first.id }, ...Array.from({ length: 49 }, (_, i) => ({
+        id: randomUUID(), duplicateOf: first.id,
+        ...(i === 48 ? { title: "尾张说明" } : {}),
+      }))];
+      full = await workspace.saveWorkspace(ordinary, save(full, { pages, activeSlide: pages.at(-1).id }));
+      const reopened = await workspace.getWorkspace(ordinary, full.project.id);
+      assert.deepEqual(reopened.slides.map(slide => slide.id), pages.map(page => page.id));
+      assert.equal(reopened.workspace.active_slide, pages.at(-1).id);
+      assert.equal(new Set(reopened.slides.map(slide => slide.asset_id)).size, 1);
+      const request = { action: "export_start", projectId: full.project.id, exportId: randomUUID(),
+        format: "pptx", audience: "internal", pages: [49, 0] };
+      await render.prepareRenderExport(ordinary, request);
+      await render.runRenderExport(ordinary, request);
+      const zip = await JSZip.loadAsync((await render.downloadArtifact(ordinary, request)).bytes);
+      const exportedPages = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide[0-9]+\.xml$/.test(name));
+      assert.equal(exportedPages.length, 2);
+      assert.match(await zip.file("ppt/slides/slide1.xml").async("string"), /尾张说明/);
+      assert.match(await zip.file("ppt/slides/slide2.xml").async("string"), /首张说明/);
+    },
+  );
+  await check(
     "accepted structured AI changes are scoped to selected versions and roll back together when a page edit fails",
     async () => {
       let isolated = await create();

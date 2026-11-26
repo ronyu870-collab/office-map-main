@@ -13,6 +13,7 @@ import { layoutSlides } from '../layout/engine';
 import { assertSceneQuality } from '../layout/quality';
 import type { WorkspaceCommand, WorkspaceDetail } from './protocol';
 import { captureKey, fieldIndex, readCaptures, usesBusinessEvidence, type Block, type Capture } from './bindingStore';
+import { noteSubtitle, type PageNote } from './presentation-edits';
 import { commitPayload, getWorkspace } from './workflow';
 
 type RefreshCommand = Extract<WorkspaceCommand, { action: 'preview_data_refresh' | 'apply_data_refresh' }>;
@@ -33,6 +34,7 @@ export async function readDocumentBindings(ctx: PitchContext, projectId: string)
       return {
         id: page.id, assetId: page.asset_id, assetVersion: page.asset_version,
         disclosure: page.content.disclosure, sources: page.content.sources,
+        manualNote: document.workspace.page_settings[page.id]?.note?.text,
         objects: page.content.blocks.map((block, index) => {
           const origin = capture ? fieldIndex(block, capture.content) : -1;
           if (capture && usesBusinessEvidence(block, capture.content) && block.kind !== 'insight') {
@@ -58,7 +60,7 @@ function blockValue({ sourceIds: _sourceIds, ...value }: Block) {
   void _sourceIds;
   return value;
 }
-function mergeContent(page: SlideContent, previous: SlideContent, proposed: SlideContent) {
+function mergeContent(page: SlideContent, previous: SlideContent, proposed: SlideContent, note: PageNote | undefined) {
   if (previous.blocks.length !== proposed.blocks.length ||
     previous.blocks.some((block, index) => block.kind !== proposed.blocks[index].kind))
     throw new Error('PITCH_DATA_REFRESH_LAYOUT');
@@ -72,7 +74,8 @@ function mergeContent(page: SlideContent, previous: SlideContent, proposed: Slid
       return block;
     }
     updated = true;
-    return proposed.blocks[index];
+    const replacement = proposed.blocks[index];
+    return block.kind === 'chart' && replacement.kind === 'chart' ? { ...replacement, chartType: block.chartType } : replacement;
   });
   if (!updated) throw new Error('PITCH_DATA_REFRESH_LAYOUT');
   const referenced = new Set(blocks.flatMap(block => block.sourceIds));
@@ -81,10 +84,15 @@ function mergeContent(page: SlideContent, previous: SlideContent, proposed: Slid
   const previousIds = new Set(previous.sources.map(source => source.id));
   const sources = [...page.sources.filter(source => !previousIds.has(source.id) || referenced.has(source.id)),
     ...[...additions.values()].filter(source => referenced.has(source.id))];
-  return slideContentSchema.parse({
-    ...page, blocks, sources, dataAsOf: proposed.dataAsOf,
-    subtitle: page.subtitle === previous.subtitle ? proposed.subtitle : page.subtitle,
-  });
+  const base = note ? note.baseSubtitle : page.subtitle;
+  const baseSubtitle = base === previous.subtitle ? proposed.subtitle : base;
+  return {
+    content: slideContentSchema.parse({
+      ...page, blocks, sources, dataAsOf: proposed.dataAsOf,
+      subtitle: note ? noteSubtitle(baseSubtitle, note.text, page.locale) : baseSubtitle,
+    }),
+    note: note ? { ...note, baseSubtitle } : undefined,
+  };
 }
 
 async function prepareRefresh(ctx: PitchContext, command: RefreshCommand) {
@@ -108,7 +116,7 @@ async function prepareRefresh(ctx: PitchContext, command: RefreshCommand) {
     if (!capture || capture.generation_id !== original.generation_id || capture.snapshot_index !== original.snapshot_index) return [];
     const candidate = fetched.content[capture.content_index];
     if (!candidate) throw new Error('PITCH_DATA_REFRESH_LAYOUT');
-    return [{ page, capture, content: mergeContent(page.content, capture.content, candidate) }];
+    return [{ page, capture, ...mergeContent(page.content, capture.content, candidate, document.workspace.page_settings[page.id]?.note) }];
   });
   const afterVersion = documentDataVersion(fetched.results);
   const changes = pages.map(({ page, capture, content }) => {
@@ -185,7 +193,7 @@ export async function applyDataRefresh(ctx: PitchContext, command: Extract<Refre
     next.set(page.id, { ...page, content, scene, asset_id: asset.assetId, asset_version: 1 });
   }
   const settings = { ...document.workspace.page_settings };
-  for (const slideId of next.keys()) settings[slideId] = { ...settings[slideId], origin: 'data' };
+  for (const { page, note } of pages) settings[page.id] = { ...settings[page.id], origin: 'data', note };
   const save = await commitPayload(ctx, document, document.slides.map(page => next.get(page.id) ?? page), settings);
   await pitchRpc(ctx, {
     action: 'workspace_data_refresh_commit', projectId: project.id, expectedVersion: project.version,

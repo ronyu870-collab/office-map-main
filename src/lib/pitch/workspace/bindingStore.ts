@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { documentResultSchema } from '../business/document-version';
 import { dynamicParametersSchema } from '../business/protocol';
 import { slideContentSchema, type SlideContent } from '../contracts/content';
+import { workspaceChartTypeSchema } from "./presentation-edits";
 import { pitchRpc, type PitchContext } from '../data/store';
 
 const captureSchema = z.object({
@@ -24,7 +25,12 @@ export async function readCaptures(ctx: PitchContext, projectId: string, version
 
 export function fieldIndex(block: Block, original: SlideContent) {
   const serialized = encode(block);
-  return original.blocks.findIndex(value => encode(value) === serialized);
+  const exact = original.blocks.findIndex(value => encode(value) === serialized);
+  if (exact >= 0 || block.kind !== 'chart' || !workspaceChartTypeSchema.safeParse(block.chartType).success) return exact;
+  const matches = original.blocks.flatMap((value, index) => value.kind === 'chart' &&
+    workspaceChartTypeSchema.safeParse(value.chartType).success &&
+    encode({ ...value, chartType: block.chartType }) === serialized ? [index] : []);
+  return matches.length === 1 ? matches[0] : -1;
 }
 export function usesBusinessEvidence(block: Block, original: SlideContent) {
   return block.sourceIds.some(id => original.sources.some(source => source.id === id));

@@ -8,11 +8,11 @@ import { runPitchDataAdapter } from '../business/adapter';
 import { documentDataVersion } from '../business/document-version';
 import { dynamicParametersSchema } from '../business/protocol';
 import { digest, pitchRpc, type PitchContext } from '../data/store';
-import type { AddToPitch } from '../integration-contracts';
 import { projectContextSchema, type WorkspaceCommand } from './protocol';
 import { getWorkspace } from './workflow';
 
 type HandoffCommand = Extract<WorkspaceCommand, { action: 'review_handoff' | 'add_to_pitch' }>;
+type Handoff = HandoffCommand['handoff'];
 const reviewSchema = z.object({ state: z.string() }).passthrough();
 const sourceScope = z.object({ buildingIds: z.array(z.uuid()).max(20).optional(),
   submarkets: z.array(z.string().max(80)).max(1).optional(),
@@ -35,31 +35,39 @@ async function resolveAnalysis(ctx: PitchContext, requestId: string) {
   if (buildingIds.length > 20 || (!buildingIds.length && submarkets.length !== 1)) throw new Error('PITCH_HANDOFF_UNSUPPORTED');
   return { buildingIds, submarkets, period: data.data.period, inventory: scope.inventory };
 }
-async function prepareHandoff(ctx: PitchContext, input: AddToPitch) {
+async function prepareHandoff(ctx: PitchContext, input: Handoff) {
   const current = input.projectId ? await getWorkspace(ctx, input.projectId) : undefined;
   const source = input.source;
+  const lease = source.kind === 'lease-search' ? source : undefined;
   const resolved = source.kind === 'analysis-result' ? await resolveAnalysis(ctx, source.id) : undefined;
-  const buildingIds = source.kind === 'buildings' ? source.buildingIds : resolved?.buildingIds ?? [];
-  const submarkets = source.kind === 'submarket' ? [source.key] : resolved?.submarkets ?? [];
-  const periodKey = input.period || (resolved?.period ? `${resolved.period.year}-Q${resolved.period.quarter}` : current?.workspace.context.period);
+  const buildingIds = source.kind === 'buildings' ? source.buildingIds : lease?.buildingIds ?? resolved?.buildingIds ?? [];
+  const submarkets = source.kind === 'submarket' ? [source.key] : lease?.submarkets ?? resolved?.submarkets ?? [];
   const language = input.language ?? current?.workspace.context.language ?? 'zh';
-  if (!periodKey) return { status: 'period_required' as const, buildingIds, submarkets, language };
-  const period = quarterSchema.parse({ year: Number(periodKey.slice(0, 4)), quarter: Number(periodKey.at(-1)) });
+  const periodKey = lease ? '' : input.period ||
+    (resolved?.period ? `${resolved.period.year}-Q${resolved.period.quarter}` : current?.workspace.context.period);
+  if (!lease && !periodKey) return { status: 'period_required' as const, buildingIds, submarkets, language };
+  const period = quarterSchema.parse(lease
+    ? { year: Number(lease.to.slice(0, 4)), quarter: Math.ceil(Number(lease.to.slice(5, 7)) / 3) }
+    : { year: Number(periodKey!.slice(0, 4)), quarter: Number(periodKey!.at(-1)) });
   const parameters = dynamicParametersSchema.parse({
-    templateId: buildingIds.length === 1 ? 'building-profile' : buildingIds.length ? 'project-comparison' : 'rent-trend',
+    templateId: lease
+      ? (lease.view === 'transactions' ? 'lease-representatives' : 'lease-industry-distribution')
+      : buildingIds.length === 1 ? 'building-profile' : buildingIds.length ? 'project-comparison' : 'rent-trend',
     buildingIds, submarkets, inventory: resolved?.inventory ?? 'all_authorized', period, start: period, end: period,
-    fields: ['totalArea', 'vacantArea', 'netEffectiveRent'], chart: 'table', direction: 'asc',
-    from: period.year + '-01-01', to: period.year + '-12-31', leaseSource: 'combined', measure: 'count',
+    fields: lease ? [] : ['totalArea', 'vacantArea', 'netEffectiveRent'],
+    chart: lease && lease.view !== 'transactions' ? 'bar' : 'table', direction: lease?.direction ?? 'asc',
+    from: lease?.from ?? period.year + '-01-01', to: lease?.to ?? period.year + '-12-31',
+    leaseSource: lease?.dataset ?? 'combined', measure: lease?.view === 'industry-area' ? 'area' : 'count',
   });
   const snapshot = await runPitchDataAdapter(ctx, parameters, language);
-  if (buildingIds.length) {
+  if (!lease && buildingIds.length) {
     const included = new Set(snapshot.results[0].table.rows.map(row => row.entityId));
     if (buildingIds.some(id => !included.has(id))) throw new Error('QUERY_DENIED');
   }
   const binding = { ...snapshot.binding, dataVersion: snapshot.dataVersion, dataAsOf: snapshot.dataAsOf };
   const version = documentDataVersion(snapshot.results);
   const fingerprint = digest(Buffer.from(JSON.stringify({ source, projectId: input.projectId, parameters, language, version, authority: snapshot.binding })));
-  return { status: 'ready' as const, buildingIds, submarkets, period: periodKey, language, binding, version, parameters, fingerprint,
+  return { status: 'ready' as const, buildingIds, submarkets, period: periodKey ?? '', language, binding, version, parameters, fingerprint,
     pages: snapshot.content.map(content => ({ title: content.title, blocks: content.blocks, sources: content.sources })),
   };
 }
@@ -70,9 +78,12 @@ export async function startHandoff(ctx: PitchContext, command: Extract<HandoffCo
   const { handoff, target, taskId } = command;
   const projectId = target.mode === 'create' ? target.projectId : handoff.projectId!;
   if (target.mode === 'create' && handoff.projectId || target.mode === 'append' && !handoff.projectId) throw new Error('PITCH_INVALID');
+  const expectedVersion = target.mode === 'append' ? target.expectedVersion : 1;
+  const request = { handoff, target, fingerprint: command.fingerprint };
+  const replay = await pitchRpc(ctx, { action: 'workspace_handoff_replay', projectId, taskId, request });
+  if (replay !== null) return reviewSchema.parse(replay);
   const review = await prepareHandoff(ctx, handoff);
   if (review.status !== 'ready' || review.fingerprint !== command.fingerprint) throw new Error('PITCH_HANDOFF_CHANGED');
-  const expectedVersion = target.mode === 'append' ? target.expectedVersion : 1;
   const create = target.mode === 'create' ? {
     title: target.title, scope: target.scope, themeId: target.themeId, themeVersion: target.themeVersion,
     context: projectContextSchema.parse({ buildingIds: review.buildingIds, language: review.language, period: review.period }),
@@ -82,7 +93,7 @@ export async function startHandoff(ctx: PitchContext, command: Extract<HandoffCo
     command: {
       part: { mode: 'handoff', parameters: review.parameters, language: review.language, dataVersion: review.version,
         policyVersion: review.binding.policyVersion, permissionRevision: review.binding.permissionRevision },
-      replaceIds: [], creation: create,
+      replaceIds: [], creation: create, request,
     },
   }));
 }

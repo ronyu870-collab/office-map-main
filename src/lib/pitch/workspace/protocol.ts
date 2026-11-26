@@ -5,6 +5,7 @@ import {
   variantSchema,
   slideSceneSchema,
 } from "../contracts/scene";
+import { pageNoteSchema, pageNoteTextSchema, workspaceChartTypeSchema } from "./presentation-edits";
 import { objectMoveSchema, objectTextSchema, objectOrderSchema, objectGroupsSchema } from "./object-layout";
 import { dynamicParametersSchema, generationPartSchema } from "../business/protocol";
 import { revisionRefs } from "../ai/protocol";
@@ -29,6 +30,10 @@ export const pageEditSchema = z.strictObject({
   duplicateOf: id.optional(),
   title: title.optional(),
   paragraphs: z.array(z.string().min(1).max(4000)).max(50).optional(),
+  manualNote: pageNoteTextSchema.nullable().optional(),
+  chartPresentation: z.array(z.strictObject({
+    blockIndex: z.number().int().min(0).max(49), type: workspaceChartTypeSchema,
+  })).min(1).max(10).optional(),
   images: z
     .array(
       z.strictObject({
@@ -124,14 +129,30 @@ const handoffPartSchema = z.strictObject({
   dataVersion: outlineFingerprint, permissionRevision: z.string().min(1).max(160), policyVersion: z.string().min(1).max(160),
 });
 export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema,outlinePartSchema,handoffPartSchema]);
+const leaseHandoffSourceSchema = z.strictObject({
+  kind: z.literal("lease-search"),
+  dataset: z.enum(["live", "history", "combined"]),
+  from: z.iso.date(),
+  to: z.iso.date(),
+  buildingIds: z.array(id).max(20).default([]),
+  submarkets: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
+  view: z.enum(["transactions", "industry-count", "industry-area"]),
+  direction: z.enum(["asc", "desc"]).default("desc"),
+}).superRefine((input, ctx) => {
+  if (input.from > input.to || Number(input.to.slice(0, 4)) - Number(input.from.slice(0, 4)) > 20)
+    ctx.addIssue({ code: "custom", path: ["to"], message: "Invalid lease period" });
+  if (new Set(input.buildingIds).size !== input.buildingIds.length || new Set(input.submarkets).size !== input.submarkets.length)
+    ctx.addIssue({ code: "custom", message: "Duplicate lease filter" });
+});
 const handoffSchema = z.strictObject({
   source: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("buildings"), buildingIds: z.array(id).min(1).max(20).refine(ids => new Set(ids).size === ids.length) }),
     z.strictObject({ kind: z.literal("submarket"), key: z.string().trim().min(1).max(80) }),
     z.strictObject({ kind: z.literal("analysis-result"), id }),
+    leaseHandoffSourceSchema,
   ]),
   projectId: id.optional(), period: outlineQuarter.optional(), language: z.enum(["zh", "en"]).optional(),
-});
+}).refine(input => input.source.kind !== "lease-search" || !input.period, "Lease handoff specifies its own date range");
 const handoffTargetSchema = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("append"), expectedVersion: z.number().int().positive() }),
   z.strictObject({ mode: z.literal("create"), projectId: id, title, scope: scopeSchema,
@@ -265,6 +286,7 @@ export const workspaceReadSchema = z.discriminatedUnion("action", [
 const settingSchema = z
   .object({
     manual: z.boolean().optional(),
+    note: pageNoteSchema.optional(),
     origin: z.enum(["asset", "data", "user"]).optional(),
     part: z.unknown().optional(),
   })
