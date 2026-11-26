@@ -55,6 +55,29 @@ try {
    await updateParent();
    assert.equal((await db.rpc(OTHER,current.input)).replayed,true);
  });
+ await check('a pinned photo reused by multiple pages is downloaded once during actual generation', async () => {
+   const { createSample } = require('../../../src/lib/pitch/data/workflow.ts');
+   const sample = await createSample(owner, randomUUID(), scope);
+   const { media: [photo] } = await db.rpc(OWNER, { action: 'get_asset', assetId: sample.assetId });
+   const team = await asset('team', 9);
+   const current = await db.rpc(OWNER, { action: 'business_profile', assetId: team });
+   await workflow.saveBusinessProfile(owner, { assetId: team, expectedVersion: current.asset.current_version,
+     profile: { ...current.profile, photo: { id: photo.id, version: photo.version } } });
+   await library.confirmAssets(owner, { action: 'confirm', items: [{ assetId: team, expectedVersion: current.asset.current_version + 1 }],
+     acknowledgePartial: true });
+
+   const downloads = [];
+   const context = { ...owner, client: { ...owner.client, storage: { from(bucket) {
+     const storage = owner.client.storage.from(bucket);
+     return { ...storage, async download(path) { downloads.push(path); return storage.download(path); } };
+   } } } };
+   const member = staticPart('team-single', [team]);
+   const generation = command([{ ...member, title: '团队介绍' }, { ...member, title: '项目分工' }]);
+   await workflow.generateBusinessProject(context, generation);
+   const { slides } = await db.rpc(OWNER, { action: 'get_project', projectId: generation.projectId });
+   assert.ok(slides.filter(page => page.scene.elements.some(element => element.kind === 'image' && element.mediaAssetId === photo.id)).length >= 2);
+   assert.deepEqual(downloads, [photo.storage_path]);
+ });
  await check('unpublished assets, wrong regions, languages and private customer display are rejected',async()=>{await assert.rejects(workflow.generateBusinessProject(ordinary,{...command([staticPart('corporate-overview',[ids.corporate])]),scope:{...scope,city:'unrelated'}}),/PITCH_BUSINESS_CONTENT/);await assert.rejects(workflow.generateBusinessProject(ordinary,{...command([staticPart('corporate-overview',[ids.corporate])]),language:'en'}),/PITCH_BUSINESS_CONTENT/);const current=await library.assetContext(owner,ids.case),p=(await db.rpc(OWNER,{action:'business_profile',assetId:ids.case})).profile;p.display.title=PRIVATE_CLIENT;await assert.rejects(workflow.saveBusinessProfile(owner,{assetId:ids.case,expectedVersion:3,profile:p}),/PITCH_BUSINESS_CONTENT/);const input=library.assetInput(current.asset,current.version.content);input.state='draft';await library.saveLibraryAsset(owner,{action:'save_asset',assetId:ids.case,expectedVersion:3,asset:input,acknowledgePartial:true});await assert.rejects(render.downloadArtifact(ordinary,exported),/PITCH_DENIED/);await library.confirmAssets(owner,{action:'confirm',items:[{assetId:ids.case,expectedVersion:4}],acknowledgePartial:true});});
  await check('all fifteen recipes execute their supported contracts and confirmed brief cases remain distinct',async()=>{
   const recipes=(await db.rpc(OWNER,{action:'business_catalog'})).recipes;const named=await asset('case',8);const n=(await db.rpc(OWNER,{action:'business_profile',assetId:named})).profile;n.disclosureMode='named';n.internalClientName=null;await workflow.saveBusinessProfile(owner,{assetId:named,expectedVersion:3,profile:n});await library.confirmAssets(owner,{action:'confirm',items:[{assetId:named,expectedVersion:4}],acknowledgePartial:true});

@@ -37,6 +37,7 @@ const headers = {
 };
 const reply = (value: unknown, status = 200) =>
   Response.json(value, { status, headers });
+const taskReceipt = z.object({ state: z.string() }).passthrough();
 export async function handleWorkspaceRequest(
   request: Request,
   deps: PitchDependencies,
@@ -44,6 +45,11 @@ export async function handleWorkspaceRequest(
 ) {
   try {
     const ctx = await authorizePitch(request, deps);
+    const dispatchQueuedTask = (projectId: string, taskId: string, receipt: unknown) => {
+      if (schedule && taskReceipt.parse(receipt).state === "queued") {
+        schedule(() => runWorkspaceTask({ ...ctx, signal: AbortSignal.timeout(45000) }, projectId, taskId));
+      }
+    };
     if (!isQuerySameOrigin(request))
       return reply({ error: "请求来源不受信任。" }, 403);
     if (request.method === "GET") {
@@ -98,7 +104,7 @@ export async function handleWorkspaceRequest(
       if (!schedule) throw new Error("PITCH_WORKER_UNAVAILABLE");
       const receipt = await startHandoff(ctx, c);
       const projectId = c.target.mode === "create" ? c.target.projectId : c.handoff.projectId!;
-      if (receipt.state === "queued") schedule(() => runWorkspaceTask({ ...ctx, signal: AbortSignal.timeout(45000) }, projectId, c.taskId));
+      dispatchQueuedTask(projectId, c.taskId, receipt);
       return reply(receipt, 202);
     }
     if (c.action === "start_canvas_text") {
@@ -125,25 +131,16 @@ export async function handleWorkspaceRequest(
         c.action === "start"
           ? await startWorkspaceTask(ctx, c)
           : await pitchRpc(ctx, { ...c, action: "workspace_task_retry" });
-      if (z.object({ state: z.string() }).parse(receipt).state === "queued") {
-        schedule(() => runWorkspaceTask(
-          { ...ctx, signal: AbortSignal.timeout(45000) },
-          c.projectId,
-          c.taskId,
-        ));
-      }
+      dispatchQueuedTask(c.projectId, c.taskId, receipt);
       return reply(receipt, 202);
     }
-    if (c.action === "status" || c.action === "cancel")
-      return reply(
-        await pitchRpc(ctx, {
-          ...c,
-          action:
-            c.action === "status"
-              ? "workspace_task_status"
-              : "workspace_task_cancel",
-        }),
-      );
+    if (c.action === "status" || c.action === "cancel") {
+      const receipt = await pitchRpc(ctx, { ...c, action: "workspace_task_" + c.action });
+      // A request may have stopped between enqueue and scheduling. Every
+      // recovered worker still needs to win the original task's atomic claim.
+      if (c.action === "status") dispatchQueuedTask(c.projectId, c.taskId, receipt);
+      return reply(receipt);
+    }
     const result = await pitchRpc(ctx, {
       ...c,
       action: "workspace_" + c.action,

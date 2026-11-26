@@ -9,6 +9,7 @@ import { composeProject, downloadArtifact, ExportEligibilityError, prepareRender
 import { LayoutError } from './layout/metrics';
 const headers = { 'Cache-Control': 'private, no-store', Vary: 'Authorization, x-colliers-impersonate-user', 'X-Content-Type-Options': 'nosniff' };
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers });
+const queuedExport = z.object({ state: z.literal('pending'), stage: z.literal('queued') });
 export async function handlePitchRequest(request: Request, dependencies: PitchDependencies, schedule?: (task: () => Promise<void>) => void): Promise<Response> {
   try {
     const ctx = await authorizePitch(request, dependencies);
@@ -21,6 +22,12 @@ export async function handlePitchRequest(request: Request, dependencies: PitchDe
         return new Response(Buffer.from(file.bytes), { headers: { ...headers, 'Content-Type': file.mime, 'Content-Disposition': `attachment; filename="pitch.${file.filename.split('.').pop()}"; filename*=UTF-8''${encodeURIComponent(file.filename)}` } });
       }
       const data = await pitchRpc(ctx, parsed.data);
+      if (parsed.data.action === 'export_status' && schedule && queuedExport.safeParse(data).success) {
+        // The original request may have stopped after storing the receipt.
+        // The worker uses its saved audience, selection and authorization.
+        const exportId = parsed.data.exportId, projectId = parsed.data.projectId;
+        schedule(() => runRenderExport({ ...ctx, signal: AbortSignal.timeout(45000) }, { projectId, exportId }));
+      }
       if (parsed.data.action === 'list_assets' || parsed.data.action === 'list_projects') {
         const items = z.array(z.object({ id: z.uuid() }).passthrough()).parse(data);
         return reply({ items: items.slice(0, 50), next: items.length > 50 ? items[49].id : null });

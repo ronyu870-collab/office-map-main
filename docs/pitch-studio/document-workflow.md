@@ -11,9 +11,11 @@
 | POST `review_handoff` | 传共享 `AddToPitch`。楼宇与子市场由当前账号查询授权及正式季度数据解析。Colliers AI `analysis-result.id` 接受获权查数存档的请求 ID，复核当前会话和原始权限。支持楼宇列表、楼宇对比及可解析的单子市场上下文。需要指定正式季度时返回 `period_required`。成交库可传 `lease-search`，包括 `dataset`、`from`、`to`、`buildingIds`、`submarkets`、`view` 与可选 `direction`。`view` 可为 `transactions`、`industry-count` 或 `industry-area`。服务端沿用成交查询的独立导出、明细权限和分组披露阈值。 |
 | POST `add_to_pitch` | 传相同 `handoff`、预览 `fingerprint`、稳定 `taskId` 和显式 `target`。追加使用 `mode: append, expectedVersion`；新建使用 `mode: create, projectId, title, scope, themeId, themeVersion`。新建和排队在同一事务。后台重新读取并核对事实，应用整个任务结果时持有项目版本锁。 |
 
-任务收据保留 `state`、`attempts` 和实际阶段 `preparing`、`assembling`、`saved`。在请求结果不确定时用原 `taskId` 与原始参数重放，已完成的任务返回原回执。跨模块确认请求的精确重放在新查数之前读取原任务，保留原目标版本及审批指纹。取消、重试及审批继续使用现有权限和版本控制。
+任务收据保留 `state`、`attempts` 和实际阶段 `preparing`、`assembling`、`saved`。查询已入库的排队任务可恢复后台执行，并发查询仍由数据库原子领取。请求结果不确定时用原 `taskId` 与原始参数重放，已完成的任务返回原回执。跨模块确认请求的精确重放在新查数之前读取原任务，保留原目标版本及审批指纹。取消、重试及审批继续使用现有权限和版本控制。
 
 GET `export_eligibility` 返回指定受众是否获授权、项目版本以及每页拦截原因。POST `export_start` 保留既有 `page`、`pages` 选择约定，支持 PPTX、PDF、高清 PNG、SVG 与 XLSX。所选页面中任何一页不符合要求时返回 403 及页面列表，调用方可以改选。审核通过的导出按所选页固定资产和图片版本，下载时复核；已完成的文件继续使用自己的权限清单。PPTX 继续由统一 Scene 写出原生对象。PDF 逐页复用 2560 像素场景渲染，适用于固定版式阅读。旧导出记录沿用原工作流读取。同一账号重复导出相同版本、页序、格式、受众和权限清单时，可复用同一渲染版本的归档文件。每个请求仍保留自己的回执和下载鉴权。
+
+GET `export_status` 可以恢复尚在排队的导出，继续使用原收据的版本、选页、格式和受众。
 
 楼宇图片、地图、Stacking Plan 的新授权解析和新 Scene 由各自专项接入。项目编辑仍限所有者。现有页面素材可按记录版本复用。
 

@@ -144,7 +144,7 @@ try {
    if(format==='svg')assert.match(new TextDecoder().decode(file.body),/<svg/);
    if(format==='xlsx'){const zip=await JSZip.loadAsync(file.body);assert.ok(zip.file('xl/workbook.xml'));}
  });
- await verifyPitchDocumentDelivery({app,db,owner,other,viewer,scope,call,check,studioProject,studioExport});
+ await verifyPitchDocumentDelivery({app,db,owner,other,viewer,scope,call,check,until,studioProject,studioExport});
  async function library(who,input,write=false){
   const res=await fetch(app+'/api/intelligence/pitch/library'+(write?'':'?'+new URLSearchParams(input)),{method:write?'POST':'GET',headers:{Authorization:'Bearer '+who.token,...(write?{'Content-Type':'application/json'}:{})},...(write?{body:JSON.stringify(input)}:{})});
   return {status:res.status,body:res.headers.get('content-type')?.includes('application/json')?await res.json():new Uint8Array(await res.arrayBuffer())};

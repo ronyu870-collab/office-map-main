@@ -17,7 +17,7 @@ import { makeFile, mediaRowSchema, pitchRpc, readFile, uploadFile, type PitchCon
 const deliveryRevision = 'pitch-export-output/1' + (process.env.VERCEL_GIT_COMMIT_SHA ? '/' + process.env.VERCEL_GIT_COMMIT_SHA : '');
 const pageSchema = z.object({ id: z.uuid(), content: slideContentSchema, scene: slideSceneSchema });
 const previewContextSchema = z.object({ slides: z.array(pageSchema).min(1).max(50), themes: z.array(z.object({ definition: designThemeSchema })), media: z.array(mediaRowSchema) });
-export async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>[], scenes: z.infer<typeof slideSceneSchema>[]) {
+export async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>[], scenes: z.infer<typeof slideSceneSchema>[], missing = 'PITCH_MEDIA_UNAVAILABLE') {
   const refs = sceneMediaReferences(scenes), files: SceneMedia[] = [];
   const available = new Map(rows.map(row => [`${row.id}:${row.version}`, row]));
   const seen = new Set<string>();
@@ -25,7 +25,7 @@ export async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRow
     const key = `${ref.id}:${ref.version}`;
     if (seen.has(key)) continue;
     const row = available.get(key);
-    if (!row) throw new Error('PITCH_MEDIA_UNAVAILABLE');
+    if (!row) throw new Error(missing);
     seen.add(key);
     files.push({ id: row.id, version: row.version, mime: row.mime, bytes: await readFile(ctx, { bucket: 'pitch-studio-private', path: row.storage_path, mime: row.mime, size: row.size_bytes, sha256: row.sha256 }) });
   }
@@ -99,8 +99,9 @@ export class ExportEligibilityError extends Error {
 /** Runs after the HTTP acknowledgement. Durable claim/progress/deadline permit
  * owner polling and explicit retry after a worker crash, without holding an API
  * response or storing generated files in the function's ephemeral filesystem. */
-export async function runRenderExport(ctx: PitchContext, command: Extract<PitchCommand, { action: 'export_start' }>) {
-  const token = randomUUID(), args = { projectId: command.projectId, exportId: command.exportId, audience: command.audience, workerToken: token };
+export async function runRenderExport(ctx: PitchContext, command: { projectId: string; exportId: string; audience?: 'internal' | 'client' }) {
+  const args = { projectId: command.projectId, exportId: command.exportId, workerToken: randomUUID(),
+    ...(command.audience && { audience: command.audience }) };
   try {
     const claim = z.object({ claimed: z.boolean() }).parse(await pitchRpc(ctx, { action: 'export_claim', ...args }));
     if (!claim.claimed) return;
