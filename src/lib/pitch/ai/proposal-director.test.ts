@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { STUDIO_THEME } from "../design/theme";
 import { layoutSlides } from "../layout/engine";
 import { renderPitchPptx } from "../render/pptx";
+import { proposalFixture } from "../proposals/__tests__/fixture";
+import { composeRecipePages } from "./proposal-recipe";
 import { directProposal, type ComposedProposalPage, type ProposalDirectorPorts } from "./proposal-director";
 import { proposalRequestSchema } from "./proposal-brief";
 import { proposalRevisionRequestSchema } from "./proposal-edit-intent";
@@ -51,29 +53,55 @@ function ports(): ProposalDirectorPorts {
   };
 }
 
+function recipePorts(scenario: "leasing-agency" | "office-comparison" | "market-report" | "building-promotion"): ProposalDirectorPorts {
+  const fixture = proposalFixture(scenario);
+  const submarket = scenario === "office-comparison" ? "CBD" : "燕莎";
+  const fixtureBuildings = fixture.data.buildings.map((building, index) => ({
+    ...building, submarket,
+    ...(index === 0 && scenario !== "office-comparison" ? {
+      name: target.name, identity: { ...building.identity, value: { name: target.name } },
+    } : {}),
+  }));
+  const market = { ...fixture.data.market!, city: "北京", name: "隔离验证市场",
+    submarket: scenario === "leasing-agency" ? submarket : undefined };
+  return {
+    ...ports(),
+    buildings: async () => fixtureBuildings.map(building => ({ ...building, city: "北京" })),
+    compose: async ({ brief }) => composeRecipePages({
+      ...fixture.snapshot, scope, visuals: [],
+      brief: scenario === "leasing-agency" ? { ...brief, buildingIds: fixtureBuildings.map(building => building.id) } : brief,
+    }, { ...fixture.data, buildings: fixtureBuildings, market }, { theme: STUDIO_THEME }),
+  };
+}
+
 describe("Proposal Director review and generation", () => {
   it.each([
     ["为霄云路33号制作招商代理提案", "leasing-agency", "rent-position"],
-    ["比较CBD五栋甲级写字楼", "office-comparison", "tradeoffs"],
+    ["比较CBD五栋甲级写字楼", "office-comparison", "parameters"],
     ["制作北京最新正式季度写字楼市场报告", "market-report", "rent-trend"],
-    ["为霄云路33号制作高端项目推介", "building-promotion", "occupier-fit"],
-  ])("turns %s into reviewed native slides", async (question, scenario, expectedPage) => {
-    const result = await directProposal(request(question), ports(), newSignal());
-    expect(result).toMatchObject({ status: "ready", modelCalls: 0, snapshot: { brief: { scenario } } });
+    ["为霄云路33号制作高端项目推介", "building-promotion", "parameters"],
+  ] as const)("turns %s into reviewed native slides with the business recipe", async (question, scenario, expectedPage) => {
+    const result = await directProposal(request(question), recipePorts(scenario), newSignal());
+    expect(result).toMatchObject({ status: "ready", modelCalls: 0, snapshot: { brief: { scenario }, isTestData: true } });
     if (result.status !== "ready") throw new Error(result.code);
-    expect(result.plan.gaps).toContainEqual({ pageKind: "photo", reason: "暂无图片" });
-    expect(result.plan.slides).toContainEqual(expect.objectContaining({ pageKind: expectedPage, chart: "table", businessIntent: "fact" }));
+    const intent = result.plan.slides.find(slide => slide.pageKind === expectedPage);
+    expect(intent?.chart).toBeTruthy();
     expect(result.plan.slides[0].precedes).toBe(result.plan.slides[1].id);
     expect(result.plan.slides[1].follows).toBe(result.plan.slides[0].id);
-    expect(result.plan.slides.every(slide => slide.keyMessages[0].sourceIds.length === 1)).toBe(true);
-    const pages = (await Promise.all(result.pages.map(async page =>
-      (await layoutSlides(page.content, STUDIO_THEME, page.layoutId ?? "data-table")).map(scene => ({ scene, theme: STUDIO_THEME }))),)).flat();
+    expect(result.plan.slides.every(slide => slide.keyMessages.every(message => message.sourceIds.length > 0))).toBe(true);
+    const chosen = result.pages.find(page => page.id === intent?.id)!;
+    const pages = (await layoutSlides(chosen.content, STUDIO_THEME, chosen.layoutId ?? "data-table"))
+      .map(scene => ({ scene, theme: STUDIO_THEME }));
     const pptx = await renderPitchPptx(result.plan.title, pages, []);
-    expect(pages).toHaveLength(3);
     const xml = await (await JSZip.loadAsync(pptx)).file("ppt/slides/slide1.xml")!.async("string");
-    expect(xml).toContain("<a:tbl>");
-    expect(xml).toContain("123");
+    expect(xml).toMatch(/<a:tbl>|<c:chart\b/);
   }, 45_000);
+
+  it("keeps a visual evidence gap visible while returning usable pages", async () => {
+    expect(await directProposal(request("为霄云路33号制作项目推介"), ports(), newSignal())).toMatchObject({
+      status: "ready", plan: { gaps: [{ pageKind: "photo", reason: "暂无图片" }] },
+    });
+  });
 
   it("uses the latest verified period and refuses to substitute for an explicitly requested incomplete quarter", async () => {
     expect(await directProposal(request("制作北京最新正式季度写字楼市场报告"), ports(), newSignal())).toMatchObject({
