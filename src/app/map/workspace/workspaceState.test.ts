@@ -16,7 +16,7 @@ describe('map workspace navigation and physical canvas budget', () => {
     expect(state.width).toBe(320);
     state = workspaceReducer(state, { type: 'width', width: 390 });
     state = workspaceReducer(state, { type: 'open', view: { kind: 'submarket', name: 'CBD' } });
-    expect(state.width).toBe(400);
+    expect(state.width).toBe(PANEL_SIZES.submarket.initial);
     state = workspaceReducer(state, { type: 'width', width: 500 });
     state = workspaceReducer(state, { type: 'open', view: { kind: 'search' } });
     expect(state.width).toBe(304);
@@ -120,6 +120,23 @@ it('uses compact content widths before a user preference exists and avoids unnec
   let state = initialWorkspaceState;
   for (let i = 0; i < 40; i++) state = workspaceReducer(state, { type: 'open', view: { kind: i % 2 ? 'list' : 'supply' } });
   expect(state.history).toHaveLength(20);
+});
+
+it('adapts research width only inside the map budget and restores the requested width on return', () => {
+  expect(workspaceColumns(1200, false, true, undefined, 'submarket').right).toBe(480);
+  expect(workspaceColumns(1500, false, true, undefined, 'submarket').right).toBe(540);
+  expect(workspaceColumns(1920, false, true, undefined, 'submarket').right).toBe(640);
+  expect(workspaceColumns(390, false, true, undefined, 'submarket').compact).toBe(true);
+  const snapshot = { filters: createDefaultFilterState(), input: '', retained: false };
+  let state = workspaceReducer(initialWorkspaceState, { type: 'research', name: 'CBD', snapshot });
+  state = workspaceReducer(state, { type: 'width', width: 620 });
+  const narrowed = workspaceColumns(1024, false, true, state.widths.submarket, 'submarket');
+  expect(narrowed.right).toBeLessThan(480);
+  expect(1024 - narrowed.right).toBeGreaterThanOrEqual(mapCanvasMinimum(1024));
+  state = workspaceReducer(state, { type: 'open', view: { kind: 'building', building: { id: 'retained' } } });
+  state = workspaceReducer(state, { type: 'back' });
+  expect(state.right).toEqual({ kind: 'submarket', name: 'CBD' });
+  expect(workspaceColumns(1920, false, true, state.widths.submarket, 'submarket').right).toBe(620);
 });
 
 it('uses a readable side pane in low-height landscape while keeping half the map', () => {
