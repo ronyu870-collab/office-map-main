@@ -108,7 +108,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
     },
     table: () => {
       const content = <responseBlockRenderers.table result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} onPage={setPage} statusShown={!!availability} />;
-      return <section id={`${sectionId}-table`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="结果明细">
+      return <section id={`${sectionId}-table`} tabIndex={-1} className={`${experienceStyles.readingSection} ${result.table.rows.length <= 10 && result.table.columns.length <= 6 ? experienceStyles.readingVisual : ''}`} aria-label="结果明细">
         {decision.details === 'on_demand' ? <details className={experienceStyles.details} open={tableOpen} onToggle={event => setTableOpen(event.currentTarget.open)}>
           <summary>{availability ? '查看已返回记录' : `查看数据明细（${result.table.rows.length} 行）`}</summary><div hidden={!tableOpen}>{content}</div>
         </details> : <><h3 className={experienceStyles.sectionTitle}>{responseTableTitle(result)}</h3>{content}{research && <HomeQuerySampleSummary research={research} result={result} onSource={showSources} />}</>}

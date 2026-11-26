@@ -131,7 +131,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
       </> : chart.kind==='faceted_line'?<>{chartFacets(chart).map((part,i)=><div key={chart.facets![i].key}><p>{part.title}</p><TrendLine chart={part} onSource={onSource} height={250} bounds={[min,max]}/></div>)}</>:chart.kind==='line'?<TrendLine chart={chart} onSource={onSource}/>:<Scatter chart={chart} onSource={onSource} />}
       {chart.kind === 'scatter' && <p className={styles.notice}>仅含两个字段均有效的联合样本，不代表因果关系。</p>}
     </figure></HomeQueryChartFrame>}
-    {!result.parameters.agentChart && canConfigure && <details className={experienceStyles.chartSettings}><summary>{autoChart || chart ? '图表设置' : '查看图表'}</summary>
+    {!result.parameters.agentChart && canConfigure && <details className={experienceStyles.chartSettings}><summary>{!autoChart && !chart && ['trend', 'compare'].includes(result.operation) ? '查看图表' : '图表设置'}</summary>
       {chart?.kind === 'bar' && <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>}
       {chart?.kind === 'faceted_line' && <p className={styles.notice}>各组共用同一纵轴，不连接不同组。</p>}
       {(chart?.kind === 'line' || chart?.kind === 'faceted_line') && <p className={styles.notice}>季度连续排列，可横向滚动查看全部季度；点选图元查看数值与来源。</p>}

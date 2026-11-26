@@ -25,7 +25,7 @@ export function HomeQuerySampleSummary({ research, result, onSource }: {
       <tbody>{series.periods.map(item => <tr key={period(item.period)}><th scope="row">{period(item.period)}</th><td className={tableStyles.number}>{item.usedCount}</td><td className={tableStyles.number}>{formatExact(item.denominator, item.denominatorUnit)}</td></tr>)}</tbody></table>
     </div></div>}
     <p><strong>样本可比性：</strong>两期共同有效 {comparison.commonCount} 栋
-      {changed && <>，进入 {comparison.enteredEntityIds.length} 栋、退出 {comparison.exitedEntityIds.length} 栋</>}。
+      {changed && <>，新增有效样本 {comparison.enteredEntityIds.length} 栋、退出有效样本 {comparison.exitedEntityIds.length} 栋</>}。
       {changed && change && <>共同样本变化 {formatExact(change, comparison.commonSample.changeUnit)}{comparison.commonSample.changeUnit === 'percent' ? '%' : ' 个百分点'}。各期样本的均值变化可能受到样本及面积权重影响。</>}
       {changed && !change && <>共同样本变化不可计算；不能据此推断市场原因。</>}
       {ids.length > 0 && <button type="button" className={styles.citation} onClick={event => onSource(ids, '样本可比性', event.currentTarget)}>依据</button>}

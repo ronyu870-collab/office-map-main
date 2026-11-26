@@ -14,9 +14,10 @@ describe('P1 source-backed research result presentation', () => {
     const snapshots = [fixture({ year: 2026, quarter: 2 }), fixture()];
     const result = resultViewSchema.parse(attachResearchAnalysis(buildTrendResult(snapshots, 'rent', 'per_period'), snapshots));
     render(<HomeQueryResult result={result} />);
+    expect(screen.getByRole('table', { name: '本次结果的完整表格，分页不改变统计范围' })).toBeVisible();
+    expect(screen.getByText(/2026 Q3 .*较 2026 Q2/)).toBeVisible();
+    expect(screen.getByRole('region', { name: '样本可比性' })).toHaveTextContent('两期共同有效 3 栋');
     fireEvent.click(screen.getByText('分析与样本核查'));
-    expect(screen.getByText(/2026-Q2 为.*2026-Q3 为.*绝对变化/)).toBeInTheDocument();
-    expect(screen.getByText(/两期共同有效 3 栋/)).toBeInTheDocument();
     expect(screen.getByText(/样本构成不同，均值变化不能直接解释为市场真实变化/)).toBeInTheDocument();
     fireEvent.click(screen.getByText('计算明细、共同样本与异常规则'));
     const table = await screen.findByRole('table', { name: /各期有效样本与全期间共同有效样本/ });

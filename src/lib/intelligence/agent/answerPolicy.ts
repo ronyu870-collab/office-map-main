@@ -1,6 +1,7 @@
 import type { QueryResult } from '../query/result';
 import { answerSelectionSchema, selectedAnswerResult, type AnswerSelection } from '../query/answerSelection';
 import { resultAvailability } from '../query/resultAvailability';
+import { quarterlyAnswerIssues } from '../query/answerCompleteness';
 import { isLeaseResult, leaseBindingSchema } from '../lease/protocol';
 
 export const isLatestLeaseQuestion = (question: string) => /成交|租赁/.test(question)
@@ -52,5 +53,9 @@ export function applyAnswerPolicy(question: string, selection: AnswerSelection,
         : '查询区间内最新成交日期存在并列，以下保留全部并列记录，不能指定唯一一笔。' };
   }
   if (resultAvailability(primary) && next.task !== 'record') next = { ...next, status: 'unavailable' };
+  if (next.status === 'answered') {
+    const issues = quarterlyAnswerIssues(question, primary);
+    if (issues.length) next = { ...next, status: 'partial', notice: [next.notice, ...issues].filter(Boolean).join(' ') };
+  }
   return next;
 }

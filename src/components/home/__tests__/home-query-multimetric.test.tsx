@@ -75,7 +75,7 @@ describe('P1 follow-up multi-metric result presentation', () => {
 
   it('switches trend charts by a selected metric while keeping the original result and source cells', async () => {
     const result = multiResult('trend');
-    render(<HomeQueryResult result={result} requestId={requestId} scope={scope} />);
+    render(<HomeQueryResult result={result} requestId={requestId} scope={scope} question="画一张图表" />);
     await screen.findByRole('figure', { name: '同源查询图表' });
     const select = screen.getByRole('combobox', { name: '图表指标' });
     expect(select).toHaveValue('rent');
@@ -91,7 +91,7 @@ describe('P1 follow-up multi-metric result presentation', () => {
   });
 
   it('selects both-period comparison charts without presenting a rent axis for vacancy', async () => {
-    render(<HomeQueryResult result={multiResult('compare')} requestId={requestId} scope={scope} />);
+    render(<HomeQueryResult result={multiResult('compare')} requestId={requestId} scope={scope} question="画一张图表" />);
     await screen.findByRole('figure', { name: '同源查询图表' });
     fireEvent.change(screen.getByRole('combobox', { name: '图表指标' }), { target: { value: 'vacancy' } });
     await waitFor(() => expect(client.chart).toHaveBeenCalledTimes(2));
@@ -108,7 +108,7 @@ describe('P1 follow-up multi-metric result presentation', () => {
   });
 
   it('keeps a missing metric available in the chart selector and draws no substitute zero', async () => {
-    render(<HomeQueryResult result={multiResult('trend', true)} requestId={requestId} scope={scope} />);
+    render(<HomeQueryResult result={multiResult('trend', true)} requestId={requestId} scope={scope} question="画一张图表" />);
     await screen.findByRole('figure', { name: '同源查询图表' });
     fireEvent.change(screen.getByRole('combobox', { name: '图表指标' }), { target: { value: 'vacancy' } });
     expect(await screen.findByText('该指标暂无可绘图的有效数据；原始状态与来源仍可查看。')).toBeVisible();
@@ -150,7 +150,7 @@ describe('P1 follow-up multi-metric result presentation', () => {
   });
 
   it('retries only the selected metric chart after a network failure without restoring a stale chart', async () => {
-    render(<HomeQueryResult result={multiResult('trend')} requestId={requestId} scope={scope} />);
+    render(<HomeQueryResult result={multiResult('trend')} requestId={requestId} scope={scope} question="画一张图表" />);
     await screen.findByRole('figure', { name: '同源查询图表' });
     client.chart.mockRejectedValueOnce(new Error('synthetic network interruption'));
     fireEvent.change(screen.getByRole('combobox', { name: '图表指标' }), { target: { value: 'vacancy' } });
@@ -164,7 +164,7 @@ describe('P1 follow-up multi-metric result presentation', () => {
   });
 
   it('clears a previous metric chart while the selected chart is pending and keeps the selection disabled', async () => {
-    render(<HomeQueryResult result={multiResult('trend')} requestId={requestId} scope={scope} />);
+    render(<HomeQueryResult result={multiResult('trend')} requestId={requestId} scope={scope} question="画一张图表" />);
     await screen.findByRole('figure', { name: '同源查询图表' });
     let resolve!: (chart: unknown) => void;
     client.chart.mockImplementationOnce((_scope, _id, result, request) => new Promise(done => { resolve = () => done(buildResultChart(result, request)); }));
