@@ -102,7 +102,9 @@ jobs:
           && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
           && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
           || 'ubuntu-24.04' }}
-    timeout-minutes: 35
+    # Full native Pitch fixture generation and existing browser regressions run here.
+    # The measured combined job exceeded 35 minutes without a test failure.
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:17.6
