@@ -149,6 +149,21 @@ describe('P1 structured semantic conversation', () => {
 });
 
 describe('P1 available-business-period resolution', () => {
+  it('uses the latest authorized period for formal-quarter ranking, without asking a provider to guess', () => {
+    const availablePeriods = [{ year: 2026, quarter: 2 }];
+    expect(ready(ask('CBD最新正式季度净有效租金前十栋', undefined, { availablePeriods })).plan)
+      .toMatchObject({ operation: 'rank', field: 'netEffectiveRent', period: availablePeriods[0], limit: 10 });
+  });
+
+  it('retains a stated start quarter and resolves the end of a formal-quarter trend', () => {
+    const availablePeriods = [{ year: 2025, quarter: 4 }, { year: 2026, quarter: 2 }];
+    const resolution = ready(ask('金融街从2025Q1到最新正式季度的净有效租金和空置率趋势', undefined, { availablePeriods }));
+    expect(resolution.plan).toMatchObject({ operation: 'trend', metrics: ['rent', 'vacancy'],
+      start: { year: 2025, quarter: 1 }, end: { year: 2026, quarter: 2 } });
+    expect(resolution.interpretation.unavailablePeriods).toContainEqual({ year: 2025, quarter: 1 });
+    expect(ask('金融街从2026Q3到最新正式季度的净有效租金趋势', undefined, { availablePeriods }))
+      .toMatchObject({ kind: 'clarification', clarification: { reason: 'period_required' } });
+  });
   it('T05 uses latest actual period, even when calendar is later or database is lagging', () => {
     expect(ready(ask('最新季度CBD净有效租金')).plan).toMatchObject({ period: { year: 2026, quarter: 3 } });
     expect(ready(ask('最新季度CBD净有效租金', undefined, { availablePeriods: [{ year: 2024, quarter: 2 }] })).plan).toMatchObject({ period: { year: 2024, quarter: 2 } });

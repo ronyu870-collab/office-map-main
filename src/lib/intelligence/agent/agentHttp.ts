@@ -741,7 +741,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       if (queriedIds.size > 1) {
         for (const id of queriedIds) {
           const result = workset.read(id, worksetOwner);
-          if (resultAvailability(result) || !fitsDeliveryArchive([...retained, result])) continue;
+          if (resultAvailability(result as AnswerSelection['results'][number]['result']) || !fitsDeliveryArchive([...retained, result])) continue;
           retained.push(result);
           if (retained.length === 3) break;
         }
@@ -753,7 +753,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         task: comparisonRequested ? 'comparison' : answerTask(valid.question, first),
         status: 'partial', primaryResultId: first.resultId,
         notice: '以下是本轮已核验的查询结果。综合结论尚未完成，请对照各项范围、期间和来源。',
-        results: retained.map((result, index) => ({ role: index === 0 ? 'primary' : comparisonRequested ? 'comparison' : 'supporting', result })),
+        results: retained.map((result, index) => ({ role: index === 0 ? 'primary' : comparisonRequested ? 'comparison' : 'supporting',
+          result: result as AnswerSelection['results'][number]['result'] })),
       } : undefined;
       execution.result = first;
       execution.answer = selectedAnswer?.notice ?? '本轮取得多个结果，但尚未确认与当前问题对应的主结果。请明确需要比较的期间或范围。';

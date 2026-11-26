@@ -21,10 +21,14 @@ export function createDeepSeekAdapter(invoke: typeof completeWithDeepSeek = comp
     const wire = toLegacyMessages(messages);
     if (options?.reasoningEffort && options.tools?.length !== 0) {
       for (const [index, message] of messages.entries()) {
-        if (!message.continuation?.startsWith('deepseek:')) continue;
-        const saved = continuations.get(message.continuation);
-        if (!saved) throw new ModelProviderError('invalid_response');
-        if (saved.model === options.model) wire[index].reasoning_content = saved.reasoning;
+        if (message.continuation?.startsWith('deepseek:')) {
+          const saved = continuations.get(message.continuation);
+          if (!saved) throw new ModelProviderError('invalid_response');
+          if (saved.model === options.model) wire[index].reasoning_content = saved.reasoning;
+        }
+        // Server-issued recovery calls and alternate-provider calls have no
+        // DeepSeek reasoning to restore. Keep the native tool pair complete.
+        if (message.calls?.length) wire[index].reasoning_content ??= '';
       }
     }
     const result = await invoke(wire, signal, onDelta, options);

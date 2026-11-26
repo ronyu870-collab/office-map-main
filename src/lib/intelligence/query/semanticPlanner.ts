@@ -121,6 +121,8 @@ function metricSlots(metrics: SemanticMetric[]): { metric?: SemanticMetric; metr
   return { ...(metrics.length ? { metric: metrics[0] } : {}), ...(metrics.length > 1 ? { metrics } : {}) };
 }
 const numberWords: Record<string, number> = { 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 十二: 12 };
+const latestPeriodPattern = /最新(?:有(?:正式)?数据的?|可用的?|正式)?(?:季度)?|最近一期/;
+const formalRangeToLatestPattern = /(?:19\d{2}|20\d{2}|21\d{2}|2200)年?Q[1-4](?:起)?(?:至|到)(?:最新(?:(?:有(?:正式)?数据|可用)的?|正式)?季度|最近一期)/;
 const countOf = (value: string) => numberWords[value] ?? Number(value);
 function normalize(question: string): string {
   return question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q(?=\d)/g, 'Q')
@@ -428,14 +430,15 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   if (absolute.length) { requestedPeriods = absolute; periodBasis = '用户明确指定季度'; consume(/(?:19\d{2}|20\d{2}|21\d{2}|2200)年?Q[1-4](?!\d)/g); }
   const rolling = /(?:最近|过去|近)([二两三四五六七八九十0-9]{1,2})个?(已结束)?季度(（含本季度）|\(含本季度\))?/.exec(remaining);
   const pastYear = /过去一年|最近一年/.test(remaining);
-  const explicitLatest = /最新(?:有数据的?|可用的?)?(?:季度)?|最近一期/.test(remaining);
+  const explicitLatest = latestPeriodPattern.test(remaining);
+  const rangeToLatest = absolute.length === 1 && explicitLatest && formalRangeToLatestPattern.test(expandedYears);
   const current = /本季度|这季度|当前季度/.test(remaining) && !rolling;
   // “加上季度总面积” adds a metric; its “上季度” substring is not a date.
   const previous = /(?<!加)(?:上一季度|上个季度|上季度)/.test(remaining);
   const lastYearSame = /去年同期/.test(remaining);
   const yearMatch = /(?<!\d)(19\d{2}|20\d{2}|21\d{2}|2200)年|今年|去年(?!同期)/.exec(remaining);
   const relativeCount = Number(Boolean(rolling || pastYear)) + Number(explicitLatest) + Number(current) + Number(previous) + Number(lastYearSame) + Number(Boolean(yearMatch));
-  if (relativeCount > 1 || (absolute.length && relativeCount)) return clarify('period_required', '问题中有多个可能冲突的时间条件，请明确季度或连续起止季度。');
+  if (relativeCount > 1 || absolute.length && relativeCount && !rangeToLatest) return clarify('period_required', '问题中有多个可能冲突的时间条件，请明确季度或连续起止季度。');
   if (rolling || pastYear) {
     const count = rolling ? countOf(rolling[1]) : 4;
     if (!Number.isInteger(count) || count < 2 || count > 40) return clarify('unsupported', '趋势窗口支持连续 2–40 个季度。');
@@ -446,8 +449,12 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     consume(/(?:最近|过去|近)[二两三四五六七八九十0-9]{1,2}个?(?:已结束)?季度(?:（含本季度）|\(含本季度\))?|过去一年|最近一年/g);
   } else if (explicitLatest) {
     if (!latest) return clarify('unavailable_periods', '当前获权范围没有可用于确定“最新季度”的有效业务数据，不能把当前自然季度当作最新数据。');
-    requestedPeriods = [latest]; periodBasis = '当前获权范围最新有有效数据的季度';
-    consume(/最新(?:有数据的?|可用的?)?(?:季度)?|最近一期/g);
+    if (rangeToLatest && quarterIndex(absolute[0]) > quarterIndex(latest))
+      return clarify('period_required', `起始季度晚于当前获权范围最新有效季度 ${quarterText(latest)}，请调整起点。`);
+    requestedPeriods = rangeToLatest && !sameQuarter(absolute[0], latest) ? [absolute[0], latest] : [latest];
+    periodBasis = '以当前获权范围最新有有效数据的锁定非草稿季度为准';
+    consume(new RegExp(latestPeriodPattern.source, 'g'));
+    if (rangeToLatest) consume(/(?:从|起)+(?=至|到)/g);
   } else if (current || previous || lastYearSame) {
     const anchor = lastYearSame ? latestPlanPeriod(prior) ?? latest : calendar;
     if (!anchor) return clarify('unavailable_periods', '尚无明确比较季度，也没有可用业务期间，无法确定“去年同期”。');
@@ -468,7 +475,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     periodBasis = '继承上一轮已执行的明确期间';
     if (requestedPeriods.length) inherited.push('季度及统计口径');
   }
-  const continuousRange = absolute.length === 2 && /(?:19\d{2}|20\d{2}|21\d{2}|2200)年?Q[1-4](?:至|到)(?:19\d{2}|20\d{2}|21\d{2}|2200)年?Q[1-4]/.test(expandedYears);
+  const continuousRange = rangeToLatest || absolute.length === 2 && /(?:19\d{2}|20\d{2}|21\d{2}|2200)年?Q[1-4](?:至|到)(?:19\d{2}|20\d{2}|21\d{2}|2200)年?Q[1-4]/.test(expandedYears);
   const explicitEndpoints = absolute.length === 2 && !continuousRange;
   const crossEndpoints = cross && explicitEndpoints;
   const continuousOption = (start: Quarter, end: Quarter): SemanticOption[] => relativeCount || quarterIndex(end) - quarterIndex(start) < 1 || quarterIndex(end) - quarterIndex(start) > 39 ? [] : [{

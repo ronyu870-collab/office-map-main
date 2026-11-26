@@ -45,8 +45,9 @@ export async function parseDeepSeekStream(
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8', { fatal: true });
   const observedTools = new Map<number, ToolAccumulator>();
-  let buffer = '', totalBytes = 0, text = '', reasoning = '', finishReason: string | null = null;
+  let buffer = '', totalBytes = 0, text = '', finishReason: string | null = null;
   let completed = false;
+  let reasoning: string | null = null;
   const accounting: { usage: { prompt_tokens?: number; completion_tokens?: number;prompt_cache_hit_tokens?:number;completion_tokens_details?:{reasoning_tokens?:number} } | null } = { usage: null };
   let providerRequestId = '', actualModel = requestedModel;
   const consume = async (raw: string) => {
@@ -74,7 +75,7 @@ export async function parseDeepSeekStream(
       finishReason = choice.finish_reason;
     }
     if (choice.delta.reasoning_content != null) {
-      reasoning += choice.delta.reasoning_content;
+      reasoning = (reasoning ?? '') + choice.delta.reasoning_content;
       if (reasoning.length > MAX_DEEPSEEK_REASONING_CHARS) throw new ModelProviderError('invalid_response');
     }
     if (choice.delta.content) {
@@ -128,7 +129,7 @@ export async function parseDeepSeekStream(
     return {
       model: actualModel, providerRequestId,
       message: { role: 'assistant', content: text || null,
-        ...(tools.length ? { tool_calls: tools, ...(reasoning ? { reasoning_content: reasoning } : {}) } : {}) },
+        ...(tools.length ? { tool_calls: tools, ...(reasoning !== null ? { reasoning_content: reasoning } : {}) } : {}) },
       ...(accounting.usage?.prompt_cache_hit_tokens!==undefined?{cachedInputTokens:accounting.usage.prompt_cache_hit_tokens}:{}),
       ...(accounting.usage?.completion_tokens_details?.reasoning_tokens!==undefined?{reasoningTokens:accounting.usage.completion_tokens_details.reasoning_tokens}:{}),
       inputTokens: accounting.usage?.prompt_tokens ?? null, outputTokens: accounting.usage?.completion_tokens ?? null,

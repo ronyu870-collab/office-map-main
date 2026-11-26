@@ -319,7 +319,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
       if (!completed.message.content?.trim()) throw new Error('AGENT_EMPTY_ANSWER');
       if (!selectionCorrectionUsed && input.needsAnswerSelection?.() && round < limits.rounds - 1 && toolCalls < limits.tools) {
         selectionCorrectionUsed = true;
-        messages.push(completed.message, { role: 'system', content: '最终回答尚未绑定正式结果。请现在调用select_answer_results选择主结果、必要比较/辅助引用和任务状态；不要重复查询或把最后一次检查自动当答案。' });
+        messages.push({ role: 'system', content: '最终回答尚未绑定正式结果。请现在调用select_answer_results选择主结果、必要比较/辅助引用和任务状态；不要重复查询或把最后一次检查自动当答案。' });
         continue;
       }
       await phase('synthesis');
@@ -327,7 +327,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
         || STRUCTURED_DATA_TOOL_NAMES.has(name) || BUSINESS_TOOL_NAMES.has(name) || KNOWLEDGE_TOOL_NAMES.has(name));
       if ((attemptedData || dataFactRequired) && result === undefined && !unresolved.size)
         unresolved.set('verified_data', 'no_verified_result');
-      if (/(?:Excel|CSV|xlsx|表格)/i.test(input.question)
+      if (requestedArtifactFormats(input.question).some(format => format === 'xlsx' || format === 'csv_zip')
         && !toolNames.includes('export_table') && !toolNames.includes('generate_research_deliverable') && result !== undefined) unresolved.set('export_table', 'not_generated');
       if ((requestedArtifactFormats(input.question).some(f => f === 'png_zip' || f === 'svg_zip')
         || /(?:导出|下载)/.test(input.question) && /(?:图片|图表)/i.test(input.question))
