@@ -6,6 +6,7 @@ import { STUDIO_THEME } from '../../design/theme';
 import { layoutSlides } from '../../layout/engine';
 import { renderPitchPptx } from '../../render/pptx';
 import { renderSceneSvg } from '../../render/svg';
+import { previewPage } from '../../data/renderWorkflow';
 import { buildProposal } from '../../proposals';
 import { proposalFixture } from '../../proposals/__tests__/fixture';
 import { contentHash, inspectPhotoBytes } from '../photo-file';
@@ -52,7 +53,7 @@ const resolvedBuilding = ({ id, name }: typeof main) => ({ buildingId: id, name,
 
 function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array>; allowed?: boolean; stackingAdmin?: boolean;
   stackingExport?: boolean; revoke?: boolean; incompatiblePhoto?: boolean;
-  buildings?: typeof main[]; ignoreCityFilter?: boolean; auditError?: 'intent' | 'completion' } = {}) {
+  buildings?: typeof main[]; ignoreCityFilter?: boolean; auditError?: 'intent' | 'completion'; previewSnapshot?: unknown } = {}) {
   const calls: string[] = [];
   const audit: { path: string; body: unknown }[] = [];
   let authReads = 0;
@@ -63,6 +64,10 @@ function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array
     const path = url.pathname.split('/').at(-1)!;
     calls.push(url.pathname);
     const revision = (options.revoke && authReads > 0 ? 'b' : 'a').repeat(64);
+    if (path === 'pitch_studio_access' && options.previewSnapshot) {
+      const input = JSON.parse(String(init?.body));
+      if (input.p_input.action === 'preview_context') return Response.json(options.previewSnapshot);
+    }
     if (path === 'ai_query_authority') {
       authReads++;
       return Response.json(options.allowed === false ? { allowed: false } : {
@@ -257,6 +262,45 @@ describe('restricted Stacking Plan appendix and delivery', () => {
     const denied = fixture({ stackingAdmin: false });
     await expect(resolveVisualPageMedia(denied.ctx, [{ content: reopened, scene }], 'internal')).rejects.toThrow('QUERY_DENIED');
     expect(denied.calls.some(path => path.endsWith('/stacking_plan_spaces'))).toBe(false);
+  });
+});
+
+describe('project preview visual sources', () => {
+  it.each(['by-sa', 'by'])('renders the saved CC %s original while respecting its crop policy', async license => {
+    const rows = [{ ...rowFor(jpeg), license_url: `https://creativecommons.org/licenses/${license}/4.0/` }];
+    const original = fixture({ rows });
+    const photo = (await getBuildingPhotoChoices(original.ctx, { buildingIds: [buildingId], use: 'cover' }))[0].primary!;
+    const content: SlideContent = { protocol: 'colliers-pitch/1', locale: 'zh', title: '项目原图',
+      dataAsOf: photo.source.dataAsOf, disclosure: 'internal', isTestData: false, sources: [photo.source],
+      blocks: [{ kind: 'image', mediaAssetId: photo.id, mediaVersion: photo.version, alt: photo.caption, sourceIds: [photo.source.id] }] };
+    const [scene] = await layoutSlides(content, STUDIO_THEME, 'cover');
+    const page = { id: id(100), content, scene };
+    const snapshot = { slides: [page], themes: [{ definition: STUDIO_THEME }], media: [] };
+    const { ctx, calls } = fixture({ rows, previewSnapshot: snapshot });
+    const preview = await previewPage(ctx, { action: 'preview', projectId: id(101), page: 0 });
+    expect(preview.svg).toContain(jpeg.toString('base64'));
+    const unchanged = scene.elements.find(element => element.kind === 'image')?.fit;
+    expect(preview.scene.elements.find(element => element.kind === 'image')?.fit).toBe(license === 'by-sa' ? 'contain' : unchanged);
+    expect(calls.filter(path => path.endsWith('/pitch_studio_access'))).toHaveLength(2);
+    expect(calls.some(path => path.includes('/pitch-studio-private/'))).toBe(false);
+    const revised = { ...page, content: { ...content, sources: [{ ...photo.source, version: 'f'.repeat(64),
+      visual: { ...photo.source.visual!, versionHash: 'f'.repeat(64) } }] } };
+    const stale = fixture({ rows, previewSnapshot: { ...snapshot, slides: [revised] } });
+    await expect(previewPage(stale.ctx, { action: 'preview', projectId: id(101), page: 0 })).rejects.toThrow('PITCH_SOURCE_CHANGED');
+  });
+
+  it('refuses a restricted preview if the administrator loses the source grant during rendering', async () => {
+    const approved = fixture();
+    const appendix = (await readStackingAppendix(approved.ctx, buildingId, {}, 'internal', STUDIO_THEME))!;
+    const scene = { ...appendix.scenes[0], elements: appendix.scenes[0].elements.filter(element => element.kind !== 'image') };
+    const content = { ...appendix.content, blocks: appendix.content.blocks.filter(block => block.kind !== 'image') };
+    let checks = 0;
+    const { ctx, calls } = fixture({ get stackingAdmin() { return ++checks <= 2; },
+      previewSnapshot: { slides: [{ id: id(100), content, scene }], themes: [{ definition: STUDIO_THEME }], media: [] } });
+    await expect(previewPage(ctx, { action: 'preview', projectId: id(101), page: 0 })).rejects.toThrow('QUERY_DENIED');
+    expect(checks).toBe(3);
+    expect(calls.filter(path => path.endsWith('/pitch_studio_access'))).toHaveLength(1);
+    expect(calls.filter(path => path.endsWith('/stacking_plan_spaces'))).toHaveLength(1);
   });
 });
 

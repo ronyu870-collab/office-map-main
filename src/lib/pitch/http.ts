@@ -54,8 +54,8 @@ export async function handlePitchRequest(request: Request, dependencies: PitchDe
     const message = error instanceof Error ? error.message : '';
     if (error instanceof LayoutError) return reply({ error: error.detail, code: error.code }, 422);
     if (message === 'QUERY_UNAUTHENTICATED') return reply({ error: '登录状态无效；模拟身份暂不支持 Pitch Studio。' }, 401);
-    if (message === 'PITCH_DENIED') return reply({ error: '试点未开放，或当前身份、范围、素材权限已失效。' }, 403);
-    if (message === 'PITCH_CONFLICT') return reply({ error: '记录已变化或重试内容不同，请重新读取。' }, 409);
+    if (['PITCH_DENIED', 'QUERY_DENIED'].includes(message)) return reply({ error: '试点未开放，或当前身份、范围、素材权限已失效。' }, 403);
+    if (['PITCH_CONFLICT', 'PITCH_SOURCE_CHANGED'].includes(message)) return reply({ error: '记录已变化或重试内容不同，请重新读取。' }, 409);
     if (['PITCH_INVALID', 'PITCH_LAYOUT_CAPACITY', 'PITCH_LANGUAGE_UNAVAILABLE', 'PITCH_IMAGE_REQUIRED', 'PITCH_PAGE_LIMIT', 'PITCH_SINGLE_PAGE_REQUIRED', 'PITCH_THEME_REPAGINATION', 'PITCH_ASYNC_REQUIRED'].includes(message)) return reply({ error: message === 'PITCH_ASYNC_REQUIRED' ? '此项目请使用后台导出任务。' : '内容超出模板容量、缺少数据或语言不匹配，请检查素材；主题分页变化时请另建项目。', code: message }, 422);
     return reply({ error: 'Pitch Studio 暂时无法完成操作，请稍后重试。' }, 503);
   }

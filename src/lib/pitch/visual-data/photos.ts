@@ -96,7 +96,7 @@ export async function getBuildingPhotoChoices(ctx: PitchContext, input: z.input<
 }
 
 /** Read and reauthorize the exact source again for rendering. A stale reference never substitutes a newer photo. */
-export async function loadBuildingPhotoMedia(ctx: PitchContext, ref: z.input<typeof pinnedVisualInput>) {
+export async function loadBuildingPhotoMedia(ctx: PitchContext, ref: z.input<typeof pinnedVisualInput>, recordAccess = true) {
   const expected = pinnedVisualInput.parse(ref);
   if (expected.kind !== 'photo' || expected.origin.type !== 'building-photo') throw new Error('PITCH_INVALID');
   const { photoId: id, buildingId } = expected.origin;
@@ -114,7 +114,7 @@ export async function loadBuildingPhotoMedia(ctx: PitchContext, ref: z.input<typ
   assertVisualVersion(reference, expected);
   const media = await photoSceneBytes(file);
   await recheckVisualBuildings(ctx, authorized.authority);
-  scheduleAuditBestEffort(ctx.client, { user_id: ctx.identity.actorId, action_type: 'BUILDING_PHOTO_ACCESS', target_table: BUILDING_PHOTO_TABLE,
+  if (recordAccess) scheduleAuditBestEffort(ctx.client, { user_id: ctx.identity.actorId, action_type: 'BUILDING_PHOTO_ACCESS', target_table: BUILDING_PHOTO_TABLE,
     target_id: id, module: 'pitch', request_source: 'server', details: { entry: 'pitch', building_id: buildingId,
       photo_id: id, access_mode: 'view', source_sha256: reference.contentHash, phase: 'resource_access_issued',
       effective_user_id: ctx.identity.effectiveUserId, is_impersonating: false } }, 'pitch/building-photos');
