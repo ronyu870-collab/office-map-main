@@ -175,5 +175,6 @@ export async function layoutSlides(raw: SlideContent, rawTheme: DesignTheme, raw
 }
 
 export function sceneSourceLine(content: SlideContent, english = content.locale.startsWith('en')) {
-  return `${english ? 'As of' : '期间'} ${content.dataAsOf} · ${english ? 'Source' : '来源'}：${content.sources.map(s => s.label).join('；')}${content.isTestData ? (english ? ' · TEST DATA' : ' · 测试数据，非真实案例') : ''}`;
+  const labels = [...new Set(content.sources.map(source => source.label))];
+  return `${english ? 'As of' : '期间'} ${content.dataAsOf} · ${english ? 'Source' : '来源'}：${labels.join('；')}${content.isTestData ? (english ? ' · TEST DATA' : ' · 测试数据，非真实案例') : ''}`;
 }

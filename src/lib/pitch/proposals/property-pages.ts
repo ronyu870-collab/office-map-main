@@ -1,3 +1,4 @@
+import { officeGrade } from '@/src/app/map/model/marketIdentity';
 import { fieldPage, levelsSummary, metricPage, photoPage, tablePage, textPage, distributionPage, type PageDraft } from './drafts';
 import { bind, periodLabel, prose } from './page-content';
 import { displayMetric, historicalMetric, metricComparison, metricValue, positioningMatrix, type KeyMetric } from './observations';
@@ -6,27 +7,31 @@ import type { BoundBuilding, LocationReference, Period, ProposalData } from './p
 
 export function cover(title: string, subject: BoundBuilding, period: Period): PageDraft {
   const photo = subject.photos?.find(item => item.value.kind === 'exterior');
+  const suffix = title.startsWith(subject.name) ? title.slice(subject.name.length).trim() : '';
+  const grade = officeGrade(subject.grade);
+  const parts = [subject.submarket, grade === 'a' ? '甲级写字楼' : grade === 'b' ? '乙级写字楼' : null].filter(Boolean);
   return {
-    title,
+    title: suffix && title.length < 160 ? `${subject.name}\n${suffix}` : title,
     subtitle: periodLabel(period),
     composition: 'cover',
-    blocks: [prose(subject.name, [subject.identity]), ...(photo ? [bind(photo.value.block, [photo])] : [])],
+    blocks: [prose(parts.join(' · ') || subject.name, [subject.identity]), ...(photo ? [bind(photo.value.block, [photo])] : [])],
   };
 }
 
-function location(title: string, map: LocationReference | undefined, buildings: readonly BoundBuilding[]): PageDraft | null {
+function location(title: string, map: LocationReference | undefined, buildings: readonly BoundBuilding[], pointTitle = title): PageDraft | null {
   const descriptions = buildings.flatMap(building => building.transport ? [prose(`${building.name} · ${building.transport.value.description}`, [building.identity, building.transport])] : []);
   if (!map) return descriptions.length ? { title, composition: 'two-columns', blocks: descriptions } : null;
   const block = bind(map.value, [map]);
+  const heading = descriptions.length ? title : pointTitle;
   if (block.block.kind === 'map') {
     const blocks = [block];
     if (descriptions.length && buildings.length === 1) {
       const item = buildings[0];
       blocks.push(bind({ kind: 'insight', claim: item.transport!.value.description, basis: item.name, limitations: ['步行时间受入口与路线影响'] }, [item.identity, item.transport!]));
     }
-    return { title, composition: 'map-analysis', blocks };
+    return { title: heading, composition: 'map-analysis', blocks };
   }
-  return { title, composition: 'hero-caption', blocks: [block, descriptions[0] ?? prose('项目区位', [map])] };
+  return { title: heading, composition: 'hero-caption', blocks: [block, descriptions[0] ?? prose('项目区位', [map])] };
 }
 
 function officialRows(buildings: readonly BoundBuilding[]) {
@@ -111,7 +116,7 @@ export function leasingDrafts(data: ProposalData, target: BoundBuilding, period:
     ], [target.identity, ...(target.quarter ? [target.quarter] : [])]),
     mandate: data.customerBrief?.value.requirements.length ? textPage('委托范围与招商约束', data.customerBrief.value.requirements, [target.identity, data.customerBrief]) : null,
     profile: fieldPage(`${target.name}项目概况`, target.profile),
-    arrival: location(`${target.name}的区位与到达`, data.maps?.target, [target]),
+    arrival: location(`${target.name}的区位与到达`, data.maps?.target, [target], '项目登记点位'),
     submarket: market ? metricPage(`${marketTitle}写字楼市场`, market.quarter, ['netEffectiveRent', 'vacancyRate', 'sampleCount'], periodLabel(period)) : null,
     history: history.length === 2 && history.every(item => item.block.block.kind === 'chart')
       ? { title: `${marketTitle}的租金与空置率历史变化`, subtitle: history[0].coverage + ' ／ ' + history[1].coverage, composition: 'chart-stack', blocks: history.map(entry => entry.block) }
@@ -164,10 +169,10 @@ export function shortlistDrafts(data: ProposalData, period: Period): Record<stri
     cover: { title: '写字楼选址对比', subtitle: periodLabel(period), composition: 'cover', blocks: [prose(`${buildings.length} 个候选项目`, evidence)] },
     requirements: textPage(briefing?.value.requirements.length ? '已确认的客户选址需求' : '选址条件待客户确认', briefing?.value.requirements.length
       ? [...briefing.value.requirements]
-      : ['待确认 · 面积、预算、通勤起点、目标入驻时间及交付条件'], briefing ? [briefing] : evidence),
+      : ['待确认 · 面积、预算与通勤起点', '待确认 · 入驻时间与交付标准'], briefing ? [briefing] : evidence),
     scope,
     projects: photoGroups(buildings, '候选楼宇建筑实景'),
-    arrival: location('候选项目区位与已披露交通', data.maps?.candidates, buildings),
+    arrival: location('候选项目区位与已披露交通', data.maps?.candidates, buildings, '候选项目区位'),
     parameters: comparableFields(buildings),
     'candidate-spaces': stackingPage(buildings[0]),
     'rent-position': comparisonPage(buildings, 'netEffectiveRent'),
@@ -187,7 +192,7 @@ export function brochureDrafts(data: ProposalData, target: BoundBuilding, period
   return {
     cover: cover(`${target.name}项目推介`, target, period),
     profile: fieldPage(`${target.name}楼宇概况`, target.profile),
-    arrival: location('项目区位和到达方式', data.maps?.target, [target]),
+    arrival: location('项目区位和到达方式', data.maps?.target, [target], '楼宇登记点位'),
     parameters: fieldPage('建筑产品与技术参数', target.technical),
     spaces: photoPage('大堂、公共配套与办公实景', inside),
     'leasing-evidence': [

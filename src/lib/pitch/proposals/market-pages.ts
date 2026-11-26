@@ -1,15 +1,19 @@
 import { distributionPage, levelsSummary, metricPage, photoPage, tablePage, textPage, type PageDraft } from './drafts';
-import { historicalMetric, metricInfo, metricValue, positioningMatrix } from './observations';
+import { displayMetricNumber, historicalMetric, metricInfo, metricValue, positioningMatrix, type Metric } from './observations';
 import { bind, periodLabel, periodOrder, prose } from './page-content';
 import { stackingPage } from './property-pages';
 import type { Market, MarketObservation, Evidence, Period, ProposalData } from './projection';
 
 function segments(title: string, category: string, rows: readonly Evidence<MarketObservation>[] | undefined) {
   if (!rows?.some(row => metricValue(row.value, 'netEffectiveRent') !== null || metricValue(row.value, 'vacancyRate') !== null)) return null;
+  const shown = (value: MarketObservation, key: Metric) => {
+    const metric = metricValue(value, key);
+    return metric === null ? null : displayMetricNumber(metric, key);
+  };
   return tablePage(title, [category, '净有效租金（元/㎡/月）', '空置率（%）', '样本楼宇（栋）'], rows.map(({ value }) => [
     value.name,
-    metricValue(value, 'netEffectiveRent'),
-    metricValue(value, 'vacancyRate') === null ? null : metricValue(value, 'vacancyRate')! * 100,
+    shown(value, 'netEffectiveRent'),
+    shown(value, 'vacancyRate'),
     metricValue(value, 'sampleCount'),
   ]), rows, '— 表示该分组缺少可披露的数值');
 }

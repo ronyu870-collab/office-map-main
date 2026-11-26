@@ -54,7 +54,7 @@ function addNativeScene(slide: PptxGenJS.Slide, scene: SlideScene, theme: Design
     const { x, y, w, h } = el;
     if (el.kind === 'text') slide.addText(el.text, { x, y, w, h, margin: 0, breakLine: false, valign: 'top', fit: 'none',
       fontFace: /\p{Script=Han}/u.test(el.text) ? theme.fonts.zh : theme.fonts.en, fontSize: textSize(theme, el.role, el.semantic), bold: el.bold,
-      color: textColor(theme, el), align: el.align,
+      color: textColor(theme, el), align: el.align, ...(el.semantic === 'cover' ? { wrap: false } : {}),
       lineSpacingMultiple: 1.32, paraSpaceAfter: 0, lang: /\p{Script=Han}/u.test(el.text) ? 'zh-CN' : 'en-US' });
     else if (el.kind === 'image') {
       const image = media.find(m => m.id === el.mediaAssetId && m.version === el.mediaVersion)!;

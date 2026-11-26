@@ -11,7 +11,7 @@ const id = "11111111-1111-4111-8111-111111111111";
 const slideId = "22222222-2222-4222-8222-222222222222";
 const fingerprint = "a".repeat(64);
 
-it("reads a server binding, then sends the reviewed quarter and fingerprint on apply", async () => {
+it("keeps the quarter field focused while typing, then applies only the reviewed quarter and fingerprint", async () => {
   const user = userEvent.setup();
   const expectedVersion = 3;
   const workspace = {
@@ -40,9 +40,16 @@ it("reads a server binding, then sends the reviewed quarter and fingerprint on a
   const onApplied = vi.fn();
   render(<DataRefresh call={call} detail={workspace} slideId={slideId} disabled={false} onApplied={onApplied} />);
   const quarter = await screen.findByLabelText("目标季度");
-  await user.type(quarter, "2026-Q4");
+  await user.type(quarter, "2026-Q");
+  expect(quarter).toHaveFocus();
+  expect(quarter).toHaveValue("2026-Q");
+  expect(screen.getByRole("button", { name: "预览数据更新" })).toBeDisabled();
+  await user.keyboard("4");
+  expect(quarter).toHaveFocus();
+  expect(quarter).toHaveValue("2026-Q4");
   await user.click(screen.getByRole("button", { name: "预览数据更新" }));
   await screen.findByRole("dialog", { name: "核对数据更新" });
+  expect(screen.getByRole("button", { name: "关闭" })).toHaveFocus();
   expect(screen.getByText("350 元/㎡/月")).toBeInTheDocument();
   expect(screen.getByText("392 元/㎡/月")).toBeInTheDocument();
   expect(screen.getByText("应用后请复核相关分析结论。")).toBeInTheDocument();

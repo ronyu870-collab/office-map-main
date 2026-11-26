@@ -23,6 +23,11 @@ export function displayMetric(value: number, key: Metric) {
   return `${(value * scale).toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits })}${unit === '%' ? '' : ' '}${unit}`;
 }
 
+export function displayMetricNumber(value: number, key: Metric) {
+  const { scale, digits } = metricInfo[key];
+  return Number((value * scale).toFixed(digits));
+}
+
 export function metricComparison(rows: readonly Observation[], key: KeyMetric, targetId?: string, chartStyle: 'column' | 'table' = 'column') {
   const metric = metricInfo[key];
   const values = rows.map(item => metricValue(item.value, key));

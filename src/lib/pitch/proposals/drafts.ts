@@ -1,7 +1,7 @@
 import type { LayoutId } from '../contracts/scene';
 import type { BoundBlock } from './page-content';
 import { bind, chart, prose, table } from './page-content';
-import { displayMetric, metricInfo, metricValue, type Metric } from './observations';
+import { displayMetric, displayMetricNumber, metricInfo, metricValue, type Metric } from './observations';
 import type { Distribution, Evidence, Field, Metrics, Photo } from './projection';
 
 export interface PageDraft {
@@ -24,7 +24,7 @@ export function metricPage(title: string, report: Evidence<Metrics>, keys: reado
     const value = metricValue(report.value, key);
     if (value === null) return [];
     const metric = metricInfo[key];
-    const displayValue = Number((value * metric.scale).toFixed(metric.digits));
+    const displayValue = displayMetricNumber(value, key);
     return [bind({ kind: 'metric', label: metric.label, value: displayValue, unit: metric.unit }, [report])];
   });
   return blocks.length ? { title, subtitle, composition: 'kpi', blocks } : null;
