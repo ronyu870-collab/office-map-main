@@ -32,12 +32,10 @@ export async function understandWithModel(question: string, context: SemanticCon
     JSON.stringify(z.toJSONSchema(semanticIntentSchema)),
   ].join('\n');
   if (instructions.length + input.length > MODEL_INTENT_LIMITS.maxInputCharacters) throw new Error('MODEL_INPUT_LIMIT');
-  // Standalone semantic HTTP has one extraction; Agent callers inject their
-  // existing request runtime so nested extraction shares every hard cap.
-  const complete = invoke ?? (await import('../agent/modelRuntime')).createModelRuntime({
-    actorId: '', question, mode: 'professional', revalidate: async () => { signal.throwIfAborted(); },
-    onAttempt: async () => {},
-  }).interpret;
+  // Only a trusted caller holding the current identity/control binding may invoke.
+  // No standalone escape hatch around emergency control, audit or admission.
+  if (!invoke) throw new Error('MODEL_INVOKER_REQUIRED');
+  const complete = invoke;
   const response = await complete([{ role: 'system', content: instructions }, { role: 'user', content: input }], signal);
   signal.throwIfAborted();
   if (response.message.calls?.length || !response.message.content) throw new Error('MODEL_EMPTY_RESPONSE');

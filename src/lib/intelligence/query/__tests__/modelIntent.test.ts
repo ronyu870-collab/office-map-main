@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MODEL_INTENT_LIMITS, understandWithModel } from '../modelIntent';
+import { MODEL_INTENT_LIMITS, understandWithModel as understandBoundedModel } from '../modelIntent';
+
+import { createModelRuntime } from '../../agent/modelRuntime';
+const understandWithModel: typeof understandBoundedModel = (question, context, markets, signal) => understandBoundedModel(question, context, markets, signal,
+  createModelRuntime({ actorId: 'synthetic-test-actor', question, revalidate: async () => {}, onAttempt: async () => {} }).interpret);
 
 const intent = { version: 'colliers-semantic-intent/1', operation: 'aggregate', submarkets: ['CBD'], metric: 'rent',
   time: { kind: 'explicit', periods: [{ year: 2026, quarter: 3 }] }, unresolvedConditions: [] };
@@ -10,6 +14,11 @@ const signal = () => new AbortController().signal;
 describe('P1 bounded real-provider adapter', () => {
   beforeEach(() => { vi.stubEnv('DEEPSEEK_API_KEY', 'synthetic-test-key'); vi.stubEnv('DEEPSEEK_MODEL', 'deepseek-flash'); vi.stubEnv('DEEPSEEK_API_BASE_URL', 'https://api.deepseek.com'); });
   afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+  it('requires the trusted runtime instead of constructing an ungoverned provider call', async () => {
+    const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+    await expect(understandBoundedModel('CBD', undefined, ['CBD'], signal())).rejects.toThrow('MODEL_INVOKER_REQUIRED');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it('makes one bounded extraction call with slots only and preserves reported token usage', async () => {
     const fetcher = vi.fn().mockResolvedValue(Response.json(payload())); vi.stubGlobal('fetch', fetcher);
     const result = await understandWithModel('2026Q3 CBD净有效租金，帮我解释下', undefined, ['CBD'], signal());

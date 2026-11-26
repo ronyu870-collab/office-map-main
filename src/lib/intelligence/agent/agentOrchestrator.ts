@@ -45,7 +45,7 @@ export type AgentDependencies<T> = {
   contextExport?: import('./agentConversation').AgentHistory['contextExport'];
   limits?: { rounds: number; tools: number };
   memory?: Record<string, unknown>;
-  invoke(messages: AgentMessage[], signal: AbortSignal): Promise<AgentCompletion>;
+  invoke(messages: AgentMessage[], signal: AbortSignal, onDelta?: (delta:string)=>Promise<void>, purpose?: 'agent' | 'synthesis'): Promise<AgentCompletion>;
   runTool(name: string, args: Record<string, unknown>, signal: AbortSignal): Promise<AgentToolObservation<T>>;
   revalidate?(signal: AbortSignal): Promise<void>;
   /** Require an explicit choice when multiple independent query snapshots exist. */
@@ -282,7 +282,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
     input.signal.throwIfAborted();
     await input.revalidate?.(input.signal);
     let completed: AgentCompletion;
-    try { completed = await input.invoke(messages, input.signal); }
+    try { completed = await input.invoke(messages, input.signal, undefined, result === undefined ? 'agent' : 'synthesis'); }
     catch (error) {
       // Only optional supplier synthesis may degrade. Authorization, audit,
       // source checks and cancellation must propagate and never deliver data.

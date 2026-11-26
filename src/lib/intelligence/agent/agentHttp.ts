@@ -1,3 +1,4 @@
+import { bindRuntimeControl } from '../control/runtimeControl';
 import { readAvailablePeriodGroups } from '../query/availablePeriods';
 import { numericFields, type NumericField } from '../query/registry';
 import { KNOWLEDGE_TOOL_NAMES, isKnowledgeResult, type KnowledgeToolName } from '../knowledge/protocol';
@@ -250,7 +251,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       if (!current.grants.includes('query:catalog') || current.permissionRevision !== authority.permissionRevision
         || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
     };
-    const runtime = createModelRuntime({ actorId: actor.actorId, question: valid.question, mode: valid.mode ?? (research.task ? 'deep' : undefined),
+    const control = await bindRuntimeControl(client, actor, signal, requestId);
+    const runtime = createModelRuntime({ control, actorId: actor.actorId, question: valid.question, mode: valid.mode ?? (research.task ? 'deep' : undefined),
       hasChartContext: !!history.contextChart,
       contextDomains: [...(leaseResults.size ? ['lease' as const] : []), ...(businessResults.size ? ['business' as const] : []),
         ...(knowledgeResults.size ? ['knowledge' as const] : [])],
@@ -298,6 +300,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
 
     const previousResult = history.contextResults?.length ? history.contextResults.length === 1 ? history.contextResults[0] : undefined : history.contextResult;
     const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult);
+    await audit.append(requestId, 'tool_finished', { executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), phase: 'task_routed' });
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
@@ -321,8 +324,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
         },
-        invoke: async (messages, currentSignal) => {
-          if (!observer) return runtime.invoke(messages, currentSignal);
+        invoke: async (messages, currentSignal, _onDelta, purpose = 'agent') => {
+          if (!observer) return runtime.invoke(messages, currentSignal, undefined, purpose);
           // Bound provisional updates; never make a DB authorization RPC for
           // every individual supplier token. Every visible batch must pass a
           // live permission-revision check before it reaches the browser.
@@ -342,7 +345,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           const result = await runtime.invoke(messages, currentSignal, async delta => {
             pending += delta;
             if (pending.length > 12000) throw new Error('AGENT_STREAM_EVENT_TOO_LARGE');
-          });
+          }, purpose);
           // File delivery state comes from the server, never model prose.
           if (!/^(?:你好|您好|嗨|哈[喽啰]|hello|hi|谢谢|多谢|感谢|thanks|thank you)[！!。.?？\s]*$/i.test(valid.question.trim())
             && !(result.message.calls?.length) && !referencedIds.size && !queriedIds.size && !leaseResults.size && !knowledgeResults.size && !preparedExport
@@ -352,12 +355,21 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         signal, onEvent,
         runTool: async function runTool(name, args): Promise<import('./agentOrchestrator').AgentToolObservation<QueryResult>> {
           if (!REGISTERED_AGENT_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
+          if (control.snapshot?.config.disabledTools.includes(name)) throw new Error('AGENT_TOOL_DISABLED');
           const toolSignal = AbortSignal.any([signal, AbortSignal.timeout(20000)]);
           const rechecked = await loadDataAuthority(client, actor, toolSignal);
           if (!rechecked.grants.includes('query:catalog')
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
           await recheckLeases();
+          if (name.startsWith('pitch_')) {
+            if (!/Pitch\s*Studio|商务提案|Pitch\b/i.test(valid.question)) throw new Error('PITCH_DENIED');
+            const { runPitchTool } = await import('@/src/lib/pitch/ai/tools');
+            const observation = await runPitchTool({client,identity:actor,signal:toolSignal}, name as import('@/src/lib/pitch/ai/toolSchemas').PitchToolName, args);
+            await audit!.append(requestId, 'tool_finished', {tool:name,status:'completed',domain:'pitch'});
+            return {content:JSON.stringify(observation)};
+          }
+
           if (name === 'select_answer_results') {
             selectedAnswer = workset.select(args, worksetOwner);
             return { content: JSON.stringify({ status: 'ready', primaryResultId: selectedAnswer.primaryResultId,
@@ -815,7 +827,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       }
       if (selectedAnswer.notice) execution.answer = selectedAnswer.notice;
     }
-    await audit.append(requestId, 'accounting', { provider: 'server_policy', executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), status: execution.executionStatus, formalResult: !!execution.result, reusedTools: toolTrace.filter(t => t.reused).length,
+    await audit.append(requestId, 'accounting', { provider: 'server_policy', executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), status: execution.executionStatus, formalResult: !!execution.result, filesRequested: fulfillment.requested.length, filesCompleted: fulfillment.requested.filter(f => fulfillment.available.includes(f)).length, reusedTools: toolTrace.filter(t => t.reused).length,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       providerRequestIds: providerRequestIds.slice(0, 6), toolNames: execution.toolNames,

@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['ali-oss', '@resvg/resvg-js', 'pdfjs-dist'],
-  outputFileTracingIncludes: { '/api/intelligence/query/**': ['./private/chart-fonts/*'], '/api/quarterly-research': ['./private/quarterly-research/*.html'] },
+  outputFileTracingIncludes: { '/api/intelligence/query/**': ['./private/chart-fonts/*'], '/api/intelligence/pitch': ['./private/chart-fonts/*'], '/api/intelligence/pitch/**': ['./private/chart-fonts/*'], '/api/quarterly-research': ['./private/quarterly-research/*.html'] },
   poweredByHeader: false,
   typescript: {
     ignoreBuildErrors: true,

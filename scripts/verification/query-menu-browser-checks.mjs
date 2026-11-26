@@ -320,6 +320,19 @@ export async function checkAllQueryMenus(session, helpers) {
     `compact scroll compensation: ${JSON.stringify(compensated)}`);
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
   await assertMenu(page, more, 'compact menu after scroll compensation');
+  await more.evaluate(node => new Promise((resolve, reject) => {
+    const start = performance.now(); let changed = start, last;
+    const sample = now => {
+      const box = node.getBoundingClientRect(), next = { x: box.x, y: box.y };
+      if (!last || Math.abs(next.x - last.x) > .1 || Math.abs(next.y - last.y) > .1) changed = now;
+      last = next;
+      if (now - changed >= 100) resolve(next);
+      else if (now - start > 2000) reject(new Error('compact anchor did not settle'));
+      else requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
+  await assertMenu(page, more, 'compact menu after settled layout compensation');
   await expanded(page, true);
   await closed(more);
   assert.equal(session.errors.length, 0, session.errors.join('\n'));

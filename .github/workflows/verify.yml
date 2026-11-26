@@ -4,6 +4,11 @@ on:
   pull_request:
     branches:
       - main
+      - codex/pitch-studio-01-foundation
+      - codex/pitch-studio-02-render-engine
+      - codex/pitch-studio-03-material-library
+      - codex/pitch-studio-04-business-templates
+      - codex/pitch-studio-05-workspace
   push:
     branches:
       - main
@@ -166,6 +171,18 @@ jobs:
         env:
           QUARTERLY_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL 17 Pitch Studio foundation and PPTX regressions
+        run: |
+          node supabase/tests/pitch-studio/render.mjs
+          node supabase/tests/pitch-studio/run.mjs
+          node supabase/tests/pitch-studio/library-parser.mjs
+          node supabase/tests/pitch-studio/library.mjs
+          node supabase/tests/pitch-studio/business.mjs
+          node supabase/tests/pitch-studio/workspace.mjs
+          node supabase/tests/pitch-studio/ai.mjs
+        env:
+          PITCH_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL 17 lease edit and audit regressions
         run: npm run test:db:lease-audit
         env:
@@ -239,6 +256,7 @@ jobs:
           node supabase/tests/ai-query-intake/run.mjs
           node supabase/tests/ai-audit-console/run.mjs
           node supabase/tests/ai-admin-only/run.mjs
+          node supabase/tests/ai-control-center/run.mjs
           node supabase/tests/ai-audit-people/run.mjs
           node supabase/tests/ai-audit-export/run.mjs
           node supabase/tests/ai-query-authority/run.mjs
@@ -516,6 +534,20 @@ jobs:
         shell: bash
         run: |
           AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-ai-query-auth.mjs
+      - name: Pitch Studio real Auth, private Storage and production HTTP round trip
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pitch-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/pitch-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          PITCH_TEST_ALLOW_LOCAL=disposable PITCH_TEST_REUSE_BUILD=true PITCH_WORKSPACE_BROWSER=true PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/pitch-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium PITCH_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-pitch-studio-http.mjs
+      - name: Retain isolated Pitch workspace browser results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitch-workspace-browser
+          path: tmp/pitch-workspace-browser/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Stop only the disposable query Auth stack
         if: always()
         run: supabase stop --workdir "$RUNNER_TEMP/ai-query-auth-integration" --no-backup

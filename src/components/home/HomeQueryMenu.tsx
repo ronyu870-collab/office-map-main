@@ -60,7 +60,7 @@ export function HomeQueryMenu(props: Props) {
       const bottom = Math.min(vTop + (viewport?.height ?? innerHeight), box?.bottom ?? Infinity) - 8;
       const anchor = button.getBoundingClientRect();
       if (right <= left || bottom <= top || anchor.bottom < top || anchor.top > bottom) { close(); return; }
-      scrollAnchor = anchor;
+      const scrollTop = node.scrollTop, scrollLeft = node.scrollLeft;
       node.style.minWidth = `${Math.min(210, right - left)}px`;
       node.style.maxWidth = `${Math.min(320, right - left)}px`;
       // Measure intrinsic content after horizontal wrapping, unconstrained by
@@ -76,6 +76,11 @@ export function HomeQueryMenu(props: Props) {
       node.style.left = `${Math.max(left, Math.min(anchor.right - actual.width, right - actual.width))}px`;
       node.style.top = `${upwards ? anchor.top - 4 - actual.height : anchor.bottom + 4}px`;
       node.dataset.placement = upwards ? 'above' : 'below';
+      // Preserve the popup's own reading position through intrinsic sizing.
+      node.scrollTop = scrollTop; node.scrollLeft = scrollLeft;
+      // Placement may flush nested restoration. Anchor and offsets must come
+      // from the same final layout, including the initial opening pass.
+      scrollAnchor = button.getBoundingClientRect();
       for (const ancestor of scrollPositions.keys()) scrollPositions.set(ancestor, snapshotScroll(ancestor));
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(measure); };

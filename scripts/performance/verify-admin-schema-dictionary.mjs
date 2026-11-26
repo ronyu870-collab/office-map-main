@@ -2,11 +2,20 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
+import { readdir, readFile } from 'node:fs/promises';
 import { trackRouteCallbacks } from './route-callback-drain.mjs';
 
 const base = new URL(process.argv[2]);
 assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname), 'isolated loopback builds only');
 const baseline = process.argv.includes('--baseline');
+// Check against maintained source groups rather than a fixed historical size.
+const sourceDirectory = new URL('../../src/components/admin/schema-dictionary/groups/', import.meta.url);
+const groups = await Promise.all((await readdir(sourceDirectory)).filter(name => name.endsWith('.json'))
+  .map(async name => JSON.parse(await readFile(new URL(name, sourceDirectory), 'utf8'))));
+const expectedCounts = groups.reduce((value, group) => ({
+  tables: value.tables + group.tables.length,
+  fields: value.fields + group.tables.reduce((n, table) => n + table.fields.length, 0),
+}), { tables: 0, fields: 0 });
 const { chromium } = createRequire(import.meta.url)(process.env.PERF_PLAYWRIGHT_MODULE || 'playwright-core');
 const browser = await chromium.launch({ ...(process.env.PERF_BROWSER_CHANNEL === 'chromium' ? {} : { channel: 'chrome' }), headless: true });
 const user = { id: '23456789-1111-4111-8111-111111111111', email: 'dictionary@example.test', app_metadata: {}, user_metadata: {} };
@@ -83,7 +92,7 @@ try {
         continue;
       }
       await input.waitFor();
-      await page.getByText('25 张表 / 298 个字段', { exact: true }).waitFor();
+      await page.getByText(baseline ? '25 张表 / 298 个字段' : `${expectedCounts.tables} 张表 / ${expectedCounts.fields} 个字段`, { exact: true }).waitFor();
       const title = page.getByRole('heading', { name: detailTitle, exact: true });
       if (desktop || baseline) {
         await title.waitFor();

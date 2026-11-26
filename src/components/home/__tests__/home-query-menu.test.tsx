@@ -117,3 +117,19 @@ it('opens a command menu from ArrowUp at the last command and navigates without 
   fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
   expect(trigger).toHaveFocus(); expect(trigger).toHaveAttribute('aria-expanded', 'false');
 });
+
+it('captures its scroll baseline after initial popover placement flushes nested restoration', () => {
+  const view=render(<div id="colliers-ai" data-mode="compact" data-transitioning="false"><div data-testid="restore"><HomeQueryMenu label="定位"><button>复制</button></HomeQueryMenu></div></div>);
+  const workspace=view.container.firstElementChild as HTMLElement,scroller=view.getByTestId('restore');
+  const trigger=screen.getByRole('button',{name:'定位'}),panel=view.container.querySelector('[data-query-menu-panel]') as HTMLElement;
+  const box=(top:number,left:number,width:number,height:number)=>({top,left,width,height,right:left+width,bottom:top+height}) as DOMRect;
+  let top=100;
+  vi.spyOn(workspace,'getBoundingClientRect').mockReturnValue(box(0,0,800,600));
+  vi.spyOn(trigger,'getBoundingClientRect').mockImplementation(()=>box(top,200,100,40));
+  Object.defineProperty(panel,'showPopover',{value:vi.fn(),configurable:true});
+  vi.spyOn(panel,'getBoundingClientRect').mockImplementation(()=>{top=120;scroller.scrollTop=20;return box(144,90,210,200);});
+  fireEvent.click(trigger);fireEvent.scroll(scroller);
+  expect(trigger).toHaveAttribute('aria-expanded','true');
+  scroller.scrollTop=40;top=100;fireEvent.scroll(scroller);
+  expect(trigger).toHaveAttribute('aria-expanded','false');
+});

@@ -9,6 +9,7 @@ import { chartRequestSchema } from '../query/chartSpec';
 import { RESEARCH_TOOL_SCHEMAS, RESEARCH_TOOL_NAMES, type ResearchToolName } from '../research/protocol';
 import { selectAnswerResultsSchema } from '../query/answerSelection';
 import { resultTableViewSchema } from '../query/tableView';
+import { PITCH_TOOL_NAMES, PITCH_TOOL_SCHEMAS, type PitchToolName } from '@/src/lib/pitch/ai/toolSchemas';
 
 /**
  * The public DeepSeek contract is structured. Only the legacy query adapter
@@ -115,6 +116,7 @@ export const LEGACY_TOOL_NAMES: ReadonlySet<string> = new Set([
 /** For a bounded migration, accept previously issued {question} calls at the
  * runtime boundary, but do not advertise that obsolete contract to the model. */
 export function parseAgentToolArguments(name: string, input: unknown): Record<string, unknown> {
+  if (PITCH_TOOL_NAMES.has(name)) return PITCH_TOOL_SCHEMAS[name as PitchToolName].parse(input) as Record<string, unknown>;
   if (RESEARCH_TOOL_NAMES.has(name)) return RESEARCH_TOOL_SCHEMAS[name as ResearchToolName].parse(input) as Record<string, unknown>;
   if (KNOWLEDGE_TOOL_NAMES.has(name)) return KNOWLEDGE_TOOL_SCHEMAS[name as KnowledgeToolName].parse(input);
   if (BUSINESS_TOOL_NAMES.has(name)) return BUSINESS_TOOL_SCHEMAS[name as BusinessToolName].parse(input);
@@ -241,6 +243,7 @@ export const PRESENTATION_TOOLS = [
   def('prepare_research_output', '基于指定正式结果构造有来源及限制的研究摘要，不表示已导出PDF或Excel。', optionalRef.properties),
 ] as const;
 export const REGISTERED_AGENT_TOOL_NAMES = new Set<string>([
+  ...PITCH_TOOL_NAMES,
   'query_verified_real_estate',
   ...SPECIALIST_DATA_TOOLS.map(tool => tool.function.name),
   ...WORKSET_TOOLS.map(tool => tool.function.name),

@@ -129,9 +129,8 @@ export function wrapReportText(value: string, max: number): string[] {
 }
 export async function renderResearchPptx(raw: QueryResult) {
   const model = readReportModel(raw); boundedText(model);
-  const { default: PptxGenJS } = await import('pptxgenjs');
-  const deck = new PptxGenJS(); deck.layout = 'LAYOUT_WIDE'; deck.author = 'Colliers AI'; deck.subject = '内部研究资料';
-  deck.title = '北京写字楼专题研究'; deck.theme = { headFontFace: font, bodyFontFace: font };
+  const { createOfficePresentation } = await import('./officePresentation');
+  const deck = await createOfficePresentation({ author: 'Colliers AI', title: '北京写字楼专题研究', subject: '内部研究资料', font });
   let pages = 0;
   const page = (title: string) => {
     if (++pages > REPORT_LIMITS.pages) throw new Error('REPORT_PAGE_LIMIT');

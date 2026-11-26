@@ -61,6 +61,7 @@ function fakeRequest(question = '你好') {
 }
 function deps(allowed = true) {
   const rpc = vi.fn((name: string) => {
+    if(name==='ai_control_runtime')return {abortSignal:()=>Promise.resolve({data:null,error:{code:'PGRST202',message:'Could not find ai_control_runtime'}})};
     expect(name).toBe('ai_query_model_budget');
     return { abortSignal: () => Promise.resolve({ data: { allowed }, error: null }) };
   });
@@ -990,8 +991,8 @@ describe('AI5 chart creation, same-snapshot modification and image delivery', ()
         : { result: answerSelection.results[0].result, answerSelection, recheck };
     });
     state.provider.mockReset().mockResolvedValueOnce(completed([call('modify_chart', { chart: nextChart })])).mockResolvedValueOnce(completed());
-    const rpc = vi.fn((name: string) => ({ abortSignal: () => Promise.resolve({ data: name === 'ai_query_context_read'
-      ? { allowed: true, permission_revision: authority.permissionRevision, state: 'succeeded', events } : { allowed: true }, error: null }) }));
+    const rpc = vi.fn((name: string) => ({ abortSignal: () => Promise.resolve({ data: name === 'ai_control_runtime' ? null : name === 'ai_query_context_read'
+      ? { allowed: true, permission_revision: authority.permissionRevision, state: 'succeeded', events } : { allowed: true }, error: name === 'ai_control_runtime' ? {code:'PGRST202',message:'Could not find ai_control_runtime'} : null }) }));
     const request = new Request('https://www.colliersdata.com/api/intelligence/query/agent', { method: 'POST',
       headers: { 'content-type': 'application/json', authorization: 'Bearer isolated-test-only' },
       body: JSON.stringify({ idempotencyKey: randomUUID(), question: '改成横向柱状图', conversation: { id: conversationId, parentRequestId } }) });

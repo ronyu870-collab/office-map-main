@@ -73,8 +73,8 @@ describe('server-anchored Shanghai relative quarters',()=>{
     const keys={keyId:'test',encryptionKey:new Uint8Array(32).fill(1),digestKey:new Uint8Array(32).fill(2)};
     let firstArgs:Record<string,unknown>|undefined;
     const rpc=vi.fn((name:string,args:Record<string,unknown>)=>({abortSignal:async()=>{
-      const replayed=name==='ai_query_audit_receive'&&!!firstArgs;
-      if(name==='ai_query_audit_receive'){if(firstArgs)expect(args.p_payload_digest).toBe(firstArgs.p_payload_digest);else firstArgs=args;}
+      const replayed=name==='ai_query_audit_receive_operational'&&!!firstArgs;
+      if(name==='ai_query_audit_receive_operational'){if(firstArgs)expect(args.p_payload_digest).toBe(firstArgs.p_payload_digest);else firstArgs=args;}
       return {data:{event_id:crypto.randomUUID(),sequence:1,event_hash:'a'.repeat(64),replayed},error:null};
     }}));
     const audit=createRpcAuditPort({rpc} as unknown as SupabaseClient,identity,keys),requestId=crypto.randomUUID();
