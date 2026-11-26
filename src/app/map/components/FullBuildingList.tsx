@@ -123,7 +123,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
             </div>
           ) : null}
           <div className={styles.controls}>
-            <div className={styles.scope}><span role="status">{loading ? '正在更新楼宇…' : `${buildings.length} 栋楼宇`}</span>{!loading && periods.size > 1 ? <span className={styles.periodNote}>各楼宇数据季度可能不同</span> : null}</div>
+            <div className={styles.scope}><span role="status">{loading ? '正在更新楼宇…' : `${buildings.length} 栋楼宇`}</span>{!loading && periods.size > 1 ? <span className={styles.periodNote}>混合季度</span> : null}</div>
             <label className={styles.sort}><span>排序</span><select aria-label="楼宇排序" value={sort} onChange={event => { setSort(event.target.value as FullListSort); movePage(1); }}>
               <option value="default">默认顺序</option>
               <option value="name">名称</option>
@@ -169,7 +169,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
                   {!locationAvailable ? <p className={styles.locationNote}>{coordinateIssue(building) === 'missing' ? '位置待完善，可查看项目资料' : coordinateNotice(building)}</p> : null}
                 </article>;
               })}
-              {!loading && !buildings.length ? <div className={styles.status}><h2>未找到符合条件的楼宇</h2><p>减少筛选条件或换一个关键词继续查找。</p><Button variant="secondary" onClick={onResetFilters}>清空条件</Button></div> : null}
+              {!loading && !buildings.length ? <div className={styles.status}><h2>未找到符合条件的楼宇</h2><Button variant="secondary" onClick={onResetFilters}>清空条件</Button></div> : null}
               <footer className={styles.footer}><span className={styles.context}>第 {page} / {pages} 页</span><nav className={styles.pages} aria-label="完整列表分页"><Button variant="secondary" disabled={loading || page <= 1} onClick={() => movePage(page - 1, true)}>上一页</Button><Button variant="secondary" disabled={loading || page >= pages} onClick={() => movePage(page + 1, true)}>下一页</Button></nav></footer>
             </div>
           )}

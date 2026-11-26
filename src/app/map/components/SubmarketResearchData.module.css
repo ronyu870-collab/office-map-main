@@ -71,7 +71,14 @@
   outline-offset: 2px;
 }
 .source summary:hover, .quarterData summary:hover { text-decoration: underline; }
-.source div { display: grid; gap: var(--cd-space-2); }
+.source > p { margin: 0 0 var(--cd-space-2); }
+
+.methodology, .methodology section, .methodologySamples { display: grid; gap: var(--cd-space-2); }
+.methodology { gap: var(--cd-space-4); }
+.methodology :is(h3, p, dl, dd) { margin: 0; }
+.methodology :is(h3, dt) { font-size: inherit; font-weight: 600; }
+.methodology p, .methodology dd { color: var(--cd-color-text-secondary); }
+.methodologySamples dd { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
 .trendSection { display: grid; gap: var(--cd-space-2); min-width: 0; }
 .charts { display: grid; gap: var(--cd-space-4); align-items: start; }
