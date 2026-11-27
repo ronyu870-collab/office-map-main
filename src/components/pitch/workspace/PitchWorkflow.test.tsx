@@ -98,6 +98,30 @@ it("keeps the handoff quarter focused while projects load and confirms the revie
   expect(onOpen).toHaveBeenCalledWith((command.target as { projectId: string }).projectId);
 });
 
+it("prevents confirming a lease handoff when the returned dataset or dates differ from the source", async () => {
+  const user = userEvent.setup();
+  const source = { kind: "lease-search", dataset: "history", from: "2026-04-01", to: "2026-06-30",
+    buildingIds: [buildingId], submarkets: [], view: "transactions", direction: "desc" } as const;
+  let sameDataset = false;
+  const call = vi.fn(async (request: Record<string, unknown>) => {
+    if (request.action === "list") return { items: [] };
+    return {
+      status: "ready", fingerprint, period: "", buildingIds: [buildingId], submarkets: [],
+      binding: { dataAsOf: source.to }, parameters: { templateId: "lease-representatives", chart: "table", measure: "count",
+        from: source.from, to: source.to, leaseSource: sameDataset ? source.dataset : "combined", direction: source.direction },
+      pages: [{ title: "历史成交", sources: [{ label: "获权来源" }] }],
+    };
+  }) as unknown as Call;
+  render(<HandoffReview source={{ source: { ...source, buildingIds: [buildingId], submarkets: [] } }} call={call} grants={[scope]}
+    theme={{ id: "colliers-default-v1", current_version: 2 }} onOpen={vi.fn()} onClose={vi.fn()} />);
+  await user.click(screen.getByRole("button", { name: "核对来源" }));
+  await screen.findByText("返回的成交日期、来源或统计口径与所选条件不一致，请重新核对。");
+  expect(screen.queryByRole("button", { name: "确认并创建" })).not.toBeInTheDocument();
+  sameDataset = true;
+  await user.click(screen.getByRole("button", { name: "核对来源" }));
+  expect(await screen.findByRole("button", { name: "确认并创建" })).toBeEnabled();
+});
+
 it("verifies a trusted analysis against its archived quarter without sending a period override", async () => {
   const user = userEvent.setup();
   const source = { kind: "analysis-result", id } as const;

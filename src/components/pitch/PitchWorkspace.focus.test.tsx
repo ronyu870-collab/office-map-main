@@ -162,7 +162,7 @@ let detail: ReturnType<typeof initial>,
   rejectSave = false,
   expandedCatalog = false,
   workspaceBuildingLookup = false,
-  visualCapabilities: string[] = [],
+  templateCapabilities: string[] = [],
   readyProposal = false,
   dropProposalCreateResponse = false,
   bindingResponse: (() => unknown) | undefined,
@@ -175,7 +175,7 @@ beforeEach(() => {
   rejectSave = false;
   expandedCatalog = false;
   workspaceBuildingLookup = false;
-  visualCapabilities = [];
+  templateCapabilities = [];
   failTaskPoll = false;
   failCompletedRead = false;
   completedTask = false;
@@ -201,10 +201,11 @@ beforeEach(() => {
       if (c.action === "catalog")
         body = path === "business" ? {
           recipes: expandedCatalog ? BUSINESS_RECIPES.map(r => ({...r, revision: 1, categoryId: sourceId, enabled: true})) : [],
-          dynamic: visualCapabilities.length ? ["competition-map", "stacking-plan"].map(id => ({ id, name: id, status: "available", reason: "" })) : [],
+          dynamic: ["competition-map", "stacking-plan", "lease-representatives", "lease-industry-distribution"]
+            .map(id => ({ id, name: id, status: "available", reason: "" })),
         } : catalog;
       else if (c.action === "capabilities")
-        body = { allowedDynamic: visualCapabilities, buildingSearch: workspaceBuildingLookup };
+        body = { allowedDynamic: templateCapabilities, buildingSearch: workspaceBuildingLookup };
       else if (c.action === "buildings")
         body = { items: [{ id: assetId, name: "工作台核对楼宇" }], next: null };
       else if (c.action === "preferences") body = { favorites: [], recent: [] };
@@ -248,7 +249,13 @@ beforeEach(() => {
       } else if (c.action === "proposal_generate") {
         body = { state: "completed", taskId: c.confirmation.taskId, projectId: proposalId };
       } else if (c.action === "review_handoff") {
-        body = {
+        const lease = c.handoff.source.kind === "lease-search" ? c.handoff.source : undefined;
+        body = lease ? {
+          status: "ready", fingerprint: "f".repeat(64), period: "", submarkets: [], buildingIds: [assetId],
+          binding: { dataAsOf: lease.to }, parameters: { from: lease.from, to: lease.to, direction: lease.direction,
+            leaseSource: lease.dataset, templateId: "lease-industry-distribution", chart: "bar", measure: "area" },
+          pages: [{ title: "已选楼宇成交面积", sources: [{ label: "获权历史成交" }] }],
+        } : {
           status: "ready", fingerprint: "f".repeat(64), period: "2026-Q3", submarkets: [], buildingIds: [assetId],
           binding: { dataAsOf: "2026-09-30" },
           pages: [{ title: "楼宇正式季度参数", sources: [{ label: "获权季度库" }],
@@ -523,7 +530,7 @@ describe("Pitch workspace continuous editing", () => {
     ["stacking-plan", "添加历史堆叠图", "添加区位图"],
   ])("appends %s for the exact selected buildings with the required server capability", async (templateId, label, unavailableLabel) => {
     workspaceBuildingLookup = true;
-    visualCapabilities = [templateId];
+    templateCapabilities = [templateId];
     detail.workspace.context.period = "2026-Q3";
     const user = await enter();
     await user.click(screen.getByRole("button", { name: "数据" }));
@@ -543,7 +550,7 @@ describe("Pitch workspace continuous editing", () => {
     expect(detail.workspace.context.buildingIds).toEqual([]);
   });
   it("regenerates the reviewed visual page even after navigating to another page", async () => {
-    visualCapabilities = ["stacking-plan"];
+    templateCapabilities = ["stacking-plan"];
     workspaceBuildingLookup = true;
     const otherPageId = "77777777-7777-4777-8777-777777777777";
     detail.slides.push({ ...detail.slides[0], id: otherPageId,
@@ -565,6 +572,40 @@ describe("Pitch workspace continuous editing", () => {
       projectId, replaceIds: [pageId],
       part: { mode: "dynamic", parameters: { templateId: "stacking-plan", buildingIds: [assetId] } },
     }));
+  });
+  it("reviews lease evidence for the selected building with the chosen dates, source and permitted aggregation", async () => {
+    workspaceBuildingLookup = true;
+    templateCapabilities = ["lease-industry-distribution"];
+    detail.workspace.context.period = "2026-Q3";
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
+    expect(screen.queryByText("租赁成交", { selector: "summary" })).not.toBeInTheDocument();
+    await user.type(await screen.findByLabelText("搜索楼宇"), "工作台核对");
+    await user.click(await screen.findByRole("button", { name: "工作台核对楼宇" }));
+    await user.click(screen.getByText("租赁成交", { selector: "summary" }));
+    expect(screen.getByLabelText("成交开始日期")).toHaveValue("2026-07-01");
+    expect(screen.getByLabelText("成交结束日期")).toHaveValue("2026-09-30");
+    expect(screen.queryByRole("option", { name: "成交明细" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("成交开始日期"), { target: { value: "2026-10-01" } });
+    expect(screen.getByRole("button", { name: "核对成交资料" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("成交开始日期"), { target: { value: "2026-08-01" } });
+    await user.selectOptions(screen.getByLabelText("成交来源"), "history");
+    await user.selectOptions(screen.getByLabelText("成交内容"), "industry-area");
+    await user.click(screen.getByRole("button", { name: "核对成交资料" }));
+    expect(await screen.findByText("获权历史成交")).toBeInTheDocument();
+    expect(writes.filter(entry => entry.action === "review_handoff")).toEqual([{ action: "review_handoff", handoff: {
+      projectId, language: "zh", source: { kind: "lease-search", dataset: "history", from: "2026-08-01", to: "2026-09-30",
+        buildingIds: [assetId], submarkets: [], view: "industry-area", direction: "desc" },
+    } }]);
+    expect(writes.some(entry => entry.action === "add_to_pitch")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "确认并追加" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "加入 Pitch" })).not.toBeInTheDocument());
+    expect(writes.find(entry => entry.action === "add_to_pitch")).toMatchObject({
+      handoff: writes.find(entry => entry.action === "review_handoff")?.handoff,
+      target: { mode: "append", expectedVersion: 1 }, fingerprint: "f".repeat(64),
+    });
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
   });
   it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
     expandedCatalog = true;

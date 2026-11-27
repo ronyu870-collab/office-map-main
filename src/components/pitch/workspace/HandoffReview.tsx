@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
 import { contentBlockSchema, type PitchScope } from "@/src/lib/pitch/contracts/content";
 import { outlineQuarter, workspaceDetailSchema } from "@/src/lib/pitch/workspace/protocol";
-import { pitchStackingSourceSchema, readPitchAnalysisPeriods, type PitchHandoffNavigation } from "../PitchHandoffLink";
+import { pitchStackingSourceSchema, readPitchAnalysisPeriods, type PitchHandoffNavigation, type PitchLeaseSearchSource } from "../PitchHandoffLink";
 import { WorkspaceError, type Call } from "./client";
 import { EvidencePages } from "./BusinessEvidence";
 import styles from "./workspace.module.css";
@@ -20,9 +20,12 @@ const readySchema = z.object({
     disclosure: z.enum(["internal", "restricted"]).optional() }),
   sourceCity: z.string().optional(),
   stackingSource: pitchStackingSourceSchema.optional(),
-  parameters: z.object({ analysisResult: z.object({
-    requestId: z.uuid(), resultId: z.uuid(), plan: z.unknown(),
-  }).optional() }).optional(),
+  parameters: z.object({
+    analysisResult: z.object({ requestId: z.uuid(), resultId: z.uuid(), plan: z.unknown() }).optional(),
+    templateId: z.string().optional(), from: z.iso.date().optional(), to: z.iso.date().optional(),
+    leaseSource: z.enum(["live", "history", "combined"]).optional(), direction: z.enum(["asc", "desc"]).optional(),
+    measure: z.enum(["area", "count"]).optional(), chart: z.string().optional(),
+  }).optional(),
   pages: z.array(z.object({ title: z.string(), sources: z.array(z.object({ label: z.string() })),
     blocks: z.array(contentBlockSchema).optional() })),
 });
@@ -45,6 +48,15 @@ function matchesSourceScope(source: AddToPitch["source"], preview: Ready) {
   if (source.kind === "submarket") return same([source.key], preview.submarkets) && !preview.buildingIds.length;
   if (source.kind === "lease-search") return same(source.buildingIds, preview.buildingIds) && same(source.submarkets, preview.submarkets);
   return true;
+}
+
+function matchesLeaseScope(source: PitchLeaseSearchSource, preview: Ready) {
+  const { parameters } = preview;
+  const details = source.view === "transactions";
+  return !preview.period && preview.binding.dataAsOf === source.to && parameters?.from === source.from &&
+    parameters.to === source.to && parameters.leaseSource === source.dataset && parameters.direction === source.direction &&
+    parameters.templateId === (details ? "lease-representatives" : "lease-industry-distribution") &&
+    parameters.chart === (details ? "table" : "bar") && parameters.measure === (source.view === "industry-area" ? "area" : "count");
 }
 
 export function HandoffReview({ source, call, grants, theme, destination, onOpen, onClose }: {
@@ -84,6 +96,7 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
   const eligibleForSource = !sourceCity || grants[scopeIndex]?.city === sourceCity;
   const canCreate = !!grants[scopeIndex] && !!theme && eligibleForSource;
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
+  const reviewOnOpen = !!destination && (!!source.period || !!lease);
 
   useEffect(() => {
     if (destination) return;
@@ -98,15 +111,15 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
   }, [call, destination, listAttempt]);
   useEffect(() => () => operation.current?.abort(), []);
   useEffect(() => {
-    if (!destination || !source.period || autoReviewed.current) return;
+    if (!reviewOnOpen || autoReviewed.current) return;
     const timer = setTimeout(() => {
       autoReviewed.current = true;
       void checkSource();
     }, 0);
     return () => clearTimeout(timer);
-  // The workspace opens with an explicit review action and a saved default quarter.
+  // The data inspector opens after the user explicitly requests a review of a dated source.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [destination, source.period]);
+  }, [reviewOnOpen]);
 
   function resetReview() {
     setReview(undefined);
@@ -121,6 +134,7 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
     operation.current = request;
     resetReview();
     setBusy("review");
+    let readingSource = false;
     try {
       const handoff: AddToPitch = {
         source: source.source,
@@ -131,6 +145,7 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
       const selected = projectId
         ? workspaceDetailSchema.parse(await call({ action: "get", projectId }, true, "workspace", request.signal))
         : null;
+      readingSource = true;
       const response = reviewSchema.parse(await call({ action: "review_handoff", handoff }, true, "workspace", request.signal));
       if (request.signal.aborted) return;
       if (response.status === "period_required") {
@@ -151,6 +166,10 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
         setError("返回的范围或季度与所选来源不一致，请重新核对。");
         return;
       }
+      if (lease && !matchesLeaseScope(lease, response)) {
+        setError("返回的成交日期、来源或统计口径与所选条件不一致，请重新核对。");
+        return;
+      }
       if (stacking) {
         if (!response.sourceCity || !response.stackingSource || response.period || response.binding.disclosure !== "restricted" ||
           response.buildingIds.length !== 1 || response.buildingIds[0] !== stacking.buildingId ||
@@ -164,7 +183,11 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
       setTitle(value => value || response.pages[0]?.title || "业务提案");
       setReview({ data: response, handoff, version: selected?.project.version });
     } catch (cause) {
-      if (!request.signal.aborted) setError(cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "来源核对结果暂时无法读取。");
+      if (!request.signal.aborted) {
+        const leaseDenied = lease && readingSource && cause instanceof WorkspaceError && cause.status === 403;
+        setError(leaseDenied ? "当前账号无法使用该成交范围，请核对成交来源、楼宇访问和内部导出权限。"
+          : cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "来源核对结果暂时无法读取。");
+      }
     } finally {
       operation.current = null;
       if (!request.signal.aborted) setBusy(undefined);
@@ -210,8 +233,11 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
     }
   }
 
+  const leaseLabel = lease && { transactions: "成交明细", "industry-count": "行业分布（笔数）", "industry-area": "行业分布（面积）" }[lease.view];
   const sourceLabel = research ? "北京甲级写字楼 · 获权跟踪样本"
-    : stacking ? "历史 Stacking Plan" : lease ? "成交库的代表成交" : source.source.kind === "buildings"
+    : stacking ? "历史 Stacking Plan" : lease ? [leaseLabel,
+      lease.buildingIds.length && `已选 ${lease.buildingIds.length} 栋楼宇`, ...lease.submarkets].filter(Boolean).join(" · ")
+    : source.source.kind === "buildings"
     ? `已选 ${source.source.buildingIds.length} 栋楼宇`
     : source.source.kind === "submarket" ? source.source.key : "Colliers AI 的获权分析结果";
   const reviewedPeriod = review?.data.period;
