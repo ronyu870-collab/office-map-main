@@ -34,7 +34,7 @@ async function person(role){
  await db.query('insert into public.user_roles(user_id,role) values($1,$2) on conflict(user_id) do update set role=excluded.role',[id,role]);
  const client=createClient(settings.API_URL,settings.ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
  const signed=await client.auth.signInWithPassword({email,password});assert.equal(signed.error,null);
- return {id,token:signed.data.session.access_token,client};
+ return {id,email,token:signed.data.session.access_token,client};
 }
 async function call(who,input,write=false,extra={}){
  const res=await fetch(app+'/api/intelligence/pitch'+(write?'':'?'+new URLSearchParams(input)),{method:write?'POST':'GET',headers:{...(who?{Authorization:'Bearer '+who.token}:{}),...(write?{'Content-Type':'application/json'}:{}),...extra},...(write?{body:JSON.stringify(input)}:{})});

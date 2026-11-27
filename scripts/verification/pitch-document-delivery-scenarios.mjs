@@ -144,15 +144,22 @@ export async function verifyPitchDocumentDelivery({ app, db, owner, other, viewe
     const [selected, excluded] = before.slides;
     const shareId = randomUUID();
     const create = {
-      action: "share_create", projectId, shareId, recipientId: viewer.id, expectedVersion: before.project.version,
+      action: "share_create", projectId, shareId, recipientEmail: viewer.email, expectedVersion: before.project.version,
       slideIds: [selected.id],
     };
     const share = await workspace(owner, create);
     assert.equal(share.status, 200, JSON.stringify(share.body));
+    assert.equal(share.body.recipientId, viewer.id);
     assert.deepEqual(share.body.pageIds, [selected.id]);
     assert.deepEqual((await workspace(owner, create)).body, share.body);
 
     const open = { action: "shared_presentation", shareId };
+    const landing = await fetch(app + "/intelligence/pitch/shared/" + shareId);
+    assert.equal(landing.status, 200);
+    const html = await landing.text();
+    assert.match(html, /noindex/);
+    assert.doesNotMatch(html, /隔离原版演示|固定版本的合成内容/);
+    assert.equal((await fetch(app + "/intelligence/pitch/shared/invalid")).status, 404);
     assert.equal((await workspace(null, open, false)).status, 401);
     assert.equal((await workspace(other, open, false)).status, 403);
     const opened = await workspace(viewer, open, false);
@@ -179,7 +186,13 @@ export async function verifyPitchDocumentDelivery({ app, db, owner, other, viewe
 
     const revoke = { action: "share_revoke", projectId, shareId };
     assert.equal((await workspace(viewer, revoke)).status, 403);
-    assert.equal((await workspace(owner, revoke)).status, 200);
+    const revokeShare = async () => assert.equal((await workspace(owner, revoke)).status, 200);
+    if (process.env.PITCH_WORKSPACE_BROWSER === "true") {
+      const { verifyPitchSharedPresentationBrowser } = await import("./pitch-workspace-browser.mjs");
+      await verifyPitchSharedPresentationBrowser({ app, viewer, other, shareId, revoke: revokeShare });
+    } else {
+      await revokeShare();
+    }
     assert.equal((await workspace(viewer, render, false)).status, 403);
   });
 }

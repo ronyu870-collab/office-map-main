@@ -24,6 +24,7 @@ import { getTrustedDeviceRemainingMs, isTrustedDevice } from '@/src/services/tru
 import { isPasswordSignInPending, subscribeToPasswordSignIn } from '@/src/services/passwordSignInTransition';
 import { getSessionIdFromAccessToken } from '@/src/utils/authSession';
 import { clearProposalDraftStorage } from '@/src/lib/intelligence/proposalDraftStorage';
+import { isPitchSharePath } from '@/src/lib/pitch/workspace/shareLink';
 
 export type AppSessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -116,6 +117,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // This route contains only the public research article. Session expiry still
   // clears credentials; readers simply remain on the article as visitors.
   const readingPublicReport = pathname === '/occupier-insights';
+  const handlesSignOutInPlace = readingPublicReport || isPitchSharePath(pathname);
   const router = useRouter();
 
   const resolveSession = useCallback(async (forceRefresh = false) => {
@@ -195,7 +197,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setStatus('unauthenticated');
         setShowWarning(false);
-        if (!readingPublicReport) router.push('/login');
+        if (!handlesSignOutInPlace) router.push('/login');
       }
     };
 
@@ -226,7 +228,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setStatus('unauthenticated');
         setShowWarning(false);
-        if (!readingPublicReport) {
+        if (!handlesSignOutInPlace) {
           alert('登录已过期，请重新登录');
           router.push('/login');
         }
@@ -247,7 +249,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
       if (trustedExpiryTimer) clearTimeout(trustedExpiryTimer);
     };
-  }, [pathname, readingPublicReport, router, session, setSession, status]);
+  }, [pathname, handlesSignOutInPlace, router, session, setSession, status]);
 
   useEffect(() => subscribeToPasswordSignIn(transition => {
     sessionGenerationRef.current += 1;
@@ -272,7 +274,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setStatus('unauthenticated');
         setShowWarning(false);
-        if (pathname !== '/login' && !readingPublicReport) router.push('/login');
+        if (pathname !== '/login' && !handlesSignOutInPlace) router.push('/login');
         return;
       }
 
@@ -307,7 +309,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, [pathname, readingPublicReport, resolveSession, router, setSession]);
+  }, [pathname, handlesSignOutInPlace, resolveSession, router, setSession]);
 
   const handleContinue = () => {
     setShowWarning(false);

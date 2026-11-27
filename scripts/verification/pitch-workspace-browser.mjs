@@ -80,6 +80,48 @@ async function openWorkspaceContext(browser, app, who, width) {
   return context;
 }
 
+export async function verifyPitchSharedPresentationBrowser({ app, viewer, other, shareId, revoke }) {
+  assert.equal(new URL(app).hostname, "127.0.0.1");
+  const browser = await launchBrowser();
+  const path = "/intelligence/pitch/shared/" + shareId;
+  try {
+    const visitor = await browser.newPage();
+    await visitor.goto(app + path);
+    const login = visitor.getByRole("link", { name: "登录查看演示" });
+    await login.waitFor();
+    assert.equal(await login.getAttribute("href"), "/login?pitchShare=" + shareId);
+    await visitor.close();
+
+    const wrong = await openWorkspaceContext(browser, app, other, 390);
+    const outsider = await wrong.newPage();
+    await outsider.goto(app + path);
+    await outsider.getByRole("alert").filter({ hasText: "没有查阅权限" }).waitFor();
+    await wrong.close();
+
+    const right = await openWorkspaceContext(browser, app, viewer, 390);
+    const recipient = await right.newPage();
+    await recipient.goto(app + "/login?pitchShare=" + shareId);
+    await recipient.waitForURL(app + path);
+    await recipient.getByRole("heading", { name: "隔离原版演示" }).waitFor();
+    const slide = recipient.getByRole("img", { name: "已选说明" });
+    await slide.waitFor();
+    await recipient.waitForFunction(() => {
+      const rendered = document.querySelector("main img");
+      return rendered?.complete && rendered.naturalWidth > 0;
+    });
+    assert.equal(await recipient.getByText("个人草稿").count(), 0);
+    const width = await recipient.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(width <= 390);
+    await revoke();
+    await recipient.reload();
+    await recipient.getByRole("alert").filter({ hasText: "没有查阅权限" }).waitFor();
+    assert.equal(await slide.count(), 0);
+    await right.close();
+  } finally {
+    await browser.close();
+  }
+}
+
 export async function verifyPitchWorkspaceBrowser({
   app,
   who,

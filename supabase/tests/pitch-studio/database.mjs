@@ -15,7 +15,7 @@ export async function createPitchDatabase() {
     for(const role of ['anon','authenticated','service_role'])if(!(await admin.query('select 1 from pg_roles where rolname=$1',[role])).rowCount)await admin.query(`create role ${role}`);
     await admin.query(`create database ${database}`);setup=new pg.Client({...config,database});await setup.connect();
     await setup.query(`create schema auth;create schema private;create schema storage;
-      create table auth.users(id uuid primary key,deleted_at timestamptz,banned_until timestamptz);
+      create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,deleted_at timestamptz,banned_until timestamptz);
       create table auth.sessions(id uuid primary key,user_id uuid references auth.users(id),not_after timestamptz);
       create table public.user_roles(user_id uuid primary key references auth.users(id),role text not null);
       create function auth.uid() returns uuid language sql stable as $$select (nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub')::uuid$$;

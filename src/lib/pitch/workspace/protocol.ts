@@ -283,9 +283,10 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
   }),
   z.strictObject({
     action: z.literal("share_create"), projectId: id, shareId: id, expectedVersion: z.number().int().positive(),
-    recipientId: id, expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
+    recipientId: id.optional(), recipientEmail: z.string().trim().max(254).pipe(z.email()).optional(),
+    expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
     slideIds: z.array(id).min(1).max(50).refine(ids => new Set(ids).size === ids.length).optional(),
-  }),
+  }).refine(c => !!c.recipientId !== !!c.recipientEmail),
   z.strictObject({ action: z.literal("share_revoke"), projectId: id, shareId: id }),
   z.strictObject({
     action: z.literal("preferences"),

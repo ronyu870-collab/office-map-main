@@ -52,9 +52,11 @@ PDF 按选页顺序载入素材库图片。同一图片版本在一次任务内�
 
 ## 指定账号演示
 
+项目所有者从工作台选择「共享」，填写接收账号的已验证邮箱，选择全部、当前或已选页面。生成后可复制链接，在共享记录中重新查看或撤回。接收者从 `/intelligence/pitch/shared/{shareId}` 登录后进入只读演示。
+
 | 命令 | 调用与结果 |
 | --- | --- |
-| POST `share_create` | 所有者传 `projectId`、`expectedVersion`、`shareId`、`recipientId`、可选有顺序的 `slideIds` 和 `expiresAt`。创建内部实名只读演示，并固定当前保存版本。重复原请求返回原回执。 |
+| POST `share_create` | 所有者传 `projectId`、`expectedVersion`、`shareId`、`recipientEmail` 或 `recipientId`，可选有顺序的 `slideIds` 和 `expiresAt`。服务端将已验证邮箱解析为唯一账号。创建内部实名只读演示，并固定当前保存版本。重复原请求返回原回执。 |
 | GET `shares` 和 POST `share_revoke` | 所有者查询最近 50 条回执，按 `projectId` 和 `shareId` 撤回。过期或撤回后的旧入口失效。 |
 | GET `shared_presentation` | 收件人用自己的登录会话和 `shareId` 打开页面目录。分享指定了页面时，目录沿用该顺序。 |
 | GET `shared_slide` | 收件人传 `shareId` 和目录中的 `slideId` 获取同一 Scene 渲染的 SVG。服务器在渲染前后复核账号、授权、版本、来源和媒体。 |

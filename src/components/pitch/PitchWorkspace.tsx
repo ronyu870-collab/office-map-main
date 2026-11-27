@@ -54,6 +54,7 @@ import { PagePreview, usePagePreviews } from "./workspace/Preview";
 import { Projects } from "./workspace/Projects";
 import { SlideNavigator } from "./workspace/SlideNavigator";
 import { Presentation } from "./workspace/Presentation";
+import { SharePanel } from "./workspace/SharePanel";
 import { canMoveObject } from "@/src/lib/pitch/workspace/object-layout";
 const ObjectCanvas = dynamic(() => import("./workspace/ObjectCanvas").then(module => module.ObjectCanvas), {
   loading: () => <p role="status">正在打开对象编辑…</p>,
@@ -1052,6 +1053,9 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   历史
                 </Button>
                 <Presentation slides={slidesForDisplay} active={active} onRetry={previews.retry} disabled={dirty || saving || conflict} />
+                <SharePanel key={detail.project.id} projectId={detail.project.id} version={detail.project.version}
+                  pageIds={detail.slides.map(slide => slide.id)} active={active} selected={selected} call={call}
+                  canCreate={!dirty && !saving && !conflict && !generationPending} />
                 <ExportPanel
                   openSignal={exportTrigger}
                   call={call}

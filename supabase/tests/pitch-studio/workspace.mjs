@@ -665,9 +665,23 @@ try {
       const request = { action: "workspace_share_create", projectId: shared.project.id,
         shareId: randomUUID(), expectedVersion: shared.project.version, recipientId: VIEWER, slideIds: [allowed.id] };
       await assert.rejects(db.rpc(OWNER, request), error => error.code === "42501");
-      const receipt = await db.rpc(OTHER, request);
+      const { recipientId, ...base } = request;
+      const recipientEmail = "pitch-reader@example.test";
+      const byEmail = { ...base, recipientEmail: "  PITCH-READER@example.test  " };
+      await db.setup.query("update auth.users set email=$1 where id=$2", [recipientEmail, recipientId]);
+      await assert.rejects(db.rpc(OTHER, byEmail), error => error.code === "42501");
+      await db.setup.query("update auth.users set email_confirmed_at=now() where id=$1", [recipientId]);
+      await assert.rejects(db.rpc(OWNER, byEmail), error => error.code === "42501");
+      await assert.rejects(db.rpc(OTHER, { ...byEmail, recipientId }), error => error.code === "42501");
+      await assert.rejects(db.rpc(OTHER, { ...byEmail, recipientEmail: "unknown@example.test" }), error => error.code === "42501");
+      await db.setup.query("update auth.users set email=$1,email_confirmed_at=now() where id=$2", [recipientEmail, OTHER]);
+      await assert.rejects(db.rpc(OTHER, byEmail), error => error.code === "42501");
+      await db.setup.query("update auth.users set email=null,email_confirmed_at=null where id=$1", [OTHER]);
+      const receipt = await db.rpc(OTHER, byEmail);
+      assert.equal(receipt.recipientId, VIEWER);
       assert.equal(receipt.version, shared.project.version);
       assert.deepEqual(receipt.pageIds, [allowed.id]);
+      assert.deepEqual(await db.rpc(OTHER, byEmail), receipt);
       assert.deepEqual(await db.rpc(OTHER, request), receipt);
       assert.deepEqual(await db.rpc(OTHER, { action: "workspace_shares", projectId: shared.project.id }), [receipt]);
       await assert.rejects(db.rpc(OTHER, { ...request, recipientId: ADMIN }), error => error.code === "23505");
