@@ -249,6 +249,9 @@ export const aiCommandSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("proposal_plan"), input: proposalRequestSchema }),
   z.strictObject({ action: z.literal("proposal_generate"), confirmation: confirmedProposalSchema }),
   z.strictObject({ action: z.literal("proposal_revision"), input: proposalRevisionRequestSchema }),
+  z.strictObject({ action: z.literal("proposal_apply_photo"), confirmation: z.strictObject({
+    input: proposalRevisionRequestSchema, fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  }) }),
   z.strictObject({ action: z.literal("outline"), query: recommendationSchema, projectId: z.uuid().optional() }),
   z.strictObject({
     action: z.literal("feedback"),

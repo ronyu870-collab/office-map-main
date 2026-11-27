@@ -11,6 +11,7 @@ import { pageEditSchema, workspaceCommandSchema, workspaceDetailSchema, type Wor
 import { proposalRequestSchema, readProposalBrief, type ProposalPriority, type ProposalRequest } from "./proposal-brief";
 import { compileProposalChartEdits, type ProposalChartChange } from "./proposal-chart-revision";
 import { previewProposalCompetitor, type ProposalCompetitorData, type ReviewProposalHandoff } from "./proposal-competitor-revision";
+import { reviewProposalPhotoReplacement, type ProposalPhotoServices } from "./proposal-photo-revision";
 import { resolveQuarterRevision } from "./proposal-quarter-revision";
 import type { ProposalScenario } from "../integration-contracts";
 import { readProposalEdit, type ProposalRevisionRequest } from "./proposal-edit-intent";
@@ -59,9 +60,12 @@ export type ProposalRevisionServices = {
   reviewHandoff?: ReviewProposalHandoff;
   competitorData?: ProposalCompetitorData;
   prepareReplan?: typeof prepareProposal;
+  photo?: ProposalPhotoServices;
 };
 
-export async function planProposalRevision(ctx: PitchContext, input: ProposalRevisionRequest, providers?: PreviewProposalQuarter | ProposalRevisionServices) {
+export async function planProposalRevision(ctx: PitchContext, input: ProposalRevisionRequest,
+  providers?: PreviewProposalQuarter | ProposalRevisionServices, confirmedPhoto?: string,
+) {
   const services = typeof providers === "function" ? { previewQuarter: providers } : providers;
   const previewQuarter = services?.previewQuarter;
   const current = versionedWorkspace.parse(await pitchRpc(ctx, { action: "workspace_get", projectId: input.projectId }));
@@ -69,6 +73,10 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   if (project.version !== input.expectedVersion) throw new Error("PITCH_CONFLICT");
   const catalog = await pitchRpc(ctx, { action: "catalog" });
   const intention = readProposalEdit(input);
+  if (intention.kind === "intent" && intention.operations.length === 1 && intention.operations[0].kind === "replace-photo" && services?.photo) {
+    return reviewProposalPhotoReplacement(ctx, current, input, intention.target, intention.operations[0].category, services.photo, confirmedPhoto);
+  }
+  if (confirmedPhoto) throw new Error("PITCH_INVALID");
   if (intention.kind === "intent" && intention.operations.length === 1 && intention.operations[0].kind === "add-competitor") {
     if (intention.target.kind === "pages" && intention.target.pageIds.some(id => !slides.some(slide => slide.id === id))) {
       throw new Error("PITCH_INVALID");
