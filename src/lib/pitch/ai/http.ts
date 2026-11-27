@@ -162,6 +162,8 @@ export async function handleAiRequest(
     if (code === "PITCH_WORKER_UNAVAILABLE") return reply({ code, error: "任务暂时无法启动，请稍后重试。" }, 503);
     if (code === "PITCH_CONFLICT")
       return reply({ error: "版本已更新，请重新读取后再保存。" }, 409);
+    if (code === "PITCH_EDITION_LAYOUT")
+      return reply({ error: "新季度内容无法与部分已编辑的页面对应。请核对原稿布局和文字后重新审阅。" }, 422);
     if (
       error instanceof z.ZodError ||
       code.startsWith("PITCH_AI_") ||

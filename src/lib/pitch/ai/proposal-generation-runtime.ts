@@ -160,7 +160,11 @@ export async function previewMarketEdition(ctx: PitchContext, current: Workspace
   const command = { projectId: current.project.id, expectedVersion: current.project.version };
   const input = await prepareFreshGeneration(ctx, command, reviewed, randomUUID(), current.project);
   const overlay = await prepareMarketEdition(ctx, current, reviewed, input, "review");
-  if (overlay) return reviewProposalEdition(current, overlay.pages, overlay.preserved, input.proposalContext.period);
+  if (!overlay) return;
+  const narrativeKinds = new Set(reviewed.plan.slides.filter(slide => slide.businessIntent !== "fact").map(slide => slide.pageKind));
+  const analyticalPages = new Set(Object.entries(input.reviewedSlideKeys ?? {}).flatMap(([id, key]) =>
+    narrativeKinds.has(key.split(":")[0]) ? [id] : []));
+  return reviewProposalEdition(current, overlay.pages, overlay.preserved, input.proposalContext.period, analyticalPages);
 }
 
 async function prepareGeneration(ctx: PitchContext, command: ConfirmedProposal, reviewed: ReviewedProposal, projectId: string) {
