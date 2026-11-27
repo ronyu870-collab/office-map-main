@@ -8,7 +8,7 @@ import { outlineQuarter, workspaceDetailSchema, type WorkspaceDetail } from "@/s
 import type { Call } from "./client";
 import type { DocumentBindings } from "./DocumentBindings";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel,
-  type DataRefreshReview } from "./DataRefreshReview";
+  matchesAppliedDataRefresh, matchesDataRefreshReview, type DataRefreshReview } from "./DataRefreshReview";
 import styles from "./workspace.module.css";
 
 const fieldNames: Record<string, { label: string }> = { ...catalogDimensions, ...numericFields };
@@ -66,6 +66,7 @@ function RefreshActions({ call, detail, slideId, disabled, suggestedPeriod, onAp
   const expectedVersion = detail.project.version;
   useEffect(() => () => pending.current?.abort(), []);
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
+  const expectedPeriod = period || (boundPeriod ? refreshPeriodLabel(boundPeriod) : null);
   function commandQuarter() {
     if (!period) return {};
     return { period: { year: Number(period.slice(0, 4)), quarter: Number(period.at(-1)) } };
@@ -81,13 +82,17 @@ function RefreshActions({ call, detail, slideId, disabled, suggestedPeriod, onAp
       const input = { projectId, slideId, expectedVersion, ...commandQuarter() };
       if (action === "preview") {
         const result = dataRefreshReviewSchema.parse(await call({ action: "preview_data_refresh", ...input }, true, "workspace", request.signal));
-        if (request.signal.aborted || result.projectVersion !== expectedVersion) return;
+        if (request.signal.aborted) return;
+        if (!matchesDataRefreshReview(result, detail, slideId, expectedPeriod))
+          throw new Error("核对结果与当前页面或季度不一致，请重新打开项目。");
         setReview(result);
       } else if (review?.changed) {
         const result = workspaceDetailSchema.parse(await call({
           action: "apply_data_refresh", ...input, fingerprint: review.fingerprint,
         }, true, "workspace", request.signal));
         if (request.signal.aborted) return;
+        if (!matchesAppliedDataRefresh(review, detail, result))
+          throw new Error("无法核对保存后的正式数据，请重新打开项目。");
         setReview(undefined);
         onApplied(result, expectedVersion);
       }
