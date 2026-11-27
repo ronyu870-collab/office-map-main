@@ -290,7 +290,10 @@ export function SubmarketDetailPanel({
     observeBusinessReading('VIEW_SUBMARKET','map',{target_table:'submarket_profiles',target_id:name,submarket:name,section:currentSection,grade,observation:'view_displayed'},'submarket');
   },[name,currentSection,grade,suspended,loading,loadError]);
   const trendReady = !detail?.trendError && hasTrend;
-  const overviewTrendReady = !detail?.trendError && summarizeSubmarketTrend(detail?.trends.all ?? []).hasTrend;
+  const latestMarketQuarter = !detail?.trendError && !loadError
+    ? summarizeSubmarketTrend(detail?.trends.all ?? []).latest
+    : null;
+  const overviewTrendReady = !!latestMarketQuarter;
   const gradeNames = [['all', '甲乙级'], ['a', '甲级'], ['b', '乙级']] as const;
 
   // Keep the map mounted, but let the client brief own its interaction layer.
@@ -367,7 +370,8 @@ export function SubmarketDetailPanel({
                     {metric('甲乙级项目', summary.officeCount.toLocaleString('zh-CN'), '个', '甲级 ' + summary.gradeACount + ' · 乙级 ' + summary.gradeBCount)}
                   </section>
 
-                  {!isDemo && !getImpersonationTargetUserId() && <PitchHandoffLink source={{ kind: 'submarket', key: name }}
+                  {!loading && !isDemo && !getImpersonationTargetUserId() && <PitchHandoffLink source={{ kind: 'submarket', key: name }}
+                    period={latestMarketQuarter ? `${latestMarketQuarter.year}-Q${latestMarketQuarter.quarter}` : undefined}
                     className="workspace-business-action workspace-resource-action" label="将子市场行情加入 Pitch" />}
                   <section aria-label="区域定位" className="rounded-[9px] border border-[#e0e6ed] bg-white px-4 py-4 sm:px-6 sm:py-5">
                     <h3 className="m-0 text-[14px] font-semibold leading-6 text-[#172033]">
