@@ -180,6 +180,13 @@ async function makePage(width, capability = 'enabled', role = 'admin') {
         if (body.action === 'archive') localHistory.find(entry => entry.conversationId === body.conversationId).archived = body.archived;
         return json({ status: 'saved' });
       }
+      if (url.pathname === '/api/intelligence/query/buildings' && body.resultId === entity.resultId) {
+        if (body.requestId !== requestId || body.buildingId || body.photoId) return route.fulfill({ status: 403, json: { status: 'denied' } });
+        const row = entity.table.rows[0];
+        return json({ status: 'ready', requestId, resultId: entity.resultId, metadataReadAt: '2026-11-17T03:00:00.000Z',
+          total: 1, offset: 0, hasMore: false, buildings: [{ id: row.entityId, name: row.cells.name.value, submarket: 'CBD', grade: 'A',
+            located: false, unavailableReason: 'missing_coordinates', photo: null }] });
+      }
       if (url.pathname === '/api/intelligence/query/artifact') {
         if (body.action === 'chart') {
           const selected = [aggregate, vacancyResult, relationship, regional, trend, tableResult, professional, ranking, distribution, entity, fileResult, pdfResult, leaseSummary, leaseUnknown].find(result => result.resultId === body.resultId);
@@ -641,7 +648,9 @@ try {
     await capture(session, 'default-ranking');
     if (variant === 'after') {
       await send(session, '查看合成单楼宇资料', 'entity');
-      await activeAnswer.getByRole('region', { name: '记录摘要', exact: true }).waitFor();
+      const record = activeAnswer.getByRole('region', { name: '记录摘要', exact: true });
+      await record.waitFor();
+      await record.getByRole('heading', { name: entity.table.rows[0].cells.name.value, exact: true }).waitFor();
       const boundary = activeAnswer.getByLabel('重要数据限制', { exact: true });
       assert.equal(await boundary.count(), 1);
       assert.match(await boundary.innerText(), /不按零处理/);

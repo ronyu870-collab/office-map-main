@@ -40,22 +40,24 @@ function BuildingResults({ result, requestId, scope, buildings, onSource }: { re
   // scope identity is serialized; refreshing React props must not reload the same page.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadKey]);
-  return <section className={styles.section} aria-label="查询楼宇信息">
-    <div className={styles.heading}><h3>{buildings.length === 1 ? '楼宇信息' : `本次结果 · ${buildings.length} 栋楼宇`}</h3>
+  const single = buildings.length === 1;
+  return <section className={styles.section} aria-label={single ? "记录摘要" : "查询楼宇信息"}>
+    <div className={styles.heading}><h3>{single ? '楼宇信息' : `本次结果 · ${buildings.length} 栋楼宇`}</h3>
       <Link className={styles.link} href={queryMapHref(requestId, undefined, false, result.resultId)} prefetch={false}>{result.parameters.agentMap ? '打开已准备的地图选择' : `在地图中查看${buildings.length > 1 ? '全部项目' : ''}`}</Link></div>
     <p className={styles.note}>{resultScopeText(result)} 指标保留本次结果期间；子市场、等级和照片按当前目录读取。</p>
     {error ? <div role="alert"><p>{error}</p><Button variant="ghost" onClick={() => setRevision(value => value + 1)}>重试楼宇信息</Button></div>
-      : !pageContext ? <p role="status" className={styles.note}>正在核对楼宇访问权限与当前目录…</p>
-      : <div className={styles.list}>{buildings.slice(page * 5, page * 5 + 5).map(building => {
-        const metadata = pageContext.buildings.find(item => item.id === building.id);
-        return <BuildingCard key={building.id} building={building} metadata={metadata} result={result} requestId={requestId} scope={scope} single={buildings.length === 1} onSource={onSource} />;
-      })}</div>}
+      : !pageContext && <p role="status" className={styles.note}>正在核对楼宇访问权限与当前目录…</p>}
+    {!error && (pageContext || single) && <div className={styles.list}>{buildings.slice(page * 5, page * 5 + 5).map(building => {
+      const metadata = pageContext?.buildings.find(item => item.id === building.id);
+      return <BuildingCard key={building.id} building={building} metadata={metadata} directoryReady={!!pageContext}
+        result={result} requestId={requestId} scope={scope} single={single} onSource={onSource} />;
+    })}</div>}
     {buildings.length > 5 && <div className={styles.pagination}><span>第 {page * 5 + 1}–{Math.min(page * 5 + 5, buildings.length)} 栋，共 {buildings.length} 栋</span>
       <Button variant="ghost" disabled={page === 0} onClick={() => setPage(value => value - 1)}>上一组楼宇</Button>
       <Button variant="ghost" disabled={(page + 1) * 5 >= buildings.length} onClick={() => setPage(value => value + 1)}>下一组楼宇</Button></div>}
   </section>;
 }
-function BuildingCard({ building, metadata, result, requestId, scope, single, onSource }: { building: QueryBuildingRow; metadata?: BuildingContext['buildings'][number];
+function BuildingCard({ building, metadata, directoryReady, result, requestId, scope, single, onSource }: { building: QueryBuildingRow; metadata?: BuildingContext['buildings'][number]; directoryReady: boolean;
   result: QueryResultView; requestId: string; scope: QueryClientScope; single: boolean; onSource?: (ids: string[], label: string, trigger: HTMLButtonElement) => void }) {
   const [expanded, setExpanded] = useState(single), [photoRequested, setPhotoRequested] = useState(single);
   const [loaded, setLoaded] = useState<{ key: string; photo?: BuildingContext['photoAccess']; error?: string }>();
@@ -81,14 +83,14 @@ function BuildingCard({ building, metadata, result, requestId, scope, single, on
   const columns = result.table.columns.filter(column => column.key !== 'name' && building.cells[column.key]);
   const visible = expanded ? columns : columns.slice(0, 2);
   return <article className={`${styles.card} ${photoRequested && metadata?.photo ? styles.withPhoto : ''}`} aria-label={`${building.name}楼宇卡片`}>
-    <div className={styles.cardHeading}><h4>{building.name}</h4><p>{metadata?.submarket ?? '子市场未知'} · {metadata?.grade ? gradeLabel(metadata.grade) : '等级未知'} <span>（当前目录）</span></p></div>
+    <div className={styles.cardHeading}><h4>{building.name}</h4>{metadata && <p>{metadata.submarket ?? '子市场未知'} · {metadata.grade ? gradeLabel(metadata.grade) : '等级未知'} <span>（当前目录）</span></p>}</div>
     {photoRequested && metadata?.photo && <figure className={styles.photo}>
       {photo ? <><img src={photo.url} alt={metadata.photo.caption} loading="lazy" onError={() => setLoaded({ key: loadKey, error: '照片加载失败，请重试。' })} />
         <figcaption>{metadata.photo.caption} · <a href={photo.source_url} target="_blank" rel="noopener noreferrer">{photo.source_name || '图片来源'}</a>
           {photo.attribution_text && ` · ${photo.attribution_text}`}{photo.license_url && <> · <a href={photo.license_url} target="_blank" rel="noopener noreferrer">许可说明</a></>}</figcaption></>
         : error ? <><p role="alert">{error}</p><Button variant="ghost" onClick={() => setRevision(value => value + 1)}>重试照片</Button></> : <p role="status">正在读取已存档照片…</p>}
     </figure>}
-    {!metadata?.photo && single && <p className={styles.note}>暂无可访问的实景照片。</p>}
+    {directoryReady && !metadata?.photo && single && <p className={styles.note}>暂无可访问的实景照片。</p>}
     <dl className={styles.fields}>{visible.map(column => {
       const cell = building.cells[column.key];
       const period = [...new Set(cell.sourceIds.flatMap(id => {

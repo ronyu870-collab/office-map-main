@@ -42,10 +42,24 @@ describe('P2 source-bound building cards', () => {
     expect(new URL(link.getAttribute('href')!, 'https://example.test').searchParams.get('aiBuilding')).toBe(ids[0]);
   });
 
+  it('keeps the single record and authorized metrics visible while directory data is pending', async () => {
+    const data = result(); let resolve!: (value: unknown) => void;
+    client.buildings.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    render(<HomeQueryResult result={data} requestId={requestId} scope={scope} />);
+    const region = await screen.findByRole('region', { name: '记录摘要' });
+    expect(region).toHaveTextContent('合成楼1');
+    expect(region).toHaveTextContent('100');
+    expect(region).toHaveTextContent('正在核对楼宇访问权限与当前目录');
+    expect(region).not.toHaveTextContent('暂无可访问的实景照片');
+    await act(async () => resolve(metadata(data)));
+    expect(region).toHaveTextContent('暂无可访问的实景照片');
+  });
+
   it('T03 preserves unknown photos/coordinates and historical metric period; source action keeps same IDs', async () => {
     const data = result(), source = vi.fn(); client.buildings.mockResolvedValue(metadata(data));
     render(<HomeQueryBuildings result={data} requestId={requestId} scope={scope} onSource={source} />);
     const card = await screen.findByRole('article', { name: '合成楼1楼宇卡片' });
+    await screen.findByText('暂无可访问的实景照片。');
     expect(card).toHaveTextContent('2026Q3'); expect(card).toHaveTextContent('100'); expect(card).toHaveTextContent('暂无可访问的实景照片');
     expect(card).toHaveTextContent('不会补造位置'); expect(card.querySelector('img')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '100' })); expect(source.mock.calls[0][0]).toEqual(data.table.rows[0].cells.netEffectiveRent.sourceIds);
