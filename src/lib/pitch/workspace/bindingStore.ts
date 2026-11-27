@@ -18,9 +18,39 @@ export type Block = SlideContent['blocks'][number];
 const encode = (value: unknown) => JSON.stringify(value);
 export const captureKey = (assetId: string, assetVersion: number) => assetId + ':' + assetVersion;
 
-export async function readCaptures(ctx: PitchContext, projectId: string, version: number) {
+const queryReceiptSchema = z.object({
+  kind: z.literal('query_receipt'), asset_id: z.uuid(), asset_version: z.number().int().positive(),
+  generation_id: z.uuid(), source_id: z.uuid(), receipt_id: z.string(), result_id: z.uuid(), entity_id: z.string(),
+  binding: z.object({
+    domain: z.enum(['quarter', 'lease', 'business']), dataVersion: z.string(), dataAsOf: z.iso.date().nullable(),
+    permissionRevision: z.string(), policyVersion: z.string(), disclosure: z.literal('internal'),
+  }),
+  query: z.object({
+    operation: z.string(), parameters: z.record(z.string(), z.unknown()), scopeFingerprint: z.string(),
+    registryVersion: z.string(), fields: z.array(z.string()),
+  }),
+});
+type QueryReceipt = z.infer<typeof queryReceiptSchema>;
+
+export async function readBindings(ctx: PitchContext, projectId: string, version: number) {
   const result = await pitchRpc(ctx, { action: 'workspace_document_bindings', projectId, expectedVersion: version });
-  return new Map(z.array(captureSchema).parse(result).map(c => [captureKey(c.asset_id, c.asset_version), c]));
+  const captures = new Map<string, Capture>();
+  const receipts = new Map<string, QueryReceipt[]>();
+  for (const row of z.array(z.union([captureSchema, queryReceiptSchema])).parse(result)) {
+    const key = captureKey(row.asset_id, row.asset_version);
+    if ('kind' in row) {
+      const current = receipts.get(key);
+      if (current) current.push(row);
+      else receipts.set(key, [row]);
+    } else {
+      captures.set(key, row);
+    }
+  }
+  return { captures, receipts };
+}
+
+export function blockQueryReceipts(block: Block, receipts: readonly QueryReceipt[] = []) {
+  return receipts.filter(receipt => block.sourceIds.includes(receipt.source_id));
 }
 
 export function fieldIndex(block: Block, original: SlideContent) {

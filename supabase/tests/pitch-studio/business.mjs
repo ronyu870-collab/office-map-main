@@ -77,6 +77,64 @@ try {
    await installPitchDataFixture(db);await db.setup.query('update private.ai_query_control set enabled=true');await grantQuery(db,ADMIN,{capabilities:['query:catalog','query:brochure','query:quarter','export:internal'],fields:['height','floors','parking','totalArea','vacantArea','netEffectiveRent']});
    dynamicProject=command([{mode:'dynamic',parameters:dynamicFixture}]);dynamicProject.parts[0].researchAssetId=ids.research;const generated=await workflow.generateBusinessProject(admin,dynamicProject);assert.ok(generated.pages>=2);const receipt=await db.rpc(ADMIN,{action:'business_generation',projectId:dynamicProject.projectId});assert.ok(receipt.bindings.some(b=>b.id===ids.research));assert.ok(receipt.snapshots[0].content.some(c=>c.blocks.some(b=>b.kind==='chart')&&c.blocks.some(b=>b.kind==='insight')));await db.setup.query('begin read only');try{await db.setup.query("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({sub:ADMIN,session_id:sessionFor(ADMIN)})]);await db.setup.query('set local role authenticated');assert.equal((await db.setup.query('select * from pitch_business_generations where project_id=$1',[dynamicProject.projectId])).rowCount,0);}finally{await db.setup.query('rollback');}assert.equal(receipt.snapshots[0].results[0].operation,'trend');assert.equal(receipt.snapshots[0].dataAsOf,'2026-09-30');assert.equal(receipt.snapshots[0].parameters.period.quarter,3);assert.ok(receipt.snapshots[0].results[0].sources.every(s=>s.table==='building_metrics'||s.table==='buildings'));await assert.rejects(workflow.generateBusinessProject(ordinary,command([{mode:'dynamic',parameters:dynamicFixture}])),/QUERY_DENIED/);
  });
+ await check('reviewed query receipts bind their actual objects and preserve independent human notes', async () => {
+   const { captureReviewedQuery } = require('../../../src/lib/pitch/business/document-version.ts');
+   const { layoutSlides } = require('../../../src/lib/pitch/layout/engine.ts');
+   const { STUDIO_THEME } = require('../../../src/lib/pitch/design/theme.ts');
+   const workspace = require('../../../src/lib/pitch/workspace/workflow.ts');
+   const { readDocumentBindings } = require('../../../src/lib/pitch/workspace/documentBindings.ts');
+   const captured = (await db.rpc(ADMIN,{action:'business_generation',projectId:dynamicProject.projectId})).snapshots[0];
+   const [result] = captured.results;
+   const snapshot = { id:'trend:rent', entityId:scope.city,
+     binding:{...captured.binding,dataVersion:captured.dataVersion,dataAsOf:captured.dataAsOf,disclosure:'internal'},
+     dataVersion:captured.dataVersion,dataAsOf:captured.dataAsOf,results:[captureReviewedQuery(result)] };
+   const official = { id:result.resultId,kind:'record',recordId:result.resultId,label:'正式季度库',
+     locator:snapshot.id+' · '+result.resultId,version:captured.dataVersion,dataAsOf:captured.dataAsOf };
+   const draft = { id:randomUUID(),kind:'record',recordId:'workspace:test-note',label:'项目组说明',
+     locator:'隔离人工备注',version:'1',dataAsOf:captured.dataAsOf };
+   const unrelated = {...official,id:randomUUID(),locator:'另一个归档记录'};
+   const content = { protocol:'colliers-pitch/1',locale:'zh',title:'已审阅的季度说明',
+     disclosure:'internal',dataAsOf:captured.dataAsOf,isTestData:false,sources:[official,draft,unrelated],
+     blocks:[{kind:'paragraph',text:'项目组说明',sourceIds:[draft.id]},
+       {kind:'paragraph',text:'按正式季度口径展示趋势。',sourceIds:[official.id]},
+       {kind:'paragraph',text:'其他资料说明',sourceIds:[unrelated.id]}] };
+   const [scene] = await layoutSlides(content,STUDIO_THEME,'two-columns');
+   const base = command([]);
+   const projectId=base.projectId, assetId=randomUUID(), slideId=randomUUID();
+   await db.rpc(ADMIN,{action:'business_generate_commit',projectId,title:base.title,
+     themeId:base.themeId,themeVersion:base.themeVersion,scope,language:'zh',requestKey:'a'.repeat(64),
+     reviewedPlanId:randomUUID(),generated:[{id:assetId,content,sha256:digest(Buffer.from(JSON.stringify(content)))}],
+     slides:[{slideId,assetId,assetVersion:1,content,scene}],changes:[],bindings:[],recipes:[],snapshots:[snapshot]});
+   const first = await workspace.getWorkspace(admin,projectId);
+   const bound = (await readDocumentBindings(admin,projectId)).pages[0];
+   assert.deepEqual(bound.objects.map(object=>object.valueOrigin),['manual','business','asset']);
+   assert.deepEqual(bound.objects[1].receipts[0],{sourceId:official.id,generationId:projectId,receiptId:snapshot.id,
+     resultId:result.resultId,entityId:scope.city,binding:snapshot.binding,
+     query:{operation:result.operation,parameters:result.parameters,scopeFingerprint:result.scopeFingerprint,
+       registryVersion:result.registryVersion,fields:snapshot.results[0].fields}});
+   assert.equal('table' in bound.objects[1].receipts[0],false);
+   await assert.rejects(readDocumentBindings(ordinary,projectId),/PITCH_DENIED/);
+   const save = { action:'save',projectId,expectedVersion:first.project.version,title:first.project.title,
+     themeId:base.themeId,themeVersion:base.themeVersion,context:first.workspace.context,activeSlide:slideId };
+   const reportParagraphs=content.blocks.map(block=>block.text);
+   await assert.rejects(workspace.saveWorkspace(admin,{...save,pages:[{id:slideId,
+     paragraphs:[reportParagraphs[0],'未经确认的正式数值 999',reportParagraphs[2]]}]}),/PITCH_BOUND_VALUE_EDIT/);
+   const objectIndex = scene.elements.findIndex(item=>item.kind==='text' && item.text.includes('按正式季度'));
+   assert.ok(objectIndex>=0);
+   await assert.rejects(workspace.saveWorkspace(admin,{...save,pages:[{id:slideId,
+     objectTexts:[{id:'object-'+(objectIndex+1),text:'未经确认的数值 999'}]}]}),/PITCH_BOUND_VALUE_EDIT/);
+   const updated=await workspace.saveWorkspace(admin,{...save,pages:[{id:slideId,manualNote:'已核对项目背景',
+      paragraphs:['人工说明已更新',...reportParagraphs.slice(1)]}]});
+   assert.equal(updated.slides[0].content.blocks[1].text,reportParagraphs[1]);
+   const current=(await readDocumentBindings(admin,projectId)).pages[0];
+   assert.equal(current.manualNote,'已核对项目背景');
+   assert.deepEqual(current.objects[1],bound.objects[1]);
+   assert.equal(current.objects[0].valueOrigin,'manual');
+   const restored=await workspace.restoreWorkspace(admin,{action:'restore',projectId,expectedVersion:updated.project.version,
+     revision:first.project.version});
+   assert.deepEqual(restored.slides[0].content,first.slides[0].content);
+   assert.deepEqual((await readDocumentBindings(admin,projectId)).pages[0].objects[1],bound.objects[1]);
+ });
  await check('matching chapter queries share one official snapshot without mixing research and plain text', async () => {
    let snapshotsRead = 0;
    const ctx = { ...admin, client: { ...admin.client, rpc(name, args) {
