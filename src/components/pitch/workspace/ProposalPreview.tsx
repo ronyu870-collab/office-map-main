@@ -7,6 +7,8 @@ import { outlineQuarter } from "@/src/lib/pitch/workspace/protocol";
 import { Button } from "@/src/components/ui";
 import type { Call } from "./client";
 import { WorkspaceError } from "./client";
+import { PhotoPreviewImage } from "./PhotoPreviewImage";
+import { plannedPhotoSchema } from "./PhotoRevisionReview";
 import styles from "./workspace.module.css";
 
 const projectThemeSchema = z.object({ id: z.string().min(1).max(100), version: z.number().int().positive() });
@@ -20,7 +22,13 @@ const responseSchema = z.discriminatedUnion("status", [
       version: z.number().int().positive(),
       contextFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
       theme: projectThemeSchema.optional(),
-      slides: z.array(z.object({ id: z.uuid(), title: z.string(), pageKind: z.string().optional() })),
+      slides: z.array(z.object({
+        id: z.uuid(), title: z.string(), pageKind: z.string().optional(),
+        visuals: z.array(z.unknown()).optional().transform(refs => (refs ?? []).flatMap(ref => {
+          const photo = plannedPhotoSchema.safeParse(ref);
+          return photo.success ? [photo.data] : [];
+        })),
+      })),
       gaps: z.array(z.object({ pageKind: z.string(), reason: z.string() })),
     }),
     brief: z.object({
@@ -68,6 +76,31 @@ export type ProposalProjectInput = {
 type Destination =
   | { projectId: string; projectVersion: number; createProject?: never }
   | { projectId?: never; projectVersion?: never; createProject: (input: ProposalProjectInput) => Promise<Project> };
+
+function PlannedPhotos({ slides, onStale }: {
+  slides: z.infer<typeof reviewedProposalSchema>["plan"]["slides"];
+  onStale: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState(0);
+  const photos = [...new Map(slides.flatMap(slide => slide.visuals.map(photo =>
+    [photo.pin.versionHash, photo] as const))).values()];
+  const photo = photos[selected] ?? photos[0];
+  if (!photo) return null;
+  return <details className={styles.refreshChanges} onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary>已选楼宇照片（{photos.length}）</summary>
+    {open && <div className={styles.form}>
+      {photos.length > 1 && <label>
+        照片
+        <select value={selected} onChange={event => setSelected(Number(event.target.value))}>
+          {photos.map((item, index) => <option key={item.pin.versionHash} value={index}>{item.caption}</option>)}
+        </select>
+      </label>}
+      <PhotoPreviewImage key={photo.pin.versionHash} pin={photo.pin} caption={photo.caption} onStale={onStale} />
+      <p>{photo.label}</p>
+    </div>}
+  </details>;
+}
 
 export function ProposalPreview({ call, projectId, city, question, language, period, buildingIds, initialQuestion, disabled, projectVersion, createProject, onGenerated, onGenerating, reviewed }: Destination & {
   call: Call;
@@ -234,6 +267,11 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         ? "可在「数据」中指定楼宇后重新核对。"
         : "如需指定楼宇，可先打开项目设置。"}</p>}
       <ol>{visible.plan.slides.map(slide => <li key={slide.id}>{slide.title}</li>)}</ol>
+      <PlannedPhotos key={visible.plan.id} slides={visible.plan.slides} onStale={() => {
+        if (request.current || working || taskState || recovery) return;
+        setResult(undefined);
+        setError(reviewed ? "照片版本已更新，请关闭核对窗口后重新预览修改。" : "照片版本已更新，请重新规划正式提案。");
+      }} />
       {visible.plan.gaps.length > 0 && <details>
         <summary>资料缺口（{visible.plan.gaps.length}）</summary>
         <ul>{visible.plan.gaps.map(({ reason }, index) => <li key={index}>{reason}</li>)}</ul>

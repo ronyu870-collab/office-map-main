@@ -14,6 +14,15 @@ const photoPin = z.object({
 }).refine(pin => pin.buildingIds[0] === pin.origin.buildingId);
 export type PhotoPin = z.infer<typeof photoPin>;
 const boundSource = z.object({ id, kind: z.literal("record"), sha256: digest, version: digest, recordId: id, visual: photoPin });
+export const plannedPhotoSchema = photoPin.safeExtend({
+  caption: z.string().min(1).max(300),
+  source: boundSource.extend({ label: z.string().min(1).max(300) }),
+}).refine(photo => photo.source.visual.id === photo.id &&
+  photo.source.visual.version === photo.version && photo.source.visual.versionHash === photo.versionHash &&
+  photo.source.visual.contentHash === photo.contentHash && photo.source.visual.origin.buildingId === photo.origin.buildingId &&
+  photo.source.visual.origin.photoId === photo.origin.photoId &&
+  photo.source.sha256 === photo.contentHash && photo.source.version === photo.versionHash && photo.source.recordId === photo.origin.photoId
+).transform(({ caption, source }) => ({ caption, label: source.label, pin: source.visual }));
 const inputSchema = z.strictObject({
   projectId: id, expectedVersion: version, question: z.string().trim().min(1).max(1000), currentPageId: id.optional(),
   competitorBuildingId: id.optional(), pageIds: z.array(id).max(50), objectIds: z.array(objectKey).max(30),
