@@ -2,41 +2,58 @@ import { stableId } from "../library/extract";
 import type { DocumentModificationPlan } from "../integration-contracts";
 import type { WorkspaceSave } from "../workspace/protocol";
 import type { ConfirmedProposal } from "./proposal-brief";
+import type { ProposalGenerationLease } from "./proposal-generation-lease";
 import { directProposal, type ProposalDirectorPorts, type ProposalPlanningResult } from "./proposal-director";
 import { readProposalEdit, type ProposalEditIntent, type ProposalRevisionRequest } from "./proposal-edit-intent";
 import type { ProposalModel } from "./proposal-interpretation";
 
 
 export type ReviewedProposal = Extract<ProposalPlanningResult, { status: "ready" }>;
-type Receipt = { taskId: string; projectId?: string; state: "queued" | "running" | "completed" | "failed" | "cancelled" };
+export type ProposalGenerationReceipt = { taskId: string; projectId?: string; state: "queued" | "running" | "completed" | "failed" | "cancelled" };
+type ProposalModelProvider = ProposalModel | (() => Promise<ProposalModel | undefined>);
 
 export type ProposalGenerationPort = {
   // The existing workflow owns idempotency, version checks, lease, revalidation
   // at execution and completion, and cancellation/resumption of persisted tasks.
   // A reviewed source can supply a final authorization check before commit.
   // queryReceipts contains the exact authorized results cited by the pages.
-  find(input: ConfirmedProposal, signal: AbortSignal): Promise<Receipt | null>;
-  enqueue(input: ConfirmedProposal, reviewed: ReviewedProposal, signal: AbortSignal): Promise<Receipt>;
+  find(input: ConfirmedProposal, signal: AbortSignal): Promise<ProposalGenerationReceipt | null>;
+  enqueue(input: ConfirmedProposal, reviewed: ReviewedProposal, signal: AbortSignal): Promise<ProposalGenerationReceipt>;
 };
 
 /** Plan and confirmation use the same composer. Register these together with
  * the workspace transaction capable of saving its reviewed pages and sources. */
-export type ProposalExecution = { director: ProposalDirectorPorts; workflow: ProposalGenerationPort };
+export type ProposalExecution = { director: ProposalDirectorPorts } & (
+  { workflow: ProposalGenerationPort; lease?: never } | { lease: ProposalGenerationLease; workflow?: never }
+);
 
-export async function submitConfirmedProposal(
-  input: ConfirmedProposal, director: ProposalDirectorPorts, workflow: ProposalGenerationPort,
-  signal: AbortSignal, model?: ProposalModel | (() => Promise<ProposalModel | undefined>),
-) {
+export function assertProposalConfirmation(input: ConfirmedProposal, signal: AbortSignal) {
   signal.throwIfAborted();
   if (stableId("pitch-proposal/1:" + input.contextFingerprint) !== input.planId) throw new Error("PITCH_PROPOSAL_REVIEW_REQUIRED");
-  const existing = await workflow.find(input, signal);
+}
+
+export async function reviewConfirmedProposal(input: ConfirmedProposal, director: ProposalDirectorPorts,
+  signal: AbortSignal, model?: ProposalModelProvider): Promise<ReviewedProposal> {
+  assertProposalConfirmation(input, signal);
+  const allowedModel = typeof model === "function" ? await model() : model;
   signal.throwIfAborted();
-  if (existing) return existing;
-  const proposal = await directProposal(input.request, director, signal, typeof model === "function" ? await model() : model);
+  const proposal = await directProposal(input.request, director, signal, allowedModel);
   signal.throwIfAborted();
   if (proposal.status !== "ready" || proposal.plan.id !== input.planId || proposal.plan.contextFingerprint !== input.contextFingerprint) {
     throw new Error("PITCH_PROPOSAL_REVIEW_REQUIRED");
   }
+  return proposal;
+}
+
+export async function submitConfirmedProposal(
+  input: ConfirmedProposal, director: ProposalDirectorPorts, workflow: ProposalGenerationPort,
+  signal: AbortSignal, model?: ProposalModelProvider,
+) {
+  assertProposalConfirmation(input, signal);
+  const existing = await workflow.find(input, signal);
+  signal.throwIfAborted();
+  if (existing) return existing;
+  const proposal = await reviewConfirmedProposal(input, director, signal, model);
   return workflow.enqueue(input, proposal, signal);
 }
 

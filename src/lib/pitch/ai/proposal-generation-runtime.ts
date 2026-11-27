@@ -1,16 +1,16 @@
 import { generationSchema } from "../business/protocol";
 import { generateBusinessProject } from "../business/workflow";
 import { pitchRpc, type PitchContext } from "../data/store";
-import { stableId } from "../library/extract";
 import { getWorkspace } from "../workspace/workflow";
 import type { ConfirmedProposal } from "./proposal-brief";
 import { authorizedProposalModel } from "./proposal-model";
+import { proposalGeneratedProjectId } from "./proposal-generation-lease";
 import { createProposalDirectorPorts, proposalEvidenceVersion } from "./proposal-runtime";
 import { submitConfirmedProposal, type ProposalGenerationPort } from "./proposal-workflow";
 
 export async function generateConfirmedProposal(ctx: PitchContext, input: ConfirmedProposal) {
   const current = await getWorkspace(ctx, input.projectId);
-  const generatedId = stableId(`pitch-proposal-generation/1:${ctx.identity.actorId}:${input.projectId}:${input.expectedVersion}:${input.taskId}:${input.planId}`);
+  const generatedId = proposalGeneratedProjectId(ctx, input);
   const completed = { taskId: input.taskId, projectId: generatedId, state: "completed" as const };
   // Recovered projects are still private and must pass the original workspace
   // and source authorization on every read. No model runs on a successful retry.

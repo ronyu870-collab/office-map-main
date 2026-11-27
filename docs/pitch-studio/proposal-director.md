@@ -9,10 +9,10 @@
 | 动作 | 入参 | 返回 |
 | --- | --- | --- |
 | `proposal_plan` | `input` 包含 `question`，可附当前 `projectId`、明确选择的 `buildingIds`、期间、语言及 `analysisResultId` | 已审阅范围的 Brief、按顺序排列的 ProposalPlan、逐页证据引用与缺项，或明确的待确认状态 |
-| `proposal_generate` | `confirmation` 包含实际项目版本、`taskId`、`planId`、`contextFingerprint` 及原请求 `request` | 现有业务生成链路的私人子项目凭据，须已回读实际页面。归档审阅用 `generationAvailable` 标识是否可提交 |
+| `proposal_generate` | `confirmation` 包含实际项目版本、`taskId`、`planId`、`contextFingerprint` 及原请求 `request` | 返回任务状态。完成收据包含已生成的私人子项目。归档审阅用 `generationAvailable` 标识是否可提交 |
 | `proposal_revision` | `input` 包含项目、预期版本、用户原话和明确选择的当前页／页面／对象 | 匹配项目和页面版本的结构化审阅计划，或具体修改意图及可用性 |
 
-标准生成使用现有可信查询模板，在原业务生成提交点核对数据。重复提交同一请求及任务 ID 可读取相同授权下的已生成子项目。原项目仅作为作用域、版本和主题来源。专项工作流可通过 `submitConfirmedProposal` 的 `ProposalGenerationPort` 接管任务领取、取消和恢复。
+标准生成使用现有可信查询模板，在原业务生成提交点核对数据。重复提交同一请求及任务 ID 可读取相同授权下的已生成子项目。原项目仅作为作用域、版本和主题来源。同步业务生成和持久任务使用同一审阅复核逻辑。持久任务先由 Agent 06 固定确认输入及目标子项目，再由领取租约的工作进程重新审阅并制作页面。重复确认、取消、失联恢复和重试使用原任务 ID。AI 核对原审阅和来源，工作台负责原子提交和完成收据。
 
 常见请求零模型调用。复杂请求只在现有 AI 开关、本人权限、项目外部处理资格及运营配置均允许时进入一次无工具结构化调用。发送内容限本次用户问题和有界槽位协议，不发送业务数据、原件、已读楼书、照片或历史案例。供应商选择、预算预留及实际用量继续由 Colliers AI 运行时管理。缓存只保存通过校验的解释槽位，区分操作者、会话、权限与模型配置。每次生成仍重查当前来源和正式季度。
 
@@ -23,7 +23,7 @@
 - `directProposal` 使用共享 `ProposalBrief`、`PitchContextSnapshot` 和 `ProposalPlan`。`ProposalDirectorPorts` 负责目录、期间和业务页面的授权读取。`composeUnifiedProposalPages` 接收统一数据投影和获权素材，调用四套专业 recipe 并保留必要页面及业务依赖。业务与视觉适配器提供真实身份、期间、来源和版本，业务 recipe 提供实际 `SlideContent`。策划器只选有来源的组合，并保留有待确认项。
 - `previewProposalRevision` 生成带原页版本的 `DocumentModificationPlan`。文字和可用主题返回 Agent 06 的 `apply_modification` 指令，保留原项目和页版本。商务、高端和研究风格分别使用工作台目录当前登记的 Corporate Executive、Premium Portfolio 和 Market Intelligence。工作台注册数据刷新和对比交接命令后，常规 AI API 自动使用同一身份与取消信号调用对应的只读审阅。生成的确认命令由 Agent 06 的工作台事务执行。指定季度或更新至最新正式季度时，由当前页面保存的业务查询范围和指标口径查可用季度。要求环比、同比的页面同时核对基期。涉及页面来自同一份可刷新快照时，AI 预览返回实际刷新前后值及可确认的 `apply_data_refresh` 命令，其中固定目标季度、工作台版本和审阅指纹。跨快照、越出所选页范围或需要拆分事务的请求保留原稿。未接入刷新服务时，季度重查询结果标为 `refresh-review`。原生条形、柱状和折线图可按所选对象、指定页面或整套提案切换。预览显示原类型和目标类型，固定工作区与页面版本。图表保留原分类、系列、数值、单位和来源。已手工定位或分页的图表保持原样。此能力随 Agent 06 的图表事务注册后自动可用。新增竞品先用授权楼宇目录核对名称和同名项目，再按现有正式季度重查原候选及已确认的竞品。预览返回 Agent 06 的 `add_to_pitch` 追加命令、工作台版本及同一任务 ID，工作台照原有任务契约处理保存、取消与恢复。涉及指定页内改表的请求会请用户确认追加方式。整套精简支持指定页数，也可根据当前篇幅提出目标。审阅列出拟移除的页，并保留封面、结语、人工编辑页、非纯文字页及仅此一页使用的业务来源。照片、重新定位和语言调整仍需相应数据、素材和工作流接缝。
 - `createUnifiedProposalComposer` 接收 Agent 01 的 `loadUnifiedPitchContext` 和 `requestFromProposalBrief`、Agent 02 的 `getBuildingPhotoChoices` 和 `readPitchLocation`。同一授权身份、范围及取消信号贯穿各读取。先核对正式季度和楼宇身份，再获取实景和地图。招商代理可按明确选定的素材 ID 读取已发布、许可生成的团队与案例版本。计划固定主题、素材版本和原始来源。 重新确认时按业务范围、来源版本与权限比较，查询临时 ID 变化本身不要求重审。工作流只收到页面实际引用的授权查询结果及其原始凭据，客户端预览只收到摘要与引用。受限的历史 Stacking Plan 在普通提案计划中保持缺项。
-- 集成入口将统一 composer 通过 `createProposalDirectorPorts` 注册为 `compose`。只有可保存组合页面、业务绑定与固定素材版本的工作流就绪后，才在 `handleAiRequest` 第五个参数中一并注册 director 和 `ProposalGenerationPort`。现有独立入口继续生成标准业务页。英文、子市场季度报告和已授权分析归档走已有确定性路径。
+- 集成入口将统一 composer 通过 `createProposalDirectorPorts` 注册为 `compose`。只有可保存组合页面、业务绑定与固定素材版本的工作流就绪后，才在 `handleAiRequest` 第五个参数中注册同一 director 和生成工作流。可提交的同步流程注册 `workflow`。集成 Agent 06 的 `lookupProposalTask`、`startProposalTask` 和 `runProposalTask` 时注册 `lease`，并提供只读组装及完成后重新授权的回调。组装须返回固定父项目、原版本和计划 ID 的业务提交参数。现有独立入口继续生成标准业务页。英文、子市场季度报告和已授权分析归档走已有确定性路径。
 - 用户指定篇幅时，优先保留有证据支撑的指定分析主题，再补充可纳入的前置语境。保留专业 recipe 的叙事顺序和必备页。选址方案注明用户明确提供的面积和预算，同类条件存在多种口径时列入待确认项。用户输入在需求页单独标注。正式楼宇与市场事实仍以查询结果为依据。
 - 正式季度的楼宇列表和单指标逐季租金或空置趋势，可按归档原参数重查。只有表格、查询范围和逐项来源一致时，才显示可提交的结构化提案。提交前用现有生成事务再次核验数据、归档授权及父项目版本。归档无法等价重现时，保留原数据审阅和原因。
 - 四个旗舰请求、缺失或同名楼宇、未授权、未完成季度、缺图、季度修订、模型超时／非法响应以及取消均使用本地合成夹具。四个请求均经过 Agent 04 的业务 recipe，代表页由现有渲染器生成 PPTX 并回读原生表格或图表。预提交守卫专项执行既有业务生成路径，核对证据变化时不进入持久化操作。没有真实供应商请求。
