@@ -56,8 +56,11 @@ export function precedingMarketComparison(question: string): boolean {
     .test(question.normalize('NFKC').replace(/[\s。！？.!?]+/gu, ''));
 }
 
-export function resumesResearch(question: string): boolean {
-  return /^(?:请)?(?:继续|恢复|接着)(?:执行|推进|完成|做)?(?:刚才|上次|当前|未完成|这份|这个|本次)?的?(?:研究|简报|报告|任务|工作)?[。！？.!?]*$/u.test(question.normalize('NFKC').replace(/\s+/gu, ''))
+export function resumesResearch(question: string, previousQuestion?: string): boolean {
+  const normalize = (value: string) => value.normalize('NFKC').replace(/\s+/gu, '').replace(/[。！？.!?]+$/u, '');
+  const text = normalize(question);
+  if (previousQuestion && text === normalize(previousQuestion)) return true;
+  return /^(?:请)?(?:继续|恢复|接着)(?:执行|推进|完成|做)?(?:刚才|上次|当前|未完成|这份|这个|本次)?的?(?:研究|简报|报告|任务|工作)?[。！？.!?]*$/u.test(text)
     || /(?:刚才|上次|当前|这份|未完成).{0,8}(?:研究|简报|报告|任务)|(?:审查|导出|下载).{0,6}(?:研究|简报|报告)(?:成果|文件|状态|进度)?[。！？.!?]*$/u.test(question);
 }
 

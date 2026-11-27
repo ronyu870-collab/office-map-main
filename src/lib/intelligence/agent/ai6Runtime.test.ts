@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { routeTask } from './taskRouting';
+import { resumesResearch, routeTask } from './taskRouting';
 import { runAgentLoop, agentInstructions } from './agentOrchestrator';
 import { structuredQueryPlan } from './structuredQueryPlan';
 import { parseAgentToolArguments } from './toolRegistry';
@@ -66,6 +66,13 @@ describe('AI6 full-condition execution routing', () => {
   ])('does not drop unsupported or multi-domain requirements: %s', q => expect(routeTask(q).route).not.toBe('deterministic_query'));
   it.each(['什么是净有效租金', '如何计算空置率', '请写一封邮件解释净有效租金'])('does not turn conceptual discussion into a database query: %s', q => {
     expect(routeTask(q).route).toBe('bounded_agent'); expect(modelToolCatalogue(q, 'deep', [])).toHaveLength(0);
+  });
+  it('resumes a verbatim research retry while a new business question stays independent', () => {
+    const previous = '研究 CBD 近四季度租金、空置率和面积，生成内部 Word、PPT、PDF 与 Excel。';
+    expect(resumesResearch(previous, previous)).toBe(true);
+    expect(resumesResearch('继续刚才的研究', previous)).toBe(true);
+    expect(resumesResearch('查询CBD楼宇清单', previous)).toBe(false);
+    expect(resumesResearch('制作金融街四季度专项研究报告', previous)).toBe(false);
   });
   it('routes unresolved hard site conditions for interpretation and respects explicit map exclusion', () => {
     const base = 'CBD选址租赁2000平方米，预算300元/平方米/月';

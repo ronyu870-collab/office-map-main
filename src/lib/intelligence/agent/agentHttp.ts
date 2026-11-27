@@ -194,7 +194,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     };
     const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal,
       precedingMarketComparison(valid.question));
-    const previousResearch = history.contextResult && isResearchResult(history.contextResult) && resumesResearch(valid.question)
+    const previousResearch = history.contextResult && isResearchResult(history.contextResult)
+      && resumesResearch(redactSubmittedCredentials(valid.question).text, history.at(-1)?.user)
       ? history.contextResult : undefined;
     const research = new ResearchExecution(previousResearch);
     let researchTouched = false;
