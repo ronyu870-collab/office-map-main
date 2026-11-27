@@ -1,3 +1,4 @@
+import { rankProjectionFields, type RankProjection } from './plan';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { aggregateQuarter, compareQuarters, rankBuildings, trendQuarters } from './analytics';
@@ -129,17 +130,29 @@ export function buildListResult(snapshot: FactSnapshot, fields: readonly Numeric
   }, fields);
 }
 
-export function buildRankResult(snapshot: FactSnapshot, field: NumericField, limit: number, direction: 'asc' | 'desc'): QueryResult {
+export function buildRankResult(snapshot: FactSnapshot, field: NumericField, limit: number, direction: 'asc' | 'desc',
+  projection: readonly RankProjection[] = []): QueryResult {
   const analysis = rankBuildings(snapshot, field, limit, direction);
+  const byId = new Map(snapshot.rows.map(row => [row.id, row]));
+  const additional = rankProjectionFields(projection);
+  const keys = new Set<string>(projection.map(key => key === 'vacancyRate' ? 'vacancy' : key));
+  const projected = keys.size ? buildListResult({ ...snapshot,
+    rows: analysis.rows.map(row => byId.get(row.entityId)!), expectedCount: analysis.rows.length,
+  }, additional, projection.includes('vacancyRate')) : undefined;
+  const extraCells = new Map(projected?.table.rows.map(row => [row.entityId, row.cells]));
+  const columns = projected?.table.columns.filter(column => keys.has(column.key)) ?? [];
   return envelope(snapshot, {
-    operation: 'rank', parameters: { field, limit, direction, period: snapshot.period }, analysis,
+    operation: 'rank', parameters: { field, limit, direction, period: snapshot.period, ...(projection.length ? { projection } : {}) }, analysis,
     table: {
-      id: 'ranking', columns: [{ key: 'name', label: '楼宇', unit: null }, { key: field, label: numericFields[field].label, unit: numericFields[field].unit }],
+      id: 'ranking', columns: [{ key: 'name', label: '楼宇', unit: null },
+        { key: field, label: numericFields[field].label, unit: numericFields[field].unit }, ...columns],
       rows: analysis.rows.map(row => ({ entityId: row.entityId, cells: {
-        name: { kind: 'text', value: row.name, sourceIds: [snapshot.rows.find(entity => entity.id === row.entityId)!.nameSource.id] }, [field]: { kind: 'number', value: row.value, sourceIds: row.sourceIds },
+        name: { kind: 'text', value: row.name, sourceIds: [byId.get(row.entityId)!.nameSource.id] },
+        [field]: { kind: 'number', value: row.value, sourceIds: row.sourceIds },
+        ...Object.fromEntries(columns.map(column => [column.key, extraCells.get(row.entityId)![column.key]])),
       } })),
     },
-  }, [field]);
+  }, [...new Set([field, ...additional])]);
 }
 
 export function buildAggregateResult(snapshot: FactSnapshot, metric: Parameters<typeof aggregateQuarter>[1]): QueryResult {

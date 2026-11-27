@@ -79,10 +79,16 @@ export function applyAnswerPolicy(question: string, selection: AnswerSelection,
         : '查询区间内最新成交日期存在并列，以下保留全部并列记录，不能指定唯一一笔。' };
   }
   if (resultAvailability(primary) && next.task !== 'record') next = { ...next, status: 'unavailable' };
-  const unavailableFields = (primary.parameters.interpretation as { unavailableFields?: string[] } | undefined)?.unavailableFields;
-  if (unavailableFields?.length && ['answered', 'partial'].includes(next.status)) {
-    const notice = `本轮未交付${unavailableFields.join('、')}，这些字段尚未纳入可信查数。下方是符合已核验条件的结果。`;
-    next = { ...next, status: 'partial', notice: [next.notice, notice].filter(Boolean).join(' ') };
+  const { unavailableFields, deniedFields } = (primary.parameters.interpretation as {
+    unavailableFields?: string[]; deniedFields?: string[];
+  } | undefined) ?? {};
+  if ((unavailableFields?.length || deniedFields?.length) && ['answered', 'partial'].includes(next.status)) {
+    const notices = [
+      next.notice,
+      unavailableFields?.length ? `当前结构化查数无法提供${unavailableFields.join('、')}。` : undefined,
+      deniedFields?.length ? `当前身份未获授权查阅${deniedFields.join('、')}。` : undefined,
+    ];
+    next = { ...next, status: 'partial', notice: notices.filter(Boolean).join(' ') };
   }
   if (next.status === 'answered') {
     const issues = quarterlyAnswerIssues(question, primary);

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { authorizePlan, runAuditedQuery, runAuditedSubmission, type AuditPort, type QueryAuthority } from '../admission';
+import { authorizePlan, restrictRankProjection, runAuditedQuery, runAuditedSubmission, type AuditPort, type QueryAuthority } from '../admission';
 import { parseQueryPlan } from '../plan';
 
 const authority: QueryAuthority = { actorId: 'actor', effectiveUserId: 'effective', sessionActive: true, policyVersion: 'v1', permissionRevision: 'r1', grants: ['query:catalog', 'query:brochure'], fields: ['height'] };
@@ -8,6 +8,21 @@ const request = () => ({ requestId: crypto.randomUUID(), submittedText: 'CBD最�
 const ports = () => ({ audit: { receive: vi.fn().mockResolvedValue({ replayed: false }), append: vi.fn().mockResolvedValue(undefined) } satisfies AuditPort, execution: { freshAuthority: vi.fn().mockResolvedValue(authority), execute: vi.fn().mockResolvedValue({ answer: '仅已知高度记录中的最高楼', resultId: 'synthetic' }) } });
 
 describe('fail-closed audited query admission', () => {
+  it('withholds ungranted ranking projections while enforcing mandatory predicate inputs', () => {
+    const proposed = parseQueryPlan({ ...plan, period: { year: 2026, quarter: 2 }, projection: ['vacancyRate', 'floors'] });
+    const restricted = restrictRankProjection(proposed, authority);
+    expect(restricted.deniedFields).toEqual(['楼宇空置率', '楼层数（来源口径）']);
+    expect(restricted.plan).not.toHaveProperty('projection');
+    expect(() => authorizePlan(restricted.plan, authority)).not.toThrow();
+    const withPartialQuarterGrant: QueryAuthority = { ...authority, fields: ['height', 'vacantArea'],
+      grants: ['query:catalog', 'query:brochure', 'query:quarter'] };
+    const required = parseQueryPlan({ ...proposed, filter: { field: 'vacancyRate', operator: 'gte', value: '0.15' } });
+    expect(() => authorizePlan(restrictRankProjection(required, withPartialQuarterGrant).plan, withPartialQuarterGrant)).toThrow('QUERY_DENIED');
+    const withQuarterGrant: QueryAuthority = { ...withPartialQuarterGrant, fields: ['height', 'vacantArea', 'totalArea'] };
+    expect(restrictRankProjection(proposed, withQuarterGrant)).toMatchObject({
+      plan: { projection: ['vacancyRate'] }, deniedFields: ['楼层数（来源口径）'],
+    });
+  });
   it('reports a verified expired history context without executing data or treating it as revoked eligibility', async () => {
     const { audit, execution } = ports();
     const prepare = vi.fn().mockRejectedValue(new Error('QUERY_HISTORY_REOPEN'));

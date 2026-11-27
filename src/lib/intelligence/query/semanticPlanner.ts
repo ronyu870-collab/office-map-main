@@ -1,3 +1,4 @@
+import { rankProjectionFields, type RankProjection } from './plan';
 import { z } from 'zod';
 import { queryClarificationReasonSchema, type QueryClarificationReason } from './conversationProtocol';
 import { authorizePlan, type QueryAuthority } from './admission';
@@ -35,6 +36,7 @@ export type SemanticInterpretation = {
   inherited: string[];
   notices: string[];
   unavailableFields?: string[];
+  deniedFields?: string[];
   buildingProfile?: true;
   buildingLocation?: { subject: string; submarket: string };
 };
@@ -341,6 +343,22 @@ export type ResolveSemanticInput = {
   modelIntent?: unknown;
 };
 
+function requestedRankProjection(text: string) {
+  const match = /^(?:再加(?:上)?|加上|同时展示|补充|补一列|加一列)(?:一列|两列)?(.+?)[。！!？?]?$/.exec(text);
+  if (!match) return undefined;
+  const fields: RankProjection[] = [], unavailableFields: string[] = [];
+  for (const label of match[1].split(/[、，,和与及]/)) {
+    if (/^(?:楼宇)?空置率$/.test(label)) fields.push('vacancyRate');
+    else if (/^(?:总?建筑面积|GFA|竣工日期|建成年份|楼龄)$/i.test(label)) unavailableFields.push(/建筑面积|GFA/i.test(label) ? '建筑面积' : label);
+    else {
+      const field = (Object.keys(fieldLabels) as NumericField[]).find(key => fieldLabels[key] === label);
+      if (!field) return undefined;
+      fields.push(field);
+    }
+  }
+  return { fields, unavailableFields: unique(unavailableFields) };
+}
+
 function splitUnavailableProjection(text: string) {
   // Only an explicit trailing display request may be omitted as partial.
   // Any occurrence in a predicate, rank or ambiguous phrase stays in place.
@@ -354,11 +372,12 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   const context = input.context ? parseSemanticContext(input.context) : emptyContext();
   const question = expandedPending(input.question, context);
   const originalText = normalize(question);
-  const projection = splitUnavailableProjection(originalText);
+  const prior = context.lastPlan;
+  const rankProjection = prior?.operation === 'rank' ? requestedRankProjection(originalText) : undefined;
+  const projection = rankProjection ? { text: '', unavailableFields: rankProjection.unavailableFields } : splitUnavailableProjection(originalText);
   const grade = gradeConstraint(projection.text);
   const conditions = numericConditions(grade.text);
   const text = conditions.text;
-  const prior = context.lastPlan;
   const clarify = (reason: SemanticClarification['reason'], message: string, options: SemanticOption[] = []): SemanticResolution => {
     const clarification: SemanticClarification = { code: 'conditions_required', reason, message, options: options.filter(option => option.question.length <= 1000) };
     return { kind: 'clarification', clarification, context: { ...context, pending: { question, clarification } } };
@@ -646,7 +665,12 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   if (explicitMultiPeriod && prior && ['rank', 'list', 'distribution'].includes(prior.operation) && !metricMatches.length && !wantsTrend && !comparing) return clarify('unsupported', '上一轮逐楼查询不能直接扩展为多季度结果。请明确需要季度聚合趋势，或指定单一季度继续查询。');
   const preservedFollowup = !explicitMultiPeriod && !rank && !isList && !distribution && !relation && !comparing && !wantsTrend && !cross && !explicitGrouping && !metricMatches.length && prior;
   const metricOnlyFollowup = prior && metrics.length === 1 && metricMatches.length === 1 && !explicitMultiPeriod && !rank && !isList && !distribution && !relation && !comparing && !wantsTrend && !cross && !explicitGrouping;
-  if (model) {
+  if (rankProjection && prior?.operation === 'rank') {
+    const fields = unique([...(prior.projection ?? []), ...rankProjection.fields]).filter(value => value !== prior.field);
+    if (!prior.period && rankProjectionFields(fields).some(field => numericFields[field].temporal === 'quarter'))
+      return clarify('period_required', '新增指标需要正式季度。请明确要附加哪个季度的数据。');
+    candidate = { ...prior, ...(fields.length ? { projection: fields } : {}) };
+  } else if (model) {
     const modelGroup = model.groupBy ?? groupBy;
     const modelMode = model.mode ?? mode;
     switch (model.operation) {

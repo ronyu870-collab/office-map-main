@@ -1,3 +1,4 @@
+import { restrictRankProjection } from '../query/admission';
 import { structuredQueryPlan } from './structuredQueryPlan';
 import { randomUUID } from 'node:crypto';
 import { type StructuredDataToolName } from './toolRegistry';
@@ -78,7 +79,7 @@ export async function executeStructuredDataTool(
   env: VerifiedToolEnvironment, name: StructuredDataToolName, input: Record<string, unknown>,
 ): Promise<AgentToolObservation<QueryResult>> {
   env.signal.throwIfAborted();
-  const { plan, nameContains } = structuredQueryPlan(name, input);
+  const { plan: proposed, nameContains } = structuredQueryPlan(name, input);
   const fresh = async () => {
     const current = await loadDataAuthority(env.client, env.identity, env.signal);
     if (!current.grants.includes('query:catalog')
@@ -87,9 +88,11 @@ export async function executeStructuredDataTool(
     return current;
   };
   const authority = await fresh();
+  const { plan, deniedFields } = restrictRankProjection(proposed, authority);
   authorizeConversationPlan(plan, authority);
   const snapshots = await readQuerySnapshots(env.client, env.identity, await fresh(), plan, env.signal);
   let result: QueryResult = executeQueryPlan(plan, snapshots);
+  if (deniedFields.length) result = { ...result, parameters: { ...result.parameters, interpretation: { deniedFields } } };
   if (name === 'query_report_market') result = { ...result, parameters: { ...result.parameters, reportPeriodRule: 'completed-shanghai-calendar-quarters/1' }, limitations: [...result.limitations, '报告中的最近季度默认指最近已结束的北京时间日历季度；日历结束不等于数据已审定，缺期保留未知，不回退到其他季度。'] };
   // Search-by-name is a deterministic, result-only transformation of an already
   // authorized catalog snapshot. Preserve the original scope and source IDs.

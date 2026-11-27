@@ -1,6 +1,6 @@
 import { predicateInputFields } from './facts';
 import type { QueryPlan } from './plan';
-import { parseQueryPlan, planOutputFields } from './plan';
+import { parseQueryPlan, planOutputFields, rankProjectionFields } from './plan';
 import { numericFields, type NumericField } from './registry';
 import type { QuestionClarification } from './question';
 
@@ -16,14 +16,29 @@ export type QueryAuthority = Readonly<{
   fields: readonly NumericField[];
 }>;
 
+function canReadField(authority: QueryAuthority, field: NumericField): boolean {
+  const grant = numericFields[field].temporal === 'quarter' ? 'query:quarter' : 'query:brochure';
+  return authority.fields.includes(field) && authority.grants.includes(grant);
+}
+
+/** Optional output fields may be withheld independently. Scope, restrictions,
+ * period and ranking input are mandatory and still use authorizePlan. */
+export function restrictRankProjection(plan: QueryPlan, authority: QueryAuthority): { plan: QueryPlan; deniedFields: string[] } {
+  if (plan.operation !== 'rank' || !plan.projection?.length) return { plan, deniedFields: [] };
+  const projection = plan.projection.filter(field => rankProjectionFields([field]).every(input => canReadField(authority, input)));
+  if (projection.length === plan.projection.length) return { plan, deniedFields: [] };
+  const deniedFields = plan.projection.filter(field => !projection.includes(field))
+    .map(field => field === 'vacancyRate' ? '楼宇空置率' : numericFields[field].label);
+  const { projection: requested, ...rank } = plan;
+  void requested;
+  return { plan: { ...rank, ...(projection.length ? { projection } : {}) }, deniedFields };
+}
+
 export function authorizePlan(plan: QueryPlan, authority: QueryAuthority): void {
   if (!authority.sessionActive || !authority.actorId || !authority.effectiveUserId || !authority.policyVersion || !authority.permissionRevision) throw new Error('QUERY_DENIED');
   const required = new Set([...planOutputFields(plan), ...predicateInputFields(plan.filter)]);
   if (!authority.grants.includes('query:catalog')) throw new Error('QUERY_DENIED');
-  for (const field of required) {
-    const grant = numericFields[field].temporal === 'quarter' ? 'query:quarter' : 'query:brochure';
-    if (!authority.fields.includes(field) || !authority.grants.includes(grant)) throw new Error('QUERY_DENIED');
-  }
+  if ([...required].some(field => !canReadField(authority, field))) throw new Error('QUERY_DENIED');
   // This is function/field admission only. The data adapter must separately apply
   // current row/source ACLs and the validated scope, including aggregate inputs.
 }

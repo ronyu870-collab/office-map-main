@@ -167,6 +167,16 @@ describe('P1 available-business-period resolution', () => {
       scope: { inventory: 'tracked', submarkets: ['CBD'] }, filter: { field: 'grade', operator: 'eq', value: 'A' },
     });
   });
+  it('adds optional columns to the prior strict ranking without changing period, scope or order', () => {
+    const first = ready(ask('2026Q3 CBD净有效租金前两栋，仅限甲级'));
+    const next = ready(ask('再加空置率和建筑面积', first.context));
+    expect(next.plan).toMatchObject({ ...first.plan, projection: ['vacancyRate'] });
+    expect(next.interpretation.unavailableFields).toEqual(['建筑面积']);
+    const market = ready(ask('金融街呢', next.context));
+    expect(market.plan).toMatchObject({ operation: 'rank', limit: 2, field: 'netEffectiveRent',
+      projection: ['vacancyRate'], filter: { field: 'grade', operator: 'eq', value: 'A' },
+      scope: { inventory: 'tracked', submarkets: ['金融街'] } });
+  });
   it('uses the latest authorized period for formal-quarter ranking, without asking a provider to guess', () => {
     const availablePeriods = [{ year: 2026, quarter: 2 }];
     expect(ready(ask('CBD最新正式季度净有效租金前十栋', undefined, { availablePeriods })).plan)

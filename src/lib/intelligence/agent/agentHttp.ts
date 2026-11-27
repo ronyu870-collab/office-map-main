@@ -574,7 +574,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           if (observation.result && name === 'execute_query_plan' && (taskRoute.planNotices?.length || taskRoute.unavailableFields?.length)) {
             observation.result = { ...observation.result,
               ...(taskRoute.unavailableFields?.length ? { parameters: { ...observation.result.parameters,
-                interpretation: { unavailableFields: taskRoute.unavailableFields } } } : {}),
+                interpretation: { ...(observation.result.parameters.interpretation as object | undefined), unavailableFields: taskRoute.unavailableFields } } } : {}),
               limitations: [...new Set([...observation.result.limitations, ...(taskRoute.planNotices ?? [])])] };
           }
           if (observation.result) {

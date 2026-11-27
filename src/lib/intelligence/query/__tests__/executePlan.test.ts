@@ -41,6 +41,15 @@ describe('structured plan execution against one database snapshot', () => {
     expect(result.table.rows.map(row => row.entityId)).toEqual(['D', 'A']);
     expect(result.sources.some(source => source.entityId === 'B' && source.field === 'grade' && source.rawValue === 'P')).toBe(true);
   });
+  it('keeps original rank ordering when projecting formal per-building vacancy and unknowns', () => {
+    const plan = parseQueryPlan({ operation: 'rank', field: 'netEffectiveRent', period: currentPeriod,
+      scope, limit: 3, direction: 'desc', projection: ['vacancyRate'] });
+    const result = executeQueryPlan(plan, snapshots(plan));
+    expect(result.table.rows.map(row => row.entityId)).toEqual(['B', 'D', 'A']);
+    expect(result.table.rows.map(row => row.cells.vacancy.kind)).toEqual(['number', 'unknown', 'number']);
+    expect(result.table.rows[0].cells.vacancy).toMatchObject({ value: { numeric: .2 } });
+    expect(result.table.rows[0].cells.vacancy.sourceIds).toHaveLength(2);
+  });
   it('archives the complete executed plan for structured requests and isolates it from caller mutations', () => {
     const input = { operation: 'aggregate', metric: 'rent', metrics: ['rent', 'vacancy'], period: { ...currentPeriod },
       scope: { inventory: 'tracked', submarkets: ['CBD'] }, filter: { operator: 'and', terms: [

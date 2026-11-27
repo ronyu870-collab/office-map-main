@@ -53,7 +53,7 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
     : plan.operation === 'trend' ? buildTrendResult(periods.map(find), metric, plan.mode)
     : plan.operation === 'compare' ? buildCompareResult(find(plan.base), find(plan.current), metric, plan.mode)
     : plan.operation === 'list' ? buildListResult(find(plan.period), plan.fields, Boolean(plan.scope.buildingIds) || filterInputs.includes('vacancyRate'))
-    : plan.operation === 'rank' ? buildRankResult(find(plan.period), plan.field, plan.limit, plan.direction)
+    : plan.operation === 'rank' ? buildRankResult(find(plan.period), plan.field, plan.limit, plan.direction, plan.projection)
     : buildAggregateResult(find(plan.period), metric);
   const result = metrics.length > 1 ? combineMetricResults(metrics.map(metric => ({ metric, result: build(metric) }))) : build(metrics[0]);
   const planned = attachExecutedPlan(result, plan);

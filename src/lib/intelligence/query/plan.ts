@@ -5,6 +5,12 @@ import type { Predicate } from './facts';
 import type { NumericField } from './registry';
 
 const fieldSchema = z.enum(['height', 'floors', 'parking', 'totalArea', 'vacantArea', 'netEffectiveRent']);
+const rankProjectionSchema = z.enum([...fieldSchema.options, 'vacancyRate']);
+export type RankProjection = z.infer<typeof rankProjectionSchema>;
+export function rankProjectionFields(projection: readonly RankProjection[]): NumericField[] {
+  return [...new Set(projection.flatMap((field): NumericField[] =>
+    field === 'vacancyRate' ? ['totalArea', 'vacantArea'] : [field]))];
+}
 const metricSchema = z.enum(['rent', 'vacancy', 'totalArea']);
 const metricSelection = { metric: metricSchema, metrics: z.array(metricSchema).min(2).max(3).optional() };
 export const CROSS_TREND_LIMITS = Object.freeze({ groups: 50, metricPoints: 1000 });
@@ -23,7 +29,7 @@ const scopeSchema = z.strictObject({
 const common = { scope: scopeSchema, filter: predicateSchema.optional() };
 export const planSchema = z.discriminatedUnion('operation', [
   z.strictObject({ ...common, operation: z.literal('list'), fields: z.array(fieldSchema).max(6), period: quarterSchema.nullable() }),
-  z.strictObject({ ...common, operation: z.literal('rank'), field: fieldSchema, period: quarterSchema.nullable(), direction: z.enum(['asc', 'desc']), limit: z.number().int().min(1).max(1000) }),
+  z.strictObject({ ...common, operation: z.literal('rank'), field: fieldSchema, projection: z.array(rankProjectionSchema).min(1).max(6).optional(), period: quarterSchema.nullable(), direction: z.enum(['asc', 'desc']), limit: z.number().int().min(1).max(1000) }),
   z.strictObject({ ...common, operation: z.literal('aggregate'), ...metricSelection, period: quarterSchema }),
   z.strictObject({ ...common, operation: z.literal('distribution'), measure: distributionMeasureSchema, period: quarterSchema.nullable() }),
   z.strictObject({ ...common, operation: z.literal('relationship'), period: quarterSchema }),
@@ -56,6 +62,8 @@ export function parseQueryPlan(input: unknown): QueryPlan {
   const plan = planSchema.parse(input);
   if (plan.operation === 'distribution' && !['height','floors','parking'].includes(plan.measure) && !plan.period) throw new Error('QUARTER_REQUIRED');
   if (plan.operation === 'list' && new Set(plan.fields).size !== plan.fields.length) throw new Error('DUPLICATE_QUERY_FIELD');
+  if (plan.operation === 'rank' && plan.projection && (new Set(plan.projection).size !== plan.projection.length || plan.projection.includes(plan.field)))
+    throw new Error('DUPLICATE_QUERY_FIELD');
   if ('metrics' in plan && plan.metrics && (plan.metrics[0] !== plan.metric || new Set(plan.metrics).size !== plan.metrics.length)) throw new Error('INVALID_QUERY_METRICS');
   if (plan.operation === 'trend' || plan.operation === 'group_trend' || plan.operation === 'cross_trend') quarterRange(plan.start, plan.end);
   return plan;
@@ -67,7 +75,7 @@ export function planMetrics(plan: QueryPlan): ('rent' | 'vacancy' | 'totalArea')
 }
 export function planOutputFields(plan: QueryPlan): NumericField[] {
   if (plan.operation === 'list') return [...plan.fields];
-  if (plan.operation === 'rank') return [plan.field];
+  if (plan.operation === 'rank') return [...new Set([plan.field, ...rankProjectionFields(plan.projection ?? [])])];
   if (plan.operation === 'distribution') return [...distributionFields(plan.measure)];
   if (plan.operation === 'relationship') return ['totalArea', 'netEffectiveRent', 'vacantArea'];
   return [...new Set(planMetrics(plan).flatMap((metric): NumericField[] => metric === 'rent'
