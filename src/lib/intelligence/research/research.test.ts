@@ -39,6 +39,41 @@ describe('controlled multi-tool research execution', () => {
     const tampered = structuredClone(snapshot); (tampered.parameters.researchTask as typeof run.task)!.steps[1].tool = 'arbitrary_sql';
     expect(() => new ResearchExecution(tampered)).toThrow('RESEARCH_PLAN_INVALID');
   });
+  it('retains independently completed data when a source fails and retries only incomplete steps after resume', async () => {
+    const run = new ResearchExecution();
+    run.plan({ submarkets: ['CBD'], metrics: ['rent', 'vacancy', 'totalArea'] });
+    const taskId = run.task!.id, signal = new AbortController().signal;
+    const attempts: string[] = [];
+    const read = async (_tool: string, args: Record<string, unknown>) => {
+      const metric = args.metric as 'rent' | 'vacancy' | 'totalArea';
+      attempts.push(metric);
+      if (metric === 'rent' && attempts.length === 1) throw Error('QUERY_READ_UNAVAILABLE');
+      return { content: '{}', result: formalTrend(metric) };
+    };
+    await run.advance({ taskId }, read, signal);
+    expect(attempts).toEqual(['rent', 'vacancy']);
+    expect(run.task?.steps.map(step => step.state)).toEqual(['blocked', 'complete', 'pending', 'pending']);
+    await run.advance({ taskId, afterStep: 'market_vacancy' }, read, signal);
+    expect(attempts).toEqual(['rent', 'vacancy', 'totalArea']);
+    const completedIds = run.results.map(result => result.resultId);
+    expect(() => run.review({ taskId })).toThrow('RESEARCH_DEPENDENCY_PENDING');
+    const restored = new ResearchExecution(run.checkpoint());
+    await restored.advance({ taskId, afterStep: 'market_totalArea' }, read, signal);
+    expect(attempts).toEqual(['rent', 'vacancy', 'totalArea', 'rent']);
+    expect(restored.results.slice(1).map(result => result.resultId)).toEqual(completedIds);
+    expect(restored.review({ taskId }).result.parameters.researchTask).toMatchObject({ state: 'reviewed' });
+  });
+  it('stops the research run immediately when live access is revoked', async () => {
+    const run = new ResearchExecution();
+    run.plan({ submarkets: ['CBD'], metrics: ['rent', 'vacancy'] });
+    let attempts = 0;
+    await expect(run.advance({ taskId: run.task!.id }, async () => {
+      attempts++;
+      throw Error('QUERY_DENIED');
+    }, new AbortController().signal)).rejects.toThrow('QUERY_DENIED');
+    expect(attempts).toBe(1);
+    expect(run.results).toHaveLength(0);
+  });
   it('requires a completed review and explicit internal purpose, exposes progress metadata without private text', async () => {
     const run = new ResearchExecution(); run.plan({ submarkets: ['CBD'] });
     expect(() => run.review({ taskId: run.task!.id })).toThrow('RESEARCH_DEPENDENCY_PENDING');

@@ -8,6 +8,7 @@ import { parseQueryPlan, type QueryPlan } from '../query/plan';
 import { executeQueryPlan } from '../query/executePlan';
 import { describePlanRead } from '../query/snapshotReader';
 import { encryptAuditContent } from '../query/auditCrypto';
+import { formalTrend } from '../research/testFixtures';
 import { attachResearchAnalysis } from '../query/researchAnalysis';
 
 const state = vi.hoisted(() => ({
@@ -94,6 +95,47 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it('returns a partial management briefing with completed formal sections when lease access is denied', async () => {
+    const call = (name: string, args: object) => ({ model: 'deepseek-v4-pro', inputTokens: 50, outputTokens: 30,
+      message: { role: 'assistant', content: null, tool_calls: [{ id: randomUUID(), type: 'function',
+        function: { name, arguments: JSON.stringify(args) } }] } });
+    const taskFrom = (messages: Array<{ role: string; content: string }>) => JSON.parse(messages.filter(item => item.role === 'tool').at(-1)!.content);
+    const trend = formalTrend();
+    const latest = { year: 2026, quarter: 4 };
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'query:quarter'], fields: ['netEffectiveRent', 'totalArea'] });
+    state.structured.mockResolvedValue({ result: trend, content: JSON.stringify({ status: 'ready', resultId: trend.resultId }) });
+    state.provider.mockResolvedValueOnce(call('plan_research_task', { submarkets: ['CBD'],
+      start: { year: 2026, quarter: 2 }, end: { year: 2026, quarter: 3 }, metrics: ['rent'], leases: 'quarter', supply: true }))
+      .mockImplementationOnce(async messages => {
+        const { taskId, afterStep } = taskFrom(messages);
+        return call('advance_research_task', { taskId, afterStep });
+      }).mockImplementationOnce(async messages => {
+        const { taskId, afterStep, canAdvance } = taskFrom(messages);
+        expect(canAdvance).toBe(true);
+        return call('advance_research_task', { taskId, afterStep });
+      });
+    const supply = { allowed: true, version: 'business-research/1', permission_revision: authority.permissionRevision, export: false,
+      records: [{ id: randomUUID(), name: '合成未来供应', buildingId: null, data: [] }] };
+    const response = await handleAgentSubmission(fakeRequest('请做 CBD 管理层简报，覆盖 2026Q1 至最新正式季度的净有效租金、成交与未来供应').request,
+      deps(true, { allowed: false }, { permitted: [], snapshot: supply }, {
+        version: 'authorized-periods/1', permission_revision: authority.permissionRevision,
+        read_at: '2027-01-01T09:00:00Z', inventory_time: 'current_catalog', fields: ['netEffectiveRent', 'totalArea'],
+        truncated: false, periods: [{ year: 2026, quarter: 3 }, latest],
+      }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.agent).toMatchObject({ executionRoute: 'deep_research', executionStatus: 'partial' });
+    expect(body.result.parameters.researchTask).toMatchObject({ start: { year: 2026, quarter: 1 }, end: latest });
+    expect(body.result.parameters.researchTask.steps).toMatchObject([
+      { id: 'market_rent', state: 'complete', resultId: trend.resultId },
+      { id: 'leases_0', state: 'blocked', error: 'RESEARCH_STEP_NOT_AUTHORIZED' },
+      { id: 'supply', state: 'complete' }, { id: 'review', state: 'pending' },
+    ]);
+    expect(body.result.parameters.researchSections).toHaveLength(2);
+    expect(body.result.parameters.researchDeliverables).toBeUndefined();
+    expect(body.message).toContain('部分研究数据源受独立资格限制');
+  });
+
   it.each([true, false])('uses the exact named tower to obtain independently authorized dossier fields (%s)', async allowed => {
     const buildingId = randomUUID();
     const period = { year: 2026, quarter: 2 };

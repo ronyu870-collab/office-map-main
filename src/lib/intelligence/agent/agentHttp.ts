@@ -4,7 +4,7 @@ import { numericFields, type NumericField } from '../query/registry';
 import { KNOWLEDGE_TOOL_NAMES, isKnowledgeResult, type KnowledgeToolName } from '../knowledge/protocol';
 import { queryKnowledge, knowledgeModelObservation, recheckKnowledgeResults } from '../knowledge/research';
 import { publicSearchConfigured } from '../knowledge/publicSearch';
-import { RESEARCH_TOOL_NAMES } from '../research/protocol';
+import { RESEARCH_TOOL_NAMES, researchSpecSchema } from '../research/protocol';
 import { ResearchExecution } from '../research/execution';
 import { isResearchResult, researchObservation, researchSections, reviewIssueText } from '../research/workspace';
 import { recheckResearchResult } from '../research/authorization';
@@ -29,7 +29,8 @@ import { prepareDelivery } from '../query/deliveryToken';
 import { prepareQueryJsonResponse } from '../query/jsonResponse';
 import { loadDataAuthority, verifyQueryIdentity, type VerifiedQueryIdentity } from '../query/serverAuthority';
 import { queryConversationSchema } from '../query/conversationProtocol';
-import { parseQueryPlan } from '../query/plan';
+import { parseQueryPlan, planOutputFields } from '../query/plan';
+import { shiftQuarter } from '../query/relativeQuarter';
 import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import { runAgentLoop, type AgentEvent } from './agentOrchestrator';
 import { readOwnResult, recoverOwnResult } from '../query/recovery';
@@ -43,7 +44,7 @@ import type { QueryResult } from '../query/result';
 import { estimateAgentCostRange } from './agentCost';
 import { createModelRuntime, modelModeSchema } from './modelRuntime';
 import { validatedResultTableView } from '../query/tableView';
-import { precedingMarketComparison, routeTask } from './taskRouting';
+import { precedingMarketComparison, resumesResearch, routeTask } from './taskRouting';
 import { siteSelectionPlan, siteSelectionScope } from './siteSelection';
 import { nextAgentMemory } from './agentMemory';
 import { queryVerifiedRealEstate, executeStructuredDataTool } from './verifiedDataTool';
@@ -190,13 +191,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     };
     const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal,
       precedingMarketComparison(valid.question));
-    const research = new ResearchExecution(history.contextResult && isResearchResult(history.contextResult) ? history.contextResult : undefined);
+    const previousResearch = history.contextResult && isResearchResult(history.contextResult) && resumesResearch(valid.question)
+      ? history.contextResult : undefined;
+    const research = new ResearchExecution(previousResearch);
     let researchTouched = false;
     const reportHistory = /PDF/i.test(valid.question) && !research.task && authority.grants.includes('export:internal')
       ? await readReportHistory(client, actor, keys, authority, valid.conversation, signal) : undefined;
     for (const result of reportHistory?.results ?? []) workset.register(result, worksetOwner);
     for (const result of history.contextResults ?? [])
-      if (!reportHistory?.results.some(item => item.resultId === result.resultId)) workset.register(result, worksetOwner);
+      if (!isResearchResult(result) && !reportHistory?.results.some(item => item.resultId === result.resultId)) workset.register(result, worksetOwner);
     if (research.task) for (const section of researchSections(history.contextResult!)) workset.register(section.result, worksetOwner);
     if (history.contextResult && !isResearchResult(history.contextResult) && !reportHistory?.results.some(r => r.resultId === history.contextResult!.resultId))
       workset.register(history.contextResult, worksetOwner);
@@ -238,7 +241,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
     const knowledgeResults=new Map<string,QueryResult>();
-    const imported = research.task ? research.results : history.contextResults ?? (history.contextResult ? [history.contextResult] : []);
+    const imported = research.task ? research.results
+      : (history.contextResults ?? (history.contextResult ? [history.contextResult] : [])).filter(result => !isResearchResult(result));
     for (const r of imported) if(r.parameters.knowledgeBindings || r.parameters.publicBindings) knowledgeResults.set(r.resultId,r);
     const businessResults = new Map<string,QueryResult>();
     for (const r of imported) if(r.parameters.businessBindings) businessResults.set(r.resultId,r);
@@ -302,7 +306,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const needsSelection = () => new Set([...queriedIds, ...referencedIds]).size > 1
       && (!selectedAnswer || comparisonRequested && !selectedAnswer.results.some(item => item.role === 'comparison'));
 
-    const previousResult = history.contextResults?.length ? history.contextResults.length === 1 ? history.contextResults[0] : undefined : history.contextResult;
+    const previousResult = imported.length === 1 && !research.task ? imported[0] : undefined;
     const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult, (history.contextComparisonIds?.length ?? 0) > 1);
     if (taskRoute.siteSelection) {
       const site = taskRoute.siteSelection;
@@ -398,13 +402,39 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           }
           if (RESEARCH_TOOL_NAMES.has(name)) {
             researchTouched = true;
-            if (name === 'plan_research_task') return research.plan(args);
+            if (name === 'plan_research_task') {
+              const question = valid.question.normalize('NFKC').replace(/\s+/gu, '');
+              if (!/(?:最新正式|最近有(?:正式)?数据的?)季度/u.test(question)) return research.plan(args);
+              const { recentCompletedQuarters, ...spec } = researchSpecSchema.parse(args);
+              const scope = { inventory: 'tracked' as const, submarkets: spec.submarkets,
+                ...(spec.buildingIds ? { buildingIds: spec.buildingIds } : {}) };
+              const groups = spec.metrics.map(metric => planOutputFields({ operation: 'aggregate', scope, metric, period: { year: 2000, quarter: 1 } }));
+              const end = (await readAvailablePeriodGroups(client, actor, authority, scope, groups, toolSignal)).periods.at(-1);
+              if (!end) throw new Error('RESEARCH_FORMAL_PERIOD_UNAVAILABLE');
+              const namedStart = /(\d{4})[Qq]([1-4])(?:起)?(?:至|到)(?:最新正式|最近有(?:正式)?数据的?)季度/u.exec(question);
+              const start = namedStart ? { year: Number(namedStart[1]), quarter: Number(namedStart[2]) }
+                : shiftQuarter(end, 1 - (recentCompletedQuarters ?? 4));
+              return research.plan({ ...spec, start, end });
+            }
             if (name === 'advance_research_task') {
               try { return await research.advance(args, async (tool, input) => {
-                const observed = await runTool(tool, input);
-                await audit!.append(requestId, 'tool_finished', { protocol: 'research-step/1', taskId: research.task!.id,
-                  tool, resultId: observed.result?.resultId ?? null, status: observed.result ? 'complete' : 'blocked' });
-                return observed;
+                try {
+                  const observed = await runTool(tool, input);
+                  await audit!.append(requestId, 'tool_finished', { protocol: 'research-step/1', taskId: research.task!.id,
+                    tool, resultId: observed.result?.resultId ?? null, status: observed.result ? 'complete' : 'blocked' });
+                  return observed;
+                } catch (error) {
+                  await audit!.append(requestId, 'tool_finished', { protocol: 'research-step/1', taskId: research.task!.id,
+                    tool, resultId: null, status: 'blocked' });
+                  if (error instanceof Error && error.message === 'QUERY_DENIED' && !toolSignal.aborted
+                    && (BUSINESS_TOOL_NAMES.has(tool) || KNOWLEDGE_TOOL_NAMES.has(tool) || tool === 'query_lease_transactions')) {
+                    // This must still pass all live checks for the identity and
+                    // prior accepted evidence before skipping an independent domain.
+                    await revalidateModel(toolSignal);
+                    throw new Error('RESEARCH_STEP_NOT_AUTHORIZED');
+                  }
+                  throw error;
+                }
               }, toolSignal); }
               catch (error) {
                 if (signal.aborted || error instanceof Error && error.message === 'QUERY_DENIED') throw error;
@@ -616,7 +646,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         cost: null, costStatus: 'planning_range_not_invoice',
         costEstimate: runtime.summary().providers.every(p => p === 'deepseek') ? estimateAgentCostRange(reportedModel, reportedInput, reportedOutput) : null,
         durationMs: Math.max(0, Date.now() - agentStartedAt) });
-      if ((researchTouched || history.contextResult && isResearchResult(history.contextResult)) && research.task
+      if ((researchTouched || previousResearch) && research.task
         && !(error instanceof Error && error.message === 'QUERY_DENIED')) {
         // A valid partial checkpoint is a successful archive write, not a claim
         // that the research completed. Existing owner/session audit recovery is reused.
@@ -868,7 +898,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         // no arbitrary supplier prose or Markdown table is scanned/deleted.
         const onlyMapFailure = mapNotice && execution.unresolvedFailures.length > 0
           && execution.unresolvedFailures.every(item => item.tool === 'prepare_map_selection');
-        const executionNotice = fulfillment.missing.length ? execution.answer
+        const executionNotice = fulfillment.missing.length || researchTouched && isResearchResult(primary) ? execution.answer
           : execution.unresolvedFailures.some(item => ['delivery_limit', 'delivery_capacity'].includes(item.code))
             ? '交付内容超过本轮容量，已有成果仍可下载；其余部分请分次生成，任务尚未全部完成。'
           : execution.unresolvedFailures.some(item => item.code === 'analysis_not_available')

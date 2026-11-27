@@ -34,6 +34,8 @@ export function reviewResearch(task: ResearchTask, results: readonly QueryResult
   const ids = new Set(results.map(r => r.resultId));
   for (const step of task.steps.filter(s => s.id !== 'review')) {
     if (step.state !== 'complete' || !step.resultId || !ids.has(step.resultId)) issues.push({ code: 'scope_incomplete', severity: 'blocker' });
+    if (step.error === 'RESEARCH_STEP_NOT_AUTHORIZED') issues.push({ code: 'domain_not_authorized', severity: 'blocker' });
+    else if (step.state === 'blocked') issues.push({ code: 'source_step_unavailable', severity: 'blocker' });
   }
   for (const result of results) {
     const r = resultViewSchema.parse(result);
@@ -110,7 +112,8 @@ export function buildResearchWorkspace(task: ResearchTask, results: readonly Que
 }
 
 export function reviewIssueText(code: string) {
-  return ({ scope_incomplete: '研究范围尚未全部执行。', knowledge_not_licensed_for_deliverables: '文档检索资格不包含原文再导出许可，含该证据的研究不生成成果文件。',
+  return ({ scope_incomplete: '研究范围尚未全部执行。', domain_not_authorized: '部分研究数据源受独立资格限制。',
+    source_step_unavailable: '部分研究数据源暂时不可用。', knowledge_not_licensed_for_deliverables: '文档检索资格不包含原文再导出许可，含该证据的研究不生成成果文件。',
     no_matching_records: '部分范围未找到有效记录，不据此断言现实市场不存在。', unit_not_registered: '部分单位缺少正式定义，须核验后生成。',
     numeric_evidence_missing: '部分数值缺少正式来源，未允许生成。', missing_or_restricted_cells: '部分值缺失、受控或未核验，原状态保留。',
     cell_source_invalid: '部分表格引用不属于正式结果来源，未允许生成。',

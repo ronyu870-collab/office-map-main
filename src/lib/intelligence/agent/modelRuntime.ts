@@ -22,7 +22,7 @@ const boundedNumber = (name: string, fallback: number, min: number, max: number)
   return value;
 };
 export function chooseModelMode(question: string, requested?: ModelMode): ModelMode {
-  return requested ?? (/研究|报告|Word|PPT|PDF|多季度|综合|八个季度|选址|shortlist|research|briefing/i.test(question) ? 'deep'
+  return requested ?? (/研究|报告|简报|Word|PPT|PDF|多季度|综合|八个季度|选址|shortlist|research|briefing/i.test(question) ? 'deep'
     : /比较|趋势|图|导出|Excel|CSV|排名|最高|最低|租金|空置|所有楼|哪些楼|权限|高度|子市场|列出|查询|季度|翻页|楼宇|查|租赁|成交|行业|租户|TMT|空调|停车|地铁|竣工|认证/i.test(question) ? 'professional' : 'quick');
 }
 function openAIAllowed(actorId: string) {
@@ -66,7 +66,7 @@ export function modelToolCatalogue(question: string, mode: ModelMode, messages: 
   if (/^(?:你好|您好|嗨|哈[喽啰]|hello|hi|谢谢|多谢|感谢|thanks|thank you)[！!。.?？\s]*$/i.test(question.trim())) return [];
   if (/概念|含义|定义|方法|如何计算|怎么计算|写一|^(?:请)?(?:什么是|解释|介绍|说明|what is|define|explain)/i.test(question.trim()) && !requiresDataFactEvidence(question)) return [];
   void mode;
-  const research = /研究|报告|Word|PPT|PDF|research|report/i.test(question);
+  const research = /研究|报告|简报|Word|PPT|PDF|research|report/i.test(question);
   const hasResult = hasChartContext || contextDomains.length > 0 || messages.some(m => m.role === 'tool' && /"resultId"/.test(m.content ?? ''));
   const selected = new Set(['query_verified_real_estate', 'get_data_capabilities', 'search_buildings']);
   if (/列表|列出|所有|全部|哪些|list/i.test(question)) selected.add('list_buildings');

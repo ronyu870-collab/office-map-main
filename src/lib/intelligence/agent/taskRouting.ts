@@ -54,6 +54,11 @@ export function precedingMarketComparison(question: string): boolean {
     .test(question.normalize('NFKC').replace(/[\s。！？.!?]+/gu, ''));
 }
 
+export function resumesResearch(question: string): boolean {
+  return /^(?:请)?(?:继续|恢复|接着)(?:执行|推进|完成|做)?(?:刚才|上次|当前|未完成|这份|这个|本次)?的?(?:研究|简报|报告|任务|工作)?[。！？.!?]*$/u.test(question.normalize('NFKC').replace(/\s+/gu, ''))
+    || /(?:刚才|上次|当前|这份|未完成).{0,8}(?:研究|简报|报告|任务)|(?:审查|导出|下载).{0,6}(?:研究|简报|报告)(?:成果|文件|状态|进度)?[。！？.!?]*$/u.test(question);
+}
+
 /** Full consumption is owned by the existing semantic planner. Wrappers below
  * remove only an entire, supported delivery suffix, never arbitrary conditions. */
 export function routeTask(question: string, contextPlan?: QueryPlan, research = false, hasPreviousResult = false, previousResult?: ResultTableReference, hasPreviousComparison = false): TaskRoute {
@@ -129,7 +134,7 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
       }
     }
   }
-  if (research || /研究报告|综合报告|深度研究|Word|PPT|PowerPoint|docx|pptx|PDF/i.test(text))
+  if (research || /研究报告|综合报告|深度研究|(?:管理层|市场|研究)简报|research brief|Word|PPT|PowerPoint|docx|pptx|PDF/i.test(text))
     return { route: 'deep_research', taskType: 'research', question };
   const siteSelection = readSiteSelectionRequest(text);
   if (siteSelection) return { route: 'deterministic_query', taskType: 'query', question, siteSelection };
