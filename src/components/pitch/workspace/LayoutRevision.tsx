@@ -41,7 +41,6 @@ export type LayoutReview = { status: "layout-review"; changes: LayoutChange[]; c
 function layoutChoices(slide: WorkspaceDetail["slides"][number]): LayoutChoice[] {
   const { layoutId, variant } = slide.scene;
   const sibling: LayoutChoice[] = legacyLayouts.has(layoutId) ? [{ layoutId, variant: variant === "alternate" ? "standard" : "alternate" }] : [];
-  if (layoutId === "cover" || layoutId === "section-divider") return sibling;
   const alternatives = LAYOUTS.filter(layout => layout.id !== layoutId && layout.id !== "cover" && layout.id !== "section-divider"
     && slide.content.blocks.every(block => layout.kinds.includes(block.kind)));
   return [...sibling, ...alternatives.map<LayoutChoice>(layout => ({ layoutId: layout.id, variant: "standard" }))].slice(0, 4);
