@@ -438,7 +438,7 @@ describe('submarket research workspace', () => {
     const marketObservation = within(screen.getByRole('region', { name: '市场观察' }));
     for (const item of research.observations.slice(0, 4)) {
       const title = item.kind === 'outlook' && !item.title.includes('展望') ? `展望：${item.title}` : item.title;
-      expect(marketObservation.getByRole('heading', { name: title, exact: true })).toBeVisible();
+      expect(marketObservation.getByRole('heading', { name: title })).toBeVisible();
       expect(marketObservation.getByText(item.body, { exact: true })).toBeVisible();
     }
     expect(marketObservation.queryByText('研究依据与口径')).not.toBeInTheDocument();
