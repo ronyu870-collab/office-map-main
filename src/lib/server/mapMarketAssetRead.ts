@@ -22,6 +22,7 @@ export async function readMarketAssetResearch(admin: SupabaseClient, input: NonN
   const aliases = [...new Set(names.flatMap(submarketDatabaseNames))];
   const assets: ResearchAsset[] = [];
   for (let offset = 0; ; offset += PAGE) {
+    if (offset >= 20_000) throw new Error('MARKET_RESEARCH_TOO_LARGE');
     const result = await loadTrackedBuildings(admin, selectAssets, true).in('submarket', aliases)
       .eq('building_metrics.record_year', year).eq('building_metrics.record_quarter', quarter)
       .order('id').range(offset, offset + PAGE - 1).abortSignal(signal);
@@ -39,6 +40,7 @@ export async function readMarketAssetResearch(admin: SupabaseClient, input: NonN
   async function supplyRead() {
     const supplies: ResearchSupply[] = [];
     for (let offset = 0; ; offset += PAGE) {
+      if (offset >= 20_000) throw new Error('MARKET_SUPPLY_TOO_LARGE');
       const result = await admin.from('future_supplies')
         .select('id,name,building_id,submarket,grade,type,status,is_entered_market,launch_year,launch_quarter,total_area')
         .in('submarket', aliases).eq('status', 'future').or('is_entered_market.is.null,is_entered_market.eq.false')
@@ -57,6 +59,7 @@ export async function readMarketAssetResearch(admin: SupabaseClient, input: NonN
     for (let start = 0; start < all.length; start += 100) {
       const batch = all.slice(start, start + 100);
       for (let offset = 0; ; offset += PAGE) {
+        if (offset >= 20_000) throw new Error('MARKET_DEMAND_TOO_LARGE');
         const result = await admin.from('lease_transactions_read_v1')
           .select('source_record_id,building_id,record_source,quality_status,building_match_scope,transaction_year,transaction_quarter,area_sqm,industry,demand_type')
           .eq('record_source', 'live').eq('quality_status', 'OPERATIONAL').eq('building_match_scope', 'exact')

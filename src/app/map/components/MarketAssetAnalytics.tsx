@@ -10,6 +10,7 @@ import { analyzeMarketAssets, latestAssetQuarter, productNames, RESEARCH_PRODUCT
   type AssetObservation, type MarketAssetResearchPayload, type ResearchProductScope } from '../model/marketAssetAnalytics';
 import type { MarketBuilding } from '../model/marketStatistics';
 import { fetchMarketAssetResearch } from '@/src/services/map/marketAssetResearchClient';
+import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
 import styles from './MarketAssetAnalytics.module.css';
 
 const Scatter = dynamic(() => import('./MarketAssetScatter').then(m => m.MarketAssetScatter), { ssr: false });
@@ -46,7 +47,7 @@ function Distribution({ analysis, onOpen }: { analysis: Analysis; onOpen: (id: s
       <div className={styles.bins} role="group" aria-label="选择租金区间查看楼宇">{bins.map((bin, index) =>
         <button type="button" key={bin.low} className={styles.bin} disabled={!bin.ids.length} aria-pressed={selected === index}
           onClick={() => setSelected(selected === index ? null : index)}>
-          <span>{number(bin.low, 2)}–{number(bin.high, 2)}{bin.last ? '' : '未含上限'}</span>
+          <span>{number(bin.low, 2)}–{bin.last ? '' : '<'}{number(bin.high, 2)}</span>
           <Bar value={bin.ids.length} max={Math.max(...bins.map(b => b.ids.length))} /><span>{bin.ids.length}</span>
         </button>)}</div>
       {selectedIds && <><div className={styles.heading}><p>{selectedIds.size} 个区间内项目</p><button type="button" className={styles.action} onClick={() => setSelected(null)}>清除区间</button></div>
@@ -58,10 +59,10 @@ function Distribution({ analysis, onOpen }: { analysis: Analysis; onOpen: (id: s
 function Matrix({ rows, heading, representative = false }: { rows: Comparison[]; heading: string; representative?: boolean }) {
   const rentMax = Math.max(1, ...rows.map(row => row.analysis.statistics.rent ?? 0));
   return <section className={styles.section} aria-label={heading}><h4>{heading}</h4><div className={styles.tableWrap}>
-    <table className={styles.matrix} aria-label={heading}><thead><tr><th scope="col">范围</th><th scope="col">净有效租金<br />元/㎡/月</th><th scope="col">空置率<br />%</th><th scope="col">项目</th><th scope="col">当季已知面积<br />万㎡</th></tr></thead>
+    <table className={styles.matrix} aria-label={heading}><thead><tr><th scope="col">范围</th><th scope="col">净有效租金<br />元/㎡/月</th><th scope="col">空置率<br />%</th><th scope="col">当前跟踪项目</th><th scope="col">当季已知面积<br />万㎡</th></tr></thead>
       <tbody>{rows.map(({ label, analysis }) => {
         const { statistics: s, distribution } = analysis;
-        const example = distribution?.observations.reduce<AssetObservation | null>((best, p) => !best || Math.abs(p.rent! - distribution.median) < Math.abs(best.rent! - distribution.median) ? p : best, null);
+        const example = distribution ? distribution.observations.reduce<AssetObservation | null>((best, p) => !best || Math.abs(p.rent! - distribution.median) < Math.abs(best.rent! - distribution.median) ? p : best, null) : null;
         return <tr key={label}><th scope="row">{label}{representative && example && <span className={styles.subtle}> · {example.name}</span>}</th>
           <td>{fmt(s.rent)}{s.rent !== null && <><Bar value={s.rent} max={rentMax} /><span>{s.rentSampleCount} 样本</span></>}</td>
           <td>{fmt(s.vacancyPct)}{s.vacancyPct !== null && <><Bar value={s.vacancyPct} max={100} vacancy /><span>{s.vacancySampleCount} 样本</span></>}</td>
@@ -72,7 +73,8 @@ function Matrix({ rows, heading, representative = false }: { rows: Comparison[];
 
 function Supply({ payload, name }: { payload: MarketAssetResearchPayload; name: string }) {
   const supply = React.useMemo(() => payload.supplies === null ? null : summarizeResearchSupply(payload.supplies, name), [payload.supplies, name]);
-  if (!supply || !supply.count) return null;
+  if (!supply) return <p role="status" className={styles.subtle}>未来供应暂不可用。</p>;
+  if (!supply.count) return null;
   return <section className={styles.section} aria-label="未来供应分析"><div className={styles.heading}><h4>未来供应</h4><span className={styles.subtle}>当前预计入市项目</span></div>
     <dl className={styles.stats}><div><dt>项目</dt><dd>{supply.count} 个</dd></div><div><dt>已知供应面积</dt><dd>{supply.area === null ? '—' : fmt(supply.area / 10000) + ' 万㎡'}（{supply.known} 项）</dd></div></dl>
     <div className={styles.groupRows}>{supply.years.map(row => <div key={row.label}><span>{row.label === '待定' ? '时间待定' : row.label + '年'}</span>
@@ -85,7 +87,8 @@ function Supply({ payload, name }: { payload: MarketAssetResearchPayload; name: 
 
 function Demand({ payload, name }: { payload: MarketAssetResearchPayload; name: string }) {
   const demand = payload.demand[name];
-  if (!payload.demandAvailable || !demand) return null;
+  if (!payload.demandAvailable) return <p role="status" className={styles.subtle}>成交分析暂不可用。</p>;
+  if (!demand) return null;
   const groups = [{ label: '面积区间', rows: demand.size }, { label: '行业需求', rows: demand.industries },
     { label: '租赁类型', rows: demand.types }, { label: '季度成交', rows: demand.quarters }];
   return <section className={styles.section} aria-label="租赁需求与成交"><div className={styles.heading}><h4>租赁需求与成交</h4><span className={styles.subtle}>{demand.year}年 · 平台收录成交</span></div>
@@ -103,10 +106,12 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen }: { buildin
   const [opened, setOpened] = React.useState(false);
   const [offset, setOffset] = React.useState(0);
   const [others, setOthers] = React.useState<string[]>([]);
-  const [product, setProduct] = React.useState<ResearchProductScope>(() => buildings.some(b => ['a', 'b'].includes(officeGrade(b.grade))) ? 'office' : 'park');
+  const [product, setProduct] = React.useState<ResearchProductScope>(() => buildings.some(b => normalizeMapSubmarket(b.submarket) === name && ['a', 'b'].includes(officeGrade(b.grade))) ? 'office' : 'park');
   const [retry, setRetry] = React.useState(0);
   const [read, setRead] = React.useState<{ key: string; data: MarketAssetResearchPayload | null; error: boolean } | null>(null);
-  const period = latest === null ? null : latest - offset;
+  const now = new Date();
+  const baseQuarter = latest ?? now.getFullYear() * 4 + Math.floor(now.getMonth() / 3);
+  const period = baseQuarter - offset;
   const chosen = [name, ...others.filter(Boolean)];
   const key = JSON.stringify([period, chosen, retry]);
   React.useEffect(() => {
@@ -114,7 +119,10 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen }: { buildin
     const controller = new AbortController();
     const [, selected] = JSON.parse(key) as [number, string[]];
     void fetchMarketAssetResearch(selected, period, controller.signal).then(data => {
-      if (!controller.signal.aborted) setRead({ key, data, error: false });
+      if (!controller.signal.aborted) {
+        setRead({ key, data, error: false });
+        for (const market of selected) observeBusinessReading('VIEW_SUBMARKET', 'map', { target_table: 'submarket_profiles', target_id: market, submarket: market, section: 'market_analysis', observation: 'view_displayed' }, 'submarket');
+      }
     }).catch(() => { if (!controller.signal.aborted) setRead({ key, data: null, error: true }); });
     return () => controller.abort();
   }, [opened, period, key]);
@@ -126,13 +134,13 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen }: { buildin
   const comparison = React.useMemo(() => !payload || period === null ? [] : (JSON.parse(key)[1] as string[]).map(market => ({
     label: market, analysis: analyzeMarketAssets(payload.assets, market, period, product),
   })), [payload, period, product, key]);
-  if (latest === null || !markets.includes(name)) return null;
+  if (!markets.includes(name)) return null;
   return <section className={styles.analytics} aria-label="市场深度分析">
-    <button className={styles.action} type="button" aria-expanded={opened} onClick={() => setOpened(value => !value)}>{opened ? '收起市场深度分析' : '市场深度分析与区域比较'}</button>
+    <button className={styles.action} type="button" aria-expanded={opened} onClick={() => { setRead(null); setOpened(value => !value); }}>{opened ? '收起市场深度分析' : '市场深度分析与区域比较'}</button>
     {opened && <>
       <div className={styles.toolbar}>
-        <label>行情季度<select value={offset} onChange={event => setOffset(Number(event.target.value))}>
-          {Array.from({ length: 8 }, (_, index) => <option key={index} value={index}>{quarterLabel(latest - index)}</option>)}
+        <label>查询季度<select value={offset} onChange={event => setOffset(Number(event.target.value))}>
+          {Array.from({ length: 8 }, (_, index) => <option key={index} value={index}>{quarterLabel(baseQuarter - index)}</option>)}
         </select></label>
         <label>产品范围<select value={product} onChange={event => setProduct(event.target.value as ResearchProductScope)}>
           {(['office', ...RESEARCH_PRODUCTS] as const).map(grade => <option key={grade} value={grade}>{productNames[grade]}</option>)}
@@ -152,7 +160,7 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen }: { buildin
           <div className={styles.heading}><h4>租金与空置率</h4><span className={styles.subtle}>{analysis.paired.length} 个同季度配对项目</span></div>
           {analysis.paired.length >= 3 ? <>
             <p className={styles.subtle}>横轴净有效租金（元/㎡/月） · 纵轴空置率（%）</p>
-            <div className={styles.legend}>{RESEARCH_PRODUCTS.map(grade => <span key={grade}><i aria-hidden="true" />{productNames[grade]}</span>)}</div>
+            <div className={styles.legend}>{RESEARCH_PRODUCTS.filter(grade => analysis.paired.some(point => point.grade === grade)).map(grade => <span data-grade={grade} key={grade}><i aria-hidden="true" />{productNames[grade]}</span>)}</div>
             <Scatter points={analysis.paired} onOpen={onOpen} />
             <p className={styles.subtle}>点大小反映已知面积{analysis.paired.length >= 5 ? '；虚线为配对样本中位数' : ''}。</p>
             <details><summary>查看散点对应楼宇</summary><ProjectList points={analysis.paired} onOpen={onOpen} /></details>

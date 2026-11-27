@@ -17,6 +17,8 @@ export function MarketAssetScatter({ points, onOpen }: { points: readonly AssetO
     const element = host.current;
     if (!element || !points.length) return;
     let chart: echarts.ECharts | null = null;
+    const byId = new Map(points.map(point => [point.id, point]));
+    const firstGrade = RESEARCH_PRODUCTS.find(grade => points.some(point => point.grade === grade));
     const render = () => {
       if (!element.clientWidth || !element.clientHeight) return;
       if (chart) { chart.resize(); return; }
@@ -37,7 +39,7 @@ export function MarketAssetScatter({ points, onOpen }: { points: readonly AssetO
           backgroundColor: theme.surface, borderColor: theme.border, textStyle: { color: theme.ink },
           formatter: (raw: unknown) => {
             const data = (raw as { data?: { id?: string } }).data;
-            const p = points.find(point => point.id === data?.id);
+            const p = data?.id ? byId.get(data.id) : undefined;
             return p ? [p.name.replace(/[{}\r\n]/g, ' '), productNames[p.grade],
               '净有效租金 ' + p.rent!.toFixed(1) + ' 元/㎡/月', '空置率 ' + p.vacancy!.toFixed(1) + '%'].join('\n') : '';
           } },
@@ -49,14 +51,14 @@ export function MarketAssetScatter({ points, onOpen }: { points: readonly AssetO
         series: RESEARCH_PRODUCTS.map((grade, index) => ({
           name: productNames[grade], type: 'scatter', symbol: marker[index], itemStyle: { color: palette[index], opacity: 0.88 },
           data: points.filter(p => p.grade === grade).map(p => ({ id: p.id, value: [p.rent, p.vacancy], symbolSize: 7 + 12 * Math.sqrt((p.area ?? 0) / maxArea) })),
-          ...(index === 0 && points.length >= 5 ? { markLine: { silent: true, symbol: 'none', label: { show: false },
+          ...(grade === firstGrade && points.length >= 5 ? { markLine: { silent: true, symbol: 'none', label: { show: false },
             lineStyle: { color: theme.subtle, type: 'dashed' },
             data: [{ xAxis: quantile(rents, .5) }, { yAxis: quantile(vacancies, .5) }] } } : {}),
         })),
       });
       chart.on('click', params => {
         const id = (params.data as { id?: string } | undefined)?.id;
-        if (id && points.some(p => p.id === id)) onOpen(id);
+        if (id && byId.has(id)) onOpen(id);
       });
     };
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(render);

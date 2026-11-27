@@ -38,8 +38,8 @@
 .legend { display: flex; flex-wrap: wrap; gap: var(--cd-space-3); color: var(--cd-color-text-secondary); }
 .legend span { display: inline-flex; align-items: center; gap: var(--cd-space-1); }
 .legend i { display: inline-block; width: 9px; height: 9px; background: var(--cd-color-brand); border-radius: 50%; }
-.legend span:nth-child(2) i { background: var(--cd-color-market-vacancy, #326A78); transform: rotate(45deg); border-radius: 0; }
-.legend span:nth-child(3) i { background: var(--cd-color-text-secondary); border-radius: 0; }
+.legend span[data-grade='b'] i { background: var(--cd-color-market-vacancy, #326A78); transform: rotate(45deg); border-radius: 0; }
+.legend span[data-grade='park'] i { background: var(--cd-color-text-secondary); border-radius: 0; }
 .photo { min-width: 0; }
 .photo :global(.building-pilot-gallery) { margin: 0; }
 .photo :global(.building-pilot-gallery) > figure :global(.building-pilot-photo-stage) { max-height: 108px; min-height: 0; }
@@ -51,3 +51,10 @@
   .analytics :is(button,select) { min-height: 44px; }
   .matrix :is(th,td) { padding-inline: var(--cd-space-1); }
 }
+
+.assetRow { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--cd-space-2); align-items: start; }
+.assetRowCompact:has(.photo) { grid-template-columns: minmax(0, 1fr) minmax(90px, 32%); }
+.assetText { min-width: 0; }
+.assetRowCompact .photo { margin-top: 0; }
+.assetRowCompact .photo :global(.building-pilot-photo-stage) { min-height: 0; }
+@media (max-width: 390px) { .assetRowCompact:has(.photo) { grid-template-columns: minmax(0, 1fr); } }

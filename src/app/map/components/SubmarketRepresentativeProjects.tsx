@@ -66,7 +66,11 @@ export function selectRepresentativeProjects(buildings: readonly MarketBuilding[
   }
   for (const entry of curated) {
     const project = eligible.get(entry.project.id);
-    if (project) add(project, entry.role, entry.reason, entry.detailReason);
+    if (project) {
+      const missing = RESEARCH_PRODUCTS.filter(grade => candidates.some(candidate => candidate.grade === grade)
+        && !examples.some(example => example.project.grade === grade) && project.grade !== grade).length;
+      if (examples.length < 6 - missing) add(project, entry.role, entry.reason, entry.detailReason);
+    }
   }
   for (const grade of RESEARCH_PRODUCTS) {
     const peers = candidates.filter(project => project.grade === grade);
@@ -89,9 +93,9 @@ export function selectRepresentativeProjects(buildings: readonly MarketBuilding[
     const sizes = candidates.filter(project => project.grade === grade && project.quarter === quarter && project.area > 0)
       .sort((a, b) => a.area - b.area || compareName(a, b));
     if (sizes.length < 3 || sizes[0].area === sizes.at(-1)!.area) continue;
-    const index = Math.round((sizes.length - 1) * .75);
-    const candidate = sizes[index];
-    if (!used.has(candidate.id)) add(candidate, '规模参照', gradeNames[grade] + '较大规模项目', candidate.period + ' · 已知面积 ' + number.format(candidate.area) + ' ㎡。');
+    const index = Math.floor((sizes.length - 1) * .75);
+    const candidate = sizes.slice(index).find(project => !used.has(project.id));
+    if (candidate) add(candidate, '规模参照', gradeNames[grade] + '较大规模项目', candidate.period + ' · 已知面积 ' + number.format(candidate.area) + ' ㎡。');
   }
   return examples;
 }
@@ -101,7 +105,25 @@ function ProjectPhotos({ id, name, photos }: { id: string; name: string; photos:
   const galleryId = `submarket-project-photo-${React.useId()}`;
   const markup = React.useMemo(() => ({ __html: buildPhotoTrigger(galleryId, photos.length) + buildPhotoGallery(galleryId, escapeHtml(name), photos) }), [galleryId, name, photos]);
   React.useEffect(() => {
-    if (root.current) return bindBuildingPhotoGallery(root.current, id, photos, { initial: { open: true, index: 0 }, onChange: () => {} }) ?? undefined;
+    const element = root.current;
+    if (!element) return;
+    let dispose: (() => void) | null = null;
+    let observer: IntersectionObserver | null = null;
+    const connect = () => {
+      if (dispose) return;
+      observer?.disconnect();
+      const label = ({ open }: { open: boolean; index: number }) => {
+        const span = element.querySelector('[data-building-photo-trigger] span');
+        if (span) span.textContent = open ? '收起图片' : '查看图片';
+      };
+      dispose = bindBuildingPhotoGallery(element, id, photos, { initial: { open: true, index: 0 }, onChange: label });
+      if (dispose) label({ open: true, index: 0 });
+    };
+    if (typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) connect(); }, { rootMargin: '120px' });
+      observer.observe(element);
+    } else connect();
+    return () => { observer?.disconnect(); dispose?.(); };
   }, [id, photos, markup]);
   return <div ref={root} className={"workspace-building-photos mt-2 " + styles.photo} dangerouslySetInnerHTML={markup} />;
 }
@@ -132,18 +154,22 @@ export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, 
         <ul className="submarket-project-grid">
           {examples.map(({ project, role, reason, detailReason }) => (
             <li key={project.id} className="submarket-project-row">
+              <div className={styles.assetRow + (compact ? " " + styles.assetRowCompact : "")}>
+              <div className={styles.assetText}>
               <button type="button" onClick={() => onOpen(project.id)} className="submarket-project-link">
                 <span className="min-w-0 break-words">{project.name}</span><ChevronRight size={16} aria-hidden="true" className="shrink-0" />
               </button>
               <ProjectMetrics project={project} />
               <ProjectAssetMeta project={project} />
-              <p className="submarket-project-reason"><span className="submarket-project-role">{role}</span>{role === `${gradeNames[project.grade]}样本` ? '' : ` · ${gradeNames[project.grade]}`} · {compact ? reason : detailReason ?? reason}</p>
+              <p className="submarket-project-reason"><span className="submarket-project-role">{role}</span>{role.includes(gradeNames[project.grade]) ? '' : ` · ${gradeNames[project.grade]}`} · {compact ? reason : detailReason ?? reason}</p>
+              </div>
               <ApprovedProjectPhotos project={project} />
+              </div>
             </li>
           ))}
         </ul>
       )}
-      {!compact && <MarketAssetAnalytics buildings={buildings} submarket={submarket} onOpen={onOpen} />}
+      {!compact && <MarketAssetAnalytics key={submarket} buildings={buildings} submarket={submarket} onOpen={onOpen} />}
     </section>
   );
 }

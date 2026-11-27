@@ -94,7 +94,7 @@ export function MarketGradeComparison({ series }: { series: Pick<SubmarketTrendS
         {[a, b].map((row, index) => <td key={index}>
           {marketTrendValueText(trendValue(row.point, metric)!, metric)}
           <span aria-hidden="true" className={styles.compositionBar} style={{ marginBlock: 4 }}>
-            <i style={{ flexBasis: (trendValue(row.point, metric)! / Math.max(1, ...(metric === 'vacancyPct' ? [100] : [trendValue(a.point, metric)!, trendValue(b.point, metric)!])) * 100) + '%' }} />
+            <i style={{ display: 'block', background: metric === 'vacancyPct' ? 'var(--cd-color-market-vacancy, #326A78)' : 'var(--cd-color-brand)', width: (trendValue(row.point, metric)! / Math.max(1, ...(metric === 'vacancyPct' ? [100] : [trendValue(a.point, metric)!, trendValue(b.point, metric)!])) * 100) + '%' }} />
           </span>
           <span>{trendSamples(row.point, metric)} 个样本</span>
         </td>)}
