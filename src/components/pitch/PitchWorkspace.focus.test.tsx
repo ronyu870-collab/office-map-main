@@ -162,6 +162,7 @@ let detail: ReturnType<typeof initial>,
   rejectSave = false,
   expandedCatalog = false,
   workspaceBuildingLookup = false,
+  visualCapabilities: string[] = [],
   readyProposal = false,
   dropProposalCreateResponse = false,
   bindingResponse: (() => unknown) | undefined,
@@ -174,6 +175,7 @@ beforeEach(() => {
   rejectSave = false;
   expandedCatalog = false;
   workspaceBuildingLookup = false;
+  visualCapabilities = [];
   failTaskPoll = false;
   failCompletedRead = false;
   completedTask = false;
@@ -197,9 +199,12 @@ beforeEach(() => {
       let status = 200;
       if (init?.method === "POST") writes.push(c);
       if (c.action === "catalog")
-        body = path === "business" ? { recipes: expandedCatalog ? BUSINESS_RECIPES.map(r => ({...r, revision: 1, categoryId: sourceId, enabled: true})) : [], dynamic: [] } : catalog;
+        body = path === "business" ? {
+          recipes: expandedCatalog ? BUSINESS_RECIPES.map(r => ({...r, revision: 1, categoryId: sourceId, enabled: true})) : [],
+          dynamic: visualCapabilities.length ? ["competition-map", "stacking-plan"].map(id => ({ id, name: id, status: "available", reason: "" })) : [],
+        } : catalog;
       else if (c.action === "capabilities")
-        body = { allowedDynamic: [], buildingSearch: workspaceBuildingLookup };
+        body = { allowedDynamic: visualCapabilities, buildingSearch: workspaceBuildingLookup };
       else if (c.action === "buildings")
         body = { items: [{ id: assetId, name: "工作台核对楼宇" }], next: null };
       else if (c.action === "preferences") body = { favorites: [], recent: [] };
@@ -512,6 +517,54 @@ describe("Pitch workspace continuous editing", () => {
     await user.click(await within(settings).findByRole("button", { name: "工作台核对楼宇" }));
     await user.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(detail.workspace.context.buildingIds).toEqual([assetId]));
+  });
+  it.each([
+    ["competition-map", "添加区位图", "添加历史堆叠图"],
+    ["stacking-plan", "添加历史堆叠图", "添加区位图"],
+  ])("appends %s for the exact selected buildings with the required server capability", async (templateId, label, unavailableLabel) => {
+    workspaceBuildingLookup = true;
+    visualCapabilities = [templateId];
+    detail.workspace.context.period = "2026-Q3";
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
+    await user.type(await screen.findByLabelText("搜索楼宇"), "工作台核对");
+    await user.click(await screen.findByRole("button", { name: "工作台核对楼宇" }));
+    await user.click(await screen.findByText("楼宇资料页", { selector: "summary" }));
+    expect(screen.queryByRole("button", { name: unavailableLabel })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: label }));
+    await waitFor(() => expect(writes.find(entry => entry.action === "start")).toMatchObject({
+      projectId, expectedVersion: 1, replaceIds: [],
+      part: { mode: "dynamic", parameters: {
+        templateId, buildingIds: [assetId], period: { year: 2026, quarter: 3 },
+      } },
+    }));
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    expect(detail.workspace.context.buildingIds).toEqual([]);
+  });
+  it("regenerates the reviewed visual page even after navigating to another page", async () => {
+    visualCapabilities = ["stacking-plan"];
+    workspaceBuildingLookup = true;
+    const otherPageId = "77777777-7777-4777-8777-777777777777";
+    detail.slides.push({ ...detail.slides[0], id: otherPageId,
+      content: { ...detail.slides[0].content, title: "另一页" },
+    });
+    const period = { year: 2026, quarter: 3 };
+    detail.workspace.page_settings = { [pageId]: { origin: "data", manual: false, part: { mode: "dynamic", parameters: {
+      templateId: "stacking-plan", buildingIds: [assetId], submarkets: [], inventory: "tracked", period, start: period, end: period,
+      fields: ["totalArea"], direction: "desc", chart: "table", from: "2026-01-01", to: "2026-09-30", leaseSource: "combined", measure: "count",
+    } } } };
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByRole("button", { name: "调整参数并重新生成" }));
+    expect(screen.queryByLabelText("统计季度")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("图表形式")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "打开第 2 页：另一页" }));
+    await user.click(screen.getByRole("button", { name: "重新生成页面" }));
+    await waitFor(() => expect(writes.find(entry => entry.action === "start")).toMatchObject({
+      projectId, replaceIds: [pageId],
+      part: { mode: "dynamic", parameters: { templateId: "stacking-plan", buildingIds: [assetId] } },
+    }));
   });
   it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
     expandedCatalog = true;
