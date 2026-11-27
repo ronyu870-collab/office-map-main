@@ -165,6 +165,18 @@ function chooseProposalPages(pages: readonly ComposedProposalPage[], limit: numb
   return chosen;
 }
 
+function isHistoricalAppendix(page: ComposedProposalPage) {
+  const { content, visuals, pageKind } = page;
+  const pin = content.sources[0]?.visual;
+  const images = content.blocks.filter(block => block.kind === 'image');
+  return pageKind === 'historical-stacking-appendix' && content.disclosure === 'restricted'
+    && content.sources.length === 1 && pin?.kind === 'stacking-plan' && pin.origin.type === 'stacking-snapshot'
+    && visuals.length === 1 && visuals[0].id === pin.id && visuals[0].version === pin.version
+    && visuals[0].versionHash === pin.versionHash && visuals[0].disclosure === 'restricted'
+    && images.length === 1 && images[0].mediaAssetId === pin.id && images[0].mediaVersion === pin.version
+    && content.blocks.every(block => block.kind === 'image' || block.kind === 'paragraph');
+}
+
 function buildPlan(
   brief: ProposalBrief,
   scope: PitchScope,
@@ -181,12 +193,14 @@ function buildPlan(
   if (!usedPages.length) return null;
   const validated = usedPages.map(page => ({ ...page, content: slideContentSchema.parse(page.content) }));
   const isTestData = validated.some(page => page.content.isTestData);
-  if (validated.some(({ content, visuals }) =>
-    content.locale !== brief.language || content.disclosure === "restricted"
-    || visuals.some(visual => visual.disclosure === "restricted")
+  if (validated.some(page => {
+    const { content, visuals } = page;
+    const restricted = content.disclosure === 'restricted' || visuals.some(visual => visual.disclosure === 'restricted');
+    return content.locale !== brief.language || (restricted && (brief.audience !== 'internal' || !isHistoricalAppendix(page)))
     || (brief.audience === "client" && (content.disclosure !== "client_approved"
       || content.isTestData
-      || visuals.some(visual => visual.disclosure !== "client_approved" || visual.source.kind === "synthetic"))))) {
+      || visuals.some(visual => visual.disclosure !== "client_approved" || visual.source.kind === "synthetic")));
+  })) {
     throw new Error("PITCH_DENIED");
   }
   const data = uniqueSorted(validated.flatMap(page => page.data), item => digest(item));

@@ -4,6 +4,7 @@ import { STUDIO_THEME } from "../design/theme";
 import type { VisualAssetReference } from "../integration-contracts";
 import { id, period } from "../proposals/__tests__/fixture";
 import type { UnifiedProposalContext } from "../proposals/unified-projection";
+import { pinVisual } from "../visual-data/reference";
 import { confirmedProposalSchema, proposalRequestSchema } from "./proposal-brief";
 import { directProposal, type ProposalDirectorPorts } from "./proposal-director";
 import { prepareProposal } from "./proposal-runtime";
@@ -76,6 +77,34 @@ function contextWithDossier(resultId: string, dataVersion = "brochure/1"): Unifi
 }
 
 describe("authorized proposal recipe sources", () => {
+  it('admits a matching historical appendix only for internal agency proposals', async () => {
+    const { director, readers, signal } = fixture();
+    const reference = pinVisual({ id: id(93), kind: 'stacking-plan', buildingIds: [buildings[0].id], disclosure: 'restricted',
+      origin: { type: 'stacking-snapshot', buildingId: buildings[0].id, selection: {} }, contentHash: 'b'.repeat(64),
+      dimensions: { width: 1200, height: 800 }, businessDate: date, sourceDateBasis: 'source-data-as-of',
+      rights: { scope: 'admin-internal', holder: null, attribution: '隔离来源', licenseName: null, sourceUrl: null, licenseUrl: null,
+        cropAllowed: false, clientDistribution: false, externalAi: false },
+      source: { kind: 'record', label: '隔离历史来源', locator: '历史核验', dataAsOf: date },
+    }, 'isolated');
+    const historicalAppendix = vi.fn<NonNullable<UnifiedProposalReaders['historicalAppendix']>>().mockResolvedValue({
+      reference, layoutId: 'hero-caption', scenes: [], content: { protocol: 'colliers-pitch/1', title: '隔离历史楼层分布', locale: 'zh',
+        dataAsOf: date, disclosure: 'restricted', isTestData: true, sources: [reference.source], blocks: [
+          { kind: 'image', mediaAssetId: reference.id, mediaVersion: reference.version, alt: '历史资料', sourceIds: [reference.source.id] },
+          { kind: 'paragraph', text: '历史快照', sourceIds: [reference.source.id] },
+        ] },
+    });
+    const question = proposalRequestSchema.parse({ question: '制作霄云路33号招商代理提案', buildingIds: [buildings[0].id] });
+    const ports = { ...director, compose: createUnifiedProposalComposer({ signal } as PitchContext, { ...readers, historicalAppendix }, director.compose) };
+    const ready = await directProposal(question, ports, signal);
+    expect(ready).toMatchObject({ status: 'ready', plan: { slides: expect.arrayContaining([
+      expect.objectContaining({ pageKind: 'historical-stacking-appendix', visuals: [reference] }),
+    ]) } });
+    expect(await directProposal({ ...question, audience: 'client' }, ports, signal)).toMatchObject({ status: 'unavailable', code: 'authorization-denied' });
+    historicalAppendix.mockRejectedValueOnce(new Error('QUERY_DENIED'));
+    const limited = await directProposal(question, ports, signal);
+    expect(limited).toMatchObject({ status: 'ready' });
+    expect(limited.status === 'ready' && limited.plan.slides.map(page => page.pageKind)).not.toContain('historical-stacking-appendix');
+  });
   it("uses the requested analysis focus to retain the right page under a tight length while preserving the cover and closing", async () => {
     const { director, signal } = fixture();
     const question = proposalRequestSchema.parse({ question: "为霄云路33号制作高端项目推介，控制在3页" });

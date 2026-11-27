@@ -15,6 +15,7 @@ import { studioRegistry } from "../data/renderWorkflow";
 import { PRESENTATION_THEME_CANDIDATES } from "../design/theme";
 import { readPitchLocation } from "../visual-data/derived-assets";
 import { getBuildingPhotoChoices } from "../visual-data/photos";
+import { readStackingAppendix } from "../visual-data/stacking-delivery";
 import { getWorkspace } from "../workspace/workflow";
 import type { ProposalRequest } from "./proposal-brief";
 import { directProposal, type ComposedProposalPage, type ProposalComposerInput, type ProposalDirectorPorts } from "./proposal-director";
@@ -72,6 +73,7 @@ export function createProposalDirectorPorts(ctx: PitchContext, overrides: Partia
       load: (actor, brief) => loadUnifiedPitchContext(actor, requestFromProposalBrief(brief)),
       photos: (actor, selection) => getBuildingPhotoChoices(actor, selection, selection.buildingIds[0]),
       location: readPitchLocation,
+      historicalAppendix: (actor, buildingId, theme) => readStackingAppendix(actor, buildingId, {}, 'internal', theme),
       options: async (actor, { projectId, brief }) => {
         const project = projectId ? (await getWorkspace(actor, projectId)).project : undefined;
         const profile = brief.style === 'research' ? 'market-intelligence'

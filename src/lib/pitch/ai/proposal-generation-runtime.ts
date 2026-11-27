@@ -1,10 +1,12 @@
-import { recheckBusinessResults } from "@/src/lib/intelligence/business/research";
+import { loadBusinessSnapshot, recheckBusinessResults } from "@/src/lib/intelligence/business/research";
+import { BUSINESS_DOMAIN } from "@/src/lib/intelligence/business/protocol";
 import { z } from "zod";
 import { generationSchema } from "../business/protocol";
 import { checkGenerationSize, generateBusinessProject, prepareBusinessPages } from "../business/workflow";
 import { studioRegistry } from "../data/renderWorkflow";
 import { digest, pitchRpc, type PitchContext } from "../data/store";
 import { stableId } from "../library/extract";
+import { getVisualPageReceipts, resolveReferencedVisualMedia } from "../visual-data/resolve";
 import { projectContextSchema } from "../workspace/protocol";
 import { getWorkspace } from "../workspace/workflow";
 import type { ConfirmedProposal } from "./proposal-brief";
@@ -36,6 +38,17 @@ async function persistReviewedPages(ctx: PitchContext, command: ConfirmedProposa
         scopeFingerprint: result.scopeFingerprint, registryVersion: result.registryVersion,
         sourceFingerprint: digest(Buffer.from(JSON.stringify(result.sources))) }] };
   });
+  const pins = getVisualPageReceipts(slides.map(page => page.content));
+  for (const pin of new Map(pins.map(pin => [pin.id, pin])).values()) {
+    if (pin.origin.type !== 'stacking-snapshot') continue;
+    const buildingId = pin.origin.buildingId;
+    const approved = await loadBusinessSnapshot(ctx.client, ctx.identity, ctx.signal, { tool: 'query_stacking_plan', buildingIds: [buildingId] });
+    if (!approved.export) throw new Error('QUERY_DENIED');
+    const binding = receiptBinding.parse({ domain: 'business', dataVersion: pin.versionHash, dataAsOf: null,
+      permissionRevision: approved.permission_revision, policyVersion: BUSINESS_DOMAIN, disclosure: 'internal' });
+    snapshots.push({ id: 'historical-stacking-appendix', entityId: buildingId, binding,
+      dataVersion: binding.dataVersion, dataAsOf: null, results: [] });
+  }
   const input = {
     action: 'business_generate_commit', projectId, parentProjectId: command.projectId, expectedParentVersion: command.expectedVersion,
     title: plan.title, scope: snapshot.scope, language: snapshot.brief.language, themeId, themeVersion,
@@ -46,6 +59,7 @@ async function persistReviewedPages(ctx: PitchContext, command: ConfirmedProposa
   };
   checkGenerationSize(input);
   await recheckBusinessResults(ctx.client, ctx.identity, ctx.signal, queryReceipts.map(receipt => receipt.result), true);
+  await resolveReferencedVisualMedia(ctx, pins, [], 'internal');
   ctx.signal.throwIfAborted();
   await pitchRpc(ctx, input);
 }

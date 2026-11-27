@@ -1,5 +1,7 @@
 import type { PitchContext } from "../data/store";
 import type { ProposalBrief, VisualAssetReference } from "../integration-contracts";
+import type { DesignTheme } from "../design/theme";
+import type { readStackingAppendix } from "../visual-data/stacking-delivery";
 import { stableId } from "../library/extract";
 import { proposalMapImage, proposalPhoto, proposalStackingImage, type ProposalOptions } from "../proposals";
 import type { ProposalMaterials, UnifiedProposalContext } from "../proposals/unified-projection";
@@ -20,6 +22,7 @@ export type UnifiedProposalReaders = {
   }[]>;
   location(ctx: PitchContext, selection: LocationSelection, targetId?: string): Promise<VisualRead>;
   stacking?(ctx: PitchContext, buildingId: string): Promise<VisualRead>;
+  historicalAppendix?(ctx: PitchContext, buildingId: string, theme: DesignTheme): ReturnType<typeof readStackingAppendix>;
 };
 
 const photoKinds = { exterior: "exterior", interior: "office", lobby: "lobby", amenity: "amenity" } as const;
@@ -149,6 +152,21 @@ export function createUnifiedProposalComposer(ctx: PitchContext, readers: Unifie
     signal.throwIfAborted();
     const result = composeUnifiedProposalPages(context, brief, scope, { ...options, targetBuildingId: brief.buildingIds[0] },
       { ...visuals, ...materials?.evidence, customerBrief: clientBrief(input, context.capturedAt) });
+    if (brief.scenario === 'leasing-agency' && brief.buildingIds[0] && readers.historicalAppendix) {
+      const appendix = await readers.historicalAppendix(actor, brief.buildingIds[0], options.theme).catch((error: unknown) => {
+        signal.throwIfAborted();
+        if (error instanceof Error && ['QUERY_DENIED', 'PITCH_VISUAL_SOURCE_UNAVAILABLE'].includes(error.message)) return null;
+        throw error;
+      });
+      if (appendix) {
+        const before = result.pages.findIndex(page => page.pageKind === 'offer-strategy');
+        result.pages.splice(before < 0 ? result.pages.length : before, 0, {
+          pageKind: 'historical-stacking-appendix', content: appendix.content, layoutId: appendix.layoutId,
+          businessIntent: 'fact', essential: true, data: [], visuals: [appendix.reference],
+        });
+        result.gaps = result.gaps.filter(gap => gap.pageKind !== 'availability');
+      }
+    }
     for (const page of result.pages) {
       const sourceIds = new Set(page.content.sources.map(source => source.id));
       const references = materials?.references.filter(item => sourceIds.has(item.sourceId));
