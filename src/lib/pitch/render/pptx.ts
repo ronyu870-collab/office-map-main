@@ -12,27 +12,30 @@ import { inspectMedia, type SceneMedia } from './media';
 export type { SceneMedia } from './media';
 export const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 const clean = (text: string) => text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u202A-\u202E\u2066-\u2069\uFFFE\uFFFF]/g, ' ');
+// Office on macOS can render boxed glyphs for the bundled preview font.
+const officeTypeface = (font: string) => font === 'Noto Sans SC' ? 'DengXian' : font;
 /** No URLs, file system paths, XML, scripts, callbacks or model-generated code.
  * Native text boxes remain editable; media bytes are already authorized/digested. */
 export async function renderPitchPptx(title: string, pages: { scene: SlideScene; theme: DesignTheme }[], media: SceneMedia[]): Promise<Uint8Array> {
   if (!pages.length || pages.length > 50) throw new Error('PITCH_PAGE_LIMIT');
-  const deck = await createOfficePresentation({ author: 'Colliers Pitch Studio', title: clean(title), subject: 'Pitch Studio', font: pages[0].theme.fonts.zh });
+  const deck = await createOfficePresentation({ author: 'Colliers Pitch Studio', title: clean(title), subject: 'Pitch Studio', font: officeTypeface(pages[0].theme.fonts.zh) });
   const pictures = createPitchPicturePackage();
   const measured = pages.some(p => p.scene.rendererVersion) ? await inspectMedia(media) : [];
   for (const [i, page] of pages.entries()) {
     const scene = slideSceneSchema.parse(page.scene), theme = designThemeSchema.parse(page.theme);
     if (scene.themeId !== theme.id || scene.themeVersion !== theme.version) throw new Error('PITCH_THEME_MISMATCH');
+    const pptxTheme = { ...theme, fonts: { zh: officeTypeface(theme.fonts.zh), en: officeTypeface(theme.fonts.en) } };
     const slide = deck.addSlide(); slide.background = { color: theme.colors.background };
     if (scene.rendererVersion === 'pitch-scene/2') {
       await assertSceneQuality(scene, theme, measured);
-      addNativeScene(slide, scene, theme, measured, pictures.imageData);
+      addNativeScene(slide, scene, pptxTheme, measured, pictures.imageData);
       pictures.reuseParts(slide);
       continue;
     }
     for (const element of scene.elements) {
       const { x, y, w, h } = element;
       if (element.kind === 'text') slide.addText(clean(element.text), { x, y, w, h, margin: 0, valign: 'top',
-        fontFace: /\p{Script=Han}/u.test(element.text) ? theme.fonts.zh : theme.fonts.en,
+        fontFace: /\p{Script=Han}/u.test(element.text) ? pptxTheme.fonts.zh : pptxTheme.fonts.en,
         fontSize: theme.typography[element.role], color: element.role === 'title' ? theme.colors.primary : theme.colors.text,
         bold: element.bold, breakLine: false, lang: 'zh-CN', lineSpacingMultiple: 1.15 });
       else if (element.kind === 'image') {
@@ -44,7 +47,7 @@ export async function renderPitchPptx(title: string, pages: { scene: SlideScene;
     if (theme.logo.enabled) slide.addImage({ data: COLLIERS_LOGO_DATA_URI, x: theme.width - theme.margin - 1, y: theme.margin, w: 1, h: .562 });
     if (theme.footer.enabled) slide.addText(clean(theme.footer.label + (theme.footer.pageNumber ? ` · ${i + 1}` : '')), {
       x: theme.margin, y: 6.85, w: theme.width - 2 * theme.margin, h: .35, margin: 0,
-      fontSize: theme.typography.body, fontFace: theme.fonts.zh, color: theme.colors.muted,
+      fontSize: theme.typography.body, fontFace: pptxTheme.fonts.zh, color: theme.colors.muted,
     });
     pictures.reuseParts(slide);
   }

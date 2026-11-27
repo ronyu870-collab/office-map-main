@@ -92,7 +92,7 @@ export async function prepareRenderExport(ctx: PitchContext, command: Extract<Pi
       projectVersion: z.number().int(), audienceAllowed: z.boolean(),
       pages: z.array(z.object({ id: z.uuid(), position: z.number().int(), reasons: z.array(z.string()) })),
     }).optional(),
-  }).passthrough().parse(await pitchRpc(ctx, { ...command, action: 'export_prepare', asynchronous: true, pipeline: 'delivery/1', deliveryRevision: command.format === 'pptx' ? deliveryRevision + '/shared-picture-parts-1' : deliveryRevision, filename: artifactName(current.project.title, command.format, command.page) }));
+  }).passthrough().parse(await pitchRpc(ctx, { ...command, action: 'export_prepare', asynchronous: true, pipeline: 'delivery/1', deliveryRevision: command.format === 'pptx' ? deliveryRevision + '/shared-picture-parts-1/dengxian-1' : deliveryRevision, filename: artifactName(current.project.title, command.format, command.page) }));
   if (receipt.blocked) throw new ExportEligibilityError(receipt.blocked);
   return receipt;
 }

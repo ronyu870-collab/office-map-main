@@ -33,6 +33,9 @@ await check('single and multi-page Office ZIP contains native editable text, tab
   const names = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)); assert.equal(names.length, 12);
   const xml = (await Promise.all(names.map(n => zip.file(n).async('string')))).join('');
   assert.match(xml, /<a:t>/); assert.match(xml, /<a:tbl>/); assert.match(xml, /graphicData[^>]*chart/); assert.match(xml, /ellipse|chevron/);
+  assert.match(xml, /<a:ea typeface="DengXian"/);
+  assert.match(xml, /<a:tbl>[\s\S]*?<a:ea typeface="DengXian"/);
+  assert.doesNotMatch(xml, /typeface="Noto Sans SC"/);
   assert.ok(xml.includes('测试数据')); assert.ok(!xml.includes('UNAUTHORIZED_RAW_SENTINEL'));
   assert.equal(Object.keys(zip.files).filter(n => /vbaProject|customXml|externalLink/i.test(n)).length, 0);
   const single = await JSZip.loadAsync(await renderPitchPptx('Single', [pages[0]], media)); assert.ok(single.file('ppt/slides/slide1.xml')); assert.equal(single.file('ppt/slides/slide2.xml'), null);
@@ -44,6 +47,8 @@ for (const chartType of ['column', 'bar', 'line', 'pie', 'combo']) await check(`
   const scene = (await layoutSlides(content, STUDIO_THEME, 'chart-insight'))[0];
   const zip = await JSZip.loadAsync(await renderPitchPptx('Visible data', [{ scene, theme: STUDIO_THEME }], []));
   const chartXml = await zip.file(Object.keys(zip.files).find(n => /^ppt\/charts\/chart[^/]+[.]xml$/.test(n))).async('string');
+  assert.match(chartXml, /typeface="DengXian"/);
+  assert.doesNotMatch(chartXml, /typeface="Noto Sans SC"/);
   assert.match(chartXml, chartType === 'pie' ? /<c:pieChart>/ : chartType === 'line' ? /<c:lineChart>/ : /<c:barChart>/);
   if (chartType === 'combo') assert.match(chartXml, /<c:lineChart>/);
   assert.match(chartXml, /dispBlanksAs val="gap"/);
