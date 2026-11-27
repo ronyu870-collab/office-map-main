@@ -12,6 +12,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
@@ -484,6 +485,7 @@ describe("Pitch workspace continuous editing", () => {
     await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
     await user.type(await screen.findByLabelText("搜索楼宇"), "工作台核对");
     await user.click(await screen.findByRole("button", { name: "工作台核对楼宇" }));
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "核对季度数据" }));
     await screen.findByText("追加到 隔离测试 Pitch");
     expect(screen.queryByLabelText("目标项目")).not.toBeInTheDocument();
@@ -497,9 +499,19 @@ describe("Pitch workspace continuous editing", () => {
     await user.click(screen.getByRole("button", { name: "确认并追加" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "加入 Pitch" })).not.toBeInTheDocument());
     expect(writes.filter(entry => entry.action === "add_to_pitch")).toEqual([{
-      action: "add_to_pitch", handoff: review?.handoff, target: { mode: "append", expectedVersion: 2 },
+      action: "add_to_pitch", handoff: review?.handoff, target: { mode: "append", expectedVersion: 1 },
       fingerprint: "f".repeat(64), taskId: expect.any(String),
     }]);
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    expect(detail.workspace.context.buildingIds).toEqual([]);
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
+    await user.click(screen.getByText("项目设置", { selector: "summary" }));
+    const settings = await screen.findByRole("group", { name: "关联项目" });
+    await user.type(within(settings).getByLabelText("搜索楼宇"), "工作台核对");
+    await user.click(await within(settings).findByRole("button", { name: "工作台核对楼宇" }));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(detail.workspace.context.buildingIds).toEqual([assetId]));
   });
   it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
     expandedCatalog = true;

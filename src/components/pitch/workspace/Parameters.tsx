@@ -15,11 +15,13 @@ export function BuildingPicker({
   ids,
   onChange,
   disabled = false,
+  label = "关联项目",
 }: {
   call: Call;
   ids: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
+  label?: string;
 }) {
   const [q, setQ] = React.useState(""),
     [items, setItems] = React.useState<{ id: string; name: string }[]>([]),
@@ -53,7 +55,7 @@ export function BuildingPicker({
   }, [q, call]);
   return (
     <fieldset className={styles.choice} disabled={disabled}>
-      <legend>关联项目</legend>
+      <legend>{label}</legend>
       <label>
         搜索楼宇
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} />
