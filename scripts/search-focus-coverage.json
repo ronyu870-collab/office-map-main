@@ -516,14 +516,16 @@
     "roots": [
       "src/components/pitch/PitchWorkspace.tsx",
       "src/components/pitch/workspace/Projects.tsx",
-      "src/components/pitch/workspace/Manager.tsx"
+      "src/components/pitch/workspace/Manager.tsx",
+      "src/components/pitch/workspace/BuildingLeaseReview.tsx"
     ],
     "file": "src/components/pitch/PitchWorkspace.focus.test.tsx",
     "cases": [
       "keeps project name focused through continuous typing and cursor edits",
       "keeps page text focused through autosave and restores real server edits after remount",
       "keeps project search stable through delayed empty results, middle edits and IME",
-      "keeps category fields focused while editing and switching static filters"
+      "keeps category fields focused while editing and switching static filters",
+      "reviews lease evidence for the selected building with the chosen dates, source and permitted aggregation"
     ]
   },
   {
