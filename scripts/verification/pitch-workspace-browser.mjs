@@ -264,7 +264,7 @@ export async function verifyPitchWorkspaceBrowser({
 }
 
 const flagshipScenarios = [
-  { button: "招商代理", scenario: "leasing-agency", buildings: 1, pages: ["cover", "profile", "submarket-research", "competition-map", "comparable-properties", "implementation"] },
+  { button: "招商代理", scenario: "leasing-agency", buildings: 1, pages: ["cover", "profile", "submarket-research", "competition-map", "comparable-properties", "historical-stacking-appendix", "implementation"] },
   { button: "办公选址对比", scenario: "site-selection", buildings: 5, pages: ["cover", "scope", "next-steps"] },
   { button: "季度市场报告", scenario: "market-report", buildings: 0, pages: ["cover", "key-indicators", "grades", "industry-demand", "lease-area", "methodology"] },
   { button: "单楼项目推介", scenario: "building-promotion", buildings: 1, pages: ["cover", "profile", "next-steps"] },
@@ -589,6 +589,11 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
         const created = await readProject(projectId);
         assert.ok(created.slides.length, "the completed project has no pages");
+        if ((requiredVisuals[scenario.scenario] ?? []).includes("stacking-plan")) {
+          const appendix = created.slides.find(slide => slide.content.sources.some(source => source.visual?.kind === "stacking-plan"));
+          assert.equal(appendix?.content.disclosure, "restricted");
+          assert.equal(appendix?.content.dataAsOf, "2026-11-18");
+        }
         const editedTitle = `隔离验收 · ${scenario.button}`;
         await page.getByLabel("页面标题", { exact: true }).fill(editedTitle);
         const [savedResponse] = await Promise.all([

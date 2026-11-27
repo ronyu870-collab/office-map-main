@@ -72,7 +72,7 @@ async function seed() {
     values($1,'synthetic-org','华北','北京','office',true,now()+interval '1 day',$1)`, [id]);
   await installPitchDataFixture({ setup: db });
   await installBusinessFixture(db);
-  await grantBusiness(db, id, { modules: ['profile', 'submarket'], allSubmarkets: true });
+  await grantBusiness(db, id, { modules: ['profile', 'submarket', 'stacking'], allSubmarkets: true });
   const leaseSchema = await readFile(new URL('../../supabase/tests/lease-expiry/fixture.sql', import.meta.url), 'utf8');
   const liveTable = leaseSchema.indexOf('create table public.lease_transactions(');
   const historyTable = leaseSchema.indexOf('create table public.lease_transactions_history(');
@@ -88,6 +88,15 @@ async function seed() {
   await db.query(auditTable);
   await db.query('grant insert on public.audit_logs to service_role');
   await db.query('grant usage on sequence public.audit_logs_id_seq to service_role');
+  const auditGovernance = await readFile(new URL('20261121105118_audit_2_query_and_session_governance.sql', directory), 'utf8');
+  const auditReceipt = auditGovernance.match(/create table public\.audit_operation_receipts [\s\S]*?(?=create function public\.audit_complete_operation)/)?.[0];
+  assert.ok(auditReceipt);
+  await db.query(auditReceipt);
+  for (const migration of ['20261114070036_ai_legacy_admin_session.sql', '20261121140949_fix_audit_export_role_check.sql']) {
+    await db.query(await readFile(new URL(migration, directory), 'utf8'));
+  }
+  await db.query(`grant select on public.stacking_plan_sources, public.stacking_plan_towers,
+    public.stacking_plan_floors, public.stacking_plan_spaces to service_role`);
   await db.query("update private.ai_query_control set enabled=true");
   await grantQuery({ setup: db }, id, {
     capabilities: ["query:catalog", "query:brochure", "query:quarter", "export:internal"],
@@ -114,6 +123,20 @@ async function seed() {
     await db.query(`insert into public.buildings(id,name,submarket,grade,tracking_scope,city,location_lat,location_lng,completion_year,leasable_area)
       values($1,$2,$3,'A','tracked','北京',$4,$5,'2015',12500)`, [buildingId, name, submarket, 39.90 + index * 0.0012, 116.43 + index * 0.0015]);
     await addPhoto(buildingId, index);
+    if (index === 0) {
+      const sourceId = 'isolated-flagship-stacking';
+      await db.query(`insert into public.stacking_plan_sources(id,building_id,title,source_as_of,as_of_kind,review_state)
+        values($1,$2,'合成历史来源','2026-11-18','source_data_as_of','verified')`, [sourceId, buildingId]);
+      for (const code of ['A', 'B']) {
+        const tower = randomUUID(), floor = randomUUID();
+        await db.query('insert into public.stacking_plan_towers(id,building_id,code,display_name) values($1,$2,$3,$4)',
+          [tower, buildingId, code, code + ' 座']);
+        await db.query(`insert into public.stacking_plan_floors(id,tower_id,floor_code,level_order,floor_area_sqm,source_id)
+          values($1,$2,'10F',10,1000,$3)`, [floor, tower, sourceId]);
+        await db.query(`insert into public.stacking_plan_spaces(floor_id,unit_code,occupancy_status,area_sqm,source_id)
+          values($1,'1001','vacant',450,$2)`, [floor, sourceId]);
+      }
+    }
     await db.query("insert into public.building_brochure_data(building_id,building_height,parking_total,address,standard_floor_area,metro_access) values($1,$2,$3,'合成路一号',1500,'合成轨道交通')",
       [buildingId, 180 + index, 400 + index]);
     for (const [year, quarter] of [[2025, 4], [2026, 1], [2026, 2], [2026, 3]]) {
@@ -163,7 +186,7 @@ try {
   await verify({
     app, who, period: quarterRevision ? "2026-Q2" : "2026-Q3", quarterRevision, competitorRevision,
     replacementCandidates: who.replacementCandidates,
-    requiredVisuals: { 'leasing-agency': ['photo', 'map'], 'site-selection': ['photo', 'map'],
+    requiredVisuals: { 'leasing-agency': ['photo', 'map', 'stacking-plan'], 'site-selection': ['photo', 'map'],
       'market-report': ['map'], 'building-promotion': ['photo', 'map'] },
     readProject: async (projectId) => {
       const result = await fetch(app + "/api/intelligence/pitch/workspace", {
@@ -175,6 +198,11 @@ try {
       return result.json();
     },
   });
+  if (verify === verifyPitchFlagshipBrowser) {
+    const audit = await db.query(`select distinct details->>'stage' as stage from public.audit_operation_receipts
+      where action_type='STACKING_PLAN_EXPORT' and state='success' order by stage`);
+    assert.deepEqual(audit.rows.map(row => row.stage), ['download', 'export']);
+  }
 } finally {
   if (server?.exitCode === null) {
     const stopped = once(server, "exit");
