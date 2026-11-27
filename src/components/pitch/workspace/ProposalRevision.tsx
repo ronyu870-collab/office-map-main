@@ -9,6 +9,7 @@ import { objectId } from "@/src/lib/pitch/workspace/object-layout";
 import { themeLabel, WorkspaceError, type Call } from "./client";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel } from "./DataRefreshReview";
 import { EvidencePages } from "./BusinessEvidence";
+import { LayoutRevisionReview, matchesAppliedLayout, requestedLayoutPages, reviewLayoutChanges, type LayoutReview } from "./LayoutRevision";
 import { ProposalPreview, reviewedProposalSchema } from "./ProposalPreview";
 import { appliedPhotoSchema, matchesAppliedPhoto, matchesPhotoReview, PhotoRevisionReview, photoReviewSchema } from "./PhotoRevisionReview";
 import styles from "./workspace.module.css";
@@ -80,8 +81,8 @@ const outcomeSchema = z.union([
   z.object({ status: z.literal("clarification"), message: z.string(), candidates: z.array(buildingSchema).max(10).optional() }),
   z.object({ status: z.literal("unavailable"), message: z.string().optional() }),
 ]);
-type Preview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" | "photo-review" }>;
-type StandardPreview = Exclude<Preview, z.infer<typeof photoReviewSchema>>;
+type StandardPreview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" }>;
+type Preview = StandardPreview | z.infer<typeof photoReviewSchema> | LayoutReview;
 type Plan = Extract<Preview, { plan: unknown }>;
 const chartLabels = { bar: "条形图", column: "柱状图", line: "折线图" } as const;
 
@@ -181,6 +182,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   const expectedVersion = detail.project.version;
   const key = JSON.stringify([projectId, expectedVersion, question, active, selected, objectIds]);
   const visible = review?.key === key ? review.value : undefined;
+  const layout = visible?.status === "layout-review" ? visible : undefined;
   const photo = visible?.status === "photo-review" ? visible : undefined;
   const comparison = visible && "mode" in visible ? visible : undefined;
   const current: Plan | undefined = visible && "plan" in visible ? visible : undefined;
@@ -196,6 +198,12 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
     try {
       if (action === "preview") {
         setCandidates(undefined);
+        const layoutPages = requestedLayoutPages(question, detail, active, selected);
+        if (layoutPages) {
+          const result = await reviewLayoutChanges(call, detail, layoutPages, controller.signal);
+          if (!controller.signal.aborted) setReview({ key, value: result });
+          return;
+        }
         const input = {
           projectId, expectedVersion, question: question.trim(), currentPageId: active,
           pageIds: selected, objectIds,
@@ -213,6 +221,12 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
           const feedback = "message" in result ? result.message : undefined;
           setMessage(feedback || "当前资料或版式无法生成可应用的修改。请缩小范围或指定要更改的内容。");
         }
+      } else if (layout) {
+        const result = workspaceDetailSchema.parse(await call(layout.command, true, "workspace", controller.signal));
+        if (controller.signal.aborted) return;
+        if (!matchesAppliedLayout(layout, detail, result)) throw new Error("无法核对保存后的版式，请重新打开项目检查。");
+        setReview(undefined);
+        onApplied(result, expectedVersion);
       } else if (photo) {
         const result = appliedPhotoSchema.parse(await call(photo.command, true, "ai", controller.signal));
         if (controller.signal.aborted) return;
@@ -267,7 +281,9 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         onClick={() => void run("preview", candidate.id)}>{candidate.name}{candidate.submarket && ` · ${candidate.submarket}`}</Button>)}
     </div>}
     <Dialog open={!!visible} dismissible={!regenerating} onOpenChange={open => { if (!open && !working && !regenerating) setReview(undefined); }}
-      title="核对 AI 修改" size="lg" footer={photo ? <Button disabled={disabled} loading={working === "apply"}
+      title="核对 AI 修改" size="lg" footer={layout ? <Button disabled={disabled} loading={working === "apply"}
+        loadingLabel="正在应用…" onClick={() => void run("apply")}>应用新布局</Button>
+        : photo ? <Button disabled={disabled} loading={working === "apply"}
         loadingLabel="正在更换…" onClick={() => void run("apply")}>确认换图</Button>
         : comparison ? <Button disabled={disabled} loading={working === "apply"}
         loadingLabel="正在提交…" onClick={() => void run("apply")}>{message ? "继续追加" : "追加对比页"}</Button> : current && !regeneration && (
@@ -276,6 +292,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
           : <Button disabled={disabled || (quarterReview ? !quarterReview.changed : !affected)}
             loading={working === "apply"} loadingLabel="正在应用…" onClick={() => void run("apply")}>应用修改</Button>
       )}>
+      {layout && <LayoutRevisionReview review={layout} detail={detail} />}
       {photo && <PhotoRevisionReview review={photo} detail={detail} />}
       {comparison && <>
         <p>{comparison.review.competitor.name} · {comparison.review.period} · 追加 {comparison.review.pages.length} 页</p>

@@ -878,3 +878,4 @@
 .layoutVariants button { min-width: 0; min-height: 44px; text-align: start; padding: 4px; color: inherit; background: var(--pitch-surface); border: 1px solid var(--pitch-border); border-radius: var(--cd-radius-md, 6px); }
 .layoutVariants button[aria-pressed="true"] { border-color: var(--cd-color-brand, #003e7e); opacity: 1; }
 .layoutVariants img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: contain; }
+.revisionSlide { display: block; width: 100%; aspect-ratio: 16/9; object-fit: contain; border: 1px solid var(--pitch-border); border-radius: var(--cd-radius-md, 6px); }
