@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { MarketBuilding, MarketMetric } from '../model/marketStatistics';
 import { selectRepresentativeProjects, SubmarketRepresentativeProjects } from '../components/SubmarketRepresentativeProjects';
@@ -27,74 +27,74 @@ const visible = [
 ];
 
 describe('SubmarketRepresentativeProjects', () => {
-  it('uses mappable normalized A/B examples and only comparable official-quarter observations', () => {
+  it('preserves comparable quarterly product coverage including industrial parks and projects without valid coordinates', () => {
     const examples = selectRepresentativeProjects([...visible, visible[1]], ' 望京/酒仙桥 ');
-    expect(examples.map(({ role }) => role)).toEqual(['规模样本', '同级租金参照', '甲级样本', '乙级样本']);
-    const [size, rent] = examples;
-    expect(size.project.id).toBe('规模项目');
-    expect(size.reason).toContain('90,000 ㎡');
-    expect(rent.project.id).toBe('中部租金');
-    expect(rent.reason).toContain('2026Q2');
-    expect(rent.reason).toContain('3 个甲级样本的中位数为 300 元/㎡/月');
-    expect(new Set(examples.map(({ project }) => project.id)).size).toBe(examples.length);
+    expect(examples.find(({ role }) => role === '甲级租金参照')?.detailReason).toContain('中位数 370 元/㎡/月');
+    expect(examples.some(({ project }) => project.id === '产业园')).toBe(true);
     expect(examples.some(({ project }) => project.id === '乙级项目')).toBe(true);
+    expect(examples.some(({ project }) => project.id === '异地项目')).toBe(false);
+    expect(new Set(examples.map(({ project }) => project.id)).size).toBe(examples.length);
+    expect(selectRepresentativeProjects([visible[7]], '望京-酒仙桥')[0].project.id).toBe('错误坐标');
   });
 
-  it('includes genuine zero rent in the same-quarter median', () => {
+  it('prefers a locatable project among tied central rents without dropping unlocated observations or curated projects', () => {
+    const rows = [
+      building('未定位楼', 'A', [metric(1000, 146.1)], { submarket: 'CBD', location_lng: null, location_lat: null }),
+      building('坐标越界楼', 'A', [metric(1000, 146.1)], { submarket: 'CBD', location_lat: 116 }),
+      building('CBD甲楼', 'A', [metric(1000, 146.1)], { submarket: 'CBD' }),
+      building('较早楼宇', 'A', [metric(1000, 146.1, { record_quarter: 1 })], { submarket: 'CBD' }),
+    ];
+    for (const order of [rows, [...rows].reverse()]) {
+      const examples = selectRepresentativeProjects(order, 'CBD');
+      const central = examples.find(({ role }) => role === '甲级租金参照');
+      expect(central?.project.id).toBe('CBD甲楼');
+      expect(central?.detailReason).toContain('3 个同级有效项目，中位数 146.1');
+    }
+    const curated = selectRepresentativeProjects([rows[0]], 'CBD')[0];
+    expect(selectRepresentativeProjects(rows, 'CBD', [curated])[0].project.id).toBe('未定位楼');
+    expect(selectRepresentativeProjects(rows.slice(0, 2), 'CBD')).toHaveLength(1);
+    expect(selectRepresentativeProjects([rows[0]], 'CBD')[0].project.id).toBe('未定位楼');
+  });
+
+  it('uses official eligible rent samples for reference, not zero or drafts', () => {
     const buildings = [0, 100, 200].map(rent => building(`项目 ${rent}`, 'A', [metric(1000, rent)]));
-    const example = selectRepresentativeProjects(buildings, '望京-酒仙桥').find(({ role }) => role === '同级租金参照');
-    expect(example?.project.id).toBe('项目 100');
-    expect(example?.reason).toContain('3 个甲级样本的中位数为 100 元/㎡/月');
-  });
-
-  it('states insufficient evidence rather than ranking missing, draft, or incomparable values', () => {
+    expect(selectRepresentativeProjects(buildings, '望京-酒仙桥').some(({ role }) => role.includes('租金参照'))).toBe(false);
     const draft = building('仅草稿', 'A', [metric(30_000, 0, { is_draft: true })]);
-    const examples = selectRepresentativeProjects([draft, visible[3], visible[4]], '望京-酒仙桥');
-    expect(examples.map(({ role }) => role)).not.toContain('同级租金参照');
     expect(selectRepresentativeProjects([draft], '望京-酒仙桥')[0].reason).toContain('暂无已发布季度记录');
-    expect(selectRepresentativeProjects([visible[5], visible[6], visible[7]], '望京-酒仙桥')).toEqual([]);
+    expect(selectRepresentativeProjects([visible[5], visible[6], visible[7]], '望京-酒仙桥').map(({ project }) => project.id)).toEqual(['错误坐标','产业园']);
   });
 
-  it('shows only genuine latest-quarter rent and vacancy in detail cards', () => {
+  it('shows comparable genuine values in compact and detail modes and supplements curated projects', () => {
     const props = { submarket: '望京-酒仙桥', onOpen: vi.fn(), buildings: [
-      building('规模项目', 'P', [metric(90_000, 440, { vacancy_rate: '0.1234' })]),
-      building('中部租金', 'A', [
-        metric(24_000, 900, { record_quarter: 1, vacancy_rate: 0.9 }),
-        metric(24_000, 300, { vacant_area: 2_400, vacancy_rate: null }),
-        metric(24_000, 800, { record_quarter: 3, is_draft: true, vacancy_rate: 0.8 }),
-      ]),
-      building('最低租金', 'A', [metric(12_000, 10, { vacancy_rate: 1.2 })]),
-      building('零值项目', 'B', [metric(18_000, 0, { vacancy_rate: 0 })]),
+      building('指定项目', 'A', [metric(24_000, 900, { record_quarter: 1 }), metric(24_000, 300, { vacant_area: 2400 }), metric(24_000, 800, { record_quarter: 3, is_draft: true })]),
+      building('乙级项目', 'B', [metric(18_000, 0, { vacancy_rate: 0 })]),
+      building('园区项目', 'BP', [metric(90_000, 440, { vacancy_rate: '0.1234' })]),
     ] };
-    const { rerender } = render(<SubmarketRepresentativeProjects {...props} />);
-    expect(screen.getByText('2026Q2 · 净有效租金 440 元/㎡/月 · 空置率 12.34%')).toBeTruthy();
-    expect(screen.getByText('2026Q2 · 净有效租金 10 元/㎡/月')).toBeTruthy();
+    const { rerender } = render(<SubmarketRepresentativeProjects {...props} compact />);
+    expect(screen.getByText('2026Q2 · 净有效租金 300 元/㎡/月 · 空置率 10%')).toBeTruthy();
     expect(screen.getByText('2026Q2 · 净有效租金 0 元/㎡/月 · 空置率 0%')).toBeTruthy();
-    const medianCard = screen.getByRole('button', { name: '中部租金' }).closest('li')!;
-    expect(within(medianCard).getByText('2026Q2 · 净有效租金 300 元/㎡/月')).toBeTruthy();
-    expect(medianCard.textContent?.match(/净有效租金/g)).toHaveLength(1);
-    expect(medianCard.textContent).not.toContain('空置率');
-    rerender(<SubmarketRepresentativeProjects {...props} compact />);
-    expect(screen.queryByText(/空置率|净有效租金 (440|10|0) 元/)).toBeNull();
-    expect(screen.getByText(/2026Q2 净有效租金 300 元/)).toBeTruthy();
+    expect(screen.getByText('2026Q2 · 净有效租金 440 元/㎡/月 · 空置率 12.34%')).toBeTruthy();
+    expect(screen.queryByText(/净有效租金 800/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /市场深度分析/ })).toBeNull();
+    rerender(<SubmarketRepresentativeProjects {...props} />);
+    expect(screen.getByRole('button', { name: /市场深度分析/ })).toBeTruthy();
+    const curated = [{ ...selectRepresentativeProjects(props.buildings, props.submarket)[0], role: '研究指定' }];
+    const supplemented = selectRepresentativeProjects(props.buildings, props.submarket, curated);
+    expect(supplemented[0].role).toBe('研究指定');
+    expect(supplemented.map(({ project }) => project.id)).toEqual(['指定项目', '乙级项目', '园区项目']);
   });
 
-  it('opens real projects by id and resolves an approved photo only when expanded in details', async () => {
+  it('opens real projects by ID and loads only authorized photo metadata when visible', async () => {
     const photoId = '11111111-1111-1111-1111-111111111111';
     const withPhoto = { ...visible[0], photos: [{ id: photoId, caption: '大楼外立面' }] };
     const other = { ...visible[4], photos: [{ id: 'placeholder', caption: '假图' }] };
     const onOpen = vi.fn();
     loadPhoto.mockImplementation(() => new Promise(() => {}));
-    const props = { buildings: [withPhoto, other], submarket: '望京-酒仙桥', onOpen };
-    const { rerender } = render(<SubmarketRepresentativeProjects {...props} compact />);
-    expect(screen.queryByRole('button', { name: /看图/ })).toBeNull();
+    render(<SubmarketRepresentativeProjects buildings={[withPhoto, other]} submarket="望京-酒仙桥" onOpen={onOpen} compact />);
     fireEvent.click(screen.getByRole('button', { name: '规模项目' }));
     expect(onOpen).toHaveBeenCalledWith('规模项目');
-    rerender(<SubmarketRepresentativeProjects {...props} />);
-    const trigger = screen.getByRole('button', { name: /看图/ });
-    expect(loadPhoto).not.toHaveBeenCalled();
-    fireEvent.click(trigger);
     await waitFor(() => expect(loadPhoto).toHaveBeenCalledWith('规模项目', photoId, expect.any(AbortSignal), 'preview', expect.anything()));
-    expect(screen.getAllByRole('button', { name: /看图/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: '收起图片' })).toHaveLength(1);
+    expect(loadPhoto).toHaveBeenCalledTimes(1);
   });
 });

@@ -11,6 +11,9 @@ import { readBuildingPhotoCatalog } from '@/src/lib/building-photos/catalog';
 import { latestFormalMetric, MARKET_CONTRACT_VERSION } from '@/src/app/map/model/quarterlyFacts';
 import { MAX_COMPARE_SELECTION } from '@/src/lib/compareReadContract';
 
+import { parseAssetResearchRequest, readMarketAssetResearch } from '@/src/lib/server/mapMarketAssetRead';
+import { resolveLeaseReadAccess } from '@/src/app/api/lease-transactions/read/access';
+
 export const dynamic = 'force-dynamic';
 
 const MAP_BUILDING_SELECT = `
@@ -121,6 +124,14 @@ export async function GET(request: NextRequest) {
 
     const params = request.nextUrl.searchParams;
     const mode = params.get('mode') || 'map';
+
+    if (mode === 'research-assets') {
+      const input = parseAssetResearchRequest(params);
+      if (!input) return noStoreJson({ error: '无效的市场或季度' }, { status: 400 });
+      const canReadLive = resolveLeaseReadAccess(role, 'live').authorized;
+      const payload = await timing.measure('database', () => readMarketAssetResearch(admin, input, request.signal, canReadLive));
+      return success(payload);
+    }
 
     if (mode === 'map') {
       const latestMetricsOnly = params.get('metrics') !== 'all';

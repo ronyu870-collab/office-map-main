@@ -82,8 +82,8 @@ function QuarterData({ timeline }: { timeline: readonly TrendQuarter[] }) {
 export function MarketGradeComparison({ series }: { series: Pick<SubmarketTrendSeries, 'a' | 'b'> }) {
   const comparisons = useMemo(() => latestGradeComparisons(series), [series]);
   if (!comparisons.length) return null;
-  return <details className={styles.quarterData}>
-    <summary>比较甲级与乙级</summary>
+  return <section className={styles.quarterData} aria-label="甲乙级行情比较">
+    <h4>比较甲级与乙级</h4>
     <table aria-label="同季度甲乙级比较">
       <thead><tr><th scope="col">指标与季度</th><th scope="col">甲级</th><th scope="col">乙级</th></tr></thead>
       <tbody>{comparisons.map(({ metric, a, b, difference }) => <tr key={metric}>
@@ -93,11 +93,14 @@ export function MarketGradeComparison({ series }: { series: Pick<SubmarketTrendS
         </th>
         {[a, b].map((row, index) => <td key={index}>
           {marketTrendValueText(trendValue(row.point, metric)!, metric)}
+          <span aria-hidden="true" className={styles.compositionBar} style={{ marginBlock: 4 }}>
+            <i style={{ display: 'block', background: metric === 'vacancyPct' ? 'var(--cd-color-market-vacancy, #326A78)' : 'var(--cd-color-brand)', width: (trendValue(row.point, metric)! / Math.max(1, ...(metric === 'vacancyPct' ? [100] : [trendValue(a.point, metric)!, trendValue(b.point, metric)!])) * 100) + '%' }} />
+          </span>
           <span>{trendSamples(row.point, metric)} 个样本</span>
         </td>)}
       </tr>)}</tbody>
     </table>
-  </details>;
+  </section>;
 }
 
 export function SubmarketTrendChart({ data, range = 'default', onRangeChange, active = true }: {

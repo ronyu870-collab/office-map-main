@@ -1007,8 +1007,9 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           onExitGuardChange={registerResearchExitGuard}
           onClose={closeWorkspace} onShowAll={showSubmarketBuildings}
           onOpenBuilding={id => {
-            // Use the normal building detail/camera path, retaining research underneath.
-            const building = filteredBuildings.find(item => item.id === id && normalizeMapSubmarket(item.submarket) === selectedSubmarket);
+            // Deep analysis is authorization-wide. Use the already authorized catalog,
+            // not the filtered view, and preserve the filter and research return stack.
+            const building = mapDataStoreRef.current.getRoleVisible(userRoleRef.current).find(item => item.id === id);
             if (building) handleBuildingClick(building, 'submarket');
           }} /> : null}
         queryPanel={<MapQuerySelection context={queryContext} onChange={setQuerySelection} />}
