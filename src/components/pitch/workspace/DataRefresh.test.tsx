@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { layoutFixture } from "@/src/lib/pitch/fixtures/layouts";
-import { workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
+import { workspaceCommandSchema, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import type { Call } from "./client";
 import { DataRefresh } from "./DataRefresh";
 import { DataRefreshComparison } from "./DataRefreshReview";
@@ -121,6 +121,56 @@ it("shows a formal source revision when the page values are identical", () => {
   }} />);
   expect(screen.getByText("正式来源版本有更新，页面数值保持一致。")).toBeInTheDocument();
   expect(screen.queryByText("更新后")).not.toBeInTheDocument();
+});
+
+it("submits a page note with the reviewed source and every affected page version when supported", async () => {
+  const user = userEvent.setup();
+  const period = { year: 2026, quarter: 4 };
+  const note = "个别样本需复核";
+  const before = { dataAsOf: "2026-09-30", blocks: [{ kind: "metric" as const, label: "净有效租金", value: 95, unit: "元/㎡/月" }] };
+  const after = { dataAsOf: "2026-12-31", blocks: [{ ...before.blocks[0], value: 98 }] };
+  const reviewed = { projectVersion: expectedVersion, fingerprint, changed: true, needsConclusionReview: false, period,
+    changes: [slideId, stackingPage].map(id => ({ slideId: id, changed: true, before, after })) };
+  const base = layoutFixture("chart-insight");
+  const detail = {
+    ...workspace, workspace: { ...workspace.workspace, active_slide: slideId },
+    slides: [slideId, stackingPage].map((id, index) => ({ id, version: expectedVersion - index,
+      asset_id: sourceId, asset_version: 1, template_id: "fixture", template_version: 1,
+      content: { ...base, locale: "zh", title: index ? "延伸信息" : "季度情况", ...before,
+        blocks: before.blocks.map(block => ({ ...block, sourceIds: [base.sources[0].id] })) },
+      scene: { protocol: "colliers-pitch/1", width: 13.333333, height: 7.5, layoutId: "chart-insight",
+        themeId: "theme", themeVersion: 1, layoutVersion: 1, elements: [{ kind: "text",
+          x: 1, y: 1, w: 2, h: 1, text: "正式季度", role: "title", bold: true }] },
+    })),
+  };
+  const plan = { id, projectId: id, expectedVersion, basePageVersions: detail.slides.map(({ id, version }) => ({ id, version })),
+    pages: [{ id: slideId, manualNote: note }], refresh: { kind: "reviewed-data", slideId, period, fingerprint } };
+  const supported = workspaceCommandSchema.safeParse({ action: "apply_modification", scope: "selected", plan }).success;
+  const call = vi.fn(async (input: Record<string, unknown>) => {
+    if (input.action === "document_bindings") return { projectVersion: expectedVersion, pages: [{ id: slideId,
+      objects: [{ ...object, valueOrigin: "business", binding: { domain: "quarter", dataAsOf: before.dataAsOf },
+        query: { period: { year: 2026, quarter: 3 } } }] }] };
+    if (input.action === "preview_data_refresh") return reviewed;
+    return { ...detail, project: { ...detail.project, version: expectedVersion + 1 },
+      workspace: { ...detail.workspace, page_settings: supported ? { [slideId]: { note: { text: note } } } : {} },
+      slides: detail.slides.map((page, index) => ({ ...page, content: { ...page.content, ...after,
+        ...(supported && !index ? { subtitle: `人工说明：${note}` } : {}),
+        blocks: after.blocks.map(block => ({ ...block, sourceIds: [base.sources[0].id] })) } })),
+    };
+  }) as unknown as Call;
+  const onApplied = vi.fn();
+  render(<Inspector call={call} detail={workspaceDetailSchema.parse(detail)} slideId={slideId}
+    suggestedPeriod="2026-Q4" disabled={false} onApplied={onApplied} />);
+  await user.click(await screen.findByRole("button", { name: "预览数据更新" }));
+  await screen.findByRole("dialog", { name: "核对数据更新" });
+  if (supported) await user.type(screen.getByLabelText("本页人工说明（可选）"), note);
+  else expect(screen.queryByLabelText("本页人工说明（可选）")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "应用数据更新" }));
+  const applied = vi.mocked(call).mock.calls.at(-1)?.[0];
+  expect(applied).toEqual(supported
+    ? { action: "apply_modification", scope: "selected", plan: { ...plan, id: expect.any(String) } }
+    : { action: "apply_data_refresh", projectId: id, expectedVersion, slideId, period, fingerprint });
+  expect(onApplied).toHaveBeenCalledOnce();
 });
 
 it("shows cited formal query receipts for reviewed pages without exposing an unsupported refresh", async () => {
