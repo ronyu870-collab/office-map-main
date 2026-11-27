@@ -120,13 +120,15 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(body.message).toContain('实际步行路线待核验');
     expect(state.provider).not.toHaveBeenCalled();
   });
-  it.each(['available', 'unavailable', 'denied'])('keeps the concept and only uses verified quarterly examples (%s)', async stateOfSource => {
+  it.each(['available', 'unavailable', 'denied', 'out_of_scope', 'no_valid_sample'])('keeps the concept and only uses verified quarterly examples (%s)', async stateOfSource => {
     const period = { year: 2026, quarter: 2 };
     if (stateOfSource !== 'denied') state.authority.mockResolvedValue({ ...authority,
       grants: ['query:catalog', 'query:quarter'], fields: ['vacantArea', 'totalArea'], allBuildings: true, allSubmarkets: true });
     state.structured.mockImplementation(async (_env, _name, { plan }: { plan: QueryPlan }) => {
       if (stateOfSource === 'unavailable') throw Error('QUERY_READ_UNAVAILABLE');
-      const result = executeQueryPlan(plan, [{ ...fixture(period), queryScope: { ...plan.scope, filter: null,
+      if (stateOfSource === 'out_of_scope') throw Error('QUERY_DENIED');
+      const result = executeQueryPlan(plan, [{ ...fixture(period), ...(stateOfSource === 'no_valid_sample' ? { rows: [], expectedCount: 0 } : {}),
+        queryScope: { ...plan.scope, filter: null,
         requestedFields: describePlanRead(plan).fields, inventoryTime: 'current_catalog', brochureSelection: 'all_unresolved_record_candidates' },
       }]);
       return { result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) };
@@ -137,10 +139,16 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
       expect(body.result.table.rows[0].cells.value.value.numeric).toBeCloseTo(1 / 7);
       expect(body.result.parameters.executedPlan).toMatchObject({ operation: 'aggregate', metric: 'vacancy', period, scope: { submarkets: ['CBD'] } });
       expect(body.answerSelection.status).toBe('answered');
+    } else if (stateOfSource === 'no_valid_sample') {
+      expect(body.agent.executionStatus).toBe('partial');
+      expect(body.agent.unresolvedFailures).toEqual([{ tool: 'execute_query_plan', code: 'no_valid_sample' }]);
+      expect(body.result.table.rows[0].cells.value.kind).toBe('unknown');
+      expect(body.answerSelection.notice).toContain('没有可核验的有效案例数值');
     } else {
       expect(body.status).toBe('assistant');
       expect(body.result).toBeUndefined();
-      expect(body.message).toContain(stateOfSource === 'denied' ? '当前身份没有该案例指标的查询资格' : '本轮未取得可核验的案例数据');
+      expect(body.message).toContain(stateOfSource === 'denied' ? '当前身份没有该案例指标的查询资格'
+        : stateOfSource === 'out_of_scope' ? '当前身份没有该案例指标或范围的查询资格' : '暂时无法读取数据源');
     }
     if (stateOfSource === 'denied') expect(state.structured).not.toHaveBeenCalled();
     expect(state.provider).not.toHaveBeenCalled();

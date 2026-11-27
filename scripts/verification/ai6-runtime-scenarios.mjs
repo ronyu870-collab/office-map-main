@@ -80,6 +80,67 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       assert.equal(periods.status, 200, JSON.stringify(periods.body)); assert.equal(periods.calls, 0);
       assert.match(periods.body.message, /2026Q2/); assert.match(periods.body.message, /不代表每栋楼/);
     });
+    await check('AI6 T14 / 概念解释随正式案例、零值、缺值、权限拒绝和数据源恢复正确交付', async () => {
+      const vacancy = '请解释空置率的定义，并用2026Q2 CBD的实际数据举例。';
+      const rent = '什么是净有效租金？以2026Q2 CBD的实际数据为例。';
+      const verify = (reply, text) => {
+        assert.equal(reply.status, 200, JSON.stringify(reply.body));
+        assert.equal(reply.calls, 0);
+        assert.equal(reply.body.agent.modelCalls, 0);
+        assert.match(reply.body.message, text);
+        return reply.body;
+      };
+      const definition = /有效空置面积合计除以对应的有效总面积合计/;
+      const good = verify(await submit(owner, vacancy), definition);
+      assert.equal(good.answerSelection.status, 'answered');
+      const sample = good.result.table.rows[0].cells.value;
+      assert.equal(sample.value.numeric, .05);
+      assert.ok(sample.sourceIds.length > 0);
+      assert.ok(sample.sourceIds.every(id => good.result.sources.some(source => source.id === id
+        && source.period?.year === 2026 && source.period?.quarter === 2 && [ids[0], ids[1]].includes(source.entityId))));
+      assert.deepEqual((await recover(owner, good.requestId)).body.result, good.result);
+      const rentResult = verify(await submit(owner, rent), /折算租赁优惠后的单位面积月租/);
+      assert.equal(rentResult.result.table.rows[0].cells.value.value.numeric, 100);
+
+      const narrow = await person('admin', 'ai6-concept-scope');
+      const grantNarrow = fields => grantQuery({ setup: db }, narrow.id, { capabilities: exportCaps,
+        fields, allSubmarkets: false, submarkets: ['CBD'], allBuildings: false, buildingIds: [ids[0]] });
+      await grantNarrow(['vacantArea', 'totalArea']);
+      const zero = verify(await submit(narrow, vacancy), definition);
+      assert.equal(zero.result.table.rows[0].cells.value.value.numeric, 0);
+      assert.equal(zero.answerSelection.status, 'answered');
+      const scopeDenied = verify(await submit(narrow, vacancy.replace('CBD', '金融街')), definition);
+      assert.equal(scopeDenied.result, undefined);
+      assert.equal(scopeDenied.agent.executionStatus, 'limited');
+      assert.match(scopeDenied.message, /该案例指标或范围的查询资格/);
+
+      const absent = verify(await submit(owner, vacancy.replace('Q2', 'Q3')), definition);
+      assert.equal(absent.result.table.rows[0].cells.value.kind, 'unknown');
+      assert.equal(absent.answerSelection.status, 'partial');
+      assert.equal(absent.agent.executionStatus, 'partial');
+      assert.deepEqual(absent.agent.unresolvedFailures, [{ tool: 'execute_query_plan', code: 'no_valid_sample' }]);
+      await grantNarrow(['totalArea']);
+      const fieldDenied = verify(await submit(narrow, vacancy), definition);
+      assert.equal(fieldDenied.result, undefined);
+      assert.equal(fieldDenied.agent.toolCalls, 0);
+      assert.match(fieldDenied.message, /没有该案例指标的查询资格/);
+
+      const original = (await db.query("select pg_get_functiondef('public.ai_query_snapshot_read(uuid,uuid,uuid,text,text[],jsonb,text,text[],uuid[])'::regprocedure) as definition")).rows[0].definition;
+      let outage;
+      try {
+        await db.query(`create or replace function public.ai_query_snapshot_read(p_actor uuid,p_effective uuid,p_session uuid,p_permission_revision text,
+          p_fields text[],p_periods jsonb,p_inventory text,p_submarkets text[],p_building_ids uuid[]) returns jsonb language plpgsql security invoker
+          set search_path='' as $$ begin raise exception 'injected T14 snapshot service failure'; end $$`);
+        outage = verify(await submit(owner, vacancy), definition);
+        assert.equal(outage.result, undefined);
+        assert.equal(outage.agent.executionStatus, 'limited');
+        assert.deepEqual(outage.agent.unresolvedFailures, [{ tool: 'execute_query_plan', code: 'source_unavailable' }]);
+        assert.match(outage.message, /暂时无法读取数据源，请稍后重试/);
+      } finally { await db.query(original); }
+      const retried = verify(await submit(owner, vacancy, { conversation: { id: outage.conversation.id, parentRequestId: outage.requestId } }), definition);
+      assert.equal(retried.conversation.id, outage.conversation.id);
+      assert.equal(retried.result.table.rows[0].cells.value.value.numeric, sample.value.numeric);
+    });
     const buildingContext = async (who, reply, options = {}) => {
       const response = await originalFetch(app + '/api/intelligence/query/buildings', { method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + who.token },

@@ -124,6 +124,12 @@ describe('AI6 full-condition execution routing', () => {
     expect(routeTask(question, prior).plan?.scope).toEqual({ inventory: 'all_authorized' });
     expect(routeTask('换成2026Q3', plan).plan).toMatchObject({ period: { year: 2026, quarter: 3 }, metric: 'rent', scope: plan.scope });
   });
+  it.each(['什么是净有效租金？以 2026Q2 CBD 的实际数据为例。', '请问净有效租金是什么意思？用 2026Q2 CBD 的正式数据举例。'])
+    ('resolves a concept with a naturally phrased, explicit quarterly example: %s', request => {
+      const task = routeTask(request);
+      expect(task).toMatchObject({ route: 'deterministic_query', conceptExample: true,
+        plan: { operation: 'aggregate', metric: 'rent', period: { year: 2026, quarter: 2 }, scope: { submarkets: ['CBD'] } } });
+    });
   it('only reuses server-imported previous results for exports and chart generation', () => {
     expect(routeTask('把刚才的结果导出Excel', plan, false, true)).toMatchObject({ reusePrevious: true, exportFormat: 'xlsx' });
     expect(routeTask('把刚才的结果画成图', plan, false, true)).toMatchObject({ reusePrevious: true, chartType: 'auto' });

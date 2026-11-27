@@ -7,6 +7,7 @@ import type { QueryPlan } from '../query/plan';
 import { requestedArtifactFormats } from './artifactFulfillment';
 import { preferredChartRequest } from './resultTools';
 import { resultViewSchema } from '../query/presentation';
+import { resultAvailability } from '../query/resultAvailability';
 import { resultBuildingRows } from '../query/buildingCards';
 import { restoredResultTableView } from '../query/tableView';
 import { structuredQueryPlan } from './structuredQueryPlan';
@@ -223,7 +224,8 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
         : '当前未开放数值字段；实际范围和操作仍受独立资格约束。';
     }
   } else if (task.plan) {
-    const observed = await run('execute_query_plan', { plan: task.plan });
+    // The definition can still be delivered if the optional data example is outside the user's scope.
+    const observed = await run('execute_query_plan', { plan: task.plan }, task.conceptExample);
     const screening = task.siteSelection ?? task.metroSelection;
     if (screening && observed?.result) {
       const candidates = resultViewSchema.parse(observed.result);
@@ -288,13 +290,24 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
         ...(view.sort ? { sort: { field: view.sort.key, direction: view.sort.direction } } : {}) } : {}),
     });
   }
-  if (task.conceptExample && !task.plan) failures.push({ tool: 'execute_query_plan', code: 'field_not_available' });
+  if (task.conceptExample) {
+    if (!task.plan) failures.push({ tool: 'execute_query_plan', code: 'field_not_available' });
+    if (result !== undefined && resultAvailability(resultViewSchema.parse(result)))
+      failures.push({ tool: 'execute_query_plan', code: 'no_valid_sample' });
+  }
   if (task.walkingRouteUnavailable) failures.push({ tool: 'verified_data', code: 'unsupported' });
   if (task.route !== 'direct_response' && !result && !failures.length) failures.push({ tool: 'verified_data', code: 'no_verified_result' });
   await input.revalidate?.(input.signal);
   phases.push('verification', 'completed');
-  const answer = task.conceptExample && task.plan && failures.length && !result
-    ? `${task.reply ?? ''}本轮未取得可核验的案例数据，请稍后重试。` : task.reply;
+  let answer = task.reply;
+  if (task.conceptExample && task.plan && failures.length && result === undefined) {
+    const code = failures[0].code;
+    const notice = code === 'field_not_available' ? '当前身份没有该案例指标或范围的查询资格。'
+      : code === 'timeout' || code === 'source_unavailable' ? '本轮未取得可核验的案例数据，暂时无法读取数据源，请稍后重试。'
+      : code === 'scope_too_large' ? '案例范围超出当前查询上限，请缩小范围后再试。'
+      : '本轮未取得可核验的案例数据，请核对案例范围后再试。';
+    answer = (answer ?? '') + notice;
+  }
   return { answer: answer ?? serverReply ?? clarification ?? (result ? '查询结果见下方表格。' : '本轮未取得可核验的数据结果，请明确查询条件。'),
     result, model: '', calls: 0, toolCalls: toolNames.length, inputTokens: 0, outputTokens: 0,
     toolNames, phases, executionStatus: failures.length ? result ? 'partial' : 'limited' : 'completed', unresolvedFailures: failures };

@@ -163,7 +163,7 @@ export function routeTask(question: string, previousContext?: QueryPlan | Semant
   }
   if (research || /研究报告|综合报告|深度研究|(?:管理层|市场|研究)简报|research brief|Word|PPT|PowerPoint|docx|pptx|PDF/i.test(text))
     return { route: 'deep_research', taskType: 'research', question };
-  const example = /^(?:请)?(?:解释|说明|讲解|介绍)(?:一下)?(净有效租金|空置率)(?:的(?:含义|定义|计算方法))?[,;、]?(?:并|再|然后)?(?:以|用|结合)(.+?)的?(?:正式季度数据|正式数据|实际数据|真实数据|实际案例)(?:来|作(?:为)?)?(?:举例|示例|说明|演示|为例)$/u.exec(text.replace(/\s+/gu, ''));
+  const example = /^(?:请问|请)?(?:(?:解释|说明|讲解|介绍)(?:一下)?|什么是)?(净有效租金|空置率)(?:的(?:含义|定义|计算方法)|是什么意思|是什么)?[,.;?、]?(?:并|再|然后)?(?:以|用|结合)(.+?)的?(?:正式季度数据|正式数据|实际数据|真实数据|实际案例)(?:来|作(?:为)?)?(?:举例|示例|说明|演示|为例)$/u.exec(text.replace(/\s+/gu, ''));
   if (example) {
     const metric = example[1] === '空置率' ? 'vacancy' : 'rent';
     const resolution = resolveSemanticQuestion({ question: example[2] + example[1], now: new Date(), availablePeriods: [] });
