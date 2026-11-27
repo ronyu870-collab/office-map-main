@@ -156,7 +156,7 @@ const pairReferencePattern = /两者|两地|这两(?:个)?(?:地区|子市场|�
 const manyReferencePattern = /这些(?:地区|子市场|区域)|上述(?:地区|子市场|区域)|它们/;
 const pairedSamplePattern = /共同(?:有效)?样本|配对样本|同样本/;
 const crossGroupingPattern = /按(?:子市场(?:和|与|×|及|、)(?:按)?等级|等级(?:和|与|×|及|、)(?:按)?子市场)(?:交叉)?/;
-function expandedPending(question: string, context: SemanticContext): string {
+export function expandPendingQuestion(question: string, context: SemanticContext): string {
   if (!context.pending) return question;
   const text = normalize(question).replace(/[？?。！!，,]/g, '').replace(/^(选择|按|用|就按|查询|看看)/, '');
   const options = context.pending.clarification.options;
@@ -235,7 +235,7 @@ function inheritedFilter(prior: Predicate | undefined, next: Predicate | undefin
 /** Required quarterly observations for latest-period lookup; grants are checked by the server. */
 export function inferSemanticPeriodFields(question: string, contextInput?: SemanticContext, modelInput?: unknown): NumericField[] {
   const context = contextInput ? parseSemanticContext(contextInput) : emptyContext();
-  const normalized = normalize(expandedPending(question, context));
+  const normalized = normalize(expandPendingQuestion(question, context));
   const conditions = numericConditions(normalized);
   const text = conditions.text;
   const prior = context.lastPlan;
@@ -280,7 +280,7 @@ export function inferSemanticPeriodFieldGroups(question: string, contextInput?: 
   const fields = inferSemanticPeriodFields(question, contextInput, modelInput);
   if (!fields.length) return [];
   const context = contextInput ? parseSemanticContext(contextInput) : emptyContext();
-  const conditions = numericConditions(normalize(expandedPending(question, context)));
+  const conditions = numericConditions(normalize(expandPendingQuestion(question, context)));
   const text = conditions.text;
   const model = modelInput === undefined ? undefined : parseSemanticIntent(modelInput);
   const metrics = selectedMetrics(text, context.lastPlan);
@@ -294,7 +294,7 @@ export function inferSemanticPeriodFieldGroups(question: string, contextInput?: 
 /** Used only to scope an authorized period-availability read, never as authorization itself. */
 export function inferSemanticScope(question: string, contextInput?: SemanticContext): QueryPlan['scope'] {
   const context = contextInput ? parseSemanticContext(contextInput) : emptyContext();
-  const text = normalize(expandedPending(question, context));
+  const text = normalize(expandPendingQuestion(question, context));
   const prior = context.lastPlan?.scope;
   const markets = detectedMarkets(text);
   // Explicit scope replacement retains building IDs/inventory/filter in the planner.
@@ -370,7 +370,7 @@ function splitUnavailableProjection(text: string) {
 /** Conservative compositional interpretation. Unknown conditions are never silently discarded. */
 export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticResolution {
   const context = input.context ? parseSemanticContext(input.context) : emptyContext();
-  const question = expandedPending(input.question, context);
+  const question = expandPendingQuestion(input.question, context);
   const originalText = normalize(question);
   const prior = context.lastPlan;
   const rankProjection = prior?.operation === 'rank' ? requestedRankProjection(originalText) : undefined;
@@ -627,7 +627,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   if (prior && absolute.length === 1) consume(/^(?:请)?(?:改到|换成|改成|改为)/);
   for (const market of QUESTION_SUBMARKETS) remaining = remaining.replaceAll(market, '');
   consume(/望京|全部获权楼宇|全部获权范围|全部有权访问的楼宇/g);
-  consume(/(?:用|以)(?:一张)?表格(?:进行|呈现|展示)?/g);
+  consume(/(?:用|以)(?:一张)?表格(?:进行|呈现|展示)?|(?:列出|输出|展示|呈现)(?:为|成)?表格/g);
   consume(/净有效租金|季度总面积|市场存量|空置面积|空置率|建筑高度|楼层数|总车位数|租金/g);
   consume(/全期间共同样本|共同有效样本|共同样本|配对样本|各期有效样本|各期样本|同样本|按有效总面积加权|按面积加权/g);
   consume(/再加上|加上|再加|补充|一并看|一起看|也看看|也看|也加上|也加/g);

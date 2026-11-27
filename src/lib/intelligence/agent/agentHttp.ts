@@ -307,7 +307,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       && (!selectedAnswer || comparisonRequested && !selectedAnswer.results.some(item => item.role === 'comparison'));
 
     const previousResult = imported.length === 1 && !research.task ? imported[0] : undefined;
-    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult, (history.contextComparisonIds?.length ?? 0) > 1);
+    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextSemantic ?? history.contextPlan, !!research.task, !!previousResult, previousResult, (history.contextComparisonIds?.length ?? 0) > 1);
     if (taskRoute.siteSelection) {
       const site = taskRoute.siteSelection;
       if (!authority.grants.includes('query:quarter') || !authority.fields.includes('netEffectiveRent')) {
@@ -940,6 +940,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       ...(businessAnswer ? {resolution:{protocol:'business-research/1'}} : {}),
       ...(leaseResults.size ? { leaseContext: true } : {}),
       ...(leaseAnswer ? { resolution: { protocol: 'lease-research/1' } } : {}),
+      ...(taskRoute.pendingSemantic ? { semanticContext: taskRoute.pendingSemantic } : {}),
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
       ...(preparedReport ? { reportFile } : {}),
       ...(archivedChart ? { chartContext: { resultId: archivedChart.resultId, chart: (archivedChart.parameters.agentChart as { request: ChartRequest }).request },

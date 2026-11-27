@@ -13,6 +13,7 @@ import type { QueryResult } from '../query/result';
 import { exportContextSchema } from './toolRegistry';
 import { authorizeConversationPlan } from '../query/conversationStore';
 import { agentMemorySchema, type AgentMemory } from './agentMemory';
+import { parseSemanticContext, type SemanticContext } from '../query/semanticPlanner';
 import type { AnswerSelection } from '../query/answerSelection';
 
 export const AGENT_CONVERSATION_PROTOCOL = 'colliers-agent-conversation/1';
@@ -21,7 +22,7 @@ const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequenc
 const historySchema = z.array(z.strictObject({
   user: z.string().min(1).max(1800), assistant: z.string().min(1).max(3000),
 })).max(8);
-export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextResults?: QueryResult[]; contextComparisonIds?: string[]; contextRecheck?: () => Promise<void> };
+export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextSemantic?: SemanticContext; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextResults?: QueryResult[]; contextComparisonIds?: string[]; contextRecheck?: () => Promise<void> };
 
 /** Load only server-side encrypted previous answers from the existing owner/session-bound
  * RPC; never accept arbitrary client-provided history text as context. */
@@ -79,6 +80,11 @@ export async function readAgentHistory(
     const plan = parseQueryPlan(prior.plan);
     authorizeConversationPlan(plan, authority);
     history.contextPlan = plan;
+  }
+  if (prior.semanticContext) {
+    const context = parseSemanticContext(prior.semanticContext);
+    if (context.lastPlan) authorizeConversationPlan(context.lastPlan, authority);
+    if (context.pending) history.contextSemantic = context;
   }
   if (prior.exportContext) {
     const context = exportContextSchema.parse(prior.exportContext);

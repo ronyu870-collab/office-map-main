@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { encryptAuditContent } from '../query/auditCrypto';
 import { buildListResult, buildRankResult } from '../query/result';
+import { resolveSemanticQuestion } from '../query/semanticPlanner';
 import { parseQueryPlan } from '../query/plan';
 import { fixture } from '../query/__tests__/fixtures';
 import { sealHistoryToken } from '../query/historyToken';
@@ -53,6 +54,29 @@ describe('owner-bound Agent multi-turn context from existing encrypted audit RPC
     expect(JSON.stringify(history)).not.toContain(secret);
     expect(history[0].user).toContain('已脱敏');
     expect(history[0].assistant).toContain('已脱敏');
+  });
+
+  it('recovers metric choices from the authenticated conversation rather than the new request body', async () => {
+    const requestId = randomUUID(), conversationId = randomUUID();
+    const question = '比较2026Q2 CBD、金融街的租金和空置率';
+    const first = resolveSemanticQuestion({ question, now: new Date(), availablePeriods: [] });
+    expect(first.kind).toBe('clarification');
+    const events = [
+      event(requestId, 'received', { sessionId: identity.sessionId,
+        authority: { actorId: identity.actorId, effectiveUserId: identity.effectiveUserId },
+        metadata: { protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId } } }, 1),
+      event(requestId, 'tool_finished', { protocol: 'agent-answer/1', permissionRevision: authority.permissionRevision,
+        history: [{ user: question, assistant: '请选择租金指标。' }], semanticContext: first.context }, 2),
+    ];
+    const client = { rpc: () => ({ abortSignal: async () => ({ data: { allowed: true,
+      permission_revision: authority.permissionRevision, state: 'succeeded', events }, error: null }) }) } as unknown as SupabaseClient;
+    const signal = new AbortController().signal;
+    const recovered = await readAgentHistory(client, identity, keys, authority, { id: conversationId, parentRequestId: requestId }, signal);
+    expect(recovered.contextSemantic).toEqual(first.context);
+    expect(resolveSemanticQuestion({ question: '净有效租金', now: new Date(), availablePeriods: [], context: recovered.contextSemantic }))
+      .toMatchObject({ kind: 'plan', plan: { groupBy: 'submarket', metrics: ['rent', 'vacancy'] } });
+    await expect(readAgentHistory(client, identity, keys, authority, { id: randomUUID(), parentRequestId: requestId }, signal))
+      .rejects.toThrow('AGENT_CONTEXT_UNAVAILABLE');
   });
 
   it('recovers only authenticated agent answer events visible through the production RPC contract', async () => {

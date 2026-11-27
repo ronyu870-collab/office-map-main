@@ -1,4 +1,4 @@
-import { resolveSemanticQuestion, type SemanticContext } from '../query/semanticPlanner';
+import { expandPendingQuestion, resolveSemanticQuestion, type SemanticContext } from '../query/semanticPlanner';
 import { buildingLocationTarget, buildingProfileTarget } from '../query/buildingIntent';
 import { requiresDataFactEvidence } from './queryObligation';
 import type { QueryPlan } from '../query/plan';
@@ -18,6 +18,7 @@ export type TaskRoute = {
   reuseComparison?: boolean;
   catalogLookup?: 'location' | 'profile';
   siteSelection?: SiteSelectionRequest;
+  pendingSemantic?: SemanticContext;
   planNotices?: string[];
   unavailableFields?: string[];
   capabilities?: boolean;
@@ -61,12 +62,14 @@ export function resumesResearch(question: string): boolean {
 
 /** Full consumption is owned by the existing semantic planner. Wrappers below
  * remove only an entire, supported delivery suffix, never arbitrary conditions. */
-export function routeTask(question: string, contextPlan?: QueryPlan, research = false, hasPreviousResult = false, previousResult?: ResultTableReference, hasPreviousComparison = false): TaskRoute {
+export function routeTask(question: string, previousContext?: QueryPlan | SemanticContext, research = false, hasPreviousResult = false, previousResult?: ResultTableReference, hasPreviousComparison = false): TaskRoute {
+  const savedContext = previousContext && 'version' in previousContext ? previousContext : undefined;
+  const contextPlan = previousContext && 'operation' in previousContext ? previousContext : savedContext?.lastPlan;
   const text = question.normalize('NFKC').trim().replace(/[。！？.!?]+$/u, '').trim();
   if (externalModelForbidden(text)) {
     const local = text.replace(/[,，;；]?\s*(?:不要|不得|禁止)(?:发送给?|发给|传给)(?:外部模型|第三方模型|外部供应商)$/u, '').trim();
     if (local && local !== text) {
-      const task = routeTask(local, contextPlan, research, hasPreviousResult, previousResult, hasPreviousComparison);
+      const task = routeTask(local, previousContext, research, hasPreviousResult, previousResult, hasPreviousComparison);
       if (['direct_response', 'deterministic_query'].includes(task.route)) return { ...task, question, modelForbidden: true };
     }
     return { route: 'direct_response', taskType: 'analysis', question, modelForbidden: true,
@@ -150,9 +153,9 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
       : { route: 'bounded_agent', taskType: 'artifact', question };
   // Keep an explicit new query independent of stale conversation scope. Only
   // genuine slot edits inherit the verified previous plan.
-  const context: SemanticContext | undefined = contextPlan ? {
+  const context: SemanticContext | undefined = savedContext ?? (contextPlan ? {
     version: 'colliers-semantic-context/1', lastPlan: contextPlan, comparisonSubmarkets: contextPlan.scope.submarkets ?? [],
-  } : undefined;
+  } : undefined);
   const standalone = resolveSemanticQuestion({ question: query, now: new Date(), availablePeriods: [] });
   const resolution = standalone.kind === 'plan' || !context ? standalone
     : resolveSemanticQuestion({ question: query, context, now: new Date(), availablePeriods: [] });
@@ -165,6 +168,23 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
       question: query, plan: resolution.plan, planNotices: resolution.interpretation.notices,
       unavailableFields: [...new Set([...(resolution.interpretation.unavailableFields ?? []), ...inheritedFields])],
       ...(exportFormat ? { exportFormat } : {}), ...(chartType ? { chartType } : {}) };
+  }
+  if (resolution.clarification.reason === 'metric_required' && !chart && !exported) {
+    const option = resolution.clarification.options.find(item => item.id === 'net_effective_rent');
+    const supported = option && resolveSemanticQuestion({ question: option.question, context, now: new Date(), availablePeriods: [] });
+    if (supported?.kind === 'plan' && 'metric' in supported.plan) {
+      return { route: 'direct_response', taskType: 'query', question,
+        reply: resolution.clarification.message, pendingSemantic: resolution.context };
+    }
+  }
+  if (context?.pending) {
+    const chosen = expandPendingQuestion(query, context);
+    if (chosen !== query) {
+      if (resolution.clarification.reason === 'period_required' || resolution.clarification.reason === 'unavailable_periods')
+        return { route: 'single_interpretation', taskType: 'query', question: chosen };
+      if (resolution.clarification.reason === 'unsupported')
+        return { route: 'direct_response', taskType: 'query', question, reply: resolution.clarification.message };
+    }
   }
   // A narrow semantic extraction gets no domain tools and cannot recurse into
   // the Agent. Unknown conditions stay fail-closed in the formal planner.

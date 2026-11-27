@@ -95,6 +95,40 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it('clarifies the rent basis and retains all nine market/metric cells after a short confirmed choice', async () => {
+    const period = { year: 2026, quarter: 2 };
+    const marketNames = ['CBD', '金融街', '望京-酒仙桥', 'CBD'];
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'query:quarter'],
+      fields: ['netEffectiveRent', 'vacantArea', 'totalArea'], allBuildings: true, allSubmarkets: true });
+    const first = await handleAgentSubmission(fakeRequest('比较2026Q2 CBD、金融街和望京的租金、空置率和市场存量，按子市场列出表格').request, deps());
+    const clarification = await first.json();
+    expect(clarification.status).toBe('assistant');
+    expect(clarification.message).toContain('请选择要比较的指标');
+    const contextSemantic = state.append.mock.calls.find(entry => entry[1] === 'tool_finished' && entry[2].protocol === 'agent-answer/1')?.[2].semanticContext;
+    expect(contextSemantic.pending.clarification.reason).toBe('metric_required');
+    expect(state.provider).not.toHaveBeenCalled();
+    state.history.mockResolvedValue(Object.assign([], { contextSemantic }));
+    const original = fixture(period);
+    const rows = original.rows.map((row, index) => ({ ...row, dimensions: { submarket: {
+      value: marketNames[index], source: { ...row.nameSource, field: 'submarket', rawValue: marketNames[index], id: `market/${row.id}` },
+    } } }));
+    state.structured.mockImplementation(async (_env, _name, { plan }: { plan: QueryPlan }) => {
+      const result = executeQueryPlan(plan, [{ ...original, rows, queryScope: { ...plan.scope, filter: null,
+        requestedFields: describePlanRead(plan).fields, inventoryTime: 'current_catalog', brochureSelection: 'all_unresolved_record_candidates' },
+      }]);
+      return { result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) };
+    });
+    const second = await (await handleAgentSubmission(fakeRequest('净有效租金').request, deps())).json();
+    expect(second.result.parameters.executedPlan).toMatchObject({ operation: 'group_aggregate', groupBy: 'submarket', period,
+      metrics: ['rent', 'vacancy', 'totalArea'], scope: { submarkets: ['CBD', '金融街', '望京-酒仙桥'] } });
+    expect(second.result.table.rows).toHaveLength(3);
+    const output = Object.fromEntries(second.result.table.rows.map((row: { cells: Record<string, { value: { numeric: number } }> }) => [row.cells.name.value,
+      ['value', 'vacancy_value', 'totalArea_value', 'usedCount', 'vacancy_usedCount', 'totalArea_usedCount'].map(key => row.cells[key].value.numeric)]));
+    expect(output).toEqual({ CBD: [115, .15, 20000, 2, 2, 2], 金融街: [180, .1, 30000, 1, 1, 1], '望京-酒仙桥': [160, .2, 20000, 1, 1, 1] });
+    expect(second.result.limitations.some((line: string) => line.includes('跟踪样本总面积'))).toBe(true);
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
   it('returns a partial management briefing with completed formal sections when lease access is denied', async () => {
     const call = (name: string, args: object) => ({ model: 'deepseek-v4-pro', inputTokens: 50, outputTokens: 30,
       message: { role: 'assistant', content: null, tool_calls: [{ id: randomUUID(), type: 'function',
