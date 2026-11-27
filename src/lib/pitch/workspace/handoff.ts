@@ -1,11 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { quarterSchema } from '@/src/lib/intelligence/query/contracts';
-import { queryHttpDependencies } from '@/src/lib/intelligence/query/http';
-import { parseQueryPlan, planMetrics } from '@/src/lib/intelligence/query/plan';
-import { readOwnResult, recoverOwnResult } from '@/src/lib/intelligence/query/recovery';
-import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
+import { quarterKey, quarterSchema } from '@/src/lib/intelligence/query/contracts';
 import { runPitchDataAdapter } from '../business/adapter';
+import { analysisEndPeriod, readAnalysisPlan } from '../business/analysis-source';
 import { documentDataVersion } from '../business/document-version';
 import { dynamicParametersSchema } from '../business/protocol';
 import { digest, pitchRpc, type PitchContext } from '../data/store';
@@ -16,37 +13,6 @@ import { requireStackingHandoff, stackingReviewBinding, stackingReviewFingerprin
 type HandoffCommand = Extract<WorkspaceCommand, { action: 'review_handoff' | 'add_to_pitch' }>;
 type Handoff = HandoffCommand['handoff'];
 const reviewSchema = z.object({ state: z.string() }).passthrough();
-const sourceScope = z.object({ buildingIds: z.array(z.uuid()).max(20).optional(),
-  submarkets: z.array(z.string().max(80)).max(1).optional(),
-  inventory: z.enum(['tracked', 'all_authorized']).optional() });
-
-async function resolveAnalysis(ctx: PitchContext, requestId: string) {
-  const { keys, enabled } = queryHttpDependencies();
-  if (!enabled) throw new Error('QUERY_DENIED');
-  const record = await readOwnResult(ctx.client, ctx.identity, requestId, 'archive', ctx.signal);
-  const result = await recoverOwnResult(ctx.client, ctx.identity, keys, requestId, record, ctx.signal, { exporting: true, reauthorizedHistory: true });
-  const view = resultViewSchema.parse(result.result);
-  const data = z.object({ scope: sourceScope, period: quarterSchema.nullish() }).safeParse(view.parameters);
-  if (!data.success || !['list', 'compare', 'aggregate'].includes(view.operation)) throw new Error('PITCH_HANDOFF_UNSUPPORTED');
-  if (view.operation === 'aggregate') {
-    if (!view.parameters.executedPlan) throw new Error('PITCH_HANDOFF_UNSUPPORTED');
-    const plan = parseQueryPlan(view.parameters.executedPlan);
-    if (plan.operation !== 'aggregate') throw new Error('PITCH_HANDOFF_UNSUPPORTED');
-    const { buildingIds = [], submarkets = [], inventory } = plan.scope;
-    if (buildingIds.length > 20 || submarkets.length > 1 || (!buildingIds.length && !submarkets.length))
-      throw new Error('PITCH_HANDOFF_UNSUPPORTED');
-    return { buildingIds, submarkets, period: plan.period, inventory, aggregateMetrics: planMetrics(plan),
-      aggregateFilter: plan.filter };
-  }
-  const scope = data.data.scope;
-  const rowIds = view.operation === 'list' || view.operation === 'compare'
-    ? view.table.rows.flatMap(row => z.uuid().safeParse(row.entityId).success ? [row.entityId] : [])
-    : [];
-  const buildingIds = scope.buildingIds ?? [...new Set(rowIds)];
-  const submarkets = scope.submarkets ?? [];
-  if (buildingIds.length > 20 || (!buildingIds.length && submarkets.length !== 1)) throw new Error('PITCH_HANDOFF_UNSUPPORTED');
-  return { buildingIds, submarkets, period: data.data.period, inventory: scope.inventory };
-}
 async function prepareHandoff(ctx: PitchContext, input: Handoff, stackingPort?: StackingHandoffPort) {
   const current = input.projectId ? await getWorkspace(ctx, input.projectId) : undefined;
   const source = input.source;
@@ -66,12 +32,17 @@ async function prepareHandoff(ctx: PitchContext, input: Handoff, stackingPort?: 
   const lease = source.kind === 'lease-search' ? source : undefined;
   const research = source.kind === 'quarterly-research' ? source : undefined;
   if (research && current && current.project.city !== '北京') throw new Error('QUERY_DENIED');
-  const resolved = source.kind === 'analysis-result' ? await resolveAnalysis(ctx, source.id) : undefined;
-  const buildingIds = source.kind === 'buildings' ? source.buildingIds : lease?.buildingIds ?? resolved?.buildingIds ?? [];
-  const submarkets = source.kind === 'submarket' ? [source.key] : lease?.submarkets ?? resolved?.submarkets ?? [];
+  const analysis = source.kind === 'analysis-result' ? await readAnalysisPlan(ctx, source.id, source.resultId) : undefined;
+  const sourcedBuildings = analysis?.plan.scope.buildingIds;
+  const comparableBuildings = sourcedBuildings && sourcedBuildings.length <= 20 ? sourcedBuildings : [];
+  const buildingIds = source.kind === 'buildings' ? source.buildingIds : lease?.buildingIds ?? comparableBuildings;
+  const submarkets = source.kind === 'submarket' ? [source.key] : lease?.submarkets ?? analysis?.plan.scope.submarkets ?? [];
   const language = input.language ?? current?.workspace.context.language ?? 'zh';
+  const archivedEnd = analysis && analysisEndPeriod(analysis.plan);
+  const archivedPeriod = archivedEnd && quarterKey(archivedEnd);
+  if (archivedPeriod && input.period && input.period !== archivedPeriod) throw new Error('PITCH_HANDOFF_CHANGED');
   const periodKey = lease ? '' : research ? research.edition.replace('Q', '-Q')
-    : input.period || (resolved?.period ? `${resolved.period.year}-Q${resolved.period.quarter}` : current?.workspace.context.period);
+    : archivedPeriod || input.period || current?.workspace.context.period;
   if (!lease && !periodKey) return { status: 'period_required' as const, buildingIds, submarkets, language };
   const period = quarterSchema.parse(lease
     ? { year: Number(lease.to.slice(0, 4)), quarter: Math.ceil(Number(lease.to.slice(5, 7)) / 3) }
@@ -79,19 +50,18 @@ async function prepareHandoff(ctx: PitchContext, input: Handoff, stackingPort?: 
   const parameters = dynamicParametersSchema.parse({
     templateId: lease
       ? (lease.view === 'transactions' ? 'lease-representatives' : 'lease-industry-distribution')
-      : resolved?.aggregateMetrics || !buildingIds.length ? 'quarter-market-summary'
+      : analysis || !buildingIds.length ? 'quarter-market-summary'
         : buildingIds.length === 1 ? 'building-profile' : 'project-comparison',
-    buildingIds, submarkets, inventory: research ? 'tracked' : resolved?.inventory ?? 'all_authorized', period, start: period, end: period,
+    buildingIds, submarkets, inventory: research ? 'tracked' : analysis?.plan.scope.inventory ?? 'all_authorized', period, start: period, end: period,
     ...(research ? { researchScope: 'beijing-office-grade-a' } : {}),
-    fields: lease ? [] : ['totalArea', 'vacantArea', 'netEffectiveRent'],
+    fields: lease || analysis ? [] : ['totalArea', 'vacantArea', 'netEffectiveRent'],
     chart: lease && lease.view !== 'transactions' ? 'bar' : 'table', direction: lease?.direction ?? 'asc',
     from: lease?.from ?? period.year + '-01-01', to: lease?.to ?? period.year + '-12-31',
     leaseSource: lease?.dataset ?? 'combined', measure: lease?.view === 'industry-area' ? 'area' : 'count',
-    aggregateMetrics: resolved?.aggregateMetrics,
-    aggregateFilter: resolved?.aggregateFilter,
+    ...(analysis ? { analysisResult: analysis } : {}),
   });
-  const snapshot = await runPitchDataAdapter(ctx, parameters, language);
-  if (!lease && !resolved?.aggregateMetrics && buildingIds.length) {
+  const snapshot = await runPitchDataAdapter(ctx, parameters, language, false, analysis?.plan);
+  if (!lease && !analysis && buildingIds.length) {
     const included = new Set(snapshot.results[0].table.rows.map(row => row.entityId));
     if (buildingIds.some(id => !included.has(id))) throw new Error('QUERY_DENIED');
   }

@@ -166,7 +166,7 @@ const handoffSchema = z.strictObject({
     z.strictObject({ kind: z.literal("buildings"), buildingIds: z.array(id).min(1).max(20).refine(ids => new Set(ids).size === ids.length) }),
     z.strictObject({ kind: z.literal("submarket"), key: z.string().trim().min(1).max(80) }),
     z.strictObject({ kind: z.literal("quarterly-research"), edition: z.enum(researchEditions) }),
-    z.strictObject({ kind: z.literal("analysis-result"), id }),
+    z.strictObject({ kind: z.literal("analysis-result"), id, resultId: id.optional() }),
     leaseHandoffSourceSchema,
     stackingHandoffSourceSchema,
   ]),
