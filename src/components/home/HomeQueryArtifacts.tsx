@@ -8,8 +8,7 @@ import { createPortal } from 'react-dom';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { agentChartDescriptorSchema } from '@/src/lib/intelligence/query/chartProtocol';
-import { axisText } from '@/src/lib/intelligence/query/chartWorkspace';
-import { chartBounds, distributionGeometry, chartFacets, heatmapFill, heatmapLegend, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
+import { chartBounds, distributionGeometry, chartFacets, heatmapFill, heatmapLegend, lineGeometry, scatterGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
 import { defaultResultChartRequest, resultChartEligibility, resultNumericColumns } from '@/src/lib/intelligence/query/resultEligibility';
 import { distributionStatLabels } from '@/src/lib/intelligence/query/distribution';
 import { formatExact, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
@@ -161,15 +160,37 @@ function ChartGrid({ left, right, top, bottom }: { left: number; right: number; 
 
 function Scatter({ chart, onSource }: { chart: ResultChart; onSource: Props['onSource'] }) {
   const [selected, setSelected] = React.useState<number | null>(null);
-  const valid = chart.points.filter(p => p.state === 'valid');
-  const [xmin, xmax] = chartBounds(chart, 'x'), [ymin, ymax] = chartBounds(chart, 'y');
-  return <><div className={styles.scatterScroll} tabIndex={0} aria-label="散点图，可横向滚动；明细见原表"><svg width="640" height="380" role="img" aria-label={`${chart.xLabel}与${chart.yLabel}，有效联合样本 ${valid.length}`}>
-    <ChartGrid left={70} right={600} top={30} bottom={320} />
-    <path d="M70 30 V320 H600" fill="none" stroke="var(--cd-color-border-strong)" />
-    {valid.map((p, i) => <circle key={i} tabIndex={0} role="button" aria-label={`${p.label}：${p.xText}，${p.yText}`} onClick={() => setSelected(i)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(i); } }} cx={70 + ((p.x as number) - xmin) / (xmax - xmin || 1) * 530} cy={320 - (p.y! - ymin) / (ymax - ymin || 1) * 290} r="4" fill="var(--cd-color-brand)"><title>{p.label}：{p.xText}，{p.yText}</title></circle>)}
-    <text x="60" y="35" textAnchor="end">{axisText(ymax, chart.yUnit)}</text><text x="60" y="320" textAnchor="end">{axisText(ymin, chart.yUnit)}</text><text x="70" y="344">{axisText(xmin, chart.xUnit)}</text><text x="600" y="344" textAnchor="end">{axisText(xmax, chart.xUnit)}</text>
-    <text x="70" y="370">{chart.xLabel}（{units[chart.xUnit ?? ''] ?? chart.xUnit}）</text>
-  </svg></div>{selected !== null && <ChartPoint point={valid[selected]} onSource={onSource} />}</>;
+  const [width, setWidth] = React.useState(640);
+  const frame = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const element = frame.current;
+    if (!element) return;
+    const resize = () => { if (element.clientWidth > 0) setWidth(element.clientWidth); };
+    resize();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(resize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const valid = chart.points.filter(point => point.state === 'valid');
+  const height = 300, left = 66, right = Math.max(left + 10, width - 35), top = 18, bottom = 246;
+  const plot = scatterGeometry(chart, { left, right, top, bottom });
+  const every = Math.max(1, Math.ceil(plot.xTicks.length / (width < 420 ? 3 : 6)));
+  return <><div ref={frame} className={styles.scatterPlot}>
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${chart.xLabel}与${chart.yLabel}，有效联合样本 ${valid.length}`}>
+      <g aria-hidden="true" stroke="var(--cd-color-border)" strokeDasharray="3 4">
+        {plot.yTicks.map(tick => <line key={tick.position} x1={left} x2={right} y1={tick.position} y2={tick.position} />)}
+      </g>
+      <path d={`M${left} ${top} V${bottom} H${right}`} fill="none" stroke="var(--cd-color-border-strong)" />
+      <g aria-label="纵轴刻度">{plot.yTicks.map(tick => <text key={tick.position} x={left - 10} y={tick.position + 4} textAnchor="end">{tick.label}</text>)}</g>
+      <g aria-label="横轴刻度">{plot.xTicks.filter((_, index) => index % every === 0).map(tick =>
+        <text key={tick.position} x={tick.position} y={bottom + 24} textAnchor="middle">{tick.label}</text>)}</g>
+      {valid.map((point, index) => <circle key={index} tabIndex={0} role="button" aria-label={`${point.label}：${point.xText}，${point.yText}`}
+        onClick={() => setSelected(index)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(index); } }}
+        cx={plot.x(point.x as number)} cy={plot.y(point.y!)} r="4" fill="var(--cd-color-brand)"><title>{point.label}：{point.xText}，{point.yText}</title></circle>)}
+      <text x={left} y={height - 5}>{chart.xLabel}（{units[chart.xUnit ?? ''] ?? chart.xUnit}）</text>
+    </svg>
+  </div>{selected !== null && <ChartPoint point={valid[selected]} onSource={onSource} />}</>;
 }
 
 function TrendLine({chart,onSource,height=chart.points.length <= 4 ? 240 : 320,bounds}:{chart:ResultChart;onSource:Props['onSource'];height?:number;bounds?:[number,number]}) {

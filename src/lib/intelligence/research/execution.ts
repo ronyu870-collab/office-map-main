@@ -8,6 +8,7 @@ import type { AgentToolObservation } from '../agent/agentOrchestrator';
 export class ResearchExecution {
   task: ResearchTask | undefined;
   results: QueryResult[] = [];
+  private readonly attempted = new Set<string>();
   constructor(restored?: QueryResult) {
     if (!restored) return;
     this.task = researchTaskSchema.parse(restored.parameters.researchTask);
@@ -19,7 +20,7 @@ export class ResearchExecution {
       !== JSON.stringify(expected.steps.map(({ id, tool, args, dependsOn }) => ({ id, tool, args, dependsOn })))) throw new Error('RESEARCH_PLAN_INVALID');
     const completed = this.task.steps.filter(s => s.id !== 'review' && s.state === 'complete');
     if (completed.length !== this.results.length || new Set(completed.map(s => s.resultId)).size !== completed.length
-      || completed.some((s, i) => this.task!.steps[i].id !== s.id || this.results[i]?.resultId !== s.resultId)) throw new Error('RESEARCH_CHECKPOINT_INCOMPLETE');
+      || completed.some((s, i) => this.results[i]?.resultId !== s.resultId)) throw new Error('RESEARCH_CHECKPOINT_INCOMPLETE');
   }
   private current(id: string) {
     if (!this.task || this.task.id !== id) throw new Error('RESEARCH_TASK_NOT_FOUND');
@@ -38,21 +39,28 @@ export class ResearchExecution {
     // Two real tools per advance bounds latency without raising Agent budgets.
     for (let i = 0; i < 2; i++) {
       signal.throwIfAborted();
-      const step = task.steps.find(s => s.id !== 'review' && s.state !== 'complete');
+      const step = task.steps.find(s => s.id !== 'review' && s.state !== 'complete' && !this.attempted.has(s.id));
       if (!step) break;
       if (step.dependsOn.some(id => task.steps.find(s => s.id === id)?.state !== 'complete')) throw new Error('RESEARCH_DEPENDENCY_PENDING');
+      this.attempted.add(step.id);
       step.state = 'running'; delete step.error;
       try {
         const observed = await run(step.tool, step.args);
         if (!observed.result) throw new Error('RESEARCH_NO_VERIFIED_RESULT');
         // Keep results even if interruption arrives immediately after a successful read.
-        this.results.push(observed.result); step.resultId = observed.result.resultId; step.state = 'complete';
+        const position = task.steps.slice(0, task.steps.indexOf(step)).filter(s => s.state === 'complete').length;
+        this.results.splice(position, 0, observed.result);
+        step.resultId = observed.result.resultId;
+        step.state = 'complete';
       } catch (error) {
         step.state = signal.aborted ? 'pending' : 'blocked'; task.state = signal.aborted ? 'interrupted' : 'blocked';
-        step.error = error instanceof Error && /^(?:QUERY_DENIED|KNOWLEDGE_PUBLIC_SEARCH_DISABLED|RESEARCH_NO_VERIFIED_RESULT)$/.test(error.message) ? error.message : 'SOURCE_UNAVAILABLE';
-        throw error;
+        const code = error instanceof Error ? error.message : '';
+        const recoverable = /^(?:QUERY_READ_UNAVAILABLE|LEASE_READ_UNAVAILABLE|KNOWLEDGE_(?:ORIGINAL_UNAVAILABLE|PUBLIC_SEARCH_(?:DISABLED|UNAVAILABLE))|RESEARCH_(?:NO_VERIFIED_RESULT|STEP_NOT_AUTHORIZED))$/.test(code);
+        step.error = code === 'RESEARCH_STEP_NOT_AUTHORIZED' || code === 'QUERY_DENIED' ? code : 'SOURCE_UNAVAILABLE';
+        if (signal.aborted || !recoverable) throw error;
       } finally { task.updatedAt = new Date().toISOString(); }
     }
+    if (task.steps.some(step => step.state === 'blocked')) task.state = 'blocked';
     return this.observation();
   }
   review(raw: unknown) {
@@ -69,6 +77,7 @@ export class ResearchExecution {
   observation() {
     const result = this.checkpoint()!;
     return { result, content: JSON.stringify({ ...researchObservation(result),
-      afterStep: this.task!.steps.filter(s => s.id !== 'review' && s.state === 'complete').at(-1)?.id ?? null }) };
+      afterStep: this.task!.steps.filter(s => s.id !== 'review' && s.state === 'complete').at(-1)?.id ?? null,
+      canAdvance: this.task!.steps.some(s => s.id !== 'review' && s.state !== 'complete' && !this.attempted.has(s.id)) }) };
   }
 }

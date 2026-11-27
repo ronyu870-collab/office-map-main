@@ -9,6 +9,7 @@ import { ModelProviderError } from '../agent/modelProvider';
 import { modelSchema, selectConfiguredModel, type ControlConfig } from './config';
 import type { ManagementInput, ManagementRead } from './managementView';
 import { budgetReadSchema, registrySchema } from './administrationView';
+import { deepSeekModelForMode } from '../agent/modelProvider';
 import { environmentControl } from './environment';
 import { registeredEvaluation } from './evaluation';
 
@@ -32,7 +33,7 @@ export async function runAdministration(input:ManagementInput,current:Management
     const purpose=task.route==='single_interpretation'?'semantic_intent':'agent';
     const selected=current.config&&current.state.version?selectConfiguredModel({version:current.state.version,config:current.config,models:current.models},mode,purpose,false):null;
     const env=environmentControl(),provider=process.env[`AI_PROVIDER_${mode.toUpperCase()}`]??'deepseek';
-    const configured=provider==='openai'?process.env[`OPENAI_AGENT_MODEL_${mode.toUpperCase()}`]?.trim()||process.env.OPENAI_AGENT_MODEL?.trim():process.env.DEEPSEEK_CHAT_MODEL?.trim()||process.env.DEEPSEEK_MODEL?.trim()||'deepseek-flash';
+    const configured=provider==='openai'?process.env[`OPENAI_AGENT_MODEL_${mode.toUpperCase()}`]?.trim()||process.env.OPENAI_AGENT_MODEL?.trim():deepSeekModelForMode(mode).model;
     const inherited=env.models.find(m=>m.provider===provider&&m.model===configured),policy=current.config?.modes[mode];
     return {route:task.route,taskType:task.taskType,mode,configurationVersion:current.state.version??'environment/1',
       applicableModel:modelRequired?selected?{id:selected.id,provider:selected.provider,model:selected.model}:inherited?{id:inherited.id,provider:inherited.provider,model:inherited.model}:null:null,

@@ -1,3 +1,5 @@
+import { readWorkbookBundle } from './workbookBundle';
+import { projectResultTable } from './tableView';
 import { presentWorkbook } from './workbookPresentation';
 import { distributionAnalysisSchema, distributionStatLabels } from './distribution';
 import { buildResultChart } from './charts';
@@ -73,6 +75,41 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     const count = Math.ceil(value.length / 30000);
     return [[`${key}:parts`, String(count)], ...Array.from({ length: count }, (_, index) => [`${key}:part:${String(index + 1).padStart(6, '0')}`, value.slice(index * 30000, (index + 1) * 30000)])];
   };
+  const bundle = readWorkbookBundle(result.parameters);
+  if (bundle) {
+    const provenance: (string | number | null)[][] = [
+      ['工作表', '结果编号', '数据版本', '来源编号', '来源表', '记录编号', '字段', '期别', '核验状态'],
+    ];
+    const methods: (string | number | null)[][] = [['工作表', '元数据', '值']];
+    for (const { name, snapshot } of bundle.sheets) {
+      const { table } = projectResultTable(snapshot);
+      const sheet = append(name, [
+        ['实体编号', ...table.columns.map(column => column.label + (column.unit ? ` (${units[column.unit] ?? column.unit})` : ''))],
+        ...table.rows.map(row => [row.entityId, ...table.columns.map(column => {
+          const cell = row.cells[column.key];
+          return cell.kind === 'unknown' ? null : cellValue(cell);
+        })]),
+      ]);
+      sheet['!autofilter'] = { ref: XLSX.utils.encode_range({ r: 0, c: 0 }, { r: table.rows.length, c: table.columns.length }) };
+      for (const [index, column] of table.columns.entries()) if (column.unit === 'ratio') {
+        for (let row = 1; row <= table.rows.length; row++) {
+          const cell = sheet[XLSX.utils.encode_cell({ r: row, c: index + 1 })];
+          if (cell?.t === 'n') cell.z = '0.00%';
+        }
+      }
+      for (const source of snapshot.sources) provenance.push([
+        name, snapshot.resultId, snapshot.dataVersion, source.id, source.table, source.recordId, source.field,
+        source.period ? `${source.period.year}Q${source.period.quarter}` : '', source.verification,
+      ]);
+      for (const [key, value] of [
+        ['结果编号', snapshot.resultId], ['数据行数', String(table.rows.length)],
+        ['范围及读取口径', JSON.stringify(snapshot.parameters)], ['限制', snapshot.limitations.join('\n')],
+      ]) methods.push(...metadataRows(key, value).map(row => [name, ...row]));
+    }
+    append('来源', provenance);
+    append('口径与快照', methods);
+    return presentWorkbook(new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer));
+  }
   const dataSheet = append('数据', [
     [...(result.parameters.agentExport ? [] : ['entity_id']), ...result.table.columns.map(column => `${column.label}${column.unit ? ` (${column.unit})` : ''}`)],
     ...result.table.rows.map(row => [...(result.parameters.agentExport ? [] : [row.entityId]), ...result.table.columns.map(column => cellValue(row.cells[column.key]))]),

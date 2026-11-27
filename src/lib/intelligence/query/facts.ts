@@ -51,9 +51,21 @@ export function assertFieldContext(snapshot: FactSnapshot, fields: readonly Nume
 }
 
 export type Truth = 'true' | 'false' | 'unknown';
+export type PredicateField = NumericField | 'vacancyRate' | 'grade';
 export type Predicate =
-  | { field: NumericField; operator: 'gt' | 'gte' | 'lt' | 'lte' | 'eq'; value: string }
+  | { field: Exclude<PredicateField, 'grade'>; operator: 'gt' | 'gte' | 'lt' | 'lte' | 'eq'; value: string }
+  | { field: 'grade'; operator: 'eq'; value: 'A' | 'B' | 'P' }
   | { operator: 'and' | 'or'; terms: readonly Predicate[] };
+
+export function predicateFields(predicate?: Predicate): PredicateField[] {
+  if (!predicate) return [];
+  return 'terms' in predicate ? [...new Set(predicate.terms.flatMap(predicateFields))] : [predicate.field];
+}
+
+export function predicateInputFields(predicate?: Predicate): NumericField[] {
+  return [...new Set(predicateFields(predicate).flatMap((field): NumericField[] =>
+    field === 'vacancyRate' ? ['totalArea', 'vacantArea'] : field === 'grade' ? [] : [field]))];
+}
 
 export function evaluatePredicate(row: BuildingFacts, predicate: Predicate, depth = 0): Truth {
   if (depth > 8) throw new Error('FILTER_TOO_DEEP');
@@ -63,12 +75,30 @@ export function evaluatePredicate(row: BuildingFacts, predicate: Predicate, dept
     if (predicate.operator === 'and') return values.includes('false') ? 'false' : values.includes('unknown') ? 'unknown' : 'true';
     return values.includes('true') ? 'true' : values.includes('unknown') ? 'unknown' : 'false';
   }
-  if (!Object.hasOwn(numericFields, predicate.field)) throw new Error('UNKNOWN_FIELD');
+  if (predicate.field === 'grade') {
+    const grade = row.dimensions?.grade;
+    if (!grade?.value || grade.source.entityId !== row.id || grade.source.table !== 'buildings'
+      || grade.source.field !== 'grade' || grade.source.rawValue !== grade.value) return 'unknown';
+    return grade.value === predicate.value ? 'true' : 'false';
+  }
   const threshold = Decimal.parse(predicate.value);
   if (!threshold) throw new Error('INVALID_FILTER_NUMBER');
-  const fact = getFact(row, predicate.field);
-  if (fact.state !== 'valid') return 'unknown';
-  const comparison = fact.value.compare(threshold);
+  let comparison: number;
+  if (predicate.field === 'vacancyRate') {
+    const area = getFact(row, 'totalArea'), vacant = getFact(row, 'vacantArea');
+    if (area.state !== 'valid' || vacant.state !== 'valid' || area.value.compare(Decimal.zero()) <= 0
+      || vacant.value.compare(area.value) > 0) return 'unknown';
+    const areaRecords = new Set(area.sources.filter(source => Decimal.parse(source.rawValue) !== null)
+      .map(source => `${source.recordId}/${source.recordVersion}`));
+    if (!vacant.sources.some(source => Decimal.parse(source.rawValue) !== null
+      && areaRecords.has(`${source.recordId}/${source.recordVersion}`))) return 'unknown';
+    comparison = vacant.value.compare(threshold.multiply(area.value));
+  } else {
+    if (!Object.hasOwn(numericFields, predicate.field)) throw new Error('UNKNOWN_FIELD');
+    const fact = getFact(row, predicate.field);
+    if (fact.state !== 'valid') return 'unknown';
+    comparison = fact.value.compare(threshold);
+  }
   const matches = { gt: comparison > 0, gte: comparison >= 0, lt: comparison < 0, lte: comparison <= 0, eq: comparison === 0 };
   if (!Object.hasOwn(matches, predicate.operator)) throw new Error('UNKNOWN_OPERATOR');
   return matches[predicate.operator] ? 'true' : 'false';

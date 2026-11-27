@@ -13,6 +13,7 @@ import type { QueryResult } from '../query/result';
 import { exportContextSchema } from './toolRegistry';
 import { authorizeConversationPlan } from '../query/conversationStore';
 import { agentMemorySchema, type AgentMemory } from './agentMemory';
+import { parseSemanticContext, type SemanticContext } from '../query/semanticPlanner';
 import type { AnswerSelection } from '../query/answerSelection';
 
 export const AGENT_CONVERSATION_PROTOCOL = 'colliers-agent-conversation/1';
@@ -21,13 +22,13 @@ const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequenc
 const historySchema = z.array(z.strictObject({
   user: z.string().min(1).max(1800), assistant: z.string().min(1).max(3000),
 })).max(8);
-export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextResults?: QueryResult[]; contextRecheck?: () => Promise<void> };
+export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextSemantic?: SemanticContext; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextResults?: QueryResult[]; contextComparisonIds?: string[]; contextRecheck?: () => Promise<void> };
 
 /** Load only server-side encrypted previous answers from the existing owner/session-bound
  * RPC; never accept arbitrary client-provided history text as context. */
 export async function readAgentHistory(
   client: SupabaseClient, identity: VerifiedQueryIdentity, keys: AuditKeys,
-  authority: DataAuthority, conversation: QueryConversation, signal: AbortSignal,
+  authority: DataAuthority, conversation: QueryConversation, signal: AbortSignal, comparePrecedingMarkets = false,
 ): Promise<AgentHistory> {
   if (!conversation.parentRequestId) return [];
   const requestId = conversation.parentRequestId;
@@ -80,6 +81,11 @@ export async function readAgentHistory(
     authorizeConversationPlan(plan, authority);
     history.contextPlan = plan;
   }
+  if (prior.semanticContext) {
+    const context = parseSemanticContext(prior.semanticContext);
+    if (context.lastPlan) authorizeConversationPlan(context.lastPlan, authority);
+    if (context.pending) history.contextSemantic = context;
+  }
   if (prior.exportContext) {
     const context = exportContextSchema.parse(prior.exportContext);
     context.plans.forEach(raw => authorizeConversationPlan(parseQueryPlan(raw), authority));
@@ -96,8 +102,35 @@ export async function readAgentHistory(
       && !restored.answerSelection?.results.some(item => item.result.resultId === chartContext.resultId)) throw new Error('QUERY_DENIED');
     history.contextResult = restored.result as QueryResult;
     history.contextResults = restored.answerSelection?.results.map(item => item.result as QueryResult);
+    if (restored.answerSelection?.task === 'comparison') {
+      history.contextComparisonIds = restored.answerSelection.results
+        .filter(item => item.role === 'primary' || item.role === 'comparison')
+        .map(item => item.result.resultId);
+    }
     history.contextRecheck = restored.recheck;
     if (chartContext) history.contextChart = chartContext;
+  }
+  if (comparePrecedingMarkets && history.contextResult && history.contextPlan?.scope.submarkets?.length === 1
+    && (history.contextResults?.length ?? 0) <= 1 && !history.contextResult.parameters.agentTableView
+    && !history.contextResult.parameters.agentChart && !history.contextResult.parameters.agentExport) {
+    const earlierRequestId = restored?.parentRequestId;
+    if (earlierRequestId && earlierRequestId !== requestId) {
+      const earlier = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, earlierRequestId, signal);
+      const raw = earlier.result?.parameters.executedPlan;
+      if (earlier.result && raw && (earlier.answerSelection?.results.length ?? 0) <= 1
+        && !earlier.result.parameters.agentTableView && !earlier.result.parameters.agentChart && !earlier.result.parameters.agentExport) {
+        const earlierPlan = parseQueryPlan(raw);
+        const { submarkets: earlierMarkets } = earlierPlan.scope;
+        const withEarlierMarket = { ...history.contextPlan, scope: { ...history.contextPlan.scope, submarkets: earlierMarkets } };
+        if (earlierMarkets?.length === 1 && earlierMarkets[0] !== history.contextPlan.scope.submarkets[0]
+          && JSON.stringify(earlierPlan) === JSON.stringify(withEarlierMarket)) {
+          const recheckLatest = history.contextRecheck;
+          history.contextRecheck = async () => { await recheckLatest?.(); await earlier.recheck(); };
+          history.contextResults = [earlier.result as QueryResult, history.contextResult];
+          history.contextComparisonIds = history.contextResults.map(result => result.resultId);
+        }
+      }
+    }
   }
   return history;
 }

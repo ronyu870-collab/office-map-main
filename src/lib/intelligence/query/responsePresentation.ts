@@ -18,7 +18,7 @@ export const responsePresentationSchema = z.object({
 });
 export type ResponseBlock =
   | { type: 'text'; text: string }
-  | { type: 'summary' | 'metrics' | 'table' | 'chart' | 'building' | 'sources' | 'map' | 'suggestions' | 'analysis' | 'research'; resultId: string }
+  | { type: 'summary' | 'metrics' | 'table' | 'chart' | 'building' | 'sources' | 'map' | 'suggestions' | 'analysis' | 'research' | 'location'; resultId: string }
   | { type: 'file'; resultId: string; format: 'xlsx' | 'csv_zip' | 'pdf' };
 export type ResponseDocument = { version: 'response/1'; layout?: 'conversation' | 'fact' | 'list' | 'ranking' | 'trend' | 'delivery' | 'research'; blocks: ResponseBlock[] };
 
@@ -57,9 +57,13 @@ export function responseDecision(result: QueryResultView, task?: string, questio
   if (result.parameters.researchTask != null) return { ...base, task: 'research', status: 'answered', primaryExpression: 'research', details: 'none' };
   if (exported || report) return { ...base, task: 'delivery', status: 'answered', primaryExpression: 'file', details: 'on_demand' };
   if (resultAvailability(result)) return { ...base, task: 'fact', status: 'unavailable', primaryExpression: 'status', details: result.table.rows.length ? 'on_demand' : 'none' };
+  if (task === 'profile_evidence') return { ...base, task: 'list', status: 'answered', primaryExpression: 'table', details: 'inline' };
   const buildings = resultBuildingRows(result);
   const numeric = responseFactCells(result, task);
   const leaseDetails = z.array(z.object({ plan: z.object({ mode: z.literal('details') }) })).safeParse(result.parameters.leaseBindings).success;
+  if (result.operation === 'rank' && (Array.isArray(result.parameters.projection) && result.parameters.projection.length
+    || result.table.columns.some(column => column.key === 'gfaTotal')))
+    return { ...base, task: 'ranking', status: 'answered', primaryExpression: 'table', details: 'inline' };
   const prefs = answerDisplayPreferences(question);
   const inlineTable = preferTable(result, question);
   const defaultChart = defaultResultChartRequest(result);
@@ -70,7 +74,8 @@ export function responseDecision(result: QueryResultView, task?: string, questio
   if (inlineTable && (prefs.wantsTable || defaultChart || isQuarterlyAnswer(result) && result.table.rows.length > 1 && numeric.length > 1)) return { ...base,
     task: isQuarterlyAnswer(result) ? 'trend' : result.operation === 'rank' ? 'ranking' : 'list',
     status: 'answered', primaryExpression: 'table', details: 'inline' };
-  if ((buildings.length === 1 || leaseDetails) && result.table.rows.length === 1) return { ...base, task: 'fact', status: 'answered', primaryExpression: 'entity', details: 'on_demand' };
+  const buildingProfile = z.object({ buildingProfile: z.literal(true) }).safeParse(result.parameters.interpretation).success;
+  if (buildingProfile && buildings.length || (buildings.length === 1 || leaseDetails) && result.table.rows.length === 1) return { ...base, task: 'fact', status: 'answered', primaryExpression: 'entity', details: 'on_demand' };
   if (numeric.length && (task === 'record' && result.parameters.dataDomain === 'lease-research/1' || result.operation === 'aggregate' || result.table.rows.length === 1 || ['trend', 'group_trend', 'cross_trend'].includes(result.operation)))
     return { ...base, task: 'fact', status: 'answered', primaryExpression: 'fact', details: prefs.wantsSamples && result.table.rows.length ? 'inline' : result.table.columns.length > numeric.length || result.table.rows.length > 1 ? 'on_demand' : 'none' };
   return { ...base, task: result.operation === 'rank' ? 'ranking' : 'list', status: 'answered', primaryExpression: 'table', details: 'inline' };
@@ -118,8 +123,31 @@ export function responseFactCells(result: QueryResultView, task?: string) {
   })).slice(0, 3);
 }
 
+export function responseBuildingLocation(result: QueryResultView) {
+  const location = z.object({ buildingLocation: z.object({ subject: z.string().min(1).max(80), submarket: z.string().min(1).max(80) }) })
+    .safeParse(result.parameters.interpretation).data?.buildingLocation;
+  const rows = result.table.rows;
+  if (!location || result.operation !== 'list' || !rows.length) return undefined;
+  const sources = new Map(result.sources.map(source => [source.id, source]));
+  const sourceIds = new Set<string>();
+  for (const row of rows) {
+    const cell = row.cells.submarket;
+    if (cell?.kind !== 'text' || cell.value !== location.submarket) return undefined;
+    const evidence = cell.sourceIds.filter(id => {
+      const source = sources.get(id);
+      return source?.entityId === row.entityId && source.table === 'buildings'
+        && source.field === 'submarket' && source.rawValue === location.submarket;
+    });
+    if (!evidence.length) return undefined;
+    evidence.forEach(id => sourceIds.add(id));
+  }
+  return { ...location, scope: rows.length > 1 ? '的获权楼座位于 ' : '位于 ',
+    sourceIds: [...sourceIds] };
+}
+
 export function composeResponse(message: string | undefined, result?: QueryResultView, task?: string, question?: string): ResponseDocument {
   if (!result) return { version: 'response/1', layout: 'conversation', blocks: message ? [{ type: 'text', text: message }] : [] };
+  if (responseBuildingLocation(result)) return { version: 'response/1', layout: 'fact', blocks: [{ type: 'location', resultId: result.resultId }] };
   const presentation = responsePresentationSchema.safeParse(result.parameters.responsePresentation).data;
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
   const report = reportDescriptorSchema.safeParse(result.parameters.agentReport).data;
@@ -137,7 +165,7 @@ export function composeResponse(message: string | undefined, result?: QueryResul
   else if (decision.primaryExpression !== 'status') {
     // A short lead is useful for comparisons/research, but repeating a fact or
     // an entity's fields above its formal visual adds no information.
-    if (['chart', 'table'].includes(decision.primaryExpression)) blocks.push({ type: 'summary', resultId });
+    if (task !== 'profile_evidence' && ['chart', 'table'].includes(decision.primaryExpression)) blocks.push({ type: 'summary', resultId });
     if (decision.primaryExpression === 'fact') blocks.push({ type: 'metrics', resultId });
     if (decision.primaryExpression === 'entity') blocks.push({ type: 'building', resultId });
     if (tableFirst) blocks.push({ type: 'table', resultId });
@@ -192,9 +220,12 @@ export function responseResultContent(result: QueryResultView, research: Researc
 export function responseTableTitle(result: QueryResultView): string {
   if (result.parameters.domain === 'knowledge-research/1') return '研究资料';
   if (result.parameters.dataDomain === 'lease-research/1') return '成交研究明细';
+  if (result.parameters.businessTool === 'query_building_dossier') return '楼宇资料';
   if (result.parameters.dataDomain === 'business-research/1') return '业务资料';
   const scope = z.object({ submarkets: z.array(z.string()).optional() }).safeParse(result.parameters.scope).data;
   const object = scope?.submarkets?.join('、') ?? '';
+  if (result.parameters.siteSelection) return object + '选址初筛候选';
+  if (result.parameters.metroScreening) return '地铁直线距离初筛候选';
   const field = typeof result.parameters.field === 'string' ? result.table.columns.find(column => column.key === result.parameters.field)?.label : null;
   if (['trend', 'group_trend', 'cross_trend', 'compare'].includes(result.operation)) return object + '季度数据与样本';
   return result.operation === 'rank' ? `${object}${field ?? '楼宇'}排名`

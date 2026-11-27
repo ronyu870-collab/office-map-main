@@ -1,3 +1,4 @@
+import { restrictRankProjection } from './admission';
 import { bindRuntimeControl } from '../control/runtimeControl';
 import { ModelProviderError } from '../agent/modelProvider';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -23,7 +24,7 @@ import { resolveAssistantHelp } from './assistantHelp';
 import { readQuarterlyCoverage, describeQuarterlyCoverage, type QuarterlyCoverage } from './quarterlySources';
 
 type Input = { client: SupabaseClient; keys: AuditKeys; identity: VerifiedQueryIdentity; authority: DataAuthority;
-  audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; buildingSelection?: BuildingSelection; receivedAt: Date; signal: AbortSignal; modelInvoke?: import('./modelIntent').SemanticModelInvoke; allowStandaloneModel?: boolean; serverContext?: import('./semanticPlanner').SemanticContext };
+  audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; buildingSelection?: BuildingSelection; receivedAt: Date; signal: AbortSignal; modelInvoke?: import('./modelIntent').SemanticModelInvoke; allowStandaloneModel?: boolean; allowProjectProfile?: boolean; serverContext?: import('./semanticPlanner').SemanticContext };
 
 function planPeriodFieldGroups(plan: QueryPlan) {
   if ('metrics' in plan && plan.metrics) {
@@ -53,7 +54,8 @@ export async function prepareSemanticExecution(input: Input) {
     metadata: { protocol: SEMANTIC_PROTOCOL_VERSION, semanticContext: help.context, turn,
       modelStatus: 'not_needed', suggestions: [], assistantHelp: true } };
 
-  const building = await prepareBuildingIntent({ client, identity, authority, question, context, buildingSelection: input.buildingSelection, signal });
+  const building = await prepareBuildingIntent({ client, identity, authority, question, context, buildingSelection: input.buildingSelection,
+    allowProjectProfile: input.allowProjectProfile, signal });
   if (building) {
     const { resolution, availability } = building;
     if (resolution.kind === 'plan') authorizeConversationPlan(resolution.plan, authority);
@@ -64,7 +66,15 @@ export async function prepareSemanticExecution(input: Input) {
       ...(resolution.kind === 'plan' ? { interpretation: resolution.interpretation } : {}) } };
   }
   let modelIntent: unknown;
-  let resolution = resolveSemanticQuestion({ question, now: receivedAt, context, availablePeriods: [] });
+  const resolve = (periods: readonly Quarter[]) => {
+    const resolved = resolveSemanticQuestion({ question, now: receivedAt, context, availablePeriods: periods,
+      ...(modelIntent === undefined ? {} : { modelIntent }) });
+    if (resolved.kind !== 'plan') return resolved;
+    const { plan, deniedFields } = restrictRankProjection(resolved.plan, authority);
+    return deniedFields.length ? { ...resolved, plan, context: { ...resolved.context, lastPlan: plan },
+      interpretation: { ...resolved.interpretation, deniedFields } } : resolved;
+  };
+  let resolution = resolve([]);
   const action = previous?.suggestions.find(value => value.question === question);
   const allowedSubmarkets = authority.allSubmarkets ? [...QUESTION_SUBMARKETS] : QUESTION_SUBMARKETS.filter(value => authority.submarkets.includes(value));
   let modelStatus = 'not_needed';
@@ -76,7 +86,7 @@ export async function prepareSemanticExecution(input: Input) {
   // Ambiguity/unsupported conditions need no business metadata. A known temporal intent does.
   if (fieldGroups.length && (action || resolution.kind === 'plan' || ['period_required','unavailable_periods','unrecognized'].includes(resolution.clarification.reason))) {
     availability = await readAvailablePeriodGroups(client, identity, authority, scope, fieldGroups, signal);
-    resolution = resolveSemanticQuestion({ question, now: receivedAt, context, availablePeriods: availability.periods, ...(modelIntent === undefined ? {} : { modelIntent }) });
+    resolution = resolve(availability.periods);
   }
   if (!action && resolution.kind === 'clarification' && resolution.clarification.reason === 'unrecognized') {
     const configured = !!input.modelInvoke || input.allowStandaloneModel !== false && semanticModelConfigured();
@@ -122,7 +132,7 @@ export async function prepareSemanticExecution(input: Input) {
             // extraction supplies a new allowed field. Scope stays trusted.
             availability = await readAvailablePeriodGroups(client, identity, authority, scope, modelGroups, signal);
           }
-          resolution = resolveSemanticQuestion({ question, now: receivedAt, context, availablePeriods: availability?.periods ?? [], modelIntent });
+          resolution = resolve(availability?.periods ?? []);
         }
       } else modelStatus = budget.error ? 'budget_unavailable' : 'budget_exhausted';
     }

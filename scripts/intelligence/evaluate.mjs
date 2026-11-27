@@ -73,7 +73,34 @@ async function harness() {
   return import(pathToFileURL(file).href);
 }
 
-if (command === 'plan') await save(plan);
+if (command === 'compare-plan') {
+  const { comparisonPlan } = await import('./evaluation/model-comparison.mjs');
+  console.log(JSON.stringify({ revision, ...comparisonPlan() }, null, 2));
+} else if (command === 'compare-live') {
+  if (!flags.budget || revision.dirty) throw Error('COMPARISON_APPROVAL_AND_CLEAN_REVISION_REQUIRED');
+  const approval = JSON.parse(await readFile(flags.budget, 'utf8'));
+  const { runModelComparison } = await import('./evaluation/model-comparison.mjs');
+  const keys = ['DEEPSEEK_API_KEY', 'DEEPSEEK_API_BASE_URL'];
+  let saved;
+  try {
+    const result = await runModelComparison(approval, async () => {
+      const testKey = process.env.COLLIERS_AI6_EVAL_DEEPSEEK_KEY?.trim();
+      if (!testKey || testKey === process.env.DEEPSEEK_API_KEY?.trim()) throw Error('DEDICATED_COMPARISON_KEY_REQUIRED');
+      saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+      process.env.DEEPSEEK_API_KEY = testKey;
+      process.env.DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com';
+      const evaluation = await harness();
+      return evaluation.createDeepSeekAdapter();
+    }, revision);
+    console.log(JSON.stringify(result, null, 2));
+    if (result.halted || result.failures) process.exitCode = 1;
+  } finally {
+    for (const key of Object.keys(saved ?? {})) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  }
+} else if (command === 'plan') await save(plan);
 else if (command === 'offline') {
   for (const row of plan.rows) {
     const spec = cases.find(c => c.id === row.id);

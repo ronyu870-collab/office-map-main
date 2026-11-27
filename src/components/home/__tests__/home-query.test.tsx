@@ -44,6 +44,12 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     const figure=await screen.findByRole('figure',{name:'同源查询图表'});
     expect(figure.querySelector('figcaption')).toHaveTextContent('净有效租金（元/㎡/月）与楼宇空置率（%）');
     expect(figure.querySelectorAll('circle')).toHaveLength(2);expect(screen.getByText(/联合有效样本不足3栋/)).toBeInTheDocument();
+    const plot = screen.getByRole('img', { name: /有效联合样本 2/ });
+    expect(plot).toHaveAttribute('width', '100%');
+    const ticks = (axis: string) => [...plot.querySelectorAll(`g[aria-label="${axis}"] text`)].map(node => node.textContent);
+    expect(ticks('横轴刻度').length).toBeGreaterThan(2);
+    expect(ticks('纵轴刻度').length).toBeGreaterThan(2);
+    expect(ticks('纵轴刻度')).not.toContain('100%');
     fireEvent.click(screen.getByText(`查看数据明细（${result.table.rows.length} 行）`));
     const sourceButton=await screen.findByRole('button',{name:'查看来源：楼宇空置率 10'});fireEvent.click(sourceButton);
     expect(screen.getByRole('region',{name:'来源详情'})).toHaveTextContent('vacant_area');expect(screen.getByRole('region',{name:'来源详情'})).toHaveTextContent('total_area');

@@ -1,11 +1,14 @@
 // Only supplier responses are synthetic. Login, authority, snapshots, encrypted
 // archives, recovery and built HTTP artifact downloads use the disposable stack.
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import sharp from 'sharp';
 import { loadAgentHandler } from './ai5-export-scenarios.mjs';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
+import { grantBusiness } from '../../supabase/tests/ai-business-research/fixture.mjs';
 
 export async function verifyAi6Runtime({ db, app, fixture, service, keys, output, check, person, artifact, recover, events, decrypt, exportCaps }) {
   const handle = await loadAgentHandler(output);
@@ -48,6 +51,8 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
   const grant = (who, caps = exportCaps) => grantQuery({ setup: db }, who.id, { capabilities: caps,
     fields: ['height', 'netEffectiveRent', 'totalArea', 'vacantArea'], allBuildings: false, buildingIds: ids.slice(0, 4) });
   let owner, other, grouped;
+  const photoBucket = service.storage.from('building-sales-materials');
+  const storedPhotos = [];
   try {
     for (let i = 0; i < ids.length; i++) {
       await db.query('insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,$2,$3,$4,$5)',
@@ -74,6 +79,432 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       const periods = await submit(owner, '你能够查询哪些季度');
       assert.equal(periods.status, 200, JSON.stringify(periods.body)); assert.equal(periods.calls, 0);
       assert.match(periods.body.message, /2026Q2/); assert.match(periods.body.message, /不代表每栋楼/);
+    });
+    await check('AI6 T14 / 概念解释随正式案例、零值、缺值、权限拒绝和数据源恢复正确交付', async () => {
+      const vacancy = '请解释空置率的定义，并用2026Q2 CBD的实际数据举例。';
+      const rent = '什么是净有效租金？以2026Q2 CBD的实际数据为例。';
+      const verify = (reply, text) => {
+        assert.equal(reply.status, 200, JSON.stringify(reply.body));
+        assert.equal(reply.calls, 0);
+        assert.equal(reply.body.agent.modelCalls, 0);
+        assert.match(reply.body.message, text);
+        return reply.body;
+      };
+      const definition = /有效空置面积合计除以对应的有效总面积合计/;
+      const good = verify(await submit(owner, vacancy), definition);
+      assert.equal(good.answerSelection.status, 'answered');
+      const sample = good.result.table.rows[0].cells.value;
+      assert.equal(sample.value.numeric, .05);
+      assert.ok(sample.sourceIds.length > 0);
+      assert.ok(sample.sourceIds.every(id => good.result.sources.some(source => source.id === id
+        && source.period?.year === 2026 && source.period?.quarter === 2 && [ids[0], ids[1]].includes(source.entityId))));
+      assert.deepEqual((await recover(owner, good.requestId)).body.result, good.result);
+      const rentResult = verify(await submit(owner, rent), /折算租赁优惠后的单位面积月租/);
+      assert.equal(rentResult.result.table.rows[0].cells.value.value.numeric, 100);
+
+      const narrow = await person('admin', 'ai6-concept-scope');
+      const grantNarrow = fields => grantQuery({ setup: db }, narrow.id, { capabilities: exportCaps,
+        fields, allSubmarkets: false, submarkets: ['CBD'], allBuildings: false, buildingIds: [ids[0]] });
+      await grantNarrow(['vacantArea', 'totalArea']);
+      const zero = verify(await submit(narrow, vacancy), definition);
+      assert.equal(zero.result.table.rows[0].cells.value.value.numeric, 0);
+      assert.equal(zero.answerSelection.status, 'answered');
+      const scopeDenied = verify(await submit(narrow, vacancy.replace('CBD', '金融街')), definition);
+      assert.equal(scopeDenied.result, undefined);
+      assert.equal(scopeDenied.agent.executionStatus, 'limited');
+      assert.match(scopeDenied.message, /该案例指标或范围的查询资格/);
+
+      const absent = verify(await submit(owner, '解释空置率的定义。用2026Q3 CBD的实际数据举例。'), definition);
+      assert.equal(absent.result.table.rows[0].cells.value.kind, 'unknown');
+      assert.equal(absent.answerSelection.status, 'partial');
+      assert.equal(absent.agent.executionStatus, 'partial');
+      assert.deepEqual(absent.agent.unresolvedFailures, [{ tool: 'execute_query_plan', code: 'no_valid_sample' }]);
+      await grantNarrow(['totalArea']);
+      const fieldDenied = verify(await submit(narrow, vacancy), definition);
+      assert.equal(fieldDenied.result, undefined);
+      assert.equal(fieldDenied.agent.toolCalls, 0);
+      assert.match(fieldDenied.message, /没有该案例指标的查询资格/);
+
+      const original = (await db.query("select pg_get_functiondef('public.ai_query_snapshot_read(uuid,uuid,uuid,text,text[],jsonb,text,text[],uuid[])'::regprocedure) as definition")).rows[0].definition;
+      let outage;
+      try {
+        await db.query(`create or replace function public.ai_query_snapshot_read(p_actor uuid,p_effective uuid,p_session uuid,p_permission_revision text,
+          p_fields text[],p_periods jsonb,p_inventory text,p_submarkets text[],p_building_ids uuid[]) returns jsonb language plpgsql security invoker
+          set search_path='' as $$ begin raise exception 'injected T14 snapshot service failure'; end $$`);
+        outage = verify(await submit(owner, vacancy), definition);
+        assert.equal(outage.result, undefined);
+        assert.equal(outage.agent.executionStatus, 'limited');
+        assert.deepEqual(outage.agent.unresolvedFailures, [{ tool: 'execute_query_plan', code: 'source_unavailable' }]);
+        assert.match(outage.message, /暂时无法读取数据源，请稍后重试/);
+      } finally { await db.query(original); }
+      const retried = verify(await submit(owner, vacancy, { conversation: { id: outage.conversation.id, parentRequestId: outage.requestId } }), definition);
+      assert.equal(retried.conversation.id, outage.conversation.id);
+      assert.equal(retried.result.table.rows[0].cells.value.value.numeric, sample.value.numeric);
+      assert.equal((await narrow.client.auth.signOut({ scope: 'local' })).error, null);
+      const signedOut = await submit(narrow, vacancy);
+      assert.ok([401, 403].includes(signedOut.status));
+      assert.equal(signedOut.body.result, undefined);
+      assert.equal(signedOut.calls, 0);
+    });
+    await check('AI6 T12 / 正式租金与空置率复合筛选逐栋保留获权建筑面积及其缺项原因', async () => {
+      const buildings = Array.from({ length: 7 }, () => randomUUID());
+      const [matched, alsoMatched] = buildings;
+      const brochureId = randomUUID();
+      const query = '2026Q3 CBD筛选净有效租金低于250元/㎡/月、空置率超过15%的楼宇，附上建筑面积';
+      const facts = [[200, 10000, 2000], [249, 10000, 1501], [250, 10000, 2000], [200, 10000, 1500],
+        [200, 0, 0], [200, 10000, 2000], [200, 10000, 2000]];
+      const analyst = await person('admin', 'ai6-composite-filter');
+      const grantQuarter = (actor, fields = ['netEffectiveRent', 'totalArea', 'vacantArea']) => grantQuery({ setup: db }, actor.id, {
+        capabilities: exportCaps, fields, allSubmarkets: false, submarkets: ['CBD'], allBuildings: false, buildingIds: buildings.slice(0, 6),
+      });
+      const grantDossier = buildingIds => grantBusiness(db, analyst.id, { modules: ['profile'], fields: ['gfaTotal'], allBuildings: false, buildingIds });
+      try {
+        for (const [index, id] of buildings.entries()) {
+          await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,$2,'CBD','A','tracked')", [id, `合成T12楼宇${index}`]);
+          const [rent, area, vacant] = facts[index];
+          await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft,is_locked,locked_at,locked_by)
+            values($1,2026,3,$2,$3,$4,$5,not $5,case when not $5 then now() end,case when not $5 then $1 end)`, [id, area, rent, vacant, index === 5]);
+        }
+        await db.query('insert into public.building_brochure_data(id,building_id,gfa_total) values($1,$2,48000)', [brochureId, matched]);
+        await db.query('insert into public.building_brochure_data(id,building_id,gfa_total) values($1,$2,99000)', [randomUUID(), buildings[2]]);
+        await grantQuarter(analyst);
+        await grantDossier([matched, alsoMatched]);
+        const expected = (await db.query(`select building_id from public.building_metrics where building_id=any($1::uuid[])
+          and record_year=2026 and record_quarter=3 and is_locked and not is_draft and total_area>0
+          and net_effective_rent<250 and vacant_area>total_area*0.15 order by building_id`, [buildings.slice(0, 6)])).rows.map(row => row.building_id);
+        assert.deepEqual(expected, [matched, alsoMatched].sort());
+        const verified = reply => {
+          assert.equal(reply.status, 200, JSON.stringify(reply.body));
+          assert.equal(reply.calls, 0);
+          assert.equal(reply.body.agent.executionStatus, 'partial');
+          assert.equal(reply.body.answerSelection.status, 'partial');
+          const result = reply.body.result;
+          assert.deepEqual(result.table.rows.map(row => row.entityId).sort(), expected);
+          assert.deepEqual(result.parameters.executedPlan.period, { year: 2026, quarter: 3 });
+          assert.deepEqual(result.parameters.executedPlan.filter, { operator: 'and', terms: [
+            { field: 'netEffectiveRent', operator: 'lt', value: '250' }, { field: 'vacancyRate', operator: 'gt', value: '0.15' },
+          ] });
+          const { total, matched: count, notMatched, unknown } = result.parameters.filterEvaluation[0];
+          assert.deepEqual([total, count, notMatched, unknown], [6, 2, 2, 2]);
+          const cell = id => result.table.rows.find(row => row.entityId === id).cells.gfaTotal;
+          return { result, cell };
+        };
+        const all = await submit(analyst, query);
+        const full = verified(all);
+        assert.equal(full.cell(matched).value.numeric, 48000);
+        assert.equal(full.cell(alsoMatched).reason, 'business_field_missing');
+        assert.match(all.body.answerSelection.notice, /1 栋楼宇的建筑面积缺少可核验的楼书记录/);
+
+        await grantDossier([matched]);
+        const partial = await submit(analyst, query);
+        const scoped = verified(partial);
+        assert.equal(scoped.cell(matched).value.numeric, 48000);
+        assert.deepEqual(scoped.cell(alsoMatched), { kind: 'unknown', state: 'unverified', reason: 'business_field_not_authorized', sourceIds: [] });
+        assert.deepEqual(scoped.result.parameters.businessBindings.map(binding => binding.plan.buildingIds), [[matched]]);
+        assert.match(partial.body.answerSelection.notice, /1 栋楼宇的楼书建筑面积未获授权/);
+        assert.ok(scoped.cell(matched).sourceIds.every(id => scoped.result.sources.some(ref => ref.id === id
+          && ref.recordId === brochureId && ref.entityId === matched && ref.field === 'gfa_total' && ref.period === null)));
+        assert.deepEqual((await recover(analyst, partial.body.requestId)).body.result, scoped.result);
+        const download = { requestId: partial.body.requestId, resultId: scoped.result.resultId, action: 'export', format: 'xlsx' };
+        const file = await artifact(analyst, download);
+        assert.equal(file.status, 200, JSON.stringify(file.body));
+        const book = XLSX.read(file.bytes, { type: 'array' });
+        const data = XLSX.utils.sheet_to_json(book.Sheets['数据'], { header: 1 });
+        const gfaIndex = data[0].findIndex(label => /建筑面积/.test(label));
+        assert.equal(data.find(row => row[0] === matched)[gfaIndex], 48000);
+        assert.equal(data.find(row => row[0] === alsoMatched)[gfaIndex], '未核验');
+        assert.equal((await artifact(other, download)).status, 403);
+
+        const original = (await db.query("select pg_get_functiondef('public.ai_business_research_snapshot(uuid,uuid,uuid,jsonb)'::regprocedure) as definition")).rows[0].definition;
+        for (const capabilityOnly of [false, true]) {
+          try {
+            await db.query(`create or replace function public.ai_business_research_snapshot(p_actor uuid,p_effective uuid,p_session uuid,p_plan jsonb)
+              returns jsonb language plpgsql security invoker set search_path='' as $$ begin
+              if ${capabilityOnly ? "p_plan->>'tool'='capabilities'" : 'true'} then raise exception 'injected T12 dossier service failure'; end if;
+              return private.ai_business_research_snapshot(p_actor,p_effective,p_session,p_plan); end $$`);
+            const outage = await submit(analyst, query);
+            const retained = verified(outage);
+            assert.equal(retained.cell(matched).reason, 'business_field_unavailable');
+            assert.equal(retained.result.parameters.businessBindings, undefined);
+            assert.match(outage.body.answerSelection.notice, /楼书资料暂时不可用/);
+            const archived = await recover(analyst, partial.body.requestId);
+            assert.equal(archived.status, capabilityOnly ? 200 : 503);
+            if (capabilityOnly) assert.deepEqual(archived.body.result, scoped.result);
+            else assert.equal(archived.body.result, undefined);
+          } finally { await db.query(original); }
+          assert.deepEqual((await recover(analyst, partial.body.requestId)).body.result, scoped.result);
+        }
+        await db.query('update private.ai_business_research_grants set enabled=false where user_id=$1', [analyst.id]);
+        assert.equal((await recover(analyst, partial.body.requestId)).status, 403);
+        assert.equal((await artifact(analyst, download)).status, 403);
+        const withoutDossier = verified(await submit(analyst, query));
+        assert.equal(withoutDossier.cell(matched).reason, 'business_field_not_authorized');
+        const noVacancy = await person('admin', 'ai6-no-hard-field');
+        await grantQuarter(noVacancy, ['netEffectiveRent', 'totalArea']);
+        const denied = await submit(noVacancy, query);
+        assert.equal(denied.status, 403);
+        assert.equal(denied.body.result, undefined);
+        assert.equal(denied.calls, 0);
+      } finally {
+        await db.query('delete from public.building_brochure_data where building_id=any($1::uuid[])', [buildings]);
+        await db.query('delete from public.building_metrics where building_id=any($1::uuid[])', [buildings]);
+        await db.query('delete from public.buildings where id=any($1::uuid[])', [buildings]);
+      }
+    });
+    const buildingContext = async (who, reply, options = {}) => {
+      const response = await originalFetch(app + '/api/intelligence/query/buildings', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + who.token },
+        body: JSON.stringify({ requestId: reply.requestId, resultId: reply.result.resultId, action: 'buildings', ...options }) });
+      return { status: response.status, body: await response.json() };
+    };
+    const address = '合成路 8 号', metro = '楼书记录可前往合成地铁站';
+    const dossiers = [[0, '合成国贸大厦A座（三期）', 80], [1, '合成海岳大厦B座', 120], [3, '合成通运中心A座', null]];
+    await check('AI6 D1 / 三栋楼宇档案通过真实登录读取楼书、正式季度和私有 Storage 原图', async () => {
+      const reader = await person('admin', 'ai6-dossier-sample');
+      await grant(reader);
+      await grantBusiness(db, reader.id, { modules: ['profile'], fields: ['address', 'metro'], allBuildings: false, buildingIds: [ids[0]] });
+      for (const [index, label] of dossiers) await db.query('update public.buildings set former_names=$2,location_lng=116.46,location_lat=39.91 where id=$1',
+        [ids[index], JSON.stringify([label])]);
+      await db.query('insert into public.building_brochure_data(building_id,address,metro_access) values($1,$2,$3)', [ids[0], address, metro]);
+      const photos = new Map();
+      for (const [index, color] of [[0, '#254358'], [1, '#69553e']]) {
+        const id = randomUUID(), path = `building-photos/v1/${ids[index]}/${id}/photo.png`;
+        const bytes = await sharp({ create: { width: 32, height: 24, channels: 3, background: color } }).png().toBuffer();
+        const digest = createHash('sha256').update(bytes).digest('hex');
+        const source = `https://example.com/ai6-fixture/building-${index}`;
+        const uploaded = await photoBucket.upload(path, bytes, { contentType: 'image/png', upsert: false });
+        assert.equal(uploaded.error, null, 'fixture must be installed in private Storage');
+        storedPhotos.push({ id, path });
+        await db.query(`insert into public.building_photos(id,building_id,image_url,source_url,source_name,caption,photo_kind,storage_path,width,height,sha256,file_size,status)
+          values($1,$2,$3,$4,'合成照片出处','合成楼宇照片','exterior',$5,32,24,$6,$7,'ready')`,
+          [id, ids[index], `${source}/original.png`, source, path, digest, bytes.length]);
+        photos.set(index, { id, source, path, digest });
+      }
+      const location = await submit(reader, '合成国贸大厦A座（三期）在哪个子市场？');
+      assert.equal(location.status, 200, JSON.stringify(location.body)); assert.equal(location.calls, 0);
+      assert.match(location.body.message, /^[^。！？\n]*CBD[^。！？\n]*。$/u);
+      const photoRequests = [];
+      for (const [index, label, rent] of dossiers) {
+        const response = await submit(reader, `介绍${label}，并附上照片、地址和最新正式季度净有效租金、空置率`);
+        assert.equal(response.status, 200, JSON.stringify(response.body)); assert.equal(response.calls, 0);
+        assert.deepEqual(response.body.result.table.rows.map(row => row.entityId), [ids[index]]);
+        const [row] = response.body.result.table.rows;
+        if (rent === null) assert.equal(row.cells.netEffectiveRent?.kind ?? 'unknown', 'unknown');
+        else assert.equal(row.cells.netEffectiveRent.value.numeric, rent);
+        const context = await buildingContext(reader, response.body);
+        assert.equal(context.status, 200, JSON.stringify(context.body));
+        assert.deepEqual(context.body.buildings.map(row => row.id), [ids[index]]);
+        const photo = photos.get(index);
+        assert.equal(context.body.buildings[0].photo?.id ?? null, photo?.id ?? null);
+        assert.equal(context.body.photoAccess, undefined, 'directory only returns photo metadata');
+        if (photo) {
+          const options = { buildingId: ids[index], photoId: photo.id, limit: 1 };
+          const signed = await buildingContext(reader, response.body, options);
+          assert.equal(signed.status, 200, JSON.stringify(signed.body));
+          const access = signed.body.photoAccess;
+          assert.equal(access.source_url, photo.source);
+          assert.equal(access.source_name, '合成照片出处');
+          assert.equal(access.is_preview, false);
+          const signedUrl = new URL(access.url);
+          assert.equal(signedUrl.hostname, '127.0.0.1');
+          assert.ok(signedUrl.pathname.endsWith(`/object/sign/building-sales-materials/${photo.path}`));
+          assert.ok(signedUrl.searchParams.has('token'));
+          const image = await originalFetch(signedUrl, { redirect: 'error' });
+          assert.equal(image.status, 200);
+          assert.match(image.headers.get('content-type'), /^image\/png\b/);
+          const bytes = Buffer.from(await image.arrayBuffer());
+          assert.equal(createHash('sha256').update(bytes).digest('hex'), photo.digest);
+          const decoded = await sharp(bytes).metadata();
+          assert.equal(decoded.width, 32); assert.equal(decoded.height, 24);
+          assert.ok((await reader.client.storage.from('building-sales-materials').download(photo.path)).error, 'private original must not be directly accessible');
+          const delivery = (await events(signed.body.attemptId)).find(event => event.kind === 'response_generated');
+          const audited = decrypt(delivery).content.result.buildingMetadata;
+          assert.equal(audited.photoSource.sourceUrl, photo.source);
+          assert.equal(JSON.stringify(audited).includes(signedUrl.searchParams.get('token')), false);
+          photoRequests.push({ reply: response.body, options });
+        }
+        if (index === 0) {
+          const dossier = response.body.answerSelection.results.find(item => item.role === 'supporting').result;
+          assert.equal(dossier.table.rows[0].cells.address.value, address);
+          assert.ok(dossier.sources.some(source => source.table === 'building_brochure_data' && source.field === 'address'));
+          assert.equal((await buildingContext(other, response.body)).status, 403);
+        } else assert.ok(!JSON.stringify(response.body).includes(address));
+      }
+      const [first, second] = photoRequests;
+      for (const denied of [await buildingContext(other, first.reply, first.options),
+        await buildingContext(reader, first.reply, { ...first.options, photoId: second.options.photoId })]) {
+        assert.equal(denied.status, 403); assert.equal(denied.body.photoAccess, undefined);
+      }
+      await db.query("update public.building_photos set status='archived' where id=$1", [first.options.photoId]);
+      const retired = await buildingContext(reader, first.reply, first.options);
+      assert.equal(retired.status, 403); assert.equal(retired.body.photoAccess, undefined);
+      await db.query('update private.ai_query_grants set enabled=false where user_id=$1', [reader.id]);
+      const revoked = await buildingContext(reader, second.reply, second.options);
+      assert.equal(revoked.status, 403); assert.equal(revoked.body.photoAccess, undefined);
+    });
+    await check('AI6 D3 / 真实办公初筛把楼书交通、候选地图和待核验的步行距离分开交付', async () => {
+      const broker = await person('admin', 'ai6-site-broker');
+      await grant(broker);
+      await grantBusiness(db, broker.id, { modules: ['profile'], fields: ['metro'], allBuildings: false, buildingIds: [ids[0]] });
+      const response = await submit(broker, '金融企业在CBD选址租赁2000平方米，预算300元/平方米/月，只看甲级，地铁步行800米内，重视形象并给出地图');
+      assert.equal(response.status, 200, JSON.stringify(response.body)); assert.equal(response.calls, 0);
+      assert.deepEqual(response.body.result.table.rows.map(row => row.entityId), [ids[0]]);
+      assert.equal(response.body.answerSelection.status, 'partial');
+      assert.match(response.body.answerSelection.notice, /2000 ㎡连续可租面积/);
+      assert.match(response.body.answerSelection.notice, /尚无可核验的 800 米步行路径/);
+      const dossier = response.body.answerSelection.results.find(item => item.role === 'supporting').result;
+      assert.equal(dossier.table.rows[0].cells.metro.value, metro);
+      assert.deepEqual(response.body.result.parameters.agentMap.buildingIds, [ids[0]]);
+      const selected = await buildingContext(broker, response.body, { mapSelection: true });
+      assert.equal(selected.status, 200, JSON.stringify(selected.body));
+      assert.deepEqual(selected.body.buildings.map(row => [row.id, row.located]), [[ids[0], true]]);
+      assert.equal((await buildingContext(other, response.body, { mapSelection: true })).status, 403);
+      const walking = await submit(broker, '步行不超过800米的办公选址');
+      assert.equal(walking.status, 200, JSON.stringify(walking.body)); assert.equal(walking.calls, 0);
+      assert.equal(walking.body.agent.executionStatus, 'limited');
+      assert.equal(walking.body.result, undefined);
+      assert.match(walking.body.message, /800 米.*目标地铁站.*直线距离初筛/);
+    });
+    await check('AI6 T16 / 站点和获权楼宇的直线初筛同源交付地图、Excel、历史和撤权', async () => {
+      const walker = await person('admin', 'ai6-metro-screening');
+      await grant(walker);
+      const publicMap = JSON.parse(await readFile(new URL('../../public/data/beijing_map_data.json', import.meta.url), 'utf8'));
+      const stationLine = publicMap.subways.find(line => line.stations.some(item => item.name === '国贸'));
+      const station = stationLine.stations.find(item => item.name === '国贸');
+      const [lng, lat] = station.center;
+      // One point coincides with the station. The second is 0.001 degrees
+      // north (about 111 metres). Put both an ungranted and a reference-only
+      // point inside the radius, plus a tracked building without coordinates.
+      for (const [index, latitude] of [[0, lat], [1, lat + .001], [2, lat], [3, null], [4, lat]])
+        await db.query('update public.buildings set location_lng=$2,location_lat=$3 where id=$1', [ids[index], latitude === null ? null : lng, latitude]);
+      const response = await submit(walker, '在国贸地铁站，步行不超过800米的办公选址，给出地图链接');
+      assert.equal(response.status, 200, JSON.stringify(response.body)); assert.equal(response.calls, 0);
+      assert.equal(response.body.agent.executionStatus, 'partial');
+      assert.equal(response.body.answerSelection.status, 'partial');
+      assert.match(response.body.message, /2 栋.*直线 800 米.*另有 1 栋.*实际步行路线待核验/);
+      const { result, requestId } = response.body;
+      assert.deepEqual(result.table.rows.map(row => [row.entityId, row.cells.metroStation.value, row.cells.metroStraightLine.value.numeric]),
+        [[ids[0], '国贸站', 0], [ids[1], '国贸站', 111]]);
+      const refs = result.table.rows[0].cells.metroStraightLine.sourceIds.map(id => result.sources.find(source => source.id === id));
+      assert.deepEqual(refs.map(source => [source.table, source.recordId, source.rawValue]),
+        [['buildings', ids[0], null], ['map_subway_stations', station.id, `国贸站 · ${stationLine.name} · ${station.center.join(', ')}`]]);
+      const nearest = await submit(walker, '在CBD，地铁站步行不超过800米的办公选址，不要地图');
+      assert.equal(nearest.status, 200, JSON.stringify(nearest.body)); assert.equal(nearest.calls, 0);
+      assert.equal(nearest.body.result.parameters.agentMap, undefined);
+      assert.deepEqual(nearest.body.result.table.rows.map(row => [row.entityId, row.cells.metroStation.value]), [[ids[0], '国贸站'], [ids[1], '国贸站']]);
+      const selected = await buildingContext(walker, response.body, { mapSelection: true });
+      assert.equal(selected.status, 200, JSON.stringify(selected.body));
+      assert.deepEqual(selected.body.buildings.map(row => row.id), ids.slice(0, 2));
+      const request = { requestId, resultId: result.resultId, action: 'export', format: 'xlsx' };
+      const generated = await submit(walker, '把刚才的结果导出Excel',
+        { conversation: { id: response.body.conversation.id, parentRequestId: requestId } });
+      assert.equal(generated.status, 200, JSON.stringify(generated.body)); assert.equal(generated.calls, 0);
+      assert.deepEqual(generated.body.result.parameters.metroScreeningBindings, [result.parameters.metroScreening]);
+      const downloadable = await artifact(walker, { ...request, requestId: generated.body.requestId, resultId: generated.body.result.resultId });
+      assert.equal(downloadable.status, 200);
+      const workbook = XLSX.read(downloadable.bytes, { type: 'array' });
+      const table = XLSX.utils.sheet_to_json(workbook.Sheets['数据'], { header: 1 });
+      const distanceColumn = table[0].findIndex(label => String(label).includes('距站点直线距离'));
+      assert.notEqual(distanceColumn, -1);
+      assert.deepEqual(table.slice(1).map(row => row[distanceColumn]), [0, 111]);
+      assert.equal((await recover(walker, requestId)).body.result.resultId, result.resultId);
+      assert.equal((await recover(other, requestId)).status, 403);
+      await db.query('update public.buildings set location_lat=location_lat+.002 where id=$1', [ids[1]]);
+      assert.equal((await artifact(walker, request)).status, 403);
+      await db.query('update public.buildings set location_lat=$2 where id=$1', [ids[1], lat + .001]);
+      await db.query('update private.ai_query_grants set enabled=false where user_id=$1', [walker.id]);
+      assert.equal((await buildingContext(walker, response.body, { mapSelection: true })).status, 403);
+    });
+    await check('AI6 / 三市场澄清及六轮排名使用真实登录、正式快照与可读工作簿', async () => {
+      const catalog = [
+        { market: 'CBD', grade: 'P', rent: 260, area: 30000, vacancy: 6000 },
+        { market: 'CBD', grade: 'A', rent: 210, area: 10000, vacancy: 1200 },
+        { market: 'CBD', grade: 'A', rent: 190, area: 20000, vacancy: 3000 },
+        { market: '金融街', grade: 'A', rent: 225, area: 20000, vacancy: 2000 },
+        { market: '金融街', grade: 'B', rent: 230, area: 10000, vacancy: 500 },
+        { market: '望京-酒仙桥', grade: 'A', rent: 175, area: 15000, vacancy: 1500 },
+      ].map((row, i) => ({ ...row, id: randomUUID(), name: `合成续问楼宇-${i + 1}` }));
+      for (const row of catalog) {
+        await db.query('insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,$2,$3,$4,$5)',
+          [row.id, row.name, row.market, row.grade, 'tracked']);
+        await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft,is_locked,locked_at,locked_by)
+          values($1,2026,2,$2,$3,$4,false,true,now(),$1)`, [row.id, row.area, row.rent, row.vacancy]);
+      }
+      await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft,is_locked)
+        values($1,2026,3,30000,999,0,true,false)`, [catalog[0].id]);
+      const analyst = await person('admin', 'ai6-multiturn');
+      await grantQuery({ setup: db }, analyst.id, { capabilities: exportCaps, fields: ['netEffectiveRent', 'totalArea', 'vacantArea'],
+        allBuildings: false, buildingIds: catalog.map(row => row.id) });
+      const ask = async (question, parent) => {
+        const run = await submit(analyst, question, parent ? { conversation: { id: parent.conversation.id, parentRequestId: parent.requestId } } : {});
+        assert.equal(run.status, 200, JSON.stringify(run.body));
+        assert.equal(run.calls, 0);
+        return run.body;
+      };
+      const clarify = await ask('比较2026Q2 CBD、金融街和望京的租金、空置率和市场存量，按子市场列出表格');
+      assert.match(clarify.message, /请选择要比较的指标/);
+      const grouped = await ask('净有效租金', clarify);
+      assert.equal(grouped.result.table.rows.length, 3);
+      for (const row of grouped.result.table.rows) {
+        const sample = catalog.filter(item => item.market === row.cells.name.value);
+        const area = sample.reduce((sum, item) => sum + item.area, 0);
+        const rent = sample.reduce((sum, item) => sum + item.rent * item.area, 0) / area;
+        const vacancy = sample.reduce((sum, item) => sum + item.vacancy, 0) / area;
+        for (const [key, expected, unit] of [['value', rent, 'CNY/m2/month'], ['vacancy_value', vacancy, 'ratio'], ['totalArea_value', area, 'm2']]) {
+          assert.equal(row.cells[key].value.numeric, expected);
+          assert.equal(grouped.result.table.columns.find(column => column.key === key).unit, unit);
+          assert.ok(row.cells[key].sourceIds.length > 0);
+        }
+        for (const key of ['usedCount', 'vacancy_usedCount', 'totalArea_usedCount']) assert.equal(row.cells[key].value.numeric, sample.length);
+      }
+      const start = await ask('CBD最新正式季度净有效租金前两栋');
+      const idsIn = reply => reply.result.table.rows.map(row => row.entityId);
+      assert.deepEqual(start.result.parameters.executedPlan.period, { year: 2026, quarter: 2 });
+      assert.deepEqual(idsIn(start), [catalog[0].id, catalog[1].id]);
+      const strict = await ask('只保留甲级', start);
+      assert.deepEqual(idsIn(strict), [catalog[1].id, catalog[2].id]);
+      const projected = await ask('再加空置率和建筑面积', strict);
+      assert.deepEqual(idsIn(projected), idsIn(strict));
+      assert.deepEqual(projected.result.table.rows.map(row => row.cells.vacancy.value.numeric), [.12, .15]);
+      assert.equal(projected.answerSelection.status, 'partial');
+      const moved = await ask('金融街呢', projected);
+      assert.deepEqual(idsIn(moved), [catalog[3].id]);
+      assert.deepEqual(moved.result.parameters.executedPlan.scope.submarkets, ['金融街']);
+      const compared = await ask('把这两个子市场并排比较', moved);
+      const expectedIds = [projected.result.resultId, moved.result.resultId];
+      assert.deepEqual(compared.answerSelection.results.map(item => item.result.resultId), expectedIds);
+      assert.deepEqual((await recover(analyst, compared.requestId)).body.answerSelection.results.map(item => item.result.resultId), expectedIds);
+      const exported = await ask('把刚才的对比导出 Excel', compared);
+      assert.deepEqual(exported.result.parameters.agentExport.selection.resultIds, expectedIds);
+      const download = { requestId: exported.requestId, resultId: exported.result.resultId, action: 'export', format: 'xlsx' };
+      const file = await artifact(analyst, download);
+      assert.equal(file.status, 200);
+      const book = XLSX.read(file.bytes, { type: 'array' });
+      const values = book.SheetNames.filter(name => !['来源', '口径与快照'].includes(name))
+        .flatMap(name => XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1 }).flat());
+      for (const index of [1, 2, 3]) assert.ok(values.includes(catalog[index].name));
+      for (const index of [0, 4, 5]) assert.ok(!values.includes(catalog[index].name));
+      assert.equal((await artifact(other, download)).status, 403);
+      const licensed = await person('admin', 'ai6-dossier-projection');
+      const licensedIds = [catalog[0].id, catalog[1].id];
+      await grantQuery({ setup: db }, licensed.id, { capabilities: exportCaps, fields: ['netEffectiveRent', 'totalArea', 'vacantArea'],
+        allBuildings: false, buildingIds: licensedIds });
+      await grantBusiness(db, licensed.id, { modules: ['profile'], fields: ['gfaTotal'], allBuildings: false, buildingIds: licensedIds });
+      for (const [index, id] of licensedIds.entries()) await db.query(
+        'insert into public.building_brochure_data(id,building_id,gfa_total) values($1,$2,$3)', [randomUUID(), id, 50000 + index * 1000]);
+      const base = await submit(licensed, '2026Q2 CBD净有效租金前两栋');
+      assert.equal(base.status, 200, JSON.stringify(base.body));
+      const projectedGfa = await submit(licensed, '再加空置率和建筑面积', {
+        conversation: { id: base.body.conversation.id, parentRequestId: base.body.requestId },
+      });
+      assert.equal(projectedGfa.status, 200, JSON.stringify(projectedGfa.body));
+      assert.equal(projectedGfa.calls, 0);
+      assert.equal(projectedGfa.body.answerSelection.status, 'answered');
+      assert.deepEqual(idsIn(projectedGfa.body), licensedIds);
+      assert.deepEqual(projectedGfa.body.result.table.rows.map(row => row.cells.gfaTotal.value.numeric), [50000, 51000]);
+      assert.equal((await recover(licensed, projectedGfa.body.requestId)).status, 200);
+      await db.query('update private.ai_business_research_grants set enabled=false where user_id=$1', [licensed.id]);
+      assert.equal((await recover(licensed, projectedGfa.body.requestId)).status, 403);
     });
     await check('AI6 / 已重新鉴权的上一轮快照直接生成CSV与图表，不重新查数或调用供应商', async () => {
       const conversation = { id: grouped.body.conversation.id, parentRequestId: grouped.body.requestId };
@@ -183,5 +614,9 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
   } finally {
     globalThis.fetch = originalFetch;
     for (const [key, value] of previous) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    if (storedPhotos.length) {
+      await db.query('delete from public.building_photos where id=any($1::uuid[])', [storedPhotos.map(photo => photo.id)]);
+      await photoBucket.remove(storedPhotos.map(photo => photo.path));
+    }
   }
 }

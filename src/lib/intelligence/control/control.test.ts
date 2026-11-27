@@ -128,7 +128,7 @@ describe('actual adapter configuration and live controls', () => {
   });
   it('uses only the published fallback and cannot bypass the original provider disclosure rule', async () => {
     const bound=snapshot();bound.config.modes.quick.fallback='oa-test';
-    const deepseek=vi.fn<ModelAdapter>().mockRejectedValue(new ModelProviderError('rate_limited')),openai=adapter('openai');
+    const deepseek=vi.fn<ModelAdapter>().mockRejectedValue(new ModelProviderError('provider_unavailable')),openai=adapter('openai');
     const run=createModelRuntime({actorId,question:'解释概念',control:{snapshot:bound,beforeCall:async()=>{}},adapters:{deepseek,openai},revalidate:async()=>{},onAttempt:async()=>{}});
     await run.invoke([],signal());expect(openai.mock.calls[0][3]?.model).toBe('gpt-6-test');expect(run.records.map(r=>r.fallback)).toEqual([false,true]);
   });

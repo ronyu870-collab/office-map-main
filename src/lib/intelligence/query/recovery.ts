@@ -4,6 +4,8 @@ import { isResearchResult } from '../research/workspace';
 import { ResearchExecution } from '../research/execution';
 import { recheckResearchResult } from '../research/authorization';
 import { isBusinessResult } from '../business/protocol';
+import { sourcesForFormalAcl } from '../business/dossierProjection';
+import { recheckMetroSources } from './metroScreening';
 import { recheckBusinessResults } from '../business/research';
 import { isLeaseResult } from '../lease/protocol';
 import { recheckLeaseResult } from '../lease/research';
@@ -19,6 +21,7 @@ import type { QueryPlan } from './plan';
 import { decodeGeneratedArchive } from './resultArchive';
 import { FIELD_REGISTRY_VERSION } from './registry';
 import { loadDataAuthority, type DataAuthority, type VerifiedQueryIdentity } from './serverAuthority';
+import { readWorkbookBundle } from './workbookBundle';
 import { answerSelectionSchema, selectedAnswerResult, type AnswerSelection } from './answerSelection';
 
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
@@ -163,6 +166,12 @@ async function recheckSelectedSnapshot(client: SupabaseClient, identity: Verifie
   const authority = await loadDataAuthority(client, identity, signal);
   if (authority.permissionRevision !== revision || !authority.grants.includes('query:catalog')
     || options.exporting && !authority.grants.includes('export:internal')) throw new Error('QUERY_DENIED');
+  const workbook = readWorkbookBundle(result.parameters);
+  if (workbook) {
+    for (const sheet of workbook.sheets) await recheckSelectedSnapshot(client, identity, signal, requestId,
+      sheet.snapshot, revision, { ...options, exporting: true });
+    return;
+  }
   if (isResearchResult(result)) {
     await recheckResearchResult(client, identity, signal, requestId, result, revision,
       { archived: true, exporting: options.exporting });
@@ -174,11 +183,12 @@ async function recheckSelectedSnapshot(client: SupabaseClient, identity: Verifie
     await recheckKnowledgeResults(client, identity, signal, [result], options.exporting);
     return;
   }
-  resultSchema.parse(raw);
   const plans = [parseQueryPlan(result.parameters.executedPlan),
     ...z.array(z.unknown()).max(64).parse(result.parameters.exportPlans ?? []).map(parseQueryPlan)];
   plans.forEach(plan => authorizeRecoveryPlan(plan, authority));
-  const sources = result.sources.map(ref => ({ entity_id: ref.entityId, record_id: ref.recordId,
+  const metroChecked = await recheckMetroSources(client, signal, result.sources, result.parameters);
+  resultSchema.parse({ ...result, sources: metroChecked });
+  const sources = sourcesForFormalAcl(metroChecked, result.parameters).map(ref => ({ entity_id: ref.entityId, record_id: ref.recordId,
     source_table: ref.table, field: ref.field, year: ref.period?.year ?? null, quarter: ref.period?.quarter ?? null }));
   const { data, error } = await client.rpc('ai_query_result_sources_allowed', {
     p_actor: identity.actorId, p_effective: identity.effectiveUserId, p_session: identity.sessionId,

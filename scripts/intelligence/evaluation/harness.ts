@@ -13,6 +13,7 @@ import { recordingAdapter, replayAdapter, hash } from './trace.mjs';
 
 import { contract, matchesQuarterlyContract } from './contract';
 export { contract } from './contract';
+export { createDeepSeekAdapter };
 export async function runScenario(input: { question: string; trace: ReturnType<typeof newTrace>; ledger?: BudgetLedger; workflow?: string; attempt: string; mode: 'scripted' | 'replay' | 'live' }) {
   // Stable synthetic clock and identifiers are required for exact input replay.
   const OriginalDate = Date;

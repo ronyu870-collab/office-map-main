@@ -1,12 +1,13 @@
 import * as React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { HomeQueryResult } from '../HomeQueryResult';
 import { HomeQueryBuildings } from '../HomeQueryBuildings';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
 import { buildListResult } from '@/src/lib/intelligence/query/result';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
 
-const client = vi.hoisted(() => ({ buildings: vi.fn() }));
+const client = vi.hoisted(() => ({ buildings: vi.fn(), reportDelivery: vi.fn().mockResolvedValue(true) }));
 vi.mock('@/src/services/trustedQueryClient', () => ({ trustedQueryClient: client, queryScopeKey: (value: unknown) => JSON.stringify(value) }));
 const ids = Array.from({ length: 7 }, (_, i) => `10000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`);
 const requestId = '20000000-0000-4000-8000-000000000001';
@@ -25,10 +26,40 @@ function metadata(data: ReturnType<typeof result>, offset = 0) {
 }
 beforeEach(() => vi.clearAllMocks());
 describe('P2 source-bound building cards', () => {
+  it('uses the authorized photo route from the real single-building reply', async () => {
+    const data = result();
+    const directory = metadata(data);
+    const photo = { id: ids[1], caption: '获权实景照片' };
+    const url = 'https://assets.example.test/signed-building-photo';
+    client.buildings.mockResolvedValueOnce({
+      ...directory, buildings: [{ ...directory.buildings[0], photo, located: true, unavailableReason: null }],
+    }).mockResolvedValueOnce({ ...directory, photoAccess: { url, source_url: 'https://example.test/source',
+      source_name: '核验来源', can_download: false, is_preview: true } });
+    render(<HomeQueryResult result={data} requestId={requestId} scope={scope} />);
+    expect(await screen.findByRole('img', { name: photo.caption })).toHaveAttribute('src', url);
+    expect(client.buildings.mock.calls[1][1]).toMatchObject({ requestId, resultId: data.resultId, buildingId: ids[0], photoId: ids[1] });
+    const link = screen.getByRole('link', { name: '查看楼宇详情' });
+    expect(new URL(link.getAttribute('href')!, 'https://example.test').searchParams.get('aiBuilding')).toBe(ids[0]);
+  });
+
+  it('keeps the single record and authorized metrics visible while directory data is pending', async () => {
+    const data = result(); let resolve!: (value: unknown) => void;
+    client.buildings.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    render(<HomeQueryResult result={data} requestId={requestId} scope={scope} />);
+    const region = await screen.findByRole('region', { name: '记录摘要' });
+    expect(region).toHaveTextContent('合成楼1');
+    expect(region).toHaveTextContent('100');
+    expect(region).toHaveTextContent('正在核对楼宇访问权限与当前目录');
+    expect(region).not.toHaveTextContent('暂无可访问的实景照片');
+    await act(async () => resolve(metadata(data)));
+    expect(region).toHaveTextContent('暂无可访问的实景照片');
+  });
+
   it('T03 preserves unknown photos/coordinates and historical metric period; source action keeps same IDs', async () => {
     const data = result(), source = vi.fn(); client.buildings.mockResolvedValue(metadata(data));
     render(<HomeQueryBuildings result={data} requestId={requestId} scope={scope} onSource={source} />);
     const card = await screen.findByRole('article', { name: '合成楼1楼宇卡片' });
+    await screen.findByText('暂无可访问的实景照片。');
     expect(card).toHaveTextContent('2026Q3'); expect(card).toHaveTextContent('100'); expect(card).toHaveTextContent('暂无可访问的实景照片');
     expect(card).toHaveTextContent('不会补造位置'); expect(card.querySelector('img')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '100' })); expect(source.mock.calls[0][0]).toEqual(data.table.rows[0].cells.netEffectiveRent.sourceIds);

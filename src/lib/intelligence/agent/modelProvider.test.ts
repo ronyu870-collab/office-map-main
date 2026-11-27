@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDeepSeekAdapter } from './deepseekAdapter';
 import { completeWithDeepSeek, deepseekAgentConfigured, ModelProviderError } from './modelProvider';
 
 const fake = { DEEPSEEK_API_KEY: 'fake-for-protocol-test-only',
@@ -53,6 +54,54 @@ describe('DeepSeek official native chat completion protocol', () => {
     expect(sent.thinking.type).toBe('disabled');
     expect(sent.stream).toBe(false);
     expect(sent.messages[0].role).toBe('user');
+  });
+
+  it.each([false, true])('preserves request-local tool reasoning in the next wire request (SSE: %s)', async streamed => {
+    const toolCall = { id: 'call-1', type: 'function',
+      function: { name: 'get_data_capabilities', arguments: '{}' } };
+    const first = streamed ? new Response([
+      { choices: [{ index: 0, delta: { reasoning_content: '内部' } }] },
+      { choices: [{ index: 0, delta: { reasoning_content: '推理',
+        tool_calls: [{ index: 0, ...toolCall }] }, finish_reason: 'tool_calls' }] },
+      { choices: [], usage: { prompt_tokens: 60, completion_tokens: 25,
+        completion_tokens_details: { reasoning_tokens: 20 } } },
+    ].map(frame => 'data: ' + JSON.stringify({ id: 'first', model: 'deepseek-v4-pro', ...frame }) + '\r\n\r\n')
+      .join('') + 'data: [DONE]\r\n\r\n') : Response.json({
+      model: 'deepseek-v4-pro',
+      choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null,
+        reasoning_content: '内部推理', tool_calls: [toolCall] } }],
+    });
+    const fetch = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(Response.json({
+      model: 'deepseek-v4-pro', choices: [{ finish_reason: 'stop',
+        message: { role: 'assistant', reasoning_content: '最终推理', content: '已查询' } }],
+    }));
+    vi.stubGlobal('fetch', fetch);
+    const adapter = createDeepSeekAdapter();
+    const options = { model: 'deepseek-v4-pro', maxOutputTokens: 256, timeoutMs: 1000,
+      reasoningEffort: 'high' as const };
+    const user = { role: 'user' as const, content: '查询可用数据' };
+    const signal = new AbortController().signal;
+    const delta = vi.fn();
+    const completion = await adapter([user], signal, streamed ? delta : undefined, options);
+
+    expect(JSON.parse(String(fetch.mock.calls[0][1].body))).toMatchObject({
+      model: options.model, thinking: { type: 'enabled' }, reasoning_effort: 'high',
+    });
+    expect(completion.message.continuationBudgetBytes).toBe(Buffer.byteLength(JSON.stringify({ reasoning_content: '内部推理' })));
+    expect(JSON.stringify(completion)).not.toContain('内部推理');
+    expect(delta).not.toHaveBeenCalled();
+
+    const tool = { role: 'tool' as const, content: '{}', callId: toolCall.id };
+    const answer = await adapter([user, completion.message, tool], signal, undefined, options);
+    expect(JSON.parse(String(fetch.mock.calls[1][1].body)).messages).toEqual([
+      user, { role: 'assistant', content: null, tool_calls: [toolCall], reasoning_content: '内部推理' },
+      { role: 'tool', content: '{}', tool_call_id: toolCall.id },
+    ]);
+    expect(answer.message).toEqual({ role: 'assistant', content: '已查询' });
+
+    await expect(createDeepSeekAdapter()([user, completion.message, tool], signal, undefined, options))
+      .rejects.toMatchObject({ code: 'invalid_response' });
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it('uses official SSE include_usage and forwards only real vendor increments', async () => {

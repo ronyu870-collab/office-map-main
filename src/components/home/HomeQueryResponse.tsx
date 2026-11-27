@@ -36,6 +36,8 @@ export const HomeQueryResponse = React.memo(function HomeQueryResponse({ message
 
 function CompanionResult({ item, collapsed, ...props }: Omit<Props, 'message' | 'result' | 'answerSelection'> & { item: AnswerSelection['results'][number] }) {
   const [open, setOpen] = React.useState(false);
+  if (item.role === 'supporting' && item.result.parameters.businessTool === 'query_building_dossier')
+    return <HomeQueryResult result={item.result} {...props} answerTask="profile_evidence" responseActions={undefined} visible={!collapsed} />;
   if (item.role === 'supporting') return <details className={styles.details} open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>查看辅助依据</summary><div hidden={!open}><HomeQueryResult result={item.result} {...props} responseActions={undefined} visible={!collapsed && open} /></div>
   </details>;

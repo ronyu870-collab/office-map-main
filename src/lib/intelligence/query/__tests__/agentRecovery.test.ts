@@ -4,9 +4,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { auditPayloadDigest, encryptAuditContent } from '../auditCrypto';
 import type { AuditKeys } from '../auditStore';
 import { FIELD_REGISTRY_VERSION } from '../registry';
+import { loadDataAuthority } from '../serverAuthority';
 import { recoverOwnResult } from '../recovery';
 import { buildListResult, resultDigest } from '../result';
-import { fixture } from './fixtures';
+import { buildBusinessResult } from '../../business/research';
+import { businessPlanSchema, businessSnapshotSchema } from '../../business/protocol';
+import { addDossierGfa } from '../../business/dossierProjection';
+import { fixture, nameSource } from './fixtures';
 import { buildResultArtifact } from '../artifacts';
 import type { AnswerSelection } from '../answerSelection';
 import { prepareExportResult } from '../../agent/exportTableTool';
@@ -24,13 +28,13 @@ const keys: AuditKeys = { keyId: 'test', encryptionKey: new Uint8Array(32).fill(
 const plan = (segment: string) => ({ operation: 'list', fields: [], period: null,
   scope: { inventory: 'all_authorized', submarkets: [segment] } });
 
-function auditEvent(requestId: string, sequence: number, kind: string, payload: unknown) {
+function auditEvent(requestId: string, sequence: number, kind: string, payload: unknown, effectiveUserId = ids.effective) {
   const eventId = randomUUID();
   const content = JSON.stringify({ content: payload, redactionTypes: [] });
   return { request_id: requestId, event_id: eventId, sequence, kind,
     payload_digest: auditPayloadDigest(content, keys.digestKey),
     cipher: encryptAuditContent(content, { requestId, eventId, actorId: ids.actor,
-      effectiveUserId: ids.effective }, keys.keyId, keys.encryptionKey) };
+      effectiveUserId }, keys.keyId, keys.encryptionKey) };
 }
 
 async function recover(finalSegment: string, exportPlans?: unknown[]) {
@@ -63,21 +67,24 @@ async function recover(finalSegment: string, exportPlans?: unknown[]) {
 }
 
 describe('immutable source-rechecked Agent result recovery', () => {
-  async function recoverSelection(secondarySegment = 'CBD', deniedSecondarySource = false, files = false) {
+  async function recoverSelection(secondarySegment = 'CBD', deniedSecondarySource = false, files = false, workbook = false) {
     const requestId = randomUUID();
-    const makeResult = (segment: string, label: string) => {
-      const base = buildListResult(fixture(), []);
+    const makeResult = (segment: string, label: string, includeHeight = false) => {
+      const fields = includeHeight ? ['height' as const] : [];
+      const base = buildListResult(fixture(), fields);
       const mapping = new Map(base.table.rows.map(row => [row.entityId, randomUUID()]));
-      return { ...base, dataVersion: 'b'.repeat(64), parameters: { ...base.parameters, executedPlan: plan(segment) },
+      return { ...base, dataVersion: 'b'.repeat(64), parameters: { ...base.parameters, executedPlan: { ...plan(segment), fields } },
         table: { ...base.table, rows: base.table.rows.map(row => ({ ...row, entityId: mapping.get(row.entityId)!,
           cells: { ...row.cells, name: { ...row.cells.name, kind: 'text' as const, value: label } } })) },
         sources: base.sources.map(source => ({ ...source, entityId: mapping.get(source.entityId)! })) };
     };
-    const sourceA = makeResult('CBD', '主结果楼宇'), sourceB = makeResult(secondarySegment, '比较结果楼宇');
-    const a = files ? prepareExportResult([sourceA], { resultIds: [sourceA.resultId], format: 'xlsx' }) : sourceA;
+    const sourceA = makeResult('CBD', '主结果楼宇'), sourceB = makeResult(secondarySegment, '比较结果楼宇', workbook);
+    const a = workbook ? prepareExportResult([sourceA, sourceB], { resultIds: [sourceA.resultId, sourceB.resultId], format: 'xlsx' })
+      : files ? prepareExportResult([sourceA], { resultIds: [sourceA.resultId], format: 'xlsx' }) : sourceA;
     const b = files ? prepareExportResult([sourceB], { resultIds: [sourceB.resultId], format: 'csv_zip' }) : sourceB;
-    const selection: AnswerSelection = { version: 'answer-selection/1', task: files ? 'file' : 'comparison', status: 'answered',
-      primaryResultId: a.resultId, results: [{ role: 'primary', result: a as never }, { role: 'comparison', result: b as never }] };
+    const selection: AnswerSelection = { version: 'answer-selection/1', task: files || workbook ? 'file' : 'comparison', status: 'answered',
+      primaryResultId: a.resultId, results: [{ role: 'primary', result: a as never },
+        ...(workbook ? [] : [{ role: 'comparison' as const, result: b as never }])] };
     const events = [
       auditEvent(requestId, 1, 'received', { sessionId: ids.session, plan: { resolution: 'server_agent/1' } }),
       auditEvent(requestId, 2, 'tool_finished', { protocol: 'agent-answer/1', resolution: { protocol: 'answer-selection/1' } }),
@@ -96,6 +103,46 @@ describe('immutable source-rechecked Agent result recovery', () => {
         head_hash: 'f'.repeat(64), events } as never, new AbortController().signal);
     return { restored, a, b, rpc, requestId };
   }
+
+  it('rechecks an appended GFA column through the dossier ACL while retaining the original formal ACL', async () => {
+    const requestId = randomUUID(), buildingId = randomUUID(), name = '合成校验楼宇';
+    const raw = buildListResult({ ...fixture(), expectedCount: 1, rows: [{ id: buildingId, name,
+      nameSource: nameSource(buildingId, name), facts: {} }] }, []);
+    const source = { ...raw, dataVersion: 'b'.repeat(64), parameters: { ...raw.parameters, executedPlan: plan('CBD') } };
+    const dossierPlan = businessPlanSchema.parse({ tool: 'query_building_dossier', buildingIds: [buildingId], fields: ['gfaTotal'] });
+    const snapshot = businessSnapshotSchema.parse({ allowed: true, version: 'business-research/1', permission_revision: grant.permissionRevision,
+      export: true, records: [{ id: buildingId, name, buildingId, data: [{ table: 'buildings', id: buildingId, version: 'a'.repeat(64),
+        recordedAt: null, asOf: null, period: null, values: { name } }, { table: 'building_brochure_data', id: randomUUID(),
+        version: 'b'.repeat(64), recordedAt: null, asOf: null, period: null, values: { gfaTotal: '28000' } }] }] });
+    const result = addDossierGfa(source, [{ ids: [buildingId], dossier: buildBusinessResult(snapshot, dossierPlan) }]).result;
+    const selection = { version: 'answer-selection/1', task: 'list', status: 'answered', primaryResultId: result.resultId,
+      results: [{ role: 'primary', result }] };
+    const events = [
+      auditEvent(requestId, 1, 'received', { sessionId: ids.session, plan: { resolution: 'server_agent/1' } }, ids.actor),
+      auditEvent(requestId, 2, 'tool_finished', { protocol: 'agent-answer/1', resolution: { protocol: 'answer-selection/1' } }, ids.actor),
+      auditEvent(requestId, 3, 'response_generated', { result: selection }, ids.actor),
+      auditEvent(requestId, 4, 'succeeded', { delivery: 'not_yet_sent' }, ids.actor),
+    ];
+    let available = true;
+    const rpc = vi.fn().mockImplementation((name: string) => ({ abortSignal: async () => ({
+      data: name === 'ai_business_research_snapshot' ? available ? snapshot : { allowed: false }
+        : { allowed: true, permission_revision: grant.permissionRevision }, error: null,
+    }) }));
+    const identity = { actorId: ids.actor, effectiveUserId: ids.actor, sessionId: ids.session, expiresAt: Date.now() + 30000 };
+    await vi.mocked(loadDataAuthority).withImplementation(async () => ({ ...grant, effectiveUserId: ids.actor,
+      grants: ['query:catalog', 'query:brochure', 'export:internal'] }), async () => {
+      const recovered = await recoverOwnResult({ rpc } as unknown as SupabaseClient, identity, keys, requestId,
+        { state: 'succeeded', permission_revision: grant.permissionRevision, head_sequence: events.length, head_hash: 'f'.repeat(64), events } as never,
+        new AbortController().signal, { exporting: true });
+      expect(recovered.result).toEqual(result);
+      expect(rpc).toHaveBeenCalledWith('ai_query_result_sources_allowed', expect.objectContaining({ p_sources: [
+        expect.objectContaining({ entity_id: buildingId, source_table: 'buildings', field: 'name' }),
+      ] }));
+      expect(rpc).toHaveBeenCalledWith('ai_business_research_snapshot', expect.objectContaining({ p_plan: dossierPlan }));
+      available = false;
+      await expect(recovered.recheck()).rejects.toThrow('QUERY_DENIED');
+    });
+  });
 
   it('restores both selected snapshots with their exact digest and rechecks both source sets', async () => {
     const { restored, a, b, rpc, requestId } = await recoverSelection();
@@ -129,6 +176,19 @@ describe('immutable source-rechecked Agent result recovery', () => {
     const zip = await JSZip.loadAsync(csv.bytes);
     expect(await zip.file('data.csv')!.async('string')).toContain('比较结果楼宇');
     await expect(recoverSelection('CBD', true, true)).rejects.toThrow('QUERY_DENIED');
+  });
+  it('rechecks each workbook sheet and denies the entire download after a secondary source is revoked', async () => {
+    await vi.mocked(loadDataAuthority).withImplementation(async () => ({ ...grant,
+      grants: ['query:catalog', 'query:brochure', 'export:internal'], fields: ['height'] }), async () => {
+      const { a, restored, rpc, requestId } = await recoverSelection('CBD', false, false, true);
+      expect(rpc).toHaveBeenCalledTimes(2);
+      const original = await buildResultArtifact(a, { requestId, resultId: a.resultId, action: 'export', format: 'xlsx' });
+      const reopened = await buildResultArtifact(restored.result, { requestId, resultId: a.resultId, action: 'export', format: 'xlsx' });
+      expect(original.type).toBe('download');
+      expect(reopened).toEqual(original);
+      await expect(recoverSelection('CBD', true, false, true)).rejects.toThrow('QUERY_DENIED');
+    });
+    await expect(recoverSelection('CBD', false, false, true)).rejects.toThrow('QUERY_DENIED');
   });
   it('recovers the last model tool plan, not the earlier disallowed tool result', async () => {
     const recovered = await recover('CBD');

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ModelProviderError, type ModelCompletion, type ModelToolCall } from './modelProvider';
+import { MAX_DEEPSEEK_REASONING_CHARS, ModelProviderError, type ModelCompletion, type ModelToolCall } from './modelProvider';
 
 const toolDeltaSchema = z.object({
   index: z.number().int().min(0).max(7),
@@ -17,6 +17,7 @@ const chunkSchema = z.object({
     index: z.number().int().min(0).max(0),
     delta: z.object({
       content: z.string().nullable().optional(),
+      reasoning_content: z.string().nullable().optional(),
       tool_calls: z.array(toolDeltaSchema).max(8).optional(),
     }),
     finish_reason: z.string().nullable().optional(),
@@ -46,6 +47,7 @@ export async function parseDeepSeekStream(
   const observedTools = new Map<number, ToolAccumulator>();
   let buffer = '', totalBytes = 0, text = '', finishReason: string | null = null;
   let completed = false;
+  let reasoning: string | null = null;
   const accounting: { usage: { prompt_tokens?: number; completion_tokens?: number;prompt_cache_hit_tokens?:number;completion_tokens_details?:{reasoning_tokens?:number} } | null } = { usage: null };
   let providerRequestId = '', actualModel = requestedModel;
   const consume = async (raw: string) => {
@@ -71,6 +73,10 @@ export async function parseDeepSeekStream(
     if (choice.finish_reason) {
       if (finishReason && finishReason !== choice.finish_reason) throw new ModelProviderError('invalid_response');
       finishReason = choice.finish_reason;
+    }
+    if (choice.delta.reasoning_content != null) {
+      reasoning = (reasoning ?? '') + choice.delta.reasoning_content;
+      if (reasoning.length > MAX_DEEPSEEK_REASONING_CHARS) throw new ModelProviderError('invalid_response');
     }
     if (choice.delta.content) {
       if (text.length + choice.delta.content.length > MAX_ASSISTANT_CHARS) throw new ModelProviderError('invalid_response');
@@ -105,6 +111,7 @@ export async function parseDeepSeekStream(
         throw new ModelProviderError('invalid_response');
       for (let index = buffer.indexOf('\n\n'); index !== -1; index = buffer.indexOf('\n\n')) {
         const raw = buffer.slice(0, index);
+        if (Buffer.byteLength(raw, 'utf8') > MAX_EVENT_BYTES) throw new ModelProviderError('invalid_response');
         buffer = buffer.slice(index + 2);
         await consume(raw);
         if (completed) break;
@@ -121,7 +128,8 @@ export async function parseDeepSeekStream(
       throw new ModelProviderError('invalid_response');
     return {
       model: actualModel, providerRequestId,
-      message: { role: 'assistant', content: text || null, ...(tools.length ? { tool_calls: tools } : {}) },
+      message: { role: 'assistant', content: text || null,
+        ...(tools.length ? { tool_calls: tools, ...(reasoning !== null ? { reasoning_content: reasoning } : {}) } : {}) },
       ...(accounting.usage?.prompt_cache_hit_tokens!==undefined?{cachedInputTokens:accounting.usage.prompt_cache_hit_tokens}:{}),
       ...(accounting.usage?.completion_tokens_details?.reasoning_tokens!==undefined?{reasoningTokens:accounting.usage.completion_tokens_details.reasoning_tokens}:{}),
       inputTokens: accounting.usage?.prompt_tokens ?? null, outputTokens: accounting.usage?.completion_tokens ?? null,

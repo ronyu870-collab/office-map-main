@@ -61,7 +61,9 @@
 .bar { position: absolute; height: 16px; top: 4px; background: var(--cd-color-brand); }
 .zero { position: absolute; height: 24px; border-left: 1px solid var(--cd-color-text-secondary); }
 .scatterScroll { overflow-x: auto; max-width: 100%; margin-top: 12px; }
-.scatterScroll svg { font-size: 14px; font-family: inherit; fill: var(--cd-color-text-primary); }
+.scatterPlot { max-width: 100%; margin-top: var(--cd-space-2); }
+.scatterPlot svg { display: block; }
+.scatterScroll svg, .scatterPlot svg { font-size: 14px; font-family: inherit; fill: var(--cd-color-text-primary); }
 @media (max-width: 639px), (pointer: coarse) { .chartSelect select, .exportMenu summary { min-height: 44px; } }
 @media (max-width: 639px) { .barRow { grid-template-columns: minmax(0, 1fr) minmax(48px, 1fr) minmax(0, 1fr); gap: 8px; } }
 

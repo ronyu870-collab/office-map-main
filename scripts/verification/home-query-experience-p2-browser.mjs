@@ -180,6 +180,13 @@ async function makePage(width, capability = 'enabled', role = 'admin') {
         if (body.action === 'archive') localHistory.find(entry => entry.conversationId === body.conversationId).archived = body.archived;
         return json({ status: 'saved' });
       }
+      if (url.pathname === '/api/intelligence/query/buildings' && body.resultId === entity.resultId) {
+        if (body.requestId !== requestId || body.buildingId || body.photoId) return route.fulfill({ status: 403, json: { status: 'denied' } });
+        const row = entity.table.rows[0];
+        return json({ status: 'ready', requestId, resultId: entity.resultId, metadataReadAt: '2026-11-17T03:00:00.000Z',
+          total: 1, offset: 0, hasMore: false, buildings: [{ id: row.entityId, name: row.cells.name.value, submarket: 'CBD', grade: 'A',
+            located: false, unavailableReason: 'missing_coordinates', photo: null }] });
+      }
       if (url.pathname === '/api/intelligence/query/artifact') {
         if (body.action === 'chart') {
           const selected = [aggregate, vacancyResult, relationship, regional, trend, tableResult, professional, ranking, distribution, entity, fileResult, pdfResult, leaseSummary, leaseUnknown].find(result => result.resultId === body.resultId);
@@ -641,7 +648,9 @@ try {
     await capture(session, 'default-ranking');
     if (variant === 'after') {
       await send(session, '查看合成单楼宇资料', 'entity');
-      await activeAnswer.getByRole('region', { name: '记录摘要', exact: true }).waitFor();
+      const record = activeAnswer.getByRole('region', { name: '记录摘要', exact: true });
+      await record.waitFor();
+      await record.getByRole('heading', { name: entity.table.rows[0].cells.name.value, exact: true }).waitFor();
       const boundary = activeAnswer.getByLabel('重要数据限制', { exact: true });
       assert.equal(await boundary.count(), 1);
       assert.match(await boundary.innerText(), /不按零处理/);
@@ -755,9 +764,37 @@ try {
       await capture(session, 'long-markdown');
       session.interactionChecks.additionalAnswerReading = { passed: true, vacancy: true, multipleRegions: true, scatterKeyboardAndSources: true, realPdfDownload: true, longChineseTitle: true, longUrl: true, incompleteMarkdown: true, headingNavigation: true };
     }
-    await send(session, '查看新的分析', 'failure');
+    const leaseDetailQuestion = '列出2026年上半年CBD单笔租赁成交按面积排名前十笔。';
+    if (variant === 'after') {
+      await page.locator('#home-query').focus();
+      await page.waitForFunction(() => {
+        const surface = document.querySelector('#colliers-ai');
+        return ['focus', 'expanded'].includes(surface?.dataset.mode) && surface.dataset.transitioning === 'false';
+      });
+    }
+    const pageBeforeLeaseFailure = page.url();
+    const modeBeforeLeaseFailure = await page.locator('#colliers-ai').getAttribute('data-mode');
+    await send(session, leaseDetailQuestion, 'failure');
     await page.getByRole('button', { name: '重试本次请求', exact: true }).waitFor();
     await capture(session, 'failure');
+    if (variant === 'after') {
+      const failed = structuredClone(control.lastBody);
+      assert.equal(failed.question, leaseDetailQuestion);
+      assert.equal(page.url(), pageBeforeLeaseFailure);
+      assert.equal(await page.locator('#colliers-ai').getAttribute('data-mode'), modeBeforeLeaseFailure);
+      await page.locator('#home-query').fill('下一条还未提交的问题');
+      control.answer = 'lease-unknown';
+      const retried = page.waitForResponse(response => new URL(response.url()).pathname === '/api/intelligence/query'
+        && response.request().method() === 'POST');
+      await page.getByRole('button', { name: '重试本次请求', exact: true }).click();
+      const request = (await retried).request().postDataJSON();
+      assert.equal(request.question, leaseDetailQuestion);
+      assert.equal(request.idempotencyKey, failed.idempotencyKey);
+      assert.deepEqual(request.conversation, failed.conversation);
+      assert.equal(await page.locator('#home-query').inputValue(), '下一条还未提交的问题');
+      assert.equal(page.url(), pageBeforeLeaseFailure);
+      session.interactionChecks.leaseDetailFailureRetry = { passed: true, sameIdempotencyKey: true, sameConversation: true, pendingDraftPreserved: true };
+    }
     await send(session, '继续查询尚在处理中的结果', 'waiting');
     await capture(session, 'waiting');
     await page.getByRole('button', { name: '停止等待', exact: true }).click();

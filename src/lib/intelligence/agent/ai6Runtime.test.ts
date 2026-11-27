@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { routeTask } from './taskRouting';
+import { resumesResearch, routeTask } from './taskRouting';
 import { runAgentLoop, agentInstructions } from './agentOrchestrator';
 import { structuredQueryPlan } from './structuredQueryPlan';
 import { parseAgentToolArguments } from './toolRegistry';
@@ -67,6 +67,49 @@ describe('AI6 full-condition execution routing', () => {
   it.each(['什么是净有效租金', '如何计算空置率', '请写一封邮件解释净有效租金'])('does not turn conceptual discussion into a database query: %s', q => {
     expect(routeTask(q).route).toBe('bounded_agent'); expect(modelToolCatalogue(q, 'deep', [])).toHaveLength(0);
   });
+  it('resumes a verbatim research retry while a new business question stays independent', () => {
+    const previous = '研究 CBD 近四季度租金、空置率和面积，生成内部 Word、PPT、PDF 与 Excel。';
+    expect(resumesResearch(previous, previous)).toBe(true);
+    expect(resumesResearch('继续刚才的研究', previous)).toBe(true);
+    expect(resumesResearch('查询CBD楼宇清单', previous)).toBe(false);
+    expect(resumesResearch('制作金融街四季度专项研究报告', previous)).toBe(false);
+  });
+  it('routes unresolved hard site conditions for interpretation and respects explicit map exclusion', () => {
+    const base = 'CBD选址租赁2000平方米，预算300元/平方米/月';
+    expect(routeTask(base + '，地铁步行800米内，不要地图')).toMatchObject({ route: 'deterministic_query',
+      siteSelection: { walkMeters: 800, mapRequested: false } });
+    for (const condition of ['必须具备独立电梯', '要能办环评', '指定在国贸站2号口附近']) {
+      expect(routeTask(`${base}，${condition}，不要地图`).siteSelection).toBeUndefined();
+    }
+  });
+  it.each([['步行800米内办公选址', '800'], ['帮我找写字楼，步行不超过500米', '500']])(
+    'requests an anchor when the walk question has no destination: %s', async (question, distance) => {
+      const invoke = vi.fn(), runTool = vi.fn();
+      const out = await runAgentLoop({ question, taskRoute: routeTask(question), invoke, runTool, signal: signal() });
+      expect(out.executionStatus).toBe('limited');
+      expect(out.result).toBeUndefined();
+      expect(out.answer).toContain(`${distance} 米`);
+      expect(out.answer).toContain('直线距离初筛');
+      expect(invoke).not.toHaveBeenCalled();
+      expect(runTool).not.toHaveBeenCalled();
+    },
+  );
+  it('recognizes named and nearest metro screening without silently dropping extra criteria', () => {
+    expect(routeTask('地铁国贸站步行不超过800米的办公选址，给出地图链接')).toMatchObject({ route: 'deterministic_query',
+      metroSelection: { radiusMeters: 800, stationName: '国贸', mapRequested: true }, walkingRouteUnavailable: true });
+    expect(routeTask('帮我找写字楼，距地铁站步行不超过500米，不要地图')).toMatchObject({ route: 'deterministic_query',
+      metroSelection: { radiusMeters: 500, mapRequested: false }, walkingRouteUnavailable: true });
+    expect(routeTask('在中关村地铁站步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: '中关村', submarkets: undefined });
+    expect(routeTask('在望京地铁站步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: '望京', submarkets: undefined });
+    expect(routeTask('在望京西站步行800米内办公选址').metroSelection).toMatchObject({ stationName: '望京西', submarkets: undefined });
+    expect(routeTask('请帮我找国贸地铁站步行不超过800米的办公楼').metroSelection).toMatchObject({ stationName: '国贸', submarkets: undefined });
+    expect(routeTask('在CBD地铁步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: undefined, submarkets: ['CBD'] });
+    expect(routeTask('在CBD，地铁站步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: undefined, submarkets: ['CBD'] });
+    expect(routeTask('在中关村，地铁站步行800米内办公选址').metroSelection).toMatchObject({ stationName: undefined, submarkets: ['中关村'] });
+    expect(routeTask('在国贸地铁站，步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: '国贸', submarkets: undefined });
+    expect(routeTask('在中关村地铁站，步行800米内办公选址').metroSelection).toMatchObject({ stationName: '中关村', submarkets: undefined });
+    expect(routeTask('地铁国贸站步行800米内找办公室，必须有独立电梯').metroSelection).toBeUndefined();
+  });
   it('keeps report-period policy tasks out of the narrow semantic extractor', () => {
     const q = '查询最近一个已结束季度的净有效租金，用于内部报告。';
     expect(routeTask(q).route).toBe('bounded_agent');
@@ -81,10 +124,37 @@ describe('AI6 full-condition execution routing', () => {
     expect(routeTask(question, prior).plan?.scope).toEqual({ inventory: 'all_authorized' });
     expect(routeTask('换成2026Q3', plan).plan).toMatchObject({ period: { year: 2026, quarter: 3 }, metric: 'rent', scope: plan.scope });
   });
+  it.each(['什么是净有效租金？以 2026Q2 CBD 的实际数据为例。', '请问净有效租金是什么意思？用 2026Q2 CBD 的正式数据举例。',
+    '解释净有效租金的定义。用2026Q2 CBD的实际数据举例。'])
+    ('resolves a concept with a naturally phrased, explicit quarterly example: %s', request => {
+      const task = routeTask(request);
+      expect(task).toMatchObject({ route: 'deterministic_query', conceptExample: true,
+        plan: { operation: 'aggregate', metric: 'rent', period: { year: 2026, quarter: 2 }, scope: { submarkets: ['CBD'] } } });
+    });
   it('only reuses server-imported previous results for exports and chart generation', () => {
     expect(routeTask('把刚才的结果导出Excel', plan, false, true)).toMatchObject({ reusePrevious: true, exportFormat: 'xlsx' });
     expect(routeTask('把刚才的结果画成图', plan, false, true)).toMatchObject({ reusePrevious: true, chartType: 'auto' });
     expect(routeTask('把刚才的结果导出Excel', plan).route).toBe('bounded_agent');
+  });
+  it.each([
+    ['把刚才的结果导出Excel', false],
+    ['请把刚才三份结果分别放到一个 Excel 工作簿', true],
+    ['将前面的3个结果导出为同一个xlsx，每份一张工作表', true],
+  ])('exports all rechecked prior results without asking a model: %s', async (request, separateSheets) => {
+    const ids = [randomUUID(), randomUUID(), randomUUID()];
+    const task = routeTask(request, plan, false, false, undefined, false, ids.length);
+    expect(task).toMatchObject({ route: 'deterministic_query', reusePriorExport: separateSheets ? 'separate' : 'auto', exportFormat: 'xlsx' });
+    const invoke = vi.fn(), runTool = vi.fn().mockResolvedValue({ result: buildListResult(fixture(), []), content: '{"status":"ready"}' });
+    await runAgentLoop({ question: request, taskRoute: task, priorExportResultIds: ids, invoke, runTool, signal: signal() });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(runTool).toHaveBeenCalledExactlyOnceWith('export_table', { resultIds: ids, format: 'xlsx', filters: [], singleSheet: false,
+      ...(separateSheets ? { separateSheets: true } : {}) }, expect.any(AbortSignal));
+  });
+  it('keeps a missing sheet or additional deliverable visible', () => {
+    expect(routeTask('把刚才三份结果分别放到一个Excel', plan, false, true, undefined, false, 2))
+      .toMatchObject({ route: 'direct_response', reply: expect.stringContaining('2 份') });
+    expect(routeTask('把刚才三份结果分别放到一个Excel，再生成一份PDF', plan, false, true, undefined, false, 3).reusePriorExport)
+      .toBeUndefined();
   });
   it('applies complete sort, numeric filter and page edits only to an existing authorized column', async () => {
     const prior = resultViewSchema.parse(buildListResult(fixture(), ['height', 'netEffectiveRent']));

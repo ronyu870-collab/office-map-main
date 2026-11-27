@@ -1,3 +1,4 @@
+import { rankProjectionFields, type RankProjection } from './plan';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { aggregateQuarter, compareQuarters, rankBuildings, trendQuarters } from './analytics';
@@ -129,17 +130,29 @@ export function buildListResult(snapshot: FactSnapshot, fields: readonly Numeric
   }, fields);
 }
 
-export function buildRankResult(snapshot: FactSnapshot, field: NumericField, limit: number, direction: 'asc' | 'desc'): QueryResult {
+export function buildRankResult(snapshot: FactSnapshot, field: NumericField, limit: number, direction: 'asc' | 'desc',
+  projection: readonly RankProjection[] = []): QueryResult {
   const analysis = rankBuildings(snapshot, field, limit, direction);
+  const byId = new Map(snapshot.rows.map(row => [row.id, row]));
+  const additional = rankProjectionFields(projection);
+  const keys = new Set<string>(projection.map(key => key === 'vacancyRate' ? 'vacancy' : key));
+  const projected = keys.size ? buildListResult({ ...snapshot,
+    rows: analysis.rows.map(row => byId.get(row.entityId)!), expectedCount: analysis.rows.length,
+  }, additional, projection.includes('vacancyRate')) : undefined;
+  const extraCells = new Map(projected?.table.rows.map(row => [row.entityId, row.cells]));
+  const columns = projected?.table.columns.filter(column => keys.has(column.key)) ?? [];
   return envelope(snapshot, {
-    operation: 'rank', parameters: { field, limit, direction, period: snapshot.period }, analysis,
+    operation: 'rank', parameters: { field, limit, direction, period: snapshot.period, ...(projection.length ? { projection } : {}) }, analysis,
     table: {
-      id: 'ranking', columns: [{ key: 'name', label: '楼宇', unit: null }, { key: field, label: numericFields[field].label, unit: numericFields[field].unit }],
+      id: 'ranking', columns: [{ key: 'name', label: '楼宇', unit: null },
+        { key: field, label: numericFields[field].label, unit: numericFields[field].unit }, ...columns],
       rows: analysis.rows.map(row => ({ entityId: row.entityId, cells: {
-        name: { kind: 'text', value: row.name, sourceIds: [snapshot.rows.find(entity => entity.id === row.entityId)!.nameSource.id] }, [field]: { kind: 'number', value: row.value, sourceIds: row.sourceIds },
+        name: { kind: 'text', value: row.name, sourceIds: [byId.get(row.entityId)!.nameSource.id] },
+        [field]: { kind: 'number', value: row.value, sourceIds: row.sourceIds },
+        ...Object.fromEntries(columns.map(column => [column.key, extraCells.get(row.entityId)![column.key]])),
       } })),
     },
-  }, [field]);
+  }, [...new Set([field, ...additional])]);
 }
 
 export function buildAggregateResult(snapshot: FactSnapshot, metric: Parameters<typeof aggregateQuarter>[1]): QueryResult {
@@ -374,7 +387,7 @@ export function attachExecutedPlan(result: QueryResult, plan: QueryPlan): QueryR
 
 /** Trusted executor adds the complete authorized filter decision trail, including
  * unknown candidates, without allowing a second query to change result values. */
-export function attachFilterEvidence(result: QueryResult, evidence: readonly { snapshot: FactSnapshot; fields: readonly NumericField[]; decisions: readonly { entityId: string; state: 'true' | 'false' | 'unknown' }[] }[]): QueryResult {
+export function attachFilterEvidence(result: QueryResult, evidence: readonly { snapshot: FactSnapshot; fields: readonly NumericField[]; includeCatalogDimensions?: boolean; decisions: readonly { entityId: string; state: 'true' | 'false' | 'unknown' }[] }[]): QueryResult {
   for (const item of evidence) {
     assertComplete(item.snapshot);
     assertFieldContext(item.snapshot, item.fields);
@@ -386,11 +399,12 @@ export function attachFilterEvidence(result: QueryResult, evidence: readonly { s
   return deepFreeze({ ...result,
     parameters: { ...result.parameters, filterEvaluation: evidence.map(item => ({
       snapshotId: item.snapshot.snapshotId, period: item.snapshot.period, fields: [...item.fields],
+      ...(item.includeCatalogDimensions ? { catalogGrade: 'current_catalog' } : {}),
       total: item.snapshot.expectedCount, matched: item.decisions.filter(row => row.state === 'true').length,
       notMatched: item.decisions.filter(row => row.state === 'false').length, unknown: item.decisions.filter(row => row.state === 'unknown').length,
       decisions: structuredClone(item.decisions),
     })) },
-    sources: mergeSources([result.sources, ...evidence.map(item => collectSources(item.snapshot, item.fields))]),
+    sources: mergeSources([result.sources, ...evidence.map(item => collectSources(item.snapshot, item.fields, item.includeCatalogDimensions))]),
     limitations: [...new Set([
       ...result.limitations,
       ...(evidence.some(item => item.snapshot.queryScope?.brochureSelection === 'all_unresolved_record_candidates'

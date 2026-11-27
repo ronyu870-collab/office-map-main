@@ -9,7 +9,7 @@ import { projectResultTable } from './tableView';
 
 export { chartRequestSchema, type ChartRequest } from './chartSpec';
 import { chartRequestSchema, type ChartRequest } from './chartSpec';
-import { axisText, axisTicks, buildCartesianChart, configureChart, renderCartesianSvg } from './chartWorkspace';
+import { axisDomain, axisText, axisTicks, buildCartesianChart, configureChart, renderCartesianSvg } from './chartWorkspace';
 type CellBinding = { entityId: string; key: string; sourceIds: readonly string[]; analysisPath?: readonly (string|number)[] };
 export type ChartPoint = { label: string; x: number | string | null; y: number | null; xText: string; yText: string;
   xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number; outlier?: boolean | null };
@@ -232,6 +232,19 @@ export function chartBounds(chart: ResultChart, axis: 'x' | 'y'): [number, numbe
   return [config?.min ?? bounds[0], config?.max ?? bounds[1]];
 }
 
+/** The chart and both image formats use the same data window and tick labels. */
+export function scatterGeometry(chart: ResultChart, box: { left: number; right: number; top: number; bottom: number }) {
+  const [xmin, xmax] = axisDomain(chart, 'x'), [ymin, ymax] = axisDomain(chart, 'y');
+  const x = (value: number) => box.left + (value - xmin) / (xmax - xmin) * (box.right - box.left);
+  const y = (value: number) => box.bottom - (value - ymin) / (ymax - ymin) * (box.bottom - box.top);
+  const xCount = chart.request.xAxis?.ticks ?? 5, yCount = chart.request.yAxis?.ticks ?? 5;
+  return {
+    x, y,
+    xTicks: axisTicks([xmin, xmax], xCount).map(value => ({ position: x(value), label: axisText(value, chart.xUnit, (xmax - xmin) / (xCount - 1)) })),
+    yTicks: axisTicks([ymin, ymax], yCount).map(value => ({ position: y(value), label: axisText(value, chart.yUnit, (ymax - ymin) / (yCount - 1)) })),
+  };
+}
+
 /** Nice, finite zero-based default; custom bounds and percentage axes remain
  * explicit. Never round source values or clip data to improve appearances. */
 export function lineAxisDomain(raw: [number, number], unit: string | null, axis: { min?: number; max?: number } | undefined, count = 5): [number, number] {
@@ -348,15 +361,15 @@ export function renderChartSvg(chart: ResultChart, options?: { provenance: 'atta
     }
   } else {
     const valid = chart.points.filter(p => p.state === 'valid');
-    const [xmin, xmax] = chartBounds(chart, 'x'), [ymin, ymax] = chartBounds(chart, 'y');
-    if (![xmax - xmin, ymax - ymin].every(Number.isFinite)) throw new Error('CHART_RANGE_UNSUPPORTED');
     const plotTop = y + 20, plotBottom = plotTop + 320;
-    const sx = (n: number) => 120 + (n - xmin) / (xmax - xmin || 1) * 660;
-    const sy = (n: number) => plotBottom - (n - ymin) / (ymax - ymin || 1) * 320;
+    const plot = scatterGeometry(chart, { left: 120, right: 780, top: plotTop, bottom: plotBottom });
     elements.push(`<path d="M120 ${plotTop} V${plotBottom} H780" fill="none" stroke="#667085"/>`);
-    for (const p of valid) elements.push(`<circle cx="${sx(p.x as number)}" cy="${sy(p.y!)}" r="4" fill="#003e7e"><title>${xml(`${p.label}：${p.xText}，${p.yText}`)}</title></circle>`);
-    text(100, plotTop + 5, axisText(ymax,chart.yUnit), 'text-anchor="end"'); text(100, plotBottom, axisText(ymin,chart.yUnit), 'text-anchor="end"');
-    text(120, plotBottom + 24, axisText(xmin,chart.xUnit)); text(780, plotBottom + 24, axisText(xmax,chart.xUnit), 'text-anchor="end"');
+    for (const tick of plot.yTicks) {
+      elements.push(`<line x1="120" x2="780" y1="${tick.position}" y2="${tick.position}" stroke="#dbe0e6"/>`);
+      text(108, tick.position + 4, tick.label, 'text-anchor="end"');
+    }
+    for (const tick of plot.xTicks) text(tick.position, plotBottom + 24, tick.label, 'text-anchor="middle"');
+    for (const p of valid) elements.push(`<circle cx="${plot.x(p.x as number)}" cy="${plot.y(p.y!)}" r="4" fill="#003e7e"><title>${xml(`${p.label}：${p.xText}，${p.yText}`)}</title></circle>`);
     y = paragraph(`${chart.xLabel}（${units[chart.xUnit ?? ''] ?? chart.xUnit ?? ''}）`, plotBottom + 52);
   }
   y += 24;

@@ -23,7 +23,7 @@ export function compactModelContext(messages: AgentMessage[]): AgentMessage[] {
 
 export function modelContextEnvelope(provider: ProviderId, messages: AgentMessage[], tools: AgentToolDefinition[]) {
   const wireMessages = provider === 'deepseek' ? toLegacyMessages(messages) : messages.map(m => {
-    if (m.continuation) return { opaqueContinuationBytes: m.continuationBudgetBytes ?? 0 };
+    if (m.continuation && !m.continuation.startsWith('deepseek:')) return { opaqueContinuationBytes: m.continuationBudgetBytes ?? 0 };
     return m.role === 'tool' ? { type: 'function_call_output', call_id: m.callId, output: m.content ?? '' }
       : { role: m.role === 'system' ? 'developer' : m.role, content: m.content,
         calls: m.calls?.map(c => ({ type: 'function_call', call_id: c.id, name: c.name, arguments: c.arguments })) };
@@ -31,7 +31,10 @@ export function modelContextEnvelope(provider: ProviderId, messages: AgentMessag
   const messageBytes = Buffer.byteLength(JSON.stringify(wireMessages));
   const toolBytes = Buffer.byteLength(JSON.stringify(tools.map(t => provider === 'deepseek'
     ? { type: 'function', function: t } : { type: 'function', ...t, strict: false })));
-  const opaqueBytes = provider === 'openai' ? messages.reduce((n, m) => n + (m.continuationBudgetBytes ?? 0), 0) : 0;
+  const opaqueBytes = messages.reduce((bytes, message) => {
+    const deepseekContinuation = message.continuation?.startsWith('deepseek:') === true;
+    return bytes + ((provider === 'deepseek') === deepseekContinuation ? message.continuationBudgetBytes ?? 0 : 0);
+  }, 0);
   // No compatible, calibrated tokenizer is installed. Keep an explicit byte
   // hard envelope rather than presenting a heuristic as exact token usage.
   return { inputUpperTokens: messageBytes + toolBytes + opaqueBytes + 1024,

@@ -2,7 +2,7 @@ import * as React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
-import { buildAggregateResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
+import { buildAggregateResult, buildListResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
 import type { AnswerSelection } from '@/src/lib/intelligence/query/answerSelection';
 vi.mock('@/src/services/trustedQueryClient', () => ({ trustedQueryClient: { reportDelivery: vi.fn().mockResolvedValue(true), chart: vi.fn() } }));
@@ -46,6 +46,21 @@ it('renders both verified comparison snapshots and their separate evidence rathe
   expect(screen.getAllByRole('button', { name: '数据依据' })).toHaveLength(2);
   expect(screen.queryByRole('table')).not.toBeInTheDocument();
   expect(screen.getByRole('region', { name: '共同参与比较的结果' })).toBeVisible();
+});
+it('shows the authorized dossier fields inline with their own data sources', () => {
+  const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
+  const dossier = resultViewSchema.parse(buildListResult(fixture(), []));
+  dossier.parameters = { businessTool: 'query_building_dossier', dataDomain: 'business-research/1' };
+  const row = dossier.table.rows[0];
+  dossier.table = { id: 'dossier', columns: [{ key: 'name', label: '楼宇', unit: null }, { key: 'address', label: '地址（楼书）', unit: null }],
+    rows: [{ ...row, cells: { name: row.cells.name, address: { kind: 'text', value: '合成地址 2 号', sourceIds: [] } } }] };
+  const selection: AnswerSelection = { version: 'answer-selection/1', task: 'list', status: 'answered', primaryResultId: result.resultId,
+    results: [{ role: 'primary', result }, { role: 'supporting', result: dossier }] };
+  render(<HomeQueryResponse result={result} answerSelection={selection} scope={scope} internalExport={false} presentation="expanded" onExpand={() => {}} />);
+  expect(screen.getByRole('table')).toHaveTextContent('合成地址 2 号');
+  expect(screen.getByRole('heading', { name: '楼宇资料' })).toBeVisible();
+  expect(screen.getAllByRole('button', { name: '数据依据' })).toHaveLength(2);
+  expect(screen.queryByText('查看辅助依据')).not.toBeInTheDocument();
 });
 it('keeps a trusted map outcome visible once when formal data owns the result summary', () => {
   const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));

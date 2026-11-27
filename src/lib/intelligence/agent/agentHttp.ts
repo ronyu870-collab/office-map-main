@@ -1,10 +1,10 @@
 import { bindRuntimeControl } from '../control/runtimeControl';
-import { readAvailablePeriodGroups } from '../query/availablePeriods';
+import { readAvailablePeriods, readAvailablePeriodGroups } from '../query/availablePeriods';
 import { numericFields, type NumericField } from '../query/registry';
 import { KNOWLEDGE_TOOL_NAMES, isKnowledgeResult, type KnowledgeToolName } from '../knowledge/protocol';
 import { queryKnowledge, knowledgeModelObservation, recheckKnowledgeResults } from '../knowledge/research';
 import { publicSearchConfigured } from '../knowledge/publicSearch';
-import { RESEARCH_TOOL_NAMES } from '../research/protocol';
+import { RESEARCH_TOOL_NAMES, researchSpecSchema } from '../research/protocol';
 import { ResearchExecution } from '../research/execution';
 import { isResearchResult, researchObservation, researchSections, reviewIssueText } from '../research/workspace';
 import { recheckResearchResult } from '../research/authorization';
@@ -12,6 +12,9 @@ import { generateResearchDeliverable } from '../research/deliverable';
 import { artifactFulfillment, artifactLabels } from './artifactFulfillment';
 import { BUSINESS_TOOL_NAMES, isBusinessResult, type BusinessToolName } from '../business/protocol';
 import { queryBusinessResearch, businessModelObservation, recheckBusinessResults, businessCapabilities } from '../business/research';
+import { addDossierGfa, readDossierGfa } from '../business/dossierProjection';
+import { attachMetroScreening, screenMetroCandidates } from '../query/metroScreening';
+import { resultBuildingRows } from '../query/buildingCards';
 import { isLeaseResult } from '../lease/protocol';
 import { queryLeaseResearch, leaseModelObservation } from '../lease/tool';
 import { recheckLeaseResult, recheckLeaseResults } from '../lease/research';
@@ -29,7 +32,8 @@ import { prepareDelivery } from '../query/deliveryToken';
 import { prepareQueryJsonResponse } from '../query/jsonResponse';
 import { loadDataAuthority, verifyQueryIdentity, type VerifiedQueryIdentity } from '../query/serverAuthority';
 import { queryConversationSchema } from '../query/conversationProtocol';
-import { parseQueryPlan } from '../query/plan';
+import { parseQueryPlan, planOutputFields } from '../query/plan';
+import { shiftQuarter } from '../query/relativeQuarter';
 import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import { runAgentLoop, type AgentEvent } from './agentOrchestrator';
 import { readOwnResult, recoverOwnResult } from '../query/recovery';
@@ -43,17 +47,21 @@ import type { QueryResult } from '../query/result';
 import { estimateAgentCostRange } from './agentCost';
 import { createModelRuntime, modelModeSchema } from './modelRuntime';
 import { validatedResultTableView } from '../query/tableView';
-import { routeTask } from './taskRouting';
+import { precedingMarketComparison, resumesResearch, routeTask } from './taskRouting';
+import { mapExplicitlyExcluded, siteSelectionPlan, siteSelectionScope } from './siteSelection';
 import { nextAgentMemory } from './agentMemory';
 import { queryVerifiedRealEstate, executeStructuredDataTool } from './verifiedDataTool';
+import { structuredQueryPlan } from './structuredQueryPlan';
 import { queryCapabilityManifest } from '../query/capabilityManifest';
 import { recordHistorySubmission } from '../query/historyStore';
 import { REGISTERED_AGENT_TOOL_NAMES, STRUCTURED_DATA_TOOL_NAMES, WORKSET_TOOL_NAMES, type StructuredDataToolName } from './toolRegistry';
 import { AuthorizedResultWorkset, type WorksetOwner } from './resultWorkset';
 import { PRESENTATION_TOOL_NAMES, runResultPresentationTool } from './resultTools';
 import { AGENT_CONVERSATION_PROTOCOL, readAgentHistory, trimAgentHistory } from './agentConversation';
+import { responseBuildingLocation } from '../query/responsePresentation';
+import { resultAvailability } from '../query/resultAvailability';
 import { selectedAnswerResult, type AnswerSelection } from '../query/answerSelection';
-import { answerTask, applyAnswerPolicy, hasExplicitLeaseWindow, isLatestLeaseQuestion } from './answerPolicy';
+import { answerTask, applyAnswerPolicy, assertLeaseDetailIntent, hasExplicitLeaseWindow, isLatestLeaseQuestion } from './answerPolicy';
 
 const inputSchema = z.strictObject({
   idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(s => !!s.trim()),
@@ -185,14 +193,18 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       currentSignal.throwIfAborted();
       if (budget.error || budget.data?.allowed !== true) throw new ModelProviderError('budget_exceeded', budget.error ? 'admission_service_unavailable' : 'account_admission');
     };
-    const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal);
-    const research = new ResearchExecution(history.contextResult && isResearchResult(history.contextResult) ? history.contextResult : undefined);
+    const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal,
+      precedingMarketComparison(valid.question));
+    const previousResearch = history.contextResult && isResearchResult(history.contextResult)
+      && resumesResearch(redactSubmittedCredentials(valid.question).text, history.at(-1)?.user)
+      ? history.contextResult : undefined;
+    const research = new ResearchExecution(previousResearch);
     let researchTouched = false;
     const reportHistory = /PDF/i.test(valid.question) && !research.task && authority.grants.includes('export:internal')
       ? await readReportHistory(client, actor, keys, authority, valid.conversation, signal) : undefined;
     for (const result of reportHistory?.results ?? []) workset.register(result, worksetOwner);
     for (const result of history.contextResults ?? [])
-      if (!reportHistory?.results.some(item => item.resultId === result.resultId)) workset.register(result, worksetOwner);
+      if (!isResearchResult(result) && !reportHistory?.results.some(item => item.resultId === result.resultId)) workset.register(result, worksetOwner);
     if (research.task) for (const section of researchSections(history.contextResult!)) workset.register(section.result, worksetOwner);
     if (history.contextResult && !isResearchResult(history.contextResult) && !reportHistory?.results.some(r => r.resultId === history.contextResult!.resultId))
       workset.register(history.contextResult, worksetOwner);
@@ -234,7 +246,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
     const knowledgeResults=new Map<string,QueryResult>();
-    const imported = research.task ? research.results : history.contextResults ?? (history.contextResult ? [history.contextResult] : []);
+    const imported = research.task ? research.results
+      : (history.contextResults ?? (history.contextResult ? [history.contextResult] : [])).filter(result => !isResearchResult(result));
     for (const r of imported) if(r.parameters.knowledgeBindings || r.parameters.publicBindings) knowledgeResults.set(r.resultId,r);
     const businessResults = new Map<string,QueryResult>();
     for (const r of imported) if(r.parameters.businessBindings) businessResults.set(r.resultId,r);
@@ -298,14 +311,51 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const needsSelection = () => new Set([...queriedIds, ...referencedIds]).size > 1
       && (!selectedAnswer || comparisonRequested && !selectedAnswer.results.some(item => item.role === 'comparison'));
 
-    const previousResult = history.contextResults?.length ? history.contextResults.length === 1 ? history.contextResults[0] : undefined : history.contextResult;
-    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult);
+    const previousResult = imported.length === 1 && !research.task ? imported[0] : undefined;
+    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextSemantic ?? history.contextPlan,
+      !!research.task, !!previousResult, previousResult, (history.contextComparisonIds?.length ?? 0) > 1, imported.length);
+    const metroScreening = taskRoute.metroSelection && await screenMetroCandidates(client, actor, authority, taskRoute.metroSelection, signal);
+    if (typeof metroScreening === 'string') {
+      taskRoute.route = 'direct_response';
+      taskRoute.reply = metroScreening;
+    } else if (metroScreening) {
+      const { candidates, locatedCount, matchedCount, missingCoordinates, radiusMeters, stationName } = metroScreening;
+      const submarkets = taskRoute.metroSelection?.submarkets;
+      taskRoute.plan = parseQueryPlan({ operation: 'list', fields: [], period: null,
+        scope: { inventory: 'tracked', ...(submarkets?.length ? { submarkets } : {}), buildingIds: candidates.map(item => item.buildingId) } });
+      taskRoute.reply = `在 ${locatedCount} 栋有坐标的获权楼宇中，${matchedCount} 栋距${stationName ? `「${stationName}」站` : '目录内最近地铁站'}直线 ${radiusMeters} 米以内。`
+        + (matchedCount > candidates.length ? `以下按距离列出前 ${candidates.length} 栋。` : '')
+        + (missingCoordinates ? `另有 ${missingCoordinates} 栋缺少有效坐标。` : '') + '实际步行路线待核验。';
+    }
+    if (taskRoute.conceptExample && taskRoute.plan && (!authority.grants.includes('query:quarter')
+      || planOutputFields(taskRoute.plan).some(field => !authority.fields.includes(field)))) {
+      taskRoute.route = 'direct_response';
+      taskRoute.plan = undefined;
+      taskRoute.reply = `${taskRoute.reply ?? ''}当前身份没有该案例指标的查询资格。`;
+    }
+    if (taskRoute.siteSelection) {
+      const site = taskRoute.siteSelection;
+      if (!authority.grants.includes('query:quarter') || !authority.fields.includes('netEffectiveRent')) {
+        taskRoute.route = 'direct_response';
+        taskRoute.reply = '当前身份无权查阅正式季度净有效租金，无法按预算初筛楼宇。';
+      } else {
+        const period = site.period ?? (await readAvailablePeriods(client, actor, authority,
+          siteSelectionScope(site), ['netEffectiveRent'], signal)).periods.at(-1);
+        if (period) taskRoute.plan = siteSelectionPlan(site, period);
+        else {
+          taskRoute.route = 'direct_response';
+          taskRoute.reply = '当前获权的选址范围没有可用于预算初筛的正式净有效租金记录。';
+        }
+      }
+    }
     await audit.append(requestId, 'tool_finished', { executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), phase: 'task_routed' });
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
         taskRoute, previousResultId: history.contextResults?.length === 1 ? history.contextResults[0].resultId : history.contextResult?.resultId,
+        previousComparisonIds: history.contextComparisonIds,
+        ...(taskRoute.reusePriorExport ? { priorExportResultIds: imported.map(result => result.resultId) } : {}),
         history, memory: history.memory, limits: runtime.limits,
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
@@ -355,6 +405,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         signal, onEvent,
         runTool: async function runTool(name, args): Promise<import('./agentOrchestrator').AgentToolObservation<QueryResult>> {
           if (!REGISTERED_AGENT_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
+          if (name === 'prepare_map_selection' && mapExplicitlyExcluded(valid.question)) throw new Error('AGENT_MAP_EXCLUDED');
           if (control.snapshot?.config.disabledTools.includes(name)) throw new Error('AGENT_TOOL_DISABLED');
           const toolSignal = AbortSignal.any([signal, AbortSignal.timeout(20000)]);
           const rechecked = await loadDataAuthority(client, actor, toolSignal);
@@ -379,13 +430,46 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           }
           if (RESEARCH_TOOL_NAMES.has(name)) {
             researchTouched = true;
-            if (name === 'plan_research_task') return research.plan(args);
+            if (name === 'plan_research_task') {
+              const question = valid.question.normalize('NFKC').replace(/\s+/gu, '').replace(/(\d{4})年第?([一二三四1-4])季度/g,
+                (_, year, quarter) => `${year}Q${'一二三四'.includes(quarter) ? '一二三四'.indexOf(quarter) + 1 : quarter}`);
+              if (!/(?:最新正式|最近有(?:正式)?数据的?)季度/u.test(question)) return research.plan(args);
+              const { recentCompletedQuarters, ...spec } = researchSpecSchema.parse(args);
+              const scope = { inventory: 'tracked' as const, submarkets: spec.submarkets,
+                ...(spec.buildingIds ? { buildingIds: spec.buildingIds } : {}) };
+              const groups = spec.metrics.map(metric => planOutputFields({ operation: 'aggregate', scope, metric, period: { year: 2000, quarter: 1 } }))
+                .filter(fields => rechecked.grants.includes('query:quarter') && fields.every(field => rechecked.fields.includes(field)));
+              const end = groups.length ? (await readAvailablePeriodGroups(client, actor, rechecked, scope, groups, toolSignal)).periods.at(-1) : undefined;
+              if (!end) throw new Error('RESEARCH_FORMAL_PERIOD_UNAVAILABLE');
+              const namedStart = /(\d{4})[Qq]([1-4])(?:起)?(?:至|到|—|~|-)(?:最新正式|最近有(?:正式)?数据的?)季度/u.exec(question);
+              const start = namedStart ? { year: Number(namedStart[1]), quarter: Number(namedStart[2]) }
+                : shiftQuarter(end, 1 - (recentCompletedQuarters ?? 4));
+              return research.plan({ ...spec, start, end });
+            }
             if (name === 'advance_research_task') {
               try { return await research.advance(args, async (tool, input) => {
-                const observed = await runTool(tool, input);
-                await audit!.append(requestId, 'tool_finished', { protocol: 'research-step/1', taskId: research.task!.id,
-                  tool, resultId: observed.result?.resultId ?? null, status: observed.result ? 'complete' : 'blocked' });
-                return observed;
+                try {
+                  const observed = await runTool(tool, input);
+                  await audit!.append(requestId, 'tool_finished', { protocol: 'research-step/1', taskId: research.task!.id,
+                    tool, resultId: observed.result?.resultId ?? null, status: observed.result ? 'complete' : 'blocked' });
+                  return observed;
+                } catch (error) {
+                  await audit!.append(requestId, 'tool_finished', { protocol: 'research-step/1', taskId: research.task!.id,
+                    tool, resultId: null, status: 'blocked' });
+                  if (error instanceof Error && error.message === 'QUERY_DENIED' && !toolSignal.aborted) {
+                    const restrictedFields = STRUCTURED_DATA_TOOL_NAMES.has(tool)
+                      && planOutputFields(structuredQueryPlan(tool as StructuredDataToolName, input).plan)
+                        .some(field => !rechecked.fields.includes(field)
+                          || !rechecked.grants.includes(numericFields[field].temporal === 'quarter' ? 'query:quarter' : 'query:brochure'));
+                    if (restrictedFields || BUSINESS_TOOL_NAMES.has(tool) || KNOWLEDGE_TOOL_NAMES.has(tool) || tool === 'query_lease_transactions') {
+                      // Recheck the authenticated identity and every accepted
+                      // source before treating a separate capability as limited.
+                      await revalidateModel(toolSignal);
+                      throw new Error('RESEARCH_STEP_NOT_AUTHORIZED');
+                    }
+                  }
+                  throw error;
+                }
               }, toolSignal); }
               catch (error) {
                 if (signal.aborted || error instanceof Error && error.message === 'QUERY_DENIED') throw error;
@@ -418,6 +502,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return {...observed,content:JSON.stringify({...JSON.parse(observed.content),workset:manifest})};
           }
           if (name === 'query_lease_transactions') {
+            assertLeaseDetailIntent(valid.question, args);
             const observed = await queryLeaseResearch(client, actor, toolSignal, args);
             if (!observed.result) return observed;
             leaseResults.set(observed.result.resultId, observed.result);queriedIds.add(observed.result.resultId);
@@ -563,11 +648,43 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (/(?:成交|租赁交易|lease.transaction)/i.test(args.question)) throw new Error('LEASE_TOOL_REQUIRED');
             // Bounded migration for previous native Tool Calling clients.
             observation = await queryVerifiedRealEstate({ client, keys, identity: actor, audit: audit!,
-              requestId, authority, signal: toolSignal, ...(taskRoute.route === 'single_interpretation' ? { interpret: runtime.interpret, contextPlan: history.contextPlan } : {}) }, args.question);
+              requestId, authority, signal: toolSignal, allowProjectProfile: taskRoute.catalogLookup === 'profile',
+              ...(taskRoute.route === 'single_interpretation' ? { interpret: runtime.interpret, contextPlan: history.contextPlan } : {}) }, args.question);
           } else if (STRUCTURED_DATA_TOOL_NAMES.has(name)) {
             observation = await executeStructuredDataTool({ client, keys, identity: actor, audit: audit!,
               requestId, authority, signal: toolSignal }, name as StructuredDataToolName, args);
           } else throw new Error('AGENT_UNREGISTERED_TOOL');
+          if (observation.result && name === 'execute_query_plan' && metroScreening && typeof metroScreening !== 'string')
+            observation.result = attachMetroScreening(observation.result, metroScreening);
+          if (observation.result && name === 'execute_query_plan'
+            && (taskRoute.planNotices?.length || taskRoute.unavailableFields?.length || taskRoute.siteSelection)) {
+            let result = observation.result;
+            let unavailableFields = taskRoute.unavailableFields ?? [];
+            const requestedBuildingArea = unavailableFields.includes('建筑面积');
+            let missingBuildingArea = 0, deniedBuildingArea = 0, unavailableBuildingArea = 0;
+            if (requestedBuildingArea && ['rank', 'list'].includes(result.operation)) {
+              const ids = resultBuildingRows(result as AnswerSelection['results'][number]['result']).map(row => row.id);
+              if (ids.length && ids.length <= 20 && ids.length === result.table.rows.length) {
+                const reads = rechecked.grants.includes('query:brochure') ? await readDossierGfa(client, actor, toolSignal, ids)
+                  : [{ ids, issue: 'denied' as const }];
+                if (reads.some(read => 'issue' in read)) await revalidateModel(signal);
+                const enriched = addDossierGfa(result, reads);
+                result = enriched.result;
+                for (const dossier of enriched.dossiers) businessResults.set(dossier.resultId, dossier);
+                unavailableFields = unavailableFields.filter(field => field !== '建筑面积');
+                ({ missing: missingBuildingArea, denied: deniedBuildingArea, unavailable: unavailableBuildingArea } = enriched);
+              }
+            }
+            observation.result = { ...result,
+              parameters: { ...result.parameters,
+                ...(taskRoute.siteSelection ? { siteSelection: taskRoute.siteSelection } : {}),
+                ...(taskRoute.unavailableFields?.length ? { interpretation: {
+                  ...(result.parameters.interpretation as object | undefined), unavailableFields,
+                  ...(requestedBuildingArea ? { requestedBuildingArea, missingBuildingArea, deniedBuildingArea, unavailableBuildingArea } : {}),
+                } } : {}),
+              },
+              limitations: [...new Set([...result.limitations, ...(taskRoute.planNotices ?? [])])] };
+          }
           if (observation.result) {
             queriedIds.add(observation.result.resultId);
             const manifest = workset.register(observation.result, worksetOwner);
@@ -585,7 +702,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         cost: null, costStatus: 'planning_range_not_invoice',
         costEstimate: runtime.summary().providers.every(p => p === 'deepseek') ? estimateAgentCostRange(reportedModel, reportedInput, reportedOutput) : null,
         durationMs: Math.max(0, Date.now() - agentStartedAt) });
-      if ((researchTouched || history.contextResult && isResearchResult(history.contextResult)) && research.task
+      if ((researchTouched || previousResearch) && research.task
         && !(error instanceof Error && error.message === 'QUERY_DENIED')) {
         // A valid partial checkpoint is a successful archive write, not a claim
         // that the research completed. Existing owner/session audit recovery is reused.
@@ -648,7 +765,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     }
     if (preparedExport && !preparedChart) {
       execution.result = preparedExport;
-      execution.answer = '服务器已生成 ' + preparedExport.table.rows.length
+      execution.answer = '服务器已生成 ' + (preparedExport.parameters.agentExport as { exportedRows: number }).exportedRows
         + ' 行' + ((preparedExport.parameters.agentExport as { format: string }).format === 'xlsx' ? ' Excel 文件' : ' CSV 与来源包')
         + '，可通过本条回答的下载操作获取；尚未发起浏览器下载，也未确认本机保存。'
         + (execution.unresolvedFailures.length ? '\n其余步骤未全部完成。' : '');
@@ -734,12 +851,30 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       }) };
       execution.result = selectedAnswerResult(selectedAnswer) as QueryResult;
     } else if (needsSelection() && !terminalDelivery && !researchTouched) {
-      selectedAnswer = undefined;
-      // Fail closed rather than pair an unbound model narrative with the last
-      // query (which may only be a coverage or future-period check).
-      execution.result = undefined;
-      execution.answer = '本轮取得多个结果，但尚未确认与当前问题对应的主结果。请明确需要比较的期间或范围。';
-      execution.executionStatus = 'limited';
+      // Preserve only usable results actually queried in this turn. Historical
+      // candidates still require a verified binding to the current request.
+      const retained: QueryResult[] = [];
+      if (queriedIds.size > 1) {
+        for (const id of queriedIds) {
+          const result = workset.read(id, worksetOwner);
+          if (resultAvailability(result as AnswerSelection['results'][number]['result']) || !fitsDeliveryArchive([...retained, result])) continue;
+          retained.push(result);
+          if (retained.length === 3) break;
+        }
+      }
+      const [first] = retained;
+      // The primary key is an archive anchor for legacy clients. The status
+      // and notice prevent unverified model prose from becoming the answer.
+      selectedAnswer = first ? { version: 'answer-selection/1',
+        task: comparisonRequested ? 'comparison' : answerTask(valid.question, first),
+        status: 'partial', primaryResultId: first.resultId,
+        notice: '以下是本轮已核验的查询结果。综合结论尚未完成，请对照各项范围、期间和来源。',
+        results: retained.map((result, index) => ({ role: index === 0 ? 'primary' : comparisonRequested ? 'comparison' : 'supporting',
+          result: result as AnswerSelection['results'][number]['result'] })),
+      } : undefined;
+      execution.result = first;
+      execution.answer = selectedAnswer?.notice ?? '本轮取得多个结果，但尚未确认与当前问题对应的主结果。请明确需要比较的期间或范围。';
+      execution.executionStatus = first ? 'partial' : 'limited';
       execution.unresolvedFailures.push({ tool: 'select_answer_results', code: 'conditions_required' });
     }
     // Persist presentation intent with the archived snapshot. Delivery prose is
@@ -749,7 +884,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       if (generatedResults.length) execution.result = generatedResults.find(r => r.resultId === execution.result!.resultId)
         ?? generatedResults.at(-1)!;
       const delivery = !!(preparedExport || preparedReport || chartFile || preparedResearch);
-      const listing = !isKnowledgeResult(execution.result) && !isResearchResult(execution.result)
+      const listing = !taskRoute.conceptExample && !isKnowledgeResult(execution.result) && !isResearchResult(execution.result)
         && !/(?:详细|完整报告|解释方法|为什么|原因|方法说明)/.test(valid.question);
       const narrativeRole = delivery ? 'delivery_status' : listing ? 'result_summary' : 'analysis';
       // Already-generated files bind the original digest. Never mutate their
@@ -764,6 +899,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     }
     if (execution.result) {
       const primary = execution.result;
+      const location = responseBuildingLocation(primary as AnswerSelection['results'][number]['result']);
+      if (location) execution.answer = location.subject + location.scope + location.submarket + ' 子市场。';
       if (generatedResults.length) {
         // Keep trusted, deterministic analysis on its original data shape.
         // An export is a derived list and must not inherit incompatible
@@ -799,6 +936,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       else selectedAnswer = { ...selectedAnswer, results: selectedAnswer.results.map(item =>
         item.result.resultId === primary.resultId ? { ...item, result: primary as typeof item.result } : item) };
       selectedAnswer = applyAnswerPolicy(valid.question, selectedAnswer, execution.executionStatus);
+      if (primary.parameters.metroScreening && taskRoute.reply)
+        selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, taskRoute.reply].filter(Boolean).join(' ') };
       // Data-summary ownership must not swallow a separate, trusted action
       // outcome. Preparing a map never means that the browser opened it.
       const mapAttempted = execution.toolNames.includes('prepare_map_selection');
@@ -817,15 +956,19 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         // no arbitrary supplier prose or Markdown table is scanned/deleted.
         const onlyMapFailure = mapNotice && execution.unresolvedFailures.length > 0
           && execution.unresolvedFailures.every(item => item.tool === 'prepare_map_selection');
-        const executionNotice = fulfillment.missing.length ? execution.answer
+        const executionNotice = fulfillment.missing.length || researchTouched && isResearchResult(primary) ? execution.answer
           : execution.unresolvedFailures.some(item => ['delivery_limit', 'delivery_capacity'].includes(item.code))
             ? '交付内容超过本轮容量，已有成果仍可下载；其余部分请分次生成，任务尚未全部完成。'
           : execution.unresolvedFailures.some(item => item.code === 'analysis_not_available')
             ? '文件已生成，但尚未取得可核验的分析结论；任务尚未全部完成。'
-          : onlyMapFailure ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
+          : onlyMapFailure || primary.parameters.metroScreening && execution.unresolvedFailures.every(item => item.tool === 'verified_data' && item.code === 'unsupported')
+            || selectedAnswer.notice && execution.unresolvedFailures.every(item => ['select_answer_results', 'query_building_dossier'].includes(item.tool))
+              ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
         selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, executionNotice].filter(Boolean).join(' ') };
       }
-      if (selectedAnswer.notice) execution.answer = selectedAnswer.notice;
+      if (taskRoute.conceptExample && selectedAnswer.status === 'unavailable') selectedAnswer = { ...selectedAnswer,
+        status: 'partial', notice: '该季度范围没有可核验的有效案例数值。' };
+      if (selectedAnswer.notice && !taskRoute.conceptExample) execution.answer = selectedAnswer.notice;
     }
     await audit.append(requestId, 'accounting', { provider: 'server_policy', executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), status: execution.executionStatus, formalResult: !!execution.result, filesRequested: fulfillment.requested.length, filesCompleted: fulfillment.requested.filter(f => fulfillment.available.includes(f)).length, reusedTools: toolTrace.filter(t => t.reused).length,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
@@ -839,7 +982,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const businessAnswer=execution.result && isBusinessResult(execution.result);
     const leaseAnswer = execution.result && isLeaseResult(execution.result);
     const researchAnswer = execution.result && isResearchResult(execution.result);
-    const answerPlan = execution.result && !researchAnswer && !leaseAnswer && !businessAnswer && !knowledgeAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
+    const answerPlan = execution.result && !researchAnswer && !leaseAnswer && !businessAnswer && !knowledgeAnswer && !execution.result.parameters.agentWorkbook ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
     const archivedCharts = selectedAnswer?.results.map(item => item.result).filter(r => r.parameters.agentChart) ?? [];
     const archivedChart = archivedCharts.find(r => r.resultId === preparedChart?.resultId) ?? archivedCharts.at(-1);
     const archivedChartFile = archivedChart && generatedChartFiles.find(file => file.resultId === archivedChart.resultId);
@@ -858,11 +1001,12 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       ...(businessAnswer ? {resolution:{protocol:'business-research/1'}} : {}),
       ...(leaseResults.size ? { leaseContext: true } : {}),
       ...(leaseAnswer ? { resolution: { protocol: 'lease-research/1' } } : {}),
+      ...(taskRoute.pendingSemantic ? { semanticContext: taskRoute.pendingSemantic } : {}),
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
       ...(preparedReport ? { reportFile } : {}),
       ...(archivedChart ? { chartContext: { resultId: archivedChart.resultId, chart: (archivedChart.parameters.agentChart as { request: ChartRequest }).request },
         ...(archivedChartFile ? { chartFile: archivedChartFile } : {}), ...(generatedChartFiles.length ? { chartFiles: generatedChartFiles } : {}) } : {}),
-      ...(preparedExport && !isLeaseResult(preparedExport) && !isBusinessResult(preparedExport) && !isKnowledgeResult(preparedExport) ? { exportFiles, exportContext: {
+      ...(preparedExport && !preparedExport.parameters.agentWorkbook && !isLeaseResult(preparedExport) && !isBusinessResult(preparedExport) && !isKnowledgeResult(preparedExport) ? { exportFiles, exportContext: {
         plans: preparedExport.parameters.exportPlans,
         selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {
           selection: { resultIds: string[] } }).selection; void _ids; return selection; })(),
@@ -898,12 +1042,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     try {
       await history.contextRecheck?.();
       await recheckLeases();
-      if (preparedReport || researchAnswer) {
+      const workbookDelivered = generatedResults.some(result => result.parameters.agentWorkbook !== undefined);
+      const supplementalDossierDenied = execution.unresolvedFailures.some(failure =>
+        failure.tool === 'query_building_dossier' && failure.code === 'field_not_available');
+      if (preparedReport || researchAnswer || workbookDelivered || execution.result && (supplementalDossierDenied || metroScreening && typeof metroScreening !== 'string')) {
         const read = await readOwnResult(client, actor, requestId, 'archive', signal);
-        await recoverOwnResult(client, actor, keys, requestId, read, signal);
+        await recoverOwnResult(client, actor, keys, requestId, read, signal, workbookDelivered ? { exporting: true } : undefined);
       }
     } catch (error) {
-      await audit.append(requestId, 'correction', { reason: 'artifact_sources_changed_before_response', delivery: 'not_sent' });
+      await audit.append(requestId, 'correction', { reason: 'result_sources_changed_before_response', delivery: 'not_sent' });
       throw error;
     }
     const finalAuthority = await fresh();

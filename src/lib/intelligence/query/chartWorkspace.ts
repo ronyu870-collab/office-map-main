@@ -117,11 +117,29 @@ export function configureChart(result: QueryResultView, chart: ResultChart): Res
 const xml = (s: string) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '\uFFFD')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 export const chartColors = ['#003e7e', '#a35632', '#467665', '#815783', '#597b96', '#826e36'];
+function scatterAxisDomain(values: number[], ratio: boolean, count: number): [number, number] {
+  if (!values.length) return ratio ? [0, 100] : [0, 1];
+  const low = Math.min(...values), high = Math.max(...values);
+  const span = high - low;
+  if (!Number.isFinite(span)) throw new Error('CHART_RANGE_UNSUPPORTED');
+  const padding = span ? span * 0.06 : ratio ? 1 : Math.max(1, Math.abs(low) * 0.05);
+  const rough = (span + padding * 2) / (count - 1);
+  const power = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 2.5, 5, 10].map(value => value * power).find(value => value >= rough) ?? rough;
+  if (!(step > 0)) return [low, high];
+  const min = Math.floor((low - padding) / step) * step;
+  const max = Math.ceil((high + padding) / step) * step;
+  if (!Number.isFinite(max - min)) return [low, high];
+  return ratio ? [Math.max(0, min), Math.min(100, max)] : [min, max];
+}
+
 export function axisDomain(chart: ResultChart, axis: 'x' | 'y'): [number, number] {
   const unit = axis === 'x' ? chart.xUnit : chart.yUnit, cfg = axis === 'x' ? chart.request.xAxis : chart.request.yAxis;
-  const values = chart.points.flatMap(p => typeof p[axis] === 'number' ? [p[axis] as number] : []);
-  const min = cfg?.min ?? (unit === 'ratio' ? 0 : Math.min(0, ...values));
-  const max = cfg?.max ?? (unit === 'ratio' ? 100 : Math.max(0, ...values));
+  const values = chart.points.flatMap(p => typeof p[axis] === 'number' && (chart.kind !== 'scatter' || p.state === 'valid') ? [p[axis] as number] : []);
+  const scatter = chart.kind === 'scatter' && cfg?.min === undefined && cfg?.max === undefined
+    ? scatterAxisDomain(values, unit === 'ratio', cfg?.ticks ?? 5) : undefined;
+  const min = cfg?.min ?? scatter?.[0] ?? (unit === 'ratio' ? 0 : Math.min(0, ...values));
+  const max = cfg?.max ?? scatter?.[1] ?? (unit === 'ratio' ? 100 : Math.max(0, ...values));
   return [min, max === min ? min + 1 : max];
 }
 export function axisTicks(domain: [number, number], count = 5) {

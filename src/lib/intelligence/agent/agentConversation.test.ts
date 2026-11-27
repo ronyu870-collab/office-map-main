@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { encryptAuditContent } from '../query/auditCrypto';
-import { buildListResult } from '../query/result';
+import { buildListResult, buildRankResult } from '../query/result';
+import { resolveSemanticQuestion } from '../query/semanticPlanner';
+import { parseQueryPlan } from '../query/plan';
 import { fixture } from '../query/__tests__/fixtures';
 import { sealHistoryToken } from '../query/historyToken';
 const stubs = vi.hoisted(() => ({ read: vi.fn(), recover: vi.fn(), load: vi.fn() }));
@@ -52,6 +54,29 @@ describe('owner-bound Agent multi-turn context from existing encrypted audit RPC
     expect(JSON.stringify(history)).not.toContain(secret);
     expect(history[0].user).toContain('已脱敏');
     expect(history[0].assistant).toContain('已脱敏');
+  });
+
+  it('recovers metric choices from the authenticated conversation rather than the new request body', async () => {
+    const requestId = randomUUID(), conversationId = randomUUID();
+    const question = '比较2026Q2 CBD、金融街的租金和空置率';
+    const first = resolveSemanticQuestion({ question, now: new Date(), availablePeriods: [] });
+    expect(first.kind).toBe('clarification');
+    const events = [
+      event(requestId, 'received', { sessionId: identity.sessionId,
+        authority: { actorId: identity.actorId, effectiveUserId: identity.effectiveUserId },
+        metadata: { protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId } } }, 1),
+      event(requestId, 'tool_finished', { protocol: 'agent-answer/1', permissionRevision: authority.permissionRevision,
+        history: [{ user: question, assistant: '请选择租金指标。' }], semanticContext: first.context }, 2),
+    ];
+    const client = { rpc: () => ({ abortSignal: async () => ({ data: { allowed: true,
+      permission_revision: authority.permissionRevision, state: 'succeeded', events }, error: null }) }) } as unknown as SupabaseClient;
+    const signal = new AbortController().signal;
+    const recovered = await readAgentHistory(client, identity, keys, authority, { id: conversationId, parentRequestId: requestId }, signal);
+    expect(recovered.contextSemantic).toEqual(first.context);
+    expect(resolveSemanticQuestion({ question: '净有效租金', now: new Date(), availablePeriods: [], context: recovered.contextSemantic }))
+      .toMatchObject({ kind: 'plan', plan: { groupBy: 'submarket', metrics: ['rent', 'vacancy'] } });
+    await expect(readAgentHistory(client, identity, keys, authority, { id: randomUUID(), parentRequestId: requestId }, signal))
+      .rejects.toThrow('AGENT_CONTEXT_UNAVAILABLE');
   });
 
   it('recovers only authenticated agent answer events visible through the production RPC contract', async () => {
@@ -239,4 +264,44 @@ it('imports multiple completed snapshots only along this conversation encrypted 
   checks[0].mockRejectedValue(new Error('QUERY_DENIED'));
   await expect(history.recheck()).rejects.toThrow('QUERY_DENIED');
   await expect(readReportHistory(client, identity, keys, authority, { id: randomUUID(), parentRequestId: requestIds[1] }, signal)).rejects.toThrow('QUERY_DENIED');
+});
+
+
+it('reopens two comparable markets only within the authenticated chain and rechecks both original results', async () => {
+  const conversationId = randomUUID();
+  const requestIds = [randomUUID(), randomUUID()];
+  const plans = ['CBD', '金融街'].map(submarket => parseQueryPlan({ operation: 'rank', period: null, field: 'height',
+    limit: 2, direction: 'desc', scope: { inventory: 'all_authorized', submarkets: [submarket] } }));
+  const results = plans.map(plan => {
+    const raw = buildRankResult(fixture(), 'height', 2, 'desc');
+    return { ...raw, parameters: { ...raw.parameters, executedPlan: plan } };
+  });
+  const scoped: DataAuthority = { ...authority, grants: ['query:catalog', 'query:brochure'], fields: ['height'], allSubmarkets: true, allBuildings: true };
+  const records = requestIds.map((requestId, index) => ({ state: 'succeeded', allowed: true,
+    permission_revision: authority.permissionRevision, head_hash: 'f'.repeat(64), head_sequence: 3, events: [
+      event(requestId, 'received', { sessionId: identity.sessionId,
+        authority: { actorId: identity.actorId, effectiveUserId: identity.effectiveUserId }, metadata: {
+          protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId, parentRequestId: requestIds[index - 1] },
+        } }, 1),
+      event(requestId, 'tool_finished', { protocol: 'agent-answer/1', permissionRevision: authority.permissionRevision,
+        history: [{ user: '查询高度排名', assistant: '已查询' }], plan: plans[index], answerContext: true }, 2),
+      event(requestId, 'response_generated', { result: results[index] }, 3),
+    ] }));
+  const checks = [vi.fn().mockResolvedValue(undefined), vi.fn().mockResolvedValue(undefined)];
+  stubs.read.mockClear().mockImplementation(async (_c, _i, id) => records[requestIds.indexOf(id)]);
+  stubs.recover.mockImplementation(async (_c, _i, _k, id) => {
+    const index = requestIds.indexOf(id);
+    return { result: results[index], recheck: checks[index] };
+  });
+  const client = { rpc: () => ({ abortSignal: async () => ({ data: records[1], error: null }) }) } as unknown as SupabaseClient;
+  const conversation = { id: conversationId, parentRequestId: requestIds[1] };
+  const signal = new AbortController().signal;
+  const normal = await readAgentHistory(client, identity, keys, scoped, conversation, signal);
+  expect(normal.contextComparisonIds).toBeUndefined();
+  expect(stubs.read).toHaveBeenCalledOnce();
+  const comparison = await readAgentHistory(client, identity, keys, scoped, conversation, signal, true);
+  expect(comparison.contextResults).toEqual(results);
+  expect(comparison.contextComparisonIds).toEqual(results.map(result => result.resultId));
+  checks[0].mockRejectedValue(new Error('QUERY_DENIED'));
+  await expect(comparison.contextRecheck?.()).rejects.toThrow('QUERY_DENIED');
 });
