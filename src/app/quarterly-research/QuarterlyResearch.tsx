@@ -5,6 +5,7 @@ import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useAppSession } from '@/src/components/SessionProvider';
+import { PitchHandoffLink, usePitchHandoffEnabled } from '@/src/components/pitch/PitchHandoffLink';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { canReadQuarterlyResearch, isResearchEdition, type ResearchEdition } from '@/src/config/quarterlyResearch';
@@ -14,6 +15,7 @@ import { instrumentResearchHtml } from './readingInstrumentation';
 export function QuarterlyResearch() {
   const { session, status } = useAppSession();
   const { isImpersonating } = useImpersonation();
+  const pitchEnabled = usePitchHandoffEnabled();
   const allowed = status === 'authenticated' && canReadQuarterlyResearch(session?.role, isImpersonating)
     && !session?.user.app_metadata?.must_change_password;
   const token = allowed ? session?.session.access_token : undefined;
@@ -89,6 +91,10 @@ export function QuarterlyResearch() {
 
   if (!allowed) return <main className={styles.status}><h1>季度研究</h1><p>{status === 'loading' ? '正在确认登录状态…' : '此报告仅限管理员访问。'}</p><Link href={status === 'unauthenticated' ? '/login' : '/'}>{status === 'unauthenticated' ? '前往登录' : '返回首页'}</Link></main>;
   return <main className={styles.host}>
+    {available && pitchEnabled && <div className={styles.pitchActions}>
+      <PitchHandoffLink source={{ kind: 'quarterly-research', edition }}
+        className={styles.pitchLink} label="将本期正式样本加入 Pitch" />
+    </div>}
     {available ? <iframe ref={iframe} className={styles.frame} title={`${edition} 北京写字楼交互研究`} srcDoc={frame.html} onLoad={()=>observeBusinessReading('VIEW_RESEARCH_REPORT','quarterly-research',{target_table:'research_reports',target_id:edition,edition,observation:'report_displayed'},'quarterly_research')} sandbox="allow-scripts allow-same-origin" />
       : <div className={styles.status}><h1>季度研究</h1><p role="status">{error || '正在载入报告…'}</p>{error && <button onClick={() => setAttempt(value => value + 1)}>重新加载</button>}<Link href="/">返回首页</Link></div>}
   </main>;

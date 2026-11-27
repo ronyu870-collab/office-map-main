@@ -1,1 +1,21 @@
-.host{position:fixed;inset:0;background:#f6f7f3;z-index:20}.frame{width:100%;height:100%;border:0;display:block}.status{min-height:100svh;background:#f6f7f3;color:#193343;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:20px;padding:clamp(24px,7vw,96px);font-size:16px}.status h1{font-size:32px;font-weight:500}.status a,.status button{color:#28698f;min-height:44px;display:inline-flex;align-items:center}.status a:focus-visible,.status button:focus-visible{outline:2px solid #28698f;outline-offset:4px}
+.host{position:fixed;inset:0;background:#f6f7f3;z-index:20;display:flex;flex-direction:column}.frame{width:100%;min-height:0;flex:1;border:0;display:block}.status{min-height:100svh;background:#f6f7f3;color:#193343;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:20px;padding:clamp(24px,7vw,96px);font-size:16px}.status h1{font-size:32px;font-weight:500}.status a,.status button{color:#28698f;min-height:44px;display:inline-flex;align-items:center}.status a:focus-visible,.status button:focus-visible{outline:2px solid #28698f;outline-offset:4px}
+
+.pitchActions {
+  display: flex;
+  justify-content: flex-end;
+  padding-inline: clamp(12px, 3vw, 32px);
+  border-bottom: 1px solid var(--cd-color-border);
+  background: var(--cd-color-surface);
+}
+
+.pitchLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding-inline: 8px;
+  color: var(--cd-color-brand);
+}
+
+.pitchLink:hover { text-decoration: underline; }
+.pitchLink:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
