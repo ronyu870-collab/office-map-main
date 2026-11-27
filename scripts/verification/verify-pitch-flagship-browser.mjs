@@ -105,13 +105,14 @@ async function seed() {
   const buildings = [
     ["霄云路33号", "燕莎"], ["五矿广场", "东二环"], ["国贸写字楼1座", "CBD"], ["国际财源中心（IFC）", "CBD"],
     ["新华保险大厦（NCI）", "CBD"], ["大家保险大厦B座", "CBD"], ["泰康金融大厦", "CBD"], ["金地中心", "CBD"],
+    ["现代汽车大厦", "燕莎"], ["国航世纪大厦", "燕莎"], ["华瑞大厦", "燕莎"], ["佳程广场", "燕莎"],
   ];
   const replacementCandidates = [];
   for (const [index, [name, submarket]] of buildings.entries()) {
     const buildingId = randomUUID();
     if (submarket === "CBD") replacementCandidates.push({ id: buildingId, name });
     await db.query(`insert into public.buildings(id,name,submarket,grade,tracking_scope,city,location_lat,location_lng,completion_year,leasable_area)
-      values($1,$2,$3,'A','tracked','北京',$4,$5,'2015',12500)`, [buildingId, name, submarket, 39.90 + index * 0.006, 116.43 + index * 0.007]);
+      values($1,$2,$3,'A','tracked','北京',$4,$5,'2015',12500)`, [buildingId, name, submarket, 39.90 + index * 0.0012, 116.43 + index * 0.0015]);
     await addPhoto(buildingId, index);
     await db.query("insert into public.building_brochure_data(building_id,building_height,parking_total,address,standard_floor_area,metro_access) values($1,$2,$3,'合成路一号',1500,'合成轨道交通')",
       [buildingId, 180 + index, 400 + index]);

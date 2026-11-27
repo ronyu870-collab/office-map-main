@@ -160,7 +160,13 @@ describe('Unified Pitch Context from the real query adapters', () => {
   it('uses tracked Beijing offices, compares market periods with shared arithmetic and returns trusted lease distributions', async () => {
     const result = await loadPitchDemoContext(fixture().ctx, 'beijing-quarterly', { period: q2 });
     expect(result.results.map(item => item.id)).toEqual(expect.arrayContaining(['北京:rent', '北京:submarkets:vacancy', '北京:trend:totalArea',
-      '北京:qoq:vacancy', '北京:yoy:rent', 'lease-industry', 'lease-area']));
+      '北京:qoq:vacancy', '北京:yoy:rent', '北京:grades:rent', 'lease-industry', 'lease-area']));
+    const grades = result.results.find(item => item.id === '北京:grades:rent')!.result;
+    expect(grades.parameters).toMatchObject({ groupBy: 'grade', period: q2 });
+    expect(grades.table.rows.map(row => row.cells.name)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'text', value: 'A' }), expect.objectContaining({ kind: 'text', value: 'B' }),
+    ]));
+    expect(grades.sources.some(record => record.entityId === id(20))).toBe(false);
     const yoy = result.results.find(item => item.id === '北京:yoy:rent')!;
     expect(yoy.result.table.rows[0].cells.change).toMatchObject({ value: { numeric: 25 } });
     expect(yoy.result.sources.some(record => record.entityId === id(20))).toBe(false);

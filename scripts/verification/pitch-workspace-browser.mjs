@@ -264,9 +264,9 @@ export async function verifyPitchWorkspaceBrowser({
 }
 
 const flagshipScenarios = [
-  { button: "招商代理", scenario: "leasing-agency", buildings: 1, pages: ["cover", "profile", "implementation"] },
+  { button: "招商代理", scenario: "leasing-agency", buildings: 1, pages: ["cover", "profile", "submarket-research", "competition-map", "comparable-properties", "implementation"] },
   { button: "办公选址对比", scenario: "site-selection", buildings: 5, pages: ["cover", "scope", "next-steps"] },
-  { button: "季度市场报告", scenario: "market-report", buildings: 0, pages: ["cover", "key-indicators", "methodology"] },
+  { button: "季度市场报告", scenario: "market-report", buildings: 0, pages: ["cover", "key-indicators", "grades", "industry-demand", "lease-area", "methodology"] },
   { button: "单楼项目推介", scenario: "building-promotion", buildings: 1, pages: ["cover", "profile", "next-steps"] },
 ];
 
@@ -623,6 +623,8 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         const normalizeTitle = value => value.replace(/\s/g, "");
         assert.ok(normalizeTitle(text.join("")).includes(normalizeTitle(editedTitle)), "export omitted the saved title");
         assert.match(first, /<p:sp>/);
+        if (scenario.scenario !== "building-promotion")
+          assert.ok(Object.keys(archive.files).some(name => /^ppt\/charts\/chart\d+\.xml$/.test(name)), "native PPTX omitted business charts");
         for (const kind of requiredVisuals[scenario.scenario] ?? []) {
           const references = plannedVisuals.filter(visual => visual.kind === kind);
           const index = reopened.slides.findIndex(slide => slide.content.blocks.some(block => block.kind === "image" &&

@@ -175,7 +175,10 @@ function marketComparisons(snapshots: FactSnapshot[], ids: ReadonlySet<string>, 
     boundResult(entity + ':' + name, entity, result, 'quarter', auth.permissionRevision, auth.policyVersion, quarterEnd(current));
   return metrics.flatMap(metric => [
     add(metric, buildAggregateResult(latest, metric)),
-    ...(includeGroups ? [add('submarkets:' + metric, buildGroupedResult([latest], [latest], 'submarket', metric, 'per_period'))] : []),
+    ...(includeGroups ? [
+      add('submarkets:' + metric, buildGroupedResult([latest], [latest], 'submarket', metric, 'per_period')),
+      add('grades:' + metric, buildGroupedResult([latest], [latest], 'grade', metric, 'per_period')),
+    ] : []),
     ...(data.length > 1 ? [add('trend:' + metric, buildTrendResult(data, metric, 'per_period'))] : []),
     ...(previous ? [add('qoq:' + metric, buildCompareResult(previous, latest, metric, 'per_period'))] : []),
     ...(priorYear ? [add('yoy:' + metric, buildCompareResult(priorYear, latest, metric, 'per_period'))] : []),
