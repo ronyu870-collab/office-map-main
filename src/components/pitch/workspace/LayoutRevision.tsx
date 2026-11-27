@@ -34,7 +34,7 @@ export function requestedLayoutPages(question: string, detail: WorkspaceDetail, 
   return undefined;
 }
 
-type LayoutChoice = { layoutId: string; variant: "standard" | "alternate" };
+export type LayoutChoice = { layoutId: string; variant: "standard" | "alternate" };
 type LayoutChange = LayoutChoice & { id: string; position: number; svg: string; scene: WorkspaceDetail["slides"][number]["scene"] };
 export type LayoutReview = { status: "layout-review"; changes: LayoutChange[]; command: z.infer<typeof saveSchema> };
 
@@ -46,23 +46,35 @@ function layoutChoices(slide: WorkspaceDetail["slides"][number]): LayoutChoice[]
   return [...sibling, ...alternatives.map<LayoutChoice>(layout => ({ layoutId: layout.id, variant: "standard" }))].slice(0, 4);
 }
 
-export async function reviewLayoutChanges(call: Call, detail: WorkspaceDetail, ids: string[], signal: AbortSignal): Promise<LayoutReview> {
-  const project = detail.project;
-  const selected = detail.slides.flatMap((slide, position) => ids.includes(slide.id) ? [{ slide, position }] : []);
-  if (selected.length !== ids.length) throw new Error("选择的页面已变化，请重新选择。");
+export function layoutSelectionError(detail: WorkspaceDetail, ids: string[]) {
+  const selected = detail.slides.filter(slide => ids.includes(slide.id));
+  if (!ids.length || selected.length !== ids.length) return "选择的页面已变化，请重新选择。";
+  const { project } = detail;
   if (detail.slides.some(({ scene }) => scene.themeId !== project.theme_id || scene.themeVersion !== project.theme_version)) {
-    throw new Error("此提案包含不同主题版本的页面。请先在设计面板核对主题。");
+    return "此提案包含不同主题版本的页面。请先在设计面板核对主题。";
   }
-  const blocked = selected.find(({ slide }) => slide.content.disclosure === "restricted" ||
-    (slide.scene.pagination?.count ?? 1) !== 1 || slide.scene.elements.some(element => element.editorId));
-  if (blocked) {
-    throw new Error(`第 ${blocked.position + 1} 页含受限资料、跨页内容或手调对象。请先核对该页，再选择其他页面重新设计。`);
-  }
+  const blocked = detail.slides.findIndex(slide => ids.includes(slide.id) && (slide.content.disclosure === "restricted" ||
+    (slide.scene.pagination?.count ?? 1) !== 1 || slide.scene.elements.some(element => element.editorId)));
+  if (blocked >= 0)
+    return `第 ${blocked + 1} 页含受限资料、跨页内容或手调对象。请先核对该页，再选择其他页面重新设计。`;
+}
 
-  const changes: LayoutChange[] = [];
-  for (const { slide, position } of selected) {
-    let changed = false;
-    for (const choice of layoutChoices(slide)) {
+export function hasLayoutChoice(slide: WorkspaceDetail["slides"][number], choice: LayoutChoice) {
+  return slide.scene.layoutId === choice.layoutId && (slide.scene.variant ?? "standard") === choice.variant;
+}
+
+export async function reviewLayoutChanges(
+  call: Call, detail: WorkspaceDetail, ids: string[], signal: AbortSignal, exact?: LayoutChoice,
+): Promise<LayoutReview> {
+  const selectionError = layoutSelectionError(detail, ids);
+  if (selectionError) throw new Error(selectionError);
+  const { project } = detail;
+  const selected = detail.slides.flatMap((slide, position) =>
+    ids.includes(slide.id) && (!exact || !hasLayoutChoice(slide, exact)) ? [{ slide, position }] : []);
+  if (!selected.length) throw new Error("所选页面已采用这个布局。");
+
+  async function previewPage({ slide, position }: typeof selected[number]): Promise<LayoutChange> {
+    for (const choice of exact ? [exact] : layoutChoices(slide)) {
       signal.throwIfAborted();
       try {
         const { svg, scene, pageCount } = previewSchema.parse(await call({
@@ -70,15 +82,21 @@ export async function reviewLayoutChanges(call: Call, detail: WorkspaceDetail, i
         }, true, "", signal));
         if (pageCount !== 1 || scene.layoutId !== choice.layoutId || (scene.variant ?? "standard") !== choice.variant ||
           scene.themeId !== slide.scene.themeId || scene.themeVersion !== slide.scene.themeVersion ||
-          JSON.stringify(scene.elements) === JSON.stringify(slide.scene.elements)) continue;
-        changes.push({ id: slide.id, position, ...choice, svg, scene });
-        changed = true;
-        break;
+          (!exact && JSON.stringify(scene.elements) === JSON.stringify(slide.scene.elements))) continue;
+        return { id: slide.id, position, ...choice, svg, scene };
       } catch (error) {
         if (!(error instanceof WorkspaceError && error.status === 422)) throw error;
       }
     }
-    if (!changed) throw new Error(`第 ${position + 1} 页没有适配现有内容的单页版式。请在设计面板查看可用布局。`);
+    throw new Error(exact
+      ? `第 ${position + 1} 页无法使用该布局保留现有内容。请选择其他布局或缩小选区。`
+      : `第 ${position + 1} 页没有适配现有内容的单页版式。请在设计面板查看可用布局。`);
+  }
+
+  const changes: LayoutChange[] = [];
+  const parallel = exact ? 3 : 1;
+  for (let start = 0; start < selected.length; start += parallel) {
+    changes.push(...await Promise.all(selected.slice(start, start + parallel).map(previewPage)));
   }
 
   const byId = new Map(changes.map(change => [change.id, change]));

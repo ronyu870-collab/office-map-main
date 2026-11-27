@@ -157,6 +157,7 @@ let detail: ReturnType<typeof initial>,
   writes: Record<string, unknown>[],
   revisions: Map<number, ReturnType<typeof initial>>,
   failTaskPoll = false,
+  unrenderableLayoutPage: number | undefined,
   failCompletedRead = false,
   completedTask = false,
   rejectSave = false,
@@ -171,6 +172,10 @@ let detail: ReturnType<typeof initial>,
   proposalSource: { id: string; detail: unknown } | undefined;
 const proposalId = "66666666-6666-4666-8666-666666666666";
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+function fixtureLayout(scene: SlideScene, layoutId?: string, variant?: string) {
+  return slideSceneSchema.parse({ ...scene, layoutId: layoutId ?? scene.layoutId,
+    ...(variant ? { variant } : {}), elements: layoutId ? scene.elements.map(element => ({ ...element, x: 2 })) : scene.elements });
+}
 beforeEach(() => {
   state.role = "editor";
   state.other = false;
@@ -181,6 +186,7 @@ beforeEach(() => {
   promotionPlanBuilding = undefined;
   sitePlanBuildingIds = undefined;
   failTaskPoll = false;
+  unrenderableLayoutPage = undefined;
   failCompletedRead = false;
   completedTask = false;
   readyProposal = false;
@@ -288,14 +294,19 @@ beforeEach(() => {
           attempts: 1,
           error_code: "PITCH_WORKER_TIMEOUT",
         };
-      } else if (c.action === "preview")
-        body = {
+      } else if (c.action === "preview") {
+        const page = detail.slides[Number(c.page ?? 0)] ?? detail.slides[0];
+        if (c.layoutId && Number(c.page) === unrenderableLayoutPage) {
+          status = 422;
+          body = { error: "页面容量不合适" };
+        } else body = {
           svg: c.editorSlideId
-            ?  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect width="1280" height="720"/>${detail.slides[0].scene.elements.map((element, index) => `<g data-pitch-object="${objectId(element, index)}"/>`).join("")}</svg>`
+            ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect width="1280" height="720"/>${page.scene.elements.map((element, index) => `<g data-pitch-object="${objectId(element, index)}"/>`).join("")}</svg>`
             : '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><text>实际测试场景</text></svg>',
-          scene: slideSceneSchema.parse(detail.slides[0].scene),
+          scene: fixtureLayout(page.scene, c.layoutId, c.variant),
+          pageCount: 1,
         };
-      else if (c.action === "restore_page") {
+      } else if (c.action === "restore_page") {
         const old = revisions.get(c.revision)?.slides.find(slide => slide.id === c.slideId);
         if (!old || c.expectedVersion !== detail.project.version) {
           status = 409;
@@ -331,6 +342,8 @@ beforeEach(() => {
                 duplicateOf?: string;
                 title?: string;
                 paragraphs?: string[];
+                layoutId?: string;
+                variant?: string;
                 objectMoves?: ObjectMove[];
                 objectTexts?: ObjectText[];
                 objectOrder?: string[];
@@ -340,7 +353,7 @@ beforeEach(() => {
                   (s) => s.id === (p.duplicateOf ?? p.id),
                 )!;
                 const patchedText = p.objectTexts && applyObjectTexts(slideSceneSchema.parse(original.scene), slideContentSchema.parse(original.content), p.objectTexts);
-                const patchedScene = patchedText ? patchedText.scene : slideSceneSchema.parse(original.scene);
+                const patchedScene = patchedText ? patchedText.scene : fixtureLayout(original.scene, p.layoutId, p.variant);
                 const positioned = p.objectMoves ? applyObjectMoves(patchedScene, p.objectMoves) : patchedScene;
                 const ordered = p.objectOrder ? applyObjectOrder(positioned, p.objectOrder) : positioned;
                 return {
@@ -841,6 +854,56 @@ describe("Pitch workspace continuous editing", () => {
     expect(question).toHaveValue("保留我的提案需求");
     expect(writes.some((entry) => entry.action === "save")).toBe(false);
   });
+  it("previews a shared layout, then saves only the selected pages in one versioned edit", async () => {
+    const thirdId = "77777777-7777-4777-8777-777777777777";
+    const first = detail.slides[0];
+    detail.slides.push(
+      { ...clone(first), id: sourceId, content: { ...first.content, title: "保留版式页面" } },
+      { ...clone(first), id: thirdId, content: { ...first.content, title: "第三页" } },
+    );
+    const before = clone(detail.slides);
+    const user = await enter();
+    await user.click(screen.getByLabelText("选择第 1 页"));
+    await user.click(screen.getByLabelText("选择第 3 页"));
+    await user.click(screen.getByRole("button", { name: "设计" }));
+    const batch = screen.getByRole("region", { name: "所选页面的布局" });
+    await user.selectOptions(within(batch).getByLabelText("批量页面布局"), "section-divider");
+    await user.click(within(batch).getByRole("button", { name: "预览批量布局" }));
+    const dialog = await screen.findByRole("dialog", { name: "核对批量布局" });
+    expect(within(dialog).getByRole("img", { name: "第 1 页新布局预览" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("img", { name: "第 3 页新布局预览" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("img", { name: "第 2 页新布局预览" })).not.toBeInTheDocument();
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    await user.click(within(dialog).getByRole("button", { name: "应用批量布局" }));
+    await screen.findByText("所选页面的布局已更新。");
+    expect(writes.filter(entry => entry.action === "save")).toEqual([expect.objectContaining({
+      expectedVersion: 1, pages: [{ id: pageId, layoutId: "section-divider", variant: "standard" },
+        { id: sourceId }, { id: thirdId, layoutId: "section-divider", variant: "standard" }],
+    })]);
+    expect(detail.slides.map(slide => slide.content)).toEqual(before.map(slide => slide.content));
+    expect(detail.slides[1]).toEqual(before[1]);
+    expect(screen.getByRole("button", { name: "撤销上次修改" })).toBeEnabled();
+  });
+
+  it("keeps the batch unapplied when a selected page cannot render the chosen layout", async () => {
+    detail.slides.push({ ...clone(detail.slides[0]), id: sourceId });
+    unrenderableLayoutPage = 1;
+    const user = await enter();
+    await user.click(screen.getByLabelText("选择第 1 页"));
+    await user.click(screen.getByLabelText("选择第 2 页"));
+    await user.click(screen.getByRole("button", { name: "设计" }));
+    const batch = screen.getByRole("region", { name: "所选页面的布局" });
+    await user.selectOptions(within(batch).getByLabelText("批量页面布局"), "image-text");
+    await user.click(within(batch).getByRole("button", { name: "预览批量布局" }));
+    expect(await within(batch).findByRole("alert")).toHaveTextContent("第 2 页无法使用该布局保留现有内容");
+    expect(screen.queryByRole("button", { name: "应用批量布局" })).not.toBeInTheDocument();
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    unrenderableLayoutPage = undefined;
+    await user.click(within(batch).getByRole("button", { name: "预览批量布局" }));
+    expect(await screen.findByRole("dialog", { name: "核对批量布局" })).toBeInTheDocument();
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+  });
+
   it("moves an actual canvas layer with the keyboard and saves the same coordinates after reopening", async () => {
     const user = await enter();
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));

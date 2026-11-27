@@ -62,6 +62,7 @@ import { readPitchHandoff, type PitchHandoffNavigation } from "./PitchHandoffLin
 import { HandoffReview, type BuildingProposalSelection, type HandoffDestination } from "./workspace/HandoffReview";
 import { BuildingLeaseReview } from "./workspace/BuildingLeaseReview";
 import { LayoutVariants } from "./workspace/LayoutVariants";
+import { BatchLayout } from "./workspace/BatchLayout";
 import { DataRefresh } from "./workspace/DataRefresh";
 import { materialMediaKey, paragraphBindingAccess, readMaterialEvidence, useDocumentBindings } from "./workspace/DocumentBindings";
 import { PageSources } from "./workspace/MaterialEvidence";
@@ -1999,6 +2000,11 @@ function Studio({ session }: { session: AuthSessionResult }) {
                     </div>
                   ) : inspector === "design" ? (
                     <div className={styles.form}>
+                      {canGenerate && selected.length > 1 && <BatchLayout
+                        key={`${detail.project.id}:${detail.project.version}:${selected.join(",")}`}
+                        call={call} detail={detail} selected={selected}
+                        disabled={dirty || saving || busy || generationPending || conflict || (objectPage === active && objectSelection.dirty)}
+                        onApplied={(result, version) => acceptReviewedChange(result, version, "所选页面的布局已更新。")} />}
                       {page && <>
                           <label>
                             页面布局
