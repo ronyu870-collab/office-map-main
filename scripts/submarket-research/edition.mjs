@@ -24,6 +24,15 @@ export function readEdition() {
     assert.equal(data.updatedOn, version);
     assert.ok(data.sources.length >= 2 && data.facts.length >= 2, `缺少独立证据 ${data.market}`);
     assert.ok(!structuredResearchCopy(data).some(text => internalResearchMarkers.test(text)), `客户文案含内部标记 ${data.market}`);
+    // The client brief states market facts directly. Research publisher identity
+    // belongs in evidence fields, not the visible copy of this edition.
+    const clientCopy = [data.positioning,
+      ...data.facts.flatMap(item => [item.title, item.body, item.measure?.value ?? '', item.measure?.unit ?? '', ...item.lines ?? []]),
+      ...data.observations.flatMap(item => [item.title, item.body]),
+      ...data.projects.flatMap(item => [item.role, item.reason]),
+    ];
+    assert.ok(!clientCopy.some(text => /世邦魏理仕|\bCBRE\b|仲量联行|\bJLL\b|莱坊|Knight\s*Frank|太平戴维斯|\bSavills\b|戴德梁行|Cushman|高力国际|\bColliers\b/i.test(text)),
+      `客户正文包含研究机构署名 ${data.market}`);
     for (const source of data.sources) {
       const url = new URL(source.url);
       assert.ok(url.hostname.endsWith('.beijing.gov.cn') || url.hostname === 'www.bjsubway.com' ||
