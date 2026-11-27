@@ -121,10 +121,11 @@ export function SubmarketResearchOverview({
   </div>;
 }
 
-export function SubmarketResearchTrend({ data, state, gradeLabel, series, active, range, onRangeChange, onRetry }: {
+export function SubmarketResearchTrend({ data, state, gradeLabel, series, active, range, onRangeChange, onRetry, productMarket = false }: {
   data: readonly SubmarketTrendPoint[];
   state: SubmarketResearchTrendState;
   gradeLabel: string;
+  productMarket?: boolean;
   series?: SubmarketTrendSeries;
   active: boolean;
   range: MarketTrendRange;
@@ -139,7 +140,9 @@ export function SubmarketResearchTrend({ data, state, gradeLabel, series, active
           <p role="status">历史行情暂不可用。</p>
           {onRetry && <button type="button" className={styles.retry} onClick={onRetry}>重新加载</button>}
         </div>
-          : <SubmarketTrendChart data={data} range={range} onRangeChange={onRangeChange} active={active} />}
+           : productMarket && !data.some(point => available(point.rent) || available(point.vacancyPct))
+            ? <p className={styles.chartStatus}>暂无具代表性的季度行情。</p>
+            : <SubmarketTrendChart data={data} range={range} onRangeChange={onRangeChange} active={active} />}
       {state === 'ready' && series && <MarketGradeComparison series={series} />}
     </section>
   </div>;

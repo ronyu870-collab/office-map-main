@@ -185,7 +185,7 @@ function SubmarketWorkspace({
     </div>}
     {productResearch && trendState === 'ready' && selectedTrend.some(point => point.rentSamples === 1 || point.vacancySamples === 1)
       && <p className="submarket-v3-context">单项目观测不构成区域行情。</p>}
-    <SubmarketResearchTrend data={displayedTrend} state={trendState}
+    <SubmarketResearchTrend data={displayedTrend} state={trendState} productMarket={productResearch}
       gradeLabel={gradeNames.find(([id]) => id === grade)?.[1] ?? '甲乙级'} onRetry={detail.error ? undefined : retry}
       series={grade === 'park' ? undefined : payload?.trends} active={!suspended} range={reading.trendRange ?? 'default'}
       onRangeChange={trendRange => setReading(previous => ({ ...previous, trendRange }))} />
