@@ -75,10 +75,10 @@ async function seed() {
   for (const [index, [name, submarket]] of buildings.entries()) {
     const buildingId = randomUUID();
     buildingIds.push(buildingId);
-    await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,$2,$3,'A','tracked')",
-      [buildingId, name, submarket]);
-    await db.query("insert into public.building_brochure_data(building_id,building_height,parking_total,building_floors) values($1,$2,$3,$4)",
-      [buildingId, 180 + index, 400 + index, 39 + index]);
+    await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope,completion_year) values($1,$2,$3,'A','tracked',$4)",
+      [buildingId, name, submarket, String(2015 + index)]);
+    await db.query("insert into public.building_brochure_data(building_id,building_height,parking_total,building_floors,address) values($1,$2,$3,$4,$5)",
+      [buildingId, 180 + index, 400 + index, 39 + index, `隔离测试路${index + 1}号`]);
     for (const [year, quarter] of [[2025, 4], [2026, 1], [2026, 2], [2026, 3]]) {
       await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,
         vacant_area,is_draft,is_locked,locked_at,locked_by) values($1,$2,$3,$4,$5,$6,false,true,now(),$7)`,
