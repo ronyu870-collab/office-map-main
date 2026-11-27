@@ -432,6 +432,13 @@ describe('submarket research workspace', () => {
       trends: { all: [early, latest], a: [{ ...latest, rent: 210 }], b: [{ ...latest, rent: 170 }] } });
     render(<SubmarketDetailPanel {...props} />);
     await screen.findByText('同季度甲乙级租金差');
+    const marketObservation = within(screen.getByRole('region', { name: '市场观察' }));
+    for (const item of research.observations.slice(0, 4)) {
+      expect(marketObservation.getByRole('heading', { name: item.title, exact: true })).toBeVisible();
+      expect(marketObservation.getByText(item.body, { exact: true })).toBeVisible();
+    }
+    fireEvent.click(marketObservation.getByText('研究依据与口径'));
+    expect(marketObservation.getByRole('link', { name: research.sources[1].title })).toHaveAttribute('href', research.sources[1].url);
     expect(screen.getByText(/2026Q2 甲级减乙级/)).toHaveTextContent('+40 元/㎡/月');
     const changes = within(screen.getByRole('region', { name: '季度变化' }));
     expect(changes.getByText('190.0 元/㎡/月')).toBeVisible();
