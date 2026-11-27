@@ -83,11 +83,17 @@ export async function handleAiRequest(
     }
     if (c.action === "proposal_generate") {
       if (proposalExecution) {
-        const { director, workflow } = proposalExecution(ctx);
-        const { submitConfirmedProposal } = await import("./proposal-workflow");
+        const execution = proposalExecution(ctx);
         const { authorizedProposalModel } = await import("./proposal-model");
+        if (execution.lease) {
+          const { scheduleConfirmedProposal } = await import("./proposal-generation-lease");
+          return reply(await scheduleConfirmedProposal(
+            ctx, c.confirmation, actor => proposalExecution(actor).director, execution.lease, schedule, authorizedProposalModel,
+          ));
+        }
+        const { submitConfirmedProposal } = await import("./proposal-workflow");
         const actor = ctx;
-        return reply(await submitConfirmedProposal(c.confirmation, director, workflow, actor.signal,
+        return reply(await submitConfirmedProposal(c.confirmation, execution.director, execution.workflow, actor.signal,
           () => authorizedProposalModel(actor, c.confirmation.request)));
       }
       const { generateConfirmedProposal } = await import("./proposal-generation-runtime");
@@ -148,6 +154,7 @@ export async function handleAiRequest(
       return reply({ code, error: "请重新查看修改前后对照，再确认保存草稿。" }, 409);
     if (code === "PITCH_PROPOSAL_REVIEW_REQUIRED") return reply({ code, error: "来源或范围已变化，请重新审阅提案。" }, 409);
     if (code === "PITCH_PROPOSAL_GENERATION_UNAVAILABLE") return reply({ code, error: "当前提案暂无可提交的生成路径，请查看审阅缺项。" }, 409);
+    if (code === "PITCH_WORKER_UNAVAILABLE") return reply({ code, error: "任务暂时无法启动，请稍后重试。" }, 503);
     if (code === "PITCH_CONFLICT")
       return reply({ error: "版本已更新，请重新读取后再保存。" }, 409);
     if (
