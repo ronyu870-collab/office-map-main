@@ -21,7 +21,7 @@ import { outlineDataParameters, stackingHandoffPartSchema, workspacePartSchema, 
 import { workspaceDetailSchema, type WorkspaceDetail } from "./protocol";
 import { applyObjectMoves, applyObjectTexts, applyObjectOrder, applyObjectGroups } from "./object-layout";
 import { noteSubtitle, workspaceChartTypeSchema } from "./presentation-edits";
-import { captureKey, readCaptures, usesBusinessEvidence } from "./bindingStore";
+import { blockQueryReceipts, captureKey, readBindings, usesBusinessEvidence } from "./bindingStore";
 import { requireStackingHandoff, stackingReviewBinding, type StackingHandoffPort } from "./stacking-handoff";
 import type { DocumentModificationPlan } from "../integration-contracts";
 type Page = WorkspaceDetail["slides"][number];
@@ -118,7 +118,7 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
       }),
     );
   const bindings = command.pages.some(edit => edit.paragraphs || edit.objectTexts)
-    ? await readCaptures(ctx, command.projectId, command.expectedVersion) : undefined;
+    ? await readBindings(ctx, command.projectId, command.expectedVersion) : undefined;
   for (const edit of command.pages) {
     const original = current.slides.find(
       (p) => p.id === (edit.duplicateOf ?? edit.id),
@@ -131,7 +131,11 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
     const prior = settings[original.id] ?? {};
     const historicalStacking = stackingHandoffPartSchema.safeParse(prior.part).success;
     if (historicalStacking && edit.images) throw new Error("PITCH_BOUND_VALUE_EDIT");
-    const binding = bindings?.get(captureKey(original.asset_id, original.asset_version));
+    const assetKey = captureKey(original.asset_id, original.asset_version);
+    const binding = bindings?.captures.get(assetKey);
+    const receipts = bindings?.receipts.get(assetKey);
+    const isBound = (block: SlideContent['blocks'][number]) =>
+      Boolean(binding && usesBusinessEvidence(block, binding.content)) || blockQueryReceipts(block, receipts).length > 0;
     const changedParagraphs = new Set<number>();
     const noteChanged = edit.manualNote !== undefined && (edit.manualNote ?? undefined) !== prior.note?.text;
     let note = prior.note;
@@ -163,7 +167,7 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
         if (block.kind !== "paragraph") return block;
         const text = edit.paragraphs![n++];
         if (text === block.text) return block;
-        if (historicalStacking || binding && usesBusinessEvidence(block, binding.content)) throw new Error("PITCH_BOUND_VALUE_EDIT");
+        if (historicalStacking || isBound(block)) throw new Error("PITCH_BOUND_VALUE_EDIT");
         changedParagraphs.add(index);
         return { ...block, text };
       });
@@ -221,7 +225,7 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
       (relayoutRequested && hasObjectLayout && !edit.resetObjectLayout))
       throw new Error("PITCH_OBJECT_LAYOUT_RESET_REQUIRED");
     const textChange = edit.objectTexts ? applyObjectTexts(original.scene, content, edit.objectTexts, prior.origin !== "data" || Boolean(binding)) : null;
-    if (binding && textChange && [...textChange.changedBlocks].some(index => usesBusinessEvidence(original.content.blocks[index], binding.content)))
+    if (textChange && [...textChange.changedBlocks].some(index => isBound(original.content.blocks[index])))
       throw new Error("PITCH_BOUND_VALUE_EDIT");
     if (textChange) content = textChange.content;
     const manual =

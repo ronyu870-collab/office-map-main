@@ -12,7 +12,7 @@ import type { BusinessDataBinding } from '../integration-contracts';
 import { layoutSlides } from '../layout/engine';
 import { assertSceneQuality } from '../layout/quality';
 import { stackingHandoffPartSchema, type WorkspaceCommand, type WorkspaceDetail } from './protocol';
-import { captureKey, fieldIndex, readCaptures, usesBusinessEvidence, type Block, type Capture } from './bindingStore';
+import { blockQueryReceipts, captureKey, fieldIndex, readBindings, usesBusinessEvidence, type Block, type Capture } from './bindingStore';
 import { noteSubtitle, type PageNote } from './presentation-edits';
 import { commitPayload, getWorkspace } from './workflow';
 
@@ -25,11 +25,12 @@ function bindingMetadata(capture: Capture): BusinessDataBinding {
 
 export async function readDocumentBindings(ctx: PitchContext, projectId: string) {
   const document = await getWorkspace(ctx, projectId);
-  const captures = await readCaptures(ctx, projectId, document.project.version);
+  const { captures, receipts } = await readBindings(ctx, projectId, document.project.version);
   return {
     projectVersion: document.project.version,
     pages: document.slides.map(page => {
-      const capture = captures.get(captureKey(page.asset_id, page.asset_version));
+      const assetKey = captureKey(page.asset_id, page.asset_version);
+      const capture = captures.get(assetKey);
       const settings = document.workspace.page_settings[page.id];
       const stacking = stackingHandoffPartSchema.safeParse(settings?.part);
       const manualSourceIds = new Set(page.content.sources.filter(s => s.recordId?.startsWith('workspace:')).map(s => s.id));
@@ -45,6 +46,15 @@ export async function readDocumentBindings(ctx: PitchContext, projectId: string)
               binding: { domain: 'business' as const, disclosure: 'restricted' as const,
                 dataVersion, dataAsOf, observedOn, permissionRevision, policyVersion },
               ...(block.kind === 'image' ? { mediaId: block.mediaAssetId, mediaVersion: block.mediaVersion } : {}),
+            };
+          }
+          const originalQueries = blockQueryReceipts(block, receipts.get(assetKey));
+          if (originalQueries.length) {
+            return {
+              index, kind: block.kind, valueOrigin: block.kind === 'insight' ? 'asset' as const : 'business' as const,
+              sourceIds: block.sourceIds, receipts: originalQueries.map(({ source_id, generation_id, receipt_id, result_id, entity_id, binding, query }) => ({
+                sourceId: source_id, generationId: generation_id, receiptId: receipt_id, resultId: result_id, entityId: entity_id, binding, query,
+              })),
             };
           }
           const origin = capture ? fieldIndex(block, capture.content) : -1;
@@ -109,7 +119,7 @@ function mergeContent(page: SlideContent, previous: SlideContent, proposed: Slid
 async function prepareRefresh(ctx: PitchContext, command: RefreshCommand) {
   const document = await getWorkspace(ctx, command.projectId);
   if (document.project.version !== command.expectedVersion) throw new Error('PITCH_CONFLICT');
-  const captures = await readCaptures(ctx, command.projectId, command.expectedVersion);
+  const { captures } = await readBindings(ctx, command.projectId, command.expectedVersion);
   const anchor = document.slides.find(page => page.id === command.slideId);
   const original = anchor && captures.get(captureKey(anchor.asset_id, anchor.asset_version));
   if (!original || original.has_research) throw new Error('PITCH_DATA_REFRESH_UNAVAILABLE');
