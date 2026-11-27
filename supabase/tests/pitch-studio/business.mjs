@@ -11,7 +11,8 @@ import {installPitchDataFixture} from './business-data-fixture.mjs';
 import {grantQuery} from '../ai-query-authority/database.mjs';
 import {BUILDINGS} from '../ai-query-authority/snapshot-fixture.mjs';
 const require=createRequire(import.meta.url),workflow=require('../../../src/lib/pitch/business/workflow.ts'),library=require('../../../src/lib/pitch/library/workflow.ts'),render=require('../../../src/lib/pitch/data/renderWorkflow.ts'),{digest}=require('../../../src/lib/pitch/data/store.ts');
-const db=await createPitchDatabase(),files=new Map();let count=0;
+const deliverySql=process.env.PITCH_TEST_DELIVERY_SQL ? [await readFile(process.env.PITCH_TEST_DELIVERY_SQL,'utf8')] : [];
+const db=await createPitchDatabase({beforeVisualAdmission:deliverySql}),files=new Map();let count=0;
 const check=async(name,fn)=>{await fn();count++;console.log('PASS '+name);};
 const rpcOrder={ai_lease_research_snapshot:['p_actor','p_effective','p_session'],ai_query_authority:['p_actor','p_effective','p_session'],ai_query_snapshot_read:['p_actor','p_effective','p_session','p_permission_revision','p_fields','p_periods','p_inventory','p_submarkets','p_building_ids']};
 function ctx(uid){return {identity:{actorId:uid,effectiveUserId:uid,sessionId:sessionFor(uid),expiresAt:Date.now()+600000},signal:new AbortController().signal,client:{rpc(name,args){return {async abortSignal(){try{if(name==='pitch_studio_access')return {data:await db.rpc(uid,args.p_input),error:null};const keys=rpcOrder[name];assert.ok(keys);const query=`select public.${name}(${keys.map((_,i)=>'$'+(i+1)).join(',')}) result`;const result=await db.setup.query(query,keys.map(k=>k==='p_periods'?JSON.stringify(args[k]):args[k]));return {data:result.rows[0].result,error:null};}catch(e){return {data:null,error:{code:e.code,message:e.message}};}}};},storage:{from(){return {async upload(path,bytes){if(files.has(path))return {error:{message:'exists'}};files.set(path,new Uint8Array(bytes));return {error:null};},async download(path){const bytes=files.get(path);return bytes?{data:new Blob([bytes]),error:null}:{data:null,error:{message:'missing'}};}};}}}};}
@@ -28,7 +29,7 @@ async function asset(kind,index=0,who=owner,language='zh') {
 }
 const staticPart=(templateId,assetIds)=>({mode:assetIds.length===1?'static':'semi-dynamic',templateId,assetIds,length:'detailed',allowFallback:false,variant:'standard'});
 const command=parts=>({action:'generate',projectId:randomUUID(),title:'隔离企业业务提案 · 非真实案例',scope,language:'zh',themeId:'colliers-default-v1',themeVersion:2,parts});
-let mixed,exported,dynamicProject;
+let mixed,exported,dynamicProject,visualProject;
 try {
  await db.setup.query('update private.pitch_control set enabled=true');for(const user of [OWNER,OTHER,ADMIN,VIEWER])await db.grant(user,'test-region',{maintainer:user===OWNER||user===ADMIN});
  category=(await db.rpc(OWNER,{action:'catalog'})).categories.find(c=>c.system_code==='general').id;
@@ -64,15 +65,60 @@ try {
    const c=command([{mode:'dynamic',parameters}]);const generated=await workflow.generateBusinessProject(admin,c);assert.ok(generated.pages>0,templateId);const receipt=await db.rpc(ADMIN,{action:'business_generation',projectId:c.projectId});assert.ok(receipt.snapshots[0].results[0].sources.length,templateId);
   }
  });
+ await check('authorized business generation commits, reopens and previews a real catalogue location image without duplicating its bytes',async()=>{
+  await db.setup.query('alter table public.buildings add column if not exists location_lat double precision, add column if not exists location_lng double precision, add column if not exists city text');
+  await db.setup.query('update public.buildings set location_lat=39.91, location_lng=116.45, city=$1 where id=$2',[scope.city,BUILDINGS[0]]);
+  await db.setup.query('update public.buildings set location_lat=39.92, location_lng=116.47, city=$1 where id=$2',[scope.city,BUILDINGS[1]]);
+  admin.client.from=table=>{
+   assert.equal(table,'buildings');let ids;
+   const query={select:()=>query,in(column,value){assert.equal(column,'id');ids=value;return query;},eq:()=>query,is:()=>query,or:()=>query,
+    async abortSignal(){return {data:(await db.setup.query('select id,name,submarket,location_lat,location_lng,city from public.buildings where id=any($1::uuid[])',[ids])).rows,error:null};}};
+   return query;
+  };
+  const parameters={...dynamicFixture,templateId:'competition-map',buildingIds:BUILDINGS.slice(0,2),targetBuildingId:BUILDINGS[0]};
+  const input=command([{mode:'dynamic',parameters}]);
+  visualProject=input.projectId;
+  assert.equal((await db.rpc(ADMIN,{action:'workspace_capabilities'})).allowedDynamic.includes('competition-map'),true);
+  assert.equal((await workflow.generateBusinessProject(admin,input)).pages,1);
+  const reopened=await db.rpc(ADMIN,{action:'workspace_get',projectId:input.projectId});
+  const visual=reopened.slides[0].content.sources[0].visual;
+  assert.equal(visual.kind,'map');assert.deepEqual(visual.buildingIds,parameters.buildingIds);
+  assert.equal(reopened.slides[0].content.blocks[0].mediaAssetId,visual.id);
+  assert.equal((await db.setup.query('select count(*)::int n from pitch_media_assets where id=$1',[visual.id])).rows[0].n,0);
+  assert.equal((await db.setup.query('select * from private.pitch_content_media($1)',[reopened.slides[0].content])).rowCount,0);
+  const mismatched={...reopened.slides[0].content,sources:[{...reopened.slides[0].content.sources[0],sha256:'0'.repeat(64)}]};
+  assert.deepEqual((await db.setup.query('select * from private.pitch_content_media($1)',[mismatched])).rows,[{id:visual.id,version:visual.version}]);
+  assert.match((await render.previewPage(admin,{action:'preview',projectId:input.projectId,page:0})).svg,/data:image\/png;base64,/);
+  if(deliverySql.length){
+   const exportCommand={action:'export_start',projectId:input.projectId,exportId:randomUUID(),audience:'internal',format:'pptx'};
+   await render.prepareRenderExport(admin,exportCommand);
+   await render.runRenderExport(admin,exportCommand);
+   const exported=await render.downloadArtifact(admin,exportCommand);
+   const zip=await JSZip.loadAsync(exported.bytes);
+   const objects=Object.values(zip.files).filter(file=>file.name.startsWith('ppt/media/')&&!file.dir);
+   assert.ok((await Promise.all(objects.map(async file=>digest(await file.async('uint8array'))))).includes(visual.contentHash));
+   await db.setup.query('update public.buildings set location_lat=39.93 where id=$1',[BUILDINGS[0]]);
+   await assert.rejects(render.downloadArtifact(admin,exportCommand),/PITCH_SOURCE_CHANGED/);
+  }
+  assert.equal((await db.rpc(OTHER,{action:'workspace_capabilities'})).allowedDynamic.includes('competition-map'),false);
+  await assert.rejects(workflow.generateBusinessProject(ordinary,command([{mode:'dynamic',parameters}])),/QUERY_DENIED/);
+  await assert.rejects(db.asUser(ADMIN,'select private.pitch_content_media($1)',
+    [reopened.slides[0].content]),e=>e.code==='42501');
+ });
  await check('refresh changes only the new snapshot, old pages are reproducible and historical restore is exact',async()=>{
    const before=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});await db.setup.query('update building_metrics set net_effective_rent=net_effective_rent+10 where record_year=2026 and record_quarter=3');
    const next={...dynamicProject,projectId:randomUUID(),parentProjectId:dynamicProject.projectId};await workflow.generateBusinessProject(admin,next);const old=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});assert.deepEqual(old.slides,before.slides);const a=await db.rpc(ADMIN,{action:'business_generation',projectId:old.project.id}),b=await db.rpc(ADMIN,{action:'business_generation',projectId:next.projectId});assert.equal(workflow.compareBusinessSnapshots(a,b).changed,true);const id=randomUUID();await workflow.restoreBusinessProject(admin,{projectId:id,sourceProjectId:dynamicProject.projectId,title:'隔离历史恢复'});const restored=await db.rpc(ADMIN,{action:'get_project',projectId:id});assert.deepEqual(restored.slides.map(s=>s.content),old.slides.map(s=>s.content));
  });
  await check('dynamic snapshots cannot be client-exported or reused after independent data permission revocation',async()=>{
    const c={action:'export_start',projectId:dynamicProject.projectId,exportId:randomUUID(),audience:'internal',format:'pptx'};await render.prepareRenderExport(admin,c);await render.runRenderExport(admin,c);const file=await render.downloadArtifact(admin,c);await writeFile('tmp/pitch-business-fixtures/隔离正式数据_原生趋势.pptx',file.bytes);const zip=await JSZip.loadAsync(file.bytes);const chart=Object.values(zip.files).find(f=>/^ppt\/charts\/chart\d+\.xml$/.test(f.name));assert.ok(chart);assert.match(await chart.async('string'),/lineChart/);await assert.rejects(render.prepareRenderExport(admin,{...c,exportId:randomUUID(),audience:'client'}),/PITCH_DENIED/);
-   const p=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});await db.setup.query('update private.ai_query_grants set enabled=false where user_id=$1',[ADMIN]);await assert.rejects(render.downloadArtifact(admin,c),/PITCH_DENIED/);assert.equal((await db.asUser(ADMIN,'select * from pitch_business_generations')).rowCount,0);await assert.rejects(db.rpc(ADMIN,{action:'get_asset',assetId:p.slides[0].asset_id}),e=>e.code==='42501');
+   const p=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});await db.setup.query('update private.ai_query_grants set enabled=false where user_id=$1',[ADMIN]);await assert.rejects(render.downloadArtifact(admin,c),/PITCH_DENIED/);assert.equal((await db.asUser(ADMIN,'select * from pitch_business_generations where project_id=$1',[dynamicProject.projectId])).rowCount,0);await assert.rejects(db.rpc(ADMIN,{action:'get_asset',assetId:p.slides[0].asset_id}),e=>e.code==='42501');
+   await assert.rejects(render.previewPage(admin,{action:'preview',projectId:visualProject,page:0}),/QUERY_DENIED/);
  });
- await check('unsupported maps and Stacking Plan fail honestly without fake pages or new scope',async()=>{for(const templateId of ['competition-map','stacking-plan','lease-area-distribution'])await assert.rejects(workflow.generateBusinessProject(admin,command([{mode:'dynamic',parameters:{...dynamicFixture,templateId}}])),/PITCH_DATA_UNAVAILABLE/);});
+ await check('an unavailable data source and unauthorized history both fail without generated pages',async()=>{
+  await assert.rejects(workflow.generateBusinessProject(admin,command([{mode:'dynamic',parameters:{...dynamicFixture,templateId:'lease-area-distribution'}}])),/PITCH_DATA_UNAVAILABLE/);
+  const parameters={...dynamicFixture,templateId:'stacking-plan',buildingIds:[BUILDINGS[0]],targetBuildingId:BUILDINGS[0]};
+  await assert.rejects(workflow.generateBusinessProject(ordinary,command([{mode:'dynamic',parameters}])),/QUERY_DENIED/);
+ });
  await check('actual lease adapter requires independent grants, keeps protected customers out and denies old export after revocation',async()=>{
   const ddl=await readFile(new URL('../lease-expiry/fixture.sql',import.meta.url),'utf8');await db.setup.query(ddl.slice(ddl.indexOf('create table public.lease_transactions('),ddl.indexOf('create table public.lease_transactions_history(')));
   await db.setup.query('alter table public.lease_transactions alter column submitter_id type varchar using submitter_id::text');await installLeaseResearchFixture(db.setup);await seedLeaseResearch(db.setup,BUILDINGS);await grantQuery(db,ADMIN,{capabilities:['query:catalog','query:brochure','query:quarter','export:internal'],fields:['totalArea','vacantArea','netEffectiveRent']});
