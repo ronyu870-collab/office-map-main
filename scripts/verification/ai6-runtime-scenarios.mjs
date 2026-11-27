@@ -1,9 +1,10 @@
 // Only supplier responses are synthetic. Login, authority, snapshots, encrypted
 // archives, recovery and built HTTP artifact downloads use the disposable stack.
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import sharp from 'sharp';
 import { loadAgentHandler } from './ai5-export-scenarios.mjs';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { grantBusiness } from '../../supabase/tests/ai-business-research/fixture.mjs';
@@ -49,6 +50,8 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
   const grant = (who, caps = exportCaps) => grantQuery({ setup: db }, who.id, { capabilities: caps,
     fields: ['height', 'netEffectiveRent', 'totalArea', 'vacantArea'], allBuildings: false, buildingIds: ids.slice(0, 4) });
   let owner, other, grouped;
+  const photoBucket = service.storage.from('building-sales-materials');
+  const storedPhotos = [];
   try {
     for (let i = 0; i < ids.length; i++) {
       await db.query('insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,$2,$3,$4,$5)',
@@ -76,24 +79,39 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       assert.equal(periods.status, 200, JSON.stringify(periods.body)); assert.equal(periods.calls, 0);
       assert.match(periods.body.message, /2026Q2/); assert.match(periods.body.message, /不代表每栋楼/);
     });
-    const buildingContext = async (who, reply, mapSelection = false) => {
+    const buildingContext = async (who, reply, options = {}) => {
       const response = await originalFetch(app + '/api/intelligence/query/buildings', { method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + who.token },
-        body: JSON.stringify({ requestId: reply.requestId, resultId: reply.result.resultId, action: 'buildings', mapSelection }) });
+        body: JSON.stringify({ requestId: reply.requestId, resultId: reply.result.resultId, action: 'buildings', ...options }) });
       return { status: response.status, body: await response.json() };
     };
-    const address = '合成路 8 号', metro = '楼书记录可前往合成地铁站', photoId = randomUUID();
+    const address = '合成路 8 号', metro = '楼书记录可前往合成地铁站';
     const dossiers = [[0, '合成国贸大厦A座（三期）', 80], [1, '合成海岳大厦B座', 120], [3, '合成通运中心A座', null]];
-    await check('AI6 D1 / 三栋楼宇档案在真实登录下使用原照片目录、楼书和正式季度 ID', async () => {
+    await check('AI6 D1 / 三栋楼宇档案通过真实登录读取楼书、正式季度和私有 Storage 原图', async () => {
       const reader = await person('admin', 'ai6-dossier-sample');
       await grant(reader);
       await grantBusiness(db, reader.id, { modules: ['profile'], fields: ['address', 'metro'], allBuildings: false, buildingIds: [ids[0]] });
       for (const [index, label] of dossiers) await db.query('update public.buildings set former_names=$2,location_lng=116.46,location_lat=39.91 where id=$1',
         [ids[index], JSON.stringify([label])]);
       await db.query('insert into public.building_brochure_data(building_id,address,metro_access) values($1,$2,$3)', [ids[0], address, metro]);
-      await db.query(`insert into public.building_photos(id,building_id,image_url,source_url,caption,photo_kind,storage_path,width,height,sha256,file_size,status)
-        values($1,$2,'https://example.invalid/ai6.jpg','https://example.invalid/ai6','合成楼宇照片','exterior',$3,100,100,$4,100,'ready')`,
-        [photoId, ids[0], `building-photos/v1/${ids[0]}/${photoId}/photo.jpg`, '0'.repeat(64)]);
+      const photos = new Map();
+      for (const [index, color] of [[0, '#254358'], [1, '#69553e']]) {
+        const id = randomUUID(), path = `building-photos/v1/${ids[index]}/${id}/photo.png`;
+        const bytes = await sharp({ create: { width: 32, height: 24, channels: 3, background: color } }).png().toBuffer();
+        const digest = createHash('sha256').update(bytes).digest('hex');
+        const source = `https://example.com/ai6-fixture/building-${index}`;
+        const uploaded = await photoBucket.upload(path, bytes, { contentType: 'image/png', upsert: false });
+        assert.equal(uploaded.error, null, 'fixture must be installed in private Storage');
+        storedPhotos.push({ id, path });
+        await db.query(`insert into public.building_photos(id,building_id,image_url,source_url,source_name,caption,photo_kind,storage_path,width,height,sha256,file_size,status)
+          values($1,$2,$3,$4,'合成照片出处','合成楼宇照片','exterior',$5,32,24,$6,$7,'ready')`,
+          [id, ids[index], `${source}/original.png`, source, path, digest, bytes.length]);
+        photos.set(index, { id, source, path, digest });
+      }
+      const location = await submit(reader, '合成国贸大厦A座（三期）在哪个子市场？');
+      assert.equal(location.status, 200, JSON.stringify(location.body)); assert.equal(location.calls, 0);
+      assert.match(location.body.message, /^[^。！？\n]*CBD[^。！？\n]*。$/u);
+      const photoRequests = [];
       for (const [index, label, rent] of dossiers) {
         const response = await submit(reader, `介绍${label}，并附上照片、地址和最新正式季度净有效租金、空置率`);
         assert.equal(response.status, 200, JSON.stringify(response.body)); assert.equal(response.calls, 0);
@@ -104,7 +122,35 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
         const context = await buildingContext(reader, response.body);
         assert.equal(context.status, 200, JSON.stringify(context.body));
         assert.deepEqual(context.body.buildings.map(row => row.id), [ids[index]]);
-        assert.equal(context.body.buildings[0].photo?.id ?? null, index === 0 ? photoId : null);
+        const photo = photos.get(index);
+        assert.equal(context.body.buildings[0].photo?.id ?? null, photo?.id ?? null);
+        assert.equal(context.body.photoAccess, undefined, 'directory only returns photo metadata');
+        if (photo) {
+          const options = { buildingId: ids[index], photoId: photo.id, limit: 1 };
+          const signed = await buildingContext(reader, response.body, options);
+          assert.equal(signed.status, 200, JSON.stringify(signed.body));
+          const access = signed.body.photoAccess;
+          assert.equal(access.source_url, photo.source);
+          assert.equal(access.source_name, '合成照片出处');
+          assert.equal(access.is_preview, false);
+          const signedUrl = new URL(access.url);
+          assert.equal(signedUrl.hostname, '127.0.0.1');
+          assert.ok(signedUrl.pathname.endsWith(`/object/sign/building-sales-materials/${photo.path}`));
+          assert.ok(signedUrl.searchParams.has('token'));
+          const image = await originalFetch(signedUrl, { redirect: 'error' });
+          assert.equal(image.status, 200);
+          assert.match(image.headers.get('content-type'), /^image\/png\b/);
+          const bytes = Buffer.from(await image.arrayBuffer());
+          assert.equal(createHash('sha256').update(bytes).digest('hex'), photo.digest);
+          const decoded = await sharp(bytes).metadata();
+          assert.equal(decoded.width, 32); assert.equal(decoded.height, 24);
+          assert.ok((await reader.client.storage.from('building-sales-materials').download(photo.path)).error, 'private original must not be directly accessible');
+          const delivery = (await events(signed.body.attemptId)).find(event => event.kind === 'response_generated');
+          const audited = decrypt(delivery).content.result.buildingMetadata;
+          assert.equal(audited.photoSource.sourceUrl, photo.source);
+          assert.equal(JSON.stringify(audited).includes(signedUrl.searchParams.get('token')), false);
+          photoRequests.push({ reply: response.body, options });
+        }
         if (index === 0) {
           const dossier = response.body.answerSelection.results.find(item => item.role === 'supporting').result;
           assert.equal(dossier.table.rows[0].cells.address.value, address);
@@ -112,6 +158,17 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
           assert.equal((await buildingContext(other, response.body)).status, 403);
         } else assert.ok(!JSON.stringify(response.body).includes(address));
       }
+      const [first, second] = photoRequests;
+      for (const denied of [await buildingContext(other, first.reply, first.options),
+        await buildingContext(reader, first.reply, { ...first.options, photoId: second.options.photoId })]) {
+        assert.equal(denied.status, 403); assert.equal(denied.body.photoAccess, undefined);
+      }
+      await db.query("update public.building_photos set status='archived' where id=$1", [first.options.photoId]);
+      const retired = await buildingContext(reader, first.reply, first.options);
+      assert.equal(retired.status, 403); assert.equal(retired.body.photoAccess, undefined);
+      await db.query('update private.ai_query_grants set enabled=false where user_id=$1', [reader.id]);
+      const revoked = await buildingContext(reader, second.reply, second.options);
+      assert.equal(revoked.status, 403); assert.equal(revoked.body.photoAccess, undefined);
     });
     await check('AI6 D3 / 真实办公初筛把楼书交通、候选地图和待核验的步行距离分开交付', async () => {
       const broker = await person('admin', 'ai6-site-broker');
@@ -126,10 +183,10 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       const dossier = response.body.answerSelection.results.find(item => item.role === 'supporting').result;
       assert.equal(dossier.table.rows[0].cells.metro.value, metro);
       assert.deepEqual(response.body.result.parameters.agentMap.buildingIds, [ids[0]]);
-      const selected = await buildingContext(broker, response.body, true);
+      const selected = await buildingContext(broker, response.body, { mapSelection: true });
       assert.equal(selected.status, 200, JSON.stringify(selected.body));
       assert.deepEqual(selected.body.buildings.map(row => [row.id, row.located]), [[ids[0], true]]);
-      assert.equal((await buildingContext(other, response.body, true)).status, 403);
+      assert.equal((await buildingContext(other, response.body, { mapSelection: true })).status, 403);
       const walking = await submit(broker, '地铁步行不超过800米的办公选址');
       assert.equal(walking.status, 200, JSON.stringify(walking.body)); assert.equal(walking.calls, 0);
       assert.equal(walking.body.agent.executionStatus, 'limited');
@@ -335,5 +392,9 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
   } finally {
     globalThis.fetch = originalFetch;
     for (const [key, value] of previous) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    if (storedPhotos.length) {
+      await db.query('delete from public.building_photos where id=any($1::uuid[])', [storedPhotos.map(photo => photo.id)]);
+      await photoBucket.remove(storedPhotos.map(photo => photo.path));
+    }
   }
 }

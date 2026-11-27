@@ -10,7 +10,7 @@ import { loadAgentHandler } from './ai5-export-scenarios.mjs';
 import { observedResultReference, assertSelectedAnswer } from './agent-result-references.mjs';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { grantLeaseResearch, seedLeaseResearch } from '../../supabase/tests/ai-lease-research/fixture.mjs';
-export async function verifyAi5Leases({ db, service, keys, output, check, person, artifact, recover, events, decrypt, exportCaps, buildingIds }) {
+export async function verifyAi5Leases({ db, app, service, keys, output, check, person, artifact, recover, events, decrypt, exportCaps, buildingIds }) {
   const handle = await loadAgentHandler(output), seeded = await seedLeaseResearch(db,buildingIds);
   let scenario;
   const tool = (name,args) => ({ id: randomUUID(), type:'function', function:{ name, arguments:JSON.stringify(args) } });
@@ -18,8 +18,9 @@ export async function verifyAi5Leases({ db, service, keys, output, check, person
   const server=createServer(async(req,res)=>{
     try {
       const chunks=[]; for await(const chunk of req) chunks.push(chunk);
-      const response=await handle(new Request('http://127.0.0.1'+req.url,{method:req.method,headers:req.headers,body:Buffer.concat(chunks)}),{
-        client:service,keys,enabled:true,invokeModel:async messages=>{
+      const controller = new AbortController();
+      const response=await handle(new Request('http://127.0.0.1'+req.url,{method:req.method,headers:req.headers,body:Buffer.concat(chunks),signal:controller.signal}),{
+        client:service,keys,enabled:true,invokeModel:async (messages, signal)=>{
           // Check actual provider-bound input, not just the response table.
           const content=JSON.stringify(messages);
           for(const secret of ['合成保密客户_禁止模型日志','synthetic-lease-7','agency_person','submitter_name']) assert.equal(content.includes(secret),false);
@@ -32,6 +33,11 @@ export async function verifyAi5Leases({ db, service, keys, output, check, person
           const observations=messages.filter(m=>m.role==='tool').map(m=>JSON.parse(m.content));
           const resultId=observations.find(o=>o.resultId)?.resultId;
           if(step===1) {
+            if (scenario.interruptAfterDetails) {
+              assert.ok(resultId, 'fault must occur after the actual lease tool creates its result');
+              controller.abort();
+              signal.throwIfAborted();
+            }
             if(scenario.plan.mode==='details') {
               const detailObservation=JSON.stringify(observations[0]);
               assert.equal(detailObservation.includes('A座'),false); assert.equal(detailObservation.includes('300.75'),false);
@@ -173,6 +179,50 @@ export async function verifyAi5Leases({ db, service, keys, output, check, person
       const prior=await submit(base,{followup:'export_table'});
       await db.query('update public.lease_building_name_map set building_id=$1 where alias_name=$2',[buildingIds[2],'合成历史楼名']);
       assert.equal((await download(prior)).status,403);
+    });
+    await check('AI6 T13 / 单笔成交前十笔在查询后中断，原会话可恢复同一份获权正式明细', async () => {
+      await nextActor('t13-interrupted'); await grant();
+      const project = '合成T13单笔排名项目';
+      const transactionIds = Array.from({ length: 13 }, () => randomUUID());
+      await db.query("insert into public.lease_building_name_map(market_code,alias_name,building_id,match_method) values('BJ',$1,$2,'manual')", [project, buildingIds[0]]);
+      try {
+        for (const [index, id] of transactionIds.entries()) {
+          await db.query(`insert into public.lease_transactions(id,company,new_building,industry,sub_market,area_sqm,transaction_year,transaction_quarter,transaction_date)
+            values($1,'合成保密客户_禁止模型日志',$2,'TMT','CBD',$3,2026,$4,$5)`,
+          [id, project, index === 12 ? 9000 : 1000 + index * 250, index === 12 ? 'Q3' : 'Q2', index === 12 ? '2026-07-01' : '2026-06-30']);
+        }
+        const question = '列出2026年上半年CBD单笔租赁成交按面积排名前十笔。';
+        const expected = Array.from({ length: 10 }, (_, index) => 3750 - index * 250);
+        const plan = { source: 'live', from: '2026-01-01', to: '2026-06-30', submarkets: ['CBD'], mode: 'details',
+          fields: ['area'], sort: 'area', direction: 'desc', topN: 10 };
+        const conversation = { id: randomUUID() };
+        const stopped = await submit(plan, { question, interruptAfterDetails: true }, who, conversation);
+        assert.equal(stopped.status, 409, JSON.stringify(stopped.body));
+        assert.match(stopped.body.error, /历史恢复/);
+        assert.equal(stopped.body.result, undefined);
+        const restored = await recover(who, stopped.body.requestId);
+        assert.equal(restored.status, 200);
+        assert.equal(restored.body.answerSelection.status, 'partial');
+        assert.equal(restored.body.result.parameters.leaseBindings[0].plan.mode, 'details');
+        assert.equal(restored.body.result.parameters.leaseBindings[0].plan.topN, 10);
+        assert.deepEqual(restored.body.result.table.rows.map(row => row.cells.area.value.numeric), expected);
+        const history = await fetch(app + '/api/intelligence/query/history', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + who.token },
+          body: JSON.stringify({ action: 'open', conversationId: conversation.id, requestId: stopped.body.requestId }) });
+        assert.equal(history.status, 200);
+        const { opened } = await history.json();
+        assert.equal(opened.conversation.id, conversation.id);
+        assert.equal(opened.selected.question, question);
+        assert.deepEqual(opened.selected.reply.result, restored.body.result);
+        const archived = await events(stopped.body.requestId);
+        assert.equal(archived.filter(event => event.kind === 'response_generated').length, 1);
+        assert.equal((await recover(other, stopped.body.requestId)).status, 403);
+        await db.query('update private.ai_lease_research_grants set enabled=false where user_id=$1', [who.id]);
+        assert.equal((await recover(who, stopped.body.requestId)).status, 403);
+      } finally {
+        await db.query('delete from public.lease_transactions where id=any($1::uuid[])', [transactionIds]);
+        await db.query("delete from public.lease_building_name_map where market_code='BJ' and alias_name=$1", [project]);
+      }
     });
   } finally {server.close();await once(server,'close');}
 }
