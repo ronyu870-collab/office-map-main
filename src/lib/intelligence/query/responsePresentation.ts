@@ -70,7 +70,8 @@ export function responseDecision(result: QueryResultView, task?: string, questio
   if (inlineTable && (prefs.wantsTable || defaultChart || isQuarterlyAnswer(result) && result.table.rows.length > 1 && numeric.length > 1)) return { ...base,
     task: isQuarterlyAnswer(result) ? 'trend' : result.operation === 'rank' ? 'ranking' : 'list',
     status: 'answered', primaryExpression: 'table', details: 'inline' };
-  if ((buildings.length === 1 || leaseDetails) && result.table.rows.length === 1) return { ...base, task: 'fact', status: 'answered', primaryExpression: 'entity', details: 'on_demand' };
+  const buildingProfile = z.object({ buildingProfile: z.literal(true) }).safeParse(result.parameters.interpretation).success;
+  if (buildingProfile && buildings.length || (buildings.length === 1 || leaseDetails) && result.table.rows.length === 1) return { ...base, task: 'fact', status: 'answered', primaryExpression: 'entity', details: 'on_demand' };
   if (numeric.length && (task === 'record' && result.parameters.dataDomain === 'lease-research/1' || result.operation === 'aggregate' || result.table.rows.length === 1 || ['trend', 'group_trend', 'cross_trend'].includes(result.operation)))
     return { ...base, task: 'fact', status: 'answered', primaryExpression: 'fact', details: prefs.wantsSamples && result.table.rows.length ? 'inline' : result.table.columns.length > numeric.length || result.table.rows.length > 1 ? 'on_demand' : 'none' };
   return { ...base, task: result.operation === 'rank' ? 'ranking' : 'list', status: 'answered', primaryExpression: 'table', details: 'inline' };

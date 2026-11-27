@@ -18,22 +18,28 @@ export function HomeQueryBuildings({ result, requestId, scope, onSource }: { res
 }
 function BuildingResults({ result, requestId, scope, buildings, onSource }: { result: QueryResultView; requestId: string; scope: QueryClientScope; buildings: QueryBuildingRow[];
   onSource?: (ids: string[], label: string, trigger: HTMLButtonElement) => void }) {
-  const [page, setPage] = useState(0), [context, setContext] = useState<BuildingContext | null>(null), [error, setError] = useState<string | null>(null);
-  const [revision, setRevision] = useState(0);
-  const scopeKey = queryScopeKey(scope);
-  // A page change commits before the effect clears context. Only render directory
-  // metadata belonging to the visible page of this exact authorized snapshot.
-  const pageContext = context?.requestId === requestId && context.resultId === result.resultId && context.offset === page * 5 ? context : null;
+  const [page, setPage] = useState(0), [revision, setRevision] = useState(0);
+  const [loaded, setLoaded] = useState<{ key: string; context?: BuildingContext; error?: string }>();
+  const loadKey = `${queryScopeKey(scope)}:${requestId}:${result.resultId}:${page}:${revision}`;
+  // Render only the directory metadata for the current page and authorization.
+  const pageContext = loaded?.key === loadKey ? loaded.context ?? null : null;
+  const error = loaded?.key === loadKey ? loaded.error : undefined;
   useEffect(() => {
     const controller = new AbortController();
-    setContext(null); setError(null);
     void trustedQueryClient.buildings(scope, { requestId, resultId: result.resultId, offset: page * 5, limit: 5 }, controller.signal)
-      .then(value => { if (!controller.signal.aborted && value.resultId === result.resultId) setContext(value); })
-      .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : '楼宇信息暂时无法读取。'); });
+      .then(value => {
+        if (controller.signal.aborted) return;
+        if (value.requestId === requestId && value.resultId === result.resultId && value.offset === page * 5)
+          setLoaded({ key: loadKey, context: value });
+        else setLoaded({ key: loadKey, error: '楼宇信息与当前结果不一致，请重试。' });
+      })
+      .catch(reason => {
+        if (!controller.signal.aborted) setLoaded({ key: loadKey, error: reason instanceof Error ? reason.message : '楼宇信息暂时无法读取。' });
+      });
     return () => controller.abort();
   // scope identity is serialized; refreshing React props must not reload the same page.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeKey, requestId, result.resultId, page, revision]);
+  }, [loadKey]);
   return <section className={styles.section} aria-label="查询楼宇信息">
     <div className={styles.heading}><h3>{buildings.length === 1 ? '楼宇信息' : `本次结果 · ${buildings.length} 栋楼宇`}</h3>
       <Link className={styles.link} href={queryMapHref(requestId, undefined, false, result.resultId)} prefetch={false}>{result.parameters.agentMap ? '打开已准备的地图选择' : `在地图中查看${buildings.length > 1 ? '全部项目' : ''}`}</Link></div>
@@ -52,26 +58,34 @@ function BuildingResults({ result, requestId, scope, buildings, onSource }: { re
 function BuildingCard({ building, metadata, result, requestId, scope, single, onSource }: { building: QueryBuildingRow; metadata?: BuildingContext['buildings'][number];
   result: QueryResultView; requestId: string; scope: QueryClientScope; single: boolean; onSource?: (ids: string[], label: string, trigger: HTMLButtonElement) => void }) {
   const [expanded, setExpanded] = useState(single), [photoRequested, setPhotoRequested] = useState(single);
-  const [photo, setPhoto] = useState<BuildingContext['photoAccess']>(), [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; photo?: BuildingContext['photoAccess']; error?: string }>();
   const [revision, setRevision] = useState(0);
-  const photoId = metadata?.photo?.id, scopeKey = queryScopeKey(scope);
+  const photoId = metadata?.photo?.id;
+  const loadKey = `${queryScopeKey(scope)}:${requestId}:${result.resultId}:${building.id}:${photoId}:${revision}`;
+  const photo = loaded?.key === loadKey ? loaded.photo : undefined;
+  const error = loaded?.key === loadKey ? loaded.error : undefined;
   useEffect(() => {
     if (!photoRequested || !photoId) return;
     const controller = new AbortController();
-    setPhoto(undefined); setError(null);
     void trustedQueryClient.buildings(scope, { requestId, resultId: result.resultId, buildingId: building.id, photoId, limit: 1 }, controller.signal)
-      .then(value => { if (!controller.signal.aborted) { if (value.photoAccess) setPhoto(value.photoAccess); else setError('照片暂不可用。'); } })
-      .catch(() => { if (!controller.signal.aborted) setError('照片暂时无法读取，请重试。'); });
+      .then(value => {
+        if (!controller.signal.aborted) setLoaded(value.requestId === requestId && value.resultId === result.resultId && value.photoAccess
+          ? { key: loadKey, photo: value.photoAccess } : { key: loadKey, error: '照片暂不可用。' });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setLoaded({ key: loadKey, error: '照片暂时无法读取，请重试。' });
+      });
     return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeKey, requestId, result.resultId, building.id, photoId, photoRequested, revision]);
+  }, [loadKey, photoRequested]);
   const columns = result.table.columns.filter(column => column.key !== 'name' && building.cells[column.key]);
   const visible = expanded ? columns : columns.slice(0, 2);
   return <article className={`${styles.card} ${photoRequested && metadata?.photo ? styles.withPhoto : ''}`} aria-label={`${building.name}楼宇卡片`}>
     <div className={styles.cardHeading}><h4>{building.name}</h4><p>{metadata?.submarket ?? '子市场未知'} · {metadata?.grade ? gradeLabel(metadata.grade) : '等级未知'} <span>（当前目录）</span></p></div>
     {photoRequested && metadata?.photo && <figure className={styles.photo}>
-      {photo ? <><img src={photo.url} alt={metadata.photo.caption} loading="lazy" onError={() => { setPhoto(undefined); setError('照片加载失败，请重试。'); }} />
-        <figcaption>{metadata.photo.caption}{photo.license_url && <> · <a href={photo.source_url} target="_blank" rel="noopener noreferrer">{photo.source_name || '图片来源'}</a>{photo.attribution_text && ` · ${photo.attribution_text}`} · <a href={photo.license_url} target="_blank" rel="noopener noreferrer">许可说明</a></>}</figcaption></>
+      {photo ? <><img src={photo.url} alt={metadata.photo.caption} loading="lazy" onError={() => setLoaded({ key: loadKey, error: '照片加载失败，请重试。' })} />
+        <figcaption>{metadata.photo.caption} · <a href={photo.source_url} target="_blank" rel="noopener noreferrer">{photo.source_name || '图片来源'}</a>
+          {photo.attribution_text && ` · ${photo.attribution_text}`}{photo.license_url && <> · <a href={photo.license_url} target="_blank" rel="noopener noreferrer">许可说明</a></>}</figcaption></>
         : error ? <><p role="alert">{error}</p><Button variant="ghost" onClick={() => setRevision(value => value + 1)}>重试照片</Button></> : <p role="status">正在读取已存档照片…</p>}
     </figure>}
     {!metadata?.photo && single && <p className={styles.note}>暂无可访问的实景照片。</p>}

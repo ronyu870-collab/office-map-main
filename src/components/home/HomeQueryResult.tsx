@@ -6,6 +6,7 @@ import { cellText, resultScopeText, units, type QueryResultView } from '@/src/li
 import { researchAnalysisSchema, type ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnalysisView';
 import { metricLabels, resultMetrics, resultMetricAnalysis } from '@/src/lib/intelligence/query/multiMetricView';
 import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailability';
+import { resultBuildingRows } from '@/src/lib/intelligence/query/buildingCards';
 import { composeResponse, responseDecision, responseBuildingLocation, responseFactCells, responseResultContent, responseTableTitle } from '@/src/lib/intelligence/query/responsePresentation';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
@@ -103,6 +104,8 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
     chart: () => (requestId && scope && <responseBlockRenderers.chart result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible} />),
     analysis: () => analysisSection,
     building: () => {
+      if (visible && requestId && scope && resultBuildingRows(result).length)
+        return <responseBlockRenderers.building result={result} requestId={requestId} scope={scope} onSource={showSources} />;
       const row = result.table.rows[0];
       const name = row.cells.name ?? row.cells.building;
       const fields = result.table.columns.filter(column => !['name', 'building'].includes(column.key) && row.cells[column.key]);

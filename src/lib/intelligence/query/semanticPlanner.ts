@@ -35,6 +35,7 @@ export type SemanticInterpretation = {
   inherited: string[];
   notices: string[];
   unavailableFields?: string[];
+  buildingProfile?: true;
   buildingLocation?: { subject: string; submarket: string };
 };
 export type SemanticResolution =

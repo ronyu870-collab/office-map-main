@@ -199,7 +199,7 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
     // Materialize the full authorized result through the executor, no snapshot read.
     const observed = await run('select_answer_results', { primaryResultId: input.previousResultId, auxiliary: [], task: task.tableView ? 'fact' : 'file', status: 'answered' });
     if (!observed?.result) failures.push({ tool: 'select_answer_results', code: 'result_not_found' });
-  } else if (task.route === 'single_interpretation' || task.catalogLocation) {
+  } else if (task.route === 'single_interpretation' || task.catalogLookup) {
     const observed = await run('query_verified_real_estate', { question: task.question });
     if (observed) { const payload = JSON.parse(observed.content); if (payload.status === 'requires_clarification') clarification = payload.message; }
   } else if (!task.reply) failures.push({ tool: 'verified_data', code: 'result_not_found' });

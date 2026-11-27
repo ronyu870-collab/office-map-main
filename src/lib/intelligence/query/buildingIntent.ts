@@ -28,11 +28,16 @@ export function buildingLocationTarget(question: string): string | null {
   const target = match?.[1].trim();
   return target && !/[，,；;<>]|忽略|绕过|执行SQL/i.test(target) ? target : null;
 }
-function introductionTarget(question: string): string | null {
+function parseBuildingIntroduction(question: string): string | null {
   const text = question.trim().replace(/[。？?]$/, '');
   const match = /^(?:请)?(?:介绍(?:一下)?|了解一下)(.{2,80}?)$/.exec(text) ?? /^(.{2,80})的(?:楼宇|项目)(?:概况|信息)$/.exec(text);
-  if (!match || /[\u0000-\u001f<>]|忽略|绕过|SQL|建成|楼龄|建筑面积|报价|业主|联系方式|最近|季度|大于|小于|只要|不含/i.test(match[1])) return null;
+  if (!match || /[\u0000-\u001f<>]|忽略|绕过|SQL|建成|楼龄|建筑面积|报价|业主|联系方式|最近|季度|大于|小于|只要|不含|什么是|概念|定义|原理|市场走势|有哪些/i.test(match[1])) return null;
   return match[1].replace(/的(?:楼宇|项目)?(?:概况|信息|资料)$/, '').trim();
+}
+export function buildingProfileTarget(question: string): string | null {
+  const target = parseBuildingIntroduction(question);
+  return target && (/大厦|中心|广场|大楼|写字楼|楼宇|楼座|[一二三四五六1-6]期|[A-Z]座/i.test(target)
+    || /的(?:楼宇|项目)(?:概况|信息)[。？?]?$/.test(question.trim())) ? target : null;
 }
 const emptyContext = (): SemanticContext => ({ version: 'colliers-semantic-context/1', comparisonSubmarkets: [] });
 function clarify(question: string, context: SemanticContext, message: string, rows: BuildingIdentity[] = []): SemanticResolution {
@@ -50,7 +55,8 @@ export async function prepareBuildingIntent(input: { client: SupabaseClient; ide
   const option = context.pending?.clarification.options.find(item => item.question === input.question && item.id.startsWith('building:'));
   const selection = input.buildingSelection ?? (option ? { ids: [option.id.slice(9)], intent: 'profile' as const } : undefined);
   const locationTarget = selection ? null : buildingLocationTarget(input.question);
-  const target = selection ? null : locationTarget ?? introductionTarget(input.question);
+  const profileTarget = selection || locationTarget ? null : parseBuildingIntroduction(input.question);
+  const target = locationTarget ?? profileTarget;
   if (!selection && !target) return null;
   if (input.buildingSelection && input.question !== buildingIntentQuestions[input.buildingSelection.intent]) {
     return { resolution: clarify(input.question, context, '所选楼宇动作与问题已变化，请重新选择分析动作，或取消楼宇选择后重新提问。') };
@@ -70,10 +76,12 @@ export async function prepareBuildingIntent(input: { client: SupabaseClient; ide
       if (result.error) throw new Error('QUERY_READ_UNAVAILABLE');
       aliases.push(...(result.data ?? []));
     }
+    const unprefixed = target.replace(/^北京市?/, '');
+    const aliasesToMatch = unprefixed.length >= 2 && unprefixed !== target ? [target, unprefixed] : [target];
     const [exact, project] = await Promise.all([
-      client.from('lease_building_name_map').select('building_id').eq('market_code', 'BJ').eq('alias_name', target)
+      client.from('lease_building_name_map').select('building_id').eq('market_code', 'BJ').in('alias_name', aliasesToMatch)
         .in('verification_status', ['AUTO_VERIFIED', 'MANUAL_VERIFIED']).limit(20).abortSignal(signal),
-      client.from('lease_building_project_map').select('building_id').eq('market_code', 'BJ').eq('alias_name', target)
+      client.from('lease_building_project_map').select('building_id').eq('market_code', 'BJ').in('alias_name', aliasesToMatch)
         .in('verification_status', ['AUTO_VERIFIED_PROJECT', 'MANUAL_VERIFIED_PROJECT']).limit(100).abortSignal(signal),
     ]);
     if (exact.error || project.error) throw new Error('QUERY_READ_UNAVAILABLE');
@@ -83,6 +91,8 @@ export async function prepareBuildingIntent(input: { client: SupabaseClient; ide
     if (locationTarget && resolved.reason !== 'candidate' && market
       && resolved.candidates.every(candidate => candidate.submarket === market)) {
       buildingLocation = { subject: locationTarget, submarket: market };
+      chosen = resolved.candidates;
+    } else if (profileTarget && resolved.reason === 'project' && resolved.candidates.length) {
       chosen = resolved.candidates;
     } else if (!resolved.unique || locationTarget) {
       if ((await loadDataAuthority(client, input.identity, signal)).permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
@@ -127,6 +137,6 @@ export async function prepareBuildingIntent(input: { client: SupabaseClient; ide
   return { availability, resolution: { kind: 'plan', plan, context: { version: 'colliers-semantic-context/1', lastPlan: plan, comparisonSubmarkets: [] },
     interpretation: { version: 'colliers-semantic-planner/1', method: 'bounded_semantic_rules', resolvedQuestion: intent === 'peers' ? '查询所选项目所属子市场的获权楼宇目录（包含所选项目）' : `${chosen.map(row => row.name).join('、')}：${intent === 'rent_trend' ? '近四个季度净有效租金趋势' : '楼宇信息与已有获权指标'}`,
       periodBasis: period ? `按所选楼宇获权有效记录定位 ${period.year}Q${period.quarter}，不是实时数据` : '没有可用季度时只展示目录与获权楼书参数',
-      periods, availableThrough: period, unavailablePeriods: [], inherited: [], ...(buildingLocation ? { buildingLocation } : {}), notices: ['楼宇按明确主键匹配；项目级和同名候选必须确认。'] },
+      periods, availableThrough: period, unavailablePeriods: [], inherited: [], ...(buildingLocation ? { buildingLocation } : {}), ...(profileTarget ? { buildingProfile: true } : {}), notices: ['楼宇按明确主键匹配；项目级和同名候选必须确认。'] },
     limitations: ['建成年份、建筑面积和地下层数尚未纳入 AI 可信字段授权，本结果不补造；楼层数按原来源口径。', ...(intent === 'peers' ? ['同子市场目录包含当前项目，不以名称排除或合并楼座。'] : [])] } };
 }

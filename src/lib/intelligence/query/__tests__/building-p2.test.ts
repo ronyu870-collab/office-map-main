@@ -26,7 +26,14 @@ describe('P2 building identity and result contract', () => {
     expect(resolveBuildingCandidates('无权别称', rows, [{ building_id: 'outside' }]).unique).toBeNull();
   });
   it.each(['合成中心在哪个子市场？', '测试大厦属于哪个子市场'])('routes location facts through authorized building resolution: %s', question => {
-    expect(routeTask(question)).toMatchObject({ route: 'deterministic_query', taskType: 'query', catalogLocation: true });
+    expect(routeTask(question)).toMatchObject({ route: 'deterministic_query', taskType: 'query', catalogLookup: 'location' });
+  });
+
+  it.each(['介绍一下北京合成中心三期', '请介绍测试大厦', '测试写字楼的楼宇概况'])('prefers the governed catalog for named building introductions: %s', question => {
+    expect(routeTask(question)).toMatchObject({ route: 'deterministic_query', taskType: 'query' });
+  });
+  it('leaves explanations of office-market concepts available', () => {
+    expect(routeTask('介绍一下什么是写字楼空置率').route).not.toBe('deterministic_query');
   });
 
   it('uses a concise source-linked fact for exact candidate rows sharing one submarket', () => {

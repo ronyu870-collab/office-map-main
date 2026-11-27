@@ -1,5 +1,5 @@
 import { resolveSemanticQuestion, type SemanticContext } from '../query/semanticPlanner';
-import { buildingLocationTarget } from '../query/buildingIntent';
+import { buildingLocationTarget, buildingProfileTarget } from '../query/buildingIntent';
 import { requiresDataFactEvidence } from './queryObligation';
 import type { QueryPlan } from '../query/plan';
 import { restoredResultTableView, type ResultTableView, type ResultTableReference } from '../query/tableView';
@@ -15,7 +15,7 @@ export type TaskRoute = {
   exportFormat?: 'xlsx' | 'csv_zip';
   reusePrevious?: boolean;
   reuseComparison?: boolean;
-  catalogLocation?: boolean;
+  catalogLookup?: 'location' | 'profile';
   planNotices?: string[];
   unavailableFields?: string[];
   capabilities?: boolean;
@@ -70,7 +70,8 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
     return { route: 'direct_response', taskType: 'query', question, capabilities: true };
   if (/^(?:你能够查询哪些季度|你能查询哪些季度|有哪些可用季度|可以查询哪些季度|which quarters are available)$/i.test(text))
     return { route: 'direct_response', taskType: 'query', question, capabilities: true, availablePeriods: true };
-  if (buildingLocationTarget(text)) return { route: 'deterministic_query', taskType: 'query', catalogLocation: true, question: text };
+  if (buildingLocationTarget(text)) return { route: 'deterministic_query', taskType: 'query', catalogLookup: 'location', question: text };
+  if (buildingProfileTarget(text)) return { route: 'deterministic_query', taskType: 'query', catalogLookup: 'profile', question: text };
   const priorComparison = /^(?:请)?(?:把|将)(?:刚才|上次|前面)的?(?:对比|比较)(?:结果|表格)?\s*导出(?:为|成)?\s*(Excel|xlsx|CSV)(?:文件)?$/i.exec(text)
     ?? /^(?:请)?导出(?:刚才|上次|前面)的?(?:对比|比较)(?:结果|表格)?(?:为|成)?\s*(Excel|xlsx|CSV)?(?:文件)?$/i.exec(text);
   if (priorComparison) {
