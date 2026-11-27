@@ -217,7 +217,7 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       const refs = result.table.rows[0].cells.metroStraightLine.sourceIds.map(id => result.sources.find(source => source.id === id));
       assert.deepEqual(refs.map(source => [source.table, source.recordId, source.rawValue]),
         [['buildings', ids[0], null], ['map_subway_stations', station.id, `国贸站 · ${stationLine.name} · ${station.center.join(', ')}`]]);
-      const nearest = await submit(walker, '在CBD地铁步行不超过800米的办公选址，不要地图');
+      const nearest = await submit(walker, '在CBD，地铁站步行不超过800米的办公选址，不要地图');
       assert.equal(nearest.status, 200, JSON.stringify(nearest.body)); assert.equal(nearest.calls, 0);
       assert.equal(nearest.body.result.parameters.agentMap, undefined);
       assert.deepEqual(nearest.body.result.table.rows.map(row => [row.entityId, row.cells.metroStation.value]), [[ids[0], '国贸站'], [ids[1], '国贸站']]);
