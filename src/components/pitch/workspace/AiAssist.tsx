@@ -76,7 +76,7 @@ export function AiAssist({
   city?: string;
   projectVersion?: number;
   onProposalGenerated?: (id: string) => Promise<void>;
-  revision?: Omit<ProposalRevisionProps, "call" | "question">;
+  revision?: Omit<ProposalRevisionProps, "call" | "question" | "onGenerated">;
   projectId: string;
   buildingIds: string[];
   period: string;

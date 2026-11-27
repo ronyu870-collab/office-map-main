@@ -124,7 +124,7 @@ it("rechecks the same home project version when confirming a newly reviewed plan
   expect(createProject.mock.calls[1][0].id).toBe(createProject.mock.calls[0][0].id);
 });
 
-it("checks server-reported generation stages with the original confirmation and retries a cancelled job with a new ID", async () => {
+it("follows the original task automatically and resumes after an interrupted progress request", async () => {
   const user = userEvent.setup();
   const confirmations: { taskId: string }[] = [];
   const onGenerated = vi.fn(async () => {});
@@ -137,7 +137,8 @@ it("checks server-reported generation stages with the original confirmation and 
     }
     const confirmation = entry.confirmation as { taskId: string };
     confirmations.push(confirmation);
-    const state = ["queued", "running", "cancelled", "completed"][confirmations.length - 1];
+    if (confirmations.length === 2) throw new Error("进度查询中断");
+    const state = ["queued", null, "running", "cancelled", "completed"][confirmations.length - 1];
     return { taskId: confirmation.taskId, state, ...(state === "completed" ? { projectId: newId } : {}) };
   }) as unknown as Call;
   render(<ProposalPreview call={call} projectId={id} projectVersion={1} question="北京季度写字楼市场报告"
@@ -145,14 +146,14 @@ it("checks server-reported generation stages with the original confirmation and 
   await user.click(screen.getByRole("button", { name: "规划正式提案" }));
   await user.click(await screen.findByRole("button", { name: "确认并生成 Pitch" }));
   await screen.findByText("等待生成提案…");
-  await user.click(screen.getByRole("button", { name: "查询生成进度" }));
-  await screen.findByText("正在生成提案…");
-  await user.click(screen.getByRole("button", { name: "查询生成进度" }));
-  await screen.findByText("生成已取消。可以重新生成。");
-  expect(confirmations[1]).toEqual(confirmations[0]);
-  expect(confirmations[2]).toEqual(confirmations[0]);
+  await screen.findByText("进度查询中断", {}, { timeout: 4000 });
+  expect(confirmations).toHaveLength(2);
+  await user.click(screen.getByRole("button", { name: "重新查询生成进度" }));
+  await screen.findByText("正在生成提案…", {}, { timeout: 4000 });
+  await screen.findByText("生成已取消。可以重新生成。", {}, { timeout: 4000 });
+  expect(confirmations).toEqual(Array(4).fill(confirmations[0]));
   expect(onGenerated).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "确认并生成 Pitch" }));
   await waitFor(() => expect(onGenerated).toHaveBeenCalledWith(newId));
-  expect(confirmations[3].taskId).not.toBe(confirmations[0].taskId);
-});
+  expect(confirmations[4].taskId).not.toBe(confirmations[0].taskId);
+}, 15000);

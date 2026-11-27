@@ -270,11 +270,11 @@ const flagshipScenarios = [
   { button: "单楼项目推介", scenario: "building-promotion", buildings: 1, pages: ["cover", "profile", "next-steps"] },
 ];
 
-function waitForPitchCommand(page, endpoint, action) {
-  return page.waitForResponse((response) => {
+function waitForPitchCommand(page, endpoint, action, predicate = () => true) {
+  return page.waitForResponse(async (response) => {
     const request = response.request();
     return new URL(response.url()).pathname === endpoint &&
-      request.method() === "POST" && request.postDataJSON()?.action === action;
+      request.method() === "POST" && request.postDataJSON()?.action === action && predicate(response);
   }, { timeout: 60_000 });
 }
 
@@ -531,20 +531,17 @@ export async function verifyPitchBuildingInspectorBrowser({ app, who, period, re
 }
 
 async function confirmFlagshipProposal(page, trigger) {
-  let button = trigger;
-  let receipt;
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const [reply] = await Promise.all([
-      waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_generate"), button.click(),
-    ]);
-    receipt = await reply.json();
-    assert.ok(reply.ok(), `proposal_generate HTTP ${reply.status()} · ${receipt.code ?? receipt.error ?? ""}`);
-    if (receipt.state === "completed") break;
-    assert.ok(["queued", "running"].includes(receipt.state), `generation state ${receipt.state}`);
-    button = page.getByRole("button", { name: "查询生成进度", exact: true });
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
-  assert.equal(receipt?.state, "completed", "generation did not complete");
+  const endpoint = "/api/intelligence/pitch/ai";
+  const [initial, completed] = await Promise.all([
+    waitForPitchCommand(page, endpoint, "proposal_generate"),
+    waitForPitchCommand(page, endpoint, "proposal_generate", async response =>
+      !response.ok() || !["queued", "running"].includes((await response.json()).state)),
+    trigger.click(),
+  ]);
+  const receipt = await completed.json();
+  assert.ok(completed.ok(), `proposal_generate HTTP ${completed.status()} · ${receipt.code ?? receipt.error ?? ""}`);
+  assert.equal(receipt.state, "completed", "generation did not complete");
+  assert.deepEqual(initial.request().postDataJSON(), completed.request().postDataJSON());
   assert.ok(receipt.projectId);
   return receipt.projectId;
 }
