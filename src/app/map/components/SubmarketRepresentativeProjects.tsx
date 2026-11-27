@@ -2,11 +2,16 @@ import * as React from 'react';
 import { ChevronRight } from 'lucide-react';
 import { photoSummaries, type BuildingPhotoSummary } from '@/src/lib/building-photos/model';
 import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger } from '@/src/services/map/buildingPhotoGallery';
-import { hasMarketCoordinates, normalizeMapSubmarket, officeGrade } from '../model/marketIdentity';
+import { normalizeMapSubmarket, officeGrade } from '../model/marketIdentity';
 import type { MarketBuilding } from '../model/marketStatistics';
 import { latestFormalMetric, quarterKey } from '../model/quarterlyFacts';
 import type { SubmarketIntelligence } from '../model/submarketIntelligence';
 import { mapOptionalNumber } from '../model/vacancyMetrics';
+import { formalAssetMetric, latestAssetQuarter, RESEARCH_PRODUCTS } from '../model/marketAssetAnalytics';
+import { formalQuarterRentEligible, formalQuarterVacancyEligible } from '@/src/lib/marketSamplePolicy';
+import { leedDisplayValue } from '@/src/lib/leed-display';
+import { MarketAssetAnalytics } from './MarketAssetAnalytics';
+import styles from './MarketAssetAnalytics.module.css';
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 const gradeNames = { a: '甲级', b: '乙级', park: '产业园', other: '等级未收录' } as const;
@@ -21,90 +26,72 @@ type Project = {
   area: number;
   rent: number;
   vacancy: number;
-  building: MarketBuilding & { photos?: unknown };
+  building: MarketBuilding & { photos?: unknown; completion_year?: string | null; leed_certification?: string | null };
 };
 type Example = { project: Project; role: string; reason: string; detailReason?: string };
 
-function projectRecord(building: MarketBuilding, id: string, grade: Project['grade']): Project {
-  const fact = latestFormalMetric(building.metrics);
+function projectRecord(building: MarketBuilding, id: string, grade: Project['grade'], selectedQuarter: number | null = null): Project {
+  const fact = (selectedQuarter !== null ? formalAssetMetric(building.metrics, selectedQuarter) : null) ?? latestFormalMetric(building.metrics);
+  const area = mapOptionalNumber(fact?.total_area), vacant = mapOptionalNumber(fact?.vacant_area);
+  const rate = mapOptionalNumber(fact?.vacancy_rate);
   return {
     id, name: building.name?.trim() || '未命名项目', grade, building,
     period: fact ? `${fact.record_year}Q${fact.record_quarter}` : '',
     quarter: fact ? quarterKey(fact) : null,
     area: mapOptionalNumber(fact?.total_area), rent: mapOptionalNumber(fact?.net_effective_rent),
-    vacancy: mapOptionalNumber(fact?.vacancy_rate),
+    vacancy: formalQuarterVacancyEligible(area, vacant) ? vacant / area : rate,
   };
 }
 
-/** Examples describe evidence in the visible set, not recommendations or deal quality. */
-export function selectRepresentativeProjects(buildings: readonly MarketBuilding[], submarket: string): Example[] {
+/** Keep researched IDs first and fill real product/price/scale gaps without inventing landmark labels. */
+export function selectRepresentativeProjects(buildings: readonly MarketBuilding[], submarket: string, curated: readonly Example[] = []): Example[] {
   const target = normalizeMapSubmarket(submarket);
   if (!target) return [];
+  const quarter = latestAssetQuarter(buildings, target);
   const eligible = new Map<string, Project>();
   for (const building of buildings) {
     const { id } = building;
     const grade = officeGrade(building.grade);
-    if (!id || eligible.has(id) || (grade !== 'a' && grade !== 'b') ||
-        normalizeMapSubmarket(building.submarket) !== target || !hasMarketCoordinates(building)) continue;
-    eligible.set(id, projectRecord(building, id, grade));
+    if (!id || eligible.has(id) || grade === 'other' || normalizeMapSubmarket(building.submarket) !== target) continue;
+    eligible.set(id, projectRecord(building, id, grade, quarter));
   }
-
   const candidates = [...eligible.values()];
   const compareName = (a: Project, b: Project) => a.name.localeCompare(b.name, 'zh-CN') || a.id.localeCompare(b.id);
   const examples: Example[] = [];
   const used = new Set<string>();
   function add(project: Project, role: string, reason: string, detailReason?: string) {
+    if (used.has(project.id) || examples.length >= 6) return;
     used.add(project.id);
     examples.push({ project, role, reason, detailReason });
   }
-
-  const sizes = candidates.filter(project => project.area > 0)
-    .sort((a, b) => b.area - a.area || (b.quarter ?? 0) - (a.quarter ?? 0) || compareName(a, b));
-  if (sizes.length >= 2 && sizes[0].area > sizes[sizes.length - 1].area) {
-    const largest = sizes[0];
-    add(largest, '规模样本', `${largest.period} 已发布面积 ${number.format(largest.area)} ㎡，为当前 ${sizes.length} 个有面积记录的可定位甲乙级项目中的最大值。`);
+  for (const entry of curated) {
+    const project = eligible.get(entry.project.id);
+    if (project) add(project, entry.role, entry.reason, entry.detailReason);
   }
-
-  const gradeGroups = (['a', 'b'] as const).map(grade => candidates.filter(project => project.grade === grade));
-  const comparisons = gradeGroups.flatMap(group => {
-    const cohorts = new Map<number, Project[]>();
-    for (const project of group) {
-      if (project.quarter === null || !(project.rent >= 0)) continue;
-      const peers = cohorts.get(project.quarter) ?? [];
-      peers.push(project);
-      cohorts.set(project.quarter, peers);
+  for (const grade of RESEARCH_PRODUCTS) {
+    const peers = candidates.filter(project => project.grade === grade);
+    if (!peers.length || examples.some(example => example.project.grade === grade)) continue;
+    const comparable = peers.filter(project => project.quarter === quarter && formalQuarterRentEligible(project.area, project.rent))
+      .sort((a, b) => a.rent - b.rent || compareName(a, b));
+    if (comparable.length >= 3) {
+      const low = comparable[Math.floor((comparable.length - 1) / 2)].rent;
+      const high = comparable[Math.floor(comparable.length / 2)].rent;
+      const median = (low + high) / 2;
+      const central = comparable.filter(project => project.rent === low || project.rent === high).sort(compareName)[0];
+      add(central, gradeNames[grade] + '租金参照', '同级项目租金中位区间', central.period + ' · ' + comparable.length + ' 个同级有效项目，中位数 ' + number.format(median) + ' 元/㎡/月。');
+    } else {
+      const project = peers.sort((a, b) => Number(b.quarter === quarter) - Number(a.quarter === quarter)
+        || Number(b.area > 0) - Number(a.area > 0) || compareName(a, b))[0];
+      add(project, gradeNames[grade] + '项目', project.period ? '同类产品参照' : '暂无已发布季度记录');
     }
-    return [...cohorts.entries()].flatMap(([quarter, peers]) => {
-      if (peers.length < 3) return [];
-      peers.sort((a, b) => a.rent - b.rent || compareName(a, b));
-      const low = peers[Math.floor((peers.length - 1) / 2)].rent;
-      const high = peers[Math.floor(peers.length / 2)].rent;
-      // Use a middle observation, never a cheap outlier. Prefer a distinct example where available.
-      const central = peers.filter(project => project.rent === low || project.rent === high)
-        .sort((a, b) => Number(used.has(a.id)) - Number(used.has(b.id)) || compareName(a, b))[0];
-      return [{ central, median: low + (high - low) / 2, count: peers.length, quarter }];
-    });
-  }).sort((a, b) => b.quarter - a.quarter || b.count - a.count || compareName(a.central, b.central));
-  if (comparisons.length) {
-    const { central, median, count } = comparisons[0];
-    const reference = `同季度 ${count} 个${gradeNames[central.grade]}样本的中位数为 ${number.format(median)} 元/㎡/月。`;
-    const reason = `${central.period} 净有效租金 ${number.format(central.rent)} 元/㎡/月；${reference}`;
-    const existing = examples.find(example => example.project.id === central.id);
-    if (existing) {
-      existing.role += '与同级租金参照';
-      existing.detailReason = existing.reason + reference;
-      existing.reason += reason;
-    } else add(central, '同级租金参照', reason, reference);
   }
-
-  for (const group of gradeGroups) {
-    const project = group.filter(item => !used.has(item.id))
-      .sort((a, b) => (b.quarter ?? 0) - (a.quarter ?? 0) || compareName(a, b))[0];
-    if (!project) continue;
-    const grade = gradeNames[project.grade];
-    add(project, `${grade}样本`, !project.period ? `项目名录归为${grade}，暂无已发布季度记录。` : project.area > 0
-      ? `${project.period} 已发布面积 ${number.format(project.area)} ㎡，项目名录归为${grade}。`
-      : `项目名录归为${grade}，最新已发布记录为 ${project.period}。`);
+  for (const grade of RESEARCH_PRODUCTS) {
+    const sizes = candidates.filter(project => project.grade === grade && project.quarter === quarter && project.area > 0)
+      .sort((a, b) => a.area - b.area || compareName(a, b));
+    if (sizes.length < 3 || sizes[0].area === sizes.at(-1)!.area) continue;
+    const index = Math.round((sizes.length - 1) * .75);
+    const candidate = sizes[index];
+    if (!used.has(candidate.id)) add(candidate, '规模参照', gradeNames[grade] + '较大规模项目', candidate.period + ' · 已知面积 ' + number.format(candidate.area) + ' ㎡。');
   }
   return examples;
 }
@@ -114,9 +101,9 @@ function ProjectPhotos({ id, name, photos }: { id: string; name: string; photos:
   const galleryId = `submarket-project-photo-${React.useId()}`;
   const markup = React.useMemo(() => ({ __html: buildPhotoTrigger(galleryId, photos.length) + buildPhotoGallery(galleryId, escapeHtml(name), photos) }), [galleryId, name, photos]);
   React.useEffect(() => {
-    if (root.current) return bindBuildingPhotoGallery(root.current, id, photos) ?? undefined;
+    if (root.current) return bindBuildingPhotoGallery(root.current, id, photos, { initial: { open: true, index: 0 }, onChange: () => {} }) ?? undefined;
   }, [id, photos, markup]);
-  return <div ref={root} className="workspace-building-photos mt-2" dangerouslySetInnerHTML={markup} />;
+  return <div ref={root} className={"workspace-building-photos mt-2 " + styles.photo} dangerouslySetInnerHTML={markup} />;
 }
 
 export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, compact = false, curated }: {
@@ -136,8 +123,7 @@ export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, 
       return building ? [{ ...entry, project: projectRecord(building, entry.buildingId, officeGrade(building.grade)) }] : [];
     });
   }, [buildings, submarket, curated]);
-  const examples = React.useMemo(() => curatedExamples.length ? curatedExamples
-    : selectRepresentativeProjects(buildings, submarket), [buildings, submarket, curatedExamples]);
+  const examples = React.useMemo(() => selectRepresentativeProjects(buildings, submarket, curatedExamples), [buildings, submarket, curatedExamples]);
   const heading = React.useId();
   return (
     <section aria-labelledby={heading} className="submarket-research submarket-projects">
@@ -149,13 +135,15 @@ export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, 
               <button type="button" onClick={() => onOpen(project.id)} className="submarket-project-link">
                 <span className="min-w-0 break-words">{project.name}</span><ChevronRight size={16} aria-hidden="true" className="shrink-0" />
               </button>
-              {!compact && <ProjectMetrics project={project} />}
+              <ProjectMetrics project={project} />
+              <ProjectAssetMeta project={project} />
               <p className="submarket-project-reason"><span className="submarket-project-role">{role}</span>{role === `${gradeNames[project.grade]}样本` ? '' : ` · ${gradeNames[project.grade]}`} · {compact ? reason : detailReason ?? reason}</p>
-              {!compact && <ApprovedProjectPhotos project={project} />}
+              <ApprovedProjectPhotos project={project} />
             </li>
           ))}
         </ul>
       )}
+      {!compact && <MarketAssetAnalytics buildings={buildings} submarket={submarket} onOpen={onOpen} />}
     </section>
   );
 }
@@ -166,6 +154,14 @@ function ProjectMetrics({ project }: { project: Project }) {
   if (rent >= 0) metrics.push(`净有效租金 ${number.format(rent)} 元/㎡/月`);
   if (vacancy >= 0 && vacancy <= 1) metrics.push(`空置率 ${number.format(vacancy * 100)}%`);
   return metrics.length > 1 ? <p className="submarket-project-metrics">{metrics.join(' · ')}</p> : null;
+}
+
+function ProjectAssetMeta({ project }: { project: Project }) {
+  const { building, area } = project;
+  const completion = String(building.completion_year ?? '').trim();
+  const leed = leedDisplayValue(building.leed_certification);
+  const items = [area > 0 ? number.format(area) + ' ㎡' : '', completion && completion !== '未知' && completion !== '-' ? '竣工 ' + completion : '', leed !== '未提供' ? 'LEED ' + leed : ''].filter(Boolean);
+  return items.length ? <div className={styles.assetMeta}>{items.map(item => <span key={item}>{item}</span>)}</div> : null;
 }
 
 function ApprovedProjectPhotos({ project }: { project: Project }) {

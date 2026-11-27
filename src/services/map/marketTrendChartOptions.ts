@@ -1,4 +1,5 @@
 import type { EChartsCoreOption } from 'echarts/core';
+import { niceMarketStep } from '@/src/app/map/model/marketAssetAnalytics';
 import {
   compareTrendQuarters, marketTrendAxisDensity, marketTrendLabels, type MarketTrendPresentation,
 } from '@/src/app/map/model/marketTrendPresentation';
@@ -49,7 +50,7 @@ export function buildMarketTrendChartOptions(
   const min = Math.min(...observed), max = Math.max(...observed);
   // Use a minimum domain span so small movements don't occupy the entire plot.
   const padding = Math.max((max - min) * 0.25, metric === 'rent' ? (max + min) / 20 : 2, 1);
-  const step = metric === 'rent' ? 5 : 2;
+  const step = niceMarketStep(Math.max(1, (max - min + 2 * padding) / density.splitNumber));
   const lower = Math.max(0, Math.floor((min - padding) / step) * step);
   const upper = Math.ceil((max + padding) / step) * step;
   const marker = metric === 'rent' ? 'circle' : 'diamond';
@@ -82,7 +83,7 @@ export function buildMarketTrendChartOptions(
     },
     yAxis: {
       type: 'value', min: lower, max: metric === 'vacancyPct' ? Math.min(100, upper) : upper,
-      splitNumber: density.splitNumber,
+      splitNumber: density.splitNumber, interval: step,
       axisLabel: { color: theme.subtle, formatter: (value: number) => `${value.toLocaleString('zh-CN')}${unit === '%' ? '%' : ''}` },
       axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: theme.border } },
     },
