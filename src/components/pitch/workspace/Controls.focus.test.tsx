@@ -1,5 +1,6 @@
 import * as React from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -111,11 +112,93 @@ describe("Pitch parameter and search focus", () => {
     fireEvent.change(asset, { target: { value: "研究" } });
     fireEvent.compositionEnd(asset);
     await waitFor(() =>
-      expect(screen.getByText("暂无适用的已发布素材。")).toBeInTheDocument(),
+      expect(screen.getByText("没有匹配的已发布素材。")).toBeInTheDocument(),
     );
     expect(asset).toHaveFocus();
     expect(screen.getByLabelText("搜索企业素材")).toBe(asset);
   });
+  it("keeps checked assets across categories and ignores a late result while loading a new category page", async () => {
+    const user = userEvent.setup();
+    const caseId = "33333333-3333-4333-8333-333333333333";
+    const disabledId = "44444444-4444-4444-8444-444444444444";
+    const asset = (assetId: string, name: string) => ({ id: assetId, names: { zh: name }, current_version: 3, is_test_data: false });
+    const first = asset(id, "企业简介");
+    const historical = asset("history", "历史项目");
+    type Page = { items: ReturnType<typeof asset>[]; next: string | null };
+    let resolvePrevious!: (page: Page) => void;
+    let resolveCasePage!: (page: Page) => void;
+    let previousSignal: AbortSignal | undefined;
+    const call = vi.fn(async (input: Record<string, unknown>, _write?: boolean, _path?: string, signal?: AbortSignal) => {
+      if (input.categoryId === caseId && input.before === historical.id)
+        return new Promise(resolve => { resolveCasePage = resolve; });
+      if (input.categoryId === caseId) return { items: [historical], next: historical.id };
+      if (input.before === first.id) {
+        previousSignal = signal;
+        return new Promise(resolve => { resolvePrevious = resolve; });
+      }
+      return { items: [first], next: first.id };
+    });
+    const add = vi.fn(async () => {});
+    render(<AssetPicker call={call as unknown as Call} busy={false} onAdd={add} categories={[
+      { id: caseId, system_code: "case", names: { zh: "代表案例" }, enabled: true, revision: 1 },
+      { id: disabledId, system_code: "disabled", names: { zh: "停用类别" }, enabled: false, revision: 1 },
+    ]} />);
+    await user.click(await screen.findByRole("checkbox", { name: "企业简介" }));
+    await user.click(screen.getByRole("button", { name: "更多素材" }));
+    expect(screen.queryByRole("option", { name: "停用类别" })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("素材分类"), caseId);
+    await user.click(await screen.findByRole("checkbox", { name: "历史项目" }));
+    await user.click(screen.getByRole("button", { name: "更多素材" }));
+    expect(previousSignal?.aborted).toBe(true);
+    expect(call.mock.calls.some(([input, write, path]) => input.categoryId === caseId &&
+      input.state === "published" && input.validity === "valid" && !write && path === "library")).toBe(true);
+
+    await act(async () => resolvePrevious({ items: [asset("late", "旧分类迟到结果")], next: null }));
+    expect(screen.queryByText("旧分类迟到结果")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "正在加载…" })).toBeDisabled();
+    await act(async () => resolveCasePage({ items: [historical, asset("more", "另一历史项目")], next: null }));
+    expect(screen.getAllByRole("checkbox", { name: "历史项目" })).toHaveLength(1);
+
+    await user.click(screen.getByText("已选素材（2）"));
+    await user.click(screen.getByRole("button", { name: "移除企业简介" }));
+    await user.selectOptions(screen.getByLabelText("组合布局"), "case-study");
+    await user.click(screen.getByRole("button", { name: "添加到 Pitch（1）" }));
+    expect(add).toHaveBeenCalledWith([historical.id], "case-study");
+    expect(screen.queryByText("已选素材（1）")).not.toBeInTheDocument();
+  });
+
+  it("previews the listed version from the protected material library and retries a failed read", async () => {
+    const user = userEvent.setup();
+    const asset = { id, names: { zh: "案例索引" }, current_version: 3, is_test_data: false };
+    const sourceId = "55555555-5555-4555-8555-555555555555";
+    const content = {
+      protocol: "colliers-pitch/1", title: "项目提案", locale: "zh", disclosure: "internal", isTestData: false,
+      dataAsOf: "2026-09-30", blocks: [
+        { kind: "case", title: "业务案例", challenge: "分散选址", approach: "集中比选", outcome: "形成短名单", sourceIds: [sourceId] },
+      ],
+      sources: [{ id: sourceId, kind: "record", label: "项目归档", locator: "页 4", version: "1", dataAsOf: "2026-09-30" }],
+    };
+    let previews = 0;
+    const call = vi.fn(async (input: Record<string, unknown>) => {
+      if (input.action !== "asset") return { items: [asset], next: null };
+      if (!previews++) throw new Error("网络中断");
+      return { version: { content } };
+    });
+    render(<AssetPicker call={call as unknown as Call} busy={false} onAdd={async () => {}} />);
+    const open = await screen.findByRole("button", { name: "预览案例索引" });
+    expect(previews).toBe(0);
+    await user.click(open);
+    expect(await screen.findByRole("alert")).toHaveTextContent("网络中断");
+    await user.click(screen.getByRole("button", { name: "重试预览" }));
+    expect(await screen.findByText("形成短名单")).toBeInTheDocument();
+    expect(screen.getByText("项目归档 · 页 4")).toBeInTheDocument();
+    expect(screen.getByText("资料日期 2026-09-30 · v3")).toBeInTheDocument();
+    expect(call).toHaveBeenLastCalledWith({ action: "asset", assetId: id, version: 3 }, false, "library", expect.any(AbortSignal));
+    expect(open).toHaveAttribute("aria-expanded", "true");
+    await user.click(open);
+    expect(screen.queryByText("形成短名单")).not.toBeInTheDocument();
+  });
+
   it("keeps building and business asset search focused and submits actual selected bindings", async () => {
     const user = userEvent.setup(),
       call = requests({
@@ -162,6 +245,69 @@ describe("Pitch parameter and search focus", () => {
       expect.objectContaining({ templateId: "team-multiple", assetIds: [id] }),
     );
     expect(screen.getByLabelText("搜索团队成员")).toBe(field);
+  });
+  it("keeps chosen buildings and ignores a previous query's late page while the user starts a new search", async () => {
+    const user = userEvent.setup();
+    const oldPage = [{ id: "old", name: "甲区已选楼宇" }];
+    const newPage = [{ id: "new", name: "乙区候选楼宇" }];
+    let resolveOld!: (response: { items: { id: string; name: string }[]; next: null }) => void;
+    let obsoleteSignal: AbortSignal | undefined;
+    const call = vi.fn(async (input: Record<string, unknown>, _write?: boolean, _path?: string, signal?: AbortSignal) => {
+      if (input.q === "甲区" && input.offset === 30) {
+        obsoleteSignal = signal;
+        return new Promise(resolve => { resolveOld = resolve; });
+      }
+      if (input.q === "甲区") return { items: oldPage, next: 30 };
+      if (input.q === "乙区") return { items: newPage, next: null };
+      return { items: [], next: null };
+    });
+    function Selection() {
+      const [ids, setIds] = React.useState<string[]>([]);
+      return <BuildingPicker call={call as unknown as Call} ids={ids} onChange={setIds} />;
+    }
+    render(<Selection />);
+    const search = screen.getByLabelText("搜索楼宇");
+    fireEvent.change(search, { target: { value: "甲区" } });
+    await user.click(await screen.findByRole("button", { name: "甲区已选楼宇" }));
+    fireEvent.change(search, { target: { value: "临时关键词" } });
+    fireEvent.change(search, { target: { value: "甲区" } });
+    expect(screen.queryByRole("button", { name: "更多楼宇" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "更多楼宇" }));
+    expect(screen.getByRole("button", { name: "正在读取更多楼宇…" })).toBeDisabled();
+    expect(call.mock.calls.filter(([input]) => input.offset === 30)).toHaveLength(1);
+
+    search.focus();
+    fireEvent.compositionStart(search);
+    fireEvent.change(search, { target: { value: "yiqu" } });
+    fireEvent.change(search, { target: { value: "乙区" } });
+    fireEvent.compositionEnd(search, { data: "乙区" });
+    expect(screen.queryByRole("button", { name: "更多楼宇" })).not.toBeInTheDocument();
+    await screen.findByRole("button", { name: "乙区候选楼宇" });
+    expect(obsoleteSignal?.aborted).toBe(true);
+    await act(async () => resolveOld({ items: [{ id: "late", name: "甲区迟到结果" }], next: null }));
+    expect(screen.queryByRole("button", { name: "甲区迟到结果" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "移除甲区已选楼宇" })).toBeInTheDocument();
+    expect(search).toHaveFocus();
+    expect(call.mock.calls.some(([input]) => input.q === "yiqu")).toBe(false);
+  });
+
+  it("retries a failed next page without clearing existing results or repeating buildings", async () => {
+    const user = userEvent.setup();
+    let attempts = 0;
+    const first = { id, name: "当前候选楼宇" };
+    const call = vi.fn(async (input: Record<string, unknown>) => {
+      if (input.offset === undefined) return { items: [first], next: 30 };
+      if (attempts++ === 0) throw new Error("分页网络中断");
+      return { items: [first, { id: "new", name: "下一页楼宇" }], next: null };
+    });
+    render(<BuildingPicker call={call as unknown as Call} ids={[]} onChange={() => {}} />);
+    await user.click(await screen.findByRole("button", { name: "更多楼宇" }));
+    await screen.findByText("分页网络中断");
+    expect(screen.getByRole("button", { name: "当前候选楼宇" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "重试读取更多楼宇" }));
+    await screen.findByRole("button", { name: "下一页楼宇" });
+    expect(screen.getAllByRole("button", { name: "当前候选楼宇" })).toHaveLength(1);
+    expect(call.mock.calls.filter(([input]) => input.offset === 30).map(([input]) => input.q)).toEqual(["", ""]);
   });
   it("accepts editable quarter and submarket text without resetting partially typed values or separators", async () => {
     const user = userEvent.setup(),

@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QuarterlyResearch } from './QuarterlyResearch';
 import { canReadQuarterlyResearch } from '@/src/config/quarterlyResearch';
+import { PitchHandoffProvider, readPitchHandoff } from '@/src/components/pitch/PitchHandoffLink';
 
 const ctx = vi.hoisted(() => ({
   status: 'authenticated', impersonating: false,
@@ -55,23 +56,29 @@ describe('private research host lifecycle', () => {
     expect(document.querySelector('iframe')).toBeNull();
   });
   it('accepts edition changes only from its active frame and removes the old content', async () => {
-    render(<QuarterlyResearch />);
+    render(<PitchHandoffProvider enabled><QuarterlyResearch /></PitchHandoffProvider>);
     const frame = await screen.findByTitle('2026Q3 北京写字楼交互研究') as HTMLIFrameElement;
+    const link = () => screen.getByRole('link', { name: '将本期正式样本加入 Pitch' });
+    const handoff = () => readPitchHandoff(new URL(link().getAttribute('href')!, window.location.origin).hash);
+    expect(handoff()).toEqual({ source: { kind: 'quarterly-research', edition: '2026Q3' } });
     fireEvent(window, new MessageEvent('message', { source: window, data: { type: 'research-edition', edition: '2026Q2' } }));
     expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(handoff()).toEqual({ source: { kind: 'quarterly-research', edition: '2026Q3' } });
     fetcher.mockResolvedValue(new Response('<h1>Previous fixture</h1>'));
     fireEvent(window, new MessageEvent('message', { source: frame.contentWindow, data: { type: 'research-edition', edition: '2026Q2' } }));
     await screen.findByTitle('2026Q2 北京写字楼交互研究');
+    expect(handoff()).toEqual({ source: { kind: 'quarterly-research', edition: '2026Q2' } });
     expect(document.querySelector('iframe')?.getAttribute('srcdoc') || '').not.toContain('Synthetic fixture');
     expect(fetcher).toHaveBeenLastCalledWith('/api/quarterly-research?edition=2026Q2', expect.any(Object));
   });
   it('revalidates on return to the tab and clears a report after access is revoked', async () => {
-    render(<QuarterlyResearch />);
+    render(<PitchHandoffProvider enabled><QuarterlyResearch /></PitchHandoffProvider>);
     await screen.findByTitle('2026Q3 北京写字楼交互研究');
     fetcher.mockResolvedValue(new Response(null, { status: 403 }));
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
     fireEvent(document, new Event('visibilitychange'));
     await waitFor(() => expect(screen.queryByTitle('2026Q3 北京写字楼交互研究')).not.toBeInTheDocument());
+    expect(screen.queryByRole('link', { name: '将本期正式样本加入 Pitch' })).not.toBeInTheDocument();
     expect(screen.getByText('访问状态已变化，请重新登录或重试。')).toBeInTheDocument();
     expect(document.querySelector('iframe')?.getAttribute('srcdoc') || '').not.toContain('Synthetic fixture');
   });

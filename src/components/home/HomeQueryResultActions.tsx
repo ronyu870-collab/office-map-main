@@ -3,9 +3,11 @@
 import * as React from 'react';
 import { Check, Copy, FileText, MoreHorizontal } from 'lucide-react';
 import { HomeQueryMenu, queryActionFocus } from './HomeQueryMenu';
+import { PitchHandoffLink, readPitchAnalysisPeriods, usePitchAnalysisReplay } from '@/src/components/pitch/PitchHandoffLink';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { renderResultCopy, type ResultCopyFormat } from '@/src/lib/intelligence/query/resultOutput';
+import { planSchema } from '@/src/lib/intelligence/query/plan';
 import type { QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import styles from './HomeQueryResultActions.module.css';
 
@@ -17,6 +19,16 @@ export function HomeQueryResultActions(props: Props) {
 }
 
 function ResultActions({ result, requestId, scope, internalExport, children, responseActions }: Props) {
+  const analysisReplay = usePitchAnalysisReplay();
+  const archivedPlan = analysisReplay ? planSchema.safeParse(result.parameters.executedPlan) : undefined;
+  const replayedPlan = archivedPlan?.success && archivedPlan.data.operation === result.operation ? archivedPlan.data : undefined;
+  const replayUnsupported = result.parameters.dataDomain || result.parameters.exportPlans;
+  const legacyPeriod = readPitchAnalysisPeriods({ period: result.parameters.period }).end;
+  const replayable = analysisReplay && !replayUnsupported && (!!replayedPlan ||
+    result.parameters.executedPlan === undefined && (result.operation === 'list' || result.operation === 'aggregate'));
+  const pitchPeriod = replayable ? readPitchAnalysisPeriods(replayedPlan ?? result.parameters).end : legacyPeriod;
+  const canHandoff = internalExport && !replayUnsupported && (replayable || !analysisReplay &&
+    (result.operation === 'list' || (result.operation === 'aggregate' || result.operation === 'compare') && !!pitchPeriod));
   const copyId = React.useId();
   const [summary, setSummary] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState('');
@@ -74,6 +86,9 @@ function ResultActions({ result, requestId, scope, internalExport, children, res
           {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('table', event.currentTarget)}>复制结果表格</Button>}
           {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={event => void copy('figures', event.currentTarget)}><Copy size={16} aria-hidden="true" />复制关键数字</Button>}
           <Button variant="ghost" size="sm" onClick={event => { summaryTrigger.current = event.currentTarget; showSummary(); }}><FileText size={16} aria-hidden="true" />生成分析摘要</Button>
+          {canHandoff && <PitchHandoffLink source={{ kind: 'analysis-result', id: requestId,
+            ...(replayable ? { resultId: result.resultId } : {}) }} period={pitchPeriod}
+            className={styles.handoffAction} label={pitchPeriod ? "将分析结果加入 Pitch" : "将分析中的楼宇加入 Pitch"} />}
           {responseActions}
       </HomeQueryMenu>
     </div>

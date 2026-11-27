@@ -4,6 +4,7 @@ import { expect, it, vi } from 'vitest';
 import { WorkspaceBuildingDetail } from '../components/WorkspaceBuildingDetail';
 import type { WorkspaceBuildingDetail as Detail } from '../workspace/buildingDetail';
 import { MapReadingContext } from '../workspace/continuity';
+import { PitchHandoffProvider, readPitchHandoff } from '@/src/components/pitch/PitchHandoffLink';
 
 const base: Detail = { building: { id: 'stock-a', name: '甲楼', _dataType: 'existing', submarket: 'CBD', location_lng: null, location_lat: null, metrics: [], owner: '业主' }, metric: null, photos: [], canEdit: false, isDemo: false, overrides: {} };
 const actions = () => ({ onClose: vi.fn(), onAction: vi.fn(), onDisposeTrend: vi.fn() });
@@ -43,6 +44,19 @@ it('retains stock business bridge identities, admin editing and the dedicated St
   expect(screen.getByRole('link', { name: 'Stacking Plan' })).toHaveAttribute('href', `/stacking-plan/${id}`);
   unmount();
   expect(callbacks.onDisposeTrend).toHaveBeenCalledOnce();
+});
+it('hands the current property and its formal quarter to Pitch from the building detail', () => {
+  const id = '9ee3e3ff-4845-41a1-a78f-390c11b1917a';
+  const metric: NonNullable<Detail['metric']> = { id, building_id: id, record_year: 2026, record_quarter: 2,
+    is_locked: true, total_area: 10000, asking_rent: 100, management_fee: 20, face_rent: 110, rent_free_period: 1,
+    net_effective_rent: 95, vacancy_rate: 15, vacant_area: 1500 };
+  render(<PitchHandoffProvider enabled><WorkspaceBuildingDetail detail={{ ...base, building: { ...base.building, id }, metric }}
+    {...actions()} /></PitchHandoffProvider>);
+  fireEvent.click(screen.getByRole('tab', { name: '行情' }));
+  const link = screen.getByRole('link', { name: '将楼宇概况加入 Pitch' });
+  expect(readPitchHandoff(new URL(link.getAttribute('href')!, 'https://fixture.test').hash)).toEqual({
+    source: { kind: 'buildings', buildingIds: [id] }, period: '2026-Q2',
+  });
 });
 it('uses the linked master building for future materials and excludes stock-only actions', () => {
   render(<WorkspaceBuildingDetail detail={{ ...base, building: { ...base.building, id: 'future-row', _dataType: 'future', building_id: 'master' } }} {...actions()} />);

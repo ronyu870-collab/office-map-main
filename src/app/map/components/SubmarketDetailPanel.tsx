@@ -1,4 +1,7 @@
 'use client';
+import { useIsDemo } from '@/src/components/demo';
+import { PitchHandoffLink } from '@/src/components/pitch/PitchHandoffLink';
+import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { useUnsavedNavigation } from '@/src/lib/broker/useUnsavedNavigation';
 import { useMapObjectReadingState } from '../workspace/continuity';
@@ -187,6 +190,7 @@ export function SubmarketDetailPanel({
   name, summary, buildings, futureCount, futureArea, canEdit, suspended = false, mapLocationNotice, onExitGuardChange, onClose, onShowAll, onOpenBuilding,
 }: Props) {
   const workspace = React.useContext(WorkspacePanelContext);
+  const isDemo = useIsDemo();
   const [detail, setDetail] = React.useState<SubmarketDetailPayload | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
@@ -286,7 +290,10 @@ export function SubmarketDetailPanel({
     observeBusinessReading('VIEW_SUBMARKET','map',{target_table:'submarket_profiles',target_id:name,submarket:name,section:currentSection,grade,observation:'view_displayed'},'submarket');
   },[name,currentSection,grade,suspended,loading,loadError]);
   const trendReady = !detail?.trendError && hasTrend;
-  const overviewTrendReady = !detail?.trendError && summarizeSubmarketTrend(detail?.trends.all ?? []).hasTrend;
+  const latestMarketQuarter = !detail?.trendError && !loadError
+    ? summarizeSubmarketTrend(detail?.trends.all ?? []).latest
+    : null;
+  const overviewTrendReady = !!latestMarketQuarter;
   const gradeNames = [['all', '甲乙级'], ['a', '甲级'], ['b', '乙级']] as const;
 
   // Keep the map mounted, but let the client brief own its interaction layer.
@@ -363,6 +370,9 @@ export function SubmarketDetailPanel({
                     {metric('甲乙级项目', summary.officeCount.toLocaleString('zh-CN'), '个', '甲级 ' + summary.gradeACount + ' · 乙级 ' + summary.gradeBCount)}
                   </section>
 
+                  {!loading && !isDemo && !getImpersonationTargetUserId() && <PitchHandoffLink source={{ kind: 'submarket', key: name }}
+                    period={latestMarketQuarter ? `${latestMarketQuarter.year}-Q${latestMarketQuarter.quarter}` : undefined}
+                    className="workspace-business-action workspace-resource-action" label="将子市场行情加入 Pitch" />}
                   <section aria-label="区域定位" className="rounded-[9px] border border-[#e0e6ed] bg-white px-4 py-4 sm:px-6 sm:py-5">
                     <h3 className="m-0 text-[14px] font-semibold leading-6 text-[#172033]">
                       {profile?.headline || name + '办公市场概览'}

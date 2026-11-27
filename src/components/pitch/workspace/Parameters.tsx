@@ -10,53 +10,99 @@ import type { Call } from "./client";
 import type { Template } from "./TemplatePicker";
 import { ECOSYSTEM_BY_ID } from '@/src/lib/pitch/templates/ecosystem';
 import styles from "./workspace.module.css";
+
+type BuildingSearchPage = { items: { id: string; name: string }[]; next: number | null };
+type BuildingSearchResult = { key: number; page?: BuildingSearchPage; error?: string; loadingMore?: boolean };
+
 export function BuildingPicker({
   call,
   ids,
   onChange,
+  disabled = false,
+  label = "关联项目",
+  maxSelection = 20,
 }: {
   call: Call;
   ids: string[];
   onChange: (ids: string[]) => void;
+  disabled?: boolean;
+  label?: string;
+  maxSelection?: number;
 }) {
-  const [q, setQ] = React.useState(""),
-    [items, setItems] = React.useState<{ id: string; name: string }[]>([]),
+  const [text, setText] = React.useState(""),
+    [{ q, key }, setSearch] = React.useState({ q: "", key: 0 }),
     [known, setKnown] = React.useState<Record<string, string>>({}),
-    [next, setNext] = React.useState<number | null>(null),
-    [error, setError] = React.useState("");
+    [result, setResult] = React.useState<BuildingSearchResult>();
+  const current = result?.key === key ? result : undefined;
+  const composing = React.useRef(false);
+  const active = React.useRef<{ key: number; controller: AbortController; loadingMore: boolean }>(null);
+  function searchFor(text: string) {
+    const q = text.trim();
+    setSearch(previous => previous.q === q ? previous : { q, key: previous.key + 1 });
+  }
+  const remember = React.useCallback((items: BuildingSearchPage["items"]) => {
+    setKnown(previous => ({ ...previous, ...Object.fromEntries(items.map(item => [item.id, item.name])) }));
+  }, []);
   React.useEffect(() => {
-    const c = new AbortController(),
-      timer = setTimeout(() => {
-        void call<{
-          items: { id: string; name: string }[];
-          next: number | null;
-        }>({ action: "buildings", q }, false, "business", c.signal)
-          .then((r) => {
-            setItems(r.items);
-            setNext(r.next);
-            setKnown((v) => ({
-              ...v,
-              ...Object.fromEntries(r.items.map((b) => [b.id, b.name])),
-            }));
-            setError("");
-          })
-          .catch((e) => {
-            if (!c.signal.aborted) setError(e.message);
-          });
-      }, 250);
+    const controller = new AbortController();
+    active.current = { key, controller, loadingMore: false };
+    const timer = setTimeout(() => {
+      void call<BuildingSearchPage>({ action: "buildings", q }, false, "business", controller.signal)
+        .then(page => {
+          if (controller.signal.aborted) return;
+          remember(page.items);
+          setResult({ key, page });
+        })
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted)
+            setResult({ key, error: error instanceof Error ? error.message : "楼宇查询未完成。" });
+        });
+    }, 250);
     return () => {
       clearTimeout(timer);
-      c.abort();
+      controller.abort();
     };
-  }, [q, call]);
+  }, [call, key, q, remember]);
+
+  async function loadMore() {
+    const request = active.current;
+    const page = current?.page;
+    if (!request || request.key !== key || request.loadingMore || !page || page.next === null) return;
+    request.loadingMore = true;
+    setResult({ key, page, loadingMore: true });
+    try {
+      const next = await call<BuildingSearchPage>({ action: "buildings", q, offset: page.next }, false, "business", request.controller.signal);
+      if (request.controller.signal.aborted) return;
+      remember(next.items);
+      const items = [...new Map([...page.items, ...next.items].map(item => [item.id, item])).values()];
+      setResult({ key, page: { items, next: next.next } });
+    } catch (error) {
+      if (!request.controller.signal.aborted)
+        setResult({ key, page, error: error instanceof Error ? error.message : "更多楼宇暂无法读取。" });
+    } finally {
+      request.loadingMore = false;
+    }
+  }
+
   return (
-    <fieldset className={styles.choice}>
-      <legend>关联项目</legend>
+    <fieldset className={styles.choice} disabled={disabled}>
+      <legend>{label}</legend>
       <label>
         搜索楼宇
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input type="search" value={text} onChange={event => {
+          setText(event.target.value);
+          if (!composing.current) searchFor(event.target.value);
+        }} onCompositionStart={() => { composing.current = true; }}
+          onCompositionEnd={event => {
+            composing.current = false;
+            setText(event.currentTarget.value);
+            searchFor(event.currentTarget.value);
+          }} />
       </label>
-      {error && <p role="status">{error}</p>}
+      {!current && <p role="status">正在查询楼宇…</p>}
+      {current?.error && <p role="status">{current.error}</p>}
+      {current?.error && !current.page && <Button variant="ghost"
+        onClick={() => setSearch(previous => ({ ...previous, key: previous.key + 1 }))}>重试查询</Button>}
       {ids.length > 0 && (
         <ul>
           {ids.map((id) => (
@@ -74,41 +120,24 @@ export function BuildingPicker({
         </ul>
       )}
       <div className={styles.results}>
-        {items
+        {current?.page?.items
           .filter((b) => !ids.includes(b.id))
           .map((b) => (
             <Button
               variant="ghost"
               key={b.id}
-              disabled={ids.length >= 20}
+              disabled={ids.length >= maxSelection}
               onClick={() => onChange([...ids, b.id])}
             >
               {b.name}
             </Button>
           ))}
       </div>
-      {next !== null && (
-        <Button
-          variant="secondary"
-          onClick={() =>
-            void call<{
-              items: { id: string; name: string }[];
-              next: number | null;
-            }>({ action: "buildings", q, offset: next }, false, "business")
-              .then((r) => {
-                setItems((v) => [...v, ...r.items]);
-                setNext(r.next);
-                setKnown((v) => ({
-                  ...v,
-                  ...Object.fromEntries(r.items.map((b) => [b.id, b.name])),
-                }));
-              })
-              .catch((e) => setError(e.message))
-          }
-        >
-          更多楼宇
-        </Button>
-      )}
+      {current?.page?.items.length === 0 && <p role="status">没有匹配的楼宇。</p>}
+      {current?.page && current.page.next !== null && <Button variant="secondary"
+        loading={current.loadingMore} loadingLabel="正在读取更多楼宇…" onClick={() => void loadMore()}>
+        {current.error ? "重试读取更多楼宇" : "更多楼宇"}
+      </Button>}
     </fieldset>
   );
 }
@@ -148,6 +177,21 @@ const fields: Record<
     options: { count: "成交笔数", area: "成交面积" },
   },
 };
+export function defaultDynamicParameters(templateId: DynamicParameters["templateId"], buildingIds: string[], period: string): DynamicParameters {
+  const now = new Date();
+  const year = now.getFullYear();
+  const quarter = Math.ceil((now.getMonth() + 1) / 3);
+  const savedPeriod = period.match(/^(\d{4})-Q([1-4])$/);
+  return {
+    templateId, buildingIds, submarkets: [], inventory: "tracked",
+    period: savedPeriod ? { year: Number(savedPeriod[1]), quarter: Number(savedPeriod[2]) } : { year, quarter },
+    start: { year: year - 1, quarter: 1 }, end: { year, quarter },
+    fields: ["totalArea", "netEffectiveRent"], direction: "desc",
+    chart: templateId.endsWith("-trend") ? "line" : "table",
+    from: `${year}-01-01`, to: now.toISOString().slice(0, 10), leaseSource: "combined", measure: "count",
+  };
+}
+
 export function TemplateParameters({
   call,
   template,
@@ -167,10 +211,12 @@ export function TemplateParameters({
   initial?: Generation["parts"][number];
   actionLabel?: string;
 }) {
-  const now = new Date(),
-    year = now.getFullYear(),
-    quarter = Math.ceil((now.getMonth() + 1) / 3),
-    p = period.match(/^(\d{4})-Q([1-4])$/);
+  const dynamic = template.kind === "dynamic",
+    lease = template.id.startsWith("lease-"),
+    trend = template.id.endsWith("-trend"),
+    stacking = template.id === "stacking-plan",
+    map = template.id === "competition-map",
+    visual = stacking || map;
   const [selected, setSelected] = React.useState<string[]>(
       initial && initial.mode !== "dynamic" ? initial.assetIds : [],
     ),
@@ -187,33 +233,17 @@ export function TemplateParameters({
       initial && initial.mode !== "dynamic" ? initial.variant : "standard",
     ),
     [fallback, setFallback] = React.useState(false);
-  const [params, setParams] = React.useState<DynamicParameters>(
-    initial?.mode === "dynamic"
-      ? initial.parameters
-      : {
-          templateId: template.id as DynamicParameters["templateId"],
-          buildingIds,
-          submarkets: [],
-          inventory: "tracked",
-          period: { year: p ? +p[1] : year, quarter: p ? +p[2] : quarter },
-          start: { year: year - 1, quarter: 1 },
-          end: { year, quarter },
-          fields: ["totalArea", "netEffectiveRent"],
-          direction: "desc",
-          chart: template.id.endsWith("-trend") ? "line" : "table",
-          from: `${year}-01-01`,
-          to: now.toISOString().slice(0, 10),
-          leaseSource: "combined",
-          measure: "count",
-        },
-  );
+  const [params, setParams] = React.useState<DynamicParameters>(() => {
+    const value = initial?.mode === "dynamic" ? initial.parameters
+      : defaultDynamicParameters(template.id as DynamicParameters["templateId"], buildingIds, period);
+    if (!stacking || value.buildingIds.length <= 1) return value;
+    const target = value.targetBuildingId;
+    return { ...value, buildingIds: target && value.buildingIds.includes(target) ? [target] : [] };
+  });
   const [submarketText, setSubmarketText] = React.useState(
       params.submarkets.join("，"),
     ),
     [invalidQuarters, setInvalidQuarters] = React.useState<string[]>([]);
-  const dynamic = template.kind === "dynamic",
-    lease = template.id.startsWith("lease-"),
-    trend = template.id.endsWith("-trend");
   React.useEffect(() => {
     if (dynamic) return;
     const c = new AbortController(),
@@ -292,17 +322,22 @@ export function TemplateParameters({
           <BuildingPicker
             call={call}
             ids={params.buildingIds}
+            label={stacking ? "历史堆叠图楼宇" : undefined}
+            maxSelection={stacking ? 1 : undefined}
             onChange={(buildingIds) =>
               setParams((v) => ({
                 ...v,
                 buildingIds,
                 targetBuildingId: buildingIds.includes(v.targetBuildingId ?? "")
                   ? v.targetBuildingId
-                  : buildingIds[0],
+                  : visual ? undefined : buildingIds[0],
               }))
             }
           />
-          {lease ? (
+          {visual ? (map && !params.buildingIds.length && <label>
+            子市场（可选，逗号分隔）
+            <input value={submarketText} onChange={e => setSubmarketText(e.target.value)} />
+          </label>) : lease ? (
             (["from", "to", "leaseSource", "measure"] as const).map((key) => {
               const field = fields[key];
               return (
@@ -352,7 +387,7 @@ export function TemplateParameters({
               </label>
             </>
           )}
-          {(
+          {!visual && (
             ["direction", "chart", ...(!lease ? ["inventory"] : [])] as const
           ).map((key) => {
             const f = fields[key];
@@ -506,7 +541,8 @@ export function TemplateParameters({
       )}
       <Button
         disabled={
-          busy || invalidQuarters.length > 0 || (!dynamic && !selected.length)
+          busy || invalidQuarters.length > 0 || (!dynamic && !selected.length) ||
+          (stacking && params.buildingIds.length !== 1)
         }
         loading={busy}
         onClick={() => void generate()}

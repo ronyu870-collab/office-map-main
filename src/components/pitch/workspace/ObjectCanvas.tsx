@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/src/components/ui";
 import type { SlideContent } from "@/src/lib/pitch/contracts/content";
-import { boxFits, normalizedRotation, rotateVector } from "@/src/lib/pitch/contracts/scene-geometry";
+import { boxFits, normalizedRotation, rotateVector, visualBounds, type SceneBox } from "@/src/lib/pitch/contracts/scene-geometry";
 import type { SlideScene, SceneElement } from "@/src/lib/pitch/contracts/scene";
 import { canMoveObject, canScaleObject, constrainedScale, constrainGroupDelta, objectId, objectOverlap, objectRotation, sceneLayerEntries, sceneObjectGroups, textAnchors, validObjectOrder, type ObjectMove, type ObjectText, type ObjectGroup } from "@/src/lib/pitch/workspace/object-layout";
 import type { Call } from "./client";
@@ -11,6 +11,45 @@ import styles from "./workspace.module.css";
 
 type Layer = { id: string | null; url: string };
 type Position = Pick<ObjectMove, "x" | "y" | "scale" | "rotation" | "allowOverlap">;
+type Axis = "x" | "y";
+type DragPreview = { moves: ObjectMove[]; guideX?: number; guideY?: number };
+type Drag = {
+  id: string; pointer: number; startX: number; startY: number; origin: Position;
+  members?: ObjectMove[]; rect: DOMRect; resizing?: boolean;
+};
+const emptyDrag: DragPreview = { moves: [] };
+const alignmentModes = [
+  { id: "left", label: "左对齐", axis: "x", edge: 0 },
+  { id: "center", label: "水平居中", axis: "x", edge: 1 },
+  { id: "right", label: "右对齐", axis: "x", edge: 2 },
+  { id: "top", label: "顶端对齐", axis: "y", edge: 0 },
+  { id: "middle", label: "垂直居中", axis: "y", edge: 1 },
+  { id: "bottom", label: "底端对齐", axis: "y", edge: 2 },
+] as const;
+
+function alignmentPoints(box: SceneBox, axis: Axis) {
+  const start = box[axis], extent = axis === "x" ? box.w : box.h;
+  return [start, start + extent / 2, start + extent] as const;
+}
+
+function enclosingBox(boxes: SceneBox[]): SceneBox {
+  const x = Math.min(...boxes.map(box => box.x)), y = Math.min(...boxes.map(box => box.y));
+  return { x, y, w: Math.max(...boxes.map(box => box.x + box.w)) - x,
+    h: Math.max(...boxes.map(box => box.y + box.h)) - y };
+}
+
+function nearestGuide(box: SceneBox, references: SceneBox[], axis: Axis, limit: number, tolerance: number) {
+  const targets = [0, limit / 2, limit, ...references.flatMap(reference => alignmentPoints(reference, axis))];
+  let best: { target: number; offset: number } | undefined;
+  for (const anchor of alignmentPoints(box, axis)) {
+    for (const target of targets) {
+      const offset = target - anchor;
+      if (Math.abs(offset) <= tolerance && (!best || Math.abs(offset) < Math.abs(best.offset)))
+        best = { target, offset };
+    }
+  }
+  return best;
+}
 type Changes = { moves: ObjectMove[]; texts: ObjectText[]; order?: string[]; groups?: ObjectGroup[] };
 type History = { past: Changes[]; present: Changes; future: Changes[] };
 type HistoryAction = { type: "record"; update: (value: Changes) => Changes } | { type: "undo" | "redo" };
@@ -42,17 +81,22 @@ export function splitLayers(svg: string): Layer[] {
   });
 }
 
-export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onApply, onClose }: {
+export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, lockedParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onSelectionChange, imageReplacement, photoReplacement, materialSource, onApply, onClose }: {
   call: Call;
   projectId: string;
   slideId: string;
   scene: SlideScene;
   content: SlideContent;
   allowParagraphs: boolean;
+  lockedParagraphs?: ReadonlySet<number>;
   pendingMoves?: ObjectMove[];
   pendingTexts?: ObjectText[];
   pendingOrder?: string[];
   pendingGroups?: ObjectGroup[];
+  onSelectionChange?: (selection: { ids: string[]; dirty: boolean }) => void;
+  imageReplacement?: { identify: (id: string) => number | undefined; open: (index: number) => void };
+  photoReplacement?: { canOpen: (id: string) => boolean; open: (id: string) => void };
+  materialSource?: { canOpen: (element: SceneElement) => boolean; open: (element: SceneElement) => void };
   onApply: (changes: Changes) => void;
   onClose: () => void;
 }) {
@@ -67,11 +111,12 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   });
   const { moves, texts, order, groups: groupPatch } = history.present;
   const [typing, setTyping] = React.useState<{ id: string; value: string } | null>(null);
-  const [dragMoves, setDragMoves] = React.useState<ObjectMove[]>([]);
+  const [dragPreview, setDragPreview] = React.useState<DragPreview>(emptyDrag);
   const board = React.useRef<HTMLDivElement | null>(null);
-  const drag = React.useRef<{ id: string; pointer: number; startX: number; startY: number; origin: Position; members?: ObjectMove[]; rect: DOMRect; resizing?: boolean } | null>(null);
+  const drag = React.useRef<Drag | null>(null);
   const sceneKey = JSON.stringify(scene);
   const entries = React.useMemo(() => scene.elements.map((element, i) => ({ element, id: objectId(element, i) })), [scene]);
+  const entryById = React.useMemo(() => new Map(entries.map(entry => [entry.id, entry])), [entries]);
   const originalOrder = entries.filter(entry => canMoveObject(entry.element)).map(entry => entry.id);
   const validOrder = !order || validObjectOrder(originalOrder, order);
   const orderedEntries = validOrder ? sceneLayerEntries(entries, order) : entries;
@@ -83,7 +128,15 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   const selectedGroup = selected ? groupFor(selected) : undefined;
   const currentOrder = validOrder && order ? order : originalOrder;
   const layerById = React.useMemo(() => new Map(layers.map(layer => [layer.id, layer])), [layers]);
-  const anchors = React.useMemo(() => textAnchors(scene, content, allowParagraphs), [scene, content, allowParagraphs]);
+  const anchors = React.useMemo(() => {
+    const editable = textAnchors(scene, content, allowParagraphs);
+    if (lockedParagraphs?.size) {
+      for (const [id, anchor] of editable) {
+        if (anchor.kind === "paragraph" && lockedParagraphs.has(anchor.block)) editable.delete(id);
+      }
+    }
+    return editable;
+  }, [scene, content, allowParagraphs, lockedParagraphs]);
   const canonicalText = (id: string) => {
     const anchor = anchors.get(id);
     if (anchor?.kind === "title") return content.title;
@@ -91,6 +144,10 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
     return block?.kind === "paragraph" ? block.text : "";
   };
   const hasChanges = !!(moves.length || texts.length || order || groupPatch);
+  const localEdits = hasChanges || !!typing;
+  React.useEffect(() => {
+    onSelectionChange?.({ ids: marked.length ? marked : selected ? [selected] : [], dirty: localEdits });
+  }, [localEdits, marked, onSelectionChange, selected]);
   React.useEffect(() => {
     const request = new AbortController();
     void call<{ svg: string; scene: SlideScene }>({
@@ -110,7 +167,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   }, [call, projectId, slideId, sceneKey]);
 
   function position(id: string, fallback: SceneElement): Position {
-    const local = dragMoves.find(move => move.id === id) ?? moves.find(move => move.id === id);
+    const local = dragPreview.moves.find(move => move.id === id) ?? moves.find(move => move.id === id);
     return { x: fallback.x, y: fallback.y, rotation: objectRotation(fallback), allowOverlap: objectOverlap(fallback), ...local };
   }
   function placeBatch(updates: ObjectMove[]) {
@@ -120,7 +177,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
       const targets = new Set(updates.map(update => update.id));
       const rest = previous.moves.filter(move => !targets.has(move.id));
       const changed = updates.flatMap(next => {
-        const entry = entries.find(value => value.id === next.id);
+        const entry = entryById.get(next.id);
         if (!entry) return [];
         const { x, y, scale } = next;
         const angleChanged = next.rotation !== undefined && next.rotation !== objectRotation(entry.element);
@@ -135,19 +192,104 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   function place(id: string, next: Position) { placeBatch([{ id, ...next }]); }
   function moveOrigins(id: string): ObjectMove[] {
     return (groupFor(id)?.memberIds ?? [id]).flatMap(id => {
-      const entry = entries.find(item => item.id === id);
+      const entry = entryById.get(id);
       return entry ? [{ id, ...position(id, entry.element) }] : [];
     });
   }
-  function translate(members: ObjectMove[], dx: number, dy: number): ObjectMove[] {
-    const boxes = members.flatMap(member => {
-      const element = entries.find(item => item.id === member.id)?.element;
-      if (!element) return [];
-      return [{ ...member, w: element.w * (member.scale ?? 1), h: element.h * (member.scale ?? 1) }];
+  function objectBox(at: Position, element: SceneElement) {
+    return { ...at, w: element.w * (at.scale ?? 1), h: element.h * (at.scale ?? 1) };
+  }
+  function moveBoxes(members: ObjectMove[]) {
+    return members.flatMap(member => {
+      const element = entryById.get(member.id)?.element;
+      return element ? [objectBox(member, element)] : [];
     });
+  }
+  function translate(members: ObjectMove[], dx: number, dy: number): ObjectMove[] {
+    const boxes = moveBoxes(members);
     if (boxes.length !== members.length || !boxes.length) return [];
     const delta = constrainGroupDelta(scene, boxes, dx, dy);
     return members.map(member => ({ ...member, x: Math.max(0, member.x + delta.x), y: Math.max(0, member.y + delta.y) }));
+  }
+  function dragObjects(start: Drag, event: React.PointerEvent<HTMLButtonElement>): DragPreview {
+    const { width, height } = start.rect;
+    const members = start.members ?? [];
+    const dx = event.clientX - start.startX, dy = event.clientY - start.startY;
+    if (!width || !height || Math.hypot(dx, dy) < 2) return emptyDrag;
+    const proposed = translate(members, dx * scene.width / width, dy * scene.height / height);
+    if (!proposed.length) return emptyDrag;
+
+    const moving = new Set(members.map(member => member.id));
+    const bounds = enclosingBox(moveBoxes(proposed).map(visualBounds));
+    const references = entries.flatMap(({ id, element }) => moving.has(id) || !canMoveObject(element)
+      ? [] : [visualBounds(objectBox(position(id, element), element))]);
+    // Use screen pixels so the guide feels the same at different zoom levels.
+    const x = nearestGuide(bounds, references, "x", scene.width, 5 * scene.width / width);
+    const y = nearestGuide(bounds, references, "y", scene.height, 5 * scene.height / height);
+    if (!x && !y) return { moves: proposed };
+    const dxSnapped = proposed[0].x - members[0].x + (x?.offset ?? 0);
+    const dySnapped = proposed[0].y - members[0].y + (y?.offset ?? 0);
+    const moves = translate(members, dxSnapped, dySnapped);
+    return {
+      moves,
+      guideX: x && Math.abs(moves[0].x - proposed[0].x - x.offset) < .0001 ? x.target : undefined,
+      guideY: y && Math.abs(moves[0].y - proposed[0].y - y.offset) < .0001 ? y.target : undefined,
+    };
+  }
+
+  function endDrag(event: React.PointerEvent<HTMLButtonElement>) {
+    if (drag.current?.pointer !== event.pointerId) return;
+    drag.current = null;
+    setDragPreview(emptyDrag);
+  }
+
+  const arrangeable = marked.filter(id => originalOrder.includes(id) && !groupFor(id));
+  function arrangementSelection() {
+    return arrangeable.flatMap(id => {
+      const element = entryById.get(id)?.element;
+      if (!element) return [];
+      const at = position(id, element), box = objectBox(at, element);
+      return [{ id, at, box, visual: visualBounds(box) }];
+    });
+  }
+  function align({ axis, edge }: (typeof alignmentModes)[number]) {
+    const picks = arrangementSelection();
+    if (picks.length < 2) return;
+    const target = alignmentPoints(enclosingBox(picks.map(item => item.visual)), axis)[edge];
+    const updates = picks.map(({ id, at, visual }) => {
+      const offset = target - alignmentPoints(visual, axis)[edge];
+      return { id, ...at, [axis]: Math.abs(offset) < .0001 ? at[axis] : Math.round((at[axis] + offset) * 1e4) / 1e4 };
+    });
+    if (picks.some(({ box }, index) => !boxFits(scene, { ...box, ...updates[index] }))) {
+      setBoundsMessage("对齐后会有对象超出页面。请先调整对象位置。");
+      return;
+    }
+    placeBatch(updates);
+  }
+
+  function distribute(axis: Axis) {
+    const size = axis === "x" ? "w" : "h";
+    const picks = arrangementSelection().sort((first, second) => first.visual[axis] - second.visual[axis]);
+    if (picks.length < 3) return;
+    const start = picks[0].visual[axis];
+    const last = picks[picks.length - 1].visual;
+    const occupied = picks.reduce((sum, entry) => sum + entry.visual[size], 0);
+    const gap = (last[axis] + last[size] - start - occupied) / (picks.length - 1);
+    if (gap < 0) {
+      setBoundsMessage("对象之间没有足够的间距。请拉开两端后再分布。");
+      return;
+    }
+    let target = start;
+    const updates = picks.map(({ id, at, visual }) => {
+      const next = { id, ...at, [axis]: at[axis] + target - visual[axis] };
+      target += visual[size] + gap;
+      return next;
+    });
+    if (picks.some(({ box }, index) => !boxFits(scene, { ...box, ...updates[index] }))) {
+      setBoundsMessage("分布后会有对象超出页面。请先调整对象位置。");
+      return;
+    }
+    placeBatch(updates.slice(1, -1));
   }
   function createGroup() {
     if (marked.length < 2 || marked.length > 100 || marked.some(id => !originalOrder.includes(id) || groupFor(id))) return;
@@ -203,6 +345,8 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   const picked = entries.find(entry => entry.id === selected);
   const pickedPosition = picked ? position(picked.id, picked.element) : null;
   const pickedScale = pickedPosition?.scale ?? 1;
+  const imageIndex = picked && !localEdits ? imageReplacement?.identify(picked.id) : undefined;
+  const canReplacePhoto = picked && !localEdits && marked.length <= 1 && photoReplacement?.canOpen(picked.id);
   const resizeCorner = picked ? rotateVector(picked.element.w * pickedScale / 2, picked.element.h * pickedScale / 2, pickedPosition?.rotation ?? 0) : null;
   function draggedScale(event: React.PointerEvent<HTMLButtonElement>, element: SlideScene["elements"][number]) {
     const start = drag.current;
@@ -269,7 +413,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             }} />;
           const label = layerName(id, element);
           return <button
-            key={id} type="button" aria-label={`对象 ${index + 1}：${label}`} aria-pressed={selected === id}
+            key={id} type="button" aria-label={`对象 ${index + 1}：${label}`} aria-pressed={selected === id || marked.includes(id)}
             className={styles.objectTarget}
             data-group-member={selectedGroup?.memberIds.includes(id) || undefined}
             data-canvas-id={id} style={{ ...bounds, transform: p.rotation ? `rotate(${p.rotation}deg)` : undefined }}
@@ -285,23 +429,16 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             }}
             onPointerMove={event => {
               const start = drag.current;
-              if (!start || start.pointer !== event.pointerId || !start.rect.width || !start.rect.height) return;
-              setDragMoves(translate(start.members ?? [],
-                (event.clientX - start.startX) / start.rect.width * scene.width,
-                (event.clientY - start.startY) / start.rect.height * scene.height));
+              if (start?.id === id && start.pointer === event.pointerId && !start.resizing) setDragPreview(dragObjects(start, event));
             }}
             onPointerUp={event => {
               const start = drag.current;
-              if (!start || start.pointer !== event.pointerId) return;
-              const dx = event.clientX - start.startX, dy = event.clientY - start.startY;
-              if (Math.hypot(dx, dy) >= 2 && start.rect.width && start.rect.height) {
-                placeBatch(translate(start.members ?? [], dx / start.rect.width * scene.width, dy / start.rect.height * scene.height));
-              }
-              drag.current = null;
-              setDragMoves([]);
+              if (start?.id !== id || start.pointer !== event.pointerId || start.resizing) return;
+              placeBatch(dragObjects(start, event).moves);
+              endDrag(event);
             }}
-            onLostPointerCapture={() => { drag.current = null; setDragMoves([]); }}
-            onPointerCancel={() => { drag.current = null; setDragMoves([]); }}
+            onLostPointerCapture={endDrag}
+            onPointerCancel={endDrag}
             onKeyDown={event => {
               if (event.key === "F2" && anchors.has(id)) { event.preventDefault(); startTyping(id); return; }
               const offsets: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
@@ -313,6 +450,8 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             }}
           />;
         })}
+        {dragPreview.guideX !== undefined && <span className={styles.objectGuide} aria-hidden="true" data-axis="x" style={{ left: `${dragPreview.guideX / scene.width * 100}%` }} />}
+        {dragPreview.guideY !== undefined && <span className={styles.objectGuide} aria-hidden="true" data-axis="y" style={{ top: `${dragPreview.guideY / scene.height * 100}%` }} />}
         {picked && pickedPosition && resizeCorner && !typing && canScaleObject(picked.element) && (
           <button type="button" aria-label="缩放所选对象"
             className={styles.objectResize}
@@ -329,17 +468,16 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             }}
             onPointerMove={event => {
               const next = draggedScale(event, picked.element);
-              if (next) setDragMoves([{ id: picked.id, ...next }]);
+              if (next) setDragPreview({ moves: [{ id: picked.id, ...next }] });
             }}
             onPointerUp={event => {
               const next = draggedScale(event, picked.element);
               if (!next) return;
               place(picked.id, next);
-              drag.current = null;
-              setDragMoves([]);
+              endDrag(event);
             }}
-            onLostPointerCapture={() => { drag.current = null; setDragMoves([]); }}
-            onPointerCancel={() => { drag.current = null; setDragMoves([]); }}
+            onLostPointerCapture={endDrag}
+            onPointerCancel={endDrag}
             onKeyDown={event => {
               const step = event.shiftKey ? .1 : .025;
               const direction = ["ArrowLeft", "ArrowUp", "-"].includes(event.key) ? -1
@@ -358,7 +496,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             <li key={id}>
               {canMoveObject(element)
                 ? <div className={styles.layerRow}>
-                    {!groupFor(id) && <input type="checkbox" aria-label={`选入组合：${layerName(id, element)}`}
+                    {!groupFor(id) && <input type="checkbox" aria-label={`多选对象：${layerName(id, element)}`}
                       checked={marked.includes(id)}
                       onChange={event => setMarked(previous => event.target.checked ? [...previous, id] : previous.filter(item => item !== id))} />}
                     <button type="button" aria-pressed={selected === id}
@@ -374,6 +512,18 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             onClick={() => selected && changeLayer(selected, 1)}>上移一层</Button>
           <Button variant="ghost" disabled={!selected || !!typing || currentOrder.indexOf(selected) <= 0}
             onClick={() => selected && changeLayer(selected, -1)}>下移一层</Button>
+          {arrangeable.length >= 2 && <select aria-label="对齐所选对象" value="" disabled={!!typing || !!dragPreview.moves.length}
+            onChange={event => {
+              const mode = alignmentModes.find(item => item.id === event.currentTarget.value);
+              if (mode) align(mode);
+            }}>
+            <option value="">对齐所选对象</option>
+            {alignmentModes.map(({ id, label }) => <option value={id} key={id}>{label}</option>)}
+          </select>}
+          {arrangeable.length >= 3 && <>
+            <Button variant="ghost" disabled={!!typing} onClick={() => distribute("x")}>水平等距分布</Button>
+            <Button variant="ghost" disabled={!!typing} onClick={() => distribute("y")}>垂直等距分布</Button>
+          </>}
           <Button variant="ghost" disabled={!!typing || marked.length < 2 || marked.length > 100} onClick={createGroup}>组合所选对象</Button>
           <Button variant="ghost" disabled={!!typing || !selectedGroup}
             onClick={() => selectedGroup && removeGroup(selectedGroup.id)}>取消所选组合</Button>
@@ -385,6 +535,12 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
       </div>}
       {picked && !typing && canScaleObject(picked.element) && (
         <div className={styles.objectTools}>
+          {imageIndex !== undefined && imageReplacement &&
+            <Button variant="secondary" onClick={() => imageReplacement.open(imageIndex)}>更换所选图片</Button>}
+          {canReplacePhoto && photoReplacement &&
+            <Button variant="secondary" onClick={() => photoReplacement.open(picked.id)}>更换楼宇照片</Button>}
+          {materialSource?.canOpen(picked.element) && marked.length <= 1 &&
+            <Button variant="ghost" onClick={() => materialSource.open(picked.element)}>查看素材来源</Button>}
           <Button variant="ghost" onClick={() => {
             const at = position(picked.id, picked.element);
             place(picked.id, resizeFrom(at, picked.element, (at.scale ?? 1) - .1));

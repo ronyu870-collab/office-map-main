@@ -1,3 +1,4 @@
+import { PitchHandoffProvider } from '@/src/components/pitch/PitchHandoffLink';
 import { BROKER_ID, brokerReturn } from '@/src/lib/broker/links';
 import { MapSalesMaterialsBridge } from './MapSalesMaterialsBridge';
 import './map-workbench.css';
@@ -47,7 +48,9 @@ export default async function MapPage({ searchParams }: MapPageProps) {
       <MapSalesMaterialsBridge />
       {initialIntelligenceHandoff ? <MapProposalBridge enabled /> : null}
       <MapCompetitorModeGuard />
-      <MapRouteGate resume={params.get('resume')} initialIntelligenceHandoff={initialIntelligenceHandoff} buildingFocus={buildingFocus} queryContext={queryContext} />
+      <PitchHandoffProvider enabled={process.env.PITCH_STUDIO_ENABLED === 'true'}>
+        <MapRouteGate resume={params.get('resume')} initialIntelligenceHandoff={initialIntelligenceHandoff} buildingFocus={buildingFocus} queryContext={queryContext} />
+      </PitchHandoffProvider>
     </>
   );
 }

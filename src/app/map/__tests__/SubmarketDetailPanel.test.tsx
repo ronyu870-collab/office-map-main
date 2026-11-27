@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SubmarketDetailPayload } from '@/src/services/mapDataClient';
+import { PitchHandoffProvider, readPitchHandoff } from '@/src/components/pitch/PitchHandoffLink';
 import { aggregateMarket } from '../model/marketStatistics';
 import type { SubmarketSummary } from '../model/submarketOverview';
 import { emptySubmarketProfile } from '../model/submarketProfile';
@@ -160,7 +161,10 @@ describe('submarket research workspace', () => {
       makePoint('2026Q3', null, null),
     ];
     api.read.mockResolvedValueOnce({ ...payload, trends: { all: series, a: [], b: [] } });
-    render(<SubmarketDetailPanel {...props} />);
+    render(<PitchHandoffProvider enabled><SubmarketDetailPanel {...props} /></PitchHandoffProvider>);
+    const link = await screen.findByRole('link', { name: '将子市场行情加入 Pitch' });
+    const href = new URL(link.getAttribute('href')!, window.location.origin);
+    expect(readPitchHandoff(href.hash)).toEqual({ source: { kind: 'submarket', key: 'CBD' }, period: '2026-Q2' });
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
     await waitFor(() => expect(screen.getByText('2026Q2')).toBeInTheDocument());
     expect(screen.getByText('-10.0')).toBeInTheDocument();
@@ -171,8 +175,11 @@ describe('submarket research workspace', () => {
 
   it('distinguishes temporarily unavailable trend data from genuine missing observations', async () => {
     api.read.mockResolvedValueOnce({ ...payload, trendError: true, trends: emptyTrend });
-    render(<SubmarketDetailPanel {...props} />);
+    render(<PitchHandoffProvider enabled><SubmarketDetailPanel {...props} /></PitchHandoffProvider>);
     await waitFor(() => expect(screen.getByText('历史行情暂不可用')).toBeInTheDocument());
+    const link = await screen.findByRole('link', { name: '将子市场行情加入 Pitch' });
+    const href = new URL(link.getAttribute('href')!, window.location.origin);
+    expect(readPitchHandoff(href.hash)).toEqual({ source: { kind: 'submarket', key: 'CBD' } });
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
     expect(screen.getByText('历史行情暂不可用')).toBeInTheDocument();
     expect(screen.queryByText('最新有效样本')).not.toBeInTheDocument();
