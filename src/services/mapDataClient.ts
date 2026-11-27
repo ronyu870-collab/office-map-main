@@ -98,7 +98,9 @@ export async function fetchBuildingTrendPayload(buildingId: string) {
 
 export type SubmarketDetailPayload = {
   submarket: string;
+  /** Legacy count is A/P/B; BP has its own composition and trend. */
   stockCount: number;
+  marketProducts?: import('@/src/app/map/model/submarketProductResearch').MarketProducts;
   scope?: 'authorized_market';
   membershipTime?: 'current_catalog';
   publication?: 'locked_non_draft';

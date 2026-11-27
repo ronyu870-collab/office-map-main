@@ -1,4 +1,4 @@
-import type { SubmarketTrendPoint } from './submarketMarketTrend';
+import { MIN_RESEARCH_MARKET_SAMPLES, type SubmarketTrendPoint } from './submarketMarketTrend';
 import { quarterKey } from './quarterlyFacts';
 export type MarketTrendMetric = 'rent' | 'vacancyPct';
 export const marketTrendMetrics = ['rent', 'vacancyPct'] as const;
@@ -11,7 +11,7 @@ export const trendSamples = (point: SubmarketTrendPoint | null, metric: MarketTr
 export const trendCoverage = (point: SubmarketTrendPoint | null, metric: MarketTrendMetric) =>
   (metric === 'rent' ? point?.rentCoverage?.area : point?.vacancyCoverage?.area) ?? null;
 export const canCompareMarketSamples = (a: SubmarketTrendPoint | null, b: SubmarketTrendPoint | null, metric: MarketTrendMetric) =>
-  trendValue(a, metric) != null && trendValue(b, metric) != null && trendSamples(a, metric) >= 2 && trendSamples(b, metric) >= 2;
+  trendValue(a, metric) != null && trendValue(b, metric) != null && trendSamples(a, metric) >= MIN_RESEARCH_MARKET_SAMPLES && trendSamples(b, metric) >= MIN_RESEARCH_MARKET_SAMPLES;
 export function marketSampleCoverageChanged(a: SubmarketTrendPoint | null, b: SubmarketTrendPoint | null, metric: MarketTrendMetric) {
   const first = trendCoverage(a, metric), last = trendCoverage(b, metric);
   return first != null && last != null && Math.abs(first - last) >= 0.1 - Number.EPSILON;
