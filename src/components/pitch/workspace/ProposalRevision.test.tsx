@@ -160,7 +160,7 @@ it("generates the approved new market edition from the exact reviewed request", 
   }), workspace);
   await user.click(screen.getByRole("button", { name: "预览修改" }));
   expect(await screen.findByText("季度市场摘要")).toBeInTheDocument();
-  expect(screen.getByText(/按正式季度 2026-Q3 生成新版报告/)).toBeInTheDocument();
+  expect(screen.getByText(/北京.*2026-Q3.*1 页/)).toBeInTheDocument();
   expect(call).toHaveBeenCalledTimes(1);
   await user.click(screen.getByRole("button", { name: "确认并生成新版 Pitch" }));
   await waitFor(() => expect(onGenerated).toHaveBeenCalledWith(competitor.id));

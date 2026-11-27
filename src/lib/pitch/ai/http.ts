@@ -97,7 +97,7 @@ export async function handleAiRequest(
           () => authorizedProposalModel(actor, c.confirmation.request)));
       }
       const { generateConfirmedProposal } = await import("./proposal-generation-runtime");
-      return reply(await generateConfirmedProposal(ctx, c.confirmation));
+      return reply(await generateConfirmedProposal(ctx, c.confirmation, schedule));
     }
     if (c.action === "proposal_revision") {
       const { planProposalRevision } = await import("./proposal-revision-runtime");
