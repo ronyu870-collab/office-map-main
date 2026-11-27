@@ -434,27 +434,30 @@ describe('submarket research workspace', () => {
     api.read.mockResolvedValue({ ...payload, profile: { ...profile, research, headline: research.positioning },
       trends: { all: [early, latest], a: [{ ...latest, rent: 210 }], b: [{ ...latest, rent: 170 }] } });
     render(<SubmarketDetailPanel {...props} />);
-    await screen.findByText('同季度甲乙级租金差');
-    const marketObservation = within(screen.getByRole('region', { name: '市场观察' }));
-    for (const item of research.observations.slice(0, 4)) {
-      const title = item.kind === 'outlook' && !item.title.includes('展望') ? `展望：${item.title}` : item.title;
-      expect(marketObservation.getByRole('heading', { name: title })).toBeVisible();
-      expect(marketObservation.getByText(item.body, { exact: true })).toBeVisible();
-    }
-    expect(marketObservation.queryByText('研究依据与口径')).not.toBeInTheDocument();
-    expect(marketObservation.queryByRole('link')).not.toBeInTheDocument();
-    expect(screen.queryByText('已发布季度记录 · 授权子市场 · 按面积加权')).not.toBeInTheDocument();
+    await screen.findByRole('heading', { name: research.observations[0].title });
+    const lead = screen.getByRole('region', { name: '市场观察' });
+    const metrics = screen.getByRole('region', { name: '市场核心指标' });
+    expect(metrics.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(lead).getByRole('heading', { name: research.observations[0].title })).toBeVisible();
+    expect(within(lead).getByText('33.2')).toBeVisible();
+    expect(within(lead).getByText('125')).toBeVisible();
+    expect(within(lead).getAllByText('2026Q3 · 公开市场研究').length).toBeGreaterThan(0);
     for (const item of research.observations) {
-      expect(marketObservation.queryByText(item.limitation, { exact: true })).not.toBeInTheDocument();
+      expect(screen.queryByText(item.body, { exact: true })).not.toBeInTheDocument();
+      expect(screen.queryByText(item.limitation, { exact: true })).not.toBeInTheDocument();
     }
-    expect(screen.getByText(/2026Q2 甲级减乙级/)).toHaveTextContent('+40 元/㎡/月');
+    expect(within(lead).queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByText('已发布季度记录 · 授权子市场 · 按面积加权')).not.toBeInTheDocument();
     const changes = within(screen.getByRole('region', { name: '季度变化' }));
+    expect(changes.getByText('完整子市场 · 甲乙级 · 2026Q2')).toBeVisible();
     expect(changes.getByText('190.0 元/㎡/月')).toBeVisible();
     expect(changes.getByText('10.0%')).toBeVisible();
 
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
     const trend = within(screen.getByRole('region', { name: '季度行情' }));
     expect(trend.getByText('2025Q4 至 2026Q2变化 +10.0 元/㎡/月（+5.6%）')).toBeVisible();
+    fireEvent.click(trend.getByText('比较甲级与乙级'));
+    expect(trend.getByRole('table', { name: '同季度甲乙级比较' })).toHaveTextContent('+40.0');
     fireEvent.click(trend.getByText('查看季度数据'));
     const table = within(trend.getByRole('table', { name: '季度租金与空置率' }));
     expect(table.getByRole('row', { name: /^2026Q1/ })).toHaveTextContent('未收录');
@@ -467,12 +470,22 @@ describe('submarket research workspace', () => {
     const { rerender } = render(<WorkspacePanelContext.Provider value={{ compact: false, mode: 'full', setMode: vi.fn() }}>
       <SubmarketDetailPanel {...props} />
     </WorkspacePanelContext.Provider>);
-    await screen.findByText(research.positioning);
+    await screen.findByText(research.positioning.split('；')[0]);
     expect(screen.queryByText(/研究依据与口径|来源与口径|数据与统计口径/)).not.toBeInTheDocument();
+    const panel = screen.getByRole('region', { name: 'CBD' });
+    expect(panel).toHaveAttribute('data-submarket-featured', 'true');
     for (const item of research.observations) {
-      expect(screen.getAllByText(item.body, { exact: true })).toHaveLength(1);
+      expect(screen.getAllByRole('heading', { name: item.title })).toHaveLength(1);
       expect(screen.queryByText(item.limitation, { exact: true })).not.toBeInTheDocument();
     }
+    for (const source of research.sources.filter(item => item.scopeType === 'external_market')) {
+      expect(panel).not.toHaveTextContent(source.publisher);
+    }
+    const metrics = screen.getByRole('region', { name: '市场核心指标' });
+    const trend = screen.getByRole('region', { name: '租金与空置率趋势' });
+    const supply = screen.getByRole('region', { name: '供应与竞争格局' });
+    expect(metrics.compareDocumentPosition(trend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(trend.compareDocumentPosition(supply) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole('link', { name: research.sources[0].title })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
     fireEvent.click(screen.getByText(`来源（${research.sources.length}）`));

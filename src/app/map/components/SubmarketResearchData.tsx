@@ -47,7 +47,7 @@ function CurrentMetric({ label, value, unit, sampleCount, context }: {
 export function SubmarketResearchOverview({
   name, summary, buildings, trendData = emptyTrend, trendState = 'ready', futureState, futureCount, futureArea,
   futureAreaSamples, beijingBenchmarkBuildings, showQuarterlySummary = true,
-  structured = false, parkOnly = false,
+  structured = false, parkOnly = false, part = 'all',
 }: {
   name: string;
   summary: SubmarketSummary;
@@ -62,6 +62,7 @@ export function SubmarketResearchOverview({
   showQuarterlySummary?: boolean;
   structured?: boolean;
   parkOnly?: boolean;
+  part?: 'all' | 'composition';
 }) {
   const current = useMemo(() => describeCurrentResearchMarket(name, buildings, beijingBenchmarkBuildings), [name, buildings, beijingBenchmarkBuildings]);
   const quarterly = useMemo(() => trendState === 'ready' ? describeQuarterlyResearchMarket(trendData) : null, [trendData, trendState]);
@@ -71,7 +72,7 @@ export function SubmarketResearchOverview({
   const showFutureArea = futureState === 'ready' && available(futureArea) && futureArea >= 0 && futureAreaSamples != null
     && futureAreaSamples > 0 && futureAreaSamples <= futureCount;
   return <div className={styles.research}>
-    {park ? <section data-workspace-summary aria-label="市场核心指标">
+    {part === 'all' && (park ? <section data-workspace-summary aria-label="市场核心指标">
       <p className={styles.scope}>当前筛选 · 产业园存量</p>
       <dl className={styles.metrics}>
         <div className={styles.metric}><dt>产业园项目</dt><dd><MetricValue value={park.projectCount} unit="个" precision={0} /></dd></div>
@@ -89,12 +90,12 @@ export function SubmarketResearchOverview({
           <dd><MetricValue value={summary.officeCount} precision={0} unit="个" /></dd>
         </div>
       </dl>
-    </section>}
-    {!structured ? <section aria-label="市场观察" className={styles.block}>
+    </section>)}
+    {part === 'all' && !structured ? <section aria-label="市场观察" className={styles.block}>
       <h3>市场观察</h3>
       <p>{submarketResearchObservation(name, summary, current, quarterly)}</p>
     </section> : null}
-    {showQuarterlySummary && !parkOnly && (
+    {part === 'all' && showQuarterlySummary && !parkOnly && (
       trendState === 'ready' ? <MarketTrendSummary data={trendData} /> : <section aria-label="季度变化" className={styles.block}>
         <h3>季度变化</h3>
         <p role="status" className={styles.secondary}>{trendState === 'loading' ? '正在读取季度行情…' : '季度行情暂不可用。'}</p>
