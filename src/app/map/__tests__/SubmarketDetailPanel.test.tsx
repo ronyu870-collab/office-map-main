@@ -412,11 +412,19 @@ describe('submarket research workspace', () => {
     const parkBuilding = { id: research.projects[0].buildingId, name: '软件园实测项目', grade: 'BP', submarket: '上地' };
     const onOpenBuilding = vi.fn();
     api.read.mockResolvedValue({ ...payload, submarket: '上地', stockCount: 0,
+      marketProducts: { type: 'park', officeCount: 0, parkCount: 1 },
+      trends: { all: [], a: [], b: [], park: [{ period: '2026Q2', year: 2026, quarter: 2, rent: 100, vacancyPct: 10, rentSamples: 1, vacancySamples: 1, rentArea: 50000, vacancyArea: 50000, stockArea: 50000, stockSamples: 1 }] },
       profile: { ...profile, submarket: '上地', research, headline: research.positioning } });
     render(<SubmarketDetailPanel {...props} name="上地" canEdit={false} buildings={[parkBuilding]} onOpenBuilding={onOpenBuilding}
       summary={{ ...aggregateMarket([parkBuilding], 'filtered_market', true), name: '上地' }} />);
-    await screen.findByText(research.positioning);
+    await screen.findByText('完整子市场 · 产业园');
     expect(screen.getByText('产业园项目')).toBeInTheDocument();
+    expect(screen.getByText(/仅 1 个有效样本/)).toBeInTheDocument();
+    expect(screen.queryByText('100.0')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
+    expect(screen.queryByRole('group', { name: '楼宇等级' })).not.toBeInTheDocument();
+    expect(screen.getByText('单项目观测不构成区域行情。')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: '市场概览' }));
     expect(screen.queryByText('甲乙级项目')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: parkBuilding.name }));
     expect(onOpenBuilding).toHaveBeenCalledWith(parkBuilding.id);
@@ -431,6 +439,26 @@ describe('submarket research workspace', () => {
     expect(profilePanel.queryByText(research.sources[1].basis)).not.toBeInTheDocument();
     expect(profilePanel.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.queryByText('数据与统计口径')).not.toBeInTheDocument();
+  });
+
+
+  it('keeps mixed market products separate even when the visible map list has only offices', async () => {
+    const base = { period: '2026Q2', year: 2026, quarter: 2, rentSamples: 3, vacancySamples: 3, rentArea: 100000, vacancyArea: 100000, stockArea: 100000, stockSamples: 3 };
+    api.read.mockResolvedValue({ ...payload, submarket: '望京-酒仙桥', stockCount: 3,
+      marketProducts: { type: 'mixed', officeCount: 3, parkCount: 4 },
+      trends: { all: [{ ...base, rent: 123, vacancyPct: 15 }], a: [], b: [], park: [{ ...base, rent: 97, vacancyPct: 28 }] } });
+    render(<PitchHandoffProvider enabled><SubmarketDetailPanel {...props} name="望京-酒仙桥" canEdit={false} /></PitchHandoffProvider>);
+    const office = await screen.findByRole('region', { name: '甲乙级办公核心指标' });
+    const park = screen.getByRole('region', { name: '产业园核心指标' });
+    await within(office).findByText('123.0');
+    expect(within(park).getByText('97.0')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '同季度产品比较' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '将子市场行情加入 Pitch' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
+    const group = screen.getByRole('group', { name: '研究产品类型' });
+    fireEvent.click(within(group).getByRole('button', { name: '产业园' }));
+    expect(within(group).getByRole('button', { name: '产业园' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('完整子市场 · 产业园')).toBeInTheDocument();
   });
 
   it('keeps the structured research signal and adaptive trend details in the same workspace', async () => {

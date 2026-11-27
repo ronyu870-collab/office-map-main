@@ -1,11 +1,14 @@
 import { officeGrade } from './marketIdentity';
 import { aggregateMarket, type MarketMetric } from './marketStatistics';
+import { mapOptionalNumber } from './vacancyMetrics';
 import { compareQuarterlyFacts, isFormalQuarterlyFact, quarterKey } from './quarterlyFacts';
 
 export type TrendMetricRow = MarketMetric & {
   building_id: string; record_year: number; record_quarter: number;
 };
 export type SameSampleChange = { samples: number; rentPct: number | null; vacancyPp: number | null };
+export const MIN_RESEARCH_MARKET_SAMPLES = 2;
+export type ProductDistribution = { samples: number; min: number; p25: number; median: number; p75: number; max: number };
 export type SubmarketTrendPoint = {
   period: string; year: number; quarter: number; rent: number | null; vacancyPct: number | null;
   rentSamples: number; vacancySamples: number; rentArea: number; vacancyArea: number;
@@ -17,15 +20,30 @@ export type SubmarketTrendPoint = {
   observedRent?: boolean; observedVacancy?: boolean; continuousRent?: boolean; continuousVacancy?: boolean;
   sampleChanged?: { rent: boolean; vacancy: boolean };
   sameSampleQoq?: { rent: SameSampleChange; vacancy: SameSampleChange };
+  rentDistribution?: ProductDistribution;
+  sizeDistribution?: ProductDistribution;
   sameSampleYoy?: { rent: SameSampleChange; vacancy: SameSampleChange };
 };
-export type SubmarketTrendSeries = Record<'all' | 'a' | 'b', SubmarketTrendPoint[]>;
+/** all remains A/P/B; BP is an independent additive product. */
+export type SubmarketTrendSeries = Record<'all' | 'a' | 'b', SubmarketTrendPoint[]> & { park?: SubmarketTrendPoint[] };
 type OfficeRecord = { id: string; grade?: string | null };
 
 /** The selected observation is never forward-filled into another quarter. */
-export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows: readonly TrendMetricRow[], count: number | 'available' = 8): SubmarketTrendSeries {
+function distribution(values: number[]): ProductDistribution | undefined {
+  if (values.length < MIN_RESEARCH_MARKET_SAMPLES) return undefined;
+  values.sort((a, b) => a - b);
+  const quantile = (q: number) => {
+    const index = (values.length - 1) * q;
+    const lower = Math.floor(index), upper = Math.ceil(index);
+    return values[lower] + (values[upper] - values[lower]) * (index - lower);
+  };
+  return { samples: values.length, min: values[0], p25: quantile(.25), median: quantile(.5), p75: quantile(.75), max: values[values.length - 1] };
+}
+
+function computeProductTrends(buildings: readonly OfficeRecord[], rows: readonly TrendMetricRow[], count: number | 'available',
+  product: 'office' | 'park', distributions: boolean): SubmarketTrendSeries {
   const members = new Map(buildings.map(building => [building.id, officeGrade(building.grade)] as const)
-    .filter((entry): entry is readonly [string, 'a' | 'b'] => entry[1] === 'a' || entry[1] === 'b'));
+    .filter(([, grade]) => product === 'park' ? grade === 'park' : grade === 'a' || grade === 'b'));
   const byEntityPeriod = new Map<string, TrendMetricRow>();
   let first = Infinity, last = -Infinity;
   for (const row of rows) {
@@ -61,7 +79,7 @@ export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows:
     const change = (key: number, offset: number, metric: 'rent' | 'vacancy'): SameSampleChange => {
       const previousIds = new Set(sampleIds(key - offset, metric));
       const ids = sampleIds(key, metric).filter(id => previousIds.has(id));
-      if (ids.length < 2) return { samples: ids.length, rentPct: null, vacancyPp: null };
+      if (ids.length < MIN_RESEARCH_MARKET_SAMPLES) return { samples: ids.length, rentPct: null, vacancyPp: null };
       const stats = (period: number) => aggregateMarket(ids.map(id => ({ id, metrics: [byEntityPeriod.get(`${id}:${period}`)!] })), 'quarterly_market');
       const now = stats(key), before = stats(key - offset);
       return { samples: ids.length,
@@ -76,11 +94,14 @@ export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows:
         const previous = new Set(sampleIds(key - 1, metric));
         return previous.size !== current.length || current.some(id => !previous.has(id));
       };
+      const rentDistribution = distributions ? distribution(rentIds.map(id => mapOptionalNumber(byEntityPeriod.get(`${id}:${key}`)?.net_effective_rent))) : undefined;
+      const sizeDistribution = distributions ? distribution(selectedMembers.map(([id]) => mapOptionalNumber(byEntityPeriod.get(`${id}:${key}`)?.total_area)).filter(area => Number.isFinite(area) && area > 0)) : undefined;
       return { period: `${year}Q${quarter}`, year, quarter, rent: stats.rent, vacancyPct: stats.vacancyPct,
         rentSamples: stats.rentSampleCount, vacancySamples: stats.vacancySampleCount,
         rentArea: stats.rentSampleArea, vacancyArea: stats.vacancySampleArea,
         stockArea: stats.stockArea, stockSamples: stats.areaSamples,
         rentCoverage: stats.rentCoverage, vacancyCoverage: stats.vacancyCoverage,
+        ...(rentDistribution ? { rentDistribution } : {}), ...(sizeDistribution ? { sizeDistribution } : {}),
         source: 'building_metrics', membershipTime: 'current_catalog',
         sampleQuality: { rent: stats.rentSampleCount > 1 ? 'multiple_samples' : stats.rentSampleCount ? 'single_sample' : 'none', vacancy: stats.vacancySampleCount > 1 ? 'multiple_samples' : stats.vacancySampleCount ? 'single_sample' : 'none' },
         observedRent: stats.rentSampleCount > 0, observedVacancy: stats.vacancySampleCount > 0,
@@ -92,5 +113,14 @@ export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows:
       };
     });
   };
-  return { all: series('all'), a: series('a'), b: series('b') };
+  return { all: series('all'), a: product === 'office' ? series('a') : [], b: product === 'office' ? series('b') : [] };
+}
+
+/** Legacy office period axis and membership do not depend on BP observations. */
+export function computeSubmarketTrends(buildings: readonly OfficeRecord[], rows: readonly TrendMetricRow[], count: number | 'available' = 8, distributions = false): SubmarketTrendSeries {
+  return computeProductTrends(buildings, rows, count, 'office', distributions);
+}
+
+export function computeParkSubmarketTrend(buildings: readonly OfficeRecord[], rows: readonly TrendMetricRow[], count: number | 'available' = 8): SubmarketTrendPoint[] {
+  return computeProductTrends(buildings, rows, count, 'park', true).all;
 }
