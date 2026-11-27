@@ -790,6 +790,61 @@ describe("Pitch workspace continuous editing", () => {
     await user.click(await screen.findByRole("button", { name: "对象 1：隔离页面" }));
     expect(screen.getByText("横向 1.05 英寸 · 纵向 1.00 英寸")).toBeInTheDocument();
   });
+  it("shows the nearest drag guide and saves its exact position for every member of the moved group", async () => {
+    const group = "88888888-8888-4888-8888-888888888888";
+    const scene = detail.slides[0].scene;
+    scene.elements.push(...[2, 4].map((x, index) => ({
+      kind: "shape" as const, x, y: 4 + index, w: 1, h: 1, fill: "primary" as const,
+      background: false, shape: "rect" as const, editorId: `object-${index + 2}`, editorGroup: group,
+    })));
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    const layer = await screen.findByRole("button", { name: "对象 2：形状" });
+    const board = layer.parentElement!;
+    vi.spyOn(board, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, scene.width * 100, scene.height * 100));
+    Object.defineProperty(layer, "setPointerCapture", { value: vi.fn() });
+
+    fireEvent.pointerDown(layer, { pointerId: 1, clientX: 200, clientY: 400, button: 0 });
+    fireEvent.pointerMove(layer, { pointerId: 1, clientX: 103, clientY: 400 });
+    expect(board.querySelector('[data-axis="x"]')).toBeInTheDocument();
+    expect(screen.getByText("横向 1.00 英寸 · 纵向 4.00 英寸")).toBeInTheDocument();
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    fireEvent.pointerUp(layer, { pointerId: 1, clientX: 103, clientY: 400 });
+    expect(board.querySelector('[data-axis="x"]')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "应用位置" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements.slice(1).map(element => element.x)).toEqual([1, 3]));
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectMoves: [{ id: "object-2", x: 1, y: 4 }, { id: "object-3", x: 3, y: 5 }] },
+    ]);
+    expect(detail.slides[0].scene.elements.slice(1).every(element => element.editorGroup === group)).toBe(true);
+  });
+
+  it("aligns the edges of checked objects as one undoable change and persists only changed positions", async () => {
+    detail.slides[0].scene.elements.push({
+      kind: "shape", x: 2, y: 4, w: 1, h: 1, fill: "primary", background: false, shape: "rect",
+    });
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    const shape = await screen.findByRole("button", { name: "对象 2：形状" });
+    await user.click(shape);
+    await user.click(screen.getByText("图层（从上到下）"));
+    await user.click(screen.getByRole("checkbox", { name: "多选对象：形状" }));
+    expect(screen.queryByLabelText("对齐所选对象")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "多选对象：隔离页面" }));
+    await user.selectOptions(screen.getByLabelText("对齐所选对象"), "left");
+    expect(screen.getByText("横向 1.00 英寸 · 纵向 4.00 英寸")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "撤销画布操作" }));
+    expect(screen.getByText("横向 2.00 英寸 · 纵向 4.00 英寸")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "重做画布操作" }));
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "应用位置" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[1].x).toBe(1));
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectMoves: [{ id: "object-2", x: 1, y: 4 }] },
+    ]);
+  });
+
   it("edits a real title inside the canvas, undoing and redoing before applying", async () => {
     const user = await enter();
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
