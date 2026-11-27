@@ -186,6 +186,7 @@ export function ExportPanel({
         {
           action: "export_start",
           projectId: saved.project.id,
+          expectedVersion: saved.project.version,
           exportId,
           audience,
           format,
@@ -206,7 +207,9 @@ export function ExportPanel({
         pendingStart.current = null;
         if (e.status === 403) setEligibilityAttempt(value => value + 1);
       }
-      setError(e instanceof Error ? e.message : "导出未启动。");
+      setError(e instanceof WorkspaceError && e.status === 409
+        ? "项目已更新，请重新打开项目并核对导出范围。"
+        : e instanceof Error ? e.message : "导出未启动。");
     } finally {
       setBusy(false);
     }
