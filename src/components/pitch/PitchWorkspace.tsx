@@ -194,6 +194,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [createFromBrief, setCreateFromBrief] = React.useState(false),
     [buildingSearch, setBuildingSearch] = React.useState(false);
   const [dataBuildingsOpen, setDataBuildingsOpen] = React.useState(false);
+  const [projectSettingsOpen, setProjectSettingsOpen] = React.useState(false);
+  const [buildingDataSelection, setBuildingDataSelection] = React.useState<{ projectId: string; ids: string[] }>();
   const [refreshSuggestion, setRefreshSuggestion] = React.useState<{ projectId: string; period: string }>();
   const suggestedPeriod = refreshSuggestion && refreshSuggestion.projectId === detail?.project.id
     ? refreshSuggestion.period : undefined;
@@ -352,6 +354,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     };
   }, [call]);
   const accept = React.useCallback((value: WorkspaceDetail) => {
+    if (current.current.detail?.project.id !== value.project.id) setBuildingDataSelection(undefined);
     setTaskPollFailed(false);
     setReadingResult(false);
     setDetail(value);
@@ -690,6 +693,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
     canManage =
       catalog?.scopes.some((s) => s.canMaintain || s.canAdmin) ?? false;
   const paragraphs = page?.content.blocks.flatMap((block, index) => block.kind === "paragraph" ? [{ block, index }] : []) ?? [];
+  const buildingDataIds = buildingDataSelection && buildingDataSelection.projectId === detail?.project.id
+    ? buildingDataSelection.ids : draft?.context.buildingIds ?? [];
   const bindings = useDocumentBindings(call, detail?.project, !!page && (
     right && inspector === "data" || !!paragraphs.length && (
       right && (inspector === "properties" || inspector === "assist") || !!active && objectPage === active
@@ -1893,26 +1898,25 @@ function Studio({ session }: { session: AuthSessionResult }) {
                         onToggle={event => setDataBuildingsOpen(event.currentTarget.open)}>
                         <summary>查找楼宇数据</summary>
                         {dataBuildingsOpen && <div className={styles.form}>
-                          <BuildingPicker call={call} ids={draft.context.buildingIds} disabled={busy || saving}
-                            onChange={buildingIds => edit(value => ({ ...value, context: { ...value.context, buildingIds } }))} />
+                          <BuildingPicker call={call} ids={buildingDataIds} disabled={busy || saving}
+                            label="加入页面的楼宇" onChange={ids => setBuildingDataSelection({ projectId: detail.project.id, ids })} />
                           <Button variant="secondary"
-                            disabled={!draft.context.buildingIds.length || !canGenerate || busy || saving || generationPending || conflict}
+                            disabled={!buildingDataIds.length || !canGenerate || busy || saving || generationPending || conflict}
                             onClick={() => void run(async () => {
                               const saved = await flush();
                               if (current.current.detail?.project.id !== saved.project.id) return;
                               if (current.current.dirty) throw new Error("还有未保存的修改，请保存后再核对。");
-                              const { buildingIds, period, language } = saved.workspace.context;
-                              if (!buildingIds.length) return;
-                              setHandoff({ source: { kind: "buildings", buildingIds }, period: period || undefined, language,
+                              const { period, language } = saved.workspace.context;
+                              setHandoff({ source: { kind: "buildings", buildingIds: buildingDataIds }, period: period || undefined, language,
                                 destination: { id: saved.project.id, title: saved.project.title } });
                             })}>
                             核对季度数据
                           </Button>
                         </div>}
                       </details>}
-                      <details>
+                      <details open={projectSettingsOpen} onToggle={event => setProjectSettingsOpen(event.currentTarget.open)}>
                         <summary>项目设置</summary>
-                        <ContextFields buildingSearch={false} call={call} value={draft.context}
+                        <ContextFields buildingSearch={buildingSearch && projectSettingsOpen} call={call} value={draft.context}
                           onChange={(value) => edit((d) => ({ ...d, context: value }))} />
                       </details>
                     </div>

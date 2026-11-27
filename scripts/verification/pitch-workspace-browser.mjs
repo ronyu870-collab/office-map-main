@@ -432,14 +432,21 @@ export async function verifyPitchBuildingInspectorBrowser({ app, who, period, re
     await page.getByLabel("Pitch 名称").fill("隔离楼宇核对");
     await page.getByText("更多项目设置（可选）", { exact: true }).click();
     await page.getByLabel("默认季度").fill(period);
+    if (competitorRevision) {
+      await page.getByLabel("搜索楼宇").fill("霄云路33号");
+      await button("霄云路33号").click();
+    }
     const [created] = await Promise.all([waitForPitchCommand(page, workspace, "create"), button("创建").click()]);
     assert.ok(created.ok(), `workspace create HTTP ${created.status()}`);
     const { project } = await created.json();
     stage = "searching";
     await button("数据").click();
     await page.getByText("查找楼宇数据", { exact: true }).click();
-    await page.getByLabel("搜索楼宇").fill("霄云路33号");
-    await button("霄云路33号").click();
+    if (!competitorRevision) {
+      await page.getByLabel("搜索楼宇").fill("霄云路33号");
+      await button("霄云路33号").click();
+    }
+    assert.equal(await button("保存").isDisabled(), true, "search selection does not dirty the project");
 
     stage = "reviewing";
     const [reviewed] = await Promise.all([waitForPitchCommand(page, workspace, "review_handoff"), button("核对季度数据").click()]);
@@ -476,8 +483,8 @@ export async function verifyPitchBuildingInspectorBrowser({ app, who, period, re
     const saved = await readProject(project.id);
     assert.ok(saved.project.version > command.target.expectedVersion);
     assert.ok(saved.slides[0].content.sources.length);
-    assert.deepEqual(saved.workspace.context.buildingIds, preview.buildingIds);
-    console.log("PASS building search, formal evidence, versioned append and saved preview");
+    assert.deepEqual(saved.workspace.context.buildingIds, competitorRevision ? preview.buildingIds : []);
+    console.log("PASS building search, formal evidence and versioned append with project associations preserved");
     if (quarterRevision) {
       stage = "reviewing a formal quarter through the proposal assistant";
       await button("提案助手").click();
