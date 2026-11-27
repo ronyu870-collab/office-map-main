@@ -1,85 +1,191 @@
 {
-  "version": 1,
-  "market": "金融街",
-  "positioning": "由金融机构总部、市场基础设施与资管集群支撑的核心金融办公区",
-  "updatedOn": "2026-11-27",
-  "focus": "grade-rent",
-  "sources": [
-    {
-      "id": "am",
-      "title": "金融街资管机构管理规模",
-      "publisher": "首都之窗",
-      "url": "https://www.beijing.gov.cn/ywdt/zwzt/lqjs/wzn/202508/t20250804_4165893.html",
-      "publishedOn": "2025-08-04",
-      "observedAt": "2025-08报道时点",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "北京金融街金融功能区",
-      "basis": "官方公开区内资管机构管理资产规模超过20万亿元。"
-    },
-    {
-      "id": "case",
-      "title": "金融街服贸会资管建设成果",
-      "publisher": "西城区人民政府",
-      "url": "https://www.beijing.gov.cn/ywdt/gqrd/202509/t20250912_4201019.html",
-      "publishedOn": "2025-09-12",
-      "observedAt": "2025年服贸会",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "北京金融街金融功能区",
-      "basis": "公开资料列出国寿资管、工银瑞信基金等机构，另披露金融街驻区机构资产总规模。"
-    },
-    {
-      "id": "lize",
-      "title": "丽泽入驻企业与楼宇运营数据",
-      "publisher": "首都之窗",
-      "url": "https://www.beijing.gov.cn/fuwu/lqfw/gggs/202601/t20260105_4399580.html",
-      "publishedOn": "2026-01-05",
-      "observedAt": "2025年度",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "北京丽泽金融商务区",
-      "basis": "2025年工作数据披露37座楼宇提供219万平方米空间，入驻企业1520家。"
-    }
-  ],
   "facts": [
     {
-      "title": "资产管理业务有实体集群",
       "body": "官方披露的是驻区资管机构管理规模，计量对象为机构管理的资产。",
       "kind": "industry",
+      "title": "资产管理业务有实体集群",
       "status": "observed",
+      "measure": {
+        "unit": "万亿元",
+        "value": "超过20"
+      },
       "sourceIds": [
         "am"
-      ],
-      "measure": {
-        "value": "超过20",
-        "unit": "万亿元"
-      }
+      ]
     },
     {
-      "title": "金融需求的公开机构案例",
       "body": "2025年服贸会金融街展示列举了国寿资管和工银瑞信基金等驻区机构。",
       "kind": "industry",
+      "title": "金融需求的公开机构案例",
       "status": "observed",
       "sourceIds": [
         "case"
       ]
-    }
-  ],
-  "observations": [
+    },
     {
-      "title": "与丽泽的比选取决于业务是否需要核心区邻近",
-      "body": "把总部对监管、同业与专业服务的近距离访问列为必需条件，再与丽泽较集中开发的载体比较。可分置的业务团队，应另查可交付整层、安防和访客条件。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "金融街及丽泽项目比较",
-      "limitation": "功能区资产规模、企业数均无法推出租金溢价；北京基准须与子市场使用相同楼宇等级及季度。",
+      "body": "莱坊Q3监测金融街空置率低于其北京全市水平。",
+      "kind": "supply",
+      "title": "金融街甲级空置率",
+      "status": "observed",
+      "measure": {
+        "unit": "%",
+        "value": "10.1"
+      },
       "sourceIds": [
-        "am",
-        "case",
-        "lize"
+        "knight-q3"
+      ]
+    },
+    {
+      "body": "第一太平戴维斯监测金融街Q3租金环比下降2.9%。",
+      "kind": "supply",
+      "title": "租金下行",
+      "status": "observed",
+      "sourceIds": [
+        "savills-q3"
+      ]
+    },
+    {
+      "body": "CBRE监测金融街负净吸纳。",
+      "kind": "industry",
+      "title": "当季退租压力",
+      "status": "observed",
+      "sourceIds": [
+        "market-q3"
       ]
     }
   ],
-  "projects": []
+  "focus": "grade-rent",
+  "market": "金融街",
+  "sources": [
+    {
+      "id": "am",
+      "url": "https://www.beijing.gov.cn/ywdt/zwzt/lqjs/wzn/202508/t20250804_4165893.html",
+      "basis": "官方公开区内资管机构管理资产规模超过20万亿元。",
+      "scope": "北京金融街金融功能区",
+      "title": "金融街资管机构管理规模",
+      "publisher": "首都之窗",
+      "scopeType": "functional",
+      "observedAt": "2025-08报道时点",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2025-08-04"
+    },
+    {
+      "id": "case",
+      "url": "https://www.beijing.gov.cn/ywdt/gqrd/202509/t20250912_4201019.html",
+      "basis": "公开资料列出国寿资管、工银瑞信基金等机构，另披露金融街驻区机构资产总规模。",
+      "scope": "北京金融街金融功能区",
+      "title": "金融街服贸会资管建设成果",
+      "publisher": "西城区人民政府",
+      "scopeType": "functional",
+      "observedAt": "2025年服贸会",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2025-09-12"
+    },
+    {
+      "id": "lize",
+      "url": "https://www.beijing.gov.cn/fuwu/lqfw/gggs/202601/t20260105_4399580.html",
+      "basis": "2025年工作数据披露37座楼宇提供219万平方米空间，入驻企业1520家。",
+      "scope": "北京丽泽金融商务区",
+      "title": "丽泽入驻企业与楼宇运营数据",
+      "publisher": "首都之窗",
+      "scopeType": "functional",
+      "observedAt": "2025年度",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-01-05"
+    },
+    {
+      "id": "market-q3",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "basis": "Q3金融街受退租拖累出现负净吸纳。",
+      "scope": "金融街办公楼监测",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-12"
+    },
+    {
+      "id": "knight-q3",
+      "url": "https://data.eastmoney.com/report/zw_industry.jshtml?infocode=AP202611041831395195",
+      "basis": "金融街空置率10.1%，全市18.1%，金融街较上季下降。",
+      "scope": "金融街甲级办公样本",
+      "title": "北京甲级写字楼市场季度报告（2026Q3）",
+      "publisher": "莱坊（东方财富转载）",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-11-04"
+    },
+    {
+      "id": "savills-q3",
+      "url": "https://pdf.savills.asia/asia-pacific-research/china-research/beijing-research/beijing-office/26q3-beijing-office-cn.pdf",
+      "basis": "金融街租金环比下降2.9%；丽泽净吸纳约6.1万平方米，金融和大型国央企搬迁及扩租带动。",
+      "scope": "金融街及丽泽甲级办公市场",
+      "title": "北京办公楼市场简报（2026Q3）",
+      "publisher": "第一太平戴维斯",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": null
+    }
+  ],
+  "version": 1,
+  "projects": [],
+  "updatedOn": "2026-11-27",
+  "positioning": "金融总部与资管机构密集的核心办公区；存量韧性与价格调整并存",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "莱坊Q3金融街甲级空置率10.1%，低于其全市18.1%；但CBRE记录退租造成负净吸纳，第一太平戴维斯亦监测租金环比下调2.9%。核心存量需求具有韧性，新增需求及价格仍处调整期。",
+      "kind": "inference",
+      "scope": "金融街独立办公市场监测",
+      "title": "低空置不等于新增需求旺盛",
+      "sourceIds": [
+        "knight-q3",
+        "market-q3",
+        "savills-q3"
+      ],
+      "limitation": "不同机构样本不可拼接。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "国寿资管、工银瑞信等机构在金融街集聚，功能区资管机构管理资产超过20万亿元。总部、监管沟通与同业服务的邻近需求支撑核心区价值，但组织整合与控本仍可能释放办公面积。",
+      "kind": "inference",
+      "scope": "金融街金融功能区及办公市场",
+      "title": "金融总部邻近价值具有行业针对性",
+      "sourceIds": [
+        "am",
+        "case",
+        "market-q3"
+      ],
+      "limitation": "管理资产规模不是租赁面积。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "丽泽Q3录得金融与大型机构的实际去化，新楼宇适合总部整合或大面积职能办公；确实依赖金融市场基础设施邻近的团队仍有金融街选址理由。",
+      "kind": "inference",
+      "scope": "金融街与丽泽比选",
+      "title": "与丽泽的竞争取决于业务功能",
+      "sourceIds": [
+        "lize",
+        "savills-q3",
+        "case"
+      ],
+      "limitation": "不代表已统计两区真实迁移规模。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "若机构缩租持续，非核心项目可能承担更大去化压力；优质楼宇则依靠长期客户与区位价值争取留租。企业宜以实际净租、免租和空间效率比较同级楼宇。",
+      "kind": "outlook",
+      "scope": "金融街短期存量办公市场",
+      "title": "租户留存将主导核心区项目竞争",
+      "sourceIds": [
+        "market-q3",
+        "knight-q3",
+        "savills-q3"
+      ],
+      "limitation": "条件判断，不预测具体折扣。"
+    }
+  ]
 }

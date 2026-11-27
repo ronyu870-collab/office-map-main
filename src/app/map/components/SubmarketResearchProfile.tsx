@@ -1,5 +1,4 @@
 import { SubmarketIntelligenceBrief } from './SubmarketIntelligenceBrief';
-import { ExternalLink } from 'lucide-react';
 import type { SubmarketProfile } from '../model/submarketProfile';
 
 export function hasSubmarketProfileContent(profile: SubmarketProfile | null): boolean {
@@ -8,12 +7,6 @@ export function hasSubmarketProfileContent(profile: SubmarketProfile | null): bo
 }
 
 const textSections = [['overview', '区域定位'], ['industries', '产业及办公需求'], ['transport', '交通与配套']] as const;
-
-function SourceLink({ href, label }: { href: string; label: string }) {
-  return <a href={href} target="_blank" rel="noopener noreferrer" className="submarket-link-action">
-    {label} <ExternalLink size={13} aria-hidden="true" />
-  </a>;
-}
 
 export function SubmarketResearchProfile({ profile, state, onRetry, leadShown }: {
   profile: SubmarketProfile | null;
@@ -38,9 +31,8 @@ export function SubmarketResearchProfile({ profile, state, onRetry, leadShown }:
               <h4>人口与就业参考</h4>
               <dl className="submarket-profile-facts">
                 {profile.demographics.map(fact => <div key={JSON.stringify(fact)}>
-                  <dt>{fact.label}</dt><dd><strong>{fact.value}</strong> {fact.unit}</dd>
-                  <dd className="submarket-profile-meta">{fact.scope} · {fact.asOf}</dd>
-                  <dd><SourceLink href={fact.sourceUrl} label="数据来源" /></dd>
+                  <dt>{fact.label} · {fact.scope} · {fact.asOf}</dt>
+                  <dd><strong>{fact.value}</strong> {fact.unit}</dd>
                 </div>)}
               </dl>
             </section> : null}
@@ -48,11 +40,9 @@ export function SubmarketResearchProfile({ profile, state, onRetry, leadShown }:
               <h4>政策与规划</h4>
               <ul className="submarket-profile-records">
                 {profile.policies.map(item => <li key={JSON.stringify(item)}>
-                  <strong>{item.title}</strong>
-                  <p className="submarket-profile-meta">{item.issuer} · {item.asOf}</p>
+                  <strong>{item.title} · {item.asOf}</strong>
                   <p className="submarket-profile-copy">{item.summary}</p>
-                  <p>适用范围：{item.applicability}</p>
-                  <SourceLink href={item.sourceUrl} label="政策原文" />
+                  {item.applicability && item.applicability.trim() !== '以原文为准' ? <p>{item.applicability}</p> : null}
                 </li>)}
               </ul>
             </section> : null}
@@ -61,7 +51,6 @@ export function SubmarketResearchProfile({ profile, state, onRetry, leadShown }:
               <ul className="submarket-profile-records">
                 {profile.insights.map(item => <li key={JSON.stringify(item)}>
                   <strong>{item.title}</strong><p className="submarket-profile-copy">{item.body}</p>
-                  <p className="submarket-profile-meta">{item.author} · {item.asOf}</p>
                 </li>)}
               </ul>
             </section> : null}

@@ -1,78 +1,173 @@
 {
-  "version": 1,
-  "market": "望京-酒仙桥",
-  "positioning": "望京成熟商务楼与酒仙桥电子、研发和工业更新园区并存",
-  "updatedOn": "2026-11-27",
-  "focus": "stock",
-  "sources": [
-    {
-      "id": "zones",
-      "title": "中关村朝阳园分区介绍",
-      "publisher": "开放北京",
-      "url": "https://open.beijing.gov.cn/html/park/zhongguancun_cy.html",
-      "publishedOn": null,
-      "observedAt": "网页所列已投入使用项目",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "中关村朝阳园望京片区与酒仙桥东区",
-      "basis": "望京段列出浦项中心、保利国际广场等高端楼宇；酒仙桥段采用老电子工业基地更新口径，列出798和751。"
-    },
-    {
-      "id": "reuse",
-      "title": "798·751园区更新及运营报道",
-      "publisher": "首都之窗",
-      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202508/t20250807_4167942.html",
-      "publishedOn": "2025-08-07",
-      "observedAt": "2025年上半年报道",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "798与751文化产业载体",
-      "basis": "报道记录原有工业遗存被用于展览、文化消费和创意产业活动。"
-    }
-  ],
   "facts": [
     {
-      "title": "望京的商务楼群",
       "body": "朝阳园介绍列明浦项中心、保利国际广场已投入使用。",
       "kind": "place",
+      "title": "望京的商务楼群",
       "status": "observed",
       "sourceIds": [
         "zones"
       ]
     },
     {
-      "title": "酒仙桥的工业空间再利用",
       "body": "酒仙桥电子工业旧址衍生出798、751等文化科技载体，并与周边研发园区共存。",
       "kind": "place",
+      "title": "酒仙桥的工业空间再利用",
       "status": "observed",
       "sourceIds": [
         "reuse",
         "zones"
       ]
-    }
-  ],
-  "observations": [
+    },
     {
-      "title": "先选望京或酒仙桥，再选载体",
-      "body": "大堂接待、楼层标准化和总部形象权重较高时，先比较望京商务楼。保留研发与制作功能的团队，则应到酒仙桥核验研发园区的装卸、消防和电力条件。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "望京商务片区与酒仙桥园区",
-      "limitation": "平台合并标签可用于区域定位；办公与园区样本的均值只代表各自口径。",
+      "body": "莱坊Q3监测望京—酒仙桥空置率小幅上涨。",
+      "kind": "supply",
+      "title": "甲级空置率",
+      "status": "observed",
+      "measure": {
+        "unit": "%",
+        "value": "19.0"
+      },
       "sourceIds": [
-        "zones",
-        "reuse"
+        "knight-q3"
+      ]
+    },
+    {
+      "body": "朝阳行动计划将望京、酒仙桥列为技术创新相关节点。",
+      "kind": "policy",
+      "title": "数字视听技术方向",
+      "status": "planned",
+      "sourceIds": [
+        "media-tech"
       ]
     }
   ],
+  "focus": "grade-rent",
+  "market": "望京-酒仙桥",
+  "sources": [
+    {
+      "id": "zones",
+      "url": "https://open.beijing.gov.cn/html/park/zhongguancun_cy.html",
+      "basis": "望京段列出浦项中心、保利国际广场等高端楼宇；酒仙桥段采用老电子工业基地更新口径，列出798和751。",
+      "scope": "中关村朝阳园望京片区与酒仙桥东区",
+      "title": "中关村朝阳园分区介绍",
+      "publisher": "开放北京",
+      "scopeType": "functional",
+      "observedAt": "网页所列已投入使用项目",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": null
+    },
+    {
+      "id": "reuse",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202508/t20250807_4167942.html",
+      "basis": "报道记录原有工业遗存被用于展览、文化消费和创意产业活动。",
+      "scope": "798与751文化产业载体",
+      "title": "798·751园区更新及运营报道",
+      "publisher": "首都之窗",
+      "scopeType": "project",
+      "observedAt": "2025年上半年报道",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2025-08-07"
+    },
+    {
+      "id": "knight-q3",
+      "url": "https://data.eastmoney.com/report/zw_industry.jshtml?infocode=AP202611041831395195",
+      "basis": "2026Q3空置率19.0%，较上季小幅上升。",
+      "scope": "望京—酒仙桥甲级办公样本",
+      "title": "北京甲级写字楼市场季度报告（2026Q3）",
+      "publisher": "莱坊（东方财富转载）",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-11-04"
+    },
+    {
+      "id": "jll-q3",
+      "url": "https://www.jll.cn/zh-cn/insights/jll-q3-2026-beijing-cre-market-review-outlook",
+      "basis": "东部受供应冲击，普通甲级及乙级租户向CBD新增供给及优质存量迁移。",
+      "scope": "北京东部甲级办公及全市搬迁趋势",
+      "title": "2026年第三季度北京商业地产市场回顾与展望",
+      "publisher": "仲量联行",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-27"
+    },
+    {
+      "id": "media-tech",
+      "url": "https://www.beijing.gov.cn/ywdt/gqrd/202601/t20260127_4469823.html",
+      "basis": "计划依托技术创新优势发展AIGC视听技术和共享平台。",
+      "scope": "望京、酒仙桥、将台等创新节点",
+      "title": "朝阳区数字视听行动计划",
+      "publisher": "朝阳区人民政府",
+      "scopeType": "functional",
+      "observedAt": "2026—2028年计划",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-01-27"
+    }
+  ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "1baf921f-3b14-4321-a7ef-645b972704df",
       "role": "望京商务楼样本",
       "reason": "朝阳园公开介绍点名已投用楼宇。",
       "sourceIds": [
         "zones"
-      ]
+      ],
+      "buildingId": "1baf921f-3b14-4321-a7ef-645b972704df"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "望京标准科技商务楼与酒仙桥研发、文化更新载体并存，办公产品分化突出",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "莱坊Q3望京—酒仙桥甲级空置率小幅升至19.0%。东部新供应丰富了企业升级选择，望京成熟楼宇需要以交通、产品品质和租赁总成本应对竞争。",
+      "kind": "inference",
+      "scope": "望京—酒仙桥甲级办公",
+      "title": "成熟科技办公面临品质升级分流",
+      "sourceIds": [
+        "knight-q3",
+        "jll-q3"
+      ],
+      "limitation": "东部迁移趋势不能推算望京迁出规模。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "浦项中心、保利国际广场提供标准化商务办公；酒仙桥原电子工业片区的798、751等更新载体则兼有研发、展示和创意功能。标准写字楼与专业园区不宜使用同一产品均价。",
+      "kind": "inference",
+      "scope": "望京商务区和酒仙桥东区",
+      "title": "望京与酒仙桥不是同质空间",
+      "sourceIds": [
+        "zones",
+        "reuse"
+      ],
+      "limitation": "合并标签不能替代两区单独行情。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "朝阳区将AIGC、视听技术及共享平台列为产业方向。办公型研发与创意技术团队可以在区域内组合选择空间，但需等待产业项目形成实际租赁需求。",
+      "kind": "inference",
+      "scope": "朝阳区技术创新布局",
+      "title": "技术创新与内容生产可能带来新需求",
+      "sourceIds": [
+        "media-tech",
+        "zones"
+      ],
+      "limitation": "计划不是已发生交易。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "一般办公需要比较交通、整层效率与总租赁成本；研发和创意空间则更加依赖电力、装卸及灵活平面。",
+      "kind": "outlook",
+      "scope": "望京—酒仙桥办公及园区",
+      "title": "物业竞争从单纯价格转向使用适配",
+      "sourceIds": [
+        "zones",
+        "reuse",
+        "jll-q3"
+      ],
+      "limitation": "项目技术条件需要逐栋核验。"
     }
   ]
 }

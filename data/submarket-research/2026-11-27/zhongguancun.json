@@ -1,90 +1,200 @@
 {
-  "version": 1,
-  "market": "中关村",
-  "positioning": "连接高校科研、创业服务与成熟写字楼的海淀核心办公市场",
-  "updatedOn": "2026-11-27",
-  "focus": "matched-rent",
-  "sources": [
-    {
-      "id": "avenue",
-      "title": "中关村大街重生",
-      "publisher": "北京市科委、中关村管委会",
-      "url": "https://kw.beijing.gov.cn/xwdt/kcyx/xwdtyqqy/202305/t20230510_3821284.html",
-      "publishedOn": "2023-05-10",
-      "observedAt": "截至2023-05报道",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "中关村大街及西区",
-      "basis": "报道以未来科技大厦为参照，列出3公里内高校院所，并记录该楼实际开展科创路演活动。"
-    },
-    {
-      "id": "campus",
-      "title": "中关村街道融科活动报道",
-      "publisher": "海淀区人民政府",
-      "url": "https://www.bjhd.gov.cn/ztzx/2026/2026cj/nwhd/202602/t20260210_4805395.shtml",
-      "publishedOn": "2026-02-10",
-      "observedAt": "2026-02-04",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "融科资讯中心",
-      "basis": "活动在融科资讯中心地下B1层举行，空间与周边办公人群、街区商业联动。"
-    },
-    {
-      "id": "q3",
-      "title": "2026年第三季度北京房地产市场回顾",
-      "publisher": "世邦魏理仕",
-      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
-      "publishedOn": "2026-10-12",
-      "observedAt": "2026Q3",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "external_market",
-      "scope": "世邦魏理仕中关村写字楼样本",
-      "basis": "该机构报告中，中关村租金出现回升，企业升级搬迁与扩租带动净吸纳。"
-    }
-  ],
   "facts": [
     {
-      "title": "大街沿线的科研联系",
       "body": "未来科技大厦周边集中了北大、清华及中科院等科研资源。大厦内已有科创路演空间投入使用。",
       "kind": "industry",
+      "title": "大街沿线的科研联系",
       "status": "observed",
       "sourceIds": [
         "avenue"
       ]
     },
     {
-      "title": "融科资讯中心的街区界面",
       "body": "融科地下商业层承接了街道组织的科技主题市集，提供了写字楼与街区服务衔接的实例。",
       "kind": "place",
+      "title": "融科资讯中心的街区界面",
       "status": "observed",
       "sourceIds": [
         "campus"
       ]
-    }
-  ],
-  "observations": [
+    },
     {
-      "title": "靠近科创服务与满足研发工艺是两种选址目标",
-      "body": "面向招聘、融资和客户接待的科技团队，可优先比较大街核心办公楼。需要整栋、大单元或专业实验条件的团队，再到上地、北清路核对园区产品。2026Q3已有外部监测录得中关村租金回升，持续性仍需观察。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "中关村大街及平台甲乙级项目",
-      "limitation": "单季外部报告无法判断市场见底；办公楼与园区租金不直接拼接。",
+      "body": "CBRE样本Q3中关村净吸纳3.1万㎡、空置率5.1%。",
+      "kind": "industry",
+      "title": "中关村去化居首",
+      "status": "observed",
       "sourceIds": [
-        "avenue",
-        "campus",
         "q3"
+      ]
+    },
+    {
+      "body": "莱坊披露智元机器人在融科资讯中心扩租。",
+      "kind": "industry",
+      "title": "科技企业扩租案例",
+      "status": "observed",
+      "measure": {
+        "unit": "㎡",
+        "value": "6300"
+      },
+      "sourceIds": [
+        "knight-q3"
+      ]
+    },
+    {
+      "body": "第一太平戴维斯监测Q3中关村租金环比上涨。",
+      "kind": "supply",
+      "title": "甲级租金回升",
+      "status": "observed",
+      "measure": {
+        "unit": "%",
+        "value": "3.4"
+      },
+      "sourceIds": [
+        "savills-q3"
       ]
     }
   ],
+  "focus": "matched-rent",
+  "market": "中关村",
+  "sources": [
+    {
+      "id": "avenue",
+      "url": "https://kw.beijing.gov.cn/xwdt/kcyx/xwdtyqqy/202305/t20230510_3821284.html",
+      "basis": "报道以未来科技大厦为参照，列出3公里内高校院所，并记录该楼实际开展科创路演活动。",
+      "scope": "中关村大街及西区",
+      "title": "中关村大街重生",
+      "publisher": "北京市科委、中关村管委会",
+      "scopeType": "functional",
+      "observedAt": "截至2023-05报道",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2023-05-10"
+    },
+    {
+      "id": "campus",
+      "url": "https://www.bjhd.gov.cn/ztzx/2026/2026cj/nwhd/202602/t20260210_4805395.shtml",
+      "basis": "活动在融科资讯中心地下B1层举行，空间与周边办公人群、街区商业联动。",
+      "scope": "融科资讯中心",
+      "title": "中关村街道融科活动报道",
+      "publisher": "海淀区人民政府",
+      "scopeType": "project",
+      "observedAt": "2026-02-04",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-02-10"
+    },
+    {
+      "id": "q3",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "basis": "CBRE Q3中关村净吸纳3.1万平方米，空置率5.1%，科技企业升级搬迁及扩租带动租金回升。",
+      "scope": "世邦魏理仕中关村写字楼样本",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-12"
+    },
+    {
+      "id": "knight-q3",
+      "url": "https://data.eastmoney.com/report/zw_industry.jshtml?infocode=AP202611041831395195",
+      "basis": "中关村Q3空置率5.6%；智元机器人在融科资讯中心A、B座扩租约6300平方米。",
+      "scope": "中关村甲级办公样本",
+      "title": "北京甲级写字楼市场季度报告（2026Q3）",
+      "publisher": "莱坊（东方财富转载）",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-11-04"
+    },
+    {
+      "id": "savills-q3",
+      "url": "https://pdf.savills.asia/asia-pacific-research/china-research/beijing-research/beijing-office/26q3-beijing-office-cn.pdf",
+      "basis": "Q3净吸纳约3.8万平方米，空置率2.8%，租金环比回升3.4%。",
+      "scope": "中关村甲级办公样本",
+      "title": "北京办公楼市场简报（2026Q3）",
+      "publisher": "第一太平戴维斯",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": null
+    },
+    {
+      "id": "jll-q3",
+      "url": "https://www.jll.cn/zh-cn/insights/jll-q3-2026-beijing-cre-market-review-outlook",
+      "basis": "新增及扩张需求集中于中关村，前沿科技企业支撑。",
+      "scope": "中关村与北京甲级写字楼市场",
+      "title": "2026年第三季度北京商业地产市场回顾与展望",
+      "publisher": "仲量联行",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-27"
+    }
+  ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "9e03a3a5-473d-4c9d-b3dd-2ec8530ca3a6",
       "role": "核心区办公样本",
       "reason": "融科资讯中心是中关村核心区的综合载体，平台以A座楼宇身份关联。",
       "sourceIds": [
         "campus"
-      ]
+      ],
+      "buildingId": "9e03a3a5-473d-4c9d-b3dd-2ec8530ca3a6"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "北京科技办公需求核心板块，2026Q3率先出现去化改善与租金回升",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "CBRE Q3录得中关村净吸纳约3.1万㎡，空置率降至5.1%；第一太平戴维斯独立样本租金环比回升3.4%。科技扩租与升级搬迁使核心区在北京整体调整中表现领先。",
+      "kind": "inference",
+      "scope": "中关村各机构办公监测",
+      "title": "科技需求驱动阶段性筑底",
+      "sourceIds": [
+        "q3",
+        "savills-q3",
+        "jll-q3"
+      ],
+      "limitation": "单季改善并非持续上涨保证。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "智元机器人在融科资讯中心扩租约6300㎡，体现成长型技术企业对规模化办公的实际需求。高校、科研交流与投融资服务构成区域长期吸引力。",
+      "kind": "inference",
+      "scope": "中关村大街及融科资讯中心",
+      "title": "前沿科技企业释放标准办公需求",
+      "sourceIds": [
+        "knight-q3",
+        "avenue",
+        "campus"
+      ],
+      "limitation": "个案不代表行业占比。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "需要融资、客户访问和人才招聘的团队可优先考虑核心中关村；大型研发单元、设备部署及实验中试则应比较上地和北清路园区。",
+      "kind": "inference",
+      "scope": "海淀核心办公及研发载体",
+      "title": "核心办公与专业研发载体具有分工",
+      "sourceIds": [
+        "avenue",
+        "q3",
+        "jll-q3"
+      ],
+      "limitation": "不同产品租金不能直接横比。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "如果前沿科技企业的扩张形成连续季度需求，优质项目可能继续领先；若需求集中在少数企业，其他楼宇仍有去化压力。",
+      "kind": "outlook",
+      "scope": "中关村短期办公市场",
+      "title": "修复持续性取决于科技扩张能否扩散",
+      "sourceIds": [
+        "q3",
+        "savills-q3",
+        "jll-q3"
+      ],
+      "limitation": "条件性展望。"
     }
   ]
 }

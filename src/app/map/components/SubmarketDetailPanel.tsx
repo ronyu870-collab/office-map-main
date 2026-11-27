@@ -5,6 +5,7 @@ import { ChevronRight, Pencil } from 'lucide-react';
 import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
 import { WorkspacePanelContext, WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { SubmarketProfileEditor } from './SubmarketProfileEditor';
+import { SubmarketOverviewResearch } from './SubmarketIntelligenceBrief';
 import { hasSubmarketProfileContent, SubmarketResearchProfile } from './SubmarketResearchProfile';
 import { SubmarketResearchOverview, SubmarketResearchTrend, type SubmarketResearchFutureState } from './SubmarketResearchData';
 import { MarketTrendSummary } from './MarketTrendSummary';
@@ -123,12 +124,11 @@ function SubmarketWorkspace({
 
   const allTrend = payload?.trends.all ?? emptyTrend;
   const research = profile?.research;
-  const insight = research?.observations[0];
   const parkOnly = Boolean(research?.focus === 'stock' && payload?.stockCount === 0 && trendState === 'ready');
   const signal = research ? submarketResearchSignal(research.focus, payload?.trends, trendState) : null;
-  const researchLead = insight ? <section className="submarket-intelligence-lead" aria-label="市场观察">
-    <div><h3>{insight.title}</h3><p>{insight.body}</p></div>
-    {signal ? <div><h3>{signal.title}</h3><p>{signal.text}</p></div> : null}
+  const researchLead = research ? <SubmarketOverviewResearch research={research} /> : null;
+  const marketSignal = signal ? <section className="submarket-intelligence-lead" aria-label="正式行情对比">
+    <div><h3>{signal.title}</h3><p>{signal.text}</p></div>
   </section> : null;
   const quarter = React.useMemo(() => describeQuarterlyResearchMarket(allTrend), [allTrend]);
   const rentPeriod = quarter.rent.latest?.period;
@@ -176,7 +176,7 @@ function SubmarketWorkspace({
     beijingBenchmarkBuildings={beijingBenchmarkBuildings} showQuarterlySummary={!expanded}
     structured={!!research} parkOnly={parkOnly} />;
   const projects = (compact = false) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}
-    onOpen={onOpenBuilding} compact={compact} curated={research?.projects} sources={research?.sources} />;
+    onOpen={onOpenBuilding} compact={compact} curated={research?.projects} />;
 
   return <div hidden={suspended || undefined} aria-hidden={suspended || undefined}
     className={suspended ? 'map-submarket-workspace hidden' : 'map-submarket-workspace'}>
@@ -220,6 +220,8 @@ function SubmarketWorkspace({
             </div>
             <SubmarketProfileEditor name={name} value={detail.editor} saving={detail.saving} error={detail.saveError}
               onCancel={detail.cancelEditing} onSave={detail.save} buildings={getResearchBuildings?.() ?? buildings} />
+            {canEdit && !suspended && <SubmarketMarketDataDetails key={surface} name={name} summary={summary} buildings={buildings}
+              benchmarkBuildings={beijingBenchmarkBuildings} parkOnly={parkOnly} />}
           </div> : <>
             {!(showTabs && currentSection === 'profile' && profileState !== 'ready') && (detail.error || (detail.loading && payload)) ? <div className="submarket-read-status">
               <p role="status">{detail.loading ? '正在更新子市场资料…' : payload ? '更新失败，显示上次读取的数据。' : '子市场资料暂不可用。'}</p>
@@ -231,13 +233,14 @@ function SubmarketWorkspace({
               </QuickSummary>
               : layout === 'expanded' ? <div className="submarket-brief">
                 <section className="submarket-research-chapter submarket-brief-overview" aria-labelledby="submarket-brief-overview">
-                  <h3 id="submarket-brief-overview">市场概览</h3>{researchLead}{overview}
+                  <h3 id="submarket-brief-overview">市场概览</h3>{researchLead}{marketSignal}{overview}
                 </section>
                 <div className="submarket-brief-trend">{trend(true)}</div>
                 <div className="submarket-brief-profile">{profileChapter}</div>
                 <div className="submarket-brief-projects">{projects()}</div>
               </div> : currentSection === 'overview' ? <div className="submarket-section-flow">
                 {researchLead}
+                {marketSignal}
                 {overview}
                 {payload?.trendError ? <div className="submarket-read-status"><p role="status">历史行情暂不可用</p>
                   <button type="button" className="submarket-quiet-action" disabled={detail.loading} onClick={retry}>重新加载</button></div> : null}
@@ -246,8 +249,6 @@ function SubmarketWorkspace({
                 {projects(true)}
               </div> : currentSection === 'trend' ? trend(false)
                 : currentSection === 'profile' ? profileChapter : projects()}
-            {!suspended && <SubmarketMarketDataDetails key={surface} name={name} summary={summary} buildings={buildings}
-              benchmarkBuildings={beijingBenchmarkBuildings} parkOnly={parkOnly} />}
           </>}
         </div>
       </div>

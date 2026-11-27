@@ -20,7 +20,10 @@ export function submarketResearchSignal(
     if (!a || !b || a.rent == null || b.rent == null || a.rentSamples < 2 || b.rentSamples < 2) {
       return { title, text: '最近有租金记录的季度缺少足够的同季甲乙级样本。', scope };
     }
-    return { title, text: `${a.period} 甲级减乙级 ${signed(a.rent - b.rent)} 元/㎡/月，分别基于 ${a.rentSamples} 和 ${b.rentSamples} 个项目。`, scope };
+    const rentText = `${a.period} 甲级减乙级 ${signed(a.rent - b.rent)} 元/㎡/月（甲级 ${value(a.rent)}、乙级 ${value(b.rent)}；有效租金样本 ${a.rentSamples} / ${b.rentSamples} 个）。`;
+    const vacancyText = a.vacancyPct != null && b.vacancyPct != null && a.vacancySamples >= 2 && b.vacancySamples >= 2
+      ? `同季甲级空置率 ${value(a.vacancyPct)}%，乙级 ${value(b.vacancyPct)}%（有效空置样本 ${a.vacancySamples} / ${b.vacancySamples} 个）。` : '';
+    return { title, text: rentText + vacancyText, scope };
   }
   const rent = focus === 'matched-rent';
   const title = rent ? '净有效租金同样本环比' : '空置率同样本环比';
