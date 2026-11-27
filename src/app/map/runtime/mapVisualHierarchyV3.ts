@@ -151,7 +151,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     } else if (leed.includes('SILVER')) {
       background = '#e7ebef'; border = '#9ca8b3'; textColor = '#52606d'; text = 'S';
     } else {
-      background = '#eef1f4'; border = '#bdc6ce'; textColor = '#6f7c89'; text = leedFallbackBadge(leed);
+      background = '#eef1f4'; border = '#bdc6ce'; textColor = '#6f7c89'; text = leed === 'CERTIFIED' ? 'C' : leedFallbackBadge(leed);
     }
   }
 

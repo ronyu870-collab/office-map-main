@@ -111,7 +111,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     if (leed.includes('PLATINUM')) { background = '#d9edf3'; border = '#68aebf'; textColor = '#225a68'; text = 'P'; }
     else if (leed.includes('GOLD')) { background = '#eadfbd'; border = '#b69a52'; textColor = '#6f5a25'; text = 'G'; }
     else if (leed.includes('SILVER')) { background = '#e7ebef'; border = '#9ca8b3'; textColor = '#52606d'; text = 'S'; }
-    else { background = '#eef1f4'; border = '#bdc6ce'; textColor = '#6f7c89'; text = leedFallbackBadge(leed); }
+    else { background = '#eef1f4'; border = '#bdc6ce'; textColor = '#6f7c89'; text = leed === 'CERTIFIED' ? 'C' : leedFallbackBadge(leed); }
   }
   const override = mode === 'default' ? groupColor(building, groups) : undefined;
   if (override) { background = override; border = '#ffffff'; textColor = '#ffffff'; }

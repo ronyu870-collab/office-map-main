@@ -53,7 +53,7 @@ export async function verifyLeedFilters(page,{width,base}) {
     const key=Object.keys(sessionStorage).find(key=>key.startsWith('broker-map:v1:'));
     const saved=JSON.parse(sessionStorage.getItem(key));
     assertVersion(saved);
-    function assertVersion(value){if(value.leedCatalogVersion!==2)throw new Error('current filter catalog version not saved');}
+    function assertVersion(value){if(value.leedCatalogVersion!==3)throw new Error('current filter catalog version not saved');}
     delete saved.leedCatalogVersion;
     sessionStorage.setItem(key,JSON.stringify(saved));
   });

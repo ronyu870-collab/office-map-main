@@ -14,11 +14,12 @@ import { animateWorkspace } from '../runtime/workspaceMotion';
 import { useMapReadingScroll } from '../workspace/continuity';
 import type { WorkspaceBuildingDetail as Detail } from '../workspace/buildingDetail';
 import { auditBuildingReading } from '@/src/utils/buildingReadingAudit';
+import { BuildingBrochureFacts } from './BuildingBrochureFacts';
 
 import type { TrendChartReading, TrendChartReadingOptions } from '@/src/services/map/trendChartReading';
 
 type Action = 'locate' | 'nearby' | 'contact' | 'trend' | 'edit';
-export type BuildingReadingState = { tab: string; scrollTop: number; scrolls?: Record<string, number>; trendOpen?: boolean; trend?: TrendChartReading; trendHeight?: number; photo?: { open: boolean; index: number } };
+export type BuildingReadingState = { tab: string; scrollTop: number; scrolls?: Record<string, number>; trendOpen?: boolean; trend?: TrendChartReading; trendHeight?: number; photo?: { open: boolean; index: number }; brochureOpen?: boolean };
 function Photos({ detail, reading, onChange }: { detail: Detail; reading?: BuildingReadingState['photo']; onChange: (photo: NonNullable<BuildingReadingState['photo']>) => void }) {
   const root = React.useRef<HTMLDivElement>(null);
   const panel = React.useContext(WorkspacePanelContext);
@@ -55,6 +56,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
   const validInitialTab = sections.some(([id]) => id === readingState?.tab);
   const initialTab = validInitialTab ? readingState!.tab : 'overview';
   const [tab, updateTab] = React.useState(initialTab);
+  const [brochureOpen, setBrochureOpen] = React.useState(readingState?.brochureOpen ?? false);
   const scroll = React.useRef<HTMLDivElement>(null);
   const state = React.useRef<BuildingReadingState>({ ...readingState, tab: initialTab, scrollTop: validInitialTab ? readingState?.scrollTop ?? 0 : 0 });
   const report = (patch: Partial<BuildingReadingState>) => { state.current = { ...state.current, ...patch }; onReadingChange?.(state.current); };
@@ -129,6 +131,10 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
           </dl></section>
           <Photos detail={detail} reading={state.current.photo} onChange={photo => report({ photo })} />
           <section className="workspace-detail-group" aria-label="业主与物业"><dl className="workspace-building-facts">{ownership.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{typeof value === 'string' && !value.trim() ? '未提供' : value}</dd></div>)}</dl></section>
+          {!future && !isDemo && <BuildingBrochureFacts key={building.id} buildingId={building.id} active={workspace?.active !== false} opened={brochureOpen} onToggle={() => {
+            const next = !brochureOpen; setBrochureOpen(next); report({ brochureOpen: next });
+            if (next) auditBuildingReading('VIEW_BUILDING_SECTION', building, { section: 'brochure' }, isDemo);
+          }} />}
         </> : null}
         {tab === 'market' ? <>
           <dl className="workspace-building-facts workspace-market-facts"><div><dt>表面租金</dt><dd>{number(metric?.face_rent)} <span>元/㎡/月</span></dd></div><div><dt>物业费</dt><dd>{number(metric?.management_fee)} <span>元/㎡/月</span></dd></div></dl>

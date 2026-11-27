@@ -11,7 +11,19 @@ export function officeGrade(input: unknown): OfficeGrade {
   return grades[String(input ?? '').trim().replace(/\s+/g, ' ').toUpperCase()] ?? 'other';
 }
 
-export { leedFilterValue as normalizeLeed } from '@/src/lib/leed-display';
+import { leedFilterValue } from '@/src/lib/leed-display';
+
+/** Canonical map classification for historic certification level spellings.
+ * Generic 'LEED' is not a confirmed certification level. */
+export function normalizeLeed(value: unknown): string {
+  const key = leedFilterValue(value).toUpperCase();
+  if (key === 'N' || key === 'NULL') return key;
+  if (key === 'PLATINUM' || /\bLEED\b.*(?:PLATINUM|铂金级|白金级)/i.test(key)) return 'Platinum';
+  if (key === 'GOLD' || /\bLEED\b.*(?:\bGOLD\b|金级)/i.test(key)) return 'Gold';
+  if (key === 'SILVER' || /\bLEED\b.*(?:SILVER|银级)/i.test(key)) return 'Silver';
+  if (key === 'CERTIFIED' || key === 'LEED CERTIFIED' || key === '已认证') return 'Certified';
+  return 'NULL';
+}
 
 export function normalizeMapSubmarket(value: unknown): string {
   const raw = String(value ?? '').trim();

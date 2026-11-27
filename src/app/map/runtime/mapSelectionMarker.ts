@@ -28,7 +28,7 @@ export function futureSupplyImage(supply: { status?: unknown; leed_certification
     const colors = leed.includes('PLATINUM') ? ['#d9edf3', '#68aebf', '#225a68', 'P']
       : leed.includes('GOLD') ? ['#eadfbd', '#b69a52', '#6f5a25', 'G']
       : leed.includes('SILVER') ? ['#e7ebef', '#9ca8b3', '#52606d', 'S']
-      : ['#eef1f4', '#bdc6ce', '#6f7c89', leedFallbackBadge(leed)];
+      : ['#eef1f4', '#bdc6ce', '#6f7c89', leed === 'CERTIFIED' ? 'C' : leedFallbackBadge(leed)];
     visual = { ...visual, background: colors[0], border: colors[1], textColor: colors[2], text: colors[3] };
   }
   return badgeImage(visual, isPendingFutureSupply(supply) ? 'pending' : 'future', mode === 'default');

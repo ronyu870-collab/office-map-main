@@ -235,6 +235,7 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
       items: [
         { label: '未认证（N）', className: 'border border-[#bdc6ce] bg-[#eef1f4]' },
         { label: '未提供（–）', className: 'border border-[#bdc6ce] bg-[#eef1f4]' },
+        { label: '已认证（C）', className: 'border border-[#bdc6ce] bg-[#eef1f4]' },
         { label: '白银', className: 'border border-[#9ca8b3] bg-[#e7ebef]' },
         { label: '黄金', className: 'border border-[#b69a52] bg-[#eadfbd]' },
         { label: '铂金', className: 'border border-[#68aebf] bg-[#d9edf3]' },
@@ -246,7 +247,7 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
     title: mode === 'rent' ? '子市场净有效租金（元/㎡/月）' : '子市场空置率',
     items: metricConfig[mode].items.map((item, index) => ({ label: item.label, style: { backgroundColor: submarketScale(mode)[index] ?? SUBMARKET_NEUTRAL } })),
   } : aggregate && mode === 'leed' ? {
-    title: '子市场 LEED 认证', items: [
+    title: '子市场 LEED 认证情况', items: [
       { label: '<20%', style: { backgroundColor: SUBMARKET_LEED_COLORS[0] } },
       { label: '20–<40%', style: { backgroundColor: SUBMARKET_LEED_COLORS[1] } },
       { label: '40–<60%', style: { backgroundColor: SUBMARKET_LEED_COLORS[2] } },
@@ -276,7 +277,7 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
           </div>
         ))}
       </div>
-      {aggregate ? <p className="map-legend-note">{mode === 'leed' ? '认证率仅用于记录完整的市场；记录不全时显示已认证数量。' : '甲乙级与园区行情分别统计；纯园区展示园区行情。气泡颜色表示指标区间，不代表市场规模。'}</p> : null}
+      {aggregate ? <p className="map-legend-note">{mode === 'leed' ? '记录完整时显示认证率，否则仅显示已确认认证数量。' : '甲乙级与园区行情分别统计；纯园区展示园区行情。气泡颜色表示指标区间，不代表市场规模。'}</p> : null}
       <label className="map-legend-places">
         <input type="checkbox" checked={pointsVisible} disabled={!mapReady || !onPointsChange} onChange={event => onPointsChange?.(event.target.checked)} />
         底图地点标注

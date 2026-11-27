@@ -32,11 +32,22 @@ function installNativeOverlays() {
 export async function verifySubmarketDesign(context, { base, width, stock }) {
   const page = await context.newPage();
   const errors = []; page.on('pageerror', error => errors.push(error.stack));
-  const names = ['通惠河传媒走廊', '望京-酒仙桥', '丰台科技园', '东城商务区'];
-  const places = [[116.54, 39.89], [116.49, 40.015], [116.27, 39.82], [116.4, 39.94]];
+  // Region centers are from the read-only production catalog check; asset and
+  // metric rows below are synthetic and never enter the production database.
+  const areas = [
+    ['通惠河传媒走廊', 116.51813,39.90654], ['望京-酒仙桥',116.48324,39.99600],
+    ['丰台科技园',116.30214,39.82607], ['东城商务区',116.42604,39.92177],
+    ['CBD',116.46342,39.91027], ['上地',116.31249,40.04658], ['丽泽',116.32785,39.86588],
+    ['中关村',116.32715,39.97725], ['亚奥',116.40568,39.98505], ['亦庄',116.53554,39.78477],
+    ['北清路',116.22279,40.07554], ['四季青',116.25896,39.95206], ['燕莎',116.45988,39.95145],
+    ['玉渊潭',116.28677,39.92823], ['通州',116.66822,39.91444], ['金融街',116.35914,39.91624],
+  ];
+  const selected = width >= 1200 ? areas : areas.slice(0,4);
+  const names = selected.map(area=>area[0]);
+  const places = selected.map(area=>area.slice(1));
   // Synthetic buildings have new identities. Do not inherit identity-bound
   // photo records from the CBD fixture: research now previews them on visibility.
-  const rows = names.map((name, i) => ({ ...stock[0], id: `design-${i}`, name: `${name}测试楼`, submarket: name, grade: i === 2 ? 'BP' : 'A',
+  const rows = names.map((name, i) => ({ ...stock[0], id: `design-${i}`, name: `${name}测试楼`, submarket: name, grade: ['丰台科技园','上地','四季青','北清路'].includes(name) ? 'BP' : 'A',
     photos: [], location_lng: places[i][0], location_lat: places[i][1],
     building_metrics: stock[0].building_metrics.map((m, index) => ({ ...m, id: `design-metric-${i}-${index}`, building_id: `design-${i}`, net_effective_rent: i === 3 ? null : 205.3, vacancy_rate: i === 3 ? .163 : .12 })) }));
   assert.ok(rows.every(row => !row.photos.length && row.building_metrics.every(metric => metric.building_id === row.id)), 'design fixtures never inherit another building’s assets');
@@ -69,6 +80,7 @@ export async function verifySubmarketDesign(context, { base, width, stock }) {
         assert.ok(bubble, `${name} rendered by active native overlay in ${mode}`);
         assert.ok(Math.abs(bubble.width - bubble.height) < 0.5, 'circle remains square within browser subpixel rounding'); assert.ok(bubble.fits && bubble.nameHeight <= bubble.nameClientHeight + 1, `${name} text fits ${JSON.stringify(bubble)}`);
         assert.match(bubble.background, /^rgb\(/, 'solid fill without alpha');
+        assert.equal(bubble.alpha,'1','the displayed bubble is fully opaque');
         assert.ok(!bubble.text.includes('¥—') && !bubble.text.includes('甲乙级 0'), 'no meaningless financial placeholders or zero office inventory');
       }
       if (mode === 'default') assert.ok(bubbles.find(b => b.name === '丰台科技园').text.includes('产业园 1 个'));

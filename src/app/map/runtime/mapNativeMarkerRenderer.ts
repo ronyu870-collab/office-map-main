@@ -272,7 +272,7 @@ function buildingVisual(
       background = '#eef1f4';
       border = '#bdc6ce';
       textColor = '#6f7c89';
-      text = leedFallbackBadge(leed);
+      text = leed === 'CERTIFIED' ? 'C' : leedFallbackBadge(leed);
     }
   }
 

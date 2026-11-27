@@ -284,7 +284,7 @@ function getMarkerStyle(
       bgColor = "#eef1f4";
       borderColor = "#bdc6ce";
       textColor = "#6f7c89";
-      text = leedFallbackBadge(leed); // 缺失与明确未认证分开
+      text = leed === 'CERTIFIED' ? 'C' : leedFallbackBadge(leed); // 缺失与明确未认证分开
     }
   }
 

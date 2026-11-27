@@ -279,7 +279,7 @@ it('keeps all four metrics visible and updates their values without opening a di
   fireEvent.click(screen.getByRole('heading', { name: '北京办公楼市场地图' }));
   const methodology = screen.getByRole('region', { name: '数据与统计口径' });
   expect(methodology).toHaveTextContent('已知存量面积 1,000,000 ㎡');
-  expect(methodology).toHaveTextContent('有坐标项目数包含当前地图显示的未来供应');
+  expect(methodology).toHaveTextContent('地图项目数包含当前地图显示的未来供应');
   fireEvent.keyDown(window, { key: 'Escape' });
   expect(screen.queryByText('统计口径')).not.toBeInTheDocument();
   expect(document.querySelector('.map-disclosure[open]')).toBeNull();
@@ -299,7 +299,7 @@ it('explains the visible LEED aggregate colors instead of showing project certif
   fireEvent.click(screen.getByText('图例'));
   expect(screen.getByText('LEED 认证')).toBeVisible();
   document.getElementById('map-container')!.dataset.markerTier = 'submarket';
-  await waitFor(() => expect(screen.getByText('子市场 LEED 认证率')).toBeVisible());
+  await waitFor(() => expect(screen.getByText('子市场 LEED 认证情况')).toBeVisible());
   expect(screen.queryByText('铂金')).not.toBeInTheDocument();
   expect(screen.getByText('≥60%')).toBeVisible();
   document.getElementById('map-container')!.dataset.markerTier = 'building';

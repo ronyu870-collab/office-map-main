@@ -1,9 +1,8 @@
 import { createSubmarketBubble } from './mapSubmarketPresentation';
 import { summarizeSubmarkets, type SubmarketSummary } from '../model/submarketOverview';
 import { aggregateMarket, type MarketBuilding } from '../model/marketStatistics';
-import { normalizeMapSubmarket, officeGrade } from '../model/marketIdentity';
+import { normalizeLeed, normalizeMapSubmarket, officeGrade } from '../model/marketIdentity';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
-import { leedFilterValue } from '@/src/lib/leed-display';
 
 type BubbleBuilding = MarketBuilding & { leed_certification?: unknown };
 export type BubbleMarketSummary = SubmarketSummary & {
@@ -13,13 +12,7 @@ export type BubbleMarketSummary = SubmarketSummary & {
 
 /** Only an explicitly recorded level or negative is a certification observation. */
 export function mapLeedLevel(value: unknown): string {
-  const key = leedFilterValue(value).toUpperCase();
-  if (key === 'N' || key === 'NULL') return key;
-  if (key === 'PLATINUM' || /\bLEED\b.*(?:PLATINUM|铂金级|白金级)/i.test(key)) return 'PLATINUM';
-  if (key === 'GOLD' || /\bLEED\b.*(?:GOLD|金级)/i.test(key)) return 'GOLD';
-  if (key === 'SILVER' || /\bLEED\b.*(?:SILVER|银级)/i.test(key)) return 'SILVER';
-  if (key === 'CERTIFIED' || key === 'LEED CERTIFIED' || key === '已认证') return 'CERTIFIED';
-  return 'NULL';
+  return normalizeLeed(value).toUpperCase();
 }
 
 /** Keep the A/B fact contract intact; park facts and certification coverage are separate. */

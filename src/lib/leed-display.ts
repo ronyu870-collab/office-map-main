@@ -30,12 +30,19 @@ export function hasLeedCertification(value: unknown): boolean {
 }
 
 export function leedFilterLabel(value: string): string {
-  return value === 'NULL' ? '未提供认证' : value === 'N' ? '未认证（N）' : value;
+  return value === 'NULL' ? '未提供认证' : value === 'N' ? '未认证（N）' : value === 'Certified' ? '已认证（未分级）' : value;
 }
 
 /** The former full catalog had no way to include N; preserve newer explicit exclusions. */
 export function restoreLeedFilterCatalog<T extends { leeds: string[] }>(filters: T | null, version?: number): T | null {
   const former = ['Platinum', 'Gold', 'Silver', 'NULL'];
-  return filters && version !== 2 && filters.leeds.length === former.length && former.every(value => filters.leeds.includes(value))
-    ? { ...filters, leeds: [...filters.leeds, 'N'] } : filters;
+  if (!filters || version === 3) return filters;
+  const v2 = [...former, 'N'];
+  if (version !== 2 && filters.leeds.length === former.length && former.every(value => filters.leeds.includes(value))) {
+    return { ...filters, leeds: [...filters.leeds, 'N', 'Certified'] };
+  }
+  if (filters.leeds.length === v2.length && v2.every(value => filters.leeds.includes(value))) {
+    return { ...filters, leeds: [...filters.leeds, 'Certified'] };
+  }
+  return filters;
 }

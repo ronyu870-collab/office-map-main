@@ -66,3 +66,15 @@ describe('submarket facts expressed in a shared compact bubble', () => {
     expect(vacancy.style.getPropertyValue('--sm-accent')).toBe(submarketColor('vacancy', 205.3, 16.3, 60));
   });
 });
+
+it('keeps 16 distinct named area anchors across mode changes without using a reference estimate', () => {
+  const names = ['CBD','上地','东城商务区','丽泽','中关村','丰台科技园','亚奥','亦庄','北清路','四季青','望京-酒仙桥','燕莎','玉渊潭','通州','通惠河传媒走廊','金融街'];
+  const rows = names.map((name,index)=>({...row(name, ['上地','四季青'].includes(name) ? 'BP' : 'A', 120, .2), id:'region-'+index, location_lng:116.2+index*.025, location_lat:39.9+(index%4)*.05}));
+  const entries = buildSubmarketBubbleEntries(rows,rows,rows,true);
+  expect(entries.map(entry=>entry.name).sort()).toEqual([...names].sort());
+  for (const entry of entries) for (const mode of ['default','rent','vacancy','leed'] as const) {
+    const bubble = createSubmarketBubble({...entry,mode});
+    expect(bubble.dataset.submarket).toBe(entry.name);
+    expect(bubble.querySelector('.map-submarket-bubble__name')?.textContent).toBe(entry.name);
+  }
+});
