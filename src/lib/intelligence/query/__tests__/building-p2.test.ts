@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { resolveBuildingCandidates } from '../buildingIntent';
+import { describe, expect, it, vi } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import * as snapshotReader from '../snapshotReader';
+import * as authorityReader from '../serverAuthority';
+import { prepareBuildingIntent, resolveBuildingCandidates } from '../buildingIntent';
 import { resultBuildingRows } from '../buildingCards';
 import { buildingAnalysisHref, readMapQueryContext, parseQueryMapContext, queryMapHref } from '../buildingNavigation';
 import { buildListResult } from '../result';
@@ -24,6 +27,35 @@ describe('P2 building identity and result contract', () => {
     const duplicate = [{ ...rows[0], aliases: ['同名别称'] }, rows[1]];
     expect(resolveBuildingCandidates('同名别称', duplicate).candidates).toHaveLength(2);
     expect(resolveBuildingCandidates('无权别称', rows, [{ building_id: 'outside' }]).unique).toBeNull();
+  });
+  it('keeps project selection in the query entry point and enables a project profile only for the explicit Agent route', async () => {
+    const authority: authorityReader.DataAuthority = { actorId: a, effectiveUserId: a, sessionId: b, sessionActive: true,
+      policyVersion: 'test', permissionRevision: 'a'.repeat(64), grants: ['query:catalog'], fields: [],
+      allSubmarkets: true, submarkets: [], allBuildings: true, buildingIds: [] };
+    const identity = { actorId: a, effectiveUserId: a, sessionId: b, expiresAt: Date.now() + 60000 };
+    const snapshot = { ...fixture(), period: null, expectedCount: 2, rows: rows.map(row => ({
+      ...row, nameSource: nameSource(row.id, row.name), facts: {}, dimensions: {
+        submarket: { value: row.submarket, source: { ...nameSource(row.id, row.submarket), id: `market/${row.id}`, field: 'submarket' } },
+      },
+    })) };
+    const client = { from: (table: string) => {
+      const chain = { select: () => chain, in: () => chain, eq: () => chain, limit: () => chain,
+        abortSignal: async () => ({ data: table === 'lease_building_project_map' ? [{ building_id: a }, { building_id: b }] : [], error: null }) };
+      return chain;
+    } } as unknown as SupabaseClient;
+    const read = vi.spyOn(snapshotReader, 'readQuerySnapshots').mockResolvedValue([snapshot]);
+    const access = vi.spyOn(authorityReader, 'loadDataAuthority').mockResolvedValue(authority);
+    try {
+      const input = { client, identity, authority, question: '介绍合成中心三期', signal: new AbortController().signal };
+      expect((await prepareBuildingIntent(input))?.resolution).toMatchObject({ kind: 'clarification', clarification: {
+        reason: 'ambiguous_reference', options: [{ id: `building:${a}` }, { id: `building:${b}` }],
+      } });
+      expect((await prepareBuildingIntent({ ...input, allowProjectProfile: true }))?.resolution)
+        .toMatchObject({ kind: 'plan', plan: { scope: { buildingIds: [a, b] } } });
+    } finally {
+      read.mockRestore();
+      access.mockRestore();
+    }
   });
   it.each(['合成中心在哪个子市场？', '测试大厦属于哪个子市场'])('routes location facts through authorized building resolution: %s', question => {
     expect(routeTask(question)).toMatchObject({ route: 'deterministic_query', taskType: 'query', catalogLookup: 'location' });

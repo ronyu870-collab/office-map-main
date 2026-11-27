@@ -24,7 +24,7 @@ import { resolveAssistantHelp } from './assistantHelp';
 import { readQuarterlyCoverage, describeQuarterlyCoverage, type QuarterlyCoverage } from './quarterlySources';
 
 type Input = { client: SupabaseClient; keys: AuditKeys; identity: VerifiedQueryIdentity; authority: DataAuthority;
-  audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; buildingSelection?: BuildingSelection; receivedAt: Date; signal: AbortSignal; modelInvoke?: import('./modelIntent').SemanticModelInvoke; allowStandaloneModel?: boolean; serverContext?: import('./semanticPlanner').SemanticContext };
+  audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; buildingSelection?: BuildingSelection; receivedAt: Date; signal: AbortSignal; modelInvoke?: import('./modelIntent').SemanticModelInvoke; allowStandaloneModel?: boolean; allowProjectProfile?: boolean; serverContext?: import('./semanticPlanner').SemanticContext };
 
 function planPeriodFieldGroups(plan: QueryPlan) {
   if ('metrics' in plan && plan.metrics) {
@@ -54,7 +54,8 @@ export async function prepareSemanticExecution(input: Input) {
     metadata: { protocol: SEMANTIC_PROTOCOL_VERSION, semanticContext: help.context, turn,
       modelStatus: 'not_needed', suggestions: [], assistantHelp: true } };
 
-  const building = await prepareBuildingIntent({ client, identity, authority, question, context, buildingSelection: input.buildingSelection, signal });
+  const building = await prepareBuildingIntent({ client, identity, authority, question, context, buildingSelection: input.buildingSelection,
+    allowProjectProfile: input.allowProjectProfile, signal });
   if (building) {
     const { resolution, availability } = building;
     if (resolution.kind === 'plan') authorizeConversationPlan(resolution.plan, authority);

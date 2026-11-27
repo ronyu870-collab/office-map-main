@@ -630,7 +630,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (/(?:成交|租赁交易|lease.transaction)/i.test(args.question)) throw new Error('LEASE_TOOL_REQUIRED');
             // Bounded migration for previous native Tool Calling clients.
             observation = await queryVerifiedRealEstate({ client, keys, identity: actor, audit: audit!,
-              requestId, authority, signal: toolSignal, ...(taskRoute.route === 'single_interpretation' ? { interpret: runtime.interpret, contextPlan: history.contextPlan } : {}) }, args.question);
+              requestId, authority, signal: toolSignal, allowProjectProfile: taskRoute.catalogLookup === 'profile',
+              ...(taskRoute.route === 'single_interpretation' ? { interpret: runtime.interpret, contextPlan: history.contextPlan } : {}) }, args.question);
           } else if (STRUCTURED_DATA_TOOL_NAMES.has(name)) {
             observation = await executeStructuredDataTool({ client, keys, identity: actor, audit: audit!,
               requestId, authority, signal: toolSignal }, name as StructuredDataToolName, args);

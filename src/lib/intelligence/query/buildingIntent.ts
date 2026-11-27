@@ -56,7 +56,7 @@ function clarify(question: string, context: SemanticContext, message: string, ro
 function identity(row: BuildingFacts): BuildingIdentity { return { id: row.id, name: row.name, submarket: row.dimensions?.submarket?.value ?? null }; }
 
 export async function prepareBuildingIntent(input: { client: SupabaseClient; identity: VerifiedQueryIdentity; authority: DataAuthority; question: string;
-  context?: SemanticContext; buildingSelection?: BuildingSelection; signal: AbortSignal }): Promise<{ resolution: SemanticResolution; availability?: AvailablePeriods } | null> {
+  context?: SemanticContext; buildingSelection?: BuildingSelection; allowProjectProfile?: boolean; signal: AbortSignal }): Promise<{ resolution: SemanticResolution; availability?: AvailablePeriods } | null> {
   const { client, authority, signal } = input;
   const context = input.context ?? emptyContext();
   const option = context.pending?.clarification.options.find(item => item.question === input.question && item.id.startsWith('building:'));
@@ -99,7 +99,7 @@ export async function prepareBuildingIntent(input: { client: SupabaseClient; ide
       && resolved.candidates.every(candidate => candidate.submarket === market)) {
       buildingLocation = { subject: locationTarget, submarket: market };
       chosen = resolved.candidates;
-    } else if (profileTarget && resolved.reason === 'project' && resolved.candidates.length) {
+    } else if (input.allowProjectProfile && profileTarget && resolved.reason === 'project' && resolved.candidates.length) {
       chosen = resolved.candidates;
     } else if (!resolved.unique || locationTarget) {
       if ((await loadDataAuthority(client, input.identity, signal)).permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');

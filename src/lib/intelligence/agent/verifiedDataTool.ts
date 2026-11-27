@@ -17,6 +17,7 @@ import type { AgentToolObservation } from './agentOrchestrator';
 export type VerifiedToolEnvironment = {
   client: SupabaseClient; keys: AuditKeys; identity: VerifiedQueryIdentity; audit: AuditPort;
   requestId: string; authority: DataAuthority; signal: AbortSignal;
+  allowProjectProfile?: boolean;
   contextPlan?: import('../query/plan').QueryPlan;
   interpret?: import('../query/modelIntent').SemanticModelInvoke;
 };
@@ -39,7 +40,7 @@ export async function queryVerifiedRealEstate(
     client: env.client, keys: env.keys, identity: env.identity, authority,
     audit: env.audit, requestId: env.requestId,
     conversation: { id: env.requestId }, question, receivedAt: new Date(), signal: env.signal,
-    modelInvoke: env.interpret, allowStandaloneModel: false,
+    modelInvoke: env.interpret, allowStandaloneModel: false, allowProjectProfile: env.allowProjectProfile,
     ...(env.contextPlan ? { serverContext: { version: 'colliers-semantic-context/1' as const, lastPlan: env.contextPlan, comparisonSubmarkets: env.contextPlan.scope.submarkets ?? [] } } : {}),
   });
   if (prepared.resolution.kind === 'clarification') {
