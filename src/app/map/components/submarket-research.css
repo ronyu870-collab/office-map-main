@@ -424,3 +424,8 @@
 @container submarket-research (max-width: 20rem) {
   .submarket-product-core .submarket-v3-kpis { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Personalized research is a reading sequence, not a fixed dashboard grid. */
+.submarket-research-panel .submarket-brief[data-research-arranged="true"] { grid-template-columns: minmax(0, 1fr); }
+.submarket-brief[data-research-arranged="true"] > * { min-width: 0; grid-column: 1 / -1; }
+.submarket-brief[data-research-arranged="true"] .submarket-brief-composition { border-inline-start: 0; padding-inline-start: 0; }

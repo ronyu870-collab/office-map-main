@@ -5,7 +5,7 @@ import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger } from '
 import { hasMarketCoordinates, normalizeMapSubmarket, officeGrade } from '../model/marketIdentity';
 import type { MarketBuilding } from '../model/marketStatistics';
 import { latestFormalMetric, quarterKey } from '../model/quarterlyFacts';
-import type { SubmarketIntelligence } from '../model/submarketIntelligence';
+import { marketResearchArrangement, researchCatalogReferences, type ResearchProjectReference } from '../model/submarketResearchArrangement';
 import { mapOptionalNumber } from '../model/vacancyMetrics';
 import { formalAssetMetric, latestAssetQuarter, RESEARCH_PRODUCTS } from '../model/marketAssetAnalytics';
 import { formalQuarterRentEligible, formalQuarterVacancyEligible } from '@/src/lib/marketSamplePolicy';
@@ -46,7 +46,7 @@ function projectRecord(building: MarketBuilding, id: string, grade: Project['gra
 }
 
 /** Keep researched IDs first and fill real product/price/scale gaps without inventing landmark labels. */
-export function selectRepresentativeProjects(buildings: readonly MarketBuilding[], submarket: string, curated: readonly Example[] = []): Example[] {
+export function selectRepresentativeProjects(buildings: readonly MarketBuilding[], submarket: string, curated: readonly Example[] = [], limit = 6): Example[] {
   const target = normalizeMapSubmarket(submarket);
   if (!target) return [];
   const quarter = latestAssetQuarter(buildings, target);
@@ -67,7 +67,7 @@ export function selectRepresentativeProjects(buildings: readonly MarketBuilding[
   const examples: Example[] = [];
   const used = new Set<string>();
   function add(project: Project, role: string, reason: string, detailReason?: string) {
-    if (used.has(project.id) || examples.length >= 6) return;
+    if (used.has(project.id) || examples.length >= limit) return;
     used.add(project.id);
     examples.push({ project, role, reason, detailReason });
   }
@@ -76,7 +76,7 @@ export function selectRepresentativeProjects(buildings: readonly MarketBuilding[
     if (project) {
       const missing = RESEARCH_PRODUCTS.filter(grade => candidates.some(candidate => candidate.grade === grade)
         && !examples.some(example => example.project.grade === grade) && project.grade !== grade).length;
-      if (examples.length < 6 - missing) add(project, entry.role, entry.reason, entry.detailReason);
+      if (examples.length < limit - missing) add(project, entry.role, entry.reason, entry.detailReason);
     }
   }
   for (const grade of RESEARCH_PRODUCTS) {
@@ -136,28 +136,30 @@ function ProjectPhotos({ id, name, photos, active }: { id: string; name: string;
   return <div ref={root} className={"workspace-building-photos mt-2 " + styles.photo} dangerouslySetInnerHTML={markup} />;
 }
 
-export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, compact = false, curated, active = true, researchIdentity, marketType, authorizedQuarter }: {
+export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, compact = false, curated, active = true, researchIdentity, marketType, authorizedQuarter, showAnalytics = true }: {
   buildings: readonly MarketBuilding[];
   submarket: string;
   onOpen: (id: string) => void;
   compact?: boolean;
-  curated?: SubmarketIntelligence['projects'];
+  curated?: readonly ResearchProjectReference[];
+  showAnalytics?: boolean;
   active?: boolean;
   researchIdentity?: string;
   marketType?: ResearchMarketType;
   authorizedQuarter?: number | null;
 }) {
   const curatedExamples = React.useMemo((): Example[] => {
-    if (!curated?.length) return [];
+    const entries = curated?.length ? curated : researchCatalogReferences(submarket, buildings);
     const market = normalizeMapSubmarket(submarket);
     const available = new Map(buildings.filter(building => normalizeMapSubmarket(building.submarket) === market)
       .map(building => [building.id, building]));
-    return curated.flatMap(entry => {
+    return entries.flatMap(entry => {
       const building = available.get(entry.buildingId);
       return building ? [{ ...entry, project: projectRecord(building, entry.buildingId, officeGrade(building.grade)) }] : [];
     });
   }, [buildings, submarket, curated]);
-  const examples = React.useMemo(() => selectRepresentativeProjects(buildings, submarket, curatedExamples), [buildings, submarket, curatedExamples]);
+  const limit = Math.max(marketResearchArrangement(submarket)?.maxProjects ?? 6, Math.min(curatedExamples.length, 6));
+  const examples = React.useMemo(() => selectRepresentativeProjects(buildings, submarket, curatedExamples, limit), [buildings, submarket, curatedExamples, limit]);
   const heading = React.useId();
   return (
     <section aria-labelledby={heading} className="submarket-research submarket-projects">
@@ -183,7 +185,7 @@ export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, 
       )}
       {!compact && <>
         <RepresentativeBrochureMatrix projects={examples.map(({ project }) => ({ id: project.id, name: project.name }))} identity={researchIdentity ?? submarket} active={active} onOpen={onOpen} />
-        <MarketAssetAnalytics key={submarket} buildings={buildings} submarket={submarket} onOpen={onOpen} identity={researchIdentity} active={active} marketType={marketType} authorizedQuarter={authorizedQuarter} />
+        {showAnalytics && <MarketAssetAnalytics key={submarket} buildings={buildings} submarket={submarket} onOpen={onOpen} identity={researchIdentity} active={active} marketType={marketType} authorizedQuarter={authorizedQuarter} />}
       </>}
     </section>
   );
