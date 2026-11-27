@@ -145,6 +145,7 @@ function SubmarketWorkspace({
   const selectedTrend = payload?.trends[grade] ?? emptyTrend;
   const displayedTrend = React.useMemo(() => productResearch || arranged ? representativeProductTrend(selectedTrend) : selectedTrend, [productResearch, selectedTrend, arranged]);
   const hasRegionalTrend = !arranged || hasRepresentativeResearchTrend(displayedTrend, Boolean(arranged.projectFirst));
+  const anyRegionalTrend = !arranged || gradeNames.some(([id]) => hasRepresentativeResearchTrend(payload?.trends[id] ?? emptyTrend, Boolean(arranged.projectFirst)));
   const signal = research && !productResearch ? submarketResearchSignal(research.focus, payload?.trends, trendState) : null;
   const researchLead = research && !presentation ? <SubmarketOverviewResearch research={research} /> : null;
   const marketSignal = signal && !presentation ? <section className="submarket-intelligence-lead" aria-label="正式行情对比">
@@ -179,7 +180,7 @@ function SubmarketWorkspace({
   const trend = (full: boolean) => <section className="submarket-research-chapter" aria-labelledby="submarket-trend-heading">
     <div className="submarket-chapter-heading">
       <h3 id="submarket-trend-heading" ref={trendHeadingRef} tabIndex={-1}>租金与空置率趋势</h3>
-      {workspace && !full && (hasRegionalTrend || trendState !== 'ready') ? <button type="button" className="submarket-quiet-action" onClick={() => {
+      {workspace && !full && (anyRegionalTrend || trendState !== 'ready') ? <button type="button" className="submarket-quiet-action" onClick={() => {
         jumpToTrend.current = true;
         workspace.setMode('full');
       }}>展开图表</button> : null}
@@ -204,7 +205,7 @@ function SubmarketWorkspace({
   const overview = featured ? <div className="submarket-v3-overview">
     {coreMetrics}
     {(!expanded || arranged) && presentation && <ResearchLead presentation={presentation} mode="standard" />}
-    {!productResearch && !arranged?.projectFirst && <ResearchQuarterPulse data={allTrend} state={trendState} showValues={!expanded || grade !== 'all'} />}
+    {!productResearch && !arranged?.projectFirst && <ResearchQuarterPulse data={arranged ? representativeProductTrend(allTrend) : allTrend} state={trendState} showValues={!expanded || grade !== 'all'} />}
     {!expanded && !arranged && marketOverview}
   </div> : marketOverview;
   // The authorization-wide formal trend establishes the query period; filtered
@@ -227,7 +228,7 @@ function SubmarketWorkspace({
   };
   const overviewModules: Record<ResearchOverviewModule, React.ReactNode> = { composition: marketOverview, projects: projects(true), analysis: analytics };
   const fullOrder = arranged ? visibleResearchFullModules(arranged, {
-    trend: trendState !== 'ready' || hasRegionalTrend || (!parkOnly && gradeNames.length > 1 && currentSection === 'trend'),
+    trend: trendState !== 'ready' || anyRegionalTrend,
     outlook: !!fullModules.outlook,
   }) : [];
 

@@ -107,6 +107,13 @@ function dateLabel(value: string): string {
 
 function evidenceContext(research: SubmarketIntelligence, sourceIds: readonly string[], title: string, asOf?: string): string {
   const sources = research.sources.filter(source => sourceIds.includes(source.id));
+  const plan = marketResearchArrangement(research.market);
+  if (plan && !plan.benchmark) {
+    const periods = [...new Set((asOf ? [asOf] : sources.map(source => source.observedAt)).map(value => dateLabel(value) || value).filter(Boolean))];
+    // The source's declared geography or product scope is retained; independent public observations are not platform aggregates.
+    const scopes = [...new Set(sources.map(source => customerResearchText(source.scope, research)))];
+    return [...periods, ...scopes, ...(sources.some(source => source.scopeType === 'external_market') ? ['独立公开观察'] : [])].filter(Boolean).join(' · ');
+  }
   const periods = [...new Set((asOf ? [asOf] : sources.map(source => source.observedAt)).map(dateLabel).filter(Boolean))];
   // Scope labels describe the evidence, not an attribution or a new data source.
   const scope = sources.some(source => source.scopeType === 'external_market')

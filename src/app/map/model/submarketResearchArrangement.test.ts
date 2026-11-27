@@ -44,7 +44,7 @@ describe('sixteen market research arrangements', () => {
     const plan = marketResearchArrangement(edition.market)!;
     expect(plan).toBeDefined();
     for (const modules of [plan.full, plan.overview, plan.analysis, plan.themeOrder]) {
-      expect(new Set(modules).size).toBe(modules.length);
+      expect(new Set<string>(modules).size).toBe(modules.length);
     }
     expect(plan.full.every(module => researchFullModules.includes(module))).toBe(true);
     expect(plan.analysis.every(module => researchAnalysisModules.includes(module))).toBe(true);

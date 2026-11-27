@@ -45,3 +45,28 @@ describe('benchmark research surfaces', () => {
     expect(fetchResearch).toHaveBeenLastCalledWith(['CBD', '上地'], 2026 * 4, expect.any(AbortSignal));
   });
 });
+
+describe('personalized analysis availability', () => {
+  it.each([['四季青', 'BP', '园区项目与供应参照'], ['玉渊潭', 'B', '具体资产与选址条件']])(
+    '%s displays one observed building rather than a regional distribution', async (market, grade, title) => {
+      const records = [asset('项目甲', market, grade, 88)];
+      fetchResearch.mockImplementation(async (_names: string[], period: number) => ({
+        period, assets: records, supplies: [], demand: {}, demandAvailable: true,
+      }));
+      const onOpen = vi.fn();
+      render(<MarketAssetAnalytics buildings={records} submarket={market} onOpen={onOpen} />);
+      fireEvent.click(screen.getByRole('button', { name: title }));
+      const distribution = await screen.findByRole('region', { name: '租金价格分布' });
+      expect(within(distribution).getByText('单项目租金观测')).toBeTruthy();
+      expect(within(distribution).queryByText('楼宇中位数')).toBeNull();
+      expect(within(distribution).queryByText('面积加权平均')).toBeNull();
+      fireEvent.click(within(distribution).getByRole('button', { name: /项目甲/ }));
+      expect(onOpen).toHaveBeenCalledWith('项目甲');
+      const select = screen.getByLabelText('产品范围') as HTMLSelectElement;
+      if (grade === 'BP') expect(Array.from(select.options, option => option.value)).toEqual(['park']);
+      else expect(Array.from(select.options, option => option.value)).not.toContain('park');
+      expect(screen.queryByRole('region', { name: '未来供应分析' })).toBeNull();
+      expect(screen.queryByRole('region', { name: '租赁需求与成交' })).toBeNull();
+    },
+  );
+});

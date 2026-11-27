@@ -216,6 +216,7 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen, identity, a
         : <p role="status">正在读取同季度行情…</p> : <>
         {comparison.length > 1 && <Matrix rows={comparison} heading="子市场同季度比较" />}
         {(() => {
+          const supplySummary = payload.supplies === null ? null : summarizeResearchSupply(payload.supplies, name);
           const modules: Record<ResearchAnalysisModule, React.ReactNode> = {
             product: productRows.length > 1 ? <Matrix rows={productRows} heading="产品结构与行情比较" /> : null,
             distribution: analysis?.distribution ? <Distribution key={key + product} analysis={analysis} onOpen={onOpen} /> : null,
@@ -231,7 +232,7 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen, identity, a
         </section>,
             context: <MarketContexts payload={payload} names={comparison.map(row => row.label)} product={product} period={period} onOpen={onOpen} />,
             demand: !payload.demandAvailable || payload.demand[name] ? <Demand payload={payload} name={name} onOpen={onOpen} /> : null,
-            supply: payload.supplies === null || (() => { const summary = summarizeResearchSupply(payload.supplies, name); return summary.count > 0 || summary.enteredCount > 0; })()
+            supply: supplySummary === null || supplySummary.count > 0 || supplySummary.enteredCount > 0
               ? <Supply payload={payload} name={name} /> : null,
           };
           const order = plan?.analysis ?? researchAnalysisModules;
