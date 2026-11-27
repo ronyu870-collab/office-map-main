@@ -39,6 +39,7 @@ export type ProposalComposerInput = {
   priorities: Awaited<ReturnType<typeof interpretProposal>>["brief"]["priorities"];
   requestedPriorities?: readonly ProposalPriority[];
   clientRequirements?: readonly ClientRequirement[];
+  requestedStyle?: ProposalBrief["style"];
   assetIds: readonly string[];
   analysisResultId?: string;
 };
@@ -339,6 +340,7 @@ export async function directProposal(
     signal.throwIfAborted();
     const composed = await ports.compose({ brief, scope, projectId: input.projectId, buildings: target.buildings, priorities: understood.priorities,
       requestedPriorities: understood.requestedPriorities, clientRequirements: understood.clientRequirements,
+      requestedStyle: understood.explicitStyle,
       assetIds: input.assetIds, analysisResultId: input.analysisResultId }, signal);
     signal.throwIfAborted();
     const ready = buildPlan(brief, scope, composed, understood.requestedPriorities);

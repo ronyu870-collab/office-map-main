@@ -23,6 +23,7 @@ describe("proposal request understanding", () => {
     ["比较CBD五栋甲级写字楼，六页内，重点看通勤与租金", { scenario: "office-comparison", comparisonCount: 5,
       buildingQueries: [], pages: 6, requestedPriorities: ["commute", "cost"] }],
     ["制作北京最新正式季度写字楼市场报告", { scenario: "market-report", city: "北京", period: null, style: "research" }],
+    ["制作北京最新正式季度写字楼市场报告，使用商务风格", { scenario: "market-report", city: "北京", style: "professional", explicitStyle: "professional" }],
     ["为霄云路33号制作高端项目推介", { scenario: "building-promotion", buildingQueries: ["霄云路33号"], style: "premium" }],
     ["为某金融企业制作选址方案", { scenario: "site-selection", targetClient: "某金融企业" }],
     ["根据已有分析结果生成客户汇报PPT", { scenario: "analysis-briefing" }],

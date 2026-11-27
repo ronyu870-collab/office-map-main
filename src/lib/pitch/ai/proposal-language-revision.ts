@@ -46,11 +46,14 @@ async function preserveCanvas(ctx: PitchContext, page: RevisionPage, content: Sl
       if (position < 0 || applied.has(position)) return null;
       const previous = elements[position];
       const { x, y, w, h, editorId, editorGroup } = previous;
-      elements[position] = previous.kind === "text" && next.kind === "text" ? { ...previous, text: next.text } : {
-        ...next, x, y, w, h, editorId, editorGroup,
-        ...("rotation" in previous ? { rotation: previous.rotation } : {}),
-        ...("allowOverlap" in previous ? { allowOverlap: previous.allowOverlap } : {}),
-      };
+      if (previous.kind === "text" && next.kind === "text") {
+        elements[position] = { ...previous, text: next.text };
+      } else if (previous.kind === "image" && next.kind === "image") {
+        if (previous.mediaAssetId !== next.mediaAssetId || previous.mediaVersion !== next.mediaVersion) return null;
+        elements[position] = { ...previous, alt: next.alt };
+      } else {
+        elements[position] = { ...next, x, y, w, h, editorId, editorGroup };
+      }
       applied.add(position);
     }
     const parsed = slideSceneSchema.safeParse({ ...page.scene, elements });

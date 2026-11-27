@@ -1,15 +1,22 @@
 import { randomUUID } from "node:crypto";
 import JSZip from "jszip";
 import { describe, expect, it, vi } from "vitest";
+import type { PitchDependencies } from "../data/store";
 import { STUDIO_THEME } from "../design/theme";
 import { layoutSlides } from "../layout/engine";
 import { renderPitchPptx } from "../render/pptx";
 import { proposalFixture } from "../proposals/__tests__/fixture";
 import { composeRecipePages } from "./proposal-recipe";
 import { directProposal, type ComposedProposalPage, type ProposalDirectorPorts } from "./proposal-director";
-import { proposalRequestSchema } from "./proposal-brief";
+import { handleAiRequest } from "./http";
+import { proposalRequestSchema, type ConfirmedProposal } from "./proposal-brief";
 import { proposalRevisionRequestSchema } from "./proposal-edit-intent";
-import { previewProposalRevision, submitConfirmedProposal, type ProposalRevisionPort } from "./proposal-workflow";
+import { previewProposalRevision, submitConfirmedProposal, type ProposalRevisionPort, type ReviewedProposal } from "./proposal-workflow";
+
+vi.mock("../data/store", async original => ({ ...await original<typeof import("../data/store")>(),
+  authorizePitch: async (incoming: Request) => ({ signal: incoming.signal }),
+}));
+vi.mock("./proposal-model", () => ({ authorizedProposalModel: async () => undefined }));
 
 const projectId = "10000000-0000-4000-8000-000000000123";
 const taskId = "10000000-0000-4000-8000-000000000124";
@@ -53,12 +60,13 @@ function ports(): ProposalDirectorPorts {
   };
 }
 
-function recipePorts(scenario: "leasing-agency" | "office-comparison" | "market-report" | "building-promotion"): ProposalDirectorPorts {
+function recipePorts(scenario: "leasing-agency" | "office-comparison" | "market-report" | "building-promotion" | "site-selection"): ProposalDirectorPorts {
   const fixture = proposalFixture(scenario);
-  const submarket = scenario === "office-comparison" ? "CBD" : "燕莎";
+  const compares = scenario === "office-comparison" || scenario === "site-selection";
+  const submarket = compares ? "CBD" : "燕莎";
   const fixtureBuildings = fixture.data.buildings.map((building, index) => ({
     ...building, submarket,
-    ...(index === 0 && scenario !== "office-comparison" ? {
+    ...(index === 0 && !compares ? {
       name: target.name, identity: { ...building.identity, value: { name: target.name } },
     } : {}),
   }));
@@ -80,19 +88,44 @@ describe("Proposal Director review and generation", () => {
     ["比较CBD五栋甲级写字楼", "office-comparison", "parameters"],
     ["制作北京最新正式季度写字楼市场报告", "market-report", "rent-trend"],
     ["为霄云路33号制作高端项目推介", "building-promotion", "parameters"],
-  ] as const)("turns %s into reviewed native slides with the business recipe", async (question, scenario, expectedPage) => {
-    const result = await directProposal(request(question), recipePorts(scenario), newSignal());
-    expect(result).toMatchObject({ status: "ready", modelCalls: 0, snapshot: { brief: { scenario }, isTestData: true } });
-    if (result.status !== "ready") throw new Error(result.code);
-    const intent = result.plan.slides.find(slide => slide.pageKind === expectedPage);
+    ["为某金融企业制作CBD五栋甲级写字楼的办公选址方案，优先通勤", "site-selection", "parameters"],
+  ] as const)("reviews and confirms %s through the AI API before rendering a native verification slide", async (question, scenario, expectedPage) => {
+    const director = recipePorts(scenario);
+    const written: ReviewedProposal[] = [];
+    const receipt = { state: "completed", taskId, projectId: "10000000-0000-4000-8000-000000000125" } as const;
+    const workflow = {
+      find: async () => written.length ? receipt : null,
+      enqueue: vi.fn(async (_input: ConfirmedProposal, reviewed: ReviewedProposal) => { written.push(reviewed); return receipt; }),
+    };
+    const call = (payload: object) => handleAiRequest(new Request("https://pitch.test/api/intelligence/pitch/ai", {
+      method: "POST", headers: { "content-type": "application/json", origin: "https://pitch.test" }, body: JSON.stringify(payload),
+    }), { enabled: true } as PitchDependencies, undefined, undefined, () => ({ director, workflow }));
+    const input = request(question);
+    const response = await call({ action: "proposal_plan", input });
+    const review = await response.json();
+    expect(response.status).toBe(200);
+    expect(review).toMatchObject({ status: "ready", modelCalls: 0, brief: { scenario } });
+    expect(review).not.toHaveProperty("pages");
+    const command = { action: "proposal_generate", confirmation: {
+      projectId, expectedVersion: 1, taskId, request: input, planId: review.plan.id, contextFingerprint: review.plan.contextFingerprint,
+    } };
+    const result = await call(command);
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual(receipt);
+    expect(await (await call(command)).json()).toEqual(receipt);
+    expect(workflow.enqueue).toHaveBeenCalledOnce();
+    const saved = written[0];
+    expect(saved.snapshot.isTestData).toBe(true);
+    expect(saved.plan.slides).toEqual(review.plan.slides);
+    const intent = saved.plan.slides.find(slide => slide.pageKind === expectedPage);
     expect(intent?.chart).toBeTruthy();
-    expect(result.plan.slides[0].precedes).toBe(result.plan.slides[1].id);
-    expect(result.plan.slides[1].follows).toBe(result.plan.slides[0].id);
-    expect(result.plan.slides.every(slide => slide.keyMessages.every(message => message.sourceIds.length > 0))).toBe(true);
-    const chosen = result.pages.find(page => page.id === intent?.id)!;
+    expect(saved.plan.slides[0].precedes).toBe(saved.plan.slides[1].id);
+    expect(saved.plan.slides[1].follows).toBe(saved.plan.slides[0].id);
+    expect(saved.plan.slides.every(slide => slide.keyMessages.every(message => message.sourceIds.length > 0))).toBe(true);
+    const chosen = saved.pages.find(page => page.id === intent?.id)!;
     const pages = (await layoutSlides(chosen.content, STUDIO_THEME, chosen.layoutId ?? "data-table"))
       .map(scene => ({ scene, theme: STUDIO_THEME }));
-    const pptx = await renderPitchPptx(result.plan.title, pages, []);
+    const pptx = await renderPitchPptx(saved.plan.title, pages, []);
     const xml = await (await JSZip.loadAsync(pptx)).file("ppt/slides/slide1.xml")!.async("string");
     expect(xml).toMatch(/<a:tbl>|<c:chart\b/);
   }, 45_000);

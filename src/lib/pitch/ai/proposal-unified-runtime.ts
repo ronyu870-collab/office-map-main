@@ -1,4 +1,5 @@
 import type { PitchContext } from "../data/store";
+import { studioRegistry } from "../data/renderWorkflow";
 import type { ProposalBrief, VisualAssetReference } from "../integration-contracts";
 import type { DesignTheme } from "../design/theme";
 import type { readStackingAppendix } from "../visual-data/stacking-delivery";
@@ -9,6 +10,7 @@ import type { ProposalComposerInput, ProposalDirectorPorts } from "./proposal-di
 import type { ProposalPriority } from "./proposal-brief";
 import { readProposalMaterials } from "./proposal-materials";
 import { composeUnifiedProposalPages } from "./proposal-recipe";
+import { missingProposalTheme, requestedProposalTheme } from "./proposal-theme";
 
 type VisualRead = { reference: VisualAssetReference; businessDate?: string | null } | null;
 type Photo = VisualAssetReference & { category: string };
@@ -144,12 +146,15 @@ export function createUnifiedProposalComposer(ctx: PitchContext, readers: Unifie
     signal.throwIfAborted();
     if (!context.period || brief.period !== `${context.period.year}-Q${context.period.quarter}`) throw new Error("PITCH_PROPOSAL_PERIOD_REQUIRED");
     const authorized = authorizedBuildings(brief, context);
-    const [visuals, materials, options] = await Promise.all([
+    const [visuals, materials, defaultOptions, requestedTheme] = await Promise.all([
       readVisuals(actor, brief, authorized, readers),
       brief.scenario === "leasing-agency" && assetIds.length ? readProposalMaterials(actor, brief, scope, assetIds) : null,
       readers.options(actor, input),
+      requestedProposalTheme(actor, input.requestedStyle),
     ]);
     signal.throwIfAborted();
+    const options = requestedTheme ? { ...defaultOptions, theme: (await studioRegistry(actor, requestedTheme.id, requestedTheme.version)).theme.definition }
+      : defaultOptions;
     const result = composeUnifiedProposalPages(context, brief, scope, { ...options, targetBuildingId: brief.buildingIds[0] },
       { ...visuals, ...materials?.evidence, customerBrief: clientBrief(input, context.capturedAt) });
     if (brief.scenario === 'leasing-agency' && brief.buildingIds[0] && readers.historicalAppendix) {
@@ -167,6 +172,7 @@ export function createUnifiedProposalComposer(ctx: PitchContext, readers: Unifie
         result.gaps = result.gaps.filter(gap => gap.pageKind !== 'availability');
       }
     }
+    if (input.requestedStyle && !requestedTheme) result.gaps.push(missingProposalTheme(brief.language));
     for (const page of result.pages) {
       const sourceIds = new Set(page.content.sources.map(source => source.id));
       const references = materials?.references.filter(item => sourceIds.has(item.sourceId));

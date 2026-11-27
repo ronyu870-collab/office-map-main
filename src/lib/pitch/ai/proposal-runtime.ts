@@ -21,6 +21,7 @@ import type { ProposalRequest } from "./proposal-brief";
 import { directProposal, type ComposedProposalPage, type ProposalComposerInput, type ProposalDirectorPorts } from "./proposal-director";
 import type { ProposalModel } from "./proposal-interpretation";
 import { createUnifiedProposalComposer } from "./proposal-unified-runtime";
+import { missingProposalTheme, requestedProposalTheme } from "./proposal-theme";
 
 const grantSchema = scopeSchema.extend({ canGenerate: z.boolean(), canClientExport: z.boolean(), canExternalAi: z.boolean() }).strip();
 const parseScope = (raw: z.infer<typeof grantSchema>) => scopeSchema.parse({
@@ -113,13 +114,16 @@ const inexpensivePaths = {
 } satisfies Record<ProposalComposerInput["brief"]["scenario"], StandardPart[]>;
 
 function createStandardComposer(ctx: PitchContext): ProposalDirectorPorts["compose"] {
-  return async ({ brief, buildings, priorities, analysisResultId }, signal) => {
+  return async ({ brief, buildings, priorities, analysisResultId, requestedStyle }, signal) => {
     assertBeijingMarket(brief.city);
     // The standard data adapter permits internal export only. Client use is decided by the shared source adapters.
     if (brief.audience === "client") throw new Error("PITCH_DENIED");
+    const theme = await requestedProposalTheme({ ...ctx, signal }, requestedStyle);
+    const themeGaps = requestedStyle && !theme ? [missingProposalTheme(brief.language)] : [];
     if (brief.scenario === "analysis-briefing" && analysisResultId) {
       const { composeArchivedAnalysis } = await import("./proposal-archived-analysis");
-      return composeArchivedAnalysis({ ...ctx, signal }, analysisResultId, brief);
+      const replay = await composeArchivedAnalysis({ ...ctx, signal }, analysisResultId, brief);
+      return { ...replay, gaps: [...replay.gaps, ...themeGaps], ...(theme ? { theme } : {}) };
     }
     const trusted = await loadDataAuthority(ctx.client, ctx.identity, signal);
     if (!trusted.grants.includes("export:internal")) throw new Error("QUERY_DENIED");
@@ -187,7 +191,7 @@ function createStandardComposer(ctx: PitchContext): ProposalDirectorPorts["compo
     if (brief.scenario !== "market-report" && brief.scenario !== "analysis-briefing") {
       gaps.push({ pageKind: "visuals", reason: en ? "No reviewed images or maps are attached to the data-only draft." : "当前数据提案未附获权图片或地图。" });
     }
-    return { pages, gaps, recipeVersion: "standard-business-data/1" };
+    return { pages, gaps: [...gaps, ...themeGaps], recipeVersion: "standard-business-data/1", ...(theme ? { theme } : {}) };
   };
 }
 

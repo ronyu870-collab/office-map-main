@@ -117,8 +117,10 @@ async function buildProposalPhotoScene(ctx: PitchContext, page: RevisionPage, co
         previous.mediaAssetId === selectedImage.mediaAssetId && previous.mediaVersion === selectedImage.mediaVersion) {
         if (changed.has(changedIndex)) return null;
         const { x, y, w, h, editorId, editorGroup, rotation, allowOverlap } = selectedImage;
-        elements[changedIndex] = { ...next, x, y, w, h, editorId, editorGroup, rotation, allowOverlap,
-          fit: cropAllowed ? next.fit : "contain" };
+        const replacement = { ...next, x, y, w, h, editorId, editorGroup, rotation, allowOverlap,
+          fit: cropAllowed ? next.fit : "contain" as const };
+        if (!cropAllowed) Reflect.deleteProperty(replacement, "focus");
+        elements[changedIndex] = replacement;
         changed.add(changedIndex);
       } else if (previous.kind === "text" && next.kind === "text") {
         if (previous.text === next.text) continue;

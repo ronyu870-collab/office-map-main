@@ -78,7 +78,8 @@ async function prepareGeneration(ctx: PitchContext, command: ConfirmedProposal, 
   if (project.version !== command.expectedVersion) throw new Error("PITCH_CONFLICT");
   const generation = generationSchema.parse({ action: "generate", projectId, parentProjectId: command.projectId,
     title: reviewed.plan.title, scope: reviewed.snapshot.scope, language: reviewed.snapshot.brief.language,
-    themeId: project.theme_id, themeVersion: project.theme_version, parts: reviewed.generation.map(entry => entry.part) });
+    themeId: reviewed.plan.theme?.id ?? project.theme_id, themeVersion: reviewed.plan.theme?.version ?? project.theme_version,
+    parts: reviewed.generation.map(entry => entry.part) });
   const { input, snapshotsByPart } = await prepareBusinessProject(ctx, { ...generation, expectedParentVersion: command.expectedVersion });
   const expectedEvidence = reviewed.generation.map(item => item.evidenceVersion);
   if (JSON.stringify(snapshotsByPart.map(item => proposalEvidenceVersion(item.results))) !== JSON.stringify(expectedEvidence)) {
