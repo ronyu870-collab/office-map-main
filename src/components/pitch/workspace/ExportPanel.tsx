@@ -205,10 +205,10 @@ export function ExportPanel({
     } catch (e) {
       if (e instanceof WorkspaceError && e.status < 500 && e.status !== 408) {
         pendingStart.current = null;
-        if (e.status === 403) setEligibilityAttempt(value => value + 1);
+        if (e.status === 403 || e.status === 409) setEligibilityAttempt(value => value + 1);
       }
       setError(e instanceof WorkspaceError && e.status === 409
-        ? "项目已更新，请重新打开项目并核对导出范围。"
+        ? "项目已在其他窗口更新。请重新打开项目后再导出。"
         : e instanceof Error ? e.message : "导出未启动。");
     } finally {
       setBusy(false);
@@ -329,7 +329,7 @@ export function ExportPanel({
               <Button variant="ghost" onClick={() => setEligibilityAttempt(value => value + 1)}>重新核对导出权限</Button>
             </div>
           )}
-          {error && <p role="alert">{error}</p>}
+          {error && !eligibilityStale && <p role="alert">{error}</p>}
           {pollFailed && running && (
             <Button
               variant="secondary"
