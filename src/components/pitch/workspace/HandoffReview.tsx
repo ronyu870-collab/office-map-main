@@ -7,7 +7,7 @@ import { contentBlockSchema, type PitchScope } from "@/src/lib/pitch/contracts/c
 import { outlineQuarter, workspaceDetailSchema } from "@/src/lib/pitch/workspace/protocol";
 import type { PitchHandoffNavigation } from "../PitchHandoffLink";
 import { WorkspaceError, type Call } from "./client";
-import { BusinessEvidence } from "./BusinessEvidence";
+import { EvidencePages } from "./BusinessEvidence";
 import styles from "./workspace.module.css";
 
 const projectsSchema = z.object({
@@ -211,19 +211,7 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
           <input value={title} maxLength={160} disabled={!!busy || submitted} onChange={event => setTitle(event.target.value)} />
         </label>}
         <p>{review.data.period && `${review.data.period} · `}{review.data.binding.dataAsOf} · 仅供内部使用</p>
-        <ol className={styles.handoffPages}>
-          {review.data.pages.map((page, index) => {
-            const evidence = page.blocks?.filter(block =>
-              block.kind === "table" || block.kind === "chart" || block.kind === "metric" || block.kind === "paragraph") ?? [];
-            return <li key={index}>
-              {evidence.length ? <details open={review.data.pages.length === 1 ? true : undefined}>
-                <summary>{page.title}</summary>
-                {evidence.map((block, position) => <BusinessEvidence key={position} block={block} />)}
-              </details> : <strong>{page.title}</strong>}
-              {page.sources.length > 0 && <p>{[...new Set(page.sources.map(item => item.label))].join("、")}</p>}
-            </li>;
-          })}
-        </ol>
+        <EvidencePages pages={review.data.pages} />
       </>}
     </div>
   </Dialog>;

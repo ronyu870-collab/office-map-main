@@ -129,10 +129,12 @@ try {
     if (!ready) await pause(200);
   }
   assert.ok(ready && server.exitCode === null, "Local Next app did not start");
-  const verify = process.argv.includes("--building-inspector") ? verifyPitchBuildingInspectorBrowser
+  const quarterRevision = process.argv.includes("--quarter-revision");
+  const competitorRevision = process.argv.includes("--competitor-revision");
+  const verify = quarterRevision || competitorRevision || process.argv.includes("--building-inspector") ? verifyPitchBuildingInspectorBrowser
     : process.argv.includes("--chart-revision") ? verifyPitchChartRevisionBrowser : verifyPitchFlagshipBrowser;
   await verify({
-    app, who, period: "2026-Q3",
+    app, who, period: quarterRevision ? "2026-Q2" : "2026-Q3", quarterRevision, competitorRevision,
     requiredVisuals: { 'leasing-agency': ['photo', 'map'], 'site-selection': ['photo', 'map'],
       'market-report': ['map'], 'building-promotion': ['photo', 'map'] },
     readProject: async (projectId) => {

@@ -101,7 +101,7 @@ const inspectorTabs: { id: Inspector; label: string }[] = [
 ];
 type OutlineStart = Extract<WorkspaceCommand, { action: "start" }> & { part: OutlinePart };
 type TaskReceipt = { id: string; state: string; attempts?: number; error_code?: string; stage?: string };
-type WorkspaceTask = TaskReceipt & { outline?: boolean; unconfirmed?: OutlineStart };
+type WorkspaceTask = TaskReceipt & { outline?: boolean; unconfirmed?: OutlineStart; revisionBase?: number };
 type SavedCanvasHistory = {
   projectId: string;
   slideId: string;
@@ -615,7 +615,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
         )
           .then(async (receipt) => {
             if (c.signal.aborted) return;
-            const result: WorkspaceTask = { ...receipt, outline: task.outline };
+            const result: WorkspaceTask = { ...receipt, outline: task.outline, revisionBase: task.revisionBase };
             setTaskPollFailed(false);
             if (result.state === "completed") {
               setReadingResult(true);
@@ -636,7 +636,12 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   "页面已生成；当前未保存的编辑已保留，请重新读取或另存副本。",
                 );
               } else {
+                const before = current.current.detail;
                 accept(saved);
+                if (result.revisionBase !== undefined && before?.project.version === result.revisionBase &&
+                  saved.project.version === result.revisionBase + 1) {
+                  setReviewUndo({ projectId, version: saved.project.version, revision: result.revisionBase });
+                }
                 setTask(result);
                 setChosen(null);
                 setRegenerating(false);
@@ -645,7 +650,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                   setLeftTab("pages");
                   setInspector("properties");
                 }
-                setMessage(result.outline ? "" : "页面已生成并保存。");
+                setMessage(result.outline ? "" : result.revisionBase === undefined ? "页面已生成并保存。" : "竞品对比页已追加。");
               }
             } else {
               setReadingResult(false);
@@ -1337,7 +1342,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                                 },
                                 true,
                               );
-                              setTask(r && { ...r, outline: task.outline });
+                              setTask(r && { ...r, outline: task.outline, revisionBase: task.revisionBase });
                             })
                           }
                         >
@@ -1382,7 +1387,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                               },
                               true,
                             );
-                            setTask(r && { ...r, outline: task.outline });
+                              setTask(r && { ...r, outline: task.outline, revisionBase: task.revisionBase });
                           })
                         }
                       >
@@ -1632,6 +1637,12 @@ function Studio({ session }: { session: AuthSessionResult }) {
                         onOpenData: (period) => {
                           setRefreshSuggestion(period ? { projectId: detail.project.id, period } : undefined);
                           openInspector("data");
+                        },
+                        onAppend: (receipt, expectedVersion) => {
+                          if (current.current.detail?.project.id !== detail.project.id) return;
+                          setTaskPollFailed(false);
+                          setTask({ ...receipt, state: receipt.state === "completed" ? "processing" : receipt.state,
+                            revisionBase: expectedVersion });
                         },
                       }}
                       call={call}

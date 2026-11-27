@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
+import { contentBlockSchema, sourceReferenceSchema } from "@/src/lib/pitch/contracts/content";
 import { outlineQuarter, saveSchema, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { objectId } from "@/src/lib/pitch/workspace/object-layout";
 import { themeLabel, WorkspaceError, type Call } from "./client";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel } from "./DataRefreshReview";
+import { EvidencePages } from "./BusinessEvidence";
 import styles from "./workspace.module.css";
 
 const chartTypeSchema = z.enum(["bar", "column", "line"]);
@@ -37,17 +39,49 @@ const readySchema = z.object({
   review: dataRefreshReviewSchema.optional(),
   command: commandSchema.optional(),
 });
-const outcomeSchema = z.discriminatedUnion("status", [
+const buildingSchema = z.object({ id: z.uuid(), name: z.string(), submarket: z.string().nullish() });
+const comparisonBuildings = z.array(z.uuid()).min(2).max(20);
+const languages = z.enum(["zh", "en"]);
+const comparisonSchema = z.object({
+  status: z.literal("ready"), scope: z.literal("document"), mode: z.literal("append-comparison"),
+  review: z.object({
+    status: z.literal("ready"), competitor: buildingSchema, fingerprint, period: outlineQuarter,
+    buildingIds: comparisonBuildings, language: languages,
+    pages: z.array(z.object({ title: z.string(), blocks: z.array(contentBlockSchema).min(1),
+      sources: z.array(sourceReferenceSchema).min(1) })).min(1).max(50),
+  }),
+  command: z.strictObject({
+    action: z.literal("add_to_pitch"), taskId: z.uuid(), fingerprint,
+    target: z.strictObject({ mode: z.literal("append"), expectedVersion: projectVersion }),
+    handoff: z.strictObject({ projectId: z.uuid(), period: outlineQuarter, language: languages,
+      source: z.strictObject({ kind: z.literal("buildings"), buildingIds: comparisonBuildings }) }),
+  }),
+});
+const taskReceiptSchema = z.object({ id: z.uuid(), state: z.enum(["queued", "processing", "completed", "failed", "cancelled"]) });
+const outcomeSchema = z.union([
+  comparisonSchema,
   readySchema.extend({ status: z.literal("ready") }),
   readySchema.extend({ status: z.literal("refresh-review"),
     refreshPlan: z.object({ brief: z.object({ period: outlineQuarter.nullable() }) }) }),
-  z.object({ status: z.literal("clarification"), message: z.string() }),
-  z.object({ status: z.literal("unavailable") }),
+  z.object({ status: z.literal("clarification"), message: z.string(), candidates: z.array(buildingSchema).max(10).optional() }),
+  z.object({ status: z.literal("unavailable"), message: z.string().optional() }),
 ]);
-type Ready = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" }>;
+type Preview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" }>;
+type Plan = Extract<Preview, { plan: unknown }>;
 const chartLabels = { bar: "条形图", column: "柱状图", line: "折线图" } as const;
 
-function matchesPreview(value: Ready, detail: WorkspaceDetail) {
+function matchesPreview(value: Preview, detail: WorkspaceDetail) {
+  if ("mode" in value) {
+    const { command, review } = value;
+    const { buildingIds, period, language } = detail.workspace.context;
+    return command.handoff.projectId === detail.project.id && command.target.expectedVersion === detail.project.version &&
+      command.fingerprint === review.fingerprint && command.handoff.period === review.period && review.period === period &&
+      command.handoff.language === review.language && review.language === language &&
+      command.handoff.source.buildingIds.join() === review.buildingIds.join() && new Set(review.buildingIds).size === review.buildingIds.length &&
+      buildingIds.length > 0 && buildingIds.every(id => review.buildingIds.includes(id)) &&
+      review.buildingIds.includes(review.competitor.id) && !buildingIds.includes(review.competitor.id) &&
+      detail.slides.length + review.pages.length <= 50;
+  }
   const { plan, command, review } = value;
   if (plan.projectId !== detail.project.id || plan.expectedVersion !== detail.project.version) return false;
   if (command?.action === "apply_data_refresh") {
@@ -70,7 +104,7 @@ function matchesPreview(value: Ready, detail: WorkspaceDetail) {
   });
 }
 
-export function ProposalRevision({ call, detail, question, active, selected, objectIds, disabled, onApplied, onOpenData }: {
+export type ProposalRevisionProps = {
   call: Call;
   detail: WorkspaceDetail;
   question: string;
@@ -80,19 +114,25 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   disabled: boolean;
   onApplied: (result: WorkspaceDetail, expectedVersion: number) => void;
   onOpenData: (period?: string) => void;
-}) {
-  const [review, setReview] = useState<{ key: string; value: Ready }>();
+  onAppend: (receipt: z.infer<typeof taskReceiptSchema>, expectedVersion: number) => void;
+};
+
+export function ProposalRevision({ call, detail, question, active, selected, objectIds, disabled, onApplied, onOpenData, onAppend }: ProposalRevisionProps) {
+  const [review, setReview] = useState<{ key: string; value: Preview }>();
+  const [candidates, setCandidates] = useState<{ key: string; items: z.infer<typeof buildingSchema>[] }>();
   const [working, setWorking] = useState<"preview" | "apply">();
   const [message, setMessage] = useState("");
   const request = useRef<AbortController | null>(null);
   const projectId = detail.project.id;
   const expectedVersion = detail.project.version;
   const key = JSON.stringify([projectId, expectedVersion, question, active, selected, objectIds]);
-  const current = review?.key === key ? review.value : undefined;
+  const visible = review?.key === key ? review.value : undefined;
+  const comparison = visible && "mode" in visible ? visible : undefined;
+  const current: Plan | undefined = visible && "plan" in visible ? visible : undefined;
   const quarterReview = current?.command?.action === "apply_data_refresh" ? current.review : undefined;
   useEffect(() => () => request.current?.abort(), []);
 
-  async function run(action: "preview" | "apply") {
+  async function run(action: "preview" | "apply", competitorBuildingId?: string) {
     if (disabled || !question.trim() || !detail.slides.length || request.current) return;
     const controller = new AbortController();
     request.current = controller;
@@ -100,18 +140,27 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
     setWorking(action);
     try {
       if (action === "preview") {
+        setCandidates(undefined);
         const result = outcomeSchema.parse(await call({ action: "proposal_revision", input: {
           projectId, expectedVersion, question: question.trim(), currentPageId: active,
           pageIds: selected, objectIds,
+          ...(competitorBuildingId ? { competitorBuildingId } : {}),
         } }, true, "ai", controller.signal));
         if (controller.signal.aborted) return;
         if ((result.status === "ready" || result.status === "refresh-review") && matchesPreview(result, detail)) {
           setReview({ key, value: result });
         } else {
           setReview(undefined);
-          setMessage(result.status === "clarification" ? result.message
-            : "当前资料或版式无法生成可应用的修改。请缩小范围或指定要更改的内容。");
+          if (result.status === "clarification" && result.candidates?.length) setCandidates({ key, items: result.candidates });
+          const feedback = "message" in result ? result.message : undefined;
+          setMessage(feedback || "当前资料或版式无法生成可应用的修改。请缩小范围或指定要更改的内容。");
         }
+      } else if (comparison) {
+        const receipt = taskReceiptSchema.parse(await call(comparison.command, true, "workspace", controller.signal));
+        if (controller.signal.aborted) return;
+        if (receipt.id !== comparison.command.taskId) throw new Error("追加任务编号不匹配，请重新查询。");
+        setReview(undefined);
+        onAppend(receipt, expectedVersion);
       } else if (current && (!current.plan.refresh || quarterReview?.changed)) {
         const command = current.command ?? {
           action: "apply_modification", plan: current.plan, scope: current.scope, ...(current.theme ? { theme: current.theme } : {}),
@@ -123,7 +172,9 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
       }
     } catch (cause) {
       if (controller.signal.aborted) return;
-      setReview(undefined);
+      const mayRetryAppend = action === "apply" && comparison &&
+        (!(cause instanceof WorkspaceError) || cause.status >= 500 || cause.status === 408);
+      if (!mayRetryAppend) setReview(undefined);
       setMessage(cause instanceof WorkspaceError && cause.status === 409
         ? "项目版本已变化，请重新打开项目后再预览。"
         : cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "修改未完成，请重新预览。");
@@ -142,14 +193,24 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
       loading={working === "preview"} loadingLabel="正在准备修改…" onClick={() => void run("preview")}>
       预览修改
     </Button>
-    {message && <p role="status">{message}</p>}
-    <Dialog open={!!current} onOpenChange={open => { if (!open && !working) setReview(undefined); }}
-      title="核对 AI 修改" size="lg" footer={current && (
+    {message && !visible && <p role="status">{message}</p>}
+    {candidates?.key === key && <div className={styles.form} aria-label="匹配的竞品">
+      {candidates.items.map(candidate => <Button key={candidate.id} variant="secondary" disabled={disabled || !!working}
+        onClick={() => void run("preview", candidate.id)}>{candidate.name}{candidate.submarket && ` · ${candidate.submarket}`}</Button>)}
+    </div>}
+    <Dialog open={!!visible} onOpenChange={open => { if (!open && !working) setReview(undefined); }}
+      title="核对 AI 修改" size="lg" footer={comparison ? <Button disabled={disabled} loading={working === "apply"}
+        loadingLabel="正在提交…" onClick={() => void run("apply")}>{message ? "继续追加" : "追加对比页"}</Button> : current && (
         current.plan.refresh && !quarterReview
           ? <Button onClick={() => { setReview(undefined); onOpenData(suggestedPeriod); }}>打开数据检查器</Button>
           : <Button disabled={disabled || (quarterReview ? !quarterReview.changed : !affected)}
             loading={working === "apply"} loadingLabel="正在应用…" onClick={() => void run("apply")}>应用修改</Button>
       )}>
+      {comparison && <>
+        <p>{comparison.review.competitor.name} · {comparison.review.period} · 追加 {comparison.review.pages.length} 页</p>
+        <EvidencePages pages={comparison.review.pages} />
+        {message && <p role="alert">{message}</p>}
+      </>}
       {current && <>
         {quarterReview ? <DataRefreshComparison review={quarterReview} slides={detail.slides} />
           : <p>{current.plan.refresh

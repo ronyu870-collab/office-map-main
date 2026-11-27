@@ -36,3 +36,21 @@ export function BusinessEvidence({ block }: { block: z.infer<typeof evidenceValu
         rows={block.categories.map((item, index) => [item, ...block.series.map(series => series.values[index] ?? null)])} />;
   }
 }
+
+export function EvidencePages({ pages }: { pages: readonly {
+  title: string; blocks?: z.infer<typeof contentBlockSchema>[]; sources: readonly { label: string }[];
+}[] }) {
+  return <ol className={styles.handoffPages}>
+    {pages.map((page, index) => {
+      const evidence = page.blocks?.filter(block =>
+        block.kind === "table" || block.kind === "chart" || block.kind === "metric" || block.kind === "paragraph") ?? [];
+      return <li key={index}>
+        {evidence.length ? <details open={pages.length === 1 ? true : undefined}>
+          <summary>{page.title}</summary>
+          {evidence.map((block, position) => <BusinessEvidence key={position} block={block} />)}
+        </details> : <strong>{page.title}</strong>}
+        {page.sources.length > 0 && <p>{[...new Set(page.sources.map(item => item.label))].join("、")}</p>}
+      </li>;
+    })}
+  </ol>;
+}
