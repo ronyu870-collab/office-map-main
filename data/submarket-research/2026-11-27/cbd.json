@@ -1,103 +1,251 @@
 {
-  "version": 1,
-  "market": "CBD",
-  "positioning": "国贸及建外商务轴的总部市场，核心区新增甲级办公带来新一轮项目竞争",
-  "updatedOn": "2026-11-27",
-  "focus": "grade-rent",
-  "sources": [
-    {
-      "id": "hq",
-      "title": "北京CBD论坛年会开幕报道",
-      "publisher": "首都之窗",
-      "url": "https://www.beijing.gov.cn/fuwu/lqfw/gggs/202606/t20260616_4701815.html",
-      "publishedOn": "2026-06-16",
-      "observedAt": "2026-06",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "北京CBD官方商务区",
-      "basis": "报道列明区内有125家跨国公司地区总部。"
-    },
-    {
-      "id": "q3",
-      "title": "2026年第三季度北京房地产市场回顾",
-      "publisher": "世邦魏理仕",
-      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
-      "publishedOn": "2026-10-12",
-      "observedAt": "2026Q3",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "external_market",
-      "scope": "世邦魏理仕北京CBD写字楼监测范围",
-      "basis": "第三季度CBD新增项目结束约一年供应空窗，监测将新供给归入CBD。"
-    },
-    {
-      "id": "tower",
-      "title": "跨国公司总部在北京CBD的公开案例",
-      "publisher": "开放北京",
-      "url": "https://open.beijing.gov.cn/html/chaoyang/gzdt/2025/10/1761276368320.html",
-      "publishedOn": "2025-10-24",
-      "observedAt": "案例为2023年开业",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "正大中心",
-      "basis": "公开报道记录穆巴达拉投资公司北京办公室于2023年在正大中心开业。"
-    }
-  ],
   "facts": [
     {
-      "title": "跨国公司地区总部",
-      "body": "2026年6月论坛报道披露了北京CBD功能区的总部数量。",
+      "body": "截至2026年6月，CBD汇集约半数北京跨国公司地区总部，体现其国际商务资源密度。",
       "kind": "industry",
+      "title": "跨国公司地区总部",
       "status": "observed",
+      "measure": {
+        "unit": "家",
+        "value": "125"
+      },
       "sourceIds": [
         "hq"
-      ],
-      "measure": {
-        "value": "125",
-        "unit": "家"
-      }
+      ]
     },
     {
-      "title": "核心区进入新供应周期",
-      "body": "世邦魏理仕在第三季度报告中记录CBD新项目入市，结束其监测的北京办公楼供应空窗。",
+      "body": "2026Q3，世邦魏理仕监测的三个超甲级项目集中进入市场。",
       "kind": "supply",
+      "title": "CBD新供给",
       "status": "observed",
+      "measure": {
+        "unit": "万㎡",
+        "value": "33.2"
+      },
       "sourceIds": [
         "q3"
       ]
     },
     {
-      "title": "国贸片区的国际办公案例",
-      "body": "穆巴达拉投资公司北京办公室是正大中心的公开落位案例。",
+      "body": "莱坊2026Q3独立样本显示，CBD甲级空置率高于该机构北京全市甲级水平（18.1%）。",
+      "kind": "supply",
+      "title": "甲级空置率",
+      "status": "observed",
+      "measure": {
+        "unit": "%",
+        "value": "20.4"
+      },
+      "sourceIds": [
+        "kf"
+      ]
+    },
+    {
+      "body": "莱坊报告识别出Z3、Z5大家未来中心及Z6维晟中心；仲量联行统计四个核心区新项目，其中一栋整体自用。不同机构的新增供应不能直接相加。",
+      "kind": "supply",
+      "title": "核心区新增楼宇",
+      "status": "observed",
+      "sourceIds": [
+        "kf",
+        "jll"
+      ]
+    },
+    {
+      "body": "莱坊报告列举阳狮广告迁至环球金融中心、星石投资迁至国贸大厦A座，分别约6000及3200平方米。",
+      "kind": "industry",
+      "title": "专业服务与资产管理的搬迁案例",
+      "status": "observed",
+      "sourceIds": [
+        "kf"
+      ]
+    },
+    {
+      "body": "官方功能区介绍显示国际金融、商务服务及文化传媒形成互补的产业生态；2026年已有股权投资及私募机构新增落地。",
+      "kind": "industry",
+      "title": "总部商务与专业服务生态",
+      "status": "observed",
+      "sourceIds": [
+        "zone",
+        "hq"
+      ]
+    },
+    {
+      "body": "正大中心2023年迎来穆巴达拉北京办公室，2025年又迎来格罗方德北京办公室，体现国际投资与科技企业商务联系。",
       "kind": "place",
+      "title": "正大中心国际办公案例",
       "status": "observed",
       "sourceIds": [
         "tower"
       ]
     }
   ],
-  "observations": [
+  "focus": "grade-rent",
+  "market": "CBD",
+  "sources": [
     {
-      "title": "同一商务轴上存在两套竞争条件",
-      "body": "总部形象、访客组织和可交付面积让核心区的新旧甲级项目形成直接竞争。为预算约束较强的企业做比选时，优先在同季度分看甲级和乙级，再核对免租及楼层条件。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "CBD存量甲乙级与核心区新供给",
-      "limitation": "官方总部数按功能区认定；外部报告的供给样本独立于地图正式季度。",
-      "sourceIds": [
-        "hq",
-        "q3",
-        "tower"
-      ]
+      "id": "hq",
+      "url": "https://www.beijing.gov.cn/fuwu/lqfw/gggs/202606/t20260616_4701815.html",
+      "basis": "2026年6月CBD论坛公布125家跨国公司地区总部，约占全市一半；当年新增股权投资及私募基金机构落地。",
+      "scope": "北京CBD官方商务区",
+      "title": "北京CBD论坛年会开幕报道",
+      "publisher": "首都之窗",
+      "scopeType": "functional",
+      "observedAt": "2026-06",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-06-16"
+    },
+    {
+      "id": "q3",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "basis": "2026Q3 CBD三个超甲级项目集中入市，办公新增供应33.2万平方米；CBD去化受专业服务企业整合升级带动。北京全市新租面积近七成来自搬迁，升级搬迁占搬迁面积54%。",
+      "scope": "世邦魏理仕北京CBD写字楼监测范围",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-12"
+    },
+    {
+      "id": "tower",
+      "url": "https://open.beijing.gov.cn/html/chaoyang/gzdt/2025/10/1761276368320.html",
+      "basis": "2025年10月格罗方德在正大中心开设办公室；穆巴达拉投资公司北京办公室于2023年在该项目开业。",
+      "scope": "正大中心",
+      "title": "全球领先半导体制造商格罗方德落地北京CBD正大中心",
+      "publisher": "开放北京",
+      "scopeType": "project",
+      "observedAt": "案例为2023年开业",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2025-10-24"
+    },
+    {
+      "id": "jll",
+      "url": "https://www.jll.cn/zh-cn/newsroom/jll-beijing-2026-q3-property-market-review",
+      "basis": "CBD核心区四个项目入市，其中一个整体自用；租户从乙级及普通甲级向新供应与优质存量项目迁移，北京整体新租与扩张需求仍有限。",
+      "scope": "仲量联行北京甲级写字楼市场（空置率排除自用项目）",
+      "title": "北京办公楼市场迎来甲级供应高峰：2026Q3北京房地产市场回顾",
+      "publisher": "仲量联行",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-20"
+    },
+    {
+      "id": "kf",
+      "url": "https://data.eastmoney.com/report/zw_industry.jshtml?infocode=AP202611041831395195",
+      "basis": "CBD甲级空置率20.4%，全市18.1%；新供给集中于Z5、Z6及Z3项目。报告列举阳狮广告迁入环球金融中心约6000平方米、星石投资迁入国贸大厦A座约3200平方米。",
+      "scope": "莱坊北京甲级写字楼市场；CBD及全市独立监测",
+      "title": "北京甲级写字楼市场季度报告（东方财富转载）",
+      "publisher": "莱坊",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-11-04"
+    },
+    {
+      "id": "zone",
+      "url": "https://www.beijing.gov.cn/fuwu/lqfw/ztzl/bjshwzhx/index.html",
+      "basis": "中心区7.04平方公里、功能区84平方公里；总部、国际金融、商务服务和文化传媒为区域产业特色。",
+      "scope": "北京CBD官方功能区（不同于平台办公子市场）",
+      "title": "北京商务中心区功能区介绍",
+      "publisher": "首都之窗",
+      "scopeType": "functional",
+      "observedAt": "页面所列产业集聚与区域边界",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": null
     }
   ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "ba24c1f5-747f-4f96-b2f1-d75422b167e6",
-      "role": "国际办公案例",
-      "reason": "正大中心有可追溯的国际机构办公室落位案例，可作为总部型楼宇样本。",
+      "role": "成熟核心区超甲级",
+      "reason": "国贸大厦A座，莱坊2026Q3公开搬迁案例，体现传统核心商务楼群对金融机构的吸引力。",
+      "sourceIds": [
+        "kf"
+      ],
+      "buildingId": "7016ecd5-d3aa-4db3-8083-e93c884b928e"
+    },
+    {
+      "role": "优质存量升级",
+      "reason": "环球金融中心，莱坊2026Q3公布的大面积专业服务企业搬迁案例。",
+      "sourceIds": [
+        "kf"
+      ],
+      "buildingId": "ed1b84f8-99e8-4c61-ab00-66dcf37c9a44"
+    },
+    {
+      "role": "国际总部样本",
+      "reason": "正大中心有国际投资机构办公落位的公开案例，体现总部办公场景。",
       "sourceIds": [
         "tower"
-      ]
+      ],
+      "buildingId": "ba24c1f5-747f-4f96-b2f1-d75422b167e6"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "总部经济支撑的北京核心办公市场；2026Q3新增超甲级供应集中释放，优质楼宇竞争加剧",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "2026Q3，世邦魏理仕监测CBD新增超甲级办公供应33.2万㎡；莱坊独立样本显示CBD甲级空置率达到20.4%，高于其全市18.1%。新增供应与存量升级需求并存，区域进入新旧项目争夺租户的阶段；租户近期拥有更丰富的品质升级和成本优化选择。",
+      "kind": "inference",
+      "scope": "各公开机构独立监测的CBD甲级/超甲级写字楼",
+      "title": "CBD进入新供应驱动的竞争阶段",
+      "sourceIds": [
+        "q3",
+        "kf"
+      ],
+      "limitation": "33.2万㎡与20.4%来自不同机构，分别反映新增供应和空置，不构成同一序列；与平台正式季度指标分别读取。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "CBD的新增去化由专业服务企业整合与升级推动。阳狮广告与星石投资在Q3分别迁入环球金融中心和国贸大厦A座，说明优质存量仍能吸引专业服务与金融需求；同季北京整体新增扩张有限，不能将搬迁交易等同于净新增办公需求。",
+      "kind": "inference",
+      "scope": "CBD公开成交案例与北京整体需求结构",
+      "title": "需求重心是存量升级，而不是普遍扩张",
+      "sourceIds": [
+        "q3",
+        "kf",
+        "jll"
+      ],
+      "limitation": "公开案例非全部成交，不能据此计算CBD租户行业占比或净吸纳量。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "Z3、Z5、Z6集中释放高品质空间，给既有高端项目带来直接替代压力；而国贸大厦、环球金融中心等存量仍有成熟商务配套与真实迁入案例。普通甲级、乙级面临品质升级型客户分流，更需要依靠租赁成本、空间效率和服务维持竞争力。",
+      "kind": "inference",
+      "scope": "CBD核心区新供给及成熟商务轴上的存量项目",
+      "title": "市场分层：新建超甲与成熟国贸楼群直接竞租",
+      "sourceIds": [
+        "kf",
+        "jll"
+      ],
+      "limitation": "新建项目的实际可租面积、业主自用与出租比例以项目最新资料为准；不同楼宇不适用统一议价幅度。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "CBD聚集125家跨国公司地区总部，国际金融、专业服务及传媒生态是其不同于一般办公区的长期价值。重视客户接待、品牌与总部区位的团队仍有选择CBD的理由；预算敏感的职能团队可对比成熟乙级及其他商务区。同等级实际租金、免租和交付条件决定具体租赁成本。",
+      "kind": "inference",
+      "scope": "北京CBD功能区产业生态与办公选址",
+      "title": "总部区位溢价仍在，但需与租赁成本分开判断",
+      "sourceIds": [
+        "hq",
+        "zone",
+        "jll"
+      ],
+      "limitation": "总部数量不等于租户数量、外资租赁份额或增量需求，平台租金差以同季度有效样本动态计算。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "若大面积搬迁持续转化且退租逐步收敛，优质项目有望消化部分待租面积；若需求以跨楼宇置换为主，原址释放将延长存量去化周期。",
+      "kind": "outlook",
+      "scope": "CBD办公市场",
+      "title": "短期展望：新增空间去化速度决定修复节奏",
+      "sourceIds": [
+        "q3",
+        "kf",
+        "jll"
+      ],
+      "limitation": "条件性展望，不是确定的价格预测。"
     }
   ]
 }

@@ -1,99 +1,173 @@
 {
-  "version": 1,
-  "market": "通州",
-  "positioning": "运河商务区与副中心公共服务逐步兑现的甲级写字楼市场",
-  "updatedOn": "2026-11-27",
-  "focus": "matched-vacancy",
-  "sources": [
-    {
-      "id": "canal",
-      "title": "运河商务区配套及运营概况",
-      "publisher": "北京市商务局",
-      "url": "https://www.beijing.gov.cn/ywdt/zwzt/gjxxfxcs/gjf/xftyq/wlts/202404/t20240410_3615102.html",
-      "publishedOn": "2023-09-27",
-      "observedAt": "2023年公开资料时点",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "运河商务区",
-      "basis": "报道记载爱琴海购物公园已运营、新光大中心大融城一期已开业。"
-    },
-    {
-      "id": "ocean",
-      "title": "北京远洋乐堤港办公项目",
-      "publisher": "北京市投资促进服务局",
-      "url": "https://invest.beijing.gov.cn/tcgz/lqzs/202607/t20260706_4749145.html",
-      "publishedOn": "2026-07-06",
-      "observedAt": "2026-07招商材料",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "北京远洋乐堤港综合体",
-      "basis": "招商材料将写字楼与集中商业作为同一项目组合介绍。"
-    },
-    {
-      "id": "q3",
-      "title": "2026年第三季度北京房地产市场回顾",
-      "publisher": "世邦魏理仕",
-      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
-      "publishedOn": "2026-10-12",
-      "observedAt": "2026Q3",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "external_market",
-      "scope": "世邦魏理仕通州办公监测范围",
-      "basis": "第三季度报告将当地政府机构迁址列为通州需求支撑之一。"
-    }
-  ],
   "facts": [
     {
-      "title": "已运营的商务区配套",
       "body": "政府公开资料把爱琴海购物公园和大融城一期列为实际运营节点，可作为考察运河商务区办公生活配套的起点。",
       "kind": "place",
+      "title": "已运营的商务区配套",
       "status": "observed",
       "sourceIds": [
         "canal"
       ]
     },
     {
-      "title": "写字楼和集中商业一体开发",
       "body": "远洋乐堤港公开招商资料明确包含办公与集中商业两类产品。",
       "kind": "place",
+      "title": "写字楼和集中商业一体开发",
       "status": "observed",
       "sourceIds": [
         "ocean"
       ]
     },
     {
-      "title": "机构迁址提供可识别的需求线索",
       "body": "世邦魏理仕第三季度监测指出，政府机构迁址带动通州部分市场需求。",
       "kind": "industry",
+      "title": "机构迁址提供可识别的需求线索",
       "status": "observed",
       "sourceIds": [
         "q3"
       ]
-    }
-  ],
-  "observations": [
+    },
     {
-      "title": "去化观察应拆开政务联系、项目交付和市场空置",
-      "body": "对政务协作密集型团队，副中心的服务半径本身就是选址价值。横向比较中心城区时，先用平台同样本空置率判断原有楼宇，再看待交付项目是否形成新增可选面积。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "平台通州甲级存量与运河商务区",
-      "limitation": "副中心是更大的功能范围。机构搬迁报道只能解释部分需求，不能代表整个通州标签的出租率。",
+      "body": "第一太平戴维斯监测运河商务区机构租赁带动正吸纳。",
+      "kind": "industry",
+      "title": "季度净吸纳量",
+      "status": "observed",
+      "measure": {
+        "unit": "万㎡",
+        "value": "1.7"
+      },
       "sourceIds": [
-        "canal",
-        "ocean",
-        "q3"
+        "savills-q3"
+      ]
+    },
+    {
+      "body": "同机构Q3运河商务区空置率较上季下降。",
+      "kind": "supply",
+      "title": "空置率下降幅度",
+      "status": "observed",
+      "measure": {
+        "unit": "个百分点",
+        "value": "3.7"
+      },
+      "sourceIds": [
+        "savills-q3"
       ]
     }
   ],
+  "focus": "matched-vacancy",
+  "market": "通州",
+  "sources": [
+    {
+      "id": "canal",
+      "url": "https://www.beijing.gov.cn/ywdt/zwzt/gjxxfxcs/gjf/xftyq/wlts/202404/t20240410_3615102.html",
+      "basis": "报道记载爱琴海购物公园已运营、新光大中心大融城一期已开业。",
+      "scope": "运河商务区",
+      "title": "运河商务区配套及运营概况",
+      "publisher": "北京市商务局",
+      "scopeType": "functional",
+      "observedAt": "2023年公开资料时点",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2023-09-27"
+    },
+    {
+      "id": "ocean",
+      "url": "https://invest.beijing.gov.cn/tcgz/lqzs/202607/t20260706_4749145.html",
+      "basis": "招商材料将写字楼与集中商业作为同一项目组合介绍。",
+      "scope": "北京远洋乐堤港综合体",
+      "title": "北京远洋乐堤港办公项目",
+      "publisher": "北京市投资促进服务局",
+      "scopeType": "project",
+      "observedAt": "2026-07招商材料",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-07-06"
+    },
+    {
+      "id": "q3",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "basis": "第三季度报告将当地政府机构迁址列为通州需求支撑之一。",
+      "scope": "世邦魏理仕通州办公监测范围",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-12"
+    },
+    {
+      "id": "savills-q3",
+      "url": "https://pdf.savills.asia/asia-pacific-research/china-research/beijing-research/beijing-office/26q3-beijing-office-cn.pdf",
+      "basis": "Q3净吸纳约1.7万平方米，政府机构租赁支撑，空置率环比下降3.7个百分点。",
+      "scope": "通州运河商务区甲级办公",
+      "title": "北京办公楼市场简报（2026Q3）",
+      "publisher": "第一太平戴维斯",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": null
+    }
+  ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "1f528d1b-d8af-46af-b300-1fcd598170e8",
       "role": "运河综合体办公样本",
       "reason": "以一座的楼宇记录关联远洋乐堤港综合体，便于核对其办公与商业设施。",
       "sourceIds": [
         "ocean"
-      ]
+      ],
+      "buildingId": "1f528d1b-d8af-46af-b300-1fcd598170e8"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "副中心运河商务区实际机构租赁去化改善，供给兑现与持续市场化需求决定长期平衡",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "第一太平戴维斯Q3录得运河商务区净吸纳约1.7万㎡，空置率环比降3.7个百分点，CBRE亦识别政府机构迁址需求。副中心建设正通过实际办公使用兑现，但不代表全部存量已完成去化。",
+      "kind": "inference",
+      "scope": "通州与运河商务区外部监测",
+      "title": "机构迁址成为明确去化动力",
+      "sourceIds": [
+        "savills-q3",
+        "q3"
+      ],
+      "limitation": "外部报告与平台统计范围不完全一致。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "对依赖政务服务和相关机构邻近的企业，通州具有不同于中心城区的选址价值；对缺乏副中心业务联系的团队，通勤与客户访问成本仍需要权衡。",
+      "kind": "inference",
+      "scope": "副中心与中心城区",
+      "title": "副中心需求与政务协作半径联系更紧密",
+      "sourceIds": [
+        "q3",
+        "savills-q3"
+      ],
+      "limitation": "业务分工为研究判断。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "爱琴海购物公园、大融城及远洋乐堤港等提供商业办公组合。后续市场化租赁承接除楼宇品质外，还依赖员工交通、餐饮和客户访问条件的成熟度。",
+      "kind": "inference",
+      "scope": "运河商务区及综合体",
+      "title": "综合体运营关系到办公使用体验",
+      "sourceIds": [
+        "canal",
+        "ocean"
+      ],
+      "limitation": "具体项目配套与出租率各异。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "若机构落位后有持续金融、专业服务及总部租赁需求，空置有望收敛；若去化集中于少数机构而供给仍增加，存量竞争将持续。",
+      "kind": "outlook",
+      "scope": "通州短期办公市场",
+      "title": "市场化需求能否接力是后续关键",
+      "sourceIds": [
+        "q3",
+        "savills-q3",
+        "ocean"
+      ],
+      "limitation": "条件性判断，不预测租金。"
     }
   ]
 }

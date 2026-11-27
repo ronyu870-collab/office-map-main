@@ -23,7 +23,7 @@ type Project = {
   vacancy: number;
   building: MarketBuilding & { photos?: unknown };
 };
-type Example = { project: Project; role: string; reason: string; detailReason?: string; sourceIds?: string[] };
+type Example = { project: Project; role: string; reason: string; detailReason?: string };
 
 function projectRecord(building: MarketBuilding, id: string, grade: Project['grade']): Project {
   const fact = latestFormalMetric(building.metrics);
@@ -119,13 +119,12 @@ function ProjectPhotos({ id, name, photos }: { id: string; name: string; photos:
   return <div ref={root} className="workspace-building-photos mt-2" dangerouslySetInnerHTML={markup} />;
 }
 
-export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, compact = false, curated, sources }: {
+export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, compact = false, curated }: {
   buildings: readonly MarketBuilding[];
   submarket: string;
   onOpen: (id: string) => void;
   compact?: boolean;
   curated?: SubmarketIntelligence['projects'];
-  sources?: SubmarketIntelligence['sources'];
 }) {
   const curatedExamples = React.useMemo((): Example[] => {
     if (!curated?.length) return [];
@@ -145,15 +144,13 @@ export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, 
       <h3 id={heading} className="submarket-project-heading">代表性项目</h3>
       {!examples.length ? <p className="submarket-project-empty">当前筛选内暂无代表项目。</p> : (
         <ul className="submarket-project-grid">
-          {examples.map(({ project, role, reason, detailReason, sourceIds }) => (
+          {examples.map(({ project, role, reason, detailReason }) => (
             <li key={project.id} className="submarket-project-row">
               <button type="button" onClick={() => onOpen(project.id)} className="submarket-project-link">
                 <span className="min-w-0 break-words">{project.name}</span><ChevronRight size={16} aria-hidden="true" className="shrink-0" />
               </button>
               {!compact && <ProjectMetrics project={project} />}
               <p className="submarket-project-reason"><span className="submarket-project-role">{role}</span>{role === `${gradeNames[project.grade]}样本` ? '' : ` · ${gradeNames[project.grade]}`} · {compact ? reason : detailReason ?? reason}</p>
-              {!compact && sourceIds ? sources?.filter(source => sourceIds.includes(source.id)).map(source =>
-                <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" className="submarket-link-action">{source.title}</a>) : null}
               {!compact && <ApprovedProjectPhotos project={project} />}
             </li>
           ))}

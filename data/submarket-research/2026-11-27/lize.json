@@ -1,94 +1,202 @@
 {
-  "version": 1,
-  "market": "丽泽",
-  "positioning": "西南二、三环之间的集中开发商务区，新金融场景与办公去化同步演进",
-  "updatedOn": "2026-11-27",
-  "focus": "matched-vacancy",
-  "sources": [
-    {
-      "id": "entry",
-      "title": "丽泽保险科技大会及全域场景行动",
-      "publisher": "开放北京",
-      "url": "https://open.beijing.gov.cn/html/kfdt/sddt/2026/7/1784877808756.html",
-      "publishedOn": "2026-07-20",
-      "observedAt": "2026-07会议披露",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "丽泽金融商务区管委会统计范围",
-      "basis": "会议公布入驻企业超过1700家，并发布2026—2028年培育开放高价值场景的行动计划。"
-    },
-    {
-      "id": "lize-metro",
-      "title": "16号线丽泽商务区站开通公告",
-      "publisher": "首都之窗转引北京日报",
-      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202501/t20250119_3992490.html",
-      "publishedOn": "2025-01-19",
-      "observedAt": "2025-01-19起",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "network",
-      "scope": "丽泽商务区站及毗邻楼宇",
-      "basis": "16号线丽泽商务区站与14号线正式换乘，公告列明丽泽SOHO为毗邻项目。"
-    }
-  ],
   "facts": [
     {
-      "title": "丽泽商务区站",
       "body": "16号线丽泽商务区站于2025年1月19日开通，可在站内与14号线换乘。",
       "kind": "transit",
-      "status": "observed",
-      "sourceIds": [
-        "lize-metro"
-      ],
       "lines": [
         "14号线",
         "16号线"
+      ],
+      "title": "丽泽商务区站",
+      "status": "observed",
+      "sourceIds": [
+        "lize-metro"
       ]
     },
     {
-      "title": "入驻企业规模",
       "body": "2026年7月保险科技大会公布的功能区入驻规模。",
       "kind": "industry",
+      "title": "入驻企业规模",
       "status": "observed",
+      "measure": {
+        "unit": "家",
+        "value": "超过1700"
+      },
       "sourceIds": [
         "entry"
-      ],
-      "measure": {
-        "value": "超过1700",
-        "unit": "家"
-      }
+      ]
     },
     {
-      "title": "保险科技应用场景",
       "body": "2026—2028年行动计划拟开放高价值场景，涉及保险科技等方向。",
       "kind": "policy",
+      "title": "保险科技应用场景",
       "status": "planned",
       "sourceIds": [
         "entry"
       ]
-    }
-  ],
-  "observations": [
+    },
     {
-      "title": "判断去化要看同样本空置率与项目投用顺序",
-      "body": "已经兑现的地铁换乘有助于把丽泽纳入总部与后台团队的选址范围。进一步比较金融街时，可观察同一批办公项目的空置变化，并用单独的交付时间表判断供给增量。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "丽泽金融商务区与平台现有写字楼样本",
-      "limitation": "功能区入驻企业包含多种载体；人数、企业数和场景数均无法替代出租面积。",
+      "body": "第一太平戴维斯记录金融和大型国央企需求带动实际去化。",
+      "kind": "industry",
+      "title": "季度净吸纳",
+      "status": "observed",
+      "measure": {
+        "unit": "万㎡",
+        "value": "6.1"
+      },
       "sourceIds": [
-        "lize-metro",
-        "entry"
+        "savills-q3"
+      ]
+    },
+    {
+      "body": "同机构Q3监测丽泽空置率下行，租金同期下降3.6%。",
+      "kind": "supply",
+      "title": "空置率环比下降幅度",
+      "status": "observed",
+      "measure": {
+        "unit": "个百分点",
+        "value": "4.1"
+      },
+      "sourceIds": [
+        "savills-q3"
+      ]
+    },
+    {
+      "body": "华能置业约35000㎡、银河证券及银河期货约8000㎡新租。",
+      "kind": "industry",
+      "title": "大面积机构案例",
+      "status": "observed",
+      "sourceIds": [
+        "savills-q3"
+      ]
+    },
+    {
+      "body": "2025年度工作数据记录37座楼宇的空间规模。",
+      "kind": "supply",
+      "title": "功能区空间承载规模",
+      "status": "observed",
+      "measure": {
+        "unit": "万㎡",
+        "value": "219"
+      },
+      "sourceIds": [
+        "lize2025"
       ]
     }
   ],
+  "focus": "matched-vacancy",
+  "market": "丽泽",
+  "sources": [
+    {
+      "id": "entry",
+      "url": "https://open.beijing.gov.cn/html/kfdt/sddt/2026/7/1784877808756.html",
+      "basis": "会议公布入驻企业超过1700家，并发布2026—2028年培育开放高价值场景的行动计划。",
+      "scope": "丽泽金融商务区管委会统计范围",
+      "title": "丽泽保险科技大会及全域场景行动",
+      "publisher": "开放北京",
+      "scopeType": "functional",
+      "observedAt": "2026-07会议披露",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-07-20"
+    },
+    {
+      "id": "lize-metro",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202501/t20250119_3992490.html",
+      "basis": "16号线丽泽商务区站与14号线正式换乘，公告列明丽泽SOHO为毗邻项目。",
+      "scope": "丽泽商务区站及毗邻楼宇",
+      "title": "16号线丽泽商务区站开通公告",
+      "publisher": "首都之窗转引北京日报",
+      "scopeType": "network",
+      "observedAt": "2025-01-19起",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2025-01-19"
+    },
+    {
+      "id": "savills-q3",
+      "url": "https://pdf.savills.asia/asia-pacific-research/china-research/beijing-research/beijing-office/26q3-beijing-office-cn.pdf",
+      "basis": "Q3净吸纳6.1万平方米、空置率环比下降4.1个百分点、租金环比下降3.6%；华能置业金唐西联大厦35000平方米新租，银河证券及银河期货国家金融信息大厦8000平方米新租。",
+      "scope": "丽泽甲级办公楼市场",
+      "title": "北京办公楼市场简报（2026Q3）",
+      "publisher": "第一太平戴维斯",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": null
+    },
+    {
+      "id": "lize2025",
+      "url": "https://www.beijing.gov.cn/fuwu/lqfw/gggs/202601/t20260105_4399580.html",
+      "basis": "37座楼宇提供219万平方米空间，入驻企业1520家。",
+      "scope": "丽泽金融商务区",
+      "title": "丽泽2025年工作数据",
+      "publisher": "首都之窗",
+      "scopeType": "functional",
+      "observedAt": "2025年度",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-01-05"
+    }
+  ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "4d674e7b-9f32-465f-8c48-ecd17daf00d4",
       "role": "换乘站邻近写字楼",
       "reason": "地铁开通公告确认丽泽SOHO位于丽泽商务区站附近，可作为现有轨道条件下的实地比选样本。",
       "sourceIds": [
         "lize-metro"
-      ]
+      ],
+      "buildingId": "4d674e7b-9f32-465f-8c48-ecd17daf00d4"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "新兴金融商务区进入实质去化阶段，大面积机构需求与租金竞争并存",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "第一太平戴维斯Q3监测丽泽净吸纳约6.1万㎡，空置率环比降4.1个百分点，租金仍下调3.6%。区域已具备实质需求承接能力，但租金尚未因成交改善而修复。",
+      "kind": "inference",
+      "scope": "丽泽甲级办公样本",
+      "title": "去化改善伴随价格让渡",
+      "sourceIds": [
+        "savills-q3"
+      ],
+      "limitation": "外部市场与功能区统计独立。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "华能置业与银河证券、银河期货的公开成交体现丽泽大面积办公承接能力。2026年7月披露入驻企业超过1700家，但企业数量与写字楼出租面积并无直接换算关系。",
+      "kind": "inference",
+      "scope": "丽泽功能区及办公市场",
+      "title": "大型机构落位是需求的重要支撑",
+      "sourceIds": [
+        "savills-q3",
+        "entry",
+        "lize2025"
+      ],
+      "limitation": "公开案例不等于完整租户结构。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "14号线与16号线已在丽泽商务区站换乘。对需要整合多部门、大面积办公而不必须靠近核心监管机构的团队，丽泽相较传统金融街具有更现实的替代价值。",
+      "kind": "inference",
+      "scope": "丽泽和金融街",
+      "title": "交通兑现扩大金融机构选址范围",
+      "sourceIds": [
+        "lize-metro",
+        "savills-q3"
+      ],
+      "limitation": "不推算实际跨区迁移比例。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "若大面积租赁接续落地，空置有望收敛；若新项目入市速度快于实际承接，价格竞争仍可能持续。",
+      "kind": "outlook",
+      "scope": "丽泽短期办公市场",
+      "title": "持续去化决定未来平衡",
+      "sourceIds": [
+        "savills-q3",
+        "entry"
+      ],
+      "limitation": "条件判断，不虚构未来供给。"
     }
   ]
 }

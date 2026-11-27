@@ -1,102 +1,152 @@
 {
-  "version": 1,
-  "market": "四季青",
-  "positioning": "四季青镇与西部路网交会处的少量科创、产业更新载体",
-  "updatedOn": "2026-11-27",
-  "focus": "stock",
-  "sources": [
-    {
-      "id": "renewal",
-      "title": "龙徽1910文化创意产业园改造",
-      "publisher": "海淀区人民政府转引海淀报",
-      "url": "https://zyk.bjhd.gov.cn/ywdt/hdywx/202207/t20220727_4545063.shtml?type=computer",
-      "publishedOn": "2022-07-27",
-      "observedAt": "2022-07改造完成",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "海淀西部龙徽1910文化创意产业园",
-      "basis": "报道记录葡萄酒厂的综合升级完成，新增面向社区的开放文化街区。"
-    },
-    {
-      "id": "incubator",
-      "title": "中关村科学城四季科创中心简介",
-      "publisher": "北京市退役军人事务局",
-      "url": "https://tyjrswj.beijing.gov.cn/ywdt/xwdt/202410/t20241031_3931722.html",
-      "publishedOn": "2024-10-30",
-      "observedAt": "2024-10园区介绍",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "中关村科学城四季科创中心",
-      "basis": "四季科创中心获列市级退役军人就业创业园，提供创业载体与服务。"
-    },
-    {
-      "id": "rail",
-      "title": "3号线一期、12号线及昌平线南延开通公告",
-      "publisher": "首都之窗转引北京市交通委",
-      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202412/t20241213_3964726.html",
-      "publishedOn": "2024-12-13",
-      "observedAt": "2024-12-15起",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "network",
-      "scope": "12号线西端四季青桥站",
-      "basis": "12号线自四季青桥驶向东坝北，2024年12月开通试运营。"
-    }
-  ],
   "facts": [
     {
-      "title": "存量更新提供不同于标准办公楼的空间",
       "body": "龙徽1910完成原葡萄酒厂改造，形成开放文化街区和园区空间，是海淀西部的更新参照。",
       "kind": "place",
+      "title": "存量更新提供不同于标准办公楼的空间",
       "status": "observed",
       "sourceIds": [
         "renewal"
       ]
     },
     {
-      "title": "四季科创中心有明确孵化用途",
       "body": "四季科创中心获列北京市退役军人就业创业园。",
       "kind": "industry",
+      "title": "四季科创中心有明确孵化用途",
       "status": "observed",
       "sourceIds": [
         "incubator"
       ]
     },
     {
-      "title": "四季青桥站",
       "body": "12号线自四季青桥站向北三环和城东北运行，具体园区仍需分别测算到站距离。",
       "kind": "transit",
+      "lines": [
+        "12号线"
+      ],
+      "title": "四季青桥站",
       "status": "observed",
       "sourceIds": [
         "rail"
-      ],
-      "lines": [
-        "12号线"
       ]
-    }
-  ],
-  "observations": [
+    },
     {
-      "title": "这里更适合逐个园区问价",
-      "body": "孵化办公和旧厂房更新项目有不同的装修与运营条件。报价核验要落到楼座、面积口径、交付条件和生效日期；历史固定参考价无法反映薄样本下的可比成交。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "四季青平台园区及海淀西部更新案例",
-      "limitation": "暂无足够同口径正式样本来估算区域均价。",
+      "body": "四季青科创中心公开介绍列明其建筑面积。",
+      "kind": "place",
+      "title": "专业科创载体规模",
+      "status": "observed",
+      "measure": {
+        "unit": "万㎡",
+        "value": "11"
+      },
       "sourceIds": [
-        "renewal",
-        "incubator",
-        "rail"
+        "sciencepark"
       ]
     }
   ],
+  "focus": "stock",
+  "market": "四季青",
+  "sources": [
+    {
+      "id": "renewal",
+      "url": "https://zyk.bjhd.gov.cn/ywdt/hdywx/202207/t20220727_4545063.shtml?type=computer",
+      "basis": "报道记录葡萄酒厂的综合升级完成，新增面向社区的开放文化街区。",
+      "scope": "海淀西部龙徽1910文化创意产业园",
+      "title": "龙徽1910文化创意产业园改造",
+      "publisher": "海淀区人民政府转引海淀报",
+      "scopeType": "project",
+      "observedAt": "2022-07改造完成",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2022-07-27"
+    },
+    {
+      "id": "incubator",
+      "url": "https://tyjrswj.beijing.gov.cn/ywdt/xwdt/202410/t20241031_3931722.html",
+      "basis": "四季科创中心获列市级退役军人就业创业园，提供创业载体与服务。",
+      "scope": "中关村科学城四季科创中心",
+      "title": "中关村科学城四季科创中心简介",
+      "publisher": "北京市退役军人事务局",
+      "scopeType": "project",
+      "observedAt": "2024-10园区介绍",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2024-10-30"
+    },
+    {
+      "id": "rail",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202412/t20241213_3964726.html",
+      "basis": "12号线自四季青桥驶向东坝北，2024年12月开通试运营。",
+      "scope": "12号线西端四季青桥站",
+      "title": "3号线一期、12号线及昌平线南延开通公告",
+      "publisher": "首都之窗转引北京市交通委",
+      "scopeType": "network",
+      "observedAt": "2024-12-15起",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2024-12-13"
+    },
+    {
+      "id": "sciencepark",
+      "url": "https://www.ncsti.gov.cn/kjdt/yqdy/?idx=4",
+      "basis": "建筑面积11万平方米，以新一代信息技术为主，设军地对接、创业服务等平台。",
+      "scope": "四季青科创中心",
+      "title": "中关村四季青科创中心园区介绍",
+      "publisher": "北京科技创新服务平台",
+      "scopeType": "project",
+      "observedAt": "网页所列园区情况，统计日期未注明",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": null
+    }
+  ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "aaa5882b-f7c2-4efa-8040-1c71f7a9bc00",
       "role": "孵化服务载体",
       "reason": "市级公开资料确认项目的创业孵化和服务用途。",
       "sourceIds": [
         "incubator"
-      ]
+      ],
+      "buildingId": "aaa5882b-f7c2-4efa-8040-1c71f7a9bc00"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "海淀西部特色科创与更新园区，以具体产业服务和空间形态形成差异",
+  "observations": [
+    {
+      "asOf": "2026-11",
+      "body": "四季青科创中心具备新一代信息技术与创业服务定位；龙徽1910则由旧厂房更新形成文化创意空间。不同载体具有独立产业及运营逻辑，不能以区域均价描述供需。",
+      "kind": "inference",
+      "scope": "四季青科创与更新园区",
+      "title": "市场价值来自特色项目而非统一办公大盘",
+      "sourceIds": [
+        "sciencepark",
+        "renewal",
+        "incubator"
+      ],
+      "limitation": "没有覆盖整个子市场的公开净吸纳。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "12号线四季青桥站扩大西部园区交通选择。需要海淀西部创业服务、研发办公或展示空间的团队可按实际到站距离和空间用途比选。",
+      "kind": "inference",
+      "scope": "四季青桥及周边园区",
+      "title": "轨道改善增加西部园区的补充选址价值",
+      "sourceIds": [
+        "rail",
+        "sciencepark"
+      ],
+      "limitation": "轨道兑现不等于已产生租赁需求。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "孵化型项目应突出产业对接、成长空间及服务，文化更新项目则面向有创意展示和灵活空间需求的团队。缺少充分市场样本时，应以项目级报价和交付条件为依据。",
+      "kind": "inference",
+      "scope": "四季青特色产业园",
+      "title": "专业运营比泛化市场宣传更重要",
+      "sourceIds": [
+        "sciencepark",
+        "incubator",
+        "renewal"
+      ],
+      "limitation": "不发布无依据的市场价格变化。"
     }
   ]
 }

@@ -1,80 +1,149 @@
 {
-  "version": 1,
-  "market": "上地",
-  "positioning": "上地—后厂村的软件企业园区，大体量研发办公与跨区通勤同等重要",
-  "updatedOn": "2026-11-27",
-  "focus": "stock",
-  "sources": [
-    {
-      "id": "park",
-      "title": "中关村软件园二期与后厂村",
-      "publisher": "北京市公安局海淀分局",
-      "url": "https://gaj.beijing.gov.cn/xxfb/fjjx/202404/t20240426_3640520.html",
-      "publishedOn": "2024-04-26",
-      "observedAt": "2015年前后二期投用；2024年回顾",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "中关村软件园一二期",
-      "basis": "二期投用过程中，百度、新浪等互联网企业迁入。"
-    },
-    {
-      "id": "metro",
-      "title": "地铁18号线首日开通报道",
-      "publisher": "首都之窗",
-      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202512/t20251228_4370895.html",
-      "publishedOn": "2025-12-28",
-      "observedAt": "2025-12-27开通",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "network",
-      "scope": "18号线上地软件园站及西段",
-      "basis": "18号线西端服务中关村软件园，开通首日已有乘客到达上地软件园站。"
-    }
-  ],
   "facts": [
     {
-      "title": "软件园二期改变了办公空间规模",
       "body": "二期在2015年前后陆续投用。百度、新浪等企业迁入是公开可追溯的研发办公集聚案例。",
       "kind": "industry",
+      "title": "软件园二期改变了办公空间规模",
       "status": "observed",
       "sourceIds": [
         "park"
       ]
     },
     {
-      "title": "上地软件园站",
       "body": "18号线已接入软件园，可把到站后步行和园区入口作为大团队通勤测算的一部分。",
       "kind": "transit",
+      "lines": [
+        "18号线"
+      ],
+      "title": "上地软件园站",
       "status": "observed",
       "sourceIds": [
         "metro"
-      ],
-      "lines": [
-        "18号线"
       ]
-    }
-  ],
-  "observations": [
+    },
     {
-      "title": "整层或园区级组合优先看人流峰值",
-      "body": "将研发团队的面积需求、园区楼栋间步行、地铁到门岗和早晚高峰接驳放进同一张选址表。中关村核心办公可补充客户访问半径，上地更适合进一步核对成片研发办公选择。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "中关村软件园及上地园区",
-      "limitation": "企业搬迁为历史案例；园区统计不推断当前整层可租面积。",
+      "body": "CBRE全市商务园区Q3新租需求中TMT占比升高。",
+      "kind": "industry",
+      "title": "园区需求向科技行业集中",
+      "status": "observed",
+      "measure": {
+        "unit": "%",
+        "value": "74"
+      },
       "sourceIds": [
-        "park",
-        "metro"
+        "market-q3"
+      ]
+    },
+    {
+      "body": "报告指出上地与软件园办公载体同质化及周边新项目分流。",
+      "kind": "supply",
+      "title": "标准研发空间竞争",
+      "status": "observed",
+      "sourceIds": [
+        "market-q3"
       ]
     }
   ],
+  "focus": "stock",
+  "market": "上地",
+  "sources": [
+    {
+      "id": "park",
+      "url": "https://gaj.beijing.gov.cn/xxfb/fjjx/202404/t20240426_3640520.html",
+      "basis": "二期投用过程中，百度、新浪等互联网企业迁入。",
+      "scope": "中关村软件园一二期",
+      "title": "中关村软件园二期与后厂村",
+      "publisher": "北京市公安局海淀分局",
+      "scopeType": "project",
+      "observedAt": "2015年前后二期投用；2024年回顾",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2024-04-26"
+    },
+    {
+      "id": "metro",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202512/t20251228_4370895.html",
+      "basis": "18号线西端服务中关村软件园，开通首日已有乘客到达上地软件园站。",
+      "scope": "18号线上地软件园站及西段",
+      "title": "地铁18号线首日开通报道",
+      "publisher": "首都之窗",
+      "scopeType": "network",
+      "observedAt": "2025-12-27开通",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2025-12-28"
+    },
+    {
+      "id": "market-q3",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "basis": "Q3全市园区TMT占新租74%，上半年42%；上地及中关村软件园同质化较高、受周边新载体分流，仍需积极调价。",
+      "scope": "北京商务园区及上地、软件园监测",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-12"
+    }
+  ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "8b13f7a2-4516-4d8f-8861-435a0aa2de9c",
       "role": "软件园办公样本",
       "reason": "平台将互联网创新中心作为独立项目关联至中关村软件园。",
       "sourceIds": [
         "park"
-      ]
+      ],
+      "buildingId": "8b13f7a2-4516-4d8f-8861-435a0aa2de9c"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "软件园及大体量研发办公形成产业基础，标准研发产品面临同质化竞争",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "CBRE Q3观察北京园区科技需求恢复，但上地和软件园因标准办公载体相似及周边较新项目分流仍面临调价压力。需求增长与具体物业空置竞争可以并存。",
+      "kind": "inference",
+      "scope": "北京商务园区及上地",
+      "title": "园区科技需求增长并不意味着上地全面回暖",
+      "sourceIds": [
+        "market-q3"
+      ],
+      "limitation": "全市TMT占比不是上地行业占比。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "软件园二期投用后百度、新浪等迁入，反映区域承接成片研发办公的能力。与核心中关村相比，价值更偏向大面积团队协作及研发空间，而不是总部接待。",
+      "kind": "inference",
+      "scope": "上地及软件园",
+      "title": "大型研发办公构成区域结构性优势",
+      "sourceIds": [
+        "park",
+        "market-q3"
+      ],
+      "limitation": "历史案例不是当季新增成交。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "18号线上地软件园站已运营。对大体量研发团队，实际门到门通勤及园区内步行与接驳同样重要，应结合楼栋间协作成本判断。",
+      "kind": "inference",
+      "scope": "软件园站及周边园区",
+      "title": "轨道接入改善部分通勤约束",
+      "sourceIds": [
+        "metro",
+        "park"
+      ],
+      "limitation": "不同园区的实际到站距离不同。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "面对周边新供给，通用办公项目仍可能需要积极调价；具备可扩展面积、机房、电力及快速交付条件的研发项目更有针对性。",
+      "kind": "outlook",
+      "scope": "上地短期研发办公",
+      "title": "同质化竞争需要空间与服务差异",
+      "sourceIds": [
+        "market-q3",
+        "park"
+      ],
+      "limitation": "条件性判断，不提供具体租金预测。"
     }
   ]
 }

@@ -197,14 +197,16 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   await projects.waitFor();
   assert.equal(await projectsTab.getAttribute('aria-selected'),'true','building round trip preserves the representative projects tab');
 
-  const methodology = panel.locator('.map-methodology-trigger > summary');
-  await methodology.scrollIntoViewIfNeeded();
-  await methodology.press('Enter');
-  const methodologyPanel=page.getByRole('region',{name:'数据与统计口径',exact:true});
-  await methodologyPanel.getByRole('heading',{name:'当前筛选的存量',exact:true}).waitFor();
-  await page.keyboard.press('Escape');
-  await page.locator('.map-disclosure-content').waitFor({state:'detached'});
-  assert.ok(await methodology.evaluate(el=>el===document.activeElement),'research methodology closes without leaving the reading workspace');
+  assert.equal(await panel.locator('.map-methodology-trigger').count(),0,'customer submarket reading does not expose statistical methodology');
+  // The shared photo viewer pre-renders three anchors, including hidden license
+  // and original-image controls. These are media provenance/actions, not research
+  // citations. Only allow those exact controls inside the real gallery; still
+  // reject all other anchors, even ones without target="_blank" or currently hidden.
+  const researchLinks = await projects.locator('a').evaluateAll(links => links
+    .filter(link => !(link.closest('.workspace-building-photos [data-building-photo-gallery]') &&
+      link.matches('[data-building-photo-source], [data-building-photo-license], [data-building-photo-original]')))
+    .map(link => ({ text: link.textContent?.trim(), href: link.getAttribute('href') })));
+  assert.deepEqual(researchLinks, [], 'representative projects do not expose research source links');
 
   await visitAllProjects();
   await projects.waitFor();

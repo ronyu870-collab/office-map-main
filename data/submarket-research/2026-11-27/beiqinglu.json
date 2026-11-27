@@ -1,77 +1,144 @@
 {
-  "version": 1,
-  "market": "北清路",
-  "positioning": "海淀北部专业园区带，研发设计与实验中试对楼宇条件的要求不同",
-  "updatedOn": "2026-11-27",
-  "focus": "stock",
-  "sources": [
-    {
-      "id": "ic",
-      "title": "中关村集成电路设计园案例",
-      "publisher": "北京市科委、中关村管委会",
-      "url": "https://kw.beijing.gov.cn/xwdt/bmdt/202301/t20230118_3815788.html",
-      "publishedOn": "2023-01-18",
-      "observedAt": "2023-01项目介绍",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "北清路沿线中关村集成电路设计园",
-      "basis": "IC PARK位于北清路科创发展轴，围绕集成电路设计提供专业服务与空间。"
-    },
-    {
-      "id": "life",
-      "title": "海星医药健康创新园改造项目报道",
-      "publisher": "北京市发展和改革委员会转引北京日报",
-      "url": "https://fgw.beijing.gov.cn/gzdt/fgzs/mtbdx/bzwlxw/202502/t20250211_4007889.htm",
-      "publishedOn": "2025-02-10",
-      "observedAt": "2025-02工程进度",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "北清路周边海星医药健康创新园项目",
-      "basis": "报道介绍项目建设阶段与拟覆盖的医药研发、中试和生产链条；当时的投用时间属于预期。"
-    }
-  ],
   "facts": [
     {
-      "title": "北清路已有专业集成电路设计载体",
       "body": "IC PARK通过园区空间和专业服务，承接集成电路设计团队。",
       "kind": "industry",
+      "title": "北清路已有专业集成电路设计载体",
       "status": "observed",
       "sourceIds": [
         "ic"
       ]
     },
     {
-      "title": "医药研发和中试的项目定位",
       "body": "海星项目在2025年2月工程报道中将创新药研发与中试作为建设方向。",
       "kind": "industry",
+      "title": "医药研发和中试的项目定位",
       "status": "planned",
       "sourceIds": [
         "life"
       ]
-    }
-  ],
-  "observations": [
+    },
     {
-      "title": "空间核验顺序随研发工艺改变",
-      "body": "芯片设计办公可先比对供电、机房及上下游服务。涉及实验和中试时，应先核验环评、给排水、排风以及设备运输，再评估租赁成本和到站接驳。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "北清路专业研发载体",
-      "limitation": "2025年工程报道不足以确认海星现时招商、交付状态或实验许可。",
+      "body": "CBRE将北清路列为Q3园区租金降幅领先的区域。",
+      "kind": "supply",
+      "title": "集中供应带来的价格压力",
+      "status": "observed",
       "sourceIds": [
-        "ic",
-        "life"
+        "market-q3"
+      ]
+    },
+    {
+      "body": "报告记录AI与芯片半导体带动北京商务园区新租。",
+      "kind": "industry",
+      "title": "硬科技需求",
+      "status": "observed",
+      "sourceIds": [
+        "market-q3"
       ]
     }
   ],
+  "focus": "stock",
+  "market": "北清路",
+  "sources": [
+    {
+      "id": "ic",
+      "url": "https://kw.beijing.gov.cn/xwdt/bmdt/202301/t20230118_3815788.html",
+      "basis": "IC PARK位于北清路科创发展轴，围绕集成电路设计提供专业服务与空间。",
+      "scope": "北清路沿线中关村集成电路设计园",
+      "title": "中关村集成电路设计园案例",
+      "publisher": "北京市科委、中关村管委会",
+      "scopeType": "project",
+      "observedAt": "2023-01项目介绍",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2023-01-18"
+    },
+    {
+      "id": "life",
+      "url": "https://fgw.beijing.gov.cn/gzdt/fgzs/mtbdx/bzwlxw/202502/t20250211_4007889.htm",
+      "basis": "报道介绍项目建设阶段与拟覆盖的医药研发、中试和生产链条；当时的投用时间属于预期。",
+      "scope": "北清路周边海星医药健康创新园项目",
+      "title": "海星医药健康创新园改造项目报道",
+      "publisher": "北京市发展和改革委员会转引北京日报",
+      "scopeType": "project",
+      "observedAt": "2025-02工程进度",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2025-02-10"
+    },
+    {
+      "id": "market-q3",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "basis": "北清路集中供应、待去化体量大，Q3租金降幅领先；全市园区AI和芯片半导体是新租主要拉动项。",
+      "scope": "北清路与北京商务园区监测",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-12"
+    }
+  ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "823578d7-4ed6-4dc3-aadc-fffc69caef28",
       "role": "集成电路设计载体",
       "reason": "官方园区案例确认IC PARK位于北清路并面向芯片设计链条。",
       "sourceIds": [
         "ic"
-      ]
+      ],
+      "buildingId": "823578d7-4ed6-4dc3-aadc-fffc69caef28"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "海淀北部硬科技研发载体集中，产业需求与集中供应压力并存",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "CBRE指出北清路产业生态及载体多样，但较大待去化体量使其Q3租金降幅领先。硬科技需求改善不代表全部项目都能快速消化空置。",
+      "kind": "inference",
+      "scope": "北清路园区外部监测",
+      "title": "产业集聚不能抵消集中供应压力",
+      "sourceIds": [
+        "market-q3"
+      ],
+      "limitation": "报告没有可直接用于平台边界的精确净吸纳。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "IC PARK集成电路设计服务与海星医药健康项目体现不同载体方向。芯片设计与实验中试对供电、环评、排风和物流要求不同，不宜采用统一园区价格比较。",
+      "kind": "inference",
+      "scope": "北清路科创轴",
+      "title": "专业研发需要按用途而不是普通办公划分",
+      "sourceIds": [
+        "ic",
+        "life"
+      ],
+      "limitation": "海星建设报道不证明当前已交付。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "上地偏大型标准研发办公，北清路更适合需要产业链及专业实验条件的团队。轻办公需求则可比较周边标准载体的实际总租赁成本。",
+      "kind": "inference",
+      "scope": "海淀北部研发载体",
+      "title": "与上地构成标准研发及专业研发分工",
+      "sourceIds": [
+        "ic",
+        "life",
+        "market-q3"
+      ],
+      "limitation": "产品分工为选址分析。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "若硬科技实际租赁持续落地，专业适配项目可能率先去化；通用型园区仍受集中供给压力影响。",
+      "kind": "outlook",
+      "scope": "北清路园区",
+      "title": "短期竞争重点是可使用专业空间",
+      "sourceIds": [
+        "market-q3",
+        "ic",
+        "life"
+      ],
+      "limitation": "条件性展望，不预测具体价格。"
     }
   ]
 }
