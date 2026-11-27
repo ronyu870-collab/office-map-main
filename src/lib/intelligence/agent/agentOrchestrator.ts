@@ -163,7 +163,7 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
   const toolNames: string[] = [], phases: AgentPhase[] = ['understanding'];
   let result: T | undefined;
   const failures: Array<{ tool: string; code: string }> = [];
-  const run = async (name: string, args: Record<string, unknown>) => {
+  const run = async (name: string, args: Record<string, unknown>, supplemental = false) => {
     input.signal.throwIfAborted(); await input.revalidate?.(input.signal);
     await input.onEvent?.({ type: 'tool_started', name });
     const started = Date.now(); toolNames.push(name);
@@ -175,8 +175,16 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
       await input.onEvent?.({ type: 'tool_finished', name, status: status === 'ready' ? 'ready' : 'limited', durationMs: Date.now() - started });
       return observed;
     } catch (error) {
-      if (input.signal.aborted || error instanceof Error && error.message === 'QUERY_DENIED') throw error;
-      const code = error instanceof ModelProviderError ? error.budgetReason ?? error.code : classifyToolError(error);
+      if (input.signal.aborted) throw error;
+      const denied = error instanceof Error && error.message === 'QUERY_DENIED';
+      if (denied) {
+        if (!supplemental || !input.revalidate) throw error;
+        // Preserve the verified primary result only while its own scope and
+        // the current session are still valid.
+        await input.revalidate(input.signal);
+      }
+      const code = denied ? 'field_not_available'
+        : error instanceof ModelProviderError ? error.budgetReason ?? error.code : classifyToolError(error);
       failures.push({ tool: name, code });
       await input.onEvent?.({ type: 'tool_finished', name, status: 'limited', errorCode: code, durationMs: Date.now() - started });
       return undefined;
@@ -189,7 +197,7 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
     const profileFields = available && JSON.parse(available.content).business?.profileFields as string[] | undefined;
     const fields = requested.filter(field => profileFields?.includes(field));
     if (!fields.length) return;
-    const dossier = await run('query_building_dossier', { buildingIds: ids, fields });
+    const dossier = await run('query_building_dossier', { buildingIds: ids, fields }, true);
     result = source;
     if (dossier?.result) {
       const evidence = resultViewSchema.parse(dossier.result);
@@ -274,6 +282,7 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
     });
   }
   if (task.conceptExample && !task.plan) failures.push({ tool: 'execute_query_plan', code: 'field_not_available' });
+  if (task.walkingRouteUnavailable) failures.push({ tool: 'verified_data', code: 'unsupported' });
   if (task.route !== 'direct_response' && !result && !failures.length) failures.push({ tool: 'verified_data', code: 'no_verified_result' });
   await input.revalidate?.(input.signal);
   phases.push('verification', 'completed');

@@ -21,6 +21,14 @@ const requestedMap = /(?:在地图(?:上|中)(?:展示|标记|标注|查看|显�
 
 export const mapExplicitlyExcluded = (question: string) => excludedMap.test(question.normalize('NFKC').replace(/\s+/gu, ''));
 
+export function walkingOnlyThreshold(question: string): number | undefined {
+  const text = question.normalize('NFKC').replace(/[\s，,。！？!?]+/gu, '');
+  if (!/选址|找(?:办公楼|写字楼|办公室)/u.test(text)) return undefined;
+  const match = /^(?:请|帮我)?(?:办公选址|选址|找办公楼|找写字楼|找办公室)?(?:要求)?(?:距|到|离)?(?:地铁站?)?步行(?:不超过|不高于|小于|约|<=|≤)?(\d{1,5})(?:米|m)(?:以内|内)?的?(?:办公选址|选址|找办公楼|找写字楼|找办公室)?$/iu.exec(text);
+  const meters = Number(match?.[1]);
+  return meters > 0 && meters <= 10000 ? meters : undefined;
+}
+
 /** Only use the provisional rent screen for a clear area and monthly unit
  * budget. Other pricing bases and explicit exclusions remain with the agent. */
 export function readSiteSelectionRequest(question: string): SiteSelectionRequest | undefined {

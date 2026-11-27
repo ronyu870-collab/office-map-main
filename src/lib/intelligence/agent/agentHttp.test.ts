@@ -200,7 +200,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(body.message).toContain('部分研究数据源受独立资格限制');
   });
 
-  it.each([true, false])('uses the exact named tower to obtain independently authorized dossier fields (%s)', async allowed => {
+  it.each(['allowed', 'missing_fields', 'denied_scope'])('uses the exact named tower to obtain independently authorized dossier fields (%s)', async access => {
     const buildingId = randomUUID();
     const period = { year: 2026, quarter: 2 };
     const original = fixture(period);
@@ -220,7 +220,9 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
       records: [{ id: buildingId, name, buildingId, data: [{ table: 'buildings', id: buildingId, version: 'a'.repeat(64),
         recordedAt: null, asOf: null, period: null, values: { name } }, { table: 'building_brochure_data', id: randomUUID(),
         version: 'b'.repeat(64), recordedAt: null, asOf: null, period: null, values: { address: '合成路2号', gfaTotal: '25000' } }] }] };
-    const dependencies = deps(true, undefined, { permitted: allowed ? ['address', 'gfaTotal'] : [], snapshot });
+    const allowed = access === 'allowed';
+    const dependencies = deps(true, undefined, { permitted: access === 'missing_fields' ? [] : ['address', 'gfaTotal'],
+      snapshot: access === 'denied_scope' ? { allowed: false } : snapshot });
     const response = await handleAgentSubmission(fakeRequest('请介绍海岳大厦A座，并附上照片、地址、建筑面积和最新正式季度净有效租金、空置率').request, dependencies);
     const body = await response.json();
     expect(response.status).toBe(200);
@@ -236,7 +238,8 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     } else {
       expect(JSON.stringify(body)).not.toContain('合成路2号');
       expect(body.answerSelection).toMatchObject({ status: 'partial', notice: expect.stringContaining('建筑面积') });
-      expect(dependencies.client.rpc).toHaveBeenCalledTimes(2);
+      if (access === 'missing_fields') expect(dependencies.client.rpc).toHaveBeenCalledTimes(2);
+      else expect(body.agent.unresolvedFailures).toContainEqual({ tool: 'query_building_dossier', code: 'field_not_available' });
     }
     expect(state.provider).not.toHaveBeenCalled();
   });

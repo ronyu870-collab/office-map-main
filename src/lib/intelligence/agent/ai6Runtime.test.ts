@@ -82,6 +82,18 @@ describe('AI6 full-condition execution routing', () => {
       expect(routeTask(`${base}，${condition}，不要地图`).siteSelection).toBeUndefined();
     }
   });
+  it.each([['地铁步行800米内办公选址', '800'], ['帮我找写字楼，距地铁站步行不超过500米', '500']])(
+    'reports the walking-only constraint without pretending a spatial query ran: %s', async (question, distance) => {
+      const invoke = vi.fn(), runTool = vi.fn();
+      const out = await runAgentLoop({ question, taskRoute: routeTask(question), invoke, runTool, signal: signal() });
+      expect(out.executionStatus).toBe('limited');
+      expect(out.result).toBeUndefined();
+      expect(out.answer).toContain(`${distance} 米`);
+      expect(out.answer).toContain('直线距离初筛');
+      expect(invoke).not.toHaveBeenCalled();
+      expect(runTool).not.toHaveBeenCalled();
+    },
+  );
   it('keeps report-period policy tasks out of the narrow semantic extractor', () => {
     const q = '查询最近一个已结束季度的净有效租金，用于内部报告。';
     expect(routeTask(q).route).toBe('bounded_agent');

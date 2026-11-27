@@ -62,3 +62,17 @@ SQLite台账是本任务本地评测工具，未建设生产计费平台。金�
 案例族PASS只表示该层断言通过，不是生产支持任务成功率。完整状态集合为PASS、PARTIAL、FAIL、EXPECTED_DENIAL、UNSUPPORTED、INFRA_BLOCKED、BUDGET_BLOCKED、NOT_RUN。分母包括冻结底表，拒绝题不提高支持任务完成率。脚本模型、轨迹回放、真实模型、真实本地Auth、生产分别统计；供应商输入缓存仍属于新模型请求。首批独立失败和修复后的同题回归永久分开，见[独立说明](independent/README.md)。
 
 新预算、回放与独立回归进入现有Verify；日常CI不产生模型费用。产品修复测试仍由既有Vitest／真实Auth矩阵执行。未授权生产写入、生产权限修改、部署或合并，本PR不自动合并。
+
+## AI 6.0 三档对照
+
+```sh
+npm run ai:eval -- compare-plan
+# 经明确批准后，在对应的干净候选提交运行
+npm run ai:eval -- compare-live --budget /absolute/path/to/approved-ai6-comparison.json
+```
+
+四组已获权的合成快照分别发给 Flash 快速、Flash Thinking low 和 Pro Thinking high。每组每档只请求一次。程序核对事实、来源、样本和建议工具，工具的实际执行与鉴权另由隔离 HTTP 验收验证。台账记录供应商 usage 和请求耗时。该对照为非流式，首份可用结果与请求完成同时取得。结构断言通过的结果记录为 `PARTIAL`，待复核正文、缺值、业务范围和陈述依据。估算费和未结算预留分别记录，实际账单待核对。
+
+获批后的 JSON 需包含 `taskId`、`runDirectory`、`currency`（`USD`）、`totalNanodollars`（最高 `250000000`）、`pricingSource`（官方价格页完整 URL）、`pricingCheckedAt`（24 小时内重新核价的 ISO 时间）和 `rates`。`rates` 以 `deepseek-flash`、`deepseek-v4-pro` 为键，每个模型填写每百万 token 的峰值 `{ "input": 0.30, "output": 1.20 }` 或对应 Pro 费率。运行目录使用绝对路径，父目录须已存在，末级名称须等于 `taskId`。整次授权使用同一份审批文件、任务 ID 和目录。以 `COLLIERS_AI6_EVAL_DEEPSEEK_KEY` 提供独立评测密钥。
+
+启动时一次性预留全部 12 项，每项以 5,000 输入及 8,000 输出 token（含推理）计价。供应商拒绝、缺失 usage、未定价模型或超出预留均停止剩余试验。中断时保留 SQLite 预留及 `comparison.jsonl`，可用 `resume --ledger` 检查各模型台账。已有任务目录会拒绝重复执行。对照只发送合成证据，应用生产配置无需变更。[DeepSeek 官方价格](https://api-docs.deepseek.com/quick_start/pricing/)

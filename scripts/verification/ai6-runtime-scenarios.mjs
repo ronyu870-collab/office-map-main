@@ -76,6 +76,66 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       assert.equal(periods.status, 200, JSON.stringify(periods.body)); assert.equal(periods.calls, 0);
       assert.match(periods.body.message, /2026Q2/); assert.match(periods.body.message, /不代表每栋楼/);
     });
+    const buildingContext = async (who, reply, mapSelection = false) => {
+      const response = await originalFetch(app + '/api/intelligence/query/buildings', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + who.token },
+        body: JSON.stringify({ requestId: reply.requestId, resultId: reply.result.resultId, action: 'buildings', mapSelection }) });
+      return { status: response.status, body: await response.json() };
+    };
+    const address = '合成路 8 号', metro = '楼书记录可前往合成地铁站', photoId = randomUUID();
+    const dossiers = [[0, '合成国贸大厦A座（三期）', 80], [1, '合成海岳大厦B座', 120], [3, '合成通运中心A座', null]];
+    await check('AI6 D1 / 三栋楼宇档案在真实登录下使用原照片、楼书和正式季度 ID', async () => {
+      const reader = await person('admin', 'ai6-dossier-sample');
+      await grant(reader);
+      await grantBusiness(db, reader.id, { modules: ['profile'], fields: ['address', 'metro'], allBuildings: false, buildingIds: [ids[0]] });
+      for (const [index, label] of dossiers) await db.query('update public.buildings set former_names=$2,location_lng=116.46,location_lat=39.91 where id=$1',
+        [ids[index], JSON.stringify([label])]);
+      await db.query('insert into public.building_brochure_data(building_id,address,metro_access) values($1,$2,$3)', [ids[0], address, metro]);
+      await db.query(`insert into public.building_photos(id,building_id,image_url,source_url,caption,photo_kind,storage_path,width,height,sha256,file_size,status)
+        values($1,$2,'https://example.invalid/ai6.jpg','https://example.invalid/ai6','合成楼宇照片','exterior',$3,100,100,$4,100,'ready')`,
+        [photoId, ids[0], `building-photos/v1/${ids[0]}/${photoId}/photo.jpg`, '0'.repeat(64)]);
+      for (const [index, label, rent] of dossiers) {
+        const response = await submit(reader, `介绍${label}，并附上照片、地址和最新正式季度净有效租金、空置率`);
+        assert.equal(response.status, 200, JSON.stringify(response.body)); assert.equal(response.calls, 0);
+        assert.deepEqual(response.body.result.table.rows.map(row => row.entityId), [ids[index]]);
+        const [row] = response.body.result.table.rows;
+        if (rent === null) assert.equal(row.cells.netEffectiveRent?.kind ?? 'unknown', 'unknown');
+        else assert.equal(row.cells.netEffectiveRent.value.numeric, rent);
+        const context = await buildingContext(reader, response.body);
+        assert.equal(context.status, 200, JSON.stringify(context.body));
+        assert.deepEqual(context.body.buildings.map(row => row.id), [ids[index]]);
+        assert.equal(context.body.buildings[0].photo?.id ?? null, index === 0 ? photoId : null);
+        if (index === 0) {
+          const dossier = response.body.answerSelection.results.find(item => item.role === 'supporting').result;
+          assert.equal(dossier.table.rows[0].cells.address.value, address);
+          assert.ok(dossier.sources.some(source => source.table === 'building_brochure_data' && source.field === 'address'));
+          assert.equal((await buildingContext(other, response.body)).status, 403);
+        } else assert.ok(!JSON.stringify(response.body).includes(address));
+      }
+    });
+    await check('AI6 D3 / 真实办公初筛把楼书交通、候选地图和待核验的步行距离分开交付', async () => {
+      const broker = await person('admin', 'ai6-site-broker');
+      await grant(broker);
+      await grantBusiness(db, broker.id, { modules: ['profile'], fields: ['metro'], allBuildings: false, buildingIds: [ids[0]] });
+      const response = await submit(broker, '金融企业在CBD选址租赁2000平方米，预算300元/平方米/月，只看甲级，地铁步行800米内，重视形象并给出地图');
+      assert.equal(response.status, 200, JSON.stringify(response.body)); assert.equal(response.calls, 0);
+      assert.deepEqual(response.body.result.table.rows.map(row => row.entityId), [ids[0]]);
+      assert.equal(response.body.answerSelection.status, 'partial');
+      assert.match(response.body.answerSelection.notice, /2000 ㎡连续可租面积/);
+      assert.match(response.body.answerSelection.notice, /尚无可核验的 800 米步行路径/);
+      const dossier = response.body.answerSelection.results.find(item => item.role === 'supporting').result;
+      assert.equal(dossier.table.rows[0].cells.metro.value, metro);
+      assert.deepEqual(response.body.result.parameters.agentMap.buildingIds, [ids[0]]);
+      const selected = await buildingContext(broker, response.body, true);
+      assert.equal(selected.status, 200, JSON.stringify(selected.body));
+      assert.deepEqual(selected.body.buildings.map(row => [row.id, row.located]), [[ids[0], true]]);
+      assert.equal((await buildingContext(other, response.body, true)).status, 403);
+      const walking = await submit(broker, '地铁步行不超过800米的办公选址');
+      assert.equal(walking.status, 200, JSON.stringify(walking.body)); assert.equal(walking.calls, 0);
+      assert.equal(walking.body.agent.executionStatus, 'limited');
+      assert.equal(walking.body.result, undefined);
+      assert.match(walking.body.message, /800 米.*目标地铁站.*直线距离初筛/);
+    });
     await check('AI6 / 三市场澄清及六轮排名使用真实登录、正式快照与可读工作簿', async () => {
       const catalog = [
         { market: 'CBD', grade: 'P', rent: 260, area: 30000, vacancy: 6000 },
