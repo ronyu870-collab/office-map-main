@@ -30,7 +30,6 @@ import { getSessionIdFromAccessToken } from "@/src/utils/authSession";
 import { supabase } from "@/src/services/supabaseClient";
 import type { AuthSessionResult } from "@/src/services/Auth";
 import {
-  workspaceDetailSchema,
   preferencesSchema,
   projectContextSchema,
   type WorkspaceDetail,
@@ -48,6 +47,7 @@ import { LAYOUTS } from "@/src/lib/pitch/layout/definitions";
 import type { LayoutId } from "@/src/lib/pitch/contracts/scene";
 import {
   draftOf,
+  workspaceResponseSchema as workspaceDetailSchema,
   WorkspaceError,
   themeLabel,
   type Draft,

@@ -1,8 +1,14 @@
-import type {
-  ProjectContext,
-  WorkspaceDetail,
-  WorkspaceSave,
+import { z } from "zod";
+import {
+  workspaceDetailSchema,
+  type ProjectContext,
+  type WorkspaceDetail,
+  type WorkspaceSave,
 } from "@/src/lib/pitch/workspace/protocol";
+export const workspaceResponseSchema = workspaceDetailSchema.extend({
+  slides: z.array(workspaceDetailSchema.shape.slides.element.extend({ version: z.number().int().positive().optional() })),
+});
+export type WorkspaceResponse = z.infer<typeof workspaceResponseSchema>;
 export type Grant = {
   organizationId: string;
   region: string | null;

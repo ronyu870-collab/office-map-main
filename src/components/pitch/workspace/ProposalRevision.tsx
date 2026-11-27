@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
 import { contentBlockSchema, sourceReferenceSchema } from "@/src/lib/pitch/contracts/content";
-import { outlineQuarter, saveSchema, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
+import { outlineQuarter, saveSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { objectId } from "@/src/lib/pitch/workspace/object-layout";
-import { themeLabel, WorkspaceError, type Call } from "./client";
+import { themeLabel, workspaceResponseSchema as workspaceDetailSchema, WorkspaceError, type Call } from "./client";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel } from "./DataRefreshReview";
 import { EvidencePages } from "./BusinessEvidence";
 import { LayoutRevisionReview, matchesAppliedLayout, requestedLayoutPages, reviewLayoutChanges, type LayoutReview } from "./LayoutRevision";
 import { matchesEditionReview, ProposalEditionComparison, proposalEditionReviewSchema } from "./ProposalEditionReview";
+import { appliedLanguageSchema, LanguageRevisionReview, languageReviewSchema, matchesAppliedLanguage, matchesLanguageReview,
+  PendingLanguageRevision, pendingLanguageSchema, type LanguageTexts } from "./LanguageRevisionReview";
 import { ProposalPreview, reviewedProposalSchema } from "./ProposalPreview";
 import { appliedPhotoSchema, matchesAppliedPhoto, matchesPhotoReview, PhotoRevisionReview, photoReviewSchema } from "./PhotoRevisionReview";
 import styles from "./workspace.module.css";
@@ -74,6 +76,8 @@ const regenerationSchema = z.strictObject({
 const outcomeSchema = z.union([
   comparisonSchema,
   photoReviewSchema,
+  languageReviewSchema,
+  pendingLanguageSchema,
   readySchema.extend({ status: z.literal("ready") }),
   readySchema.extend({ status: z.literal("refresh-review"),
     refreshPlan: z.union([reviewedProposalSchema, z.object({ brief: z.object({ period: outlineQuarter.nullable() }) })]),
@@ -84,7 +88,8 @@ const outcomeSchema = z.union([
   z.object({ status: z.literal("unavailable"), message: z.string().optional() }),
 ]);
 type StandardPreview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" }>;
-type Preview = StandardPreview | z.infer<typeof photoReviewSchema> | LayoutReview;
+type Preview = StandardPreview | z.infer<typeof photoReviewSchema> | LayoutReview
+  | z.infer<typeof languageReviewSchema> | z.infer<typeof pendingLanguageSchema>;
 type Plan = Extract<Preview, { plan: unknown }>;
 const chartLabels = { bar: "条形图", column: "柱状图", line: "折线图" } as const;
 
@@ -198,12 +203,14 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   const visible = review?.key === key ? review.value : undefined;
   const layout = visible?.status === "layout-review" ? visible : undefined;
   const photo = visible?.status === "photo-review" ? visible : undefined;
+  const language = visible?.status === "language-review" ? visible : undefined;
+  const pendingLanguage = visible?.status === "language-translation-required" ? visible : undefined;
   const comparison = visible && "mode" in visible ? visible : undefined;
   const current: Plan | undefined = visible && "plan" in visible ? visible : undefined;
   const quarterReview = current?.command?.action === "apply_data_refresh" ? current.review : undefined;
   useEffect(() => () => request.current?.abort(), []);
 
-  async function run(action: "preview" | "apply", competitorBuildingId?: string) {
+  async function run(action: "preview" | "apply", competitorBuildingId?: string, languageTexts?: LanguageTexts) {
     if (disabled || !question.trim() || !detail.slides.length || request.current) return;
     const controller = new AbortController();
     request.current = controller;
@@ -223,15 +230,19 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
           projectId, expectedVersion, question: deckRequest ?? question.trim(), currentPageId: active,
           pageIds: deckRequest ? [] : selected, objectIds: deckRequest ? [] : objectIds,
           ...(competitorBuildingId ? { competitorBuildingId } : {}),
+          ...(languageTexts ? { languageTexts } : {}),
         };
         const result = outcomeSchema.parse(await call({ action: "proposal_revision", input }, true, "ai", controller.signal));
         if (controller.signal.aborted) return;
         if (result.status === "photo-review" && matchesPhotoReview(result, detail, input)) {
           setReview({ key, value: result });
+        } else if ((result.status === "language-review" || result.status === "language-translation-required") &&
+          matchesLanguageReview(result, detail, input)) {
+          setReview({ key, value: result });
         } else if ((result.status === "ready" || result.status === "refresh-review") && matchesPreview(result, detail)) {
           setReview({ key, value: result });
         } else {
-          setReview(undefined);
+          if (!languageTexts || !pendingLanguage) setReview(undefined);
           if (result.status === "clarification" && result.candidates?.length) setCandidates({ key, items: result.candidates });
           const feedback = "message" in result ? result.message : undefined;
           setMessage(feedback || "当前资料或版式无法生成可应用的修改。请缩小范围或指定要更改的内容。");
@@ -246,6 +257,12 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         const result = appliedPhotoSchema.parse(await call(photo.command, true, "ai", controller.signal));
         if (controller.signal.aborted) return;
         if (!matchesAppliedPhoto(photo, result.workspace)) throw new Error("无法核对保存后的照片，请重新打开项目检查。");
+        setReview(undefined);
+        onApplied(result.workspace, expectedVersion);
+      } else if (language) {
+        const result = appliedLanguageSchema.parse(await call(language.command, true, "ai", controller.signal));
+        if (controller.signal.aborted) return;
+        if (!matchesAppliedLanguage(language, detail, result.workspace)) throw new Error("无法核对保存后的译文，请重新打开项目检查。");
         setReview(undefined);
         onApplied(result.workspace, expectedVersion);
       } else if (comparison) {
@@ -267,7 +284,8 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
       if (controller.signal.aborted) return;
       const mayRetryAppend = action === "apply" && comparison &&
         (!(cause instanceof WorkspaceError) || cause.status >= 500 || cause.status === 408);
-      if (!mayRetryAppend) setReview(undefined);
+      const canCorrectTranslation = languageTexts && pendingLanguage && !(cause instanceof WorkspaceError && cause.status === 409);
+      if (!mayRetryAppend && !canCorrectTranslation) setReview(undefined);
       setMessage(cause instanceof WorkspaceError && cause.status === 409
         ? photo ? "项目或照片来源已更新，请重新打开项目后再核对。" : "项目版本已变化，请重新打开项目后再预览。"
         : cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "修改未完成，请重新预览。");
@@ -300,6 +318,8 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         loadingLabel="正在应用…" onClick={() => void run("apply")}>应用新布局</Button>
         : photo ? <Button disabled={disabled} loading={working === "apply"}
         loadingLabel="正在更换…" onClick={() => void run("apply")}>确认换图</Button>
+        : language ? <Button disabled={disabled} loading={working === "apply"}
+        loadingLabel="正在保存…" onClick={() => void run("apply")}>确认语言切换</Button>
         : comparison ? <Button disabled={disabled} loading={working === "apply"}
         loadingLabel="正在提交…" onClick={() => void run("apply")}>{message ? "继续追加" : "追加对比页"}</Button> : current && !regeneration && (
         current.plan.refresh && !quarterReview
@@ -309,6 +329,12 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
       )}>
       {layout && <LayoutRevisionReview review={layout} detail={detail} />}
       {photo && <PhotoRevisionReview review={photo} detail={detail} />}
+      {language && <LanguageRevisionReview review={language} detail={detail} />}
+      {pendingLanguage && <>
+        <PendingLanguageRevision key={key} review={pendingLanguage} detail={detail} busy={disabled || !!working}
+          submit={texts => void run("preview", undefined, texts)} />
+        {message && <p role="alert">{message}</p>}
+      </>}
       {comparison && <>
         <p>{comparison.review.competitor.name} · {comparison.review.period} · 追加 {comparison.review.pages.length} 页</p>
         <EvidencePages pages={comparison.review.pages} />

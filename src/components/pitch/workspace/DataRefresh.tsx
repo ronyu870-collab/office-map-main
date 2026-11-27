@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
 import { catalogDimensions, numericFields } from "@/src/lib/intelligence/query/registry";
-import { outlineQuarter, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
-import type { Call } from "./client";
+import { outlineQuarter, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
+import { workspaceResponseSchema as workspaceDetailSchema, type Call } from "./client";
 import type { DocumentBindings } from "./DocumentBindings";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel,
   type DataRefreshReview } from "./DataRefreshReview";

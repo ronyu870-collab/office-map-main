@@ -415,3 +415,61 @@ it.each([
     projectId, expectedVersion: version, question: command, currentPageId: pageId, pageIds: [], objectIds: [],
   } });
 });
+
+const languageQuestion = "本页改成英文";
+const pendingTitle = "2026 季度租金";
+const englishTitle = "2026 Quarterly rent";
+const languageOriginal = { ...detail, slides: [{ ...detail.slides[0], version: 2,
+  content: { ...content, title: pendingTitle, locale: "zh" } }] };
+const languageSaved = { ...languageOriginal, project: refreshed.project, slides: [{ ...languageOriginal.slides[0], version: 3,
+  content: { ...languageOriginal.slides[0].content, title: englishTitle, locale: "en" } }] };
+const languageInput = { projectId, expectedVersion: version, question: languageQuestion, currentPageId: pageId, pageIds: [], objectIds: [] };
+const languageTexts = [{ pageId, ref: "title", text: englishTitle }];
+const languageCommand = { action: "proposal_apply_language", confirmation: { input: { ...languageInput, languageTexts }, fingerprint } };
+const languageReply = { status: "language-review", language: "en", projectVersion: version, fingerprint, command: languageCommand,
+  translated: [{ pageId, pageVersion: 2, original: "zh", changes: [{ ref: "title", before: pendingTitle, after: englishTitle }] }] };
+const pendingReply = { status: "language-translation-required", language: "en", translated: [],
+  pending: [{ pageId, pageVersion: 2, ref: "title", text: pendingTitle }] };
+
+it("collects missing text, reviews the exact translation and applies it to the same saved page", async () => {
+  const { user, call, onApplied } = setup(input => "languageTexts" in (input.input as object) ? languageReply : pendingReply,
+    languageQuestion, () => ({ status: "language-applied", workspace: languageSaved }), languageOriginal);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  const field = await screen.findByRole("textbox", { name: "第 1 页 · " + pendingTitle });
+  await user.type(field, englishTitle);
+  expect(screen.queryByRole("button", { name: "确认语言切换" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "预览译文" }));
+  expect(await screen.findByText(englishTitle)).toBeVisible();
+  expect(onApplied).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "确认语言切换" }));
+  await waitFor(() => expect(onApplied).toHaveBeenCalledWith(languageSaved, version));
+  expect(call.mock.calls.map(([command]) => command)).toEqual([
+    { action: "proposal_revision", input: languageInput },
+    { action: "proposal_revision", input: { ...languageInput, languageTexts } },
+    languageCommand,
+  ]);
+});
+
+it.each([{ pageVersion: 3, after: englishTitle }, { pageVersion: 2, after: "2027 Quarterly rent" }])(
+  "rejects a preview that includes stale page metadata or changes an original number", async ({ pageVersion, after }) => {
+    const reply = { ...languageReply, translated: [{ ...languageReply.translated[0], pageVersion,
+      changes: [{ ref: "title", before: pendingTitle, after }] }],
+      command: { ...languageCommand, confirmation: { fingerprint, input: languageInput } } };
+    const { user, call } = setup(reply, languageQuestion, undefined, languageOriginal);
+    await user.click(screen.getByRole("button", { name: "预览修改" }));
+    expect(await screen.findByText(/无法生成可应用的修改/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "确认语言切换" })).not.toBeInTheDocument();
+    expect(call).toHaveBeenCalledTimes(1);
+  });
+
+it("does not accept an applied receipt that moves a saved chart", async () => {
+  const supplied = { ...languageReply, command: { ...languageCommand, confirmation: { fingerprint, input: languageInput } } };
+  const originalScene = languageSaved.slides[0].scene;
+  const changed = { ...languageSaved, slides: [{ ...languageSaved.slides[0], scene: { ...originalScene,
+    elements: originalScene.elements.map(element => ({ ...element, x: element.x + .2 })) } }] };
+  const { user, onApplied } = setup(supplied, languageQuestion, () => ({ status: "language-applied", workspace: changed }), languageOriginal);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  await user.click(await screen.findByRole("button", { name: "确认语言切换" }));
+  expect(await screen.findByText("无法核对保存后的译文，请重新打开项目检查。")).toBeInTheDocument();
+  expect(onApplied).not.toHaveBeenCalled();
+});

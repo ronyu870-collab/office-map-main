@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
+import type { WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
+import { workspaceResponseSchema as workspaceDetailSchema } from "./client";
 import { objectId } from "@/src/lib/pitch/workspace/object-layout";
 import { PhotoPreviewImage } from "./PhotoPreviewImage";
 import styles from "./workspace.module.css";
