@@ -9,6 +9,12 @@ const directiveSeparator = /[;；。]+|(?:，\s*)?(?:并且|并|然后|同时)(?
 const maskQuotedText = (text: string) => text.replace(quotedText, match => " ".repeat(match.length));
 
 const objectIds = z.array(z.string().trim().min(1).max(160)).max(30).refine(values => new Set(values).size === values.length);
+const languageTexts = z.array(z.strictObject({
+  pageId: z.uuid(), ref: z.string().regex(/^[a-z][a-z0-9:_-]{0,79}$/i), text: z.string().trim().min(1).max(4000),
+})).max(250).refine(entries => new Set(entries.map(({ pageId, ref }) => pageId + ":" + ref)).size === entries.length);
+const languageReceipts = z.array(z.strictObject({
+  pageId: z.uuid(), taskId: z.uuid(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+})).max(50).refine(entries => new Set(entries.map(({ pageId }) => pageId)).size === entries.length);
 export const proposalRevisionRequestSchema = z.strictObject({
   projectId: z.uuid(),
   expectedVersion: z.number().int().positive(),
@@ -17,6 +23,8 @@ export const proposalRevisionRequestSchema = z.strictObject({
   competitorBuildingId: z.uuid().optional(),
   pageIds: pageIds.default([]),
   objectIds: objectIds.default([]),
+  languageTexts: languageTexts.optional(),
+  languageReceipts: languageReceipts.optional(),
 });
 
 export type ProposalRevisionRequest = z.infer<typeof proposalRevisionRequestSchema>;

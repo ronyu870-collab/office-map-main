@@ -99,13 +99,15 @@ export async function handleAiRequest(
       const { generateConfirmedProposal } = await import("./proposal-generation-runtime");
       return reply(await generateConfirmedProposal(ctx, c.confirmation));
     }
-    if (c.action === "proposal_revision" || c.action === "proposal_apply_photo") {
+    if (c.action === "proposal_revision" || c.action === "proposal_apply_photo" || c.action === "proposal_apply_language") {
       const { planProposalRevision } = await import("./proposal-revision-runtime");
       const { installedWorkspaceReviewServices } = await import("./workspace-review");
       const services = revisionServices ?? installedWorkspaceReviewServices(request, deps);
       return reply(c.action === "proposal_revision"
         ? await planProposalRevision(ctx, c.input, services)
-        : await planProposalRevision(ctx, c.confirmation.input, services, c.confirmation.fingerprint));
+        : await planProposalRevision(ctx, c.confirmation.input, services, {
+          kind: c.action === "proposal_apply_photo" ? "photo" : "language", fingerprint: c.confirmation.fingerprint,
+        }));
     }
     if (c.action === "outline")
       return reply(await suggestOutline(ctx, c.query, c.projectId));

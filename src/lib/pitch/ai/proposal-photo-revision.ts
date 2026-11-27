@@ -2,21 +2,17 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { slideContentSchema, type SlideContent, type SourceReference } from "../contracts/content";
 import { layoutIdSchema, slideSceneSchema, type SlideScene } from "../contracts/scene";
-import { pitchRpc, type PitchContext } from "../data/store";
+import type { PitchContext } from "../data/store";
 import { studioRegistry } from "../data/renderWorkflow";
 import { layoutSlides } from "../layout/engine";
 import { LayoutError } from "../layout/metrics";
-import { assertSceneQuality } from "../layout/quality";
 import { objectId } from "../workspace/object-layout";
-import type { WorkspaceDetail } from "../workspace/protocol";
-import { getWorkspace } from "../workspace/workflow";
+import { createProposalCanvasServices, type CanvasBinding, type CanvasServices, type RevisionPage, type RevisionWorkspace } from "./proposal-canvas-services";
 import type { ProposalEditIntent, ProposalEditTarget, ProposalRevisionRequest } from "./proposal-edit-intent";
 
 const fingerprintSchema = z.string().regex(/^[a-f0-9]{64}$/);
 type PhotoCategory = Extract<ProposalEditIntent, { kind: "replace-photo" }>["category"];
 type Image = Extract<SlideContent["blocks"][number], { kind: "image" }>;
-type Page = WorkspaceDetail["slides"][number] & { version: number };
-type PhotoWorkspace = Omit<WorkspaceDetail, "slides"> & { slides: Page[] };
 const photoPin = z.object({
   id: z.uuid(), version: z.number().int().positive(), versionHash: fingerprintSchema, contentHash: fingerprintSchema,
   kind: z.literal("photo"), buildingIds: z.tuple([z.uuid()]),
@@ -26,39 +22,14 @@ const sourcePin = z.object({ visual: photoPin });
 type PhotoPin = z.infer<typeof photoPin>;
 
 export type ProposalPhotoCandidate = { category: string; source: SourceReference };
-export type ProposalPhotoServices = {
+type PhotoSources = {
   readChoices(ctx: PitchContext, buildingId: string, category: PhotoCategory, usedHashes: readonly string[]): Promise<readonly ProposalPhotoCandidate[]>;
   resolve(ctx: PitchContext, source: SourceReference): Promise<{ image: Image; source: SourceReference }>;
-  verifyPage(ctx: PitchContext, projectId: string, page: Page): Promise<void>;
-  persist(ctx: PitchContext, current: PhotoWorkspace, updated: Page[]): Promise<WorkspaceDetail>;
 };
+export type ProposalPhotoServices = PhotoSources & CanvasServices;
 
-type PhotoWorkspaceBinding = Pick<ProposalPhotoServices, "readChoices" | "resolve"> & {
-  readPageMedia(ctx: PitchContext, projectId: string, page: Page): Promise<Parameters<typeof assertSceneQuality>[2]>;
-  commitPayload(ctx: PitchContext, current: PhotoWorkspace, pages: Page[], settings: PhotoWorkspace["workspace"]["page_settings"]):
-    Promise<Record<string, unknown>>;
-};
-
-export function createWorkspacePhotoServices(binding: PhotoWorkspaceBinding): ProposalPhotoServices {
-  const { readChoices, resolve, readPageMedia, commitPayload } = binding;
-  return {
-    readChoices,
-    resolve,
-    async verifyPage(ctx, projectId, page) {
-      const { theme } = await studioRegistry(ctx, page.scene.themeId, page.scene.themeVersion);
-      await assertSceneQuality(page.scene, theme.definition, await readPageMedia(ctx, projectId, page));
-    },
-    async persist(ctx, current, updated) {
-      const replacements = new Map(updated.map(page => [page.id, page]));
-      const pages = current.slides.map(page => replacements.get(page.id) ?? page);
-      const settings = { ...current.workspace.page_settings };
-      for (const page of updated) settings[page.id] = { ...settings[page.id], manual: true };
-      const payload = await commitPayload(ctx, current, pages, settings);
-      if (payload.projectId !== current.project.id || payload.expectedVersion !== current.project.version) throw new Error("PITCH_INVALID");
-      await pitchRpc(ctx, { ...payload, action: "workspace_save" });
-      return getWorkspace(ctx, current.project.id);
-    },
-  };
+export function createWorkspacePhotoServices({ readChoices, resolve, ...canvas }: PhotoSources & CanvasBinding): ProposalPhotoServices {
+  return { readChoices, resolve, ...createProposalCanvasServices(canvas) };
 }
 
 const capture = (source: SourceReference) => {
@@ -71,7 +42,7 @@ const capture = (source: SourceReference) => {
 const sameImage = (image: Pick<Image, "mediaAssetId" | "mediaVersion">, pin: PhotoPin) =>
   image.mediaAssetId === pin.id && image.mediaVersion === pin.version;
 
-function boundPhotos(page: Page) {
+function boundPhotos(page: RevisionPage) {
   return page.content.blocks.flatMap((image, blockIndex) => {
     if (image.kind !== "image") return [];
     const bound = page.content.sources.flatMap(source => {
@@ -85,7 +56,7 @@ function boundPhotos(page: Page) {
   });
 }
 
-function preserveObjects(original: Page, scene: SlideScene, selected: string, previous: Image, nextPin: PhotoPin) {
+function preserveObjects(original: RevisionPage, scene: SlideScene, selected: string, previous: Image, nextPin: PhotoPin) {
   if (scene.layoutId !== original.scene.layoutId || scene.layoutVersion !== original.scene.layoutVersion ||
     scene.themeId !== original.scene.themeId || scene.themeVersion !== original.scene.themeVersion ||
     scene.variant !== original.scene.variant || (scene.pagination?.count ?? 1) !== 1 ||
@@ -125,7 +96,7 @@ function replacePhotoAndGeneratedCaptions(content: SlideContent, previous: Image
 
 /** Reconcile the renderer's photo and credit changes with the saved native
  * canvas. The caller verifies the final Scene and all its visual receipts. */
-async function buildProposalPhotoScene(ctx: PitchContext, page: Page, content: SlideContent, selected: string) {
+async function buildProposalPhotoScene(ctx: PitchContext, page: RevisionPage, content: SlideContent, selected: string) {
   const layout = layoutIdSchema.safeParse(page.scene.layoutId);
   if (!layout.success) return null;
   const changedIndex = page.scene.elements.findIndex((element, index) => objectId(element, index) === selected);
@@ -171,7 +142,7 @@ async function buildProposalPhotoScene(ctx: PitchContext, page: Page, content: S
   }
 }
 
-export async function reviewProposalPhotoReplacement(ctx: PitchContext, current: PhotoWorkspace,
+export async function reviewProposalPhotoReplacement(ctx: PitchContext, current: RevisionWorkspace,
   input: ProposalRevisionRequest, target: ProposalEditTarget, category: PhotoCategory,
   services: ProposalPhotoServices, confirmed?: string,
 ) {
@@ -185,7 +156,7 @@ export async function reviewProposalPhotoReplacement(ctx: PitchContext, current:
   const reads = new Map<string, Promise<readonly ProposalPhotoCandidate[]>>();
   const usedHashes = [...new Set(current.slides.flatMap(page => page.content.sources.flatMap(source => capture(source)?.contentHash ?? [])))];
   const changes = [];
-  const updated: Page[] = [];
+  const updated: RevisionPage[] = [];
   for (const page of selected) {
     ctx.signal.throwIfAborted();
     const photos = boundPhotos(page);
