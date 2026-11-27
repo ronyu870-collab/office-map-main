@@ -10,6 +10,27 @@ import { PhotoPreviewImage } from "./PhotoPreviewImage";
 import { plannedPhotoSchema } from "./PhotoRevisionReview";
 import styles from "./workspace.module.css";
 
+export const buildingProposalPresets = {
+  "building-promotion": {
+    label: "新建楼宇推介",
+    zh: "为所选楼宇制作项目推介",
+    en: "Create a property showcase for the selected building",
+    scopeError: "推介方案与所选楼宇或季度不一致，请重新核对。",
+  },
+  "site-selection": {
+    label: "新建办公选址方案",
+    zh: "为所选楼宇制作办公选址方案",
+    en: "Create an office site selection proposal for the selected buildings",
+    scopeError: "选址方案与所选楼宇或季度不一致，请重新核对。",
+  },
+} as const;
+export type BuildingProposalScenario = keyof typeof buildingProposalPresets;
+
+export function proposalScenarioForBuildings(count: number): BuildingProposalScenario | undefined {
+  if (count === 1) return "building-promotion";
+  if (count >= 2 && count <= 10) return "site-selection";
+}
+
 const projectThemeSchema = z.object({ id: z.string().min(1).max(100), version: z.number().int().positive() });
 const responseSchema = z.discriminatedUnion("status", [
   z.object({
@@ -103,7 +124,7 @@ function PlannedPhotos({ slides, initiallyOpen, onStale }: {
   </details>;
 }
 
-export function ProposalPreview({ call, projectId, city, question, language, period, buildingIds, initialQuestion, disabled, projectVersion, createProject, onGenerated, onGenerating, reviewed, onPromotionPeriod }: Destination & {
+export function ProposalPreview({ call, projectId, city, question, language, period, buildingIds, initialQuestion, disabled, projectVersion, createProject, onGenerated, onGenerating, reviewed, buildingScenario, onBuildingPeriodChange }: Destination & {
   call: Call;
   city?: string;
   question: string;
@@ -112,12 +133,13 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   buildingIds: string[];
   initialQuestion?: string;
   disabled: boolean;
-  onPromotionPeriod?: (period: string) => void;
+  buildingScenario?: BuildingProposalScenario;
+  onBuildingPeriodChange?: (period: string) => void;
   onGenerated: (projectId: string) => Promise<void>;
   onGenerating?: (generating: boolean) => void;
   reviewed?: { data: z.infer<typeof reviewedProposalSchema>; input: Request };
 }) {
-  const inputKey = JSON.stringify([projectId, projectVersion, city, question, language, period, buildingIds]);
+  const inputKey = JSON.stringify([projectId, projectVersion, city, question, language, period, buildingIds, buildingScenario]);
   const [result, setResult] = useState<{ key: string; data: Result; input: Request } | undefined>(
     () => reviewed && { key: inputKey, ...reviewed },
   );
@@ -125,7 +147,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   const [working, setWorking] = useState<"plan" | "generate">();
   const [recovery, setRecovery] = useState(false);
   const [taskProgress, setTaskProgress] = useState<{ key: string; state: "queued" | "running" }>();
-  const [promotionPeriod, setPromotionPeriod] = useState(period);
+  const [editedPeriod, setEditedPeriod] = useState(period);
   const submission = useRef<{ key: string; taskId: string; sourceId: string; source?: Project; completedProject?: string }>(null);
   const request = useRef<AbortController | null>(null);
   const autoStarted = useRef(false);
@@ -133,7 +155,6 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   const visible = result?.key === inputKey ? result.data : undefined;
   const taskState = taskProgress?.key === inputKey ? taskProgress.state : undefined;
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
-  const buildingPromotion = !!onPromotionPeriod;
 
   useLayoutEffect(() => { currentInput.current = inputKey; }, [inputKey]);
   useEffect(() => () => request.current?.abort(), []);
@@ -166,10 +187,15 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         audience: "internal",
       };
       const data = responseSchema.parse(await call({ action: "proposal_plan", input }, true, "ai", current.signal));
-      if (buildingPromotion && data.status === "ready" && (data.brief.scenario !== "building-promotion" || data.selection !== "explicit" ||
-        (!!period && data.brief.period !== period) || data.brief.buildingIds.length !== 1 || data.brief.buildingIds[0] !== buildingIds[0] ||
-        data.plan.slides.some(slide => slide.visuals.some(photo => photo.pin.origin.buildingId !== buildingIds[0])))) {
-        throw new Error("推介方案与所选楼宇或季度不一致，请重新核对。");
+      if (buildingScenario && data.status === "ready") {
+        const { brief } = data;
+        const selected = new Set(buildingIds);
+        const match = brief.scenario === buildingScenario && data.selection === "explicit" &&
+          brief.city.normalize("NFKC") === city?.normalize("NFKC") && brief.language === language &&
+          (!period || brief.period === period) && (buildingScenario !== "site-selection" || outlineQuarter.safeParse(brief.period).success) &&
+          brief.buildingIds.length === buildingIds.length && brief.buildingIds.every((id, index) => id === buildingIds[index]) &&
+          data.plan.slides.every(slide => slide.visuals.every(photo => selected.has(photo.pin.origin.buildingId)));
+        if (!match) throw new Error(buildingProposalPresets[buildingScenario].scopeError);
       }
       if (!current.signal.aborted) setResult({ key: inputKey, data, input });
     } catch (cause) {
@@ -276,7 +302,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         ? "可在「数据」中指定楼宇后重新核对。"
         : "如需指定楼宇，可先打开项目设置。"}</p>}
       <ol>{visible.plan.slides.map(slide => <li key={slide.id}>{slide.title}</li>)}</ol>
-      <PlannedPhotos key={visible.plan.id} slides={visible.plan.slides} initiallyOpen={buildingPromotion} onStale={() => {
+      <PlannedPhotos key={visible.plan.id} slides={visible.plan.slides} initiallyOpen={!!buildingScenario} onStale={() => {
         if (request.current || working || taskState || recovery) return;
         setResult(undefined);
         setError(reviewed ? "照片版本已更新，请关闭核对窗口后重新预览修改。" : "照片版本已更新，请重新规划正式提案。");
@@ -294,20 +320,20 @@ export function ProposalPreview({ call, projectId, city, question, language, per
     </>}
     {visible && visible.status !== "ready" && <>
       <p role="status">{visible.message}</p>
-      {!buildingPromotion && visible.candidates?.map(candidate => <Button variant="ghost" key={candidate.id}
+      {!buildingScenario && visible.candidates?.map(candidate => <Button variant="ghost" key={candidate.id}
         disabled={disabled || !!working} onClick={() => void preview(candidate.id)}>
         {candidate.name}{candidate.submarket ? ` · ${candidate.submarket}` : ""}
       </Button>)}
     </>}
-    {onPromotionPeriod && !taskState && !recovery && working !== "generate" && <details>
+    {onBuildingPeriodChange && !taskState && !recovery && working !== "generate" && <details>
       <summary>调整正式季度</summary>
       <form className={styles.form} onSubmit={event => {
         event.preventDefault();
-        if (promotionPeriod !== period && outlineQuarter.safeParse(promotionPeriod).success) onPromotionPeriod(promotionPeriod);
+        if (editedPeriod !== period && outlineQuarter.safeParse(editedPeriod).success) onBuildingPeriodChange(editedPeriod);
       }}>
-        <label>正式季度<input value={promotionPeriod} maxLength={7} placeholder="例如 2026-Q3"
-          onChange={event => setPromotionPeriod(event.target.value.toUpperCase())} /></label>
-        <Button type="submit" disabled={disabled || promotionPeriod === period || !outlineQuarter.safeParse(promotionPeriod).success}>按此季度核对</Button>
+        <label>正式季度<input value={editedPeriod} maxLength={7} placeholder="例如 2026-Q3"
+          onChange={event => setEditedPeriod(event.target.value.toUpperCase())} /></label>
+        <Button type="submit" disabled={disabled || editedPeriod === period || !outlineQuarter.safeParse(editedPeriod).success}>按此季度核对</Button>
       </form>
     </details>}
   </section>;

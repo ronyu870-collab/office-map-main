@@ -59,7 +59,7 @@ import {
 import { TemplatePicker, type Template } from "./workspace/TemplatePicker";
 import { TemplateParameters, BuildingPicker, defaultDynamicParameters } from "./workspace/Parameters";
 import { readPitchHandoff, type PitchHandoffNavigation } from "./PitchHandoffLink";
-import { HandoffReview, type BuildingPromotionSelection, type HandoffDestination } from "./workspace/HandoffReview";
+import { HandoffReview, type BuildingProposalSelection, type HandoffDestination } from "./workspace/HandoffReview";
 import { BuildingLeaseReview } from "./workspace/BuildingLeaseReview";
 import { LayoutVariants } from "./workspace/LayoutVariants";
 import { DataRefresh } from "./workspace/DataRefresh";
@@ -75,7 +75,8 @@ import { Projects } from "./workspace/Projects";
 import { PanelSeparator } from "./workspace/PanelSeparator";
 import { SlideNavigator } from "./workspace/SlideNavigator";
 import { Presentation } from "./workspace/Presentation";
-import { ProposalPreview, type ProposalProjectInput } from "./workspace/ProposalPreview";
+import { buildingProposalPresets, ProposalPreview, proposalScenarioForBuildings,
+  type BuildingProposalScenario, type ProposalProjectInput } from "./workspace/ProposalPreview";
 import { canMoveObject, objectId } from "@/src/lib/pitch/workspace/object-layout";
 const ObjectCanvas = dynamic(() => import("./workspace/ObjectCanvas").then(module => module.ObjectCanvas), {
   loading: () => <p role="status">正在打开对象编辑…</p>,
@@ -173,6 +174,11 @@ export function PitchWorkspace() {
     </WorkspaceShell>
   );
 }
+const buildingProposalCapabilities = [
+  ["building-profile", "building-promotion"],
+  ["project-comparison", "site-selection"],
+] as const;
+
 function Studio({ session }: { session: AuthSessionResult }) {
   const paragraphLabelPrefix = React.useId();
   const [panel, setPanel] = React.useState<Panel>("home"),
@@ -207,7 +213,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
   const [dataBuildingsOpen, setDataBuildingsOpen] = React.useState(false);
   const [projectSettingsOpen, setProjectSettingsOpen] = React.useState(false);
   const [buildingDataSelection, setBuildingDataSelection] = React.useState<{ projectId: string; ids: string[] }>();
-  const [buildingPromotion, setBuildingPromotion] = React.useState<BuildingPromotionSelection>();
+  const [buildingProposal, setBuildingProposal] = React.useState<BuildingProposalSelection>();
   const [refreshSuggestion, setRefreshSuggestion] = React.useState<{ projectId: string; period: string }>();
   const suggestedPeriod = refreshSuggestion && refreshSuggestion.projectId === detail?.project.id
     ? refreshSuggestion.period : undefined;
@@ -778,15 +784,17 @@ function Studio({ session }: { session: AuthSessionResult }) {
     ) ?? [];
   const homeGrant = grants.length === 1 ? grants[0] : undefined;
   const cityGrants = grants.filter(grant => grant.city?.normalize("NFKC") === detail?.project.city.normalize("NFKC"));
-  const promotionGrant = cityGrants.length === 1 ? cityGrants[0] : undefined;
-  const promotionScope = detail && promotionGrant?.organizationId === detail.project.organization_id &&
-    promotionGrant.region === detail.project.region && promotionGrant.businessLine === detail.project.business_line
+  const cityProposalGrant = cityGrants.length === 1 ? cityGrants[0] : undefined;
+  const buildingProposalScope = detail && cityProposalGrant?.organizationId === detail.project.organization_id &&
+    cityProposalGrant.region === detail.project.region && cityProposalGrant.businessLine === detail.project.business_line
     ? { organizationId: detail.project.organization_id, region: detail.project.region,
       city: detail.project.city, businessLine: detail.project.business_line } : undefined;
-  const buildingProfileAvailable = templates.some(template => template.kind === "dynamic" && template.id === "building-profile");
-  const canPlanBuilding = !!promotionScope && buildingDataIds.length === 1 && buildingProfileAvailable;
-  const promotionQuestion = buildingPromotion?.language === "en"
-    ? "Create a property showcase for the selected building" : "为所选楼宇制作项目推介";
+  const availableBuildingProposals: BuildingProposalScenario[] = buildingProposalCapabilities
+    .filter(([templateId]) => templates.some(template => template.kind === "dynamic" && template.id === templateId))
+    .map(([, scenario]) => scenario);
+  const selectedBuildingScenario = proposalScenarioForBuildings(buildingDataIds.length);
+  const canPlanBuildings = !!buildingProposalScope && selectedBuildingScenario && availableBuildingProposals.includes(selectedBuildingScenario);
+  const buildingPreset = buildingProposal && buildingProposalPresets[buildingProposal.scenario];
   const slidesForDisplay = draft?.pages.map((p) => {
     const sourceId = p.duplicateOf ?? p.id;
     const source = detail?.slides.find((slide) => slide.id === sourceId);
@@ -822,12 +830,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
   async function createScopedProposalProject(input: ProposalProjectInput, scope: PitchScope) {
     if (current.current.dirty) await flush();
     const theme = input.theme ?? { id: "colliers-default-v1", version: 2 };
+    const context = projectContextSchema.parse({ language: input.language, buildingIds: input.buildingIds, period: input.period });
     let source: WorkspaceDetail;
     try {
       source = workspaceDetailSchema.parse(await call({
         action: "create", projectId: input.id, title: input.title, scope,
         themeId: theme.id, themeVersion: theme.version,
-        context: projectContextSchema.parse({ language: input.language, buildingIds: input.buildingIds, period: input.period }),
+        context,
       }, true));
     } catch (cause) {
       // A lost create response can be recovered from the same private workspace ID.
@@ -837,22 +846,29 @@ function Studio({ session }: { session: AuthSessionResult }) {
         throw cause;
       }
     }
-    if (source.project.id !== input.id || source.slides.length ||
-      source.project.theme_id !== theme.id || source.project.theme_version !== theme.version)
+    const project = source.project;
+    const binding = source.workspace.context;
+    if (project.id !== input.id || source.slides.length || project.theme_id !== theme.id || project.theme_version !== theme.version ||
+      project.organization_id !== scope.organizationId || project.region !== scope.region ||
+      project.city !== scope.city || project.business_line !== scope.businessLine ||
+      binding.language !== context.language || binding.period !== context.period ||
+      binding.buildingIds.length !== context.buildingIds.length ||
+      binding.buildingIds.some((id, index) => id !== context.buildingIds[index])) {
       throw new Error("提案项目已变化，请重新核对。");
+    }
     return { id: source.project.id, version: source.project.version };
   }
-  function planSelectedBuilding() {
-    if (!detail || !promotionScope || !canPlanBuilding) return;
+  function planSelectedBuildings() {
+    if (!detail || !buildingProposalScope || !canPlanBuildings) return;
     const projectId = detail.project.id;
-    const buildingId = buildingDataIds[0];
+    const buildingIds = [...buildingDataIds];
     void run(async () => {
       const saved = await flush();
       if (saved.project.id !== projectId || current.current.detail?.project.id !== projectId || current.current.dirty)
         throw new Error("项目或草稿已变化，请保存后再核对。");
       const { period, language } = saved.workspace.context;
       const formalPeriod = outlineQuarter.safeParse(period).success ? period : "";
-      setBuildingPromotion({ buildingId, scope: promotionScope, language, period: formalPeriod });
+      setBuildingProposal({ buildingIds, scenario: selectedBuildingScenario, scope: buildingProposalScope, language, period: formalPeriod });
     });
   }
   function openInspector(tab: Inspector) {
@@ -1957,11 +1973,11 @@ function Studio({ session }: { session: AuthSessionResult }) {
                             onClick={() => reviewBuildingData({ kind: "buildings", buildingIds: buildingDataIds })}>
                             核对季度数据
                           </Button>
-                          {(availableVisualActions.length > 0 || canPlanBuilding) && <details>
+                          {(availableVisualActions.length > 0 || canPlanBuildings) && <details>
                             <summary>楼宇资料页</summary>
                             <div className={styles.form}>
-                              {canPlanBuilding && <Button variant="ghost" disabled={dataReviewDisabled}
-                                onClick={planSelectedBuilding}>新建楼宇推介</Button>}
+                              {canPlanBuildings && <Button variant="ghost" disabled={dataReviewDisabled}
+                                onClick={planSelectedBuildings}>{buildingProposalPresets[selectedBuildingScenario].label}</Button>}
                               {availableVisualActions.map(({ templateId, label }) => <Button key={templateId} variant="ghost"
                                 disabled={dataReviewDisabled}
                                 onClick={() => void run(() => generate({ mode: "dynamic",
@@ -2051,10 +2067,10 @@ function Studio({ session }: { session: AuthSessionResult }) {
           )}
         </>
       )}
-      {handoff && catalog && <HandoffReview source={handoff} call={call} theme={catalog.themes[0]} destination={handoff.destination}
+      {handoff && catalog && !buildingProposal && <HandoffReview source={handoff} call={call} theme={catalog.themes[0]} destination={handoff.destination}
         grants={grants.flatMap(scope => scope.region && scope.city && scope.businessLine
           ? [{ organizationId: scope.organizationId, region: scope.region, city: scope.city, businessLine: scope.businessLine }] : [])}
-        onPlanBuilding={buildingProfileAvailable ? selection => { setHandoff(null); setBuildingPromotion(selection); } : undefined}
+        buildingProposals={{ scenarios: availableBuildingProposals, open: setBuildingProposal }}
         onOpen={open} onClose={() => setHandoff(null)} />}
       {photoTarget && detail && photoTarget.projectId === detail.project.id && photoTarget.version === detail.project.version &&
         photoTarget.pageId === active && <PhotoReplacementPicker key={`${photoTarget.pageId}:${photoTarget.objectId}:${photoTarget.version}`}
@@ -2063,15 +2079,20 @@ function Studio({ session }: { session: AuthSessionResult }) {
             setObjectPage(null);
             acceptReviewedChange(result, expectedVersion, "楼宇照片已更换。");
           }} />}
-      {buildingPromotion && <Dialog open dismissible={!proposalGenerating} title="新建楼宇推介" size="md"
-        onOpenChange={value => { if (!value) setBuildingPromotion(undefined); }}>
+      {buildingProposal && buildingPreset && <Dialog open dismissible={!proposalGenerating} title={buildingPreset.label} size="md"
+        onOpenChange={value => { if (!value) setBuildingProposal(undefined); }}>
         <div className={`${styles.studio} ${styles.form}`}>
-          <ProposalPreview key={buildingPromotion.period} call={call} city={buildingPromotion.scope.city}
-            question={promotionQuestion} language={buildingPromotion.language} period={buildingPromotion.period}
-            buildingIds={[buildingPromotion.buildingId]} initialQuestion={promotionQuestion} disabled={busy}
-            onPromotionPeriod={period => setBuildingPromotion({ ...buildingPromotion, period })}
-            createProject={input => createScopedProposalProject(input, buildingPromotion.scope)}
-            onGenerating={setProposalGenerating} onGenerated={async id => { await open(id); setBuildingPromotion(undefined); }} />
+          <ProposalPreview key={buildingProposal.period} call={call} city={buildingProposal.scope.city}
+            question={buildingPreset[buildingProposal.language]} language={buildingProposal.language} period={buildingProposal.period}
+            buildingIds={buildingProposal.buildingIds} initialQuestion={buildingPreset[buildingProposal.language]} disabled={busy}
+            buildingScenario={buildingProposal.scenario}
+            onBuildingPeriodChange={period => setBuildingProposal({ ...buildingProposal, period })}
+            createProject={input => createScopedProposalProject(input, buildingProposal.scope)}
+            onGenerating={setProposalGenerating} onGenerated={async id => {
+              await open(id);
+              setBuildingProposal(undefined);
+              setHandoff(null);
+            }} />
         </div>
       </Dialog>}
       {homeProposal && homeGrant && <Dialog open dismissible={!proposalGenerating} title="核对提案" size="md"

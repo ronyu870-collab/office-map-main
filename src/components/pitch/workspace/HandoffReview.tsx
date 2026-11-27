@@ -8,6 +8,7 @@ import { outlineQuarter, workspaceDetailSchema } from "@/src/lib/pitch/workspace
 import { pitchStackingSourceSchema, readPitchAnalysisPeriods, type PitchHandoffNavigation, type PitchLeaseSearchSource } from "../PitchHandoffLink";
 import { WorkspaceError, type Call } from "./client";
 import { EvidencePages } from "./BusinessEvidence";
+import { buildingProposalPresets, proposalScenarioForBuildings, type BuildingProposalScenario } from "./ProposalPreview";
 import styles from "./workspace.module.css";
 
 const projectsSchema = z.object({
@@ -40,7 +41,9 @@ type Target = { mode: "append"; expectedVersion: number } | ({
 type Submit = { action: "add_to_pitch"; handoff: AddToPitch; target: Target; fingerprint: string; taskId: string };
 
 export type HandoffDestination = { id: string; title: string };
-export type BuildingPromotionSelection = { buildingId: string; scope: PitchScope; language: "zh" | "en"; period: string };
+export type BuildingProposalSelection = {
+  buildingIds: string[]; scenario: BuildingProposalScenario; scope: PitchScope; language: "zh" | "en"; period: string;
+};
 
 function matchesSourceScope(source: AddToPitch["source"], preview: Ready) {
   const same = (left: string[], right: string[]) => left.length === right.length &&
@@ -60,13 +63,13 @@ function matchesLeaseScope(source: PitchLeaseSearchSource, preview: Ready) {
     parameters.chart === (details ? "table" : "bar") && parameters.measure === (source.view === "industry-area" ? "area" : "count");
 }
 
-export function HandoffReview({ source, call, grants, theme, destination, onPlanBuilding, onOpen, onClose }: {
+export function HandoffReview({ source, call, grants, theme, destination, buildingProposals, onOpen, onClose }: {
   source: PitchHandoffNavigation;
   call: Call;
   grants: PitchScope[];
   theme?: { id: string; current_version: number };
   destination?: HandoffDestination;
-  onPlanBuilding?: (selection: BuildingPromotionSelection) => void;
+  buildingProposals?: { scenarios: readonly BuildingProposalScenario[]; open: (selection: BuildingProposalSelection) => void };
   onOpen: (id: string) => Promise<void>;
   onClose: () => void;
 }) {
@@ -100,8 +103,10 @@ export function HandoffReview({ source, call, grants, theme, destination, onPlan
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
   const reviewOnOpen = !!destination && (!!source.period || !!lease);
   const selectedScope = grants[scopeIndex];
-  const singleBuilding = source.source.kind === "buildings" && source.source.buildingIds.length === 1 ? source.source.buildingIds[0] : undefined;
-  const canPlanBuilding = onPlanBuilding && singleBuilding && !destination && !projectId && selectedScope &&
+  const pickedBuildings = source.source.kind === "buildings" ? source.source.buildingIds : [];
+  const buildingScenario = proposalScenarioForBuildings(pickedBuildings.length);
+  const canPlanBuildings = buildingProposals && buildingScenario && buildingProposals.scenarios.includes(buildingScenario) &&
+    !destination && !projectId && selectedScope &&
     grants.filter(grant => grant.city.normalize("NFKC") === selectedScope.city.normalize("NFKC")).length === 1;
 
   useEffect(() => {
@@ -253,9 +258,10 @@ export function HandoffReview({ source, call, grants, theme, destination, onPlan
 
   return <Dialog open onOpenChange={value => { if (!value && !busy) onClose(); }}
     title="加入 Pitch" size="md" footer={<>
-      {canPlanBuilding && <Button variant="ghost" disabled={!!busy || submitted || !validPeriod}
-        onClick={() => onPlanBuilding({ buildingId: singleBuilding, scope: selectedScope, language: source.language ?? "zh", period })}>
-        新建楼宇推介
+      {canPlanBuildings && <Button variant="ghost" disabled={!!busy || submitted || !validPeriod}
+        onClick={() => buildingProposals.open({ buildingIds: pickedBuildings, scenario: buildingScenario,
+          scope: selectedScope, language: source.language ?? "zh", period })}>
+        {buildingProposalPresets[buildingScenario].label}
       </Button>}
       {review ? <Button disabled={busy === "review" || (!projectId && (!title.trim() || !canCreate))}
         loading={busy === "submit"} onClick={() => void submit()}>

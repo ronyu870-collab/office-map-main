@@ -58,11 +58,11 @@ it.each([false, true])("reads one pinned original at a time and requires a new p
         { id: firstId, title: "项目封面", visuals: [exterior, invalid, interior] },
         { id: secondId, title: "项目简介", visuals: [exterior] },
       ] },
-    brief: { city: "北京", submarkets: ["CBD"], period: "2026-Q3", scenario: "building-promotion", buildingIds: [buildingId] },
+    brief: { city: "北京", submarkets: ["CBD"], period: "2026-Q3", scenario: "building-promotion", language: "zh", buildingIds: [buildingId] },
   })) as unknown as Call;
   render(<ProposalPreview call={call} projectId={id} projectVersion={1} city="北京" question="制作楼宇推介"
     buildingIds={[buildingId]} period="2026-Q3" language="zh" onGenerated={vi.fn()} disabled={false}
-    onPromotionPeriod={autoOpen ? vi.fn() : undefined} />);
+    buildingScenario={autoOpen ? "building-promotion" : undefined} />);
   await user.click(screen.getByRole("button", { name: "规划正式提案" }));
   const photos = await screen.findByText("已选楼宇照片（2）");
   if (!autoOpen) {

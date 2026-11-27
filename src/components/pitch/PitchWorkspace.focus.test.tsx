@@ -129,7 +129,7 @@ const initial = () => ({
   workspace: {
     context: {
       language: "zh",
-      buildingIds: [],
+      buildingIds: [] as string[],
       client: "",
       business: "",
       period: "",
@@ -164,6 +164,7 @@ let detail: ReturnType<typeof initial>,
   workspaceBuildingLookup = false,
   templateCapabilities: string[] = [],
   promotionPlanBuilding: string | undefined,
+  sitePlanBuildingIds: string[] | undefined,
   readyProposal = false,
   dropProposalCreateResponse = false,
   bindingResponse: (() => unknown) | undefined,
@@ -178,6 +179,7 @@ beforeEach(() => {
   workspaceBuildingLookup = false;
   templateCapabilities = [];
   promotionPlanBuilding = undefined;
+  sitePlanBuildingIds = undefined;
   failTaskPoll = false;
   failCompletedRead = false;
   completedTask = false;
@@ -203,7 +205,7 @@ beforeEach(() => {
       if (c.action === "catalog")
         body = path === "business" ? {
           recipes: expandedCatalog ? BUSINESS_RECIPES.map(r => ({...r, revision: 1, categoryId: sourceId, enabled: true})) : [],
-          dynamic: ["competition-map", "stacking-plan", "lease-representatives", "lease-industry-distribution", "building-profile"]
+          dynamic: ["competition-map", "stacking-plan", "lease-representatives", "lease-industry-distribution", "building-profile", "project-comparison"]
             .map(id => ({ id, name: id, status: "available", reason: "" })),
         } : catalog;
       else if (c.action === "capabilities")
@@ -234,14 +236,20 @@ beforeEach(() => {
           : c.projectId === proposalId ? { ...detail, project: { ...detail.project, id: proposalId, title: "CBD 选址方案" } }
             : detail;
       } else if (c.action === "create") {
-        const created = {...detail, project: {...detail.project, id: c.projectId, title: c.title, theme_id: c.themeId, theme_version: c.themeVersion}, workspace: {...detail.workspace, context: c.context, active_slide: null}, slides: [], tasks: []};
+        const created = {...detail, project: {...detail.project, id: c.projectId, title: c.title, theme_id: c.themeId, theme_version: c.themeVersion, organization_id: c.scope.organizationId, region: c.scope.region, city: c.scope.city, business_line: c.scope.businessLine}, workspace: {...detail.workspace, context: c.context, active_slide: null}, slides: [], tasks: []};
         body = created;
         if (readyProposal) {
           proposalSource = { id: c.projectId, detail: created };
           if (dropProposalCreateResponse) throw new Error("建项响应中断");
         }
       } else if (c.action === "proposal_plan") {
-        body = promotionPlanBuilding ? {
+        body = sitePlanBuildingIds ? {
+          status: "ready", selection: "explicit",
+          plan: { id: sourceId, version: 1, title: "办公选址方案", contextFingerprint: "a".repeat(64),
+            theme: { id: "colliers-default-v1", version: 3 }, slides: [{ id: pageId, title: "候选项目正式参数" }], gaps: [] },
+          brief: { city: "test", scenario: "site-selection", submarkets: [], period: c.input.period ?? "2026-Q3",
+            language: "zh", buildingIds: sitePlanBuildingIds },
+        } : promotionPlanBuilding ? {
           status: "ready", selection: "explicit",
           plan: { id: sourceId, version: 1, title: "已选楼宇推介", contextFingerprint: "a".repeat(64),
             theme: { id: "colliers-default-v1", version: 3 }, slides: [{ id: pageId, title: "写字楼项目介绍" }], gaps: [] },
@@ -639,6 +647,68 @@ describe("Pitch workspace continuous editing", () => {
     } finally {
       window.history.replaceState(null, "", original);
     }
+  });
+  it("takes the exact ordered map selection into a complete site proposal and keeps the source after closing the preview", async () => {
+    templateCapabilities = ["project-comparison"];
+    const selected = [assetId, pageId];
+    sitePlanBuildingIds = [assetId, sourceId];
+    const user = userEvent.setup();
+    const original = window.location.href;
+    const source = { source: { kind: "buildings", buildingIds: selected }, period: "2026-Q2" };
+    window.history.replaceState(null, "", "#add-to-pitch=" + encodeURIComponent(JSON.stringify(source)));
+    try {
+      render(<PitchWorkspace />);
+      const handoff = await screen.findByRole("dialog", { name: "加入 Pitch" });
+      expect(within(handoff).getByText("已选 2 栋楼宇")).toBeInTheDocument();
+      await user.click(within(handoff).getByRole("button", { name: "新建办公选址方案" }));
+      const firstPreview = await screen.findByRole("dialog", { name: "新建办公选址方案" });
+      await within(firstPreview).findByText("选址方案与所选楼宇或季度不一致，请重新核对。");
+      expect(within(firstPreview).queryByRole("button", { name: "确认并生成 Pitch" })).not.toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      const restored = await screen.findByRole("dialog", { name: "加入 Pitch" });
+      expect(within(restored).getByLabelText("正式季度")).toHaveValue("2026-Q2");
+      expect(within(restored).getByText("已选 2 栋楼宇")).toBeInTheDocument();
+
+      sitePlanBuildingIds = selected;
+      await user.click(within(restored).getByRole("button", { name: "新建办公选址方案" }));
+      const preview = await screen.findByRole("dialog", { name: "新建办公选址方案" });
+      await within(preview).findByText("候选项目正式参数");
+      const input = writes.filter(entry => entry.action === "proposal_plan").at(-1)?.input;
+      expect(input).toEqual({ question: "为所选楼宇制作办公选址方案", city: "test", audience: "internal",
+        language: "zh", buildingIds: selected, period: "2026-Q2" });
+      expect(writes.some(entry => entry.action === "create" || entry.action === "add_to_pitch")).toBe(false);
+      await user.click(within(preview).getByRole("button", { name: "确认并生成 Pitch" }));
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "新建办公选址方案" })).not.toBeInTheDocument());
+      expect(screen.queryByRole("dialog", { name: "加入 Pitch" })).not.toBeInTheDocument();
+      const created = writes.find(entry => entry.action === "create")!;
+      expect(created.context).toMatchObject({ buildingIds: selected, period: "2026-Q2" });
+      expect(writes.find(entry => entry.action === "proposal_generate")?.confirmation).toMatchObject({
+        projectId: created.projectId, request: { ...(input as object), projectId: created.projectId },
+      });
+    } finally {
+      window.history.replaceState(null, "", original);
+    }
+  });
+  it("plans office site selection from the data inspector without changing the current proposal", async () => {
+    workspaceBuildingLookup = true;
+    templateCapabilities = ["project-comparison"];
+    detail.workspace.context.buildingIds = [pageId];
+    detail.workspace.context.period = "2026-Q2";
+    sitePlanBuildingIds = [pageId, assetId];
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
+    await user.type(await screen.findByLabelText("搜索楼宇"), "工作台核对");
+    await user.click(await screen.findByRole("button", { name: "工作台核对楼宇" }));
+    await user.click(screen.getByText("楼宇资料页", { selector: "summary" }));
+    await user.click(screen.getByRole("button", { name: "新建办公选址方案" }));
+    const preview = await screen.findByRole("dialog", { name: "新建办公选址方案" });
+    await within(preview).findByText("候选项目正式参数");
+    expect(writes.find(entry => entry.action === "proposal_plan")?.input).toMatchObject({
+      buildingIds: [pageId, assetId], period: "2026-Q2",
+    });
+    expect(writes.some(entry => ["create", "add_to_pitch", "save"].includes(String(entry.action)))).toBe(false);
+    expect(detail.workspace.context.buildingIds).toEqual([pageId]);
   });
   it.each([
     ["competition-map", "添加区位图", "添加历史堆叠图"],

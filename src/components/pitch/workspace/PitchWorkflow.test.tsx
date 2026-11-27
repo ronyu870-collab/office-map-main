@@ -68,7 +68,7 @@ it("preserves source selection through review and confirms one versioned handoff
   const onClose = vi.fn();
   const onPlanBuilding = vi.fn();
   render(<HandoffReview source={item!} call={call} grants={[scope]}
-    theme={{ id: "colliers-default-v1", current_version: 2 }} onPlanBuilding={onPlanBuilding} onOpen={onOpen} onClose={onClose} />);
+    theme={{ id: "colliers-default-v1", current_version: 2 }} buildingProposals={{ scenarios: ["building-promotion"], open: onPlanBuilding }} onOpen={onOpen} onClose={onClose} />);
   expect(screen.queryByRole("button", { name: "新建楼宇推介" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "核对来源" }));
   await screen.findByText("返回的范围或季度与所选来源不一致，请重新核对。");
@@ -96,13 +96,13 @@ it("carries the exact building and formal quarter from a single-building handoff
   const call = vi.fn(async () => ({ items: [{ id, title: "现有项目", city: scope.city }] }));
   const onPlanBuilding = vi.fn();
   render(<HandoffReview source={source} call={call as unknown as Call} grants={[scope]}
-    theme={{ id: "colliers-default-v1", current_version: 2 }} onPlanBuilding={onPlanBuilding} onOpen={vi.fn()} onClose={vi.fn()} />);
+    theme={{ id: "colliers-default-v1", current_version: 2 }} buildingProposals={{ scenarios: ["building-promotion"], open: onPlanBuilding }} onOpen={vi.fn()} onClose={vi.fn()} />);
   await screen.findByRole("option", { name: "现有项目" });
   await user.selectOptions(screen.getByLabelText("目标项目"), id);
   expect(screen.queryByRole("button", { name: "新建楼宇推介" })).not.toBeInTheDocument();
   await user.selectOptions(screen.getByLabelText("目标项目"), "");
   await user.click(screen.getByRole("button", { name: "新建楼宇推介" }));
-  expect(onPlanBuilding).toHaveBeenCalledExactlyOnceWith({ buildingId, scope, period: "2026-Q2", language: "en" });
+  expect(onPlanBuilding).toHaveBeenCalledExactlyOnceWith({ buildingIds: [buildingId], scenario: "building-promotion", scope, period: "2026-Q2", language: "en" });
   expect(call).toHaveBeenCalledExactlyOnceWith({ action: "list", filter: "active" }, false, "workspace", expect.any(AbortSignal));
 });
 
