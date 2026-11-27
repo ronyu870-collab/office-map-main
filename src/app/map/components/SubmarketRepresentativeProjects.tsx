@@ -11,6 +11,8 @@ import { formalAssetMetric, latestAssetQuarter, RESEARCH_PRODUCTS } from '../mod
 import { formalQuarterRentEligible, formalQuarterVacancyEligible } from '@/src/lib/marketSamplePolicy';
 import { leedDisplayValue } from '@/src/lib/leed-display';
 import { MarketAssetAnalytics } from './MarketAssetAnalytics';
+import { RepresentativeBrochureMatrix } from './RepresentativeBrochureMatrix';
+import type { ResearchMarketType } from '../model/submarketResearchPresentation';
 import styles from './MarketAssetAnalytics.module.css';
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
@@ -100,17 +102,18 @@ export function selectRepresentativeProjects(buildings: readonly MarketBuilding[
   return examples;
 }
 
-function ProjectPhotos({ id, name, photos }: { id: string; name: string; photos: readonly BuildingPhotoSummary[] }) {
+function ProjectPhotos({ id, name, photos, active }: { id: string; name: string; photos: readonly BuildingPhotoSummary[]; active: boolean }) {
   const root = React.useRef<HTMLDivElement>(null);
   const galleryId = `submarket-project-photo-${React.useId()}`;
   const markup = React.useMemo(() => ({ __html: buildPhotoTrigger(galleryId, photos.length) + buildPhotoGallery(galleryId, escapeHtml(name), photos) }), [galleryId, name, photos]);
   React.useEffect(() => {
     const element = root.current;
-    if (!element) return;
+    if (!element || !active) return;
+    let stopped = false;
     let dispose: (() => void) | null = null;
     let observer: IntersectionObserver | null = null;
     const connect = () => {
-      if (dispose) return;
+      if (dispose || stopped || !element.isConnected) return;
       observer?.disconnect();
       const label = ({ open }: { open: boolean; index: number }) => {
         const span = element.querySelector('[data-building-photo-trigger] span');
@@ -123,17 +126,21 @@ function ProjectPhotos({ id, name, photos }: { id: string; name: string; photos:
       observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) connect(); }, { rootMargin: '120px' });
       observer.observe(element);
     } else connect();
-    return () => { observer?.disconnect(); dispose?.(); };
-  }, [id, photos, markup]);
+    return () => { stopped = true; observer?.disconnect(); dispose?.(); };
+  }, [id, photos, markup, active]);
   return <div ref={root} className={"workspace-building-photos mt-2 " + styles.photo} dangerouslySetInnerHTML={markup} />;
 }
 
-export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, compact = false, curated }: {
+export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, compact = false, curated, active = true, researchIdentity, marketType, authorizedQuarter }: {
   buildings: readonly MarketBuilding[];
   submarket: string;
   onOpen: (id: string) => void;
   compact?: boolean;
   curated?: SubmarketIntelligence['projects'];
+  active?: boolean;
+  researchIdentity?: string;
+  marketType?: ResearchMarketType;
+  authorizedQuarter?: number | null;
 }) {
   const curatedExamples = React.useMemo((): Example[] => {
     if (!curated?.length) return [];
@@ -163,13 +170,16 @@ export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, 
               <ProjectAssetMeta project={project} />
               <p className="submarket-project-reason"><span className="submarket-project-role">{role}</span>{role.includes(gradeNames[project.grade]) ? '' : ` · ${gradeNames[project.grade]}`} · {compact ? reason : detailReason ?? reason}</p>
               </div>
-              <ApprovedProjectPhotos project={project} />
+              <ApprovedProjectPhotos project={project} active={active} />
               </div>
             </li>
           ))}
         </ul>
       )}
-      {!compact && <MarketAssetAnalytics key={submarket} buildings={buildings} submarket={submarket} onOpen={onOpen} />}
+      {!compact && <>
+        <RepresentativeBrochureMatrix projects={examples.map(({ project }) => ({ id: project.id, name: project.name }))} identity={researchIdentity ?? submarket} active={active} onOpen={onOpen} />
+        <MarketAssetAnalytics key={submarket} buildings={buildings} submarket={submarket} onOpen={onOpen} identity={researchIdentity} active={active} marketType={marketType} authorizedQuarter={authorizedQuarter} />
+      </>}
     </section>
   );
 }
@@ -190,7 +200,7 @@ function ProjectAssetMeta({ project }: { project: Project }) {
   return items.length ? <div className={styles.assetMeta}>{items.map(item => <span key={item}>{item}</span>)}</div> : null;
 }
 
-function ApprovedProjectPhotos({ project }: { project: Project }) {
+function ApprovedProjectPhotos({ project, active }: { project: Project; active: boolean }) {
   const photos = React.useMemo(() => photoSummaries(project.building.photos), [project.building.photos]);
-  return photos.length ? <ProjectPhotos id={project.id} name={project.name} photos={photos} /> : null;
+  return photos.length ? <ProjectPhotos id={project.id} name={project.name} photos={photos} active={active} /> : null;
 }

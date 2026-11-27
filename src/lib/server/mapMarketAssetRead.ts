@@ -3,7 +3,14 @@ import { loadTrackedBuildings } from './mapInventoryRead';
 import { MAP_SUBMARKETS, MAP_SUBMARKETS_SECONDARY } from '@/src/app/map/model/mapDomain';
 import { normalizeMapSubmarket, submarketDatabaseNames } from '@/src/app/map/model/marketIdentity';
 import { summarizeResearchDemand, type MarketAssetResearchPayload, type ResearchAsset, type ResearchLease, type ResearchSupply } from '@/src/app/map/model/marketAssetAnalytics';
-import { formalAssetMetric } from '@/src/app/map/model/marketAssetAnalytics';
+import { formalAssetMetric, type ResearchMarketContext } from '@/src/app/map/model/marketAssetAnalytics';
+import type { MarketMetric } from '@/src/app/map/model/marketStatistics';
+import { readSubmarketProfileRow } from '@/src/app/map/model/submarketProfile';
+import { visibleSubmarketProfile } from '@/src/app/map/model/submarketPublication';
+import { buildResearchPresentation } from '@/src/app/map/model/submarketResearchPresentation';
+import { classifyResearchMarket } from '@/src/app/map/model/submarketProductResearch';
+
+type AssetInventoryRow = Omit<ResearchAsset, 'metrics'> & { building_metrics?: MarketMetric[] | null };
 
 const allowed = new Set([...MAP_SUBMARKETS, ...MAP_SUBMARKETS_SECONDARY].filter(name => name !== '其他'));
 const PAGE = 500;
@@ -27,8 +34,10 @@ export async function readMarketAssetResearch(admin: SupabaseClient, input: NonN
       .eq('building_metrics.record_year', year).eq('building_metrics.record_quarter', quarter)
       .order('id').range(offset, offset + PAGE - 1).abortSignal(signal);
     if (result.error) throw result.error;
-    const rows = result.data ?? [];
+    // The shared inventory helper accepts a dynamic select string, so PostgREST cannot infer its shape.
+    const rows = (result.data ?? []) as unknown as AssetInventoryRow[];
     for (const row of rows) {
+      if (typeof row.id !== 'string' || !row.id || typeof row.name !== 'string') continue;
       const fact = formalAssetMetric(row.building_metrics, period);
       if (!names.includes(normalizeMapSubmarket(row.submarket))) continue;
       assets.push({ id: row.id, name: row.name, submarket: normalizeMapSubmarket(row.submarket), grade: row.grade,
@@ -43,7 +52,7 @@ export async function readMarketAssetResearch(admin: SupabaseClient, input: NonN
       if (offset >= 20_000) throw new Error('MARKET_SUPPLY_TOO_LARGE');
       const result = await admin.from('future_supplies')
         .select('id,name,building_id,submarket,grade,type,status,is_entered_market,launch_year,launch_quarter,total_area')
-        .in('submarket', aliases).eq('status', 'future').or('is_entered_market.is.null,is_entered_market.eq.false')
+        .in('submarket', aliases).eq('status', 'future')
         .order('id').range(offset, offset + PAGE - 1).abortSignal(signal);
       if (result.error) throw result.error;
       supplies.push(...(result.data ?? []));
@@ -72,8 +81,27 @@ export async function readMarketAssetResearch(admin: SupabaseClient, input: NonN
     }
     return Object.fromEntries(names.map(name => [name, summarizeResearchDemand(rows, new Set(assets.filter(asset => asset.submarket === name).map(asset => asset.id)), year)]));
   }
-  const [supply, demand] = await Promise.allSettled([supplyRead(), demandRead()]);
+  async function contextRead() {
+    const result = await admin.from('map_submarket_profiles')
+      .select('*').in('submarket', names).eq('is_published', true).abortSignal(signal);
+    if (result.error) throw result.error;
+    const contexts: Record<string, ResearchMarketContext> = {};
+    for (const row of result.data ?? []) {
+      const name = normalizeMapSubmarket(row.submarket);
+      if (!names.includes(name)) continue;
+      const profile = visibleSubmarketProfile(readSubmarketProfileRow(row, name), row.is_published === true);
+      if (!profile.research) continue;
+      const members = assets.filter(asset => asset.submarket === name);
+      const validIds = new Set(members.map(asset => asset.id));
+      const presentation = buildResearchPresentation(profile.research, classifyResearchMarket(name, members).type);
+      contexts[name] = { positioning: presentation.positioning,
+        projects: presentation.projects.filter(project => validIds.has(project.buildingId))
+          .map(({ buildingId, role, reason }) => ({ buildingId, role, reason })) };
+    }
+    return contexts;
+  }
+  const [supply, demand, context] = await Promise.allSettled([supplyRead(), demandRead(), contextRead()]);
   if (signal.aborted) signal.throwIfAborted();
   return { period, assets, supplies: supply.status === 'fulfilled' ? supply.value : null,
-    demand: demand.status === 'fulfilled' ? demand.value : {}, demandAvailable: demand.status === 'fulfilled' };
+    demand: demand.status === 'fulfilled' ? demand.value : {}, demandAvailable: demand.status === 'fulfilled', contexts: context.status === 'fulfilled' ? context.value : {} };
 }

@@ -40,7 +40,7 @@ describe('benchmark research surfaces', () => {
     fireEvent.change(screen.getByLabelText('比较区域 1'), { target: { value: '上地' } });
     const matrix = await screen.findByRole('table', { name: '子市场同季度比较' });
     expect(within(matrix).getByRole('rowheader', { name: '上地' })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('查询季度'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('查询季度'), { target: { value: String(2026 * 4) } });
     await waitFor(() => expect(screen.getByText('当前产品在该季度暂无有效租金观测。')).toBeTruthy());
     expect(fetchResearch).toHaveBeenLastCalledWith(['CBD', '上地'], 2026 * 4, expect.any(AbortSignal));
   });

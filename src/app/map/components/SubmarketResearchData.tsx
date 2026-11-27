@@ -62,13 +62,14 @@ export function SubmarketResearchOverview({
   showQuarterlySummary?: boolean;
   structured?: boolean;
   parkOnly?: boolean;
-  part?: 'all' | 'composition';
+  part?: 'all' | 'composition' | 'future';
 }) {
   const current = useMemo(() => describeCurrentResearchMarket(name, buildings, beijingBenchmarkBuildings), [name, buildings, beijingBenchmarkBuildings]);
   const quarterly = useMemo(() => trendState === 'ready' ? describeQuarterlyResearchMarket(trendData) : null, [trendData, trendState]);
   const park = useMemo(() => parkOnly ? aggregateMarket(buildings.filter(building =>
     normalizeMapSubmarket(building.submarket) === name && officeGrade(building.grade) === 'park')) : null,
   [buildings, name, parkOnly]);
+  const onlyFuture = parkOnly || part === 'future';
   const showFutureArea = futureState === 'ready' && available(futureArea) && futureArea >= 0 && futureAreaSamples != null
     && futureAreaSamples > 0 && futureAreaSamples <= futureCount;
   return <div className={styles.research}>
@@ -101,15 +102,15 @@ export function SubmarketResearchOverview({
         <p role="status" className={styles.secondary}>{trendState === 'loading' ? '正在读取季度行情…' : '季度行情暂不可用。'}</p>
       </section>
     )}
-    {(!parkOnly || (futureState === 'ready' && futureCount > 0) || futureState === 'error') ? <section aria-label={parkOnly ? '未来供应' : '楼宇构成'} className={styles.block}>
-      <h3>{parkOnly ? '未来供应' : '楼宇构成'}</h3>
-      {!parkOnly && <MarketComposition segments={[
+    {(!onlyFuture || (futureState === 'ready' && futureCount > 0) || futureState === 'error') ? <section aria-label={onlyFuture ? '未来供应' : '楼宇构成'} className={styles.block}>
+      <h3>{onlyFuture ? '未来供应' : '楼宇构成'}</h3>
+      {!onlyFuture && <MarketComposition segments={[
         { label: '甲级写字楼', count: summary.gradeACount },
         { label: '乙级写字楼', count: summary.gradeBCount },
         { label: '产业园', count: summary.parkCount },
       ]} />}
       <dl className={styles.supplement}>
-        {summary.areaSamples > 0 && available(summary.stockArea) && summary.stockArea >= 0 && <div>
+        {!onlyFuture && summary.areaSamples > 0 && available(summary.stockArea) && summary.stockArea >= 0 && <div>
           <dt>甲乙级已知存量面积</dt><dd>{researchNumber(summary.stockArea, 0)} ㎡（{count(summary.areaSamples)}有面积记录）</dd>
         </div>}
         {futureState === 'ready' && <div><dt>未来供应（另计）</dt><dd>{count(futureCount)}</dd></div>}
@@ -120,10 +121,11 @@ export function SubmarketResearchOverview({
   </div>;
 }
 
-export function SubmarketResearchTrend({ data, state, gradeLabel, series, active, range, onRangeChange, onRetry }: {
+export function SubmarketResearchTrend({ data, state, gradeLabel, series, active, range, onRangeChange, onRetry, productMarket = false }: {
   data: readonly SubmarketTrendPoint[];
   state: SubmarketResearchTrendState;
   gradeLabel: string;
+  productMarket?: boolean;
   series?: SubmarketTrendSeries;
   active: boolean;
   range: MarketTrendRange;
@@ -138,7 +140,9 @@ export function SubmarketResearchTrend({ data, state, gradeLabel, series, active
           <p role="status">历史行情暂不可用。</p>
           {onRetry && <button type="button" className={styles.retry} onClick={onRetry}>重新加载</button>}
         </div>
-          : <SubmarketTrendChart data={data} range={range} onRangeChange={onRangeChange} active={active} />}
+           : productMarket && !data.some(point => available(point.rent) || available(point.vacancyPct))
+            ? <p className={styles.chartStatus}>暂无具代表性的季度行情。</p>
+            : <SubmarketTrendChart data={data} range={range} onRangeChange={onRangeChange} active={active} />}
       {state === 'ready' && series && <MarketGradeComparison series={series} />}
     </section>
   </div>;

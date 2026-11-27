@@ -6,11 +6,38 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   const points=[['2025Q4',180,10],['2026Q1',0,0],['2026Q2',null,null],['2026Q3',170,13],['2026Q4',165,10],['2027Q1',160,9]].map(([period,rent,vacancyPct])=>({period,year:Number(period.slice(0,4)),quarter:Number(period.at(-1)),rent,vacancyPct,rentSamples:rent==null?0:2,vacancySamples:vacancyPct==null?0:3,rentArea:100,vacancyArea:100}));
   let withTrend=true, withStructured=false;
   const cbdEdition=JSON.parse(await readFile(new URL('../../data/submarket-research/2026-11-27/cbd.json',import.meta.url),'utf8'));
-  await page.route('**/api/map/submarket?*',route=>route.fulfill({json:{
+  await page.route('**/api/map/submarket?*',route=>{
+    const market=new URL(route.request().url()).searchParams.get('submarket');
+    if(['上地','望京-酒仙桥','四季青'].includes(market)){
+      const mixed=market==='望京-酒仙桥', sparse=market==='四季青';
+      const park=points.filter(p=>p.period==='2026Q4').map(p=>({...p,rent:101,vacancyPct:20,rentSamples:sparse?1:3,vacancySamples:sparse?1:3,stockArea:50000,stockSamples:sparse?1:3}));
+      return route.fulfill({json:{submarket:market,stockCount:mixed?3:0,
+        marketProducts:{type:mixed?'mixed':'park',officeCount:mixed?3:0,parkCount:sparse?6:3},
+        profileAvailable:true,profilePublished:false,profile:{submarket:market,headline:'',overview:'',industries:'',transport:'',demographics:[],policies:[],insights:[],updatedAt:null,updatedBy:null},
+        trends:{all:mixed?points:[],a:[],b:[],park},trendError:false,quarterMethod:'same quarter',source:'building_metrics'}});
+    }
+    return route.fulfill({json:{
     submarket:'CBD',stockCount:3,profileAvailable:true,profilePublished:true,
     profile:{submarket:'CBD',headline:withStructured?cbdEdition.positioning:'国际商务集聚区',overview:'区域介绍与已收录办公项目。',industries:'',transport:'',demographics:[],policies:[],insights:[],updatedAt:'2026-11-18T00:00:00Z',updatedBy:null,...(withStructured?{research:cbdEdition}:{})},
     trends:{all:withTrend?points:[],a:withTrend?points:[],b:[]},trendError:false,quarterMethod:'same quarter',source:'building_metrics',
-  }}));
+  }});});
+  // Isolated, synthetic asset observations exercise the actual workbench, not the
+  // production database. The first CBD point uses the host's real fixture ID.
+  let assetReads=0;
+  await page.route('**/api/map/data?*',route=>{
+    const params=new URL(route.request().url()).searchParams;
+    if(params.get('mode')!=='research-assets')return route.fallback();
+    assetReads++;
+    const year=Number(params.get('year')),quarter=Number(params.get('quarter'));
+    const names=params.getAll('submarket');
+    const assets=names.flatMap(name=>Array.from({length:10},(_,index)=>{
+      const grade=name==='上地'?'BP':name==='望京-酒仙桥'&&index>=5?'BP':index<8?'A':'B';
+      const id=name==='CBD'&&index===0?'10000000-1111-4111-8111-111111111111':name+'-research-'+index;
+      return {id,name:name==='CBD'&&index===0?'CBD甲楼':name+'分析项目'+index,submarket:name,grade,
+        metrics:[{record_year:year,record_quarter:quarter,is_locked:true,is_draft:false,total_area:10000+1000*index,net_effective_rent:80+10*index,vacant_area:500+100*index}]};
+    }));
+    return route.fulfill({json:{period:year*4+quarter-1,assets,supplies:[],demand:{},demandAvailable:true,contexts:{}}});
+  });
   const layout=page.locator('.map-workspace-layout');
   const panel=page.getByRole('region',{name:'CBD',exact:true});
   const primary=panel.getByRole('button',{name:'查看全部项目',exact:true});
@@ -213,6 +240,26 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   await visitAllProjects();
   await projects.waitFor();
   assert.equal(await projectsTab.getAttribute('aria-selected'),'true','all-projects action still returns to the selected research tab');
+  if(width===1536){
+    assert.equal(assetReads,0,'market analysis does not read on map startup or ordinary project reading');
+    const analysis=projects.getByRole('region',{name:'市场深度分析',exact:true});
+    await analysis.getByRole('button',{name:'市场深度分析与区域比较',exact:true}).click();
+    const distribution=analysis.getByRole('region',{name:'租金价格分布',exact:true});
+    await distribution.waitFor();
+    await analysis.getByRole('img',{name:'同季度楼宇净有效租金与空置率散点图',exact:true}).locator('canvas').waitFor();
+    assert.equal(assetReads,1,'one request serves distribution and scatter');
+    const ranges=distribution.getByRole('group',{name:'选择租金区间查看楼宇',exact:true});
+    await ranges.getByRole('button').first().click();
+    await distribution.getByRole('button',{name:/CBD甲楼/}).click();
+    await building.waitFor();
+    await building.getByRole('button',{name:'返回子市场研究',exact:true}).click();
+    await distribution.waitFor();
+    await analysis.getByRole('button',{name:'添加比较区域',exact:true}).click();
+    await analysis.getByLabel('比较区域 1',{exact:true}).selectOption('上地');
+    await analysis.getByRole('table',{name:'子市场同季度比较',exact:true}).waitFor();
+    assert.equal(await analysis.getByRole('rowheader',{name:'上地',exact:true}).count(),1);
+    await analysis.getByRole('button',{name:'收起市场深度分析',exact:true}).click();
+  }
 
   withTrend=false;
   await page.reload();await page.waitForFunction(()=>window.__workspaceMap?.getCenter());
@@ -246,6 +293,45 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
     assert.ok(!(await panel.innerText()).includes(source.publisher),'client research excludes provider names');
   }
   await clickWorkspaceAction(page,'返回地图分屏');await standard.waitFor();await assertMapReady();
+  // The synthetic API is the regression fixture, not published market data.
+  if(width===1536){
+    for(const market of ['上地','望京-酒仙桥','四季青']){
+      await page.evaluate(name=>window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name}})),market);
+      const productPanel=page.getByRole('region',{name:market,exact:true});
+      await productPanel.waitFor();
+      if(await productPanel.getAttribute('data-submarket-layout')==='quick'){
+        const read=productPanel.getByRole('button',{name:'阅读完整研究',exact:true});
+        if(await read.isVisible())await read.click();else await clickWorkspaceAction(page,'展开到阅读高度');
+      }
+      await productPanel.getByRole('tab',{name:'市场概览',exact:true}).click();
+      const type=market==='望京-酒仙桥'?'mixed':'park';
+      await productPanel.getByText('完整子市场 · 产业园',{exact:true}).waitFor();
+      assert.equal(await productPanel.getAttribute('data-submarket-market-type'),type);
+      if(type==='mixed')await productPanel.getByRole('region',{name:'同季度产品比较'}).waitFor();
+      if(market==='四季青')await productPanel.getByText(/暂不形成区域行情/).waitFor();
+      else await productPanel.locator('[data-research-product="park"]').getByText('101.0',{exact:true}).waitFor();
+      await productPanel.getByRole('tab',{name:'行情趋势',exact:true}).click();
+      if(type==='mixed')await productPanel.getByRole('group',{name:'研究产品类型'}).getByRole('button',{name:'产业园',exact:true}).click();
+      else assert.equal(await productPanel.getByRole('group',{name:'楼宇等级'}).count(),0);
+      if(market==='四季青'){
+        await productPanel.getByText('暂无具代表性的季度行情。',{exact:true}).waitFor();
+        assert.equal(await productPanel.locator('canvas').count(),0);
+      }
+      await productPanel.getByText('完整子市场 · 产业园',{exact:true}).waitFor();
+      if(market!=='四季青'){
+        await productPanel.getByRole('tab',{name:'代表项目',exact:true}).click();
+        const analysis=productPanel.getByRole('region',{name:'市场深度分析',exact:true});
+        await analysis.getByRole('button',{name:'市场深度分析与区域比较',exact:true}).click();
+        await analysis.getByLabel('产品范围',{exact:true}).selectOption('park');
+        await analysis.getByRole('region',{name:'租金价格分布',exact:true}).waitFor();
+        await analysis.getByRole('img',{name:'同季度楼宇净有效租金与空置率散点图',exact:true}).locator('canvas').waitFor();
+        assert.equal(await analysis.getByLabel('产品范围',{exact:true}).inputValue(),'park');
+        await analysis.getByRole('button',{name:'收起市场深度分析',exact:true}).click();
+      }
+      await assertMapReady();
+    }
+    await openResearch();await openTabbedReading();
+  }
   return {width,height:page.viewportSize().height,identityOnlyExpandedForReading:identityOnly,coreMetricsFirst:true,primaryActionInTitleRow:true,
     structuredCbdCoreFirst:true,structuredCbdThematicRows:true,structuredCbdNoHorizontalOverflow:true,
     overviewCompositionAndPublishedIntro:true,adaptiveMapBudget,fullReadingPreservesMapCanvas:true,trendTabPreserved:true,

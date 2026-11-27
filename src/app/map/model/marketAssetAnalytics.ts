@@ -10,6 +10,7 @@ export const RESEARCH_PRODUCTS = ['a', 'b', 'park'] as const;
 export type ResearchProduct = typeof RESEARCH_PRODUCTS[number];
 export type ResearchProductScope = ResearchProduct | 'office';
 export const productNames = { a: '甲级', b: '乙级', park: '产业园', office: '甲乙级办公' } as const;
+export type ResearchMarketContext = { positioning: string; projects: { buildingId: string; role: string; reason: string }[] };
 export type ResearchAsset = MarketBuilding & {
   id: string; name: string; submarket: string; grade: string | null;
   completion_year?: string | null; leed_certification?: string | null;
@@ -110,11 +111,12 @@ export function summarizeResearchSupply(supplies: readonly ResearchSupply[], mar
   const years = new Map<string, { count: number; area: number; known: number }>();
   const products = new Map<string, number>();
   const projects: { id: string; name: string; period: string; product: string; area: number | null; year: number | null }[] = [];
-  let area = 0, known = 0;
+  let area = 0, known = 0, enteredCount = 0;
   for (const supply of supplies) {
     if (!supply.id || seen.has(supply.id) || normalizeMapSubmarket(supply.submarket) !== normalizeMapSubmarket(market)
-      || isEnteredFutureSupply(supply) || isPendingFutureSupply(supply) || supply.status !== 'future') continue;
+      || isPendingFutureSupply(supply) || supply.status !== 'future') continue;
     seen.add(supply.id);
+    if (isEnteredFutureSupply(supply)) { enteredCount++; continue; }
     const yearValue = mapOptionalNumber(supply.launch_year);
     const year = Number.isInteger(yearValue) && yearValue >= 1900 && yearValue <= 2200 ? yearValue : null;
     const bucketKey = year === null ? '待定' : String(year);
@@ -130,7 +132,7 @@ export function summarizeResearchSupply(supplies: readonly ResearchSupply[], mar
     projects.push({ id: supply.id, name: supply.name?.trim() || '未命名项目', period: futureSupplyDate(supply), product: label, area: validArea, year });
   }
   projects.sort((a, b) => (a.year ?? Infinity) - (b.year ?? Infinity) || a.period.localeCompare(b.period) || a.name.localeCompare(b.name, 'zh-CN'));
-  return { count: projects.length, area: known ? area : null, known, years: [...years.entries()].sort(([a], [b]) =>
+  return { count: projects.length, enteredCount, area: known ? area : null, known, years: [...years.entries()].sort(([a], [b]) =>
     a === '待定' ? 1 : b === '待定' ? -1 : Number(a) - Number(b)).map(([label, value]) => ({ label, count: value.count, area: value.known ? value.area : null, known: value.known })),
     products: [...products.entries()].map(([label, count]) => ({ label, count })), projects };
 }
@@ -149,7 +151,7 @@ function addBucket(map: Map<string, DemandBucket>, label: string, area: number) 
 export function summarizeResearchDemand(rows: readonly ResearchLease[], allowedIds: ReadonlySet<string>, year: number) {
   const seen = new Set<string>();
   const size = new Map<string, DemandBucket>(), industries = new Map<string, DemandBucket>(), types = new Map<string, DemandBucket>();
-  const quarters = new Map<string, DemandBucket>();
+  const quarters = new Map<string, DemandBucket>(), projects = new Map<string, DemandBucket>();
   let area = 0, count = 0;
   for (const row of rows) {
     if (row.record_source !== 'live' || row.quality_status !== 'OPERATIONAL' || row.building_match_scope !== 'exact'
@@ -158,26 +160,28 @@ export function summarizeResearchDemand(rows: readonly ResearchLease[], allowedI
     const value = mapOptionalNumber(row.area_sqm);
     if (!(value > 0)) continue;
     seen.add(row.source_record_id); area += value; count++;
+    addBucket(projects, row.building_id, value);
     addBucket(size, value < 500 ? '500㎡以下' : value < 1000 ? '500–999㎡' : value < 3000 ? '1,000–2,999㎡' : value < 5000 ? '3,000–4,999㎡' : '5,000㎡及以上', value);
     addBucket(industries, row.industry?.trim() || '行业未收录', value);
     addBucket(types, row.demand_type?.trim() || '类型未收录', value);
     const quarter = String(row.transaction_quarter ?? '').trim().toUpperCase();
     addBucket(quarters, /^Q[1-4]$/.test(quarter) ? quarter : '季度未收录', value);
   }
-  // Rare categories can disclose individual transactions. Combine only known categories, never impute unknown industry/type.
-  function protectedGroups(map: Map<string, DemandBucket>) {
-    const visible: DemandBucket[] = [];
-    const small: DemandBucket = { label: '其他已知类别', count: 0, area: 0 };
-    for (const value of map.values()) {
-      if (value.count >= 3 || value.label.endsWith('未收录')) visible.push(value);
-      else { small.count += value.count; small.area += value.area; }
-    }
-    if (small.count >= 3) visible.push(small);
-    return visible.filter(item => item.count >= 3).sort((a, b) => b.area - a.area);
+  // Avoid disclosure by subtraction: a suppressed remainder must contain at least
+  // three transactions. Unknown industries remain unknown, never imputed.
+  function protectedGroups(map: Map<string, DemandBucket>, limit = Infinity) {
+    const visible = [...map.values()].filter(item => item.count >= 3)
+      .sort((a, b) => b.area - a.area || a.label.localeCompare(b.label)).slice(0, limit);
+    const omitted = count - visible.reduce((sum, item) => sum + item.count, 0);
+    if (omitted > 0 && omitted < 3) visible.pop();
+    return visible;
   }
   return count < 3 ? null : { year, count, area,
-    size: [...size.values()].filter(item => item.count >= 3), industries: protectedGroups(industries),
-    types: protectedGroups(types), quarters: [...quarters.values()].filter(item => item.count >= 3).sort((a, b) => a.label.localeCompare(b.label)) };
+    size: protectedGroups(size), industries: protectedGroups(industries),
+    types: protectedGroups(types), quarters: protectedGroups(quarters).sort((a, b) => a.label.localeCompare(b.label)),
+    // These are aggregate building examples, never individual transaction details.
+    projects: protectedGroups(projects, 3).map(({ label, count, area }) => ({ buildingId: label, count, area })),
+  };
 }
 
 export type MarketAssetResearchPayload = {
@@ -186,4 +190,5 @@ export type MarketAssetResearchPayload = {
   supplies: ResearchSupply[] | null;
   demand: Record<string, ReturnType<typeof summarizeResearchDemand>>;
   demandAvailable: boolean;
+  contexts?: Record<string, ResearchMarketContext>;
 };

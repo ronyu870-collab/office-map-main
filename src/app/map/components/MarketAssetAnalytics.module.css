@@ -58,3 +58,10 @@
 .assetRowCompact .photo { margin-top: 0; }
 .assetRowCompact .photo :global(.building-pilot-photo-stage) { min-height: 0; }
 @media (max-width: 390px) { .assetRowCompact:has(.photo) { grid-template-columns: minmax(0, 1fr); } }
+
+.projectChoices { display: flex; flex-wrap: wrap; gap: var(--cd-space-1) var(--cd-space-3); }
+.projectChoices label { display: inline-flex; align-items: center; gap: var(--cd-space-1); min-height: var(--cd-control-height-md); }
+.projectChoices input { accent-color: var(--cd-color-brand); }
+.contextRows { display: grid; gap: var(--cd-space-2); }
+.contextRows article { border-block-start: 1px solid var(--cd-color-border); padding-block-start: var(--cd-space-2); display: grid; gap: var(--cd-space-1); min-width: 0; overflow-wrap: anywhere; }
+.contextRows button { justify-self: start; }

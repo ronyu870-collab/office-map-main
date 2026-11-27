@@ -41,7 +41,7 @@ describe('market asset research', () => {
     const data = summarizeResearchSupply([{ ...base, id: '1', launch_year: 2027, total_area: 200 },
       { ...base, id: '2', launch_year: null }, { ...base, id: '3', status: 'pending' },
       { ...base, id: '4', status: 'cancelled' }, { ...base, id: '5', is_entered_market: true }], 'CBD');
-    expect(data.count).toBe(2); expect(data.area).toBe(200); expect(data.years.map(row => row.label)).toEqual(['2027', '待定']);
+    expect(data.count).toBe(2); expect(data.enteredCount).toBe(1); expect(data.area).toBe(200); expect(data.years.map(row => row.label)).toEqual(['2027', '待定']);
   });
   it('excludes history, unknown identity, duplicate live records and insufficient category disclosure', () => {
     const row: ResearchLease = { record_source: 'live', quality_status: 'OPERATIONAL', building_match_scope: 'exact',
@@ -49,6 +49,7 @@ describe('market asset research', () => {
     const data = summarizeResearchDemand([row, row, { ...row, source_record_id: '2' }, { ...row, source_record_id: '3', industry: null },
       { ...row, source_record_id: '4', record_source: 'history' }, { ...row, source_record_id: '5', building_id: 'outside' }], new Set(['a']), 2026);
     expect(data?.count).toBe(3); expect(data?.area).toBe(300); expect(data?.industries).toEqual([]);
+    expect(data?.projects).toEqual([{ buildingId: 'a', count: 3, area: 300 }]);
     expect(summarizeResearchDemand([row], new Set(['a']), 2026)).toBeNull();
   });
 });
