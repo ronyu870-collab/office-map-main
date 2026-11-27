@@ -10,6 +10,8 @@ import { OfficeResearchCoreMetrics, ResearchChapters, ResearchLead, ResearchQuar
 import { ProductResearchCore, ProductResearchStructure } from './SubmarketProductResearch';
 import { configuredResearchMarketType, representativeProductTrend } from '../model/submarketProductResearch';
 import { buildResearchPresentation } from '../model/submarketResearchPresentation';
+import { marketResearchArrangement, visibleResearchFullModules, hasRepresentativeResearchTrend, type ResearchFullModule, type ResearchOverviewModule } from '../model/submarketResearchArrangement';
+import { MarketAssetAnalytics } from './MarketAssetAnalytics';
 import { hasSubmarketProfileContent, SubmarketResearchProfile } from './SubmarketResearchProfile';
 import { SubmarketResearchOverview, SubmarketResearchTrend, type SubmarketResearchFutureState } from './SubmarketResearchData';
 import { MarketTrendSummary } from './MarketTrendSummary';
@@ -135,11 +137,15 @@ function SubmarketWorkspace({
 
   const allTrend = payload?.trends.all ?? emptyTrend;
   const research = profile?.research;
-  const presentation = React.useMemo(() => research && (research.market === 'CBD' || productResearch)
-    ? buildResearchPresentation(research, marketType) : null, [research, marketType, productResearch]);
+  const plan = marketResearchArrangement(name);
+  const arranged = research && plan && !plan.benchmark ? plan : undefined;
+  const presentation = React.useMemo(() => research && (plan || research.market === 'CBD' || productResearch)
+    ? buildResearchPresentation(research, marketType) : null, [research, marketType, productResearch, plan]);
   const featured = Boolean(presentation || productResearch);
   const selectedTrend = payload?.trends[grade] ?? emptyTrend;
-  const displayedTrend = React.useMemo(() => productResearch ? representativeProductTrend(selectedTrend) : selectedTrend, [productResearch, selectedTrend]);
+  const displayedTrend = React.useMemo(() => productResearch || arranged ? representativeProductTrend(selectedTrend) : selectedTrend, [productResearch, selectedTrend, arranged]);
+  const hasRegionalTrend = !arranged || hasRepresentativeResearchTrend(displayedTrend, Boolean(arranged.projectFirst));
+  const anyRegionalTrend = !arranged || gradeNames.some(([id]) => hasRepresentativeResearchTrend(payload?.trends[id] ?? emptyTrend, Boolean(arranged.projectFirst)));
   const signal = research && !productResearch ? submarketResearchSignal(research.focus, payload?.trends, trendState) : null;
   const researchLead = research && !presentation ? <SubmarketOverviewResearch research={research} /> : null;
   const marketSignal = signal && !presentation ? <section className="submarket-intelligence-lead" aria-label="正式行情对比">
@@ -174,7 +180,7 @@ function SubmarketWorkspace({
   const trend = (full: boolean) => <section className="submarket-research-chapter" aria-labelledby="submarket-trend-heading">
     <div className="submarket-chapter-heading">
       <h3 id="submarket-trend-heading" ref={trendHeadingRef} tabIndex={-1}>租金与空置率趋势</h3>
-      {workspace && !full ? <button type="button" className="submarket-quiet-action" onClick={() => {
+      {workspace && !full && (anyRegionalTrend || trendState !== 'ready') ? <button type="button" className="submarket-quiet-action" onClick={() => {
         jumpToTrend.current = true;
         workspace.setMode('full');
       }}>展开图表</button> : null}
@@ -185,22 +191,22 @@ function SubmarketWorkspace({
     </div>}
     {productResearch && trendState === 'ready' && selectedTrend.some(point => point.rentSamples === 1 || point.vacancySamples === 1)
       && <p className="submarket-v3-context">单项目观测不构成区域行情。</p>}
-    <SubmarketResearchTrend data={displayedTrend} state={trendState} productMarket={productResearch}
+    {arranged && trendState === 'ready' && !hasRegionalTrend ? <p className="submarket-v3-context">有效季度样本不足以形成区域趋势，请参考具体项目的正式行情。</p> : <SubmarketResearchTrend data={displayedTrend} state={trendState} productMarket={productResearch}
       gradeLabel={gradeNames.find(([id]) => id === grade)?.[1] ?? '甲乙级'} onRetry={detail.error ? undefined : retry}
       series={grade === 'park' ? undefined : payload?.trends} active={!suspended} range={reading.trendRange ?? 'default'}
-      onRangeChange={trendRange => setReading(previous => ({ ...previous, trendRange }))} />
+      onRangeChange={trendRange => setReading(previous => ({ ...previous, trendRange }))} />}
   </section>;
   const marketOverview = <>{productResearch && <ProductResearchStructure type={marketType} series={payload?.trends} state={trendState} />}<SubmarketResearchOverview name={name} summary={summary} buildings={buildings} trendData={allTrend}
     trendState={trendState} futureState={futureState} futureCount={futureCount} futureArea={futureArea} futureAreaSamples={futureAreaSamples}
     beijingBenchmarkBuildings={beijingBenchmarkBuildings} showQuarterlySummary={!expanded}
     structured={!!research} parkOnly={parkOnly} part={productResearch ? 'future' : presentation ? 'composition' : 'all'} /></>;
   const coreMetrics = productResearch ? <ProductResearchCore type={marketType} inventory={payload?.marketProducts} filteredOfficeCount={summary.officeCount} filteredParkCount={summary.parkCount} series={payload?.trends} state={trendState} measured={layout !== 'quick'} />
-    : presentation ? <OfficeResearchCoreMetrics name={name} summary={summary} buildings={buildings} beijingBenchmarkBuildings={beijingBenchmarkBuildings} measured={layout !== 'quick'} /> : null;
+    : presentation ? <OfficeResearchCoreMetrics name={name} summary={summary} buildings={buildings} beijingBenchmarkBuildings={beijingBenchmarkBuildings} measured={layout !== 'quick'} projectFirst={arranged?.projectFirst} /> : null;
   const overview = featured ? <div className="submarket-v3-overview">
     {coreMetrics}
-    {!expanded && presentation && <ResearchLead presentation={presentation} mode="standard" />}
-    {!productResearch && <ResearchQuarterPulse data={allTrend} state={trendState} showValues={!expanded || grade !== 'all'} />}
-    {!expanded && marketOverview}
+    {(!expanded || arranged) && presentation && <ResearchLead presentation={presentation} mode="standard" />}
+    {!productResearch && !arranged?.projectFirst && <ResearchQuarterPulse data={arranged ? representativeProductTrend(allTrend) : allTrend} state={trendState} showValues={!expanded || grade !== 'all'} />}
+    {!expanded && !arranged && marketOverview}
   </div> : marketOverview;
   // The authorization-wide formal trend establishes the query period; filtered
   // asset examples must not silently move a market to another quarter.
@@ -208,9 +214,23 @@ function SubmarketWorkspace({
     .filter(point => point.rentSamples > 0 || point.vacancySamples > 0 || (point.stockSamples ?? 0) > 0)
     .map(point => point.year * 4 + point.quarter - 1);
   const authorizedQuarter = formalQuarters.length ? Math.max(...formalQuarters) : null;
-  const projects = (compact = false) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}
+  const projects = (compact = false, showAnalytics = true) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}
     onOpen={onOpenBuilding} compact={compact} curated={presentation?.projects ?? research?.projects}
-    active={!suspended} researchIdentity={identity} marketType={marketType} authorizedQuarter={authorizedQuarter} />;
+    active={!suspended} researchIdentity={identity} marketType={marketType} authorizedQuarter={authorizedQuarter} showAnalytics={showAnalytics} />;
+  const analytics = <MarketAssetAnalytics key={name} buildings={buildings} submarket={name} onOpen={onOpenBuilding} identity={identity} active={!suspended} marketType={marketType} authorizedQuarter={authorizedQuarter} />;
+  const fullModules: Record<ResearchFullModule, React.ReactNode> = {
+    trend: <div className="submarket-brief-trend">{trend(true)}</div>,
+    composition: <div className="submarket-brief-composition">{marketOverview}</div>,
+    profile: <div className="submarket-brief-profile">{profileChapter}</div>,
+    projects: <div className="submarket-brief-projects">{projects(false, false)}</div>,
+    analysis: <div className="submarket-brief-analysis">{analytics}</div>,
+    outlook: presentation?.chapters.some(chapter => chapter.theme === 'outlook') ? <div className="submarket-brief-outlook"><ResearchChapters presentation={presentation} section="outlook" /></div> : null,
+  };
+  const overviewModules: Record<ResearchOverviewModule, React.ReactNode> = { composition: marketOverview, projects: projects(true), analysis: analytics };
+  const fullOrder = arranged ? visibleResearchFullModules(arranged, {
+    trend: trendState !== 'ready' || anyRegionalTrend,
+    outlook: !!fullModules.outlook,
+  }) : [];
 
   return <div hidden={suspended || undefined} aria-hidden={suspended || undefined}
     className={suspended ? 'map-submarket-workspace hidden' : 'map-submarket-workspace'}>
@@ -266,16 +286,18 @@ function SubmarketWorkspace({
                 featured={featured ? <>{coreMetrics}{presentation && <ResearchLead presentation={presentation} mode="quick" />}</> : undefined}>
                 {!featured && trendState === 'ready' && <MarketTrendSummary data={allTrend} compact />}
               </QuickSummary>
-              : layout === 'expanded' ? <div className="submarket-brief">
+              : layout === 'expanded' ? <div className="submarket-brief" data-research-arranged={arranged ? 'true' : undefined}>
                 <section className="submarket-research-chapter submarket-brief-overview" aria-labelledby="submarket-brief-overview">
                   <h3 id="submarket-brief-overview">市场概览</h3>{researchLead}{marketSignal}{overview}
                 </section>
+                {arranged ? fullOrder.map(module => <React.Fragment key={module}>{fullModules[module]}</React.Fragment>) : <>
                 <div className="submarket-brief-trend">{trend(true)}</div>
                 {featured && <div className="submarket-brief-composition">{marketOverview}</div>}
                 <div className="submarket-brief-profile">{profileChapter}</div>
                 <div className="submarket-brief-projects">{projects()}</div>
                 {presentation && presentation.chapters.some(chapter => chapter.theme === 'outlook') &&
                   <div className="submarket-brief-outlook"><ResearchChapters presentation={presentation} section="outlook" /></div>}
+                </>}
               </div> : currentSection === 'overview' ? <div className="submarket-section-flow">
                 {researchLead}
                 {marketSignal}
@@ -284,7 +306,7 @@ function SubmarketWorkspace({
                   <button type="button" className="submarket-quiet-action" disabled={detail.loading} onClick={retry}>重新加载</button></div> : null}
                 {profileUnavailable ? <div className="submarket-read-status"><p role="status">区域画像暂不可用。</p>
                   <button type="button" className="submarket-quiet-action" disabled={detail.loading} onClick={retry}>重试区域画像</button></div> : null}
-                {projects(true)}
+                {arranged ? arranged.overview.map(module => <React.Fragment key={module}>{overviewModules[module]}</React.Fragment>) : projects(true)}
               </div> : currentSection === 'trend' ? trend(false)
                 : currentSection === 'profile' ? profileChapter : projects()}
           </>}
