@@ -961,7 +961,7 @@ try {
       assert.ok(report.pages[1].reasons.includes("internal_only"));
       await assert.rejects(render.prepareRenderExport(ordinary, command), error => error.report.pages[1].id === mixed.slides[1].id);
       assert.equal((await db.setup.query("select id from pitch_exports where id=$1", [command.exportId])).rowCount, 0);
-      const selected = { ...command, pages: [0] };
+      const selected = { ...command, pages: [0], expectedVersion: report.projectVersion };
       await render.prepareRenderExport(ordinary, selected);
       await render.runRenderExport(ordinary, selected);
       assert.equal((await db.rpc(OTHER, { action: "export_status", projectId: composedId, exportId: selected.exportId })).state, "ready");
@@ -977,6 +977,29 @@ try {
       const cachedClient = { ...selected, exportId: randomUUID() };
       assert.equal((await render.prepareRenderExport(ordinary, cachedClient)).reused, true);
       assert.deepEqual((await render.downloadArtifact(ordinary, cachedClient)).bytes, file.bytes);
+
+      const beforeReorder = await db.rpc(OTHER, { action: "export_eligibility", projectId: composedId, audience: "internal" });
+      const reordered = await workspace.saveWorkspace(ordinary, save(mixed, {
+        pages: [...mixed.slides].reverse().map(page => ({ id: page.id })),
+      }));
+      assert.equal(reordered.slides[0].id, mixed.slides[1].id);
+      const stale = { ...selected, exportId: randomUUID(), audience: "internal", expectedVersion: beforeReorder.projectVersion };
+      await assert.rejects(render.prepareRenderExport(ordinary, stale), /PITCH_CONFLICT/);
+      assert.equal((await db.setup.query("select id from pitch_jobs where id=$1", [stale.exportId])).rowCount, 0);
+      assert.equal((await db.setup.query("select id from pitch_exports where id=$1", [stale.exportId])).rowCount, 0);
+      assert.equal((await render.prepareRenderExport(ordinary, selected)).replayed, true);
+      await assert.rejects(render.prepareRenderExport(ordinary, { ...selected, expectedVersion: reordered.project.version }), /PITCH_CONFLICT/);
+      assert.deepEqual((await render.downloadArtifact(ordinary, selected)).bytes, file.bytes);
+      const nextClient = { ...selected, exportId: randomUUID(), pages: [1], expectedVersion: reordered.project.version };
+      await render.prepareRenderExport(ordinary, nextClient);
+      const { rows: [admission] } = await db.setup.query(
+        "select slide_versions,requested_project_version from pitch_exports where id=$1", [nextClient.exportId]);
+      assert.equal(admission.slide_versions[0].id, mixed.slides[0].id);
+      assert.equal(admission.requested_project_version, reordered.project.version);
+      await render.runRenderExport(ordinary, nextClient);
+      assert.equal((await PDFDocument.load((await render.downloadArtifact(ordinary, nextClient)).bytes)).getPageCount(), 1);
+      await workspace.saveWorkspace(ordinary, save(reordered, { pages: [{ id: reordered.slides[1].id }] }));
+      await assert.rejects(render.prepareRenderExport(ordinary, { ...nextClient, exportId: randomUUID() }), /PITCH_CONFLICT/);
       await db.setup.query("update pitch_content_assets set allow_client_export=false where id=$1", [approvedAsset]);
       await assert.rejects(render.downloadArtifact(ordinary, selected), /PITCH_DENIED/);
       await assert.rejects(render.downloadArtifact(ordinary, cachedClient), /PITCH_DENIED/);

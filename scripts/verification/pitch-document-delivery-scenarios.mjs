@@ -18,10 +18,18 @@ export async function verifyPitchDocumentDelivery({ app, db, owner, other, viewe
 
   await check("a repeated HTTP export produces a new receipt and reuses the authorized PPTX object", async () => {
     const exportId = randomUUID();
-    const request = { action: "export_start", projectId: studioProject, exportId, audience: "internal", format: "pptx" };
+    const eligibility = await call(owner, { action: "export_eligibility", projectId: studioProject, audience: "internal" });
+    assert.equal(eligibility.status, 200);
+    const expectedVersion = eligibility.body.projectVersion;
+    const request = { action: "export_start", projectId: studioProject, exportId, expectedVersion, audience: "internal", format: "pptx" };
+    const stale = { ...request, exportId: randomUUID(), expectedVersion: expectedVersion + 1 };
+    assert.equal((await call(owner, stale, true)).status, 409);
+    assert.equal((await db.query("select id from public.pitch_exports where id=$1", [stale.exportId])).rowCount, 0);
     const start = await call(owner, request, true);
     assert.equal(start.status, 202, JSON.stringify(start.body));
     assert.deepEqual(start.body, { exportId, state: "ready", reused: true });
+    assert.equal((await call(owner, request, true)).body.replayed, true);
+    assert.equal((await call(owner, { ...request, expectedVersion: stale.expectedVersion }, true)).status, 409);
     const status = await call(owner, { action: "export_status", projectId: studioProject, exportId });
     assert.equal(status.status, 200);
     assert.equal(status.body.state, "ready");
