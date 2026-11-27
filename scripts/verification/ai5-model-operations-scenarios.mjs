@@ -35,7 +35,11 @@ export async function verifyAi5ModelOperations({ db, service, keys, output, chec
     assert.ok(!JSON.stringify(body).includes('合成保密客户_禁止模型日志'));
     if (scenario.revoke) { await db.query('update private.ai_query_grants set enabled=false where user_id=$1', [scenario.revoke]); return Response.json({}, { status: 429 }); }
     if (scenario.cancel) { activeController.abort(); init.signal.throwIfAborted(); }
-    if (scenario.failure && provider === 'deepseek') return Response.json({ error: { code: 'rate_limit_exceeded', message: 'private supplier error' } }, { status: scenario.failure });
+    if (scenario.failure && provider === 'deepseek') {
+      const code = scenario.failure === 429 ? scenario.quota ? 'insufficient_quota' : 'rate_limit_exceeded'
+        : scenario.failure >= 500 ? 'server_error' : 'invalid_api_key';
+      return Response.json({ error: { code, message: 'private supplier error' } }, { status: scenario.failure });
+    }
     const hasTool = provider === 'openai' ? body.input.some(i => i.type === 'function_call_output') : body.messages.some(m => m.role === 'tool');
     const call = scenario.query && !hasTool ? neutralCall() : null;
     if (provider === 'openai') {
@@ -90,12 +94,21 @@ export async function verifyAi5ModelOperations({ db, service, keys, output, chec
       const other = await actor('other'); const denied = await submit(other, { conversation: { id: prior.input.conversation.id, parentRequestId: prior.body.requestId } });
       assert.equal(denied.calls.length, 0); assert.ok([403, 503].includes(denied.status)); assert.equal((await recover(other, prior.body.requestId)).status, 403);
     });
-    await check('AI5模型运营 / 限流与缺少密钥只在明确启用回退后切换，权限错误不切换', async () => {
+    await check('AI6模型运营 / 上游故障可按授权回退，限流、配额及鉴权拒绝不切换供应商', async () => {
       const who = await actor('fallback'); env({ AI_PROVIDER_QUICK: 'deepseek', AI_MODEL_FALLBACK_ENABLED: 'true' });
-      const reply = await submit(who, { failure: 429 }); assert.equal(reply.status, 200, JSON.stringify(reply.body));
+      const reply = await submit(who, { failure: 503 }); assert.equal(reply.status, 200, JSON.stringify(reply.body));
       assert.deepEqual(reply.calls.map(c => c.provider), ['deepseek', 'openai']); const records = await attempts(reply.body.requestId);
       assert.equal(records[0].usageStatus, 'unknown_reserved'); assert.equal(records[1].fallback, true);
-      const denied = await submit(who, { failure: 403 }); assert.equal(denied.status, 503); assert.deepEqual(denied.calls.map(c => c.provider), ['deepseek']);
+      for (const [failure, quota, errorCode] of [[429, false, 'rate_limited'], [429, true, 'payment_required'], [403, false, 'unauthorized']]) {
+        const denied = await submit(who, { failure, quota });
+        assert.equal(denied.status, 503, JSON.stringify(denied.body));
+        assert.deepEqual(denied.calls.map(c => c.provider), ['deepseek']);
+        const recorded = await attempts(denied.body.requestId);
+        assert.equal(recorded.length, 1);
+        assert.equal(recorded[0].errorCode, errorCode);
+        assert.equal(recorded[0].usageStatus, 'unknown_reserved');
+        assert.equal(recorded[0].fallback, false);
+      }
       env({ DEEPSEEK_API_KEY: '' }); const missing = await submit(who); assert.equal(missing.status, 200, JSON.stringify(missing.body)); assert.deepEqual(missing.calls.map(c => c.provider), ['openai']);
       assert.equal((await attempts(missing.body.requestId))[0].usageStatus, 'not_sent'); env({ DEEPSEEK_API_KEY: 'synthetic-ds' });
     });

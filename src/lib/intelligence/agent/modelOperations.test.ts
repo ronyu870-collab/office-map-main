@@ -139,6 +139,10 @@ describe('bounded routing, fallback and model cost governance', () => {
     setup(); let revoked = false; const revalidate = vi.fn(async () => { if (revoked) throw new Error('QUERY_DENIED'); });
     const openai = vi.fn(); const deepseek = vi.fn(async () => { revoked = true; throw new ModelProviderError('timeout'); });
     await expect(runtime({ deepseek, openai }, revalidate).invoke(messages, signal())).rejects.toThrow('QUERY_DENIED'); expect(openai).not.toHaveBeenCalled();
+    revoked = false;
+    const limited = vi.fn(async () => { revoked = true; throw new ModelProviderError('rate_limited'); });
+    await expect(runtime({ deepseek: limited, openai }, revalidate).invoke(messages, signal())).rejects.toThrow('QUERY_DENIED');
+    expect(openai).not.toHaveBeenCalled();
     revoked = false; const delta = vi.fn();
     const paid = vi.fn(async (_messages, _signal, onDelta) => { await onDelta?.('不得交付'); revoked = true; return success('deepseek'); });
     await expect(runtime({ deepseek: paid, openai }, revalidate).invoke(messages, signal(), delta)).rejects.toThrow('QUERY_DENIED');

@@ -258,12 +258,13 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         for (const delta of deltas) await onDelta?.(delta);
         return result!;
       }
+      if (!signal.aborted && failure instanceof ModelProviderError) await input.revalidate(signal);
       // Never retry business authorization, cancellation or arbitrary exceptions.
       if (scoped || !(failure instanceof ModelProviderError) || !retryable.has(failure.code) || fallbackUsed
         || process.env.AI_MODEL_FALLBACK_ENABLED !== 'true' || snapshot && !policy?.fallback || signal.aborted) throw failure;
       const alternate = snapshot ? selectConfiguredModel(snapshot, mode, purpose, true).provider : provider === 'deepseek' ? 'openai' : 'deepseek';
       if (alternate === 'openai' && !openAIAllowed(input.actorId)) throw failure;
-      await input.revalidate(signal); active = alternate; fallbackUsed = true;
+      active = alternate; fallbackUsed = true;
     }
   };
   const invoke = async (messages: AgentMessage[], signal: AbortSignal, onDelta?: (delta: string) => Promise<void>, purpose: 'agent' | 'semantic_intent' | 'synthesis' = 'agent') => {
