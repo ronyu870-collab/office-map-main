@@ -91,27 +91,38 @@ export function PagePreview({
 }) {
   const [zoom, setZoom] = React.useState(100),
     [full, setFull] = React.useState(false),
-    [loaded, setLoaded] = React.useState("");
+    [failedImage, setFailedImage] = React.useState<string>();
   const picture = (
     <div className={styles.page} style={{ width: `${zoom}%` }}>
       {src ? (
         <img
           src={src}
           alt={title}
-          onLoad={() => setLoaded(src)}
-          onError={() => setLoaded("failed")}
+          onError={() => setFailedImage(src)}
         />
       ) : (
-        <span>正在加载页面、字体与图片…</span>
+        <span role="status">正在读取页面…</span>
       )}
     </div>
   );
   return (
     <section className={styles.preview} aria-label="页面预览">
+      {error || (src && failedImage === src) ? (
+        <div role="alert" className={styles.notice}>
+          {error || "页面图片加载失败。"}
+          <Button variant="secondary" onClick={() => { setFailedImage(undefined); onRetry(); }}>
+            重试预览
+          </Button>
+        </div>
+      ) : (
+        <div className={styles.canvas}>{picture}</div>
+      )}
+      {pending && <div role="status" className={styles.previewStatus}>正在保存并更新页面…</div>}
       <div className={styles.previewTools}>
         <Button
           variant="ghost"
           aria-label="缩小页面"
+          disabled={zoom <= 50}
           onClick={() => setZoom((v) => Math.max(50, v - 10))}
         >
           <Minus size={16} />
@@ -120,6 +131,7 @@ export function PagePreview({
         <Button
           variant="ghost"
           aria-label="放大页面"
+          disabled={zoom >= 200}
           onClick={() => setZoom((v) => Math.min(200, v + 10))}
         >
           <Plus size={16} />
@@ -131,25 +143,6 @@ export function PagePreview({
           <Maximize2 size={16} />
           全屏
         </Button>
-      </div>
-      {error ? (
-        <div role="alert" className={styles.notice}>
-          {error}
-          <Button variant="secondary" onClick={onRetry}>
-            重试预览
-          </Button>
-        </div>
-      ) : (
-        <div className={styles.canvas}>{picture}</div>
-      )}
-      <div role="status" className={styles.previewStatus}>
-        {pending
-          ? "正在保存并更新页面…"
-          : src && loaded === src
-            ? "页面已更新"
-            : loaded === "failed"
-              ? "图片加载失败，请重试"
-              : "正在加载字体与图片…"}
       </div>
       <Dialog
         open={full}

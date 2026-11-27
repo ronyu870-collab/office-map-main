@@ -10,10 +10,14 @@ import { readQueryBody } from "@/src/lib/intelligence/query/httpBody";
 import { isQuerySameOrigin } from "@/src/lib/intelligence/query/sameOrigin";
 import { LayoutError } from "../layout/metrics";
 import { DocumentError } from "@/src/lib/intelligence/knowledge/safeArchive";
+import { renderSharedSlide } from "./sharing";
 import { workspaceReadSchema, workspaceCommandSchema } from "./protocol";
+import { reviewHandoff, startHandoff } from "./handoff";
+import { applyDataRefresh, previewDataRefresh, readDocumentBindings } from "./documentBindings";
 import {
   getWorkspace,
   saveWorkspace,
+  applyDocumentModification,
   appendWorkspace,
   customWorkspace,
   copyWorkspace,
@@ -26,6 +30,7 @@ import {
   startWorkspaceTask,
   runWorkspaceTask,
 } from "./workflow";
+import type { StackingHandoffPort } from "./stacking-handoff";
 const headers = {
   "Cache-Control": "private, no-store",
   Vary: "Authorization, x-colliers-impersonate-user",
@@ -33,13 +38,22 @@ const headers = {
 };
 const reply = (value: unknown, status = 200) =>
   Response.json(value, { status, headers });
+const taskReceipt = z.object({ state: z.string(), workflow: z.enum(["workspace", "proposal"]).optional() });
 export async function handleWorkspaceRequest(
   request: Request,
   deps: PitchDependencies,
   schedule?: (task: () => Promise<void>) => void,
+  stackingPort?: StackingHandoffPort,
 ) {
   try {
     const ctx = await authorizePitch(request, deps);
+    const dispatchQueuedTask = (projectId: string, taskId: string, receipt: unknown) => {
+      if (!schedule) return;
+      const task = taskReceipt.parse(receipt);
+      if (task.state === "queued" && task.workflow !== "proposal") {
+        schedule(() => runWorkspaceTask({ ...ctx, signal: AbortSignal.timeout(45000) }, projectId, taskId, stackingPort));
+      }
+    };
     if (!isQuerySameOrigin(request))
       return reply({ error: "请求来源不受信任。" }, 403);
     if (request.method === "GET") {
@@ -52,6 +66,8 @@ export async function handleWorkspaceRequest(
             await import("./thumbnail")
           ).templateThumbnail(ctx, c.templateId, c.theme),
         );
+      if (c.action === "shared_slide") return reply(await renderSharedSlide(ctx, c));
+      if (c.action === "document_bindings") return reply(await readDocumentBindings(ctx, c.projectId));
       const value = await pitchRpc(ctx, {
         ...c,
         action: "workspace_" + c.action,
@@ -87,6 +103,14 @@ export async function handleWorkspaceRequest(
     }
     const c = workspaceCommandSchema.parse(raw);
     if (c.action === "get") return reply(await getWorkspace(ctx, c.projectId));
+    if (c.action === "review_handoff") return reply(await reviewHandoff(ctx, c, stackingPort));
+    if (c.action === "add_to_pitch") {
+      if (!schedule) throw new Error("PITCH_WORKER_UNAVAILABLE");
+      const receipt = await startHandoff(ctx, c, stackingPort);
+      const projectId = c.target.mode === "create" ? c.target.projectId : c.handoff.projectId!;
+      dispatchQueuedTask(projectId, c.taskId, receipt);
+      return reply(receipt, 202);
+    }
     if (c.action === "start_canvas_text") {
       if (!schedule) throw new Error("PITCH_WORKER_UNAVAILABLE");
       const receipt = await startCanvasText(ctx, c);
@@ -97,6 +121,9 @@ export async function handleWorkspaceRequest(
     if (c.action === "apply_canvas_revision") return reply(await applyCanvasRevision(ctx, c));
     if (c.action === "review_outline_data") return reply(await reviewOutlineData(ctx, c));
     if (c.action === "save") return reply(await saveWorkspace(ctx, c));
+    if (c.action === "apply_modification") return reply(await applyDocumentModification(ctx, c));
+    if (c.action === "preview_data_refresh") return reply(await previewDataRefresh(ctx, c));
+    if (c.action === "apply_data_refresh") return reply(await applyDataRefresh(ctx, c));
     if (c.action === "append") return reply(await appendWorkspace(ctx, c));
     if (c.action === "custom") return reply(await customWorkspace(ctx, c));
     if (c.action === "copy") return reply(await copyWorkspace(ctx, c));
@@ -108,25 +135,16 @@ export async function handleWorkspaceRequest(
         c.action === "start"
           ? await startWorkspaceTask(ctx, c)
           : await pitchRpc(ctx, { ...c, action: "workspace_task_retry" });
-      schedule(() =>
-        runWorkspaceTask(
-          { ...ctx, signal: AbortSignal.timeout(45000) },
-          c.projectId,
-          c.taskId,
-        ),
-      );
+      dispatchQueuedTask(c.projectId, c.taskId, receipt);
       return reply(receipt, 202);
     }
-    if (c.action === "status" || c.action === "cancel")
-      return reply(
-        await pitchRpc(ctx, {
-          ...c,
-          action:
-            c.action === "status"
-              ? "workspace_task_status"
-              : "workspace_task_cancel",
-        }),
-      );
+    if (c.action === "status" || c.action === "cancel") {
+      const receipt = await pitchRpc(ctx, { ...c, action: "workspace_task_" + c.action });
+      // A request may have stopped between enqueue and scheduling. Every
+      // recovered worker still needs to win the original task's atomic claim.
+      if (c.action === "status") dispatchQueuedTask(c.projectId, c.taskId, receipt);
+      return reply(receipt);
+    }
     const result = await pitchRpc(ctx, {
       ...c,
       action: "workspace_" + c.action,
@@ -149,6 +167,22 @@ export async function handleWorkspaceRequest(
       return reply({ code, error: "当前页不是原素材的未编辑单页，或无法完整预览。可以保留为私有素材草稿。" }, 422);
     if (code === "PITCH_AI_PREVIEW_REQUIRED")
       return reply({ code, error: "修订版本已变化，请重新确认已选文字。" }, 409);
+    if (code === "PITCH_BOUND_VALUE_EDIT")
+      return reply({ code, error: "正式数据需从已授权来源重新绑定，或另加人工说明。" }, 422);
+    if (code === "PITCH_HANDOFF_CHANGED")
+      return reply({ code, error: "转入内容或数据权限已变化，请重新核对。" }, 409);
+    if (code === "PITCH_LANGUAGE_UNAVAILABLE")
+      return reply({ code, error: "当前历史楼层资料仅可转入中文 Pitch。" }, 422);
+    if (code === "PITCH_HANDOFF_UNSUPPORTED")
+      return reply({ code, error: "该查询缺少可核验的范围或转入参数。" }, 422);
+    if (code === "PITCH_DATA_REFRESH_CHANGED")
+      return reply({ code, error: "业务数据已更新，请重新核对预览。" }, 409);
+    if (code === "PITCH_DATA_REFRESH_SCOPE")
+      return reply({ code, error: "刷新会影响其他使用同一数据的页面。请核对这些页面后重新提交。" }, 409);
+    if (code === "PITCH_DATA_REFRESH_REVIEW_REQUIRED")
+      return reply({ code, error: "请先预览并核对正式数据的变更，再应用修改。" }, 422);
+    if (code === "PITCH_DATA_REFRESH_LAYOUT" || code === "PITCH_DATA_REFRESH_UNAVAILABLE")
+      return reply({ code, error: "当前页面无法保留原版式更新数据。原稿已保留。" }, 422);
     if (code === "PITCH_CONFLICT")
       return reply(
         {

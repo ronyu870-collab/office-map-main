@@ -24,6 +24,7 @@ export function TemplatePicker({
   compact = false,
   exampleMode = false,
   disabled = false,
+  initialCategory = "all",
 }: {
   call: Call;
   templates: Template[];
@@ -34,9 +35,10 @@ export function TemplatePicker({
   compact?: boolean;
   exampleMode?: boolean;
   disabled?: boolean;
+  initialCategory?: "all" | "favorites";
 }) {
   const [q, setQ] = React.useState(""),
-    [category, setCategory] = React.useState("all"),
+    [category, setCategory] = React.useState<string>(initialCategory),
     [thumbs, setThumbs] = React.useState<Record<string, string>>({}),
     [limit, setLimit] = React.useState(9),
     [error, setError] = React.useState("");

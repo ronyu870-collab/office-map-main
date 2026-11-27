@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StackingPlanWorkspace } from '../StackingPlanWorkspace';
+import { PitchHandoffProvider, readPitchHandoff } from '@/src/components/pitch/PitchHandoffLink';
 
 const mocks = vi.hoisted(() => ({
   useAppSession: vi.fn(),
@@ -152,6 +153,24 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     fireEvent.change(screen.getByLabelText('长图导出楼座'), { target: { value: 'B' } });
     expect(screen.getByLabelText('长图导出楼座')).toHaveValue('B');
     expect(screen.getByText(/B 座高清 PNG/)).toBeInTheDocument();
+  });
+
+  it('hands off the current tower and keeps tenant filters in the stacking workspace', async () => {
+    const towerId = '00000000-0000-4000-8000-000000000005';
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ ...fixture,
+      towers: [{ ...fixture.towers[0], id: towerId }], floors: fixture.floors.map(floor => ({ ...floor, tower_id: towerId })),
+    }) })));
+    render(<PitchHandoffProvider enabled><StackingPlanWorkspace buildingId={BUILDING_ID} /></PitchHandoffProvider>);
+    fireEvent.click(await screen.findByRole('button', { name: '分层详情' }));
+    const details = screen.getByText('导出', { exact: true }).closest('details');
+    if (details) details.open = true;
+    const link = screen.getByRole('link', { name: '将历史堆叠图加入 Pitch' });
+    expect(readPitchHandoff(new URL(link.getAttribute('href')!, 'https://example.invalid').hash)).toEqual({
+      source: { kind: 'stacking-plan', buildingId: BUILDING_ID, selection: { towerIds: [towerId] } }, language: 'zh',
+    });
+    fireEvent.change(screen.getByLabelText('导出范围'), { target: { value: 'visible' } });
+    fireEvent.change(screen.getByRole('searchbox', { name: '搜索租户、楼层或单元' }), { target: { value: '奥迪' } });
+    expect(screen.queryByRole('link', { name: '将历史堆叠图加入 Pitch' })).not.toBeInTheDocument();
   });
 
   it('closes export menu on Escape or outside pointer and keeps filters visible', async () => {

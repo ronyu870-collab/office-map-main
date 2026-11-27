@@ -1,0 +1,596 @@
+import { createClient } from '@supabase/supabase-js';
+import JSZip from 'jszip';
+import sharp from 'sharp';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { STUDIO_THEME } from '../../design/theme';
+import { layoutSlides } from '../../layout/engine';
+import { renderPitchPptx } from '../../render/pptx';
+import { renderSceneSvg } from '../../render/svg';
+import { downloadArtifact, previewPage, runRenderExport } from '../../data/renderWorkflow';
+import { buildProposal } from '../../proposals';
+import { proposalFixture } from '../../proposals/__tests__/fixture';
+import { contentHash, inspectPhotoBytes } from '../photo-file';
+import { getBuildingPhotoChoices, loadBuildingPhotoMedia } from '../photos';
+import { classifyBuildingPhoto, reusablePhotoLicense, selectBuildingPhotos, type PhotoCandidate } from '../photo-selection';
+import { readPitchLocation, readPitchStackingPlan } from '../derived-assets';
+import { createLocationSchematic, locationSchematicSvg } from '../location';
+import { createStackingVisual } from '../stacking';
+import { readProposalVisualMaterials } from '../proposal-materials';
+import { getVisualPageReceipts, resolvePitchVisualAsset, resolveReferencedVisualMedia, resolveVisualPageMedia } from '../resolve';
+import { readStackingAppendix, withAuditedStackingDelivery } from '../stacking-delivery';
+import type { PitchContext } from '../../data/store';
+import { assetInputSchema, slideContentSchema, type SlideContent } from '../../contracts/content';
+
+const id = (i: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(i).padStart(12, '0')}`;
+const buildingId = id(1), secondId = id(2), photoId = id(3), actor = id(4), session = id(5);
+const rights = { source_url: 'https://commons.wikimedia.org/wiki/File:Sample.jpg', source_name: 'Wikimedia Commons',
+  license_url: 'https://creativecommons.org/licenses/by-sa/4.0/', attribution_text: 'Test Photographer' };
+const main = { id: buildingId, name: '测试楼宇', submarket: 'CBD', location_lat: 39.9111, location_lng: 116.456, city: '北京市' };
+const competitor = { ...main, id: secondId, name: '测试竞品' };
+const source = { id: 'source-1', building_id: buildingId, title: '合成资料', source_as_of: '2026-11-18',
+  as_of_kind: 'source_data_as_of', review_state: 'date_confirmed' };
+const towers = [{ id: id(10), building_id: buildingId, code: 'A', display_name: 'A 座' },
+  { id: id(11), building_id: buildingId, code: 'B', display_name: 'B 座' }];
+const floors = towers.map((tower, i) => ({ id: id(12 + i), tower_id: tower.id, floor_code: '18', level_order: 18,
+  floor_area_sqm: '1800', zone: null, use_type: 'office', source_id: source.id }));
+const spaces = [{ id: id(16), floor_id: floors[1].id, unit_code: '1801', occupancy_status: 'vacant', tenant_name: null,
+  area_sqm: '691.57', verification_status: 'source_unverified', source_id: source.id, revision: 1 },
+{ id: id(17), floor_id: floors[1].id, unit_code: '1802', occupancy_status: 'occupied', tenant_name: '测试租户',
+  area_sqm: '941.84', verification_status: 'source_unverified', source_id: source.id, revision: 1 }];
+
+let jpeg: Buffer;
+beforeAll(async () => {
+  jpeg = await sharp({ create: { width: 1280, height: 720, channels: 3, background: '#759395' } }).jpeg().toBuffer();
+});
+const rowFor = (bytes: Uint8Array, photo = photoId, building = buildingId) => ({
+  id: photo, building_id: building, storage_path: `building-photos/v1/${building}/${photo}/original.jpg`,
+  sha256: contentHash(bytes), file_size: bytes.byteLength, width: 1280, height: 720,
+  photo_kind: 'exterior', caption: '测试外观', sort_order: 0, collected_at: '2026-11-18T00:00:00+00:00', ...rights,
+});
+type PhotoRow = Omit<ReturnType<typeof rowFor>, 'license_url'> & { license_url: string | null };
+
+const resolvedBuilding = ({ id, name }: typeof main) => ({ buildingId: id, name, static: {}, quarter: {} });
+
+function fixture(options: { rows?: PhotoRow[]; files?: Record<string, Uint8Array>; allowed?: boolean; stackingAdmin?: boolean;
+  stackingExport?: boolean; revoke?: boolean; incompatiblePhoto?: boolean;
+  buildings?: typeof main[]; ignoreCityFilter?: boolean; auditError?: 'intent' | 'completion'; previewSnapshot?: unknown;
+  pitch?: (input: Record<string, unknown>) => unknown } = {}) {
+  const calls: string[] = [];
+  const audit: { path: string; body: unknown }[] = [];
+  let authReads = 0;
+  const rows = options.rows ?? [rowFor(jpeg)];
+  const catalog = options.buildings ?? [main, competitor];
+  const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const path = url.pathname.split('/').at(-1)!;
+    calls.push(url.pathname);
+    const revision = (options.revoke && authReads > 0 ? 'b' : 'a').repeat(64);
+    if (path === 'pitch_studio_access') {
+      const input = JSON.parse(String(init?.body)).p_input;
+      if (input.action === 'preview_context' && options.previewSnapshot) return Response.json(options.previewSnapshot);
+      if (options.pitch) {
+        const result = options.pitch(input);
+        return result instanceof Response ? result : Response.json(result);
+      }
+    }
+    if (path === 'ai_query_authority') {
+      authReads++;
+      return Response.json(options.allowed === false ? { allowed: false } : {
+        allowed: true, access_policy: 'admin-only/1', actor_id: actor, effective_user_id: actor, session_id: session,
+        policy_version: 'pilot/1', permission_revision: revision, capabilities: ['query:catalog', 'export:internal'], fields: [],
+        all_submarkets: true, submarkets: [], all_buildings: true, building_ids: [],
+      });
+    }
+    if (path === 'ai_query_snapshot_read') {
+      const input = JSON.parse(String(init?.body));
+      const selected = catalog.filter(item => (!input.p_building_ids || input.p_building_ids.includes(item.id))
+        && (!input.p_submarkets || input.p_submarkets.includes(item.submarket)));
+      return Response.json({ snapshot_id: id(7), database_snapshot: 'test', read_at: '2026-11-18T00:00:00Z', expected_count: selected.length,
+        complete: true, periods: [], fields: [], inventory_time: 'current_catalog', brochure_selection: 'all_unresolved_record_candidates',
+        rows: selected.map(item => ({ id: item.id, name: item.name, submarket: item.submarket, grade: 'A', is_active: true,
+          tracking_scope: 'tracked', version: 'c'.repeat(64), metrics: [], brochures: [] })) });
+    }
+    if (path === 'buildings') {
+      const cities = url.searchParams.get('city');
+      return Response.json(catalog.filter(item => url.searchParams.get('id')?.includes(item.id)
+        && (!cities || options.ignoreCityFilter || cities.slice(4, -1).split(',').includes(item.city))));
+    }
+    if (path === 'building_photos') {
+      const scoped = rows.filter(row => url.searchParams.get('building_id')?.includes(row.building_id));
+      const singleId = url.searchParams.get('id');
+      if (singleId) return Response.json(options.incompatiblePhoto ? scoped : scoped.filter(row => singleId === `eq.${row.id}`));
+      return Response.json(scoped);
+    }
+    if (path === 'ai_admin_session_authority') return Response.json(options.stackingAdmin !== false);
+    if (path === 'ai_business_research_snapshot') return Response.json({ allowed: true, version: 'business-research/1',
+      permission_revision: 'd'.repeat(64), export: options.stackingExport !== false, records: [] });
+    if (path === 'stacking_plan_towers') return Response.json(towers);
+    if (path === 'stacking_plan_floors') return Response.json(floors);
+    if (path === 'stacking_plan_spaces') return Response.json(spaces);
+    if (path === 'stacking_plan_sources') return Response.json([source]);
+    if (path === 'audit_operation_receipts' || path === 'audit_complete_operation') {
+      audit.push({ path, body: JSON.parse(String(init?.body)) });
+      if (path === 'audit_complete_operation') return Response.json(options.auditError !== 'completion');
+      return options.auditError === 'intent' ? Response.json({ message: 'Unavailable' }, { status: 503 }) : new Response(null, { status: 201 });
+    }
+    if (path === 'audit_logs') return new Response(null, { status: 201 });
+    if (url.pathname.startsWith('/storage/v1/object/building-sales-materials/')) {
+      const photo = url.pathname.split('/').at(-2)!;
+      const bytes = options.files ? options.files[photo] : jpeg;
+      return bytes ? new Response(Uint8Array.from(bytes), { headers: { 'Content-Type': 'image/jpeg' } }) : new Response(null, { status: 404 });
+    }
+    return new Response(null, { status: 404 });
+  });
+  const ctx: PitchContext = { client: createClient('https://isolated.invalid', 'test-only', { global: { fetch: fetcher },
+    auth: { autoRefreshToken: false, persistSession: false } }), identity: { actorId: actor, effectiveUserId: actor, sessionId: session,
+    expiresAt: Date.now() + 60_000 }, signal: new AbortController().signal };
+  return { ctx, calls, audit };
+}
+
+describe('authorized proposal visual materials', () => {
+  it('binds the verified cover and target map to the real proposal, then replays the selected media', async () => {
+    const { ctx, calls } = fixture();
+    const { snapshot, data } = proposalFixture('building-promotion');
+    const brief = { ...snapshot.brief, city: '北京', buildingIds: [buildingId] };
+    const projection = { buildings: [resolvedBuilding(main)] };
+    const materials = await readProposalVisualMaterials(ctx, brief, projection);
+    expect(calls.filter(path => path.startsWith('/storage/'))).toHaveLength(1);
+    const photo = materials.visuals.find(item => item.kind === 'photo')!;
+    expect(materials.coverPlacements[photo.id]).toMatchObject({ fit: 'contain', aspectRatio: 16 / 9 });
+    const proposed = buildProposal({ ...snapshot, brief, visuals: materials.visuals }, { maps: materials.maps,
+      buildings: [{ ...data.buildings[0], id: buildingId, ...materials.buildingMedia[buildingId] }] }, { theme: STUDIO_THEME });
+    expect(proposed.plan.slides.find(slide => slide.pageKind === 'cover')?.visuals).toEqual([photo]);
+    expect(proposed.plan.slides.find(slide => slide.pageKind === 'arrival')?.visuals[0]).toMatchObject({ kind: 'map', buildingIds: [buildingId] });
+    const pins = proposed.plan.slides.flatMap(slide => slide.visuals);
+    const images = proposed.pages.flatMap(page => page.content.blocks.flatMap(block => block.kind === 'image'
+      ? [{ id: block.mediaAssetId, version: block.mediaVersion }] : []));
+    const media = await resolveReferencedVisualMedia(ctx, pins, images, 'internal');
+    expect(media).toHaveLength(2);
+    expect(contentHash(media.find(item => item.id === photo.id)!.bytes)).toBe(contentHash(jpeg));
+    const reopened = await Promise.all(proposed.pages.map(async page => {
+      const content = slideContentSchema.parse(JSON.parse(JSON.stringify(page.content)));
+      const [scene] = await layoutSlides(content, STUDIO_THEME, page.layoutId);
+      return { content, scene };
+    }));
+    expect((await resolveVisualPageMedia(ctx, reopened, 'internal')).map(item => item.id)).toEqual(media.map(item => item.id));
+    await expect(readProposalVisualMaterials(ctx, brief, projection, { targetBuildingId: secondId })).rejects.toThrow('PITCH_VISUAL_SELECTION');
+    await expect(readProposalVisualMaterials(ctx, { ...brief, audience: 'client' }, projection)).rejects.toThrow('QUERY_DENIED');
+  });
+
+  it('uses the resolved peers for the leasing comparison, honors missing photos, and keeps the historical plan restricted', async () => {
+    const { ctx } = fixture();
+    const { snapshot } = proposalFixture('leasing-agency');
+    const brief = { ...snapshot.brief, city: '北京', buildingIds: [buildingId] };
+    const projection = { buildings: [resolvedBuilding(main), resolvedBuilding(competitor)] };
+    const materials = await readProposalVisualMaterials(ctx, brief, projection, { stacking: { towerIds: [towers[1].id] } });
+    expect(materials.buildingMedia[secondId]?.photos).toEqual([]);
+    expect(materials.maps.candidates?.visual?.buildingIds).toEqual([buildingId, secondId]);
+    expect(materials.buildingMedia[buildingId]?.stackingPlan).toMatchObject({ disclosure: 'restricted', value: { businessDate: '2026-11-18' } });
+    const pin = materials.visuals.find(item => item.kind === 'stacking-plan')!;
+    expect(pin.rights).toMatchObject({ scope: 'admin-internal', clientDistribution: false, externalAi: false });
+    const denied = fixture({ stackingAdmin: false });
+    await expect(readProposalVisualMaterials(denied.ctx, brief, projection, { stacking: {} })).rejects.toThrow('QUERY_DENIED');
+    expect(denied.calls.some(call => call.includes('/stacking_plan_spaces'))).toBe(false);
+  });
+
+  it('provides a citywide quarterly report map without requesting building photos or assuming the coordinates are dated to the quarter', async () => {
+    const { ctx, calls } = fixture();
+    const { snapshot, data } = proposalFixture('market-report');
+    const brief = { ...snapshot.brief, city: '北京', buildingIds: [] };
+    const materials = await readProposalVisualMaterials(ctx, brief, { buildings: [] });
+    const proposal = buildProposal({ ...snapshot, brief, visuals: materials.visuals }, { buildings: [], maps: materials.maps,
+      market: { ...data.market!, city: '北京', name: '北京' } }, { theme: STUDIO_THEME });
+    const pin = materials.visuals[0];
+    expect(proposal.plan.slides.find(slide => slide.pageKind === 'spatial-distribution')?.visuals).toEqual([pin]);
+    expect(pin).toMatchObject({ businessDate: null, sourceDateBasis: 'catalog-observed', buildingIds: [buildingId, secondId] });
+    expect(calls.some(call => call.includes('/building_photos'))).toBe(false);
+  });
+});
+
+describe('restricted Stacking Plan appendix and delivery', () => {
+  it('creates a restricted appendix whose PPTX image contains the entire authorized historical snapshot', async () => {
+    const { ctx } = fixture();
+    const result = await readStackingAppendix(ctx, buildingId, { towerIds: [towers[1].id], levelRange: [18, 18] }, 'internal', STUDIO_THEME);
+    expect(result?.content).toMatchObject({ disclosure: 'restricted', dataAsOf: '2026-11-18' });
+    expect(result?.content.subtitle).toContain('历史来源');
+    expect(JSON.stringify(result?.content)).not.toContain('测试租户');
+    const { scenes, reference } = result!;
+    expect(scenes[0].elements.find(item => item.kind === 'image')).toMatchObject({ fit: 'contain' });
+    const media = await resolveReferencedVisualMedia(ctx, [reference], [reference], 'internal');
+    const bytes = await renderPitchPptx('历史楼层分布', scenes.map(scene => ({ scene, theme: STUDIO_THEME })), media);
+    const packageEntries = Object.values((await JSZip.loadAsync(bytes)).files);
+    const images = packageEntries.filter(file => file.name.startsWith('ppt/media/') && !file.dir);
+    expect(await Promise.all(images.map(async file => contentHash(await file.async('uint8array'))))).toContain(contentHash(media[0].bytes));
+    const restricted = fixture();
+    await expect(readStackingAppendix(restricted.ctx, buildingId, {}, 'client', STUDIO_THEME)).rejects.toThrow('QUERY_DENIED');
+    expect(restricted.calls).toEqual([]);
+  });
+
+  it('audits successful downloads against the saved version and requires durable confirmation before returning bytes', async () => {
+    const { ctx, audit } = fixture();
+    const pin = (await readPitchStackingPlan(ctx, buildingId, {}))!.reference;
+    const delivery = { audience: 'internal', format: 'pptx', stage: 'download' } as const;
+    const prepare = vi.fn(async () => {
+      expect(audit[0]).toMatchObject({ path: 'audit_operation_receipts', body: {
+        action_type: 'STACKING_PLAN_EXPORT', actor_id: actor, target_id: buildingId,
+        details: { stage: 'download', source_versions: [{ visual_id: pin.id, version: pin.versionHash }] },
+      } });
+      return new Response('private bytes');
+    });
+    const result = await withAuditedStackingDelivery(ctx, [pin, pin], delivery, prepare);
+    expect(await result.text()).toBe('private bytes');
+    expect(audit).toHaveLength(2);
+    expect(audit[1]).toMatchObject({ path: 'audit_complete_operation', body: { p_state: 'success' } });
+    expect(JSON.stringify(audit)).not.toContain('测试租户');
+    const failedIntent = fixture({ auditError: 'intent' });
+    expect((await withAuditedStackingDelivery(failedIntent.ctx, [pin], delivery, prepare)).status).toBe(503);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    const failedCompletion = fixture({ auditError: 'completion' });
+    const failed = await withAuditedStackingDelivery(failedCompletion.ctx, [pin], delivery, prepare);
+    expect(failed.status).toBe(503);
+    expect(await failed.text()).not.toContain('private bytes');
+  });
+
+  it('rejects client and stale-version downloads before preparing bytes and revocation during preparation', async () => {
+    let admin = true;
+    const { ctx, audit } = fixture({ get stackingAdmin() { return admin; } });
+    const pin = (await readPitchStackingPlan(ctx, buildingId, {}))!.reference;
+    const delivery = { audience: 'internal', format: 'pdf', stage: 'export' } as const;
+    const prepare = vi.fn(async () => { admin = false; return new Response('private bytes'); });
+    await expect(withAuditedStackingDelivery(ctx, [pin], { ...delivery, audience: 'client' }, prepare)).rejects.toThrow('QUERY_DENIED');
+    await expect(withAuditedStackingDelivery(ctx, [{ ...pin, versionHash: 'b'.repeat(64) }], delivery, prepare)).rejects.toThrow('PITCH_SOURCE_CHANGED');
+    expect(prepare).not.toHaveBeenCalled();
+    expect(audit).toEqual([]);
+    await expect(withAuditedStackingDelivery(ctx, [pin], delivery, prepare)).rejects.toThrow('QUERY_DENIED');
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(audit[1]).toMatchObject({ path: 'audit_complete_operation', body: { p_state: 'failed' } });
+  });
+
+  it('keeps the private source receipt through a page round trip and rechecks it even for a native scene', async () => {
+    const { ctx } = fixture();
+    const appendix = (await readStackingAppendix(ctx, buildingId, {}, 'internal', STUDIO_THEME))!;
+    const persisted = JSON.parse(JSON.stringify({ ...appendix.content,
+      blocks: [appendix.content.blocks.find(block => block.kind === 'paragraph')!] }));
+    const reopened = slideContentSchema.parse(persisted);
+    expect(getVisualPageReceipts([reopened])).toEqual([appendix.reference.source.visual]);
+    expect(() => getVisualPageReceipts([{ sources: [{ ...reopened.sources[0], id: id(39) }] }])).toThrow('PITCH_SOURCE_CHANGED');
+    expect(JSON.stringify(reopened.sources)).not.toContain('测试租户');
+    for (const disclosure of ['internal', 'client_approved']) {
+      expect(slideContentSchema.safeParse({ ...reopened, disclosure }).success).toBe(false);
+    }
+    expect(slideContentSchema.safeParse({ ...reopened, sources: [{ ...reopened.sources[0], sha256: 'e'.repeat(64) }] }).success).toBe(false);
+    expect(assetInputSchema.safeParse({ scope: { organizationId: 'test', region: 'test', city: '北京', businessLine: 'office' },
+      categoryId: id(33), tags: [], names: { zh: reopened.title }, content: reopened, state: 'draft', visibility: 'private',
+      allowInternalGeneration: true, allowClientExport: false, allowExternalAi: true, validFrom: null, validUntil: null }).success).toBe(false);
+    const scene = { ...appendix.scenes[0], elements: appendix.scenes[0].elements.filter(element => element.kind !== 'image') };
+    expect(await resolveVisualPageMedia(ctx, [{ content: reopened, scene }], 'internal')).toEqual([]);
+    const denied = fixture({ stackingAdmin: false });
+    await expect(resolveVisualPageMedia(denied.ctx, [{ content: reopened, scene }], 'internal')).rejects.toThrow('QUERY_DENIED');
+    expect(denied.calls.some(path => path.endsWith('/stacking_plan_spaces'))).toBe(false);
+  });
+});
+
+describe('project preview visual sources', () => {
+  it.each(['by-sa', 'by'])('renders the saved CC %s original while respecting its crop policy', async license => {
+    const rows = [{ ...rowFor(jpeg), license_url: `https://creativecommons.org/licenses/${license}/4.0/` }];
+    const original = fixture({ rows });
+    const photo = (await getBuildingPhotoChoices(original.ctx, { buildingIds: [buildingId], use: 'cover' }))[0].primary!;
+    const content: SlideContent = { protocol: 'colliers-pitch/1', locale: 'zh', title: '项目原图',
+      dataAsOf: photo.source.dataAsOf, disclosure: 'internal', isTestData: false, sources: [photo.source],
+      blocks: [{ kind: 'image', mediaAssetId: photo.id, mediaVersion: photo.version, alt: photo.caption, sourceIds: [photo.source.id] }] };
+    const [scene] = await layoutSlides(content, STUDIO_THEME, 'cover');
+    const page = { id: id(100), content, scene };
+    const snapshot = { slides: [page], themes: [{ definition: STUDIO_THEME }], media: [] };
+    const { ctx, calls } = fixture({ rows, previewSnapshot: snapshot });
+    const preview = await previewPage(ctx, { action: 'preview', projectId: id(101), page: 0 });
+    expect(preview.svg).toContain(jpeg.toString('base64'));
+    const unchanged = scene.elements.find(element => element.kind === 'image')?.fit;
+    expect(preview.scene.elements.find(element => element.kind === 'image')?.fit).toBe(license === 'by-sa' ? 'contain' : unchanged);
+    expect(calls.filter(path => path.endsWith('/pitch_studio_access'))).toHaveLength(2);
+    expect(calls.some(path => path.includes('/pitch-studio-private/'))).toBe(false);
+    const revised = { ...page, content: { ...content, sources: [{ ...photo.source, version: 'f'.repeat(64),
+      visual: { ...photo.source.visual!, versionHash: 'f'.repeat(64) } }] } };
+    const stale = fixture({ rows, previewSnapshot: { ...snapshot, slides: [revised] } });
+    await expect(previewPage(stale.ctx, { action: 'preview', projectId: id(101), page: 0 })).rejects.toThrow('PITCH_SOURCE_CHANGED');
+  });
+
+  it('refuses a restricted preview if the administrator loses the source grant during rendering', async () => {
+    const approved = fixture();
+    const appendix = (await readStackingAppendix(approved.ctx, buildingId, {}, 'internal', STUDIO_THEME))!;
+    const scene = { ...appendix.scenes[0], elements: appendix.scenes[0].elements.filter(element => element.kind !== 'image') };
+    const content = { ...appendix.content, blocks: appendix.content.blocks.filter(block => block.kind !== 'image') };
+    let checks = 0;
+    const { ctx, calls } = fixture({ get stackingAdmin() { return ++checks <= 2; },
+      previewSnapshot: { slides: [{ id: id(100), content, scene }], themes: [{ definition: STUDIO_THEME }], media: [] } });
+    await expect(previewPage(ctx, { action: 'preview', projectId: id(101), page: 0 })).rejects.toThrow('QUERY_DENIED');
+    expect(checks).toBe(3);
+    expect(calls.filter(path => path.endsWith('/pitch_studio_access'))).toHaveLength(1);
+    expect(calls.filter(path => path.endsWith('/stacking_plan_spaces'))).toHaveLength(1);
+  });
+});
+
+describe('archived visual export manifest', () => {
+  const command = { action: 'export_start', projectId: id(110), exportId: id(111), format: 'pptx', audience: 'internal' } as const;
+  const path = `exports/${actor}/${command.projectId}/${command.exportId}.pptx`;
+
+  function useArchive(ctx: PitchContext, bytes?: Uint8Array) {
+    const from = ctx.client.storage.from.bind(ctx.client.storage);
+    const download = vi.fn(async () => ({ data: bytes ? new Blob([Buffer.from(bytes)]) : null, error: null }));
+    const upload = vi.fn(async (_path: string, body: Uint8Array) => {
+      bytes = body;
+      return { error: null, data: { path, id: command.exportId, fullPath: `pitch-studio-private/${path}` } };
+    });
+    vi.spyOn(ctx.client.storage, 'from').mockImplementation(name => name === 'pitch-studio-private'
+      ? Object.assign(from(name), { upload, download }) : from(name));
+    return { download, upload, bytes: () => bytes! };
+  }
+
+  it('renders exact photo bytes, binds the saved receipt, and rechecks the photo grant when downloading', async () => {
+    const { ctx: sourceCtx } = fixture();
+    const photo = (await getBuildingPhotoChoices(sourceCtx, { buildingIds: [buildingId], use: 'cover' }))[0].primary!;
+    const content: SlideContent = { protocol: 'colliers-pitch/1', locale: 'zh', title: '历史制品照片',
+      dataAsOf: photo.source.dataAsOf, disclosure: 'internal', isTestData: false, sources: [photo.source],
+      blocks: [{ kind: 'image', mediaAssetId: photo.id, mediaVersion: photo.version, alt: photo.caption, sourceIds: [photo.source.id] }] };
+    const [scene] = await layoutSlides(content, STUDIO_THEME, 'cover');
+    const document = { slides: [{ id: id(112), content, scene }], themes: [{ definition: STUDIO_THEME }], media: [], project: { title: content.title } };
+    const captured = { storage_path: path, format: 'pptx', render_options: {}, visual_source_snapshot: [photo.source] };
+    let manifest = captured, allowed = true;
+    const operations: Record<string, unknown>[] = [];
+    const { ctx } = fixture({ get allowed() { return allowed; }, pitch: input => {
+      operations.push(input);
+      if (input.action === 'export_claim') return { claimed: true };
+      if (input.action === 'export_context') return { ...document, export: manifest };
+      if (input.action === 'export_download') return { ...captured, sha256: contentHash(archive.bytes()), size_bytes: archive.bytes().length };
+      return {};
+    } });
+    const archive = useArchive(ctx);
+    manifest = { ...captured, visual_source_snapshot: [] };
+    await runRenderExport(ctx, command);
+    expect(archive.upload).not.toHaveBeenCalled();
+    expect(operations.at(-1)).toMatchObject({ action: 'export_fail', errorCode: 'PITCH_SOURCE_CHANGED' });
+    manifest = captured;
+    await runRenderExport(ctx, command);
+    expect(operations.at(-1)).toMatchObject({ action: 'export_complete', sha256: contentHash(archive.bytes()) });
+    const file = await downloadArtifact(ctx, command);
+    const zip = await JSZip.loadAsync(file.bytes);
+    const images = Object.values(zip.files).filter(entry => entry.name.startsWith('ppt/media/') && !entry.dir);
+    expect(await Promise.all(images.map(async entry => contentHash(await entry.async('uint8array'))))).toContain(photo.contentHash);
+    allowed = false;
+    await expect(downloadArtifact(ctx, command)).rejects.toThrow('QUERY_DENIED');
+    expect(archive.download).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds the archived administrator file until source audit is durably confirmed', async () => {
+    const { ctx: sourceCtx } = fixture();
+    const plan = (await readPitchStackingPlan(sourceCtx, buildingId, {}))!;
+    const bytes = Buffer.from('isolated archived content');
+    const artifact = { storage_path: path, format: 'pptx', sha256: contentHash(bytes), size_bytes: bytes.length,
+      visual_source_snapshot: [plan.reference.source] };
+    const audited = fixture({ pitch: () => artifact });
+    useArchive(audited.ctx, bytes);
+    expect(Buffer.from((await downloadArtifact(audited.ctx, command)).bytes)).toEqual(bytes);
+    expect(audited.audit[1]).toMatchObject({ path: 'audit_complete_operation', body: { p_state: 'success' } });
+    const failed = fixture({ pitch: () => artifact, auditError: 'completion' });
+    useArchive(failed.ctx, bytes);
+    await expect(downloadArtifact(failed.ctx, command)).rejects.toThrow('PITCH_SOURCE_AUDIT_UNAVAILABLE');
+    let checked = false;
+    const revoked = fixture({ pitch: () => {
+      if (checked) return Response.json({ code: '42501', message: 'PITCH_DENIED' }, { status: 403 });
+      checked = true;
+      return artifact;
+    } });
+    useArchive(revoked.ctx, bytes);
+    await expect(downloadArtifact(revoked.ctx, command)).rejects.toThrow('PITCH_DENIED');
+    expect(revoked.audit[1]).toMatchObject({ path: 'audit_complete_operation', body: { p_state: 'success' } });
+  });
+
+  it('keeps a restricted export from becoming ready if the source audit cannot complete', async () => {
+    const { ctx: sourceCtx } = fixture();
+    const appendix = (await readStackingAppendix(sourceCtx, buildingId, {}, 'internal', STUDIO_THEME))!;
+    const operations: Record<string, unknown>[] = [];
+    const failed = fixture({ auditError: 'completion', pitch: input => {
+      operations.push(input);
+      if (input.action === 'export_claim') return { claimed: true };
+      if (input.action === 'export_context') return {
+        slides: [{ id: id(112), content: appendix.content, scene: appendix.scenes[0] }],
+        themes: [{ definition: STUDIO_THEME }], media: [], project: { title: appendix.content.title },
+        export: { storage_path: path, format: 'pptx', render_options: {}, visual_source_snapshot: [appendix.reference.source] },
+      };
+      return {};
+    } });
+    const archive = useArchive(failed.ctx);
+    await runRenderExport(failed.ctx, command);
+    expect(archive.upload).toHaveBeenCalledTimes(1);
+    expect(operations.some(input => input.action === 'export_complete')).toBe(false);
+    expect(operations.at(-1)).toMatchObject({ action: 'export_fail', errorCode: 'PITCH_SOURCE_AUDIT_UNAVAILABLE' });
+  });
+});
+
+describe('building photo admission and actual scene bytes', () => {
+  it('checks reuse permission and separates real, lobby, amenity and rendering classifications', () => {
+    expect(reusablePhotoLicense({ ...rights, license_url: null })).toMatchObject({
+      status: 'gallery-approved', attribution: rights.attribution_text, licenseUrl: null, cropAllowed: false,
+    });
+    expect(reusablePhotoLicense({ ...rights, attribution_text: '' })).toMatchObject({ status: 'gallery-approved', attribution: rights.source_name });
+    expect(reusablePhotoLicense({ ...rights, source_url: 'file:///not-a-source' })).toBeNull();
+    expect(reusablePhotoLicense({ ...rights, license_url: 'https://creativecommons.org/licenses/by-nc/4.0/' })).toMatchObject({
+      status: 'gallery-approved', licenseUrl: null,
+    });
+    expect(reusablePhotoLicense(rights)).toMatchObject({ cropAllowed: false });
+    expect(classifyBuildingPhoto('interior', '首层大堂')).toBe('lobby');
+    expect(classifyBuildingPhoto('other', '项目配套健身房')).toBe('amenity');
+    expect(classifyBuildingPhoto('rendering', '大堂')).toBe('rendering');
+  });
+
+  it('picks a broad real exterior for covers and retains a shared comparison frame', () => {
+    const license = reusablePhotoLicense(rights)!;
+    const candidate = (photoId: string, buildingId: string, category: PhotoCandidate['category'], width: number, height: number): PhotoCandidate => ({
+      id: photoId, buildingId, category, license, sortOrder: 0, imageTitle: '样本', collectedOn: '2026-11-18',
+      file: { width, height, mime: 'image/jpeg', needsOrientation: false, sharpness: 20, sha256: contentHash(photoId) },
+    });
+    const wide = candidate(id(21), buildingId, 'exterior', 1920, 1080);
+    const alternate = candidate(id(22), buildingId, 'exterior', 1800, 1200);
+    const portrait = candidate(id(23), buildingId, 'exterior', 1200, 1600);
+    const rendering = candidate(id(24), buildingId, 'rendering', 2560, 1440);
+    const secondExterior = candidate(id(25), secondId, 'exterior', 1800, 1200);
+    const files = [rendering, portrait, alternate, secondExterior, wide];
+    expect(selectBuildingPhotos([buildingId], files, 'cover')[0].primary?.id).toBe(wide.id);
+    expect(selectBuildingPhotos([buildingId], files, 'cover', [wide.file.sha256])[0].primary?.id).toBe(alternate.id);
+    expect(selectBuildingPhotos([buildingId], [portrait], 'cover')[0]).toMatchObject({
+      primary: { id: portrait.id }, placement: { fit: 'contain' },
+    });
+    const compare = selectBuildingPhotos([buildingId, secondId], files, 'comparison');
+    expect(compare.map(item => item.primary?.category)).toEqual(['exterior', 'exterior']);
+    expect(compare.map(item => item.placement)).toEqual([compare[0].placement, compare[0].placement]);
+  });
+
+  it('does not reach storage for denied, other-building, or duplicate content', async () => {
+    const denied = fixture({ allowed: false });
+    await expect(getBuildingPhotoChoices(denied.ctx, { buildingIds: [buildingId], use: 'cover' })).rejects.toThrow('QUERY_DENIED');
+    expect(denied.calls).toHaveLength(1);
+    const blocked = fixture({ rows: [rowFor(jpeg), rowFor(jpeg, id(8), secondId)] });
+    expect(await getBuildingPhotoChoices(blocked.ctx, { buildingIds: [buildingId, secondId], use: 'comparison' }))
+      .toEqual([buildingId, secondId].map(buildingId => ({ buildingId, primary: null, alternatives: [], placement: null })));
+    expect(blocked.calls.some(call => call.startsWith('/storage/'))).toBe(false);
+    const badPath = fixture({ rows: [{ ...rowFor(jpeg), storage_path: rowFor(jpeg, photoId, secondId).storage_path }] });
+    expect((await getBuildingPhotoChoices(badPath.ctx, { buildingIds: [buildingId], use: 'cover' }))[0].primary).toBeNull();
+    expect(badPath.calls.some(call => call.startsWith('/storage/'))).toBe(false);
+  });
+
+  it('pins an internally approved gallery photo while retaining attribution and the original file checks', async () => {
+    const { ctx, calls } = fixture({ rows: [{ ...rowFor(jpeg), license_url: null }] });
+    const [item] = await getBuildingPhotoChoices(ctx, { buildingIds: [buildingId], use: 'cover' });
+    expect(item.primary).toMatchObject({ disclosure: 'internal', contentHash: contentHash(jpeg), rights: {
+      attribution: rights.attribution_text, licenseName: null, licenseUrl: null, cropAllowed: false,
+      clientDistribution: false, externalAi: false,
+    } });
+    expect(calls.some(call => call.startsWith('/storage/'))).toBe(true);
+  });
+
+  it('omits missing and corrupt files, including a corrupt original whose recorded hash matches', async () => {
+    const corrupt = jpeg.subarray(0, Math.floor(jpeg.length / 2));
+    await expect(inspectPhotoBytes(rowFor(corrupt), corrupt)).rejects.toThrow();
+    const { ctx } = fixture({ rows: [rowFor(corrupt), rowFor(jpeg, id(8))], files: { [photoId]: corrupt } });
+    expect((await getBuildingPhotoChoices(ctx, { buildingIds: [buildingId], use: 'cover' }))[0].primary).toBeNull();
+  });
+
+  it('repeats deterministically, pins file version and embeds actual bytes in both preview and Office', async () => {
+    const { ctx } = fixture();
+    const input = { buildingIds: [buildingId], use: 'cover' as const };
+    const [item] = await getBuildingPhotoChoices(ctx, input);
+    expect(await getBuildingPhotoChoices(ctx, input)).toEqual([item]);
+    expect(item.placement).toMatchObject({ fit: 'contain', aspectRatio: 16 / 9 });
+    expect(item.primary).toMatchObject({ kind: 'photo', buildingIds: [buildingId], origin: { photoId },
+      contentHash: contentHash(jpeg), businessDate: null, sourceDateBasis: 'catalog-recorded' });
+    const resolved = await loadBuildingPhotoMedia(ctx, item.primary!);
+    const image = resolved.media;
+    await expect(resolvePitchVisualAsset(ctx, item.primary!, 'client')).rejects.toThrow('QUERY_DENIED');
+    const revoked = fixture({ revoke: true });
+    await expect(resolvePitchVisualAsset(revoked.ctx, item.primary!, 'internal')).rejects.toThrow('QUERY_DENIED');
+    const changed = await sharp(jpeg).modulate({ brightness: .8 }).jpeg().toBuffer();
+    const revised = fixture({ rows: [rowFor(changed)], files: { [photoId]: changed } });
+    await expect(loadBuildingPhotoMedia(revised.ctx, item.primary!)).rejects.toThrow('PITCH_SOURCE_CHANGED');
+    const wrong = fixture({ rows: [rowFor(jpeg, id(9))], incompatiblePhoto: true });
+    await expect(loadBuildingPhotoMedia(wrong.ctx, item.primary!)).rejects.toThrow('PITCH_MEDIA_UNAVAILABLE');
+    const content: SlideContent = { protocol: 'colliers-pitch/1', locale: 'zh', title: '测试项目', dataAsOf: '2026-11-18',
+      disclosure: 'internal', isTestData: true, sources: [{ id: id(7), kind: 'synthetic', label: rights.attribution_text,
+        locator: '隔离导出回归', version: 'test', dataAsOf: '2026-11-18' }],
+      blocks: [{ kind: 'image', mediaAssetId: image.id, mediaVersion: image.version, alt: '测试外观', sourceIds: [id(7)] }] };
+    const [scene] = await layoutSlides(content, STUDIO_THEME, 'cover');
+    expect(await renderSceneSvg(scene, STUDIO_THEME, [image])).toContain(Buffer.from(jpeg).toString('base64'));
+    const archive = await JSZip.loadAsync(await renderPitchPptx('测试项目', [{ scene, theme: STUDIO_THEME }], [image]));
+    const media = Object.values(archive.files).filter(entry => /^ppt\/media\/.*\.jpeg$/i.test(entry.name));
+    expect(await Promise.all(media.map(async entry => contentHash(await entry.async('uint8array'))))).toContain(contentHash(jpeg));
+    const relationships = await archive.file('ppt/slides/_rels/slide1.xml.rels')?.async('text');
+    expect(relationships).not.toContain('TargetMode="External"');
+  });
+});
+
+describe('location and stacking service boundaries', () => {
+  it('resolves a whole-city quarterly map through the allowed catalog and excludes same-name submarkets in other cities', async () => {
+    const otherCity = { ...competitor, city: '上海' };
+    const { ctx } = fixture({ buildings: [main, otherCity] });
+    const map = await readPitchLocation(ctx, { city: 'Beijing', submarkets: [] });
+    expect(map?.scene.title).toBe('北京子市场项目分布');
+    expect(map?.reference.origin).toMatchObject({ type: 'market-locations', city: '北京' });
+    expect(map?.reference.buildingIds).toEqual([buildingId]);
+    expect((await resolvePitchVisualAsset(ctx, map?.reference, 'internal')).reference).toEqual(map?.reference);
+    await expect(readPitchLocation(ctx, { submarkets: [] })).rejects.toThrow();
+    expect(await readPitchLocation(ctx, { city: '北京', submarkets: ['缺少该子市场'] })).toBeNull();
+    const invalidBackend = fixture({ buildings: [main, otherCity], ignoreCityFilter: true });
+    await expect(readPitchLocation(invalidBackend.ctx, { city: '北京' })).rejects.toThrow('QUERY_DENIED');
+  });
+
+  it('resolves only referenced scene media, deduplicates repeated images, and rejects conflicting pins', async () => {
+    const { ctx, calls } = fixture();
+    const [choice] = await getBuildingPhotoChoices(ctx, { buildingIds: [buildingId], use: 'cover' });
+    const photo = choice.primary!;
+    const unused = (await readPitchLocation(ctx, { buildingIds: [buildingId] }))!.reference;
+    const storageCalls = () => calls.filter(path => path.startsWith('/storage/')).length;
+    const before = storageCalls();
+    const media = await resolveReferencedVisualMedia(ctx, [photo, unused, photo], [photo, photo], 'internal');
+    expect(media).toHaveLength(1);
+    expect(contentHash(media[0].bytes)).toBe(photo.contentHash);
+    expect(storageCalls()).toBe(before + 1);
+    await expect(resolveReferencedVisualMedia(ctx, [photo, { ...photo, versionHash: 'b'.repeat(64) }], [photo], 'internal'))
+      .rejects.toThrow('PITCH_SOURCE_CHANGED');
+    await expect(resolveReferencedVisualMedia(ctx, [photo], [photo], 'client')).rejects.toThrow('QUERY_DENIED');
+    expect(storageCalls()).toBe(before + 1);
+  });
+
+  it('preserves matching coordinates, visually separates co-located numbers and accounts for missing points', async () => {
+    const unlocated = { ...main, id: id(20), name: '缺坐标项目', location_lat: null };
+    const scene = createLocationSchematic([main, competitor, unlocated], competitor.id)!;
+    expect(scene.markers[0]).toMatchObject({ target: false, number: 1 });
+    expect(scene.markers[1]).toMatchObject({ target: true, number: 2 });
+    expect(scene.markers[0].point).toEqual(scene.markers[1].point);
+    expect(scene.markers[0].callout).not.toEqual(scene.markers[1].callout);
+    expect(scene.markers[2].point).toBeNull();
+    expect(scene.scale.meters).toBeGreaterThan(0);
+    const svg = await locationSchematicSvg(scene);
+    expect(svg).toContain('坐标示意图');
+    expect(svg).toContain('无底图');
+    expect(svg).toContain('缺坐标项目');
+    const { ctx } = fixture();
+    const map = await readPitchLocation(ctx, { submarkets: ['CBD'] });
+    expect(map?.scene.marketCoverage).toEqual([{ name: 'CBD', located: 2, selected: 2 }]);
+    expect(map?.media).toMatchObject({ mime: 'image/png', width: 2560, height: 1440 });
+    expect((await resolvePitchVisualAsset(ctx, map?.reference, 'internal')).reference).toEqual(map?.reference);
+  });
+
+  it('shows all 17 current market groups and labels the shared color when more groups are present', async () => {
+    const catalog = Array.from({ length: 20 }, (_, i) => ({ ...main, id: id(50 + i), submarket: `测试商务区${i + 1}` }));
+    const allCurrent = createLocationSchematic(catalog.slice(0, 17), undefined, true)!;
+    const currentLegend = await locationSchematicSvg(allCurrent);
+    expect(currentLegend).toContain(allCurrent.marketCoverage[16].name);
+    expect(currentLegend).not.toContain('其余');
+    const expanded = createLocationSchematic(catalog, undefined, true)!;
+    const expandedLegend = await locationSchematicSvg(expanded);
+    expect(expandedLegend).toContain('其余 3 个子市场');
+    expect(expandedLegend).toContain('3 / 3');
+    expect(expandedLegend).toContain('#8A9794');
+  });
+
+  it('rejects denied stacking before reading tenant records, and never labels an undated vacant unit as usable inventory', async () => {
+    for (const options of [{ stackingAdmin: false }, { stackingExport: false }]) {
+      const { ctx, calls } = fixture(options);
+      await expect(readPitchStackingPlan(ctx, buildingId, {}, false)).rejects.toThrow('QUERY_DENIED');
+      expect(calls.some(call => call.includes('/stacking_plan_spaces'))).toBe(false);
+    }
+    const unconfirmed = createStackingVisual(main, { towers, floors, spaces, sources: [{ ...source, source_as_of: null }] }, {})!;
+    expect(unconfirmed.structured.towers[1].floors[0].units[0]).toMatchObject({ status: 'unknown', sourceStatus: 'vacant' });
+    expect(unconfirmed.structured.businessDate).toBeNull();
+    const { ctx } = fixture();
+    const plan = await readPitchStackingPlan(ctx, buildingId, { towerIds: [towers[1].id], levelRange: [18, 18] }, true);
+    expect(plan?.document.businessDate).toBe('2026-11-18');
+    expect(plan?.document.towers).toHaveLength(1);
+    expect(plan?.document.towers[0].floors[0].units[0]).toMatchObject({ areaSqm: 691.57, verification: 'source_unverified', industry: null });
+    expect(plan?.document.towers[0].floors[0].units[1]).toMatchObject({ tenantName: '测试租户', areaSqm: 941.84 });
+    expect(plan?.reference.rights).toMatchObject({ externalAi: false, clientDistribution: false });
+    expect(plan?.media).toMatchObject({ width: 2048, mime: 'image/png' });
+    expect((await resolvePitchVisualAsset(ctx, plan?.reference, 'internal', { stackingImage: true })).reference).toEqual(plan?.reference);
+    const deniedNative = fixture({ stackingAdmin: false });
+    await expect(resolveReferencedVisualMedia(deniedNative.ctx, [plan?.reference], [], 'internal')).rejects.toThrow('QUERY_DENIED');
+    expect(deniedNative.calls.some(call => call.includes('/stacking_plan_spaces'))).toBe(false);
+  });
+});

@@ -329,10 +329,10 @@
   min-width:265px;max-width:min(90vw,320px);display:flex;flex-direction:column;gap:3px;
   padding:10px;background:#fff;border:1px solid var(--cd-color-border);border-radius:8px;
   box-shadow:0 10px 32px var(--cd-color-text-primary)20}
-.exportOptions>button {min-height:40px;display:flex;align-items:center;gap:10px;
+.exportOptions>:is(button,a) {min-height:40px;display:flex;align-items:center;gap:10px;
   width:100%;padding:8px 10px;color:#273B50;background:#fff;border:0;
   border-radius:5px;text-align:left;font-size:13px}
-.exportOptions>button:hover {background:#F2F6FA;color:var(--cd-color-brand)}
+.exportOptions>:is(button,a):hover {background:#F2F6FA;color:var(--cd-color-brand)}
 .exportScope {display:flex;justify-content:space-between;align-items:center;gap:12px;
   padding:4px 10px 9px;margin-bottom:3px;border-bottom:1px solid #E6EBF1;
   color:var(--cd-color-text-secondary);font-size:12px}
@@ -418,7 +418,7 @@
   .miniFloor {min-height:44px}
   .miniUnits {min-height:44px;touch-action:pan-x}
   .miniUnit {min-height:44px;min-width:44px}
-  .exportOptions>button,.clearFilter,.towerOverviewHead button {min-height:44px}
+  .exportOptions>:is(button,a),.clearFilter,.towerOverviewHead button {min-height:44px}
 }
 
 /* 2026-11-20 · Stacking Plan: quiet, diagram-first presentation.

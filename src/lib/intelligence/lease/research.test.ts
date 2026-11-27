@@ -152,6 +152,21 @@ describe('controlled lease research deterministic facts and real files', () => {
       }
     }
   });
+  it('uses inclusive lower area bounds, retains zero and suppresses small groups without detail grants', () => {
+    const f = fixture();
+    f.rows = ['0', '499.99', '500', '1000', '3000', null, '-1'].map((area, index) => row('live', String(index), { area }));
+    f.links = [];
+    const args = { ...plan, groupBy: 'area_band', source: 'live', sort: 'count' };
+    const result = buildLeaseResult(f, args);
+    const read = (group: string) => result.table.rows.find(r => r.cells.group.kind === 'text' && r.cells.group.value === group)?.cells;
+    expect(read('0–<500 ㎡')?.count).toMatchObject({ value: { numeric: 2 } });
+    expect(read('500–<1,000 ㎡')?.area).toMatchObject({ value: { numeric: 500 } });
+    expect(read('1,000–<3,000 ㎡')?.area).toMatchObject({ value: { numeric: 1000 } });
+    expect(read('≥3,000 ㎡')?.area).toMatchObject({ value: { numeric: 3000 } });
+    expect(read('无有效面积')?.area).toMatchObject({ kind: 'unknown', reason: 'no_valid_sample' });
+    f.details = false;
+    expect(buildLeaseResult(f, args).table.rows).toEqual([]);
+  });
   it('binds industry/building/quarter charts to the full aggregate cells with proportional geometry', () => {
     const r = buildLeaseResult(fixture(), { ...plan, groupBy: 'building' });
     const chart = buildResultChart(resultViewSchema.parse(r), { kind: 'plot', type: 'horizontal_bar', x: 'group', y: ['area'] });

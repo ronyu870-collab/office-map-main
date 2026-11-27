@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/src/components/ui";
 import type { SlideContent } from "@/src/lib/pitch/contracts/content";
-import { boxFits, normalizedRotation, rotateVector } from "@/src/lib/pitch/contracts/scene-geometry";
+import { boxFits, normalizedRotation, rotateVector, visualBounds, type SceneBox } from "@/src/lib/pitch/contracts/scene-geometry";
 import type { SlideScene, SceneElement } from "@/src/lib/pitch/contracts/scene";
 import { canMoveObject, canScaleObject, constrainedScale, constrainGroupDelta, objectId, objectOverlap, objectRotation, sceneLayerEntries, sceneObjectGroups, textAnchors, validObjectOrder, type ObjectMove, type ObjectText, type ObjectGroup } from "@/src/lib/pitch/workspace/object-layout";
 import type { Call } from "./client";
@@ -42,17 +42,21 @@ export function splitLayers(svg: string): Layer[] {
   });
 }
 
-export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onApply, onClose }: {
+export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, lockedParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onSelectionChange, imageReplacement, photoReplacement, onApply, onClose }: {
   call: Call;
   projectId: string;
   slideId: string;
   scene: SlideScene;
   content: SlideContent;
   allowParagraphs: boolean;
+  lockedParagraphs?: ReadonlySet<number>;
   pendingMoves?: ObjectMove[];
   pendingTexts?: ObjectText[];
   pendingOrder?: string[];
   pendingGroups?: ObjectGroup[];
+  onSelectionChange?: (selection: { ids: string[]; dirty: boolean }) => void;
+  imageReplacement?: { identify: (id: string) => number | undefined; open: (index: number) => void };
+  photoReplacement?: { canOpen: (id: string) => boolean; open: (id: string) => void };
   onApply: (changes: Changes) => void;
   onClose: () => void;
 }) {
@@ -83,7 +87,15 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   const selectedGroup = selected ? groupFor(selected) : undefined;
   const currentOrder = validOrder && order ? order : originalOrder;
   const layerById = React.useMemo(() => new Map(layers.map(layer => [layer.id, layer])), [layers]);
-  const anchors = React.useMemo(() => textAnchors(scene, content, allowParagraphs), [scene, content, allowParagraphs]);
+  const anchors = React.useMemo(() => {
+    const editable = textAnchors(scene, content, allowParagraphs);
+    if (lockedParagraphs?.size) {
+      for (const [id, anchor] of editable) {
+        if (anchor.kind === "paragraph" && lockedParagraphs.has(anchor.block)) editable.delete(id);
+      }
+    }
+    return editable;
+  }, [scene, content, allowParagraphs, lockedParagraphs]);
   const canonicalText = (id: string) => {
     const anchor = anchors.get(id);
     if (anchor?.kind === "title") return content.title;
@@ -91,6 +103,10 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
     return block?.kind === "paragraph" ? block.text : "";
   };
   const hasChanges = !!(moves.length || texts.length || order || groupPatch);
+  const localEdits = hasChanges || !!typing;
+  React.useEffect(() => {
+    onSelectionChange?.({ ids: marked.length ? marked : selected ? [selected] : [], dirty: localEdits });
+  }, [localEdits, marked, onSelectionChange, selected]);
   React.useEffect(() => {
     const request = new AbortController();
     void call<{ svg: string; scene: SlideScene }>({
@@ -149,6 +165,35 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
     const delta = constrainGroupDelta(scene, boxes, dx, dy);
     return members.map(member => ({ ...member, x: Math.max(0, member.x + delta.x), y: Math.max(0, member.y + delta.y) }));
   }
+  function distribute(axis: "x" | "y") {
+    const size = axis === "x" ? "w" : "h";
+    const picks = entries.flatMap(({ id, element }) => {
+      if (!marked.includes(id) || !canMoveObject(element) || groupFor(id)) return [];
+      const at = position(id, element);
+      const box = { ...at, w: element.w * (at.scale ?? 1), h: element.h * (at.scale ?? 1) };
+      return [{ id, at, box, visual: visualBounds(box) }];
+    }).sort((first, second) => first.visual[axis] - second.visual[axis]);
+    if (picks.length < 3) return;
+    const start = picks[0].visual[axis];
+    const last = picks[picks.length - 1].visual;
+    const occupied = picks.reduce((sum, entry) => sum + entry.visual[size], 0);
+    const gap = (last[axis] + last[size] - start - occupied) / (picks.length - 1);
+    if (gap < 0) {
+      setBoundsMessage("对象之间没有足够的间距。请拉开两端后再分布。");
+      return;
+    }
+    let target = start;
+    const updates = picks.map(({ id, at, visual }) => {
+      const next = { id, ...at, [axis]: at[axis] + target - visual[axis] };
+      target += visual[size] + gap;
+      return next;
+    });
+    if (picks.some(({ box }, index) => !boxFits(scene, { ...box, ...updates[index] }))) {
+      setBoundsMessage("分布后会有对象超出页面。请先调整对象位置。");
+      return;
+    }
+    placeBatch(updates.slice(1, -1));
+  }
   function createGroup() {
     if (marked.length < 2 || marked.length > 100 || marked.some(id => !originalOrder.includes(id) || groupFor(id))) return;
     const group = { id: crypto.randomUUID(), memberIds: [...marked] };
@@ -203,6 +248,8 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   const picked = entries.find(entry => entry.id === selected);
   const pickedPosition = picked ? position(picked.id, picked.element) : null;
   const pickedScale = pickedPosition?.scale ?? 1;
+  const imageIndex = picked && !localEdits ? imageReplacement?.identify(picked.id) : undefined;
+  const canReplacePhoto = picked && !localEdits && marked.length <= 1 && photoReplacement?.canOpen(picked.id);
   const resizeCorner = picked ? rotateVector(picked.element.w * pickedScale / 2, picked.element.h * pickedScale / 2, pickedPosition?.rotation ?? 0) : null;
   function draggedScale(event: React.PointerEvent<HTMLButtonElement>, element: SlideScene["elements"][number]) {
     const start = drag.current;
@@ -213,6 +260,32 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
     const axis = rotateVector(dx, dy, start.origin.rotation ?? 0);
     const delta = ((event.clientX - start.startX) * axis.x + (event.clientY - start.startY) * axis.y) / (dx * dx + dy * dy);
     return resizeFrom(start.origin, element, (start.origin.scale ?? 1) + delta);
+  }
+  const moving = dragMoves.length === 1 ? dragMoves[0] : null;
+  const movingElement = moving && entries.find(({ id }) => id === moving.id)?.element;
+  let guideX: number | undefined;
+  let guideY: number | undefined;
+  if (moving && movingElement) {
+    const asBox = (at: Position, element: SceneElement) => visualBounds({
+      ...at, w: element.w * (at.scale ?? 1), h: element.h * (at.scale ?? 1),
+    });
+    const movingBox = asBox(moving, movingElement);
+    const candidates = entries.flatMap(({ id, element }) => id === moving.id || !canMoveObject(element)
+      ? [] : [asBox(position(id, element), element)]);
+    const edges = (box: SceneBox, axis: "x" | "y") => {
+      const extent = axis === "x" ? box.w : box.h;
+      return [box[axis], box[axis] + extent / 2, box[axis] + extent];
+    };
+    const match = (axis: "x" | "y", length: number) => {
+      const nearby = edges(movingBox, axis);
+      const references = [
+        length / 2,
+        ...candidates.flatMap((candidate) => edges(candidate, axis)),
+      ];
+      return references.find((target) => nearby.some((edge) => Math.abs(edge - target) <= length * .004));
+    };
+    guideX = match("x", scene.width);
+    guideY = match("y", scene.height);
   }
   return (
     <section className={styles.objectEditor} aria-label="画布对象编辑" onKeyDown={event => {
@@ -313,6 +386,8 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             }}
           />;
         })}
+        {guideX !== undefined && <span className={styles.objectGuide} aria-hidden="true" data-axis="x" style={{ left: `${guideX / scene.width * 100}%` }} />}
+        {guideY !== undefined && <span className={styles.objectGuide} aria-hidden="true" data-axis="y" style={{ top: `${guideY / scene.height * 100}%` }} />}
         {picked && pickedPosition && resizeCorner && !typing && canScaleObject(picked.element) && (
           <button type="button" aria-label="缩放所选对象"
             className={styles.objectResize}
@@ -358,7 +433,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             <li key={id}>
               {canMoveObject(element)
                 ? <div className={styles.layerRow}>
-                    {!groupFor(id) && <input type="checkbox" aria-label={`选入组合：${layerName(id, element)}`}
+                    {!groupFor(id) && <input type="checkbox" aria-label={`多选对象：${layerName(id, element)}`}
                       checked={marked.includes(id)}
                       onChange={event => setMarked(previous => event.target.checked ? [...previous, id] : previous.filter(item => item !== id))} />}
                     <button type="button" aria-pressed={selected === id}
@@ -374,6 +449,10 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             onClick={() => selected && changeLayer(selected, 1)}>上移一层</Button>
           <Button variant="ghost" disabled={!selected || !!typing || currentOrder.indexOf(selected) <= 0}
             onClick={() => selected && changeLayer(selected, -1)}>下移一层</Button>
+          {marked.length >= 3 && <>
+            <Button variant="ghost" disabled={!!typing} onClick={() => distribute("x")}>水平等距分布</Button>
+            <Button variant="ghost" disabled={!!typing} onClick={() => distribute("y")}>垂直等距分布</Button>
+          </>}
           <Button variant="ghost" disabled={!!typing || marked.length < 2 || marked.length > 100} onClick={createGroup}>组合所选对象</Button>
           <Button variant="ghost" disabled={!!typing || !selectedGroup}
             onClick={() => selectedGroup && removeGroup(selectedGroup.id)}>取消所选组合</Button>
@@ -385,6 +464,10 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
       </div>}
       {picked && !typing && canScaleObject(picked.element) && (
         <div className={styles.objectTools}>
+          {imageIndex !== undefined && imageReplacement &&
+            <Button variant="secondary" onClick={() => imageReplacement.open(imageIndex)}>更换所选图片</Button>}
+          {canReplacePhoto && photoReplacement &&
+            <Button variant="secondary" onClick={() => photoReplacement.open(picked.id)}>更换楼宇照片</Button>}
           <Button variant="ghost" onClick={() => {
             const at = position(picked.id, picked.element);
             place(picked.id, resizeFrom(at, picked.element, (at.scale ?? 1) - .1));

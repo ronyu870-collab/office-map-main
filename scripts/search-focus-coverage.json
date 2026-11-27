@@ -516,14 +516,16 @@
     "roots": [
       "src/components/pitch/PitchWorkspace.tsx",
       "src/components/pitch/workspace/Projects.tsx",
-      "src/components/pitch/workspace/Manager.tsx"
+      "src/components/pitch/workspace/Manager.tsx",
+      "src/components/pitch/workspace/BuildingLeaseReview.tsx"
     ],
     "file": "src/components/pitch/PitchWorkspace.focus.test.tsx",
     "cases": [
       "keeps project name focused through continuous typing and cursor edits",
       "keeps page text focused through autosave and restores real server edits after remount",
       "keeps project search stable through delayed empty results, middle edits and IME",
-      "keeps category fields focused while editing and switching static filters"
+      "keeps category fields focused while editing and switching static filters",
+      "reviews lease evidence for the selected building with the chosen dates, source and permitted aggregation"
     ]
   },
   {
@@ -571,6 +573,36 @@
       "keeps building and business asset search focused and submits actual selected bindings",
       "accepts editable quarter and submarket text without resetting partially typed values or separators",
       "exports only selected indices and exposes success only after a ready receipt with downloadable bytes"
+    ]
+  },
+  {
+    "id": "pitch-workspace-data-refresh",
+    "roots": [
+      "src/components/pitch/workspace/DataRefresh.tsx"
+    ],
+    "file": "src/components/pitch/workspace/DataRefresh.test.tsx",
+    "cases": [
+      "keeps the quarter field focused while typing, then applies only the reviewed quarter and fingerprint"
+    ]
+  },
+  {
+    "id": "pitch-workspace-handoff-review",
+    "roots": [
+      "src/components/pitch/workspace/HandoffReview.tsx"
+    ],
+    "file": "src/components/pitch/workspace/PitchWorkflow.test.tsx",
+    "cases": [
+      "keeps the handoff quarter focused while projects load and confirms the reviewed selection once"
+    ]
+  },
+  {
+    "id": "pitch-workspace-image-replacement",
+    "roots": [
+      "src/components/pitch/workspace/ImageReplacement.tsx"
+    ],
+    "file": "src/components/pitch/workspace/ImageReplacement.focus.test.tsx",
+    "cases": [
+      "keeps the published image search focused and ignores stale replies before selecting a version"
     ]
   },
   {

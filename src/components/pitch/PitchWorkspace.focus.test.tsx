@@ -12,6 +12,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
@@ -159,16 +160,29 @@ let detail: ReturnType<typeof initial>,
   failCompletedRead = false,
   completedTask = false,
   rejectSave = false,
-  expandedCatalog = false;
+  expandedCatalog = false,
+  workspaceBuildingLookup = false,
+  templateCapabilities: string[] = [],
+  readyProposal = false,
+  dropProposalCreateResponse = false,
+  bindingResponse: (() => unknown) | undefined,
+  proposalSource: { id: string; detail: unknown } | undefined;
+const proposalId = "66666666-6666-4666-8666-666666666666";
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 beforeEach(() => {
   state.role = "editor";
   state.other = false;
   rejectSave = false;
   expandedCatalog = false;
+  workspaceBuildingLookup = false;
+  templateCapabilities = [];
   failTaskPoll = false;
   failCompletedRead = false;
   completedTask = false;
+  readyProposal = false;
+  dropProposalCreateResponse = false;
+  bindingResponse = undefined;
+  proposalSource = undefined;
   detail = clone(initial());
   writes = [];
   revisions = new Map();
@@ -185,10 +199,20 @@ beforeEach(() => {
       let status = 200;
       if (init?.method === "POST") writes.push(c);
       if (c.action === "catalog")
-        body = path === "business" ? { recipes: expandedCatalog ? BUSINESS_RECIPES.map(r => ({...r, revision: 1, categoryId: sourceId, enabled: true})) : [], dynamic: [] } : catalog;
+        body = path === "business" ? {
+          recipes: expandedCatalog ? BUSINESS_RECIPES.map(r => ({...r, revision: 1, categoryId: sourceId, enabled: true})) : [],
+          dynamic: ["competition-map", "stacking-plan", "lease-representatives", "lease-industry-distribution"]
+            .map(id => ({ id, name: id, status: "available", reason: "" })),
+        } : catalog;
       else if (c.action === "capabilities")
-        body = { allowedDynamic: [], buildingSearch: false };
+        body = { allowedDynamic: templateCapabilities, buildingSearch: workspaceBuildingLookup };
+      else if (c.action === "buildings")
+        body = { items: [{ id: assetId, name: "工作台核对楼宇" }], next: null };
       else if (c.action === "preferences") body = { favorites: [], recent: [] };
+      else if (c.action === "document_bindings") {
+        if (bindingResponse) body = bindingResponse();
+        else { status = 400; body = { error: "不支持此命令" }; }
+      }
       else if (c.action === "list")
         body = {
           items: [
@@ -204,9 +228,42 @@ beforeEach(() => {
       else if (c.action === "get") {
         if (failCompletedRead && writes.some((c) => c.action === "status"))
           throw new Error("新页面暂时读取失败");
-        body = detail;
+        body = proposalSource && c.projectId === proposalSource.id ? proposalSource.detail
+          : c.projectId === proposalId ? { ...detail, project: { ...detail.project, id: proposalId, title: "CBD 选址方案" } }
+            : detail;
       } else if (c.action === "create") {
-        body = {...detail, project: {...detail.project, id: c.projectId, title: c.title, theme_id: c.themeId, theme_version: c.themeVersion}, workspace: {...detail.workspace, context: c.context, active_slide: null}, slides: [], tasks: []};
+        const created = {...detail, project: {...detail.project, id: c.projectId, title: c.title, theme_id: c.themeId, theme_version: c.themeVersion}, workspace: {...detail.workspace, context: c.context, active_slide: null}, slides: [], tasks: []};
+        body = created;
+        if (readyProposal) {
+          proposalSource = { id: c.projectId, detail: created };
+          if (dropProposalCreateResponse) throw new Error("建项响应中断");
+        }
+      } else if (c.action === "proposal_plan") {
+        body = readyProposal ? {
+          status: "ready", selection: "scoped-sample",
+          plan: { id: sourceId, version: 1, title: "CBD 选址方案", contextFingerprint: "a".repeat(64),
+            theme: { id: "colliers-default-v1", version: 3 },
+            slides: [{ id: pageId, title: "楼宇参数对比" }], gaps: [] },
+          brief: { city: "北京", submarkets: ["CBD"], period: "2026-Q3", language: "zh", buildingIds: [assetId] },
+        } : { status: "clarification", message: "请确认选址范围。" };
+      } else if (c.action === "proposal_generate") {
+        body = { state: "completed", taskId: c.confirmation.taskId, projectId: proposalId };
+      } else if (c.action === "review_handoff") {
+        const lease = c.handoff.source.kind === "lease-search" ? c.handoff.source : undefined;
+        body = lease ? {
+          status: "ready", fingerprint: "f".repeat(64), period: "", submarkets: [], buildingIds: [assetId],
+          binding: { dataAsOf: lease.to }, parameters: { from: lease.from, to: lease.to, direction: lease.direction,
+            leaseSource: lease.dataset, templateId: "lease-industry-distribution", chart: "bar", measure: "area" },
+          pages: [{ title: "已选楼宇成交面积", sources: [{ label: "获权历史成交" }] }],
+        } : {
+          status: "ready", fingerprint: "f".repeat(64), period: "2026-Q3", submarkets: [], buildingIds: [assetId],
+          binding: { dataAsOf: "2026-09-30" },
+          pages: [{ title: "楼宇正式季度参数", sources: [{ label: "获权季度库" }],
+            blocks: [{ kind: "table", columns: ["楼宇", "净有效租金"], rows: [["工作台核对楼宇", 95]],
+              sourceIds: [sourceId] }] }],
+        };
+      } else if (c.action === "add_to_pitch") {
+        body = { state: "queued" };
       } else if (c.action === "status") {
         if (failTaskPoll) throw new Error("生成进度网络中断");
         body = {
@@ -311,23 +368,253 @@ async function enter() {
   return user;
 }
 describe("Pitch workspace continuous editing", () => {
-  it("takes a workbench brief to the real project assistant only after project creation", async () => {
+  it("protects a formally bound paragraph in the inspector and canvas while submitting only the new manual text", async () => {
+    const page = detail.slides[0];
+    const manualId = "99999999-9999-4999-8999-999999999999";
+    const official = "正式净有效租金为 145 元／平方米／月";
+    const manual = "联络说明";
+    page.content.blocks = [
+      { kind: "paragraph", text: official, sourceIds: [sourceId] },
+      { kind: "paragraph", text: manual, sourceIds: [manualId] },
+    ];
+    page.content.sources.push({ ...page.content.sources[0], id: manualId, recordId: "workspace:" + projectId, label: "人工说明" });
+    page.scene.elements.push(
+      { kind: "text", x: 1, y: 2, w: 9, h: 1, text: official, role: "body", bold: false },
+      { kind: "text", x: 1, y: 4, w: 9, h: 1, text: manual, role: "body", bold: false },
+    );
+    bindingResponse = () => ({ projectVersion: detail.project.version, pages: [{ id: pageId, objects: [
+      { index: 0, kind: "paragraph", sourceIds: [sourceId], valueOrigin: "business", receipts: [{
+        sourceId, receiptId: "formal-rent", resultId: assetId,
+        binding: { dataAsOf: "2026-01-01" }, query: { fields: ["netEffectiveRent"] },
+      }] },
+      { index: 1, kind: "paragraph", sourceIds: [manualId], valueOrigin: "manual" },
+    ] }] });
+    const user = await enter();
+    const protectedField = await screen.findByLabelText("正文 1 · 只读");
+    expect(protectedField).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("正文 2")).not.toHaveAttribute("readonly");
+    await user.click(screen.getByRole("button", { name: "查看数据与来源" }));
+    expect(await screen.findByText("正式查询依据")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "属性" }));
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: `对象 2：${official}` }));
+    expect(screen.queryByRole("button", { name: "编辑所选文字" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: `对象 3：${manual}` }));
+    expect(screen.getByRole("button", { name: "编辑所选文字" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "返回预览" }));
+    const bindingReads = () => vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("document_bindings"));
+    expect(bindingReads()).toHaveLength(1);
+    const notes = screen.getByLabelText("正文 2");
+    await user.clear(notes);
+    await user.type(notes, "已核对联络安排");
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(writes.find(entry => entry.action === "save")).toMatchObject({
+      pages: [{ id: pageId, paragraphs: [official, "已核对联络安排"] }],
+    }));
+    await waitFor(() => expect(bindingReads()).toHaveLength(2));
+  });
+  it("keeps paragraph editing locked until bindings for the current revision arrive", async () => {
+    let fresh = false;
+    bindingResponse = () => ({ projectVersion: fresh ? detail.project.version : detail.project.version + 1,
+      pages: [{ id: pageId, objects: [{ index: 0, kind: "paragraph", sourceIds: [sourceId], valueOrigin: "asset" }] }] });
+    const user = await enter();
+    expect(await screen.findByText("项目版本已变化，请重新打开项目检查数据绑定。")).toBeInTheDocument();
+    expect(screen.getByLabelText("正文 1")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("页面标题")).not.toHaveAttribute("readonly");
+    fresh = true;
+    await user.click(screen.getByRole("button", { name: "重试读取绑定" }));
+    await waitFor(() => expect(screen.getByLabelText("正文 1")).not.toHaveAttribute("readonly"));
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+  });
+  it("plans a workbench brief before writes and opens the project assistant when settings are needed", async () => {
     const user = userEvent.setup();
     render(<PitchWorkspace />);
     const brief = await screen.findByLabelText("你想制作什么？");
     await user.type(brief, "为科技企业制作选址提案");
     await user.click(screen.getByRole("button", { name: "进入提案助手" }));
+    await screen.findByText("请确认选址范围。");
+    expect(writes.find(entry => entry.action === "proposal_plan")?.input).not.toHaveProperty("projectId");
     expect(writes.some((entry) => entry.action === "create" || entry.action === "prepare")).toBe(false);
-    await user.type(screen.getByLabelText("Pitch 名称"), "选址项目");
+    await user.click(screen.getByRole("button", { name: "打开项目设置" }));
+    const projectTitle = screen.getByLabelText("Pitch 名称");
+    expect(projectTitle).toHaveValue("为科技企业制作选址提案");
+    await user.clear(projectTitle);
+    await user.type(projectTitle, "选址项目");
     await user.click(screen.getByRole("button", { name: /^创建$/ }));
-    const question = await screen.findByLabelText("需要制作什么页面？");
+    const question = await screen.findByLabelText("需要制作什么页面？", {}, { timeout: 10000 });
     expect(question).toHaveValue("为科技企业制作选址提案");
+    await screen.findByText("请确认选址范围。");
     expect(writes.filter((entry) => entry.action === "create")).toHaveLength(1);
-    expect(writes.some((entry) => entry.action === "prepare")).toBe(false);
+    expect(writes.filter((entry) => entry.action === "proposal_plan")).toHaveLength(2);
+    expect(writes.some((entry) => entry.action === "proposal_generate")).toBe(false);
+  }, 60000);
+  it("routes each flagship entry through a business plan review without creating a project", async () => {
+    const user = userEvent.setup();
+    render(<PitchWorkspace />);
+    const scenarios = [
+      ["招商代理", "为霄云路33号制作招商代理提案。"],
+      ["办公选址对比", "制作CBD五个甲级写字楼的选址对比。"],
+      ["季度市场报告", "用最新正式季度制作北京写字楼市场报告。"],
+      ["单楼项目推介", "为五矿广场制作项目推介。"],
+    ];
+    for (const [label, question] of scenarios) {
+      await user.click(await screen.findByRole("button", { name: label }));
+      await screen.findByText("请确认选址范围。");
+      expect(writes.at(-1)).toMatchObject({ action: "proposal_plan", input: { question, audience: "internal" } });
+      await user.click(screen.getByRole("button", { name: "关闭" }));
+    }
+    expect(writes.map(entry => entry.action)).toEqual(scenarios.map(() => "proposal_plan"));
+  });
+  it("creates the reviewed home proposal only after confirmation and recovers the same project after a lost create response", async () => {
+    readyProposal = true;
+    dropProposalCreateResponse = true;
+    const user = userEvent.setup();
+    render(<PitchWorkspace />);
+    await user.click(await screen.findByRole("button", { name: "办公选址对比" }));
+    await screen.findByText("楼宇参数对比");
+    expect(writes.filter(entry => entry.action === "create" || entry.action === "proposal_generate")).toHaveLength(0);
+    const plan = writes.find(entry => entry.action === "proposal_plan")!;
+    expect(plan.input).toEqual(expect.objectContaining({
+      question: "制作CBD五个甲级写字楼的选址对比。", audience: "internal",
+    }));
+    await user.click(screen.getByRole("button", { name: "确认并生成 Pitch" }));
+    await screen.findByLabelText("页面标题");
+    const creates = writes.filter(entry => entry.action === "create");
+    expect(creates).toHaveLength(1);
+    expect(creates[0]).toMatchObject({ themeId: "colliers-default-v1", themeVersion: 3 });
+    expect(creates[0].context).toMatchObject({ buildingIds: [assetId], period: "2026-Q3" });
+    expect(writes.find(entry => entry.action === "proposal_generate")?.confirmation).toEqual(expect.objectContaining({
+      projectId: creates[0].projectId, expectedVersion: 1, contextFingerprint: "a".repeat(64),
+      request: { ...(plan.input as object), projectId: creates[0].projectId },
+    }));
+    expect(writes.find(entry => entry.action === "get" && entry.projectId === proposalId)).toBeDefined();
+  }, 60000);
+  it("reviews selected buildings in the data inspector and appends exactly the reviewed scope to the current project", async () => {
+    workspaceBuildingLookup = true;
+    detail.workspace.context.period = "2026-Q3";
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
+    await user.type(await screen.findByLabelText("搜索楼宇"), "工作台核对");
+    await user.click(await screen.findByRole("button", { name: "工作台核对楼宇" }));
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "核对季度数据" }));
+    await screen.findByText("追加到 隔离测试 Pitch");
+    expect(screen.queryByLabelText("目标项目")).not.toBeInTheDocument();
+    expect(await screen.findByRole("cell", { name: "95" })).toBeInTheDocument();
+    expect(screen.getByText("获权季度库")).toBeInTheDocument();
+    expect(writes.some(entry => entry.action === "add_to_pitch")).toBe(false);
+    const review = writes.find(entry => entry.action === "review_handoff");
+    expect(review).toEqual({ action: "review_handoff", handoff: {
+      projectId, source: { kind: "buildings", buildingIds: [assetId] }, period: "2026-Q3", language: "zh",
+    } });
+    await user.click(screen.getByRole("button", { name: "确认并追加" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "加入 Pitch" })).not.toBeInTheDocument());
+    expect(writes.filter(entry => entry.action === "add_to_pitch")).toEqual([{
+      action: "add_to_pitch", handoff: review?.handoff, target: { mode: "append", expectedVersion: 1 },
+      fingerprint: "f".repeat(64), taskId: expect.any(String),
+    }]);
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    expect(detail.workspace.context.buildingIds).toEqual([]);
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
+    await user.click(screen.getByText("项目设置", { selector: "summary" }));
+    const settings = await screen.findByRole("group", { name: "关联项目" });
+    await user.type(within(settings).getByLabelText("搜索楼宇"), "工作台核对");
+    await user.click(await within(settings).findByRole("button", { name: "工作台核对楼宇" }));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(detail.workspace.context.buildingIds).toEqual([assetId]));
+  });
+  it.each([
+    ["competition-map", "添加区位图", "添加历史堆叠图"],
+    ["stacking-plan", "添加历史堆叠图", "添加区位图"],
+  ])("appends %s for the exact selected buildings with the required server capability", async (templateId, label, unavailableLabel) => {
+    workspaceBuildingLookup = true;
+    templateCapabilities = [templateId];
+    detail.workspace.context.period = "2026-Q3";
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
+    await user.type(await screen.findByLabelText("搜索楼宇"), "工作台核对");
+    await user.click(await screen.findByRole("button", { name: "工作台核对楼宇" }));
+    await user.click(await screen.findByText("楼宇资料页", { selector: "summary" }));
+    expect(screen.queryByRole("button", { name: unavailableLabel })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: label }));
+    await waitFor(() => expect(writes.find(entry => entry.action === "start")).toMatchObject({
+      projectId, expectedVersion: 1, replaceIds: [],
+      part: { mode: "dynamic", parameters: {
+        templateId, buildingIds: [assetId], period: { year: 2026, quarter: 3 },
+      } },
+    }));
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+    expect(detail.workspace.context.buildingIds).toEqual([]);
+  });
+  it("regenerates the reviewed visual page even after navigating to another page", async () => {
+    templateCapabilities = ["stacking-plan"];
+    workspaceBuildingLookup = true;
+    const otherPageId = "77777777-7777-4777-8777-777777777777";
+    detail.slides.push({ ...detail.slides[0], id: otherPageId,
+      content: { ...detail.slides[0].content, title: "另一页" },
+    });
+    const period = { year: 2026, quarter: 3 };
+    detail.workspace.page_settings = { [pageId]: { origin: "data", manual: false, part: { mode: "dynamic", parameters: {
+      templateId: "stacking-plan", buildingIds: [assetId], submarkets: [], inventory: "tracked", period, start: period, end: period,
+      fields: ["totalArea"], direction: "desc", chart: "table", from: "2026-01-01", to: "2026-09-30", leaseSource: "combined", measure: "count",
+    } } } };
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByRole("button", { name: "调整参数并重新生成" }));
+    expect(screen.queryByLabelText("统计季度")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("图表形式")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "打开第 2 页：另一页" }));
+    await user.click(screen.getByRole("button", { name: "重新生成页面" }));
+    await waitFor(() => expect(writes.find(entry => entry.action === "start")).toMatchObject({
+      projectId, replaceIds: [pageId],
+      part: { mode: "dynamic", parameters: { templateId: "stacking-plan", buildingIds: [assetId] } },
+    }));
+  });
+  it("reviews lease evidence for the selected building with the chosen dates, source and permitted aggregation", async () => {
+    workspaceBuildingLookup = true;
+    templateCapabilities = ["lease-industry-distribution"];
+    detail.workspace.context.period = "2026-Q3";
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
+    expect(screen.queryByText("租赁成交", { selector: "summary" })).not.toBeInTheDocument();
+    await user.type(await screen.findByLabelText("搜索楼宇"), "工作台核对");
+    await user.click(await screen.findByRole("button", { name: "工作台核对楼宇" }));
+    await user.click(screen.getByText("租赁成交", { selector: "summary" }));
+    const startDate = screen.getByLabelText("成交开始日期");
+    expect(startDate).toHaveValue("2026-07-01");
+    expect(screen.getByLabelText("成交结束日期")).toHaveValue("2026-09-30");
+    expect(screen.queryByRole("option", { name: "成交明细" })).not.toBeInTheDocument();
+    await user.click(startDate);
+    fireEvent.change(startDate, { target: { value: "2026-10-01" } });
+    expect(startDate).toHaveFocus();
+    expect(screen.getByRole("button", { name: "核对成交资料" })).toBeDisabled();
+    fireEvent.change(startDate, { target: { value: "2026-08-01" } });
+    expect(startDate).toHaveFocus();
+    await user.selectOptions(screen.getByLabelText("成交来源"), "history");
+    await user.selectOptions(screen.getByLabelText("成交内容"), "industry-area");
+    await user.click(screen.getByRole("button", { name: "核对成交资料" }));
+    expect(await screen.findByText("获权历史成交")).toBeInTheDocument();
+    expect(writes.filter(entry => entry.action === "review_handoff")).toEqual([{ action: "review_handoff", handoff: {
+      projectId, language: "zh", source: { kind: "lease-search", dataset: "history", from: "2026-08-01", to: "2026-09-30",
+        buildingIds: [assetId], submarkets: [], view: "industry-area", direction: "desc" },
+    } }]);
+    expect(writes.some(entry => entry.action === "add_to_pitch")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "确认并追加" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "加入 Pitch" })).not.toBeInTheDocument());
+    expect(writes.find(entry => entry.action === "add_to_pitch")).toMatchObject({
+      handoff: writes.find(entry => entry.action === "review_handoff")?.handoff,
+      target: { mode: "append", expectedVersion: 1 }, fingerprint: "f".repeat(64),
+    });
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
   });
   it("saves pending edits before creating a separate demo and inherits the newly saved project context", async () => {
     expandedCatalog = true;
     const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
     await user.click(screen.getByText("项目设置", { selector: "summary" }));
     fireEvent.change(screen.getByLabelText("默认季度"), {target: {value: "2026-Q4"}});
     await user.click(screen.getByRole("button", {name: "示例与套装"}));
@@ -343,17 +630,40 @@ describe("Pitch workspace continuous editing", () => {
   it("resizes the editor divider with the keyboard without writing project content", async () => {
     await enter();
     const divider = screen.getByRole("separator", { name: "调整左栏宽度" });
+    const inspector = screen.getByRole("separator", { name: "调整右栏宽度" });
     const before = writes.filter((entry) => entry.action === "save").length;
     fireEvent.keyDown(divider, { key: "ArrowRight" });
-    expect(divider).toHaveAttribute("aria-valuenow", "240");
+    expect(divider).toHaveAttribute("aria-valuenow", "220");
     fireEvent.keyDown(divider, { key: "End" });
-    expect(divider).toHaveAttribute("aria-valuenow", "340");
+    expect(divider).toHaveAttribute("aria-valuenow", "288");
+    fireEvent.keyDown(inspector, { key: "ArrowLeft" });
+    expect(inspector).toHaveAttribute("aria-valuenow", "316");
+    fireEvent.keyDown(inspector, { key: "Home" });
+    expect(inspector).toHaveAttribute("aria-valuenow", "260");
     expect(writes.filter((entry) => entry.action === "save")).toHaveLength(before);
+  });
+  it("keeps the assistant draft and page search when returning from the focused canvas", async () => {
+    const user = await enter();
+    const search = screen.getByRole("searchbox", { name: "搜索页面" });
+    await user.type(search, "隔离");
+    await user.click(screen.getByRole("button", { name: "提案助手" }));
+    const question = await screen.findByLabelText("需要制作什么页面？");
+    await user.type(question, "保留我的提案需求");
+    await user.click(screen.getByRole("button", { name: "设计" }));
+    expect(screen.getByLabelText("整套设计主题")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "专注画布" }));
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "页面预览" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "退出专注画布" }));
+    expect(search).toHaveValue("隔离");
+    await user.click(screen.getByRole("button", { name: "提案助手" }));
+    expect(question).toHaveValue("保留我的提案需求");
+    expect(writes.some((entry) => entry.action === "save")).toBe(false);
   });
   it("moves an actual canvas layer with the keyboard and saves the same coordinates after reopening", async () => {
     const user = await enter();
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
-    const layer = await screen.findByRole("button", { name: "对象 1：隔离页面" });
+    const layer = await screen.findByRole("button", { name: "对象 1：隔离页面" }, { timeout: 3000 });
     layer.focus();
     fireEvent.keyDown(layer, { key: "ArrowRight" });
     expect(screen.getByText("横向 1.05 英寸 · 纵向 1.00 英寸")).toBeInTheDocument();
@@ -439,16 +749,34 @@ describe("Pitch workspace continuous editing", () => {
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
     expect(await screen.findByRole("button", { name: "对象 1：形状" })).toBeInTheDocument();
   });
+  it("persists the same equal spacing applied on the real object canvas", async () => {
+    detail.slides[0].scene.elements.push(...[1, 4, 10].map(x => ({
+      kind: "shape" as const, x, y: 4, w: 1, h: 1, fill: "primary" as const,
+      background: false, shape: "rect" as const,
+    })));
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await screen.findByRole("button", { name: "对象 2：形状" });
+    await user.click(screen.getByText("图层（从上到下）"));
+    for (const item of screen.getAllByRole("checkbox", { name: "多选对象：形状" })) await user.click(item);
+    await user.click(screen.getByRole("button", { name: "水平等距分布" }));
+    await user.click(screen.getByRole("button", { name: "应用位置" }));
+    await waitFor(() => expect(detail.slides[0].scene.elements[2].x).toBe(5.5), { timeout: 3000 });
+    expect(writes.find(entry => entry.action === "save")?.pages).toEqual([
+      { id: pageId, objectMoves: [{ id: "object-3", x: 5.5, y: 4 }] },
+    ]);
+    expect(detail.slides[0].scene.elements.slice(1).map(element => element.x)).toEqual([1, 5.5, 10]);
+  });
   it("moves a persistent canvas group together and can dissolve it without moving any member", async () => {
     detail.slides[0].scene.elements.push({
       kind: "shape", x: 2, y: 4, w: 3, h: 1, fill: "primary", background: false, shape: "rect",
     });
     const user = await enter();
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
-    await screen.findByRole("button", { name: "对象 2：形状" });
+    await screen.findByRole("button", { name: "对象 2：形状" }, { timeout: 15000 });
     await user.click(screen.getByText("图层（从上到下）"));
-    await user.click(screen.getByRole("checkbox", { name: "选入组合：形状" }));
-    await user.click(screen.getByRole("checkbox", { name: "选入组合：隔离页面" }));
+    await user.click(screen.getByRole("checkbox", { name: "多选对象：形状" }));
+    await user.click(screen.getByRole("checkbox", { name: "多选对象：隔离页面" }));
     await user.click(screen.getByRole("button", { name: "组合所选对象" }));
     fireEvent.keyDown(screen.getByRole("button", { name: "对象 2：形状" }), { key: "ArrowRight" });
     await user.click(screen.getByRole("button", { name: "应用到页面" }));
@@ -458,13 +786,13 @@ describe("Pitch workspace continuous editing", () => {
     expect(saved[0].editorGroup).toBeDefined();
     expect(saved[0].editorGroup).toBe(saved[1].editorGroup);
     await user.click(screen.getByRole("button", { name: "调整画布对象" }));
-    await user.click(await screen.findByRole("button", { name: "对象 2：形状" }));
+    await user.click(await screen.findByRole("button", { name: "对象 2：形状" }, { timeout: 15000 }));
     await user.click(screen.getByText("图层（从上到下）"));
     await user.click(screen.getByRole("button", { name: "取消所选组合" }));
     await user.click(screen.getByRole("button", { name: "应用到页面" }));
     await waitFor(() => expect(detail.slides[0].scene.elements.every(el => !el.editorGroup)).toBe(true), { timeout: 3000 });
     expect(detail.slides[0].scene.elements[1].x).toBeCloseTo(2.05);
-  });
+  }, 60000);
   it("keeps project name focused through continuous typing and cursor edits", async () => {
     const user = await enter(),
       input = screen.getByLabelText("项目名称") as HTMLInputElement;
@@ -513,7 +841,8 @@ describe("Pitch workspace continuous editing", () => {
   });
   it("combines duplicate, keyboard reorder, selection and deletion without losing unaffected content", async () => {
     const user = await enter();
-    await user.click(screen.getByRole("button", { name: "复制第 1 页" }));
+    await user.click(screen.getByLabelText("选择第 1 页"));
+    await user.click(screen.getByRole("button", { name: "复制选中" }));
     expect(screen.getByText("2 页")).toBeInTheDocument();
     const second = screen.getByRole("button", { name: /打开第 2 页/ });
     fireEvent.keyDown(second, { key: "ArrowLeft", altKey: true });

@@ -21,6 +21,7 @@ export async function runPitchTool(
   ctx: PitchContext,
   name: PitchToolName,
   raw: unknown,
+  proposal?: { question: string },
 ) {
   if (process.env.PITCH_STUDIO_ENABLED !== "true")
     throw new Error("PITCH_DENIED");
@@ -43,6 +44,20 @@ export async function runPitchTool(
             capabilities.allowedDynamic.includes(t.id),
         ).map((t) => t.id),
       ],
+    };
+  }
+  if (name === "pitch_plan_proposal") {
+    const input = PITCH_TOOL_SCHEMAS.pitch_plan_proposal.parse(args);
+    const { prepareProposal } = await import("./proposal-runtime");
+    // The ordinary Agent supplies no trusted entity or source IDs. The server
+    // resolves the authenticated user's original request, not model-written prose.
+    const request = proposal ? PITCH_TOOL_SCHEMAS.pitch_plan_proposal.parse({ question: proposal.question }) : input;
+    const result = await prepareProposal(ctx, request);
+    if (result.status !== "ready") return { status: result.status, code: result.code, workspace: "/intelligence/pitch" };
+    return {
+      status: result.status, planId: result.plan.id, pageKinds: result.plan.slides.map(slide => slide.pageKind),
+      missingPageKinds: result.plan.gaps.map(gap => gap.pageKind), scenario: result.brief.scenario,
+      workspace: "/intelligence/pitch",
     };
   }
   if (name === "pitch_prepare_slide") {

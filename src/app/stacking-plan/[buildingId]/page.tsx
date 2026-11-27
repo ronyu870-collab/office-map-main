@@ -1,4 +1,5 @@
 import { StackingPlanWorkspace } from '@/src/components/stacking-plan/StackingPlanWorkspace';
+import { PitchHandoffProvider } from '@/src/components/pitch/PitchHandoffLink';
 import { brokerReturn } from '@/src/lib/broker/links';
 
 export default async function StackingPlanPage({
@@ -10,5 +11,7 @@ export default async function StackingPlanPage({
 }) {
   const { buildingId } = await params;
   const { back } = await searchParams;
-  return <StackingPlanWorkspace buildingId={buildingId} backHref={brokerReturn(back)} />;
+  return <PitchHandoffProvider enabled={process.env.PITCH_STUDIO_ENABLED === 'true'}>
+    <StackingPlanWorkspace buildingId={buildingId} backHref={brokerReturn(back)} />
+  </PitchHandoffProvider>;
 }

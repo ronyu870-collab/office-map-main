@@ -217,6 +217,7 @@ describe("Pitch AI offline evaluation and security contracts", () => {
       "pitch_list_templates",
       "pitch_recommend_cases",
       "pitch_prepare_slide",
+      "pitch_plan_proposal",
       "pitch_suggest_outline",
     ]);
     expect(() =>

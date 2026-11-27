@@ -9,7 +9,8 @@ export const libraryCommandSchema = z.discriminatedUnion('action', [
  z.strictObject({ action: z.literal('save_asset'), assetId: id, expectedVersion: z.number().int().min(0), pageId: id.optional(), asset: assetInputSchema, acknowledgePartial: z.boolean().default(false) }),
  z.strictObject({ action: z.literal('confirm'), items: z.array(z.strictObject({ assetId: id, expectedVersion: z.number().int().positive() })).min(1).max(30), acknowledgePartial: z.boolean() }),
  z.strictObject({ action: z.literal('document_save'), documentId: id, expectedRevision: z.number().int().positive(), categoryId: id, tags: z.array(z.string().min(1).max(60)).max(30), state: z.enum(['draft','archived']).optional() }),
- z.strictObject({ action: z.literal('normalize'), projectId: id, assetId: id, title: z.string().trim().min(1).max(160), themeId: short, themeVersion: z.number().int().positive() }),
+ z.strictObject({ action: z.literal('normalize'), projectId: id, assetId: id, assetVersion: z.int32().positive().optional(),
+   title: z.string().trim().min(1).max(160), themeId: short, themeVersion: z.number().int().positive() }),
  z.strictObject({ action: z.literal('merge'), targetId: id, sourceIds: z.array(id).min(1).max(10).refine(v => new Set(v).size === v.length) }),
  z.strictObject({ action: z.literal('variant'), assetId: id, variantId: id, kind: z.enum(['regional','language']), scope: uploadMetadataSchema.shape.scope, language: z.string().regex(/^[a-z]{2}(?:-[A-Za-z0-9]+)*$/) }),
 ]);

@@ -1,5 +1,6 @@
 import * as React from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -111,7 +112,7 @@ describe("Pitch parameter and search focus", () => {
     fireEvent.change(asset, { target: { value: "研究" } });
     fireEvent.compositionEnd(asset);
     await waitFor(() =>
-      expect(screen.getByText("暂无适用的已发布素材。")).toBeInTheDocument(),
+      expect(screen.getByText("没有匹配的已发布素材。")).toBeInTheDocument(),
     );
     expect(asset).toHaveFocus();
     expect(screen.getByLabelText("搜索企业素材")).toBe(asset);
@@ -162,6 +163,69 @@ describe("Pitch parameter and search focus", () => {
       expect.objectContaining({ templateId: "team-multiple", assetIds: [id] }),
     );
     expect(screen.getByLabelText("搜索团队成员")).toBe(field);
+  });
+  it("keeps chosen buildings and ignores a previous query's late page while the user starts a new search", async () => {
+    const user = userEvent.setup();
+    const oldPage = [{ id: "old", name: "甲区已选楼宇" }];
+    const newPage = [{ id: "new", name: "乙区候选楼宇" }];
+    let resolveOld!: (response: { items: { id: string; name: string }[]; next: null }) => void;
+    let obsoleteSignal: AbortSignal | undefined;
+    const call = vi.fn(async (input: Record<string, unknown>, _write?: boolean, _path?: string, signal?: AbortSignal) => {
+      if (input.q === "甲区" && input.offset === 30) {
+        obsoleteSignal = signal;
+        return new Promise(resolve => { resolveOld = resolve; });
+      }
+      if (input.q === "甲区") return { items: oldPage, next: 30 };
+      if (input.q === "乙区") return { items: newPage, next: null };
+      return { items: [], next: null };
+    });
+    function Selection() {
+      const [ids, setIds] = React.useState<string[]>([]);
+      return <BuildingPicker call={call as unknown as Call} ids={ids} onChange={setIds} />;
+    }
+    render(<Selection />);
+    const search = screen.getByLabelText("搜索楼宇");
+    fireEvent.change(search, { target: { value: "甲区" } });
+    await user.click(await screen.findByRole("button", { name: "甲区已选楼宇" }));
+    fireEvent.change(search, { target: { value: "临时关键词" } });
+    fireEvent.change(search, { target: { value: "甲区" } });
+    expect(screen.queryByRole("button", { name: "更多楼宇" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "更多楼宇" }));
+    expect(screen.getByRole("button", { name: "正在读取更多楼宇…" })).toBeDisabled();
+    expect(call.mock.calls.filter(([input]) => input.offset === 30)).toHaveLength(1);
+
+    search.focus();
+    fireEvent.compositionStart(search);
+    fireEvent.change(search, { target: { value: "yiqu" } });
+    fireEvent.change(search, { target: { value: "乙区" } });
+    fireEvent.compositionEnd(search, { data: "乙区" });
+    expect(screen.queryByRole("button", { name: "更多楼宇" })).not.toBeInTheDocument();
+    await screen.findByRole("button", { name: "乙区候选楼宇" });
+    expect(obsoleteSignal?.aborted).toBe(true);
+    await act(async () => resolveOld({ items: [{ id: "late", name: "甲区迟到结果" }], next: null }));
+    expect(screen.queryByRole("button", { name: "甲区迟到结果" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "移除甲区已选楼宇" })).toBeInTheDocument();
+    expect(search).toHaveFocus();
+    expect(call.mock.calls.some(([input]) => input.q === "yiqu")).toBe(false);
+  });
+
+  it("retries a failed next page without clearing existing results or repeating buildings", async () => {
+    const user = userEvent.setup();
+    let attempts = 0;
+    const first = { id, name: "当前候选楼宇" };
+    const call = vi.fn(async (input: Record<string, unknown>) => {
+      if (input.offset === undefined) return { items: [first], next: 30 };
+      if (attempts++ === 0) throw new Error("分页网络中断");
+      return { items: [first, { id: "new", name: "下一页楼宇" }], next: null };
+    });
+    render(<BuildingPicker call={call as unknown as Call} ids={[]} onChange={() => {}} />);
+    await user.click(await screen.findByRole("button", { name: "更多楼宇" }));
+    await screen.findByText("分页网络中断");
+    expect(screen.getByRole("button", { name: "当前候选楼宇" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "重试读取更多楼宇" }));
+    await screen.findByRole("button", { name: "下一页楼宇" });
+    expect(screen.getAllByRole("button", { name: "当前候选楼宇" })).toHaveLength(1);
+    expect(call.mock.calls.filter(([input]) => input.offset === 30).map(([input]) => input.q)).toEqual(["", ""]);
   });
   it("accepts editable quarter and submarket text without resetting partially typed values or separators", async () => {
     const user = userEvent.setup(),

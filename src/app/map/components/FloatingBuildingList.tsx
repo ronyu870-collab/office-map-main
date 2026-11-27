@@ -1,4 +1,6 @@
 'use client';
+import { PitchHandoffLink } from '@/src/components/pitch/PitchHandoffLink';
+import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
 import { coordinateNotice } from '@/src/lib/map-coordinates';
 import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
@@ -59,6 +61,8 @@ export default function FloatingBuildingList({ buildings, active = true, display
   const selectedKeys = new Set(selectedComparisonBuildings.map(comparisonKey));
   const resultKeys = new Set(results.map(comparisonKey));
   const hiddenSelection = selectedComparisonBuildings.filter(building => !resultKeys.has(comparisonKey(building)));
+  const selectedPeriods = selectionMode ? new Set(selectedComparisonBuildings.map(building => listBuildingValues(building).period)) : null;
+  const commonPeriod = selectedPeriods?.size === 1 ? selectedPeriods.values().next().value : null;
 
   React.useEffect(() => {
     if (!active) onBuildingHover?.(null);
@@ -238,6 +242,11 @@ export default function FloatingBuildingList({ buildings, active = true, display
               onClick={() => onComparisonSelectionChange(results, true)}>全选当前结果</button>
             <button type="button" className="workspace-business-action" disabled={!selectedComparisonBuildings.length || isDemo}
               onClick={() => { setExportError(null); setExportOpen(true); }}>导出对比图 PNG</button>
+            {!isDemo && !getImpersonationTargetUserId() && selectedComparisonBuildings.length > 0 &&
+              selectedComparisonBuildings.every(building => building._dataType !== 'future') &&
+              <PitchHandoffLink source={{ kind: 'buildings', buildingIds: selectedComparisonBuildings.map(building => building.id) }}
+                period={commonPeriod?.replace('Q', '-Q')}
+                className="workspace-business-action workspace-resource-action" label="将所选楼宇加入 Pitch" />}
           </div>
           {hiddenSelection.length ? <div className="workspace-comparison-outside"><p className="workspace-note">其中 {hiddenSelection.length} 栋不在当前结果中。</p><button type="button" className="workspace-business-action" onClick={() => onComparisonSelectionChange(hiddenSelection, false)}>移除结果外已选项目</button></div> : null}
           {isDemo ? <p className="workspace-note">演示账号不提供未脱敏数据导出。</p> : null}

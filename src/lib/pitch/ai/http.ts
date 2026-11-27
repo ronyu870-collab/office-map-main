@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   authorizePitch,
   pitchRpc,
+  type PitchContext,
   type PitchDependencies,
 } from "../data/store";
 import { readQueryBody } from "@/src/lib/intelligence/query/httpBody";
@@ -16,6 +17,8 @@ import {
   operationsSummary,
 } from "./workflow";
 import { recommendAssets, preparePitch, suggestOutline } from "./routing";
+import type { PreviewProposalQuarter, ProposalRevisionServices } from "./proposal-revision-runtime";
+import type { ProposalExecution } from "./proposal-workflow";
 const headers = {
   "Cache-Control": "private, no-store",
   Vary: "Authorization, x-colliers-impersonate-user",
@@ -27,6 +30,8 @@ export async function handleAiRequest(
   request: Request,
   deps: PitchDependencies,
   schedule?: (work: () => Promise<void>) => void,
+  revisionServices?: PreviewProposalQuarter | ProposalRevisionServices,
+  proposalExecution?: (ctx: PitchContext) => ProposalExecution,
 ) {
   let ctx: Awaited<ReturnType<typeof authorizePitch>> | undefined;
   try {
@@ -71,6 +76,39 @@ export async function handleAiRequest(
     if (c.action === "recommend")
       return reply(await recommendAssets(ctx, c.query));
     if (c.action === "prepare") return reply(await preparePitch(ctx, c.input));
+    if (c.action === "proposal_plan") {
+      const { prepareProposal } = await import("./proposal-runtime");
+      const { authorizedProposalModel } = await import("./proposal-model");
+      return reply(await prepareProposal(ctx, c.input, await authorizedProposalModel(ctx, c.input), proposalExecution?.(ctx).director));
+    }
+    if (c.action === "proposal_generate") {
+      if (proposalExecution) {
+        const execution = proposalExecution(ctx);
+        const { authorizedProposalModel } = await import("./proposal-model");
+        if (execution.lease) {
+          const { scheduleConfirmedProposal } = await import("./proposal-generation-lease");
+          return reply(await scheduleConfirmedProposal(
+            ctx, c.confirmation, actor => proposalExecution(actor).director, execution.lease, schedule, authorizedProposalModel,
+          ));
+        }
+        const { submitConfirmedProposal } = await import("./proposal-workflow");
+        const actor = ctx;
+        return reply(await submitConfirmedProposal(c.confirmation, execution.director, execution.workflow, actor.signal,
+          () => authorizedProposalModel(actor, c.confirmation.request), actor.identity));
+      }
+      const { generateConfirmedProposal } = await import("./proposal-generation-runtime");
+      return reply(await generateConfirmedProposal(ctx, c.confirmation, schedule));
+    }
+    if (c.action === "proposal_revision" || c.action === "proposal_apply_photo" || c.action === "proposal_apply_language") {
+      const { planProposalRevision } = await import("./proposal-revision-runtime");
+      const { installedWorkspaceReviewServices } = await import("./workspace-review");
+      const services = revisionServices ?? installedWorkspaceReviewServices(request, deps);
+      return reply(c.action === "proposal_revision"
+        ? await planProposalRevision(ctx, c.input, services)
+        : await planProposalRevision(ctx, c.confirmation.input, services, {
+          kind: c.action === "proposal_apply_photo" ? "photo" : "language", fingerprint: c.confirmation.fingerprint,
+        }));
+    }
     if (c.action === "outline")
       return reply(await suggestOutline(ctx, c.query, c.projectId));
     if (c.action === "revision_preview") return reply(await previewRevision(ctx, c.taskId, c));
@@ -119,8 +157,13 @@ export async function handleAiRequest(
       return reply({ error: "登录状态已变化，请重新进入。" }, 401);
     if (code === "PITCH_AI_PREVIEW_REQUIRED")
       return reply({ code, error: "请重新查看修改前后对照，再确认保存草稿。" }, 409);
+    if (code === "PITCH_PROPOSAL_REVIEW_REQUIRED") return reply({ code, error: "来源或范围已变化，请重新审阅提案。" }, 409);
+    if (code === "PITCH_PROPOSAL_GENERATION_UNAVAILABLE") return reply({ code, error: "当前提案暂无可提交的生成路径，请查看审阅缺项。" }, 409);
+    if (code === "PITCH_WORKER_UNAVAILABLE") return reply({ code, error: "任务暂时无法启动，请稍后重试。" }, 503);
     if (code === "PITCH_CONFLICT")
       return reply({ error: "版本已更新，请重新读取后再保存。" }, 409);
+    if (code === "PITCH_EDITION_LAYOUT")
+      return reply({ error: "新季度内容无法与部分已编辑的页面对应。请核对原稿布局和文字后重新审阅。" }, 422);
     if (
       error instanceof z.ZodError ||
       code.startsWith("PITCH_AI_") ||

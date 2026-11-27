@@ -1,9 +1,12 @@
 // Optional implementation layout check against actual local Auth/Next/Pitch APIs.
 // No API scene, project, generation or export response is mocked.
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import JSZip from "jszip";
+import { PDFDocument } from "pdf-lib";
+import { SaxesParser } from "saxes";
 
 async function launchBrowser() {
   const { chromium } = createRequire(import.meta.url)(
@@ -119,9 +122,15 @@ export async function verifyPitchWorkspaceBrowser({
           "no horizontal document overflow",
         );
         if (width < 700) {
-          await page
-            .getByRole("tab", { name: "页面编辑", exact: true })
-            .click();
+          await page.getByRole("tab", { name: "页面", exact: true }).click();
+          await page.getByRole("button", { name: "第 1 页操作", exact: true }).click();
+          const actions = page.getByRole("group", { name: "第 1 页操作" });
+          await actions.getByRole("button", { name: "复制第 1 页" }).waitFor();
+          await page.keyboard.press("Escape");
+          await actions.waitFor({ state: "hidden" });
+          await page.getByRole("button", { name: "提案助手", exact: true }).click();
+          await page.getByLabel("需要制作什么页面？").fill("在窄屏保留提案草稿");
+          await page.getByRole("button", { name: "属性", exact: true }).click();
           await page
             .getByLabel("页面标题", { exact: true })
             .fill("隔离移动编辑 " + width);
@@ -140,6 +149,22 @@ export async function verifyPitchWorkspaceBrowser({
           await target.press("ArrowLeft");
           assert.notEqual(await location.textContent(), original, "native layer moves without saving");
           await objects.getByRole("button", { name: "返回预览", exact: true }).click();
+          const rightDivider = page.getByRole("separator", { name: "调整右栏宽度" });
+          await rightDivider.press("ArrowLeft");
+          assert.equal(await rightDivider.getAttribute("aria-valuenow"), "316");
+
+          const firstPage = page.getByRole("button", { name: /^打开第 1 页/ });
+          await firstPage.click({ button: "right" });
+          const actions = page.getByRole("group", { name: "第 1 页操作" });
+          await actions.getByRole("button", { name: "复制第 1 页" }).waitFor();
+          await page.keyboard.press("Escape");
+          await actions.waitFor({ state: "hidden" });
+
+          const preview = page.getByRole("region", { name: "页面预览", exact: true });
+          const beforeFocus = (await preview.boundingBox()).width;
+          await page.getByRole("button", { name: "专注画布", exact: true }).click();
+          assert.ok((await preview.boundingBox()).width > beforeFocus + 300);
+          await page.getByRole("button", { name: "退出专注画布", exact: true }).click();
           await page
             .getByRole("button", { name: "收起左栏", exact: true })
             .click();
@@ -238,6 +263,639 @@ export async function verifyPitchWorkspaceBrowser({
   );
 }
 
+const flagshipScenarios = [
+  { button: "招商代理", scenario: "leasing-agency", buildings: 1, pages: ["cover", "profile", "submarket-research", "competition-map", "comparable-properties", "historical-stacking-appendix", "implementation"] },
+  { button: "办公选址对比", scenario: "site-selection", buildings: 5, pages: ["cover", "scope", "next-steps"] },
+  { button: "季度市场报告", scenario: "market-report", buildings: 0, pages: ["cover", "key-indicators", "grades", "industry-demand", "lease-area", "methodology"] },
+  { button: "单楼项目推介", scenario: "building-promotion", buildings: 1, pages: ["cover", "profile", "next-steps"] },
+];
+
+function waitForPitchCommand(page, endpoint, action, predicate = () => true) {
+  return page.waitForResponse(async (response) => {
+    const request = response.request();
+    return new URL(response.url()).pathname === endpoint &&
+      request.method() === "POST" && request.postDataJSON()?.action === action && predicate(response);
+  }, { timeout: 60_000 });
+}
+
+async function closeFlagshipBrowser(browser) {
+  let timer;
+  try {
+    await Promise.race([browser.close(), new Promise((resolve) => { timer = setTimeout(resolve, 5000); })]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function downloadPitchFile(page, format) {
+  await page.getByRole("button", { name: "导出", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "导出 Pitch" });
+  await dialog.getByLabel("文件格式").selectOption(format);
+  await dialog.getByRole("button", { name: "生成文件", exact: true }).click();
+  const downloadButton = dialog.getByRole("button", { name: "下载已生成文件" });
+  await downloadButton.waitFor({ timeout: 60_000 });
+  const [download] = await Promise.all([page.waitForEvent("download"), downloadButton.click()]);
+  assert.ok(download.suggestedFilename().toLowerCase().endsWith(`.${format}`));
+  await dialog.getByRole("button", { name: "关闭", exact: true }).click();
+  return readFile(await download.path());
+}
+
+async function downloadPptx(page) {
+  return JSZip.loadAsync(await downloadPitchFile(page, "pptx"), { checkCRC32: true });
+}
+
+export async function verifyPitchImageReplacementBrowser({ app, who, readProject, imageReplacement }) {
+  assert.equal(new URL(app).hostname, "127.0.0.1");
+  const { projectId, first, replacement } = imageReplacement;
+  const before = await readProject(projectId);
+  const browser = await launchBrowser();
+  try {
+    const context = await openWorkspaceContext(browser, app, who, 1440);
+    const page = await context.newPage();
+    page.setDefaultTimeout(15_000);
+    const button = name => page.getByRole("button", { name, exact: true });
+    await page.goto(`${app}/intelligence/pitch?project=${projectId}`);
+    await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+    await button("调整画布对象").click();
+    const imagePosition = before.slides[0].scene.elements.findIndex(element => element.kind === "image" && element.mediaAssetId === first.id);
+    assert.ok(imagePosition >= 0);
+    await button(`对象 ${imagePosition + 1}：隔离原图`).click();
+    await button("更换所选图片").click();
+    const search = page.getByLabel("搜索已发布图片");
+    await search.fill(replacement.name);
+    const picker = page.getByRole("combobox", { name: "所选图片 · 隔离原图" });
+    const value = `${replacement.id}:${replacement.version}`;
+    await picker.locator(`option[value="${value}"]`).waitFor({ state: "attached" });
+    assert.equal((await readProject(projectId)).project.version, before.project.version);
+    const [saved] = await Promise.all([
+      waitForPitchCommand(page, "/api/intelligence/pitch/workspace", "save"), picker.selectOption(value),
+    ]);
+    assert.ok(saved.ok(), `image save HTTP ${saved.status()}`);
+    assert.deepEqual(saved.request().postDataJSON().pages[0].images.map(({ id, version }) => ({ id, version })),
+      [{ id: replacement.id, version: replacement.version }]);
+    const updated = await readProject(projectId);
+    const { content } = updated.slides[0];
+    const image = content.blocks.find(block => block.kind === "image");
+    assert.equal(image.mediaAssetId, replacement.id);
+    assert.equal(image.mediaVersion, replacement.version);
+    assert.ok(content.sources.some(source => image.sourceIds.includes(source.id) && source.documentId === replacement.documentId));
+    assert.equal(before.slides[0].content.blocks.find(block => block.kind === "image").mediaAssetId, first.id);
+    const archive = await downloadPptx(page);
+    assert.match(await archive.file("ppt/slides/slide1.xml").async("string"), /<p:pic>/);
+    console.log("PASS canvas selection, published image replacement, saved provenance and native PPTX");
+  } finally {
+    await closeFlagshipBrowser(browser);
+  }
+}
+
+export async function verifyPitchChartRevisionBrowser({ app, who, readProject }) {
+  assert.equal(new URL(app).hostname, "127.0.0.1");
+  const projectId = randomUUID();
+  const pitch = "/api/intelligence/pitch";
+  const period = { year: 2026, quarter: 3 };
+  const generated = await fetch(app + pitch + "/business", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + who.token, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "generate", projectId, title: "隔离图表换型", language: "zh",
+      scope: { organizationId: "synthetic-org", region: "华北", city: "北京", businessLine: "office" },
+      themeId: "colliers-default-v1", themeVersion: 2,
+      parts: [{ mode: "dynamic", parameters: {
+        templateId: "rent-trend", buildingIds: [], submarkets: ["CBD"], inventory: "tracked",
+        period, start: { year: 2026, quarter: 1 }, end: period, fields: [], direction: "asc", chart: "line",
+        from: "2026-01-01", to: "2026-09-30", leaseSource: "combined", measure: "count",
+      } }],
+    }),
+  });
+  assert.ok(generated.ok, `seed formal chart HTTP ${generated.status}`);
+  const initial = await readProject(projectId);
+  const chart = initial.slides[0].content.blocks.find(block => block.kind === "chart");
+  assert.equal(chart?.chartType, "line");
+  const browser = await launchBrowser();
+  try {
+    const context = await openWorkspaceContext(browser, app, who, 1440);
+    const page = await context.newPage();
+    page.setDefaultTimeout(15_000);
+    const button = name => page.getByRole("button", { name, exact: true });
+    await page.goto(`${app}/intelligence/pitch?project=${projectId}`);
+    await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+    await button("提案助手").click();
+    await page.getByLabel("需要制作什么页面？").fill("将折线图改为柱状图");
+    const [preview] = await Promise.all([waitForPitchCommand(page, pitch + "/ai", "proposal_revision"), button("预览修改").click()]);
+    const revision = await preview.json();
+    assert.ok(preview.ok() && revision.status === "ready", `chart preview HTTP ${preview.status()} / ${revision.status}`);
+    const review = page.getByRole("dialog", { name: "核对 AI 修改" });
+    await review.getByText(/折线图 → 柱状图/).waitFor();
+    assert.equal((await readProject(projectId)).project.version, initial.project.version);
+    const [saved] = await Promise.all([waitForPitchCommand(page, pitch + "/workspace", "apply_modification"),
+      review.getByRole("button", { name: "应用修改" }).click()]);
+    assert.deepEqual(saved.request().postDataJSON(), revision.command);
+    assert.ok(saved.ok(), `chart apply HTTP ${saved.status()}`);
+    await review.waitFor({ state: "hidden" });
+    const updated = await readProject(projectId);
+    assert.deepEqual(updated.slides[0].content.blocks.find(block => block.kind === "chart"), { ...chart, chartType: "column" });
+    assert.equal(updated.slides[0].scene.elements.find(element => element.kind === "chart")?.chartType, "column");
+    const archive = await downloadPptx(page);
+    const chartFile = archive.file(/^ppt\/charts\/chart\d+\.xml$/)[0];
+    assert.ok(chartFile, "PPTX contains a native chart");
+    const chartXml = await chartFile.async("string");
+    assert.match(chartXml, /<c:barChart>/);
+    assert.match(chartXml, /<c:barDir val="col"/);
+    const rent = chart.series[0].values.find(value => value !== null);
+    assert.ok(chartXml.includes(`<c:v>${rent}</c:v>`), "native chart retains the reviewed values");
+    const [restored] = await Promise.all([waitForPitchCommand(page, pitch + "/workspace", "restore"),
+      button("撤销上次修改").click()]);
+    assert.ok(restored.ok(), `chart restore HTTP ${restored.status()}`);
+    const undo = await readProject(projectId);
+    assert.deepEqual(undo.slides[0].content.blocks.find(block => block.kind === "chart"), chart);
+    console.log("PASS reviewed chart change, native PPTX export, unchanged values and undo");
+  } catch (error) {
+    console.error("Chart revision browser failure", error);
+    throw error;
+  } finally {
+    await closeFlagshipBrowser(browser);
+  }
+}
+
+export async function verifyPitchBuildingInspectorBrowser({ app, who, period, readProject, quarterRevision = false, competitorRevision = false }) {
+  assert.equal(new URL(app).hostname, "127.0.0.1");
+  const browser = await launchBrowser();
+  let stage = "creating";
+  try {
+    const context = await openWorkspaceContext(browser, app, who, 1440);
+    const page = await context.newPage();
+    page.setDefaultTimeout(15_000);
+    const button = (name) => page.getByRole("button", { name, exact: true });
+    const workspace = "/api/intelligence/pitch/workspace";
+    await page.goto(app + "/intelligence/pitch");
+    await button("新建空白演示文稿").click();
+    await page.getByLabel("Pitch 名称").fill("隔离楼宇核对");
+    await page.getByText("更多项目设置（可选）", { exact: true }).click();
+    await page.getByLabel("默认季度").fill(period);
+    if (competitorRevision) {
+      await page.getByLabel("搜索楼宇").fill("霄云路33号");
+      await button("霄云路33号").click();
+    }
+    const [created] = await Promise.all([waitForPitchCommand(page, workspace, "create"), button("创建").click()]);
+    assert.ok(created.ok(), `workspace create HTTP ${created.status()}`);
+    const { project } = await created.json();
+    stage = "searching";
+    await button("数据").click();
+    await page.getByText("查找楼宇数据", { exact: true }).click();
+    if (!competitorRevision) {
+      await page.getByLabel("搜索楼宇").fill("霄云路33号");
+      await button("霄云路33号").click();
+    }
+    assert.equal(await button("保存").isDisabled(), true, "search selection does not dirty the project");
+
+    stage = "reviewing";
+    const [reviewed] = await Promise.all([waitForPitchCommand(page, workspace, "review_handoff"), button("核对季度数据").click()]);
+    assert.ok(reviewed.ok(), `review_handoff HTTP ${reviewed.status()}`);
+    const { handoff } = reviewed.request().postDataJSON();
+    const preview = await reviewed.json();
+    assert.equal(handoff.projectId, project.id);
+    assert.equal(preview.period, period);
+    assert.equal(preview.buildingIds.length, 1);
+    assert.deepEqual(handoff.source.buildingIds, preview.buildingIds);
+    const reviewDialog = page.getByRole("dialog", { name: "加入 Pitch" });
+    const rent = new RegExp(`\\b${100 + Number(period.at(-1))}\\b`);
+    const reviewedPage = preview.pages.find((slide) => slide.blocks.some((block) =>
+      block.kind === "table" && block.rows.some((row) => row.some((value) => rent.test(String(value))))));
+    assert.ok(reviewedPage, `source review did not contain the fixture rent: ${JSON.stringify(preview.pages.map(slide => ({
+      title: slide.title, tables: slide.blocks.filter(block => block.kind === "table"),
+    })))}`);
+    const evidence = reviewDialog.locator("details").filter({ has: page.getByText(reviewedPage.title, { exact: true }) });
+    await evidence.waitFor();
+    if (await evidence.getAttribute("open") === null) await evidence.locator("summary").click();
+    await evidence.getByRole("cell", { name: rent }).waitFor();
+    assert.equal(await reviewDialog.getByLabel("目标项目").count(), 0, "current project is already selected");
+    stage = "appending";
+    const [accept] = await Promise.all([
+      waitForPitchCommand(page, workspace, "add_to_pitch"), reviewDialog.getByRole("button", { name: "确认并追加" }).click(),
+    ]);
+    assert.equal(accept.status(), 202);
+    const command = accept.request().postDataJSON();
+    assert.deepEqual(command.handoff, handoff);
+    assert.equal(command.fingerprint, preview.fingerprint);
+    assert.equal(command.target.mode, "append");
+    await reviewDialog.waitFor({ state: "hidden" });
+    await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 60_000 });
+    const saved = await readProject(project.id);
+    assert.ok(saved.project.version > command.target.expectedVersion);
+    assert.ok(saved.slides[0].content.sources.length);
+    assert.deepEqual(saved.workspace.context.buildingIds, competitorRevision ? preview.buildingIds : []);
+    console.log("PASS building search, formal evidence and versioned append with project associations preserved");
+    if (quarterRevision) {
+      stage = "reviewing a formal quarter through the proposal assistant";
+      await button("提案助手").click();
+      await page.getByLabel("需要制作什么页面？").fill("把整套报告更新到最新季度");
+      const [proposed] = await Promise.all([
+        waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_revision"), button("预览修改").click(),
+      ]);
+      const revision = await proposed.json();
+      assert.ok(proposed.ok() && revision.status === "ready",
+        `quarter preview HTTP ${proposed.status()} / ${revision.status}: ${revision.message ?? revision.error ?? ""}`);
+      assert.equal(revision.command.action, "apply_data_refresh");
+      assert.deepEqual(revision.command.period, { year: 2026, quarter: 3 });
+      assert.deepEqual(revision.review.changes.map(change => change.slideId).sort(), saved.slides.map(slide => slide.id).sort());
+      const dialog = page.getByRole("dialog", { name: "核对 AI 修改" });
+      await dialog.getByText(/2026-Q3 · 影响 \d+ 页/).waitFor();
+      await dialog.getByRole("cell", { name: rent }).waitFor();
+      await dialog.getByRole("cell", { name: /\b103\b/ }).waitFor();
+      assert.equal((await readProject(project.id)).project.version, saved.project.version);
+
+      stage = "applying the exact reviewed quarter update";
+      const [applied] = await Promise.all([
+        waitForPitchCommand(page, workspace, "apply_data_refresh"), dialog.getByRole("button", { name: "应用修改" }).click(),
+      ]);
+      assert.deepEqual(applied.request().postDataJSON(), revision.command);
+      assert.ok(applied.ok(), `quarter apply HTTP ${applied.status()}`);
+      await dialog.waitFor({ state: "hidden" });
+      const refreshed = await readProject(project.id);
+      assert.ok(refreshed.project.version > saved.project.version);
+      assert.deepEqual(refreshed.slides.map(slide => slide.id), saved.slides.map(slide => slide.id));
+      for (const change of revision.review.changes) {
+        assert.equal(refreshed.slides.find(slide => slide.id === change.slideId).content.dataAsOf, change.after.dataAsOf);
+      }
+      const updatedSlide = refreshed.slides.find(slide => slide.content.title === reviewedPage.title);
+      assert.ok(updatedSlide?.content.blocks.some(block => block.kind === "table" && block.rows.some(row =>
+        row.some(value => /\b103\b/.test(String(value))))), "saved page contains the reviewed quarter rent");
+
+      stage = "undoing the quarter update";
+      const [restored] = await Promise.all([waitForPitchCommand(page, workspace, "restore"), button("撤销上次修改").click()]);
+      assert.ok(restored.ok(), `quarter restore HTTP ${restored.status()}`);
+      const reverted = await readProject(project.id);
+      assert.deepEqual(reverted.slides.map(slide => slide.content), saved.slides.map(slide => slide.content));
+      console.log("PASS AI quarter preview with formal before/after values, versioned apply and undo");
+    }
+    if (competitorRevision) {
+      stage = "reviewing a formal competitor comparison";
+      const before = await readProject(project.id);
+      await button("提案助手").click();
+      await page.getByLabel("需要制作什么页面？").fill("整套提案新增：加入「五矿广场」作为竞品");
+      const [proposed] = await Promise.all([
+        waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_revision"), button("预览修改").click(),
+      ]);
+      const revision = await proposed.json();
+      assert.ok(proposed.ok() && revision.mode === "append-comparison",
+        `competitor preview HTTP ${proposed.status()} / ${revision.status}: ${revision.message ?? revision.error ?? ""}`);
+      assert.deepEqual(revision.review.buildingIds, [...preview.buildingIds, revision.review.competitor.id]);
+      const dialog = page.getByRole("dialog", { name: "核对 AI 修改" });
+      await dialog.getByText(new RegExp(`五矿广场 · ${period} · 追加 \\d+ 页`)).waitFor();
+      const value = new RegExp(`\\b${112 + Number(period.at(-1))}\\b`);
+      const evidencePage = revision.review.pages.find(slide => slide.blocks.some(block => block.kind === "table" &&
+        block.rows.some(row => row.some(cell => value.test(String(cell))))));
+      assert.ok(evidencePage, "formal comparison contains the competitor rent");
+      const evidence = dialog.locator("details").filter({ has: page.getByText(evidencePage.title, { exact: true }) });
+      await evidence.waitFor();
+      if (await evidence.getAttribute("open") === null) await evidence.locator("summary").click();
+      await evidence.getByRole("cell", { name: value }).waitFor();
+      assert.equal((await readProject(project.id)).project.version, before.project.version);
+
+      stage = "appending the exact reviewed comparison";
+      const [queued] = await Promise.all([waitForPitchCommand(page, workspace, "add_to_pitch"),
+        dialog.getByRole("button", { name: "追加对比页" }).click()]);
+      assert.equal(queued.status(), 202);
+      assert.deepEqual(queued.request().postDataJSON(), revision.command);
+      await page.getByText("竞品对比页已追加。", { exact: true }).waitFor({ timeout: 60_000 });
+      const comparison = await readProject(project.id);
+      const savedSlide = ({ id, content, scene }) => ({ id, content, scene });
+      assert.deepEqual(comparison.slides.slice(0, before.slides.length).map(savedSlide), before.slides.map(savedSlide));
+      assert.equal(comparison.slides.length - before.slides.length, revision.review.pages.length);
+      const archive = await downloadPptx(page);
+      const appended = await archive.file(`ppt/slides/slide${before.slides.length + revision.review.pages.indexOf(evidencePage) + 1}.xml`)?.async("string");
+      assert.ok(appended?.includes("五矿广场") && value.test(appended), "PPTX includes the reviewed comparison name and value");
+
+      stage = "undoing the comparison append";
+      const [restored] = await Promise.all([waitForPitchCommand(page, workspace, "restore"), button("撤销上次修改").click()]);
+      assert.ok(restored.ok(), `competitor restore HTTP ${restored.status()}`);
+      const reverted = await readProject(project.id);
+      assert.deepEqual(reverted.slides.map(slide => slide.content), before.slides.map(slide => slide.content));
+      console.log("PASS AI competitor review, exact saved append, PPTX and undo");
+    }
+  } catch (error) {
+    console.error(`Building inspector failed while ${stage}`, error);
+    throw error;
+  } finally {
+    await closeFlagshipBrowser(browser);
+  }
+}
+
+async function confirmFlagshipProposal(page, trigger) {
+  const endpoint = "/api/intelligence/pitch/ai";
+  const [initial, completed] = await Promise.all([
+    waitForPitchCommand(page, endpoint, "proposal_generate"),
+    waitForPitchCommand(page, endpoint, "proposal_generate", async response =>
+      !response.ok() || !["queued", "running"].includes((await response.json()).state)),
+    trigger.click(),
+  ]);
+  const receipt = await completed.json();
+  assert.ok(completed.ok(), `proposal_generate HTTP ${completed.status()} · ${receipt.code ?? receipt.error ?? ""}`);
+  assert.equal(receipt.state, "completed", "generation did not complete");
+  assert.deepEqual(initial.request().postDataJSON(), completed.request().postDataJSON());
+  assert.ok(receipt.projectId);
+  return receipt.projectId;
+}
+
+export async function verifyPitchFlagshipBrowser({ app, who, period, readProject, readBindings, requiredVisuals = {}, replacementCandidates = [] }) {
+  assert.equal(new URL(app).hostname, "127.0.0.1");
+  const browser = await launchBrowser();
+  const report = [];
+  const output = "tmp/pitch-flagship-browser";
+  await mkdir(output, { recursive: true });
+  try {
+    const context = await openWorkspaceContext(browser, app, who, 1440);
+    const page = await context.newPage();
+    page.setDefaultTimeout(15_000);
+    const button = (name) => page.getByRole("button", { name, exact: true });
+    for (const scenario of flagshipScenarios) {
+      const result = { scenario: scenario.scenario, stage: "planning" };
+      report.push(result);
+      try {
+        await page.goto(app + "/intelligence/pitch");
+        const [planHttp] = await Promise.all([
+          waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_plan"),
+          button(scenario.button).click(),
+        ]);
+        const plan = await planHttp.json();
+        assert.ok(planHttp.ok(), `proposal_plan HTTP ${planHttp.status()} · ${plan.code ?? plan.error ?? ""}`);
+        assert.equal(plan.status, "ready", plan.code ?? plan.message);
+        assert.equal(plan.brief.scenario, scenario.scenario);
+        assert.equal(plan.brief.period, period);
+        assert.equal(plan.brief.buildingIds.length, scenario.buildings);
+        const pageKinds = new Set(plan.plan.slides.map((slide) => slide.pageKind));
+        const plannedVisuals = plan.plan.slides.flatMap(slide => slide.visuals ?? []);
+        const visualKinds = new Set(plannedVisuals.map(visual => visual.kind));
+        result.missingPages = scenario.pages.filter((kind) => !pageKinds.has(kind));
+        result.missingVisuals = (requiredVisuals[scenario.scenario] ?? []).filter((kind) => !visualKinds.has(kind));
+        if (result.missingPages.length || result.missingVisuals.length) result.gaps = plan.plan.gaps;
+
+        result.stage = "generating";
+        const projectId = await confirmFlagshipProposal(page, button("确认并生成 Pitch"));
+
+        result.stage = "editing";
+        await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+        const created = await readProject(projectId);
+        assert.ok(created.slides.length, "the completed project has no pages");
+        const bindings = await readBindings(projectId);
+        assert.equal(bindings.projectVersion, created.project.version);
+        const cited = bindings.pages.flatMap(page => page.objects.flatMap(object => object.receipts ?? []));
+        assert.ok(cited.some(receipt => receipt.binding.domain === "quarter"), "formal objects lost their query receipts");
+        if (scenario.scenario === "leasing-agency") assert.ok(cited.some(receipt => receipt.receiptId === "submarket-research"));
+        if (scenario.scenario === "market-report") assert.ok(cited.some(receipt => receipt.query.parameters.groupBy === "grade"));
+        const appendixIndex = created.slides.findIndex(slide => slide.content.sources.some(source => source.visual?.kind === "stacking-plan"));
+        const appendix = created.slides[appendixIndex];
+        const appendixTitle = "历史楼层附页 · 实地核对待补";
+        if ((requiredVisuals[scenario.scenario] ?? []).includes("stacking-plan")) {
+          assert.equal(appendix?.content.disclosure, "restricted");
+          assert.equal(appendix?.content.dataAsOf, "2026-11-18");
+        }
+        const editedTitle = `隔离验收 · ${scenario.button}`;
+        await page.getByLabel("页面标题", { exact: true }).fill(editedTitle);
+        if (appendix) {
+          await button(`打开第 ${appendixIndex + 1} 页：${appendix.content.title}`).click();
+          await page.getByLabel("页面标题", { exact: true }).fill(appendixTitle);
+          await page.getByRole("button", { name: /^打开第 1 页：/ }).click();
+        }
+        const [savedResponse] = await Promise.all([
+          waitForPitchCommand(page, "/api/intelligence/pitch/workspace", "save"),
+          button("保存").click(),
+        ]);
+        assert.ok(savedResponse.ok(), `workspace save HTTP ${savedResponse.status()}`);
+        const reopened = await readProject(projectId);
+        assert.ok(reopened.project.version > created.project.version);
+        assert.equal(reopened.slides[0].content.title, editedTitle);
+        if (appendix) {
+          const updated = reopened.slides[appendixIndex].content;
+          assert.equal(updated.title, appendixTitle);
+          assert.equal(updated.disclosure, "restricted");
+          assert.equal(updated.dataAsOf, appendix.content.dataAsOf);
+          assert.deepEqual(updated.blocks, appendix.content.blocks);
+        }
+        await page.goto(app + "/intelligence/pitch?project=" + encodeURIComponent(projectId));
+        await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+        assert.equal(await page.getByLabel("页面标题", { exact: true }).inputValue(), editedTitle);
+        await button("返回我的 Pitch").click();
+        await page.getByRole("button").filter({ hasText: reopened.project.title })
+          .filter({ hasText: `${reopened.slides.length} 页` }).click();
+        await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+        assert.equal(await page.getByLabel("页面标题", { exact: true }).inputValue(), editedTitle);
+
+        result.stage = "presenting";
+        await button("演示").click();
+        const presentation = page.getByRole("dialog", { name: "演示文稿" });
+        await presentation.getByRole("region", { name: "演示画布" }).getByRole("img").waitFor({ timeout: 45_000 });
+        await presentation.getByRole("button", { name: "退出演示" }).click();
+
+        result.stage = "exporting";
+        const pptxBytes = await downloadPitchFile(page, "pptx");
+        await writeFile(`${output}/${scenario.scenario}.pptx`, pptxBytes);
+        const archive = await JSZip.loadAsync(pptxBytes, { checkCRC32: true });
+        const names = Object.keys(archive.files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name));
+        assert.equal(names.length, reopened.slides.length);
+        const first = await archive.file("ppt/slides/slide1.xml").async("string");
+        const text = [];
+        const parser = new SaxesParser();
+        let readingText = false;
+        parser.on("opentag", tag => { readingText = tag.name === "a:t"; });
+        parser.on("text", value => { if (readingText) text.push(value); });
+        parser.on("closetag", () => { readingText = false; });
+        parser.write(first).close();
+        const normalizeTitle = value => value.replace(/\s/g, "");
+        assert.ok(normalizeTitle(text.join("")).includes(normalizeTitle(editedTitle)), "export omitted the saved title");
+        assert.match(first, /<p:sp>/);
+        if (scenario.scenario !== "building-promotion")
+          assert.ok(Object.keys(archive.files).some(name => /^ppt\/charts\/chart\d+\.xml$/.test(name)), "native PPTX omitted business charts");
+        for (const kind of requiredVisuals[scenario.scenario] ?? []) {
+          const references = plannedVisuals.filter(visual => visual.kind === kind);
+          const index = reopened.slides.findIndex(slide => slide.content.blocks.some(block => block.kind === "image" &&
+            references.some(visual => block.mediaAssetId === visual.id && block.mediaVersion === visual.version &&
+              block.sourceIds.includes(visual.source.id))));
+          const xml = await archive.file(`ppt/slides/slide${index + 1}.xml`)?.async("string");
+          assert.ok(xml?.includes("<p:pic>"), `native PPTX omitted a pinned ${kind}`);
+        }
+        const pdfBytes = await downloadPitchFile(page, "pdf");
+        await writeFile(`${output}/${scenario.scenario}.pdf`, pdfBytes);
+        const pdf = await PDFDocument.load(pdfBytes);
+        assert.equal(pdf.getPageCount(), reopened.slides.length);
+        result.pages = names.length;
+        if (scenario.scenario === "market-report") {
+          result.stage = "regenerating quarter";
+          await button("提案助手").click();
+          await page.getByLabel("需要制作什么页面？").fill("把整套报告更新到2026-Q2");
+          const [reviewHttp] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_revision"), button("预览修改").click(),
+          ]);
+          const review = await reviewHttp.json();
+          assert.ok(reviewHttp.ok() && review.status === "refresh-review", review.error ?? review.message ?? review.status);
+          assert.equal(review.refreshPlan.brief.period, "2026-Q2");
+          assert.equal(review.editionReview.beforePeriod, period);
+          assert.equal(review.editionReview.afterPeriod, "2026-Q2");
+          assert.ok(review.editionReview.pages.some(page => page.changes.some(change => change.before && change.after)));
+          const dialog = page.getByRole("dialog", { name: "核对 AI 修改" });
+          await dialog.getByText(/2026-Q3 → 2026-Q2/).waitFor();
+          await dialog.locator("summary").filter({ hasText: "页 ·" }).first().click();
+          await dialog.getByRole("heading", { name: review.refreshPlan.plan.title, exact: true }).waitFor();
+          const child = await confirmFlagshipProposal(page, dialog.getByRole("button", { name: "确认并生成新版 Pitch" }));
+          const changed = await readProject(child);
+          assert.notEqual(child, projectId);
+          assert.equal(changed.workspace.context.period, "2026-Q2");
+          assert.equal(changed.project.parent_project_id, projectId);
+          assert.equal(changed.slides[0].content.title, editedTitle, "quarter switch lost the operator's saved title");
+          assert.ok(changed.slides.some(slide => slide.content.dataAsOf === "2026-06-30" &&
+            slide.content.blocks.some(block => block.kind === "chart" || block.kind === "metric")));
+          const original = await readProject(projectId);
+          assert.equal(original.project.version, reopened.project.version);
+          assert.equal(original.slides[0].content.title, editedTitle);
+          result.regeneratedPeriod = changed.workspace.context.period;
+          result.preservedQuarterEdit = true;
+        }
+        if (scenario.scenario === "site-selection" && replacementCandidates.length) {
+          result.stage = "replacing candidate";
+          const selected = reopened.workspace.context.buildingIds;
+          const oldCandidate = replacementCandidates.find(candidate => selected.includes(candidate.id));
+          const newCandidate = replacementCandidates.find(candidate => !selected.includes(candidate.id));
+          assert.ok(oldCandidate && newCandidate);
+          const expected = [...selected.filter(id => id !== oldCandidate.id), newCandidate.id];
+          await button("数据").click();
+          await page.getByText("项目设置", { exact: true }).click();
+          const projectBuildings = page.getByRole("group", { name: "关联项目", exact: true });
+          const search = projectBuildings.getByLabel("搜索楼宇", { exact: true });
+          await search.fill(oldCandidate.name);
+          await projectBuildings.getByRole("button", { name: "移除" + oldCandidate.name, exact: true }).click();
+          await search.fill(newCandidate.name);
+          await projectBuildings.getByRole("button", { name: newCandidate.name, exact: true }).click();
+          const [savedCandidates] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/workspace", "save"), button("保存").click(),
+          ]);
+          assert.ok(savedCandidates.ok());
+          assert.deepEqual((await savedCandidates.json()).workspace.context.buildingIds, expected);
+          await button("提案助手").click();
+          const question = "制作CBD五个甲级写字楼的选址对比。";
+          await page.getByLabel("需要制作什么页面？").fill(question);
+          const [replacementHttp] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_plan"), button("规划正式提案").click(),
+          ]);
+          const replacement = await replacementHttp.json();
+          assert.ok(replacementHttp.ok() && replacement.status === "ready", replacement.error ?? replacement.message ?? replacement.status);
+          assert.deepEqual(replacement.brief.buildingIds, expected);
+          const child = await confirmFlagshipProposal(page, button("确认并生成 Pitch"));
+          const changed = await readProject(child);
+          assert.notEqual(child, projectId);
+          assert.deepEqual(changed.workspace.context.buildingIds, expected);
+          assert.equal(changed.project.parent_project_id, projectId);
+          assert.equal((await readProject(projectId)).slides[0].content.title, editedTitle);
+          result.replacedCandidate = true;
+        }
+        if (scenario.scenario === "building-promotion") {
+          result.stage = "replacing building photo";
+          await button("提案助手").click();
+          await page.getByLabel("需要制作什么页面？").fill("替换当前页的外立面照片");
+          const [photoHttp] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_revision"), button("预览修改").click(),
+          ]);
+          const review = await photoHttp.json();
+          assert.ok(photoHttp.ok() && review.status === "photo-review", review.message ?? review.error ?? review.status);
+          assert.equal(review.changes.length, 1);
+          const [change] = review.changes;
+          assert.equal(change.after.pin.origin.buildingId, change.before.pin.origin.buildingId);
+          const dialog = page.getByRole("dialog", { name: "核对 AI 修改" });
+          await dialog.getByText(change.after.caption, { exact: true }).waitFor();
+          const [savedPhoto] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_apply_photo"),
+            dialog.getByRole("button", { name: "确认换图", exact: true }).click(),
+          ]);
+          const applied = await savedPhoto.json();
+          assert.ok(savedPhoto.ok() && applied.status === "photo-applied", applied.error ?? applied.status);
+          const changed = await readProject(projectId);
+          assert.equal(changed.slides[0].content.title, editedTitle);
+          assert.ok(changed.slides[0].content.sources.some(source => source.visual?.id === change.after.pin.id));
+          result.replacedBuildingPhoto = true;
+
+          result.stage = "redesigning a slide";
+          await page.getByLabel("需要制作什么页面？").fill("重新设计第 2 页");
+          await button("预览修改").click();
+          await dialog.getByRole("img", { name: "第 2 页新布局预览" }).waitFor();
+          const [savedLayout] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/workspace", "save"),
+            dialog.getByRole("button", { name: "应用新布局" }).click(),
+          ]);
+          assert.ok(savedLayout.ok(), `targeted layout save HTTP ${savedLayout.status()}`);
+          await dialog.waitFor({ state: "hidden" });
+          const redesigned = await readProject(projectId);
+          assert.deepEqual(redesigned.slides.map(slide => [slide.id, slide.content]), changed.slides.map(slide => [slide.id, slide.content]));
+          for (const [index, original] of changed.slides.entries()) {
+            if (index === 1) assert.notDeepEqual(redesigned.slides[index].scene.elements, original.scene.elements);
+            else assert.deepEqual(redesigned.slides[index].scene, original.scene);
+          }
+          result.redesignedSlide = true;
+
+          result.stage = "generating requested theme";
+          const requestedTheme = "colliers-market-intelligence";
+          assert.notEqual(redesigned.project.theme_id, requestedTheme);
+          await page.getByLabel("需要制作什么页面？").fill("为五矿广场制作项目推介，采用研究风格");
+          const [styleHttp] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_plan"),
+            button("规划正式提案").click(),
+          ]);
+          const styledPlan = await styleHttp.json();
+          assert.ok(styleHttp.ok() && styledPlan.status === "ready", styledPlan.error ?? styledPlan.message ?? styledPlan.status);
+          assert.equal(styledPlan.plan.theme.id, requestedTheme);
+          const styledId = await confirmFlagshipProposal(page, button("确认并生成 Pitch"));
+          const styled = await readProject(styledId);
+          assert.equal(styled.project.parent_project_id, projectId);
+          assert.equal(styled.project.theme_id, requestedTheme);
+          assert.equal(styled.project.theme_version, styledPlan.plan.theme.version);
+          result.explicitTheme = requestedTheme;
+
+          result.stage = "replacing a canvas photo directly";
+          await page.goto(app + "/intelligence/pitch?project=" + encodeURIComponent(styledId));
+          await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+          const pinned = styled.slides[0].content.sources.find(source => source.visual?.kind === "photo").visual;
+          const imageIndex = styled.slides[0].scene.elements.findIndex(item => item.kind === "image" && item.mediaAssetId === pinned.id);
+          assert.ok(imageIndex >= 0);
+          const [editorPreview] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch", "preview", response => {
+              const request = response.request().postDataJSON();
+              return request.projectId === styledId && request.editorSlideId === styled.slides[0].id;
+            }),
+            button("调整画布对象").click(),
+          ]);
+          assert.ok(editorPreview.ok(), `canvas preview HTTP ${editorPreview.status()} on the saved project`);
+          const canvas = page.getByRole("region", { name: "画布对象编辑" });
+          await canvas.getByRole("button", { name: new RegExp(`^对象 ${imageIndex + 1}：`) }).focus();
+          const [canvasReviewHttp] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_revision"),
+            button("更换楼宇照片").click(),
+          ]);
+          const canvasReview = await canvasReviewHttp.json();
+          assert.ok(canvasReviewHttp.ok() && canvasReview.status === "photo-review", canvasReview.message ?? canvasReview.error ?? canvasReview.status);
+          const canvasPicker = page.getByRole("dialog", { name: "更换楼宇照片" });
+          const [canvasApplied] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_apply_photo"),
+            canvasPicker.getByRole("button", { name: "确认换图" }).click(),
+          ]);
+          assert.ok(canvasApplied.ok());
+          await canvasPicker.waitFor({ state: "hidden" });
+          const savedCanvas = await readProject(styledId);
+          assert.ok(savedCanvas.slides[0].content.sources.some(source => source.visual?.id === canvasReview.changes[0].after.pin.id));
+          assert.equal(canvasReview.changes[0].before.pin.origin.buildingId, canvasReview.changes[0].after.pin.origin.buildingId);
+          result.replacedCanvasPhoto = true;
+        }
+        result.stage = "completed";
+      } catch (error) {
+        result.error = String(error instanceof Error ? error.message : error).split("\n")[0];
+      }
+    }
+    await writeFile(`${output}/results.json`, JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify(report));
+    assert.ok(report.every((value) => value.stage === "completed" && !value.missingPages.length && !value.missingVisuals.length),
+      "one or more flagship paths or required evidence are incomplete");
+  } finally {
+    await closeFlagshipBrowser(browser);
+  }
+}
+
 export async function verifyPitchOutlineBrowser({ app, who, buildingName, period, changeQuarter, readProject, assertClientDenied, research, image }) {
   const browser = await launchBrowser();
   const output = "tmp/pitch-workspace-browser";
@@ -283,6 +941,8 @@ export async function verifyPitchOutlineBrowser({ app, who, buildingName, period
       await page.goto(app + "/intelligence/pitch");
       await page.getByLabel("你想制作什么？").fill("制作隔离办公选址提案，包含市场研究与一栋办公楼的正式季度数据。");
       await byButton("进入提案助手").click();
+      await page.getByRole("dialog").first().waitFor();
+      if (await byButton("打开项目设置").isVisible()) await byButton("打开项目设置").click();
       await page.getByLabel("Pitch 名称").fill(name);
       await page.getByText("更多项目设置（可选）", { exact: true }).click();
       await page.getByLabel("搜索楼宇").fill(buildingName);

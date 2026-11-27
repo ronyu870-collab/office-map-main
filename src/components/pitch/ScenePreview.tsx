@@ -2,6 +2,7 @@
 import * as React from 'react';
 import Image from 'next/image';
 import { Button } from '@/src/components/ui';
+import { candidateThemeLabel } from '@/src/lib/pitch/design/theme';
 import { LAYOUTS } from '@/src/lib/pitch/layout/definitions';
 import type { LayoutId, SlideScene } from '@/src/lib/pitch/contracts/scene';
 import type { ExportFormat } from '@/src/lib/pitch/render/format';
@@ -69,7 +70,7 @@ export function ScenePreview({ project, slides, themes, call, canGenerate, onSav
       {slides[page]?.scene.rendererVersion && <>
         <label>布局<select value={layout} onChange={e => setLayout(e.target.value)}>{LAYOUTS.map(l => <option key={l.id} value={l.id}>{l.zh}</option>)}</select></label>
         <label>变体<select value={variant} onChange={e => setVariant(e.target.value as typeof variant)}><option value="standard">标准</option><option value="alternate">替换结构</option></select></label>
-        <label>主题<select value={theme} onChange={e => setTheme(e.target.value)}>{Array.from(new Map([[theme, { id: slides[page].scene.themeId, current_version: slides[page].scene.themeVersion }], ...themes.map(t => [JSON.stringify([t.id, t.current_version]), t] as const)]).entries()).map(([key, t]) => <option key={key} value={key}>{t.id === 'colliers-default-v1' ? '临时主题' : '验证主题'} · v{t.current_version}</option>)}</select></label>
+        <label>主题<select value={theme} onChange={e => setTheme(e.target.value)}>{Array.from(new Map([[theme, { id: slides[page].scene.themeId, current_version: slides[page].scene.themeVersion }], ...themes.map(t => [JSON.stringify([t.id, t.current_version]), t] as const)]).entries()).map(([key, t]) => <option key={key} value={key}>{t.id === 'colliers-default-v1' ? '临时主题' : candidateThemeLabel(t.id) ?? '验证主题'} · v{t.current_version}</option>)}</select></label>
         <Button variant="secondary" disabled={working || loading || !preview || !canGenerate} onClick={() => void savePreview()}>将此内容另存为新提案</Button>
       </>}
     </div>
@@ -77,7 +78,7 @@ export function ScenePreview({ project, slides, themes, call, canGenerate, onSav
     <div className={styles.canvasViewport} aria-busy={loading || !!preview && !imageReady}><div className={styles.canvas} style={{ width: `${zoom}%` }}>{src && !loading ? <Image unoptimized src={src} key={src} onLoad={() => setImageReady(true)} onError={() => { setImageReady(false); setError('预览图片解码失败，请重试或切换页面。'); }} width={1280} height={720} alt={`第 ${page + 1} 页实际内容预览`} /> : <p>{loading ? '正在加载字体轮廓与获权图片…' : '预览未完成'}</p>}</div></div>
     {preview && <p>第 {page + 1} / {slides.length} 页 · {imageReady ? '字体与图片已加载' : '正在解码页面图片…'}{preview.pageCount > 1 ? `；当前内容按此参数共 ${preview.pageCount} 页，另存时保留全部页面。` : ''}</p>}
     {preview?.quality.map((q, i) => <p key={i}>{q.message}</p>)}
-    <details><summary>预览与 Office 字体</summary><p>预览使用捆绑 Noto Sans SC 字形，PPTX 保留可编辑文字。PowerPoint 未安装主题字体时可能替代字体；请安装相同字体以接近预览。参数预览不会覆盖已保存项目，导出使用已保存页面。</p></details>
+    <details><summary>预览与 Office 字体</summary><p>预览使用随系统提供的 Noto Sans SC 字形。PPTX 用 PowerPoint 等线字体显示采用 Noto Sans SC 的文字，原生文字仍可编辑。参数预览只用于核对版式，导出使用已保存页面。</p></details>
     <div className={styles.previewToolbar}>
       <label>文件格式<select value={format} onChange={e => setFormat(e.target.value as ExportFormat)}><option value="pptx">PowerPoint</option><option value="png">单页 PNG</option><option value="svg">单页 SVG</option><option value="xlsx">可用数据 Excel</option></select></label>
       {['pptx', 'xlsx'].includes(format) && <label>页面范围<select value={selection} onChange={e => setSelection(e.target.value as typeof selection)}><option value="all">全部页面</option><option value="page">当前页</option></select></label>}

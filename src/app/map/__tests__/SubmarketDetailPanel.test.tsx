@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SubmarketDetailPayload } from '@/src/services/mapDataClient';
+import { PitchHandoffProvider, readPitchHandoff } from '@/src/components/pitch/PitchHandoffLink';
 import { aggregateMarket } from '../model/marketStatistics';
 import type { SubmarketSummary } from '../model/submarketOverview';
 import { submarketIntelligenceSchema } from '../model/submarketIntelligence';
@@ -281,7 +282,10 @@ describe('submarket research workspace', () => {
       makePoint('2026Q3', null, null),
     ];
     api.read.mockResolvedValueOnce({ ...payload, trends: { all: series, a: [], b: [] } });
-    render(<SubmarketDetailPanel {...props} />);
+    render(<PitchHandoffProvider enabled><SubmarketDetailPanel {...props} /></PitchHandoffProvider>);
+    const handoff = await screen.findByRole('link', { name: '将子市场行情加入 Pitch' });
+    expect(readPitchHandoff(new URL(handoff.getAttribute('href')!, window.location.origin).hash))
+      .toEqual({ source: { kind: 'submarket', key: 'CBD' }, period: '2026-Q2' });
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
     const digest = within(await screen.findByRole('region', { name: '指标走势' }));
     const rent = digest.getByRole('heading', { name: '净有效租金' }).closest('figure');
@@ -296,7 +300,10 @@ describe('submarket research workspace', () => {
 
   it('distinguishes temporarily unavailable trend data from genuine missing observations', async () => {
     api.read.mockResolvedValueOnce({ ...payload, trendError: true, trends: emptyTrend });
-    render(<SubmarketDetailPanel {...props} />);
+    render(<PitchHandoffProvider enabled><SubmarketDetailPanel {...props} /></PitchHandoffProvider>);
+    const handoff = await screen.findByRole('link', { name: '将子市场行情加入 Pitch' });
+    expect(readPitchHandoff(new URL(handoff.getAttribute('href')!, window.location.origin).hash))
+      .toEqual({ source: { kind: 'submarket', key: 'CBD' } });
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
     const trend = within(screen.getByRole('region', { name: '季度行情' }));
     await waitFor(() => expect(trend.getByRole('status')).toHaveTextContent('历史行情暂不可用'));
@@ -440,12 +447,13 @@ describe('submarket research workspace', () => {
     api.read.mockResolvedValue({ ...payload, submarket: '望京-酒仙桥', stockCount: 3,
       marketProducts: { type: 'mixed', officeCount: 3, parkCount: 4 },
       trends: { all: [{ ...base, rent: 123, vacancyPct: 15 }], a: [], b: [], park: [{ ...base, rent: 97, vacancyPct: 28 }] } });
-    render(<SubmarketDetailPanel {...props} name="望京-酒仙桥" canEdit={false} />);
+    render(<PitchHandoffProvider enabled><SubmarketDetailPanel {...props} name="望京-酒仙桥" canEdit={false} /></PitchHandoffProvider>);
     const office = await screen.findByRole('region', { name: '甲乙级办公核心指标' });
     const park = screen.getByRole('region', { name: '产业园核心指标' });
     await within(office).findByText('123.0');
     expect(within(park).getByText('97.0')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '同季度产品比较' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '将子市场行情加入 Pitch' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
     const group = screen.getByRole('group', { name: '研究产品类型' });
     fireEvent.click(within(group).getByRole('button', { name: '产业园' }));
@@ -460,8 +468,11 @@ describe('submarket research workspace', () => {
     const latest = { ...early, period: '2026Q2', year: 2026, quarter: 2, rent: 190, vacancyPct: 10 };
     api.read.mockResolvedValue({ ...payload, profile: { ...profile, research, headline: research.positioning },
       trends: { all: [early, latest], a: [{ ...latest, rent: 210 }], b: [{ ...latest, rent: 170 }] } });
-    render(<SubmarketDetailPanel {...props} />);
+    render(<PitchHandoffProvider enabled><SubmarketDetailPanel {...props} /></PitchHandoffProvider>);
     await screen.findByRole('heading', { name: research.observations[0].title });
+    const handoff = screen.getByRole('link', { name: '将子市场行情加入 Pitch' });
+    expect(readPitchHandoff(new URL(handoff.getAttribute('href')!, window.location.origin).hash))
+      .toEqual({ source: { kind: 'submarket', key: 'CBD' }, period: '2026-Q2' });
     const lead = screen.getByRole('region', { name: '市场观察' });
     const metrics = screen.getByRole('region', { name: '市场核心指标' });
     expect(metrics.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

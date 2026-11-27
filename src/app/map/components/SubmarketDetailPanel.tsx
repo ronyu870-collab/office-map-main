@@ -3,6 +3,9 @@
 import * as React from 'react';
 import { ChevronRight, Pencil } from 'lucide-react';
 import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
+import { useIsDemo } from '@/src/components/demo';
+import { PitchHandoffLink } from '@/src/components/pitch/PitchHandoffLink';
+import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
 import { WorkspacePanelContext, WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { SubmarketProfileEditor } from './SubmarketProfileEditor';
 import { SubmarketOverviewResearch } from './SubmarketIntelligenceBrief';
@@ -68,6 +71,7 @@ function SubmarketWorkspace({
   canEdit, suspended: suspendedProp = false, mapLocationNotice, onExitGuardChange, onClose, onShowAll, onOpenBuilding,
 }: Props & { identity: string }) {
   const workspace = React.useContext(WorkspacePanelContext);
+  const isDemo = useIsDemo();
   const suspended = suspendedProp || workspace?.active === false;
   const expanded = workspace?.mode === 'full';
   const quick = Boolean(workspace?.compact && workspace.mode === 'compact');
@@ -154,6 +158,7 @@ function SubmarketWorkspace({
   const quarter = React.useMemo(() => describeQuarterlyResearchMarket(allTrend), [allTrend]);
   const rentPeriod = quarter.rent.latest?.period;
   const vacancyPeriod = quarter.vacancy.latest?.period;
+  const handoffPeriod = trendState === 'ready' ? [rentPeriod, vacancyPeriod].sort().findLast(Boolean) : undefined;
   const periodLabel = rentPeriod && rentPeriod === vacancyPeriod ? `正式行情 · ${rentPeriod}`
     : [rentPeriod && `租金 ${rentPeriod}`, vacancyPeriod && `空置率 ${vacancyPeriod}`].filter(Boolean).join(' · ');
   const layout = quick && !editing ? 'quick' : expanded ? 'expanded' : 'standard';
@@ -232,6 +237,12 @@ function SubmarketWorkspace({
     outlook: !!fullModules.outlook,
   }) : [];
 
+  const pitchHandoff = !detail.loading && !productResearch && !isDemo && !getImpersonationTargetUserId()
+    ? <PitchHandoffLink source={{ kind: 'submarket', key: name }}
+        period={handoffPeriod?.replace('Q', '-Q')}
+        className="workspace-business-action workspace-resource-action" label="将子市场行情加入 Pitch" />
+    : null;
+
   return <div hidden={suspended || undefined} aria-hidden={suspended || undefined}
     className={suspended ? 'map-submarket-workspace hidden' : 'map-submarket-workspace'}>
     <section data-map-submarket-panel data-submarket-compact={quick && !editing || undefined} data-submarket-layout={layout} data-submarket-featured={featured ? 'true' : undefined} data-submarket-market-type={marketType}
@@ -285,10 +296,12 @@ function SubmarketWorkspace({
                 onViewProjects={() => openStandard('buildings')}
                 featured={featured ? <>{coreMetrics}{presentation && <ResearchLead presentation={presentation} mode="quick" />}</> : undefined}>
                 {!featured && trendState === 'ready' && <MarketTrendSummary data={allTrend} compact />}
+                {pitchHandoff}
               </QuickSummary>
               : layout === 'expanded' ? <div className="submarket-brief" data-research-arranged={arranged ? 'true' : undefined}>
                 <section className="submarket-research-chapter submarket-brief-overview" aria-labelledby="submarket-brief-overview">
                   <h3 id="submarket-brief-overview">市场概览</h3>{researchLead}{marketSignal}{overview}
+                  {pitchHandoff}
                 </section>
                 {arranged ? fullOrder.map(module => <React.Fragment key={module}>{fullModules[module]}</React.Fragment>) : <>
                 <div className="submarket-brief-trend">{trend(true)}</div>
@@ -302,6 +315,7 @@ function SubmarketWorkspace({
                 {researchLead}
                 {marketSignal}
                 {overview}
+                {pitchHandoff}
                 {payload?.trendError ? <div className="submarket-read-status"><p role="status">历史行情暂不可用</p>
                   <button type="button" className="submarket-quiet-action" disabled={detail.loading} onClick={retry}>重新加载</button></div> : null}
                 {profileUnavailable ? <div className="submarket-read-status"><p role="status">区域画像暂不可用。</p>

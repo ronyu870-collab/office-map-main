@@ -365,7 +365,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           if (name.startsWith('pitch_')) {
             if (!/Pitch\s*Studio|商务提案|Pitch\b/i.test(valid.question)) throw new Error('PITCH_DENIED');
             const { runPitchTool } = await import('@/src/lib/pitch/ai/tools');
-            const observation = await runPitchTool({client,identity:actor,signal:toolSignal}, name as import('@/src/lib/pitch/ai/toolSchemas').PitchToolName, args);
+            const observation = await runPitchTool({client,identity:actor,signal:toolSignal}, name as import('@/src/lib/pitch/ai/toolSchemas').PitchToolName, args,
+              { question: redactSubmittedCredentials(valid.question).text });
             await audit!.append(requestId, 'tool_finished', {tool:name,status:'completed',domain:'pitch'});
             return {content:JSON.stringify(observation)};
           }

@@ -3,19 +3,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import JSZip from "jszip";
 import { dynamicFixture } from "../../supabase/tests/pitch-studio/business-fixtures.mjs";
-export async function verifyPitchWorkspace({
-  app,
-  db,
-  other,
-  admin,
-  scope,
-  call,
-  library,
-  check,
-  until,
-  ids,
-}) {
-  const workspace = async (who, input, write = true) => {
+function workspaceClient(app) {
+  return async (who, input, write = true) => {
     const response = await fetch(
       app +
         "/api/intelligence/pitch/workspace" +
@@ -31,6 +20,21 @@ export async function verifyPitchWorkspace({
     );
     return { status: response.status, body: await response.json() };
   };
+}
+
+export async function verifyPitchWorkspace({
+  app,
+  db,
+  other,
+  admin,
+  scope,
+  call,
+  library,
+  check,
+  until,
+  ids,
+}) {
+  const workspace = workspaceClient(app);
   const context = {
     language: "zh",
     buildingIds: [],
@@ -217,6 +221,34 @@ export async function verifyPitchWorkspace({
     assert.deepEqual([...new Set(titles)], ["公司资料之一", "市场研究章节"]);
     for (const page of generated.body.slides) assert.ok(page.content.sources.length);
   });
+  await check("the authorized quarterly research edition hands off the Beijing Grade A cohort", () =>
+    verifyPitchQuarterlyResearch({ app, db, admin, other, scope, until }));
+  await check("a real Auth submarket handoff saves the selected formal quarter as a native table", async () => {
+    const handoff = { source: { kind: "submarket", key: "CBD" }, period: "2026-Q3" };
+    const review = { action: "review_handoff", handoff };
+    assert.equal((await workspace(other, review)).status, 403);
+    const reviewed = await workspace(admin, review);
+    assert.equal(reviewed.status, 200, JSON.stringify(reviewed.body));
+    assert.equal(reviewed.body.status, "ready");
+    assert.equal(reviewed.body.parameters.templateId, "quarter-market-summary");
+    const projectId = randomUUID(), taskId = randomUUID();
+    const queued = await workspace(admin, { action: "add_to_pitch", handoff, taskId,
+      fingerprint: reviewed.body.fingerprint,
+      target: { mode: "create", projectId, title: "正式市场汇总交接", scope, themeId: "colliers-default-v1", themeVersion: 2 },
+    });
+    assert.equal(queued.status, 202, JSON.stringify(queued.body));
+    await until(async () => {
+      const status = await workspace(admin, { action: "status", projectId, taskId });
+      assert.equal(status.status, 200, JSON.stringify(status.body));
+      assert.notEqual(status.body.state, "failed", JSON.stringify(status.body));
+      return status.body.state === "completed";
+    }, "save formal submarket handoff");
+    const saved = await workspace(admin, { action: "get", projectId });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    const table = saved.body.slides.find(page => page.scene.elements.some(element => element.kind === "table"));
+    assert.equal(table?.content.dataAsOf, "2026-09-30");
+    assert.match(table.content.subtitle, /2026 Q3/);
+  });
   await check("mixed reviewed outline is atomic, uses the exact formal quarter and cannot be exported to clients", async () => {
     const building = randomUUID(), projectId = randomUUID(), period = "2026-Q3";
     await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,'提纲核对测试楼','CBD','A','tracked')", [building]);
@@ -295,7 +327,10 @@ export async function verifyPitchWorkspace({
         changeQuarter: () => db.query("update public.building_metrics set net_effective_rent=80 where building_id=$1 and record_year=2026 and record_quarter=2", [building]),
         readProject: async projectId => (await workspace(admin, { action: "get", projectId })).body,
         assertClientDenied: async projectId => {
-          const gate = await db.query("select id, can_client_export from private.pitch_grants where user_id=$1 and region=$2", [admin.id, scope.region]);
+          const gate = await db.query(`select g.id, g.can_client_export from private.pitch_grants g
+            join public.pitch_projects p on (g.organization_id,g.region,g.city,g.business_line)
+              =(p.organization_id,p.region,p.city,p.business_line)
+            where g.user_id=$1 and p.id=$2 and g.valid_until>now()`, [admin.id, projectId]);
           assert.equal(gate.rows.length, 1);
           const grant = gate.rows[0];
           await db.query("update private.pitch_grants set can_client_export=true where id=$1", [grant.id]);
@@ -600,4 +635,66 @@ export async function verifyPitchWorkspace({
       );
     },
   );
+}
+
+export async function verifyPitchQuarterlyResearch({ app, db, admin, other, scope, until }) {
+  const research = app + "/api/quarterly-research?edition=2026Q2";
+  const access = who => fetch(research, { method: "HEAD", headers: who ? { Authorization: "Bearer " + who.token } : {} });
+  assert.equal((await access()).status, 401);
+  assert.equal((await access(admin)).status, 204);
+  if (other) assert.equal((await access(other)).status, 403);
+
+  const workspace = workspaceClient(app);
+  const eligible = randomUUID(), foreign = randomUUID(), gradeB = randomUUID();
+  const records = [
+    [eligible, "合成研究范围内", "北京", "A"],
+    [foreign, "合成外地样本", "上海", "A"],
+    [gradeB, "合成非甲级样本", "北京", "B"],
+  ];
+  for (const [id, name, city, grade] of records) {
+    await db.query("insert into public.buildings(id,name,submarket,city,grade) values($1,$2,'CBD',$3,$4)", [id, name, city, grade]);
+    await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,
+      vacant_area,is_draft,is_locked,locked_at,locked_by) values($1,2026,2,10000,100,1000,false,true,now(),$2)`, [id, admin.id]);
+  }
+  const marketScope = { ...scope, city: "北京" };
+  const { rows: [researchGrant] } = await db.query(`insert into private.pitch_grants(user_id,organization_id,region,city,business_line,can_generate,valid_until,granted_by)
+    values($1,$2,$3,'北京',$4,true,now()+interval '1 day',$1) on conflict do nothing returning id`,
+    [admin.id, scope.organizationId, scope.region, scope.businessLine]);
+  try {
+    const handoff = { source: { kind: "quarterly-research", edition: "2026Q2" } };
+    const preview = { action: "review_handoff", handoff };
+    if (other) assert.equal((await workspace(other, preview)).status, 403);
+    assert.equal((await workspace(admin, { ...preview, handoff: { ...handoff, period: "2026-Q3" } })).status, 422);
+    const review = await workspace(admin, preview);
+    assert.equal(review.status, 200, JSON.stringify(review.body));
+    assert.equal(review.body.period, "2026-Q2");
+    assert.equal(review.body.binding.dataAsOf, "2026-06-30");
+    const projectId = randomUUID(), taskId = randomUUID();
+    const command = { action: "add_to_pitch", handoff, taskId, fingerprint: review.body.fingerprint,
+      target: { mode: "create", projectId, title: "正式季度研究交接", scope: marketScope, themeId: "colliers-default-v1", themeVersion: 2 } };
+    const queued = await workspace(admin, command);
+    assert.equal(queued.status, 202, JSON.stringify(queued.body));
+    await until(async () => {
+      const response = await workspace(admin, { action: "status", projectId, taskId });
+      assert.equal(response.status, 200, JSON.stringify(response.body));
+      assert.notEqual(response.body.state, "failed", JSON.stringify(response.body));
+      return response.body.state === "completed";
+    }, "persist a reviewed quarterly research handoff");
+    const saved = await workspace(admin, { action: "get", projectId });
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.workspace.context.period, "2026-Q2");
+    const page = saved.body.slides.find(slide => slide.scene.elements.some(element => element.kind === "table"));
+    assert.equal(page?.content.dataAsOf, "2026-06-30");
+    const receipt = await db.query(`select g.snapshots from public.pitch_business_generations g
+      join private.pitch_workspace_tasks t on t.source_project_id=g.project_id where t.id=$1`, [taskId]);
+    const pinned = receipt.rows[0].snapshots[0].results[0].parameters.executedPlan;
+    assert.deepEqual(pinned.period, { year: 2026, quarter: 2 });
+    assert.ok(pinned.scope.buildingIds.includes(eligible));
+    assert.ok(!pinned.scope.buildingIds.includes(foreign) && !pinned.scope.buildingIds.includes(gradeB));
+  } finally {
+    if (researchGrant) await db.query("delete from private.pitch_grants where id=$1", [researchGrant.id]);
+    const ids = records.map(([id]) => id);
+    await db.query("delete from public.building_metrics where building_id=any($1::uuid[])", [ids]);
+    await db.query("delete from public.buildings where id=any($1::uuid[])", [ids]);
+  }
 }

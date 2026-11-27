@@ -59,10 +59,10 @@ describe('Stacking Plan identity and read/write boundary', () => {
   const sourceRecord = { eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: source, error: null })) })) };
   const sources = { select: vi.fn((selection: string) =>
     selection.startsWith('id,building_id')
-      ? { eq: vi.fn(async () => ({ data: [source], error: null })) }
+      ? { eq: vi.fn(() => ({ abortSignal: vi.fn(async () => ({ data: [source], error: null })) })) }
       : { eq: vi.fn(() => sourceRecord) }
   ) };
-  const towers = { select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn(async () => ({ data: [], error: null })) })) })) };
+  const towers = { select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn(() => ({ abortSignal: vi.fn(async () => ({ data: [], error: null })) })) })) })) };
   const buildings = { select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { id: ID, name: '霄云路33号' }, error: null })) })) })) };
   const insert = vi.fn(async () => ({ error: null }));
   const exportsTable = { insert };
@@ -125,7 +125,7 @@ describe('Stacking Plan identity and read/write boundary', () => {
 
   it('keeps the date-confirmed unverified source visible until the additive evidence migration is deployed', async () => {
     sources.select.mockImplementationOnce((() => ({
-      eq: vi.fn(async () => ({ data: null, error: { code: '42703', message: 'column does not exist' } })),
+      eq: vi.fn(() => ({ abortSignal: vi.fn(async () => ({ data: null, error: { code: '42703', message: 'column does not exist' } })) })),
     })) as never);
     const response = await GET(req(),params);
     expect(response.status).toBe(200);
