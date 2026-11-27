@@ -33,6 +33,7 @@ let firstPageOrigin: "data" | "asset";
 let separateSnapshot: boolean;
 let comparisons: boolean;
 let availableQuarters: { year: number; quarter: number }[];
+let revisionDeck: { id: string; content: SlideContent; manual?: true }[] | undefined;
 
 beforeAll(async () => {
   [scene] = await layoutSlides(content, STUDIO_THEME, "two-columns");
@@ -42,6 +43,7 @@ beforeEach(() => {
   firstPageOrigin = "data";
   separateSnapshot = false;
   comparisons = false;
+  revisionDeck = undefined;
   availableQuarters = [{ year: 2026, quarter: 1 }, { year: 2026, quarter: 2 }, { year: 2026, quarter: 3 }];
   quarterRpc.mockReset().mockImplementation((action, args) => {
     if (action === "ai_query_authority") return { abortSignal: async () => ({ error: null, data: {
@@ -76,13 +78,14 @@ beforeEach(() => {
         id: projectId, version: 4, title: "北京写字楼季度市场报告", theme_id: STUDIO_THEME.id,
         theme_version: STUDIO_THEME.version, organization_id: "test", region: "华北", city: "北京", business_line: "office",
       },
-      slides: [firstPage, secondPage].map(id => ({
+      slides: (revisionDeck ?? [firstPage, secondPage].map(id => ({ id, content }))).map(({ id, content: slide }) => ({
         id, version: 2, asset_id: separateSnapshot && id === secondPage ? separateAsset : sourceId, asset_version: 1,
-        template_id: "fixture", template_version: 1, content, scene,
+        template_id: "fixture", template_version: 1, content: slide, scene,
       })),
       workspace: {
         context: { business: "市场报告" },
-        page_settings: { [firstPage]: { origin: firstPageOrigin }, [secondPage]: { origin: "data" } },
+        page_settings: { [firstPage]: { origin: firstPageOrigin }, [secondPage]: { origin: "data" },
+          ...Object.fromEntries((revisionDeck ?? []).filter(page => page.manual).map(page => [page.id, { manual: true }])) },
         active_slide: firstPage,
       },
       history: [], tasks: [], exports: [],
@@ -95,6 +98,35 @@ function request(question: string, pageIds: string[] = []) {
 }
 
 describe("proposal revision transaction previews", () => {
+  it("shortens a whole deck while retaining manual work, evidence pages, and every cited source", async () => {
+    const id = (index: number) => `10000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+    const page = (index: number, title: string, patch: Partial<SlideContent> = {}) => ({
+      id: id(index), content: { ...content, title, ...patch },
+    });
+    revisionDeck = [
+      page(21, "封面"),
+      page(22, "资料口径", { sources: [{ ...content.sources[0], id: separateAsset }],
+        blocks: [{ kind: "paragraph", text: "资料口径", sourceIds: [separateAsset] }] }),
+      page(23, "可精简的章节导语"),
+      { ...page(24, "手动编辑页"), manual: true },
+      page(25, "对比指标", { blocks: [{ kind: "metric", label: "样本数", value: 12, unit: "栋", sourceIds: [sourceId] }] }),
+      page(26, "可精简的过渡页"),
+      page(27, "结语"),
+    ];
+    await expect(planProposalRevision(context, request("精简整套提案"))).resolves.toMatchObject({
+      status: "ready", shorteningPreview: { originalPageCount: 7, pageCount: 6, removed: [{ pageId: id(26), title: "可精简的过渡页" }] },
+    });
+    await expect(planProposalRevision(context, request("整套压缩到5页"))).resolves.toMatchObject({
+      status: "ready", shorteningPreview: { pageCount: 5, removed: [{ pageId: id(23) }, { pageId: id(26) }] },
+      command: { action: "apply_modification", scope: "document", plan: {
+        pages: [21, 22, 24, 25, 27].map(index => ({ id: id(index) })),
+        basePageVersions: revisionDeck.map(page => ({ id: page.id, version: 2 })),
+      } },
+    });
+    await expect(planProposalRevision(context, request("整套压缩到4页"))).resolves.toMatchObject({ status: "unavailable" });
+    expect(vi.mocked(pitchRpc).mock.calls.every(([, command]) => command.action === "workspace_get" || command.action === "catalog")).toBe(true);
+  });
+
   it("carries the exact literal, target and page versions into a document modification", async () => {
     const title = await planProposalRevision(context, request("把标题改成《2026Q2 北京。并调整图表》"));
     expect(title).toMatchObject({
