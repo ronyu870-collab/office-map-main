@@ -5,7 +5,8 @@ create function private.pitch_studio_access(p_actor uuid,p_session uuid,p_input 
 language plpgsql security definer set search_path='' as $$
 declare pid uuid; captures jsonb; receipts jsonb;
 begin
-  if p_input->>'action' is distinct from 'workspace_document_bindings' then
+  if p_input->>'action' is distinct from 'workspace_document_bindings'
+    or p_input->'includeQueryReceipts' is distinct from 'true'::jsonb then
     return private.pitch_studio_access_before_object_receipts(p_actor,p_session,p_input);
   end if;
 
