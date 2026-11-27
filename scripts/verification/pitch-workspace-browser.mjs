@@ -580,6 +580,7 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         const visualKinds = new Set(plannedVisuals.map(visual => visual.kind));
         result.missingPages = scenario.pages.filter((kind) => !pageKinds.has(kind));
         result.missingVisuals = (requiredVisuals[scenario.scenario] ?? []).filter((kind) => !visualKinds.has(kind));
+        if (result.missingPages.length || result.missingVisuals.length) result.gaps = plan.plan.gaps;
 
         result.stage = "generating";
         const projectId = await confirmFlagshipProposal(page, button("确认并生成 Pitch"));

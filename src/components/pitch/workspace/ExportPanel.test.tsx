@@ -67,3 +67,27 @@ it("starts no duplicate export when retrying an unacknowledged request", async (
   expect(starts).toHaveLength(2);
   expect(starts[0]).toBe(starts[1]);
 }, 45000);
+
+it("only offers the ready file for the currently selected format and pages", async () => {
+  const user = userEvent.setup();
+  const call = vi.fn(async (input: Record<string, unknown>) => input.action === "export_eligibility"
+    ? { projectVersion: 3, audienceAllowed: true, pages: [] }
+    : { state: "ready", progress: 100, filename: `提案.${input.format}` });
+  render(<ExportPanel call={call as unknown as Call} detail={detail} active={first} selected={[]}
+    flush={async () => detail} canClient={false} disabled={false} />);
+  await user.click(screen.getByRole("button", { name: "导出" }));
+  const generate = screen.getByRole("button", { name: "生成文件" });
+  await waitFor(() => expect(generate).toBeEnabled());
+  await user.click(generate);
+  const download = screen.getByRole("button", { name: "下载已生成文件" });
+  await waitFor(() => expect(download).toBeEnabled());
+
+  await user.selectOptions(screen.getByLabelText("文件格式"), "pdf");
+  expect(download).not.toBeInTheDocument();
+  await user.click(generate);
+  await waitFor(() => expect(download).toBeEnabled());
+  expect(call.mock.calls.at(-1)?.[0]).toMatchObject({ action: "export_start", format: "pdf" });
+
+  await user.selectOptions(screen.getByLabelText("页面范围"), "current");
+  expect(download).not.toBeInTheDocument();
+}, 45000);
