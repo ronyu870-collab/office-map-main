@@ -101,7 +101,8 @@ try {
           if (url.pathname === '/data/beijing_map_data.json') return route.fulfill({ json: transitMapData });
           if (url.pathname === '/api/intelligence/query/capabilities') return route.fulfill({json:{enabled:width===1024,examples:[]}});
           if (url.pathname === '/api/map/building-photos') {
-            assert.equal(url.searchParams.get('building_id'),stock[0].id);
+            assert.equal(url.searchParams.get('building_id'),stock[0].id, 'photo lookup must use its owning fixture building');
+            assert.ok(stock[0].photos.some(photo => photo.id === url.searchParams.get('photo_id')), 'photo ID must belong to the requested building');
             if(width===1024 && !photoReads++) return route.fulfill({status:403,json:{error:'isolated permission denial'}});
             return route.fulfill({json:{url:`https://synthetic.invalid/${url.searchParams.get('photo_id')}.svg`,is_preview:false,can_download:true,source_url:'',source_name:''}});
           }
@@ -821,7 +822,8 @@ try {
       if ([1536,320].includes(width)) {
         failSDK = false; futureRows = [];
         const variants = [
-          ['three-digits', Array.from({length:128},(_,index)=>({...stock[0],id:`scale-${index}`,name:`规模项目${index}`})), '128'],
+          // Density fixtures reuse numeric facts, not the original building's photo identities.
+          ['three-digits', Array.from({length:128},(_,index)=>({...stock[0],id:`scale-${index}`,name:`规模项目${index}`,photos:[],building_metrics:stock[0].building_metrics.map((metric,i)=>({...metric,id:`scale-metric-${index}-${i}`,building_id:`scale-${index}`}))})), '128'],
           ['zero', [], '0'],
           ['missing', [{...stock[0],building_metrics:[]}], '1'],
         ];
