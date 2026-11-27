@@ -376,7 +376,7 @@ try {
         assert.equal(brochureReads,0,'building overview does not prefetch brochure parameters');
         await detail.getByRole('button',{name:'楼书参数',exact:true}).click();
         const brochure=detail.getByRole('region',{name:'楼书参数',exact:true});
-        await brochure.getByText('2.85',{exact:true}).waitFor();
+        await brochure.getByRole('definition').filter({hasText:/^2\.85\s*m$/}).waitFor();
         await brochure.getByText('客梯',{exact:true}).waitFor();
         assert.equal(brochureReads,1,'brochure reads only on explicit request');
         assert.equal(await brochure.getByText('private-fixture',{exact:true}).count(),0);

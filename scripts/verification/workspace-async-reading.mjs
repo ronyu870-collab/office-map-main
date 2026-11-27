@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
-import {clickWorkspaceAction} from './workspace-actions.mjs';
+import {clickWorkspaceAction,ensureWorkspacePhotoOpen} from './workspace-actions.mjs';
 export async function verifyAsyncReading(page,{base,width}){
  console.log('async reading',width,'start');
- let releasePhoto;let photoGate=new Promise(resolve=>{releasePhoto=resolve;});let photoNumber=0;
- await page.route('**/api/map/building-photos?*',async route=>{await photoGate;return route.fulfill({json:{url:`https://synthetic.invalid/async-${photoNumber++?'2222':'landscape'}.svg`,is_preview:false,can_download:true,source_url:'',source_name:''}});});
+ let releasePhoto;let photoGate=new Promise(resolve=>{releasePhoto=resolve;});
+ await page.route('**/api/map/building-photos?*',async route=>{
+  const photoId=new URL(route.request().url()).searchParams.get('photo_id');
+  const portrait=photoId==='20000000-2222-4222-8222-222222222222';
+  assert.ok(portrait||photoId==='20000000-1111-4111-8111-111111111111','gallery reads the selected photo ID');
+  await photoGate;
+  return route.fulfill({json:{url:`https://synthetic.invalid/async-${portrait?'2222':'landscape'}.svg`,is_preview:false,can_download:true,source_url:'',source_name:''}});
+ });
  let releaseMaterial,releaseDetails;const materialGate=new Promise(resolve=>{releaseMaterial=resolve;});const detailsGate=new Promise(resolve=>{releaseDetails=resolve;});
  await page.route('**/api/map/sales-materials?*',async route=>{await (new URL(route.request().url()).searchParams.has('material_id')?detailsGate:materialGate);return route.fallback();});
  await page.goto(new URL('/map?building=10000000-1111-4111-8111-111111111111',base).href);
@@ -14,13 +20,13 @@ export async function verifyAsyncReading(page,{base,width}){
   const sample=()=>{if(!active)return;const selectors=['.workspace-building','.workspace-building .workspace-panel-header','#map-container','.workspace-building-scroll','.building-pilot-photo-stage','[role="dialog"]'];frames.push({at:performance.now(),geometry:selectors.map(selector=>{const el=document.querySelector(selector);if(!el||!el.getClientRects().length)return null;const r=el.getBoundingClientRect();return {selector,x:Math.round(r.x*10)/10,y:Math.round(r.y*10)/10,w:Math.round(r.width*10)/10,h:Math.round(r.height*10)/10,scroll:el.scrollTop};})});raf=requestAnimationFrame(sample);};raf=requestAnimationFrame(sample);window.__asyncReadingStop=()=>{active=false;cancelAnimationFrame(raf);return frames;};
  });
  const finish=async()=>{await page.evaluate(()=>new Promise(resolve=>{const until=performance.now()+600;const check=()=>performance.now()>=until?resolve():requestAnimationFrame(check);requestAnimationFrame(check);}));return page.evaluate(()=>window.__asyncReadingStop());};
- await detail.getByRole('button',{name:/看图/}).click();await detail.getByRole('status').filter({hasText:'加载'}).waitFor();
+ await ensureWorkspacePhotoOpen(detail);await detail.locator('[data-building-photo-status]').filter({hasText:'正在加载图片'}).waitFor({state:'visible'});
  await detail.locator('.building-pilot-photo-stage').scrollIntoViewIfNeeded();await begin();
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));releasePhoto();
  await page.waitForFunction(()=>document.querySelector('[data-building-photo]:not([hidden])')?.naturalWidth>0);
  await detail.getByRole('button',{name:'查看大图',exact:true}).waitFor();const photoFrames=await finish();
  photoGate=new Promise(resolve=>{releasePhoto=resolve;});
- await detail.getByRole('button',{name:'下一张',exact:true}).click();await detail.getByRole('status').filter({hasText:'加载'}).waitFor();await begin();
+ await detail.getByRole('button',{name:'下一张',exact:true}).click();await detail.locator('[data-building-photo-status]').filter({hasText:'正在加载图片'}).waitFor({state:'visible'});await begin();
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));releasePhoto();
  await page.waitForFunction(()=>document.querySelector('[data-building-photo]:not([hidden])')?.naturalHeight>document.querySelector('[data-building-photo]:not([hidden])')?.naturalWidth);
  await detail.getByRole('button',{name:'查看大图',exact:true}).waitFor();const portraitFrames=await finish();

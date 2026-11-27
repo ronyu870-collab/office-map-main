@@ -74,10 +74,37 @@ export async function verifySubmarketDesign(context, { base, width, stock }) {
       if (await select.isVisible()) await select.selectOption(mode);
       else await page.getByRole('group', { name: '地图显示模式' }).getByRole('button', { name: { default: '项目', rent: '租金', vacancy: '空置', leed: 'LEED' }[mode], exact: true }).click();
     };
+    // The collision solver runs after the layer swap and the translation has
+    // its own animation. Wait for a genuinely settled painted layout, not a
+    // fixed delay that can sample half-completed translations on CI.
+    const waitForSettledBubbles = async mode => {
+      await page.waitForFunction(({ mode, names }) => {
+        const container=document.querySelector('#map-container');
+        if (!container || container.matches('.map-marker-swapping,.map-marker-rendering,.map-is-zooming,.map-is-moving')) return false;
+        const bubbles=[...container.querySelectorAll('.map-submarket-bubble')];
+        return names.every(name=>bubbles.some(el=>el.dataset.submarket===name&&el.dataset.renderMode===mode));
+      }, { mode, names });
+      await page.evaluate(async () => {
+        const deadline=performance.now()+5000;
+        let previous='', stableSince=performance.now();
+        while (performance.now()<deadline) {
+          await new Promise(resolve=>requestAnimationFrame(resolve));
+          const container=document.querySelector('#map-container');
+          const snapshot=[...container.querySelectorAll('.map-submarket-bubble')].map(el=>{
+            const box=el.getBoundingClientRect();
+            return [el.dataset.submarket,el.dataset.renderMode,box.x,box.y,box.width,box.height,getComputedStyle(el.parentElement).opacity];
+          });
+          const value=JSON.stringify(snapshot);
+          if(value!==previous||container.matches('.map-marker-swapping,.map-marker-rendering,.map-is-zooming,.map-is-moving')){previous=value;stableSince=performance.now();}
+          if(performance.now()-stableSince>=260)return;
+        }
+        throw new Error('Submarket overlay geometry did not settle');
+      });
+    };
     for (const mode of modes) {
       await setMode(mode);
       await page.locator(`.map-submarket-bubble[data-render-mode="${mode}"][data-submarket="通惠河传媒走廊"]`).waitFor();
-      await page.waitForTimeout(300); // Let the existing 180ms surface/collision motion settle.
+      await waitForSettledBubbles(mode);
       const bubbles = await page.locator('#map-container .map-submarket-bubble').evaluateAll(elements => elements.filter(e => getComputedStyle(e).display !== 'none').map(e => {
         const box = e.getBoundingClientRect(), name = e.querySelector('.map-submarket-bubble__name');
         const css = getComputedStyle(e), nameBox = name.getBoundingClientRect();
@@ -123,7 +150,7 @@ export async function verifySubmarketDesign(context, { base, width, stock }) {
     await page.locator('.map-submarket-bubble[data-render-mode="rent"][data-submarket="通惠河传媒走廊"][aria-pressed="true"]').waitFor({state:'attached'});
     await page.getByRole('button', {name:'清空',exact:true}).click();
     for (const mode of ['vacancy','leed','rent','default']) await setMode(mode);
-    await page.waitForTimeout(300);
+    await waitForSettledBubbles('default');
     assert.equal(await page.locator('.map-submarket-bubble[data-submarket="通惠河传媒走廊"]').count(), 1, 'rapid changes dispose replaced layers');
     assert.equal(await page.locator('.map-submarket-bubble[data-submarket="通惠河传媒走廊"]').getAttribute('aria-pressed'), 'false', 'clearing scope removes selection');
     assert.deepEqual(errors, [], 'selection and quick mode changes have no runtime errors');

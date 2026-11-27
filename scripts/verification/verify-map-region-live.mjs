@@ -181,7 +181,9 @@ try {
           await page.screenshot({path:`/tmp/map-task-chain-mode-${mode}.png`});
         }
         await page.getByRole('button',{name:'项目',exact:true}).click();
-        await detail.getByRole('button',{name:/看图 · 1张/}).click();
+        const photo=detail.getByRole('button',{name:/看图 · 1张/});
+        if(await photo.getAttribute('aria-expanded')!=='true')await photo.click();
+        await detail.locator('[data-building-photo-trigger][aria-expanded="true"]').waitFor({state:'visible'});
         await detail.locator('[data-building-photo]:visible').waitFor();
         await detail.getByRole('button',{name:'查看大图',exact:true}).click(); await detail.getByRole('dialog').waitFor();
         await page.keyboard.press('Escape');

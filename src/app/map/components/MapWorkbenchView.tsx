@@ -269,9 +269,9 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
   return (
     <MapDisclosure width={320} active={active} className="map-workspace-legend" label={<><Info size={16} aria-hidden="true" /><span className="map-legend-label">图例</span></>}>
       <h2>{config.title}</h2>
-      <div className="flex items-center gap-3">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
         {config.items.map(item => (
-          <div key={item.label} className="flex items-center gap-1.5 text-[14px] text-slate-500">
+          <div key={item.label} className="flex min-w-0 items-center gap-1.5 text-[14px] text-slate-500">
             <span className={`map-legend-swatch rounded-full ${item.className ?? ''}`} style={item.style} aria-hidden="true" />
             {item.label}
           </div>

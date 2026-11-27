@@ -333,7 +333,7 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .workspace-icon { display: inline-flex; justify-content: center; align-items: center; min-height: 32px; min-width: 32px; border-radius: 6px; color: #596779; }
 @media (hover: hover) { .workspace-icon:enabled:hover { color: var(--cd-color-text-primary); background: var(--cd-color-control-hover); } }
 .workspace-business-action:not(:disabled):hover { border-color: #b2c6dd; background: var(--cd-color-brand-soft); }
-.workspace-icon:active, .workspace-business-action:active { background: #e1ebf5; }
+.workspace-icon:active, .workspace-business-action:not(:disabled):active { background: #e1ebf5; }
 .workspace-icon, .workspace-business-action { transition: color var(--cd-motion-fast) var(--cd-ease-state), background-color var(--cd-motion-fast) var(--cd-ease-state), border-color var(--cd-motion-fast) var(--cd-ease-state); }
 .workspace-title-count { font-size: 14px; font-weight: 400; color: #596779; }
 .workspace-sheet-states { display: flex; align-items: center; justify-content: end; gap: 4px; }
