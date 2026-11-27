@@ -17,6 +17,9 @@ import { businessProfileSchema, recipeSchema, type Generation, type BusinessProf
 import { assertBusinessScope, buildBusinessPages, caseDisplay, validateBusinessProfile, type BusinessAsset, type BusinessPage } from './content';
 import { runPitchDataAdapter, type PitchDataSnapshot } from './adapter';
 import { reviewedBuildingData } from './outline-data';
+import { readVisualGenerationPage } from '../visual-data/generation';
+import { layoutAuthorizedPhotoPage } from '../visual-data/photo-pages';
+import { fitResolvedVisualImages, getVisualPageReceipts, resolveReferencedVisualMedia } from '../visual-data/resolve';
 const hash=(v:unknown)=>digest(new TextEncoder().encode(JSON.stringify(v)));
 const storedSchema=z.object({asset:z.object({id:z.uuid(),current_version:z.number(),organization_id:z.string(),region:z.string(),city:z.string(),business_line:z.string()}).passthrough(),version:z.object({content:slideContentSchema}),profile:businessProfileSchema,media:z.array(mediaRowSchema)});
 export function profileMedia(profile:BusinessProfile) {
@@ -44,6 +47,12 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
   if(new Set(currentPeriods).size>1)throw new DocumentError('PITCH_PERIOD_MISMATCH','同一 Pitch 的项目对比页面需要采用同一正式季度。');
   for(const part of command.parts) {
     if(part.mode==='dynamic') {
+      if (['competition-map', 'stacking-plan'].includes(part.parameters.templateId)) {
+        if (part.researchAssetId || expectedDataFingerprint) throw new Error('PITCH_DATA_UNAVAILABLE');
+        const page = await readVisualGenerationPage(ctx, part.parameters, theme, command.scope.city, command.language);
+        groups.push({ ...page, content: part.title ? { ...page.content, title: part.title } : page.content });
+        continue;
+      }
       const snapshot=await runPitchDataAdapter(ctx,part.parameters,command.language,compareOutline);
       if (expectedDataFingerprint && reviewedBuildingData(snapshot, command.language).fingerprint !== expectedDataFingerprint)
         throw new Error('PITCH_OUTLINE_DATA_CHANGED');
@@ -90,24 +99,49 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
   }
   const slides=[],generated=[];const changes:{group:number;reason:string}[]=[];
   for(const [group,page]of groups.entries()) {
-    const content=slideContentSchema.parse(page.content),assetId=randomUUID();
-    let parts;
-    try{await layoutSlides(content,theme,page.layoutId,page.variant);parts=[page];}
-    catch(error){if(!(error instanceof LayoutError)||PATTERN_BY_ID.has(page.layoutId))throw error;parts=await normalizationPlan(content,theme);changes.push({group,reason:error.code});}
-    generated.push({id:assetId,content,sha256:hash(content)});
-    for(const part of parts)for(const scene of await layoutSlides(part.content,theme,part.layoutId,part.variant))slides.push({slideId:randomUUID(),assetId,assetVersion:1,content:part.content,scene,theme});
+    const content = slideContentSchema.parse(page.content);
+    let parts: Awaited<ReturnType<typeof layoutAuthorizedPhotoPage>>;
+    let normalized = false;
+    try {
+      parts = await layoutAuthorizedPhotoPage(content, theme, page.layoutId, page.variant);
+      if (parts.length > 1) changes.push({ group, reason: 'PITCH_TEXT_CAPACITY' });
+    } catch (error) {
+      if (!(error instanceof LayoutError) || PATTERN_BY_ID.has(page.layoutId)) throw error;
+      parts = [];
+      for (const part of await normalizationPlan(content, theme)) {
+        parts.push({ content: part.content, scenes: await layoutSlides(part.content, theme, part.layoutId, part.variant) });
+      }
+      normalized = true;
+      changes.push({ group, reason: error.code });
+    }
+    const assetId = randomUUID();
+    if (normalized) generated.push({ id: assetId, content, sha256: hash(content) });
+    for (const [index, part] of parts.entries()) {
+      const id = normalized || index === 0 ? assetId : randomUUID();
+      if (!normalized) generated.push({ id, content: part.content, sha256: hash(part.content) });
+      for (const scene of part.scenes) slides.push({ slideId: randomUUID(), assetId: id, assetVersion: 1, content: part.content, scene, theme });
+    }
     if(slides.length>50)throw new DocumentError('PITCH_PAGE_LIMIT','本次生成超过 50 页，请拆为多个 Pitch；未静默删减内容。');
   }
-  const media:SceneMedia[]=[];
-  for(const ref of sceneMediaReferences(slides.map(p=>p.scene))) {
+  const referencedImages = sceneMediaReferences(slides.map(p=>p.scene));
+  const visualSources = getVisualPageReceipts(slides.map(p=>p.content));
+  const resolved = await resolveReferencedVisualMedia(ctx, visualSources, referencedImages, 'internal');
+  const media:SceneMedia[]=[...resolved];
+  for(const ref of referencedImages) {
+    if (media.some(item => item.id === ref.id && item.version === ref.version)) continue;
     const row=mediaRows.find(m=>m.id===ref.id&&m.version===ref.version);if(!row)throw new Error('PITCH_DENIED');
     media.push({id:row.id,version:row.version,mime:row.mime,bytes:await readFile(ctx,{bucket:'pitch-studio-private',path:row.storage_path,mime:row.mime,size:row.size_bytes,sha256:row.sha256})});
   }
-  const inspected=await inspectMedia(media);for(const p of slides)await assertSceneQuality(p.scene,theme,inspected);
+  const inspected=await inspectMedia(media);
+  for(const p of slides) {
+    p.scene = fitResolvedVisualImages(p.scene, resolved);
+    await assertSceneQuality(p.scene,theme,inspected);
+  }
   const numbered=numberDeckPages(slides).map(({slideId,assetId,assetVersion,content,scene})=>({slideId,assetId,assetVersion,content,scene}));
-  const requestKey=hash(command);
+  const requestKey=hash(visualSources.length ? [command, visualSources] : command);
   const input={...command,action:'business_generate_commit',requestKey,bindings,snapshots,recipes,changes,generated,slides:numbered};
   if(Buffer.byteLength(JSON.stringify(input))>8*1024*1024)throw new DocumentError('PITCH_PAGE_LIMIT','本次内容超过生成容量，请缩小范围或拆分提案。');
+  await resolveReferencedVisualMedia(ctx, visualSources, [], 'internal');
   return pitchRpc(ctx,input);
 }
 export async function restoreBusinessProject(ctx:PitchContext,command:{projectId:string;sourceProjectId:string;title:string}) {
