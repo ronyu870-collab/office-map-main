@@ -119,7 +119,7 @@ body:has(#map-container) .amap-info:has(.building-popup) .amap-info-close {
 .building-popup__group dl { margin: 0; }
 .building-popup__row {
   display: grid;
-  grid-template-columns: fit-content(62%) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
   column-gap: .375rem;
   min-height: var(--popup-row);
   box-shadow: inset 0 -1px var(--popup-rule);
@@ -139,7 +139,7 @@ body:has(#map-container) .amap-info:has(.building-popup) .amap-info-close {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.building-popup__row dd.building-popup__metric-key { color: var(--cd-color-brand); }
+.building-popup__row dd.building-popup__metric-key { color: var(--cd-color-brand); font-weight: 600; }
 .building-popup__value {
   display: block;
   width: 100%;

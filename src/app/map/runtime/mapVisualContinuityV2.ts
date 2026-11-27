@@ -1,5 +1,10 @@
 'use client';
-import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
+import { leedFallbackBadge } from '@/src/lib/leed-display';
+import { buildSubmarketBubbleEntries, mapLeedLevel } from './mapSubmarketOverview';
+import { createSubmarketBubble } from './mapSubmarketPresentation';
+import { latestFormalMetric } from '../model/quarterlyFacts';
+import { mapOptionalNumber } from '../model/vacancyMetrics';
+import { officeGrade } from '../model/marketIdentity';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
@@ -54,13 +59,7 @@ function escapeHtml(value: unknown): string {
 
 
 function latestMetric(building: any): any | null {
-  let latest: any | null = null;
-  let order = Number.NEGATIVE_INFINITY;
-  for (const metric of Array.isArray(building?.metrics) ? building.metrics : []) {
-    const next = (Number(metric?.record_year) || 0) * 10 + (Number(metric?.record_quarter) || 0);
-    if (next > order) { latest = metric; order = next; }
-  }
-  return latest;
+  return latestFormalMetric(Array.isArray(building?.metrics) ? building.metrics : []);
 }
 
 function groupColor(building: any, groups?: any[]): string | undefined {
@@ -91,24 +90,24 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
   let text = 'A';
   let fontSize = 12;
   if (mode === 'default') {
-    const grade = String(building?.grade ?? '').toUpperCase();
-    if (grade.includes('BP')) { background = PALETTE.gradeBP; text = 'BP'; fontSize = 12; }
-    else if (grade.includes('A') || grade.includes('P')) { background = PALETTE.gradeA; text = 'A'; }
-    else if (grade.includes('B')) { background = PALETTE.gradeB; text = 'B'; }
+    const grade = officeGrade(building?.grade);
+    if (grade === 'park') { background = PALETTE.gradeBP; text = 'BP'; fontSize = 12; }
+    else if (grade === 'a') { background = PALETTE.gradeA; text = 'A'; }
+    else if (grade === 'b') { background = PALETTE.gradeB; text = 'B'; }
     else { background = PALETTE.neutral; text = '·'; }
   } else if (mode === 'rent') {
-    const rent = Number(metric?.net_effective_rent);
-    const has = Number.isFinite(rent) && rent > 0;
+    const rent = mapOptionalNumber(metric?.net_effective_rent);
+    const has = Number.isFinite(rent) && rent >= 0;
     text = has ? String(Math.round(rent)) : '–'; fontSize = text.length > 4 ? 10.5 : 12;
     background = !has ? PALETTE.neutral : rent >= 300 ? PALETTE.extreme : rent >= 200 ? PALETTE.high : rent >= 100 ? PALETTE.medium : PALETTE.low;
   } else if (mode === 'vacancy') {
-    const vacancy = Number(metric?.vacancy_rate);
-    const has = Number.isFinite(vacancy);
+    const vacancy = mapOptionalNumber(metric?.vacancy_rate);
+    const has = Number.isFinite(vacancy) && vacancy >= 0 && vacancy <= 100;
     const pct = has ? (vacancy <= 1 ? vacancy * 100 : vacancy) : 0;
     text = has ? `${Math.round(pct)}%` : '–'; fontSize = text.length > 3 ? 10.5 : 12;
     background = !has ? PALETTE.neutral : pct >= 30 ? PALETTE.extreme : pct >= 20 ? PALETTE.high : pct >= 10 ? PALETTE.medium : PALETTE.low;
   } else {
-    const leed = String(building?.leed_certification ?? '').toUpperCase();
+    const leed = mapLeedLevel(building?.leed_certification);
     if (leed.includes('PLATINUM')) { background = '#d9edf3'; border = '#68aebf'; textColor = '#225a68'; text = 'P'; }
     else if (leed.includes('GOLD')) { background = '#eadfbd'; border = '#b69a52'; textColor = '#6f5a25'; text = 'G'; }
     else if (leed.includes('SILVER')) { background = '#e7ebef'; border = '#9ca8b3'; textColor = '#52606d'; text = 'S'; }
@@ -140,7 +139,7 @@ function setOpacity(set: LayerSet | null, zoom: number, multiplier = 1): void {
   const dot = clamp(smoothStep(ZOOM.dotFadeInStart, ZOOM.dotFadeInEnd, zoom) * (1 - smoothStep(ZOOM.dotFadeOutStart, ZOOM.dotFadeOutEnd, zoom))) * multiplier;
   const detail = smoothStep(ZOOM.detailFadeInStart, ZOOM.detailFadeInEnd, zoom) * multiplier;
   const names = smoothStep(ZOOM.nameFadeInStart, ZOOM.nameFadeInEnd, zoom) * multiplier;
-  set.submarkets.forEach(marker => marker.setOpacity?.(sub));
+  set.submarkets.forEach(marker => marker.setOpacity?.(sub >= .5 ? 1 : 0));
   set.mass?.setOpacity?.(dot);
   set.detail?.setOpacity?.(detail);
   set.names?.setOpacity?.(names);
@@ -207,6 +206,8 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   let lastBuildings: any[] = [];
   let lastMode: RenderMode = 'default';
   let lastGroups: any[] | undefined;
+  let lastShowAreaPlaceholders = false;
+  let lastOverviewBuildings: any[] | undefined;
   c.setWorkspaceSelectionRenderer?.(building => building._dataType === 'future'
     ? futureSupplyImage(building, lastMode) : detailImage(visualFor(building, lastMode, lastGroups)));
   let pendingFrame: number | null = null;
@@ -236,46 +237,16 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     if (building) c.openBuildingInfoWindow?.(building.id);
   };
 
-  const build = (buildings: any[], mode: RenderMode, groups?: any[]): LayerSet => {
+  const build = (buildings: any[], mode: RenderMode, groups?: any[], showAreaPlaceholders = false, overviewBuildings?: any[]): LayerSet => {
     const labels = new Map<string, any>();
     const baseRanks = new Map<string, number>();
-    const submarketMap = new Map<string, any>();
-    for (const b of buildings) {
-      const sub = String(b?.submarket ?? '').trim();
-      if (!sub || sub === '其他') continue;
-      let agg = submarketMap.get(sub);
-      if (!agg) { agg = { name: sub, count: 0, lng: 0, lat: 0, coords: 0, area: 0, vacant: 0, rentSum: 0, rentArea: 0, leed: 0 }; submarketMap.set(sub, agg); }
-      agg.count += 1;
-      if (hasMapCoordinates(b)) { agg.lng += b.location_lng; agg.lat += b.location_lat; agg.coords += 1; }
-      const m = latestMetric(b); const area = Number(m?.total_area); const vacant = Number(m?.vacant_area); const rent = Number(m?.net_effective_rent);
-      if (Number.isFinite(area) && area > 0) { agg.area += area; if (Number.isFinite(vacant)) agg.vacant += vacant; }
-      if (Number.isFinite(area) && area > 0 && Number.isFinite(rent) && rent > 0) { agg.rentSum += rent * area; agg.rentArea += area; }
-      if (hasLeedCertification(b?.leed_certification)) agg.leed += 1;
-    }
-
     const submarkets: any[] = [];
-    for (const agg of submarketMap.values()) {
-      if (!agg.coords) continue;
-      const center: [number, number] = [agg.lng / agg.coords, agg.lat / agg.coords];
-      const rent = agg.rentArea > 0 ? agg.rentSum / agg.rentArea : 0;
-      const vacancy = agg.area > 0 ? (agg.vacant / agg.area) * 100 : Number.NaN;
-      const leedPct = agg.count > 0 ? (agg.leed / agg.count) * 100 : 0;
-      let accent: string = PALETTE.brand;
-      if (mode === 'rent') accent = rent <= 0 ? PALETTE.neutral : rent >= 300 ? PALETTE.extreme : rent >= 200 ? PALETTE.high : rent >= 100 ? PALETTE.medium : PALETTE.low;
-      else if (mode === 'vacancy') accent = !Number.isFinite(vacancy) ? PALETTE.neutral : vacancy >= 30 ? PALETTE.extreme : vacancy >= 20 ? PALETTE.high : vacancy >= 10 ? PALETTE.medium : PALETTE.low;
-      else if (mode === 'leed') accent = leedPct >= 60 ? '#3f715f' : leedPct >= 40 ? '#537f6c' : leedPct >= 20 ? '#6f927f' : leedPct > 0 ? '#88a493' : PALETTE.neutral;
-      const size = 76 + Math.min(14, Math.round(Math.sqrt(agg.count) * 1.6));
-      let primary = `¥${rent > 0 ? rent.toFixed(0) : '–'}`; let secondary = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '–';
-      if (mode === 'rent') { primary = `¥${rent > 0 ? rent.toFixed(1) : '–'}`; secondary = '平均租金'; }
-      else if (mode === 'vacancy') { primary = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '–'; secondary = '空置率'; }
-      else if (mode === 'leed') { primary = `${leedPct.toFixed(0)}%`; secondary = 'LEED'; }
-      const separator = mode === 'default' ? '<span class="map-submarket-bubble__sep">·</span>' : '';
-      const el = document.createElement('div');
-      el.className = 'map-submarket-bubble'; el.dataset.renderMode = mode; el.title = agg.name;
-      el.style.setProperty('--sm-accent', accent); el.style.setProperty('--sm-foreground', markerTextColor(accent)); el.style.setProperty('--sm-size', `${size}px`);
-      el.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(agg.name)}</div><div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
+    for (const { name, center, summary } of buildSubmarketBubbleEntries(buildings, overviewBuildings ?? buildings, c._allBuildingsCache ?? buildings, showAreaPlaceholders)) {
+      const el = createSubmarketBubble({ name, summary, mode, selected: c.getWorkspaceSubmarket?.() === name });
+      const openBrief = () => { if (activeTier === 'submarket') window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name } })); };
+      el.addEventListener('click', event => { event.stopPropagation(); openBrief(); });
       const marker = new Marker({ position: center, content: el, anchor: 'center', zooms: [3, 20], zIndex: 92, topWhenClick: true, opacity: 0 });
-      marker.on?.('click', () => { el.classList.add('is-expanding'); map.setZoomAndCenter?.(12.15, center, false, 340); window.setTimeout(() => el.classList.remove('is-expanding'), 420); });
+      marker.on?.('click', openBrief);
       submarkets.push(marker);
     }
     if (submarkets.length) map.add?.(submarkets);
@@ -299,8 +270,8 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     const detailItems: any[] = []; const nameItems: any[] = [];
     for (const b of buildings) {
       if (!hasMapCoordinates(b)) continue;
-      const v = visualFor(b, mode, groups); const m = latestMetric(b); const area = Number(m?.total_area); const grade = String(b?.grade ?? '').toUpperCase();
-      const rank = (grade.includes('A') || grade.includes('P') ? 2000 : grade.includes('BP') ? 1200 : 700) + (Number.isFinite(area) ? Math.min(999, Math.round(area / 1000)) : 0);
+      const v = visualFor(b, mode, groups); const m = latestMetric(b); const area = Number(m?.total_area); const grade = officeGrade(b?.grade);
+      const rank = (grade === 'a' ? 2000 : grade === 'park' ? 1200 : 700) + (Number.isFinite(area) ? Math.min(999, Math.round(area / 1000)) : 0);
       const icon = new LabelMarker({ name: String(b.id ?? ''), position: [b.location_lng, b.location_lat], zooms: [12.2, 20], opacity: 1, rank, zIndex: rank, anchor: 'center', extData: { id: b.id }, icon: { type: 'image', image: detailImage(v), size: [36, 36], anchor: 'center' } });
       icon.on?.('mouseover', (event: any) => { icon.setOpacity?.(1); icon.setzIndex?.(999999); c.showHoverTooltip?.(b, event?.originEvent?.clientX ?? event?.pixel?.getX?.() ?? 0, event?.originEvent?.clientY ?? event?.pixel?.getY?.() ?? 0); });
       icon.on?.('mouseout', () => { icon.setOpacity?.(1); icon.setzIndex?.(rank); c.hideHoverTooltip?.(); }); icon.on?.('click', () => { showSelection(b); c.openBuildingInfoWindow?.(b.id); });
@@ -320,11 +291,11 @@ export function installMapVisualContinuityV2(controller: MapController, containe
 
   };
 
-  const swap = (next: LayerSet, sig: string, buildings: any[], mode: RenderMode, groups?: any[]) => {
+  const swap = (next: LayerSet, sig: string, buildings: any[], mode: RenderMode, groups?: any[], showAreaPlaceholders = false, overviewBuildings?: any[]) => {
     if (disposeTimer !== null) window.clearTimeout(disposeTimer);
     if (outgoing) removeSet(map, outgoing);
     outgoing = current; current = next;
-    lastSignature = sig; lastBuildings = buildings; lastMode = mode; lastGroups = groups;
+    lastSignature = sig; lastBuildings = buildings; lastMode = mode; lastGroups = groups; lastShowAreaPlaceholders = showAreaPlaceholders; lastOverviewBuildings = overviewBuildings;
     c.refreshWorkspaceSelection?.();
     container.classList.add('map-marker-swapping');
     requestAnimationFrame(() => {
@@ -336,9 +307,10 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     });
   };
 
-  c.renderMarkers = ((input: any[], mode: RenderMode = 'default', _stats?: unknown, groups?: any[]) => {
+  c.renderMarkers = ((input: any[], mode: RenderMode = 'default', _stats?: unknown, groups?: any[], showAreaPlaceholders = false, overviewBuildings?: any[]) => {
     const buildings = Array.isArray(input) ? input : [];
-    const sig = signature(buildings, mode, groups);
+    const overview = overviewBuildings ?? buildings;
+    const sig = `${signature(buildings, mode, groups)}|${showAreaPlaceholders}|${overview === buildings ? '' : signature(overview, 'default')}`;
     if (sig === lastSignature) {
       if (pendingFrame !== null) {
         cancelAnimationFrame(pendingFrame);
@@ -351,8 +323,8 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     container.classList.add('map-marker-rendering');
     pendingFrame = requestAnimationFrame(() => {
       pendingFrame = null;
-      const next = build(buildings, mode, groups);
-      swap(next, sig, buildings, mode, groups);
+      const next = build(buildings, mode, groups, showAreaPlaceholders, overview);
+      swap(next, sig, buildings, mode, groups, showAreaPlaceholders, overview);
       container.classList.remove('map-marker-rendering');
     });
   }) as ControllerInternals['renderMarkers'];
@@ -369,7 +341,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   c.bounceMarker = ((id: string, type: 'existing' | 'future' = 'existing') => { if (type === 'future') return originalBounce?.(id, type); const label = current?.labels.get(id); if (!label) return originalBounce?.(id); label.setOpacity?.(.72); label.setzIndex?.(999999); requestAnimationFrame(() => label.setOpacity?.(1)); }) as ControllerInternals['bounceMarker'];
   c.stopBounceMarker = ((id: string, type: 'existing' | 'future' = 'existing') => { if (type === 'future') return originalStop?.(id, type); const label = current?.labels.get(id); if (!label) return originalStop?.(id); label.setOpacity?.(1); const rank = current?.baseRanks.get(id); if (rank !== undefined) label.setzIndex?.(rank); }) as ControllerInternals['stopBounceMarker'];
 
-  if (originalRefresh) c.refreshBuildingData = (async (id: string) => { await originalRefresh(id); const fresh = new Map((c._allBuildingsCache ?? []).map(b => [String(b?.id), b])); lastSignature = ''; c.renderMarkers(lastBuildings.map(b => fresh.get(String(b?.id)) ?? b), lastMode, undefined, lastGroups); }) as ControllerInternals['refreshBuildingData'];
+  if (originalRefresh) c.refreshBuildingData = (async (id: string) => { await originalRefresh(id); const fresh = new Map((c._allBuildingsCache ?? []).map(b => [String(b?.id), b])); lastSignature = ''; c.renderMarkers(lastBuildings.map(b => fresh.get(String(b?.id)) ?? b), lastMode, undefined, lastGroups, lastShowAreaPlaceholders, lastOverviewBuildings?.map(b => fresh.get(String(b?.id)) ?? b)); }) as ControllerInternals['refreshBuildingData'];
   if (originalFutureRender) c.renderFutureMarkers = ((input: any[], mode: RenderMode = 'default') => { const supplies = Array.isArray(input) ? input : []; const sig = JSON.stringify([mode, supplies]); if (sig === futureSignature) return; futureSignature = sig; originalFutureRender(supplies, mode); }) as ControllerInternals['renderFutureMarkers'];
   if (originalFutureClear) c.clearFutureMarkers = (() => { futureSignature = ''; originalFutureClear(); }) as ControllerInternals['clearFutureMarkers'];
 

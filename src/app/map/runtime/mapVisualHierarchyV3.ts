@@ -1,6 +1,6 @@
 'use client';
 import { createSubmarketBubble } from './mapSubmarketPresentation';
-import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
+import { leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
@@ -13,9 +13,7 @@ import { mapOptionalNumber } from '../model/vacancyMetrics';
 import { controllerInternals, type ControllerInternals } from './mapNativeMarkerRenderer';
 import { latestFormalMetric } from '../model/quarterlyFacts';
 import { officeGrade } from '../model/marketIdentity';
-import { summarizeSubmarkets } from '../model/submarketOverview';
-import { normalizeMapSubmarket } from '../model/mapDomain';
-import { createAreaPlaceholder, getAreaPlaceholders } from './mapSubmarketOverview';
+import { buildSubmarketBubbleEntries, mapLeedLevel } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerTier = 'submarket' | 'dot' | 'building';
@@ -145,7 +143,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     fontSize = text.length > 3 ? 10.5 : 12;
     background = !hasValue ? PALETTE.neutral : percent >= 30 ? PALETTE.extreme : percent >= 20 ? PALETTE.high : percent >= 10 ? PALETTE.medium : PALETTE.low;
   } else {
-    const leed = String(building?.leed_certification ?? '').toUpperCase();
+    const leed = mapLeedLevel(building?.leed_certification);
     if (leed.includes('PLATINUM')) {
       background = '#d9edf3'; border = '#68aebf'; textColor = '#225a68'; text = 'P';
     } else if (leed.includes('GOLD')) {
@@ -219,7 +217,7 @@ function applyOpacity(set: LayerSet | null, state: OpacityState, multiplier = 1)
   const dot = state.dot * multiplier;
   const detail = state.detail * multiplier;
   const names = state.names * multiplier;
-  for (const marker of set.submarkets) marker.setOpacity?.(sub);
+  for (const marker of set.submarkets) marker.setOpacity?.(sub >= .5 ? 1 : 0);
   set.mass?.setOpacity?.(dot);
   set.detail?.setOpacity?.(detail);
   set.names?.setOpacity?.(names);
@@ -408,66 +406,18 @@ export function installMapVisualHierarchyV3(
   };
 
   const build = (buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean, overviewBuildings?: any[]): LayerSet => {
-    const summaries = summarizeSubmarkets(overviewBuildings ?? buildings);
     const labels = new Map<string, any>();
     const ranks = new Map<string, number>();
-    const aggregates = new Map<string, any>();
-
-    for (const building of buildings) {
-      const name = normalizeMapSubmarket(building?.submarket);
-      if (!name || name === '其他') continue;
-      let aggregate = aggregates.get(name);
-      if (!aggregate) {
-        aggregate = { name, count: 0, lng: 0, lat: 0, coords: 0, leed: 0 };
-        aggregates.set(name, aggregate);
-      }
-      aggregate.count += 1;
-      if (hasMapCoordinates(building)) {
-        aggregate.lng += building.location_lng;
-        aggregate.lat += building.location_lat;
-        aggregate.coords += 1;
-      }
-      if (hasLeedCertification(building?.leed_certification)) aggregate.leed += 1;
-    }
-
     const submarkets: any[] = [];
-    const positionedNames = new Set<string>();
-    for (const aggregate of aggregates.values()) {
-      if (!aggregate.coords) continue;
-      positionedNames.add(aggregate.name);
-      const center: [number, number] = [aggregate.lng / aggregate.coords, aggregate.lat / aggregate.coords];
-      const summary = summaries.get(aggregate.name);
-      const leedPercent = aggregate.count > 0 ? (aggregate.leed / aggregate.count) * 100 : 0;
-      const element = createSubmarketBubble({ name: aggregate.name, summary, mode, leed: leedPercent, selected: c.getWorkspaceSubmarket?.() === aggregate.name });
+    for (const { name, center, summary } of buildSubmarketBubbleEntries(buildings, overviewBuildings ?? buildings, c._allBuildingsCache ?? buildings, showAreaPlaceholders)) {
+      const element = createSubmarketBubble({ name, summary, mode, selected: c.getWorkspaceSubmarket?.() === name });
       const openBrief = () => {
-        window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: aggregate.name } }));
+        if (currentTier === 'submarket' && !zooming) window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name } }));
       };
-      element.addEventListener('click', event => {
-        event.stopPropagation();
-        if (currentTier === 'submarket' && !zooming) openBrief();
-      });
-      const marker = new Marker({
-        position: center,
-        content: element,
-        anchor: 'center',
-        zooms: [3, 20],
-        zIndex: 92,
-        topWhenClick: true,
-        opacity: 0,
-      });
-      marker.on?.('click', () => {
-        if (currentTier !== 'submarket' || zooming) return;
-        openBrief();
-      });
+      element.addEventListener('click', event => { event.stopPropagation(); openBrief(); });
+      const marker = new Marker({ position: center, content: element, anchor: 'center', zooms: [3, 20], zIndex: 92, topWhenClick: true, opacity: 0 });
+      marker.on?.('click', openBrief);
       submarkets.push(marker);
-    }
-    for (const { name, center } of getAreaPlaceholders(showAreaPlaceholders, positionedNames)) {
-      const content = createAreaPlaceholder(name, () => {
-        if (currentTier === 'submarket' && !zooming) {
-          window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name } }));
-        }
-      }, mode, summaries.get(name), c.getWorkspaceSubmarket?.() === name);
-      submarkets.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, 20], zIndex: 92, opacity: 0 }));
     }
     if (submarkets.length) map.add?.(submarkets);
 

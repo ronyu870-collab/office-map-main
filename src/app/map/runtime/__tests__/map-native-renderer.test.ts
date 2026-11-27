@@ -142,7 +142,7 @@ it('keeps legacy controller summaries within the supplied result scope', () => {
   const render = (overview?: typeof all) => {
     controller.submarketMarkers=[];
     MapController.prototype.renderMarkers.call(controller,[all[0]] as never,'default',undefined,undefined,false,overview as never);
-    return new DOMParser().parseFromString(controller.submarketMarkers[0].options.content,'text/html').body.textContent;
+    return (controller.submarketMarkers[0].options.content as HTMLElement).textContent;
   };
   expect(render()).toContain('甲乙级 1 个'); expect(render()).toContain('¥100.0');
   expect(render(all)).toContain('甲乙级 2 个'); expect(render(all)).toContain('¥200.0');
@@ -165,13 +165,13 @@ it.each(['v3', 'v2', 'native'] as const)('%s summarizes the filtered observation
     const first = await render([all[0]]);
     expect(first).toHaveLength(1); expect(first[0].textContent).toContain('¥100');
     expect(first[0].textContent).toContain('10.0%');
-    if (version !== 'v2') expect(first[0].textContent).toContain('甲乙级 1 个');
+    expect(first[0].textContent).toContain('甲乙级 1 个');
     const second = await render([all[1]]);
     expect(second).toHaveLength(1); expect(second[0].textContent).toContain('¥300');
     expect(second[0].textContent).toContain('30.0%');
     expect(await render([])).toEqual([]);
     // A caller can still request a separately declared overview scope.
-    if (version !== 'v2') {
+    {
       const explicit = await render([all[0]], all);
       expect(explicit[0].textContent).toContain('甲乙级 2 个');
       expect(explicit[0].textContent).toContain('¥200');
@@ -813,6 +813,7 @@ it.each(['v3','v2','native'] as const)('%s excludes explicit negatives and missi
     await flushFrames();
     const bubble=harness.markerInstances.map(m=>m.options.content).find(el=>el instanceof HTMLElement&&el.querySelector('.map-submarket-bubble__name')?.textContent==='CBD') as HTMLElement;
     expect(bubble).toBeTruthy();
-    expect(bubble.textContent).toMatch(/LEED\s*17%|17%\s*LEED/);
+    expect(bubble.textContent).toContain('已认证 1 个');
+    expect(bubble.textContent).not.toContain('%');
   } finally {cleanup?.();}
 });

@@ -18,14 +18,14 @@ export function MapMarketDataDetails({ title, stats, active }: { title: string; 
     label={<>
       <h1 title={title}>{title}</h1>
       <span className="map-market-context" id="map-market-context">
-        {Object.keys(stats.periods ?? {}).length > 1 ? '筛选存量 · 混合季度' : period}
+        {Object.keys(stats.periods ?? {}).length > 1 ? '当前存量 · 跨季度' : period}
       </span>
       <span className="sr-only">，{marketDataLabel}</span>
     </>}>
     <div className={styles.methodology}>
       <p>{period}</p>
       {area && <p>已知存量面积 {area} ㎡</p>}
-      <p>范围为平台收录、命中当前筛选的存量项目，含产业园。有坐标项目数包含当前地图显示的未来供应。</p>
+      <p>范围为平台收录、命中当前筛选的存量项目，含产业园。地图项目数包含当前地图显示的未来供应。</p>
       <p>{latestMethod}</p>
       {stats.rentSample && stats.vacancySample && <>
         <dl className={styles.methodologySamples}>

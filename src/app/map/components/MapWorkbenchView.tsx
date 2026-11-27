@@ -16,7 +16,7 @@ import { MapWorkspaceLayout } from './MapWorkspaceLayout';
 import { WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { MapDisclosure } from './MapDisclosure';
 import { MapMarketDataDetails } from './MarketDataDetails';
-import { SUBMARKET_COLORS, SUBMARKET_NEUTRAL } from '../runtime/mapSubmarketPresentation';
+import { submarketScale, SUBMARKET_LEED_COLORS, SUBMARKET_NEUTRAL } from '../runtime/mapSubmarketPresentation';
 import { compactMarketArea } from '../model/mapMetricPresentation';
 import { futureSupplyImage } from '../runtime/mapSelectionMarker';
 import { animateWorkspace, WORKSPACE_MOTION } from '../runtime/workspaceMotion';
@@ -244,14 +244,14 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
 
   const config: { title: string; items: LegendItem[] } = aggregate && (mode === 'rent' || mode === 'vacancy') ? {
     title: mode === 'rent' ? '子市场净有效租金（元/㎡/月）' : '子市场空置率',
-    items: metricConfig[mode].items.map((item, index) => ({ label: item.label, style: { backgroundColor: SUBMARKET_COLORS[index] ?? SUBMARKET_NEUTRAL } })),
+    items: metricConfig[mode].items.map((item, index) => ({ label: item.label, style: { backgroundColor: submarketScale(mode)[index] ?? SUBMARKET_NEUTRAL } })),
   } : aggregate && mode === 'leed' ? {
-    title: '子市场 LEED 认证率', items: [
-      { label: '<20%', style: { backgroundColor: SUBMARKET_COLORS[0] } },
-      { label: '20–<40%', style: { backgroundColor: SUBMARKET_COLORS[1] } },
-      { label: '40–<60%', style: { backgroundColor: SUBMARKET_COLORS[2] } },
-      { label: '≥60%', style: { backgroundColor: SUBMARKET_COLORS[3] } },
-      { label: '认证未收录 / 区域资料', style: { backgroundColor: SUBMARKET_NEUTRAL } },
+    title: '子市场 LEED 认证', items: [
+      { label: '<20%', style: { backgroundColor: SUBMARKET_LEED_COLORS[0] } },
+      { label: '20–<40%', style: { backgroundColor: SUBMARKET_LEED_COLORS[1] } },
+      { label: '40–<60%', style: { backgroundColor: SUBMARKET_LEED_COLORS[2] } },
+      { label: '≥60%', style: { backgroundColor: SUBMARKET_LEED_COLORS[3] } },
+      { label: '记录不全 / 区域资料', style: { backgroundColor: SUBMARKET_NEUTRAL } },
     ],
   } : aggregate && mode === 'default' ? {
     title: '子市场', items: [{ label: '租金 · 空置率 · 甲乙级数量 / 产业园', className: 'bg-[#245b78]' }, { label: '区域资料', style: { backgroundColor: SUBMARKET_NEUTRAL } }],
@@ -276,7 +276,7 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
           </div>
         ))}
       </div>
-      {aggregate ? <p className="map-legend-note">气泡等大，不表示市场规模。租金与空置率为甲乙级正式观测；产业园单列数量。颜色仅表示数值区间。</p> : null}
+      {aggregate ? <p className="map-legend-note">{mode === 'leed' ? '认证率仅用于记录完整的市场；记录不全时显示已认证数量。' : '甲乙级与园区行情分别统计；纯园区展示园区行情。气泡颜色表示指标区间，不代表市场规模。'}</p> : null}
       <label className="map-legend-places">
         <input type="checkbox" checked={pointsVisible} disabled={!mapReady || !onPointsChange} onChange={event => onPointsChange?.(event.target.checked)} />
         底图地点标注
@@ -294,7 +294,7 @@ function MetricStrip({ stats, busy }: { stats: MapStatsState; busy: boolean }) {
   const metrics = [
     { label: '净有效租金', value: stats.avgRent, unit: '元/㎡/月', singleSample: stats.rentSample?.count === 1 },
     { label: '空置率', value: stats.overallVacancyPct, unit: '%', singleSample: stats.vacancySample?.count === 1 },
-    { label: '有坐标项目', value: stats.visibleProjectCount, unit: '个' },
+    { label: '地图项目', value: stats.visibleProjectCount, unit: '个' },
     { label: '存量面积', value: area.value, unit: area.unit, showsUpdating: true },
   ];
 
