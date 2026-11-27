@@ -186,7 +186,7 @@ describe('MapWorkbenchView', () => {
   it('keeps supply and project-list surfaces in the visual layer', () => {
     renderWorkbench({ isSupplyOpen: true, isListVisible: true, rightKind: 'list', canOpenList: true });
 
-    expect(screen.getByText('已纳入统计 0 个项目')).toBeInTheDocument();
+    expect(screen.getByText('0 个项目')).toBeInTheDocument();
     expect(screen.getByTestId('floating-building-list')).toBeInTheDocument();
   });
 
@@ -275,8 +275,11 @@ it('keeps all four metrics visible and updates their values without opening a di
   expect(within(metrics).getByText('12.0')).toBeVisible();
   expect(within(metrics).getByText('80')).toBeVisible();
   expect(within(metrics).getByText('100')).toBeVisible();
-  fireEvent.click(within(metrics).getByText('100'));
-  expect(screen.getByText('1,000,000 平方米')).toBeVisible();
+  expect(metrics.querySelector('summary')).toBeNull();
+  fireEvent.click(screen.getByRole('heading', { name: '北京办公楼市场地图' }));
+  const methodology = screen.getByRole('region', { name: '数据与统计口径' });
+  expect(methodology).toHaveTextContent('已知存量面积 1,000,000 ㎡');
+  expect(methodology).toHaveTextContent('有坐标项目数包含当前地图显示的未来供应');
   fireEvent.keyDown(window, { key: 'Escape' });
   expect(screen.queryByText('统计口径')).not.toBeInTheDocument();
   expect(document.querySelector('.map-disclosure[open]')).toBeNull();

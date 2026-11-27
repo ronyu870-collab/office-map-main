@@ -18,6 +18,17 @@
 .submarket-header-context p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .submarket-header-context .submarket-headline { color: var(--cd-color-text-primary); }
 
+/* The compact sheet is used to fit the map camera before the profile loads. */
+.submarket-research-panel[data-submarket-layout="quick"] .submarket-header-context {
+  display: block;
+  min-block-size: 1.5em;
+}
+.submarket-research-panel[data-submarket-layout="quick"] .submarket-headline {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .submarket-research-tabs {
   display: flex;
   flex: 0 0 auto;
@@ -67,7 +78,7 @@
   margin-bottom: 8px;
 }
 .submarket-chapter-heading h3 { margin-bottom: 0; }
-.submarket-grade-selector, .submarket-overview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.submarket-grade-selector { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
 .submarket-grade-selector { margin-bottom: 12px; gap: 4px; }
 .submarket-grade-selector button {
   min-height: 44px;
@@ -102,9 +113,7 @@
   margin-bottom: 12px;
   color: var(--cd-color-text-secondary);
 }
-.submarket-read-status p, .submarket-overview-profile p { margin: 0; }
-.submarket-overview-profile { border-top: 1px solid var(--cd-color-border); padding-top: 12px; }
-.submarket-overview-profile p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.submarket-read-status p { margin: 0; }
 
 .submarket-editor-surface { max-width: 55rem; margin-inline: auto; }
 .submarket-projects { container: submarket-projects / inline-size; }
@@ -211,3 +220,28 @@
 .submarket-intelligence-editor > .submarket-quiet-action { justify-self: start; }
 .submarket-intelligence-source-choices label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .submarket-intelligence-version { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+
+.submarket-projects { color: var(--cd-color-text-primary); }
+.submarket-project-heading, .submarket-project-role { font-size: inherit; font-weight: 600; }
+.submarket-project-heading, .submarket-project-reason, .submarket-project-metrics { margin: 0; }
+.submarket-project-reason, .submarket-project-empty { color: var(--cd-color-text-secondary); }
+.submarket-project-role { color: var(--cd-color-text-primary); }
+.submarket-project-grid { display: grid; column-gap: var(--cd-space-5); margin: var(--cd-space-2) 0 0; padding: 0; list-style: none; }
+.submarket-project-row { min-width: 0; border-top: 1px solid var(--cd-color-border); padding-block-end: var(--cd-space-3); }
+.submarket-project-link {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cd-space-2);
+  border-radius: var(--cd-radius-sm);
+  color: var(--cd-color-brand);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.submarket-project-link:hover { text-decoration: underline; }
+.submarket-project-link:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: -2px; }
+
+.map-methodology-trigger { justify-self: start; }
+.map-methodology-trigger > summary { background: transparent; border-color: transparent; padding-inline: 0; }

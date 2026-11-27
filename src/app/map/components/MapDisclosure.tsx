@@ -9,7 +9,9 @@ export function MapDisclosure({ label, children, className = '', active = true, 
   const root = React.useRef<HTMLDetailsElement>(null);
   const content = React.useRef<HTMLDivElement>(null);
   const lastFocused = React.useRef<HTMLElement | null>(null);
-  const [open, setOpen] = React.useState(false);
+  const [requestedOpen, setOpen] = React.useState(false);
+  const open = active && requestedOpen;
+  const keyboardOpen = React.useRef(false);
   const presence = useSurfacePresence(open, children);
   React.useLayoutEffect(() => {
     if (!open) { lastFocused.current = null; return; }
@@ -39,7 +41,11 @@ export function MapDisclosure({ label, children, className = '', active = true, 
   React.useEffect(() => {
     if (open && actionMenu) content.current?.querySelector<HTMLElement>('button:not([disabled]), a[href]')?.focus({ preventScroll: true });
   }, [open, actionMenu]);
-  React.useEffect(() => { if (!active) { root.current?.removeAttribute('open'); setOpen(false); } }, [active]);
+  React.useLayoutEffect(() => {
+    if (open && keyboardOpen.current && !actionMenu) content.current?.focus({ preventScroll: true });
+    keyboardOpen.current = false;
+  }, [open, actionMenu]);
+  React.useLayoutEffect(() => { if (!active) { root.current?.removeAttribute('open'); setOpen(false); } }, [active]);
   React.useLayoutEffect(() => {
     if (!open) return;
     const place = () => {
@@ -49,25 +55,48 @@ export function MapDisclosure({ label, children, className = '', active = true, 
       const viewport = window.visualViewport;
       const left = viewport?.offsetLeft ?? 0; const top = viewport?.offsetTop ?? 0;
       const width = viewport?.width ?? window.innerWidth; const height = viewport?.height ?? window.innerHeight;
-      const panelWidth = Math.min(preferredWidth, width - 24);
+      const gutter = 12, gap = 8;
+      const panelWidth = Math.max(0, Math.min(preferredWidth, width - 2 * gutter));
       panel.style.width = `${panelWidth}px`;
-      panel.style.left = `${Math.max(left + 12, Math.min(box.left, left + width - panelWidth - 12))}px`;
-      panel.style.maxHeight = `${Math.max(80, height - 24)}px`;
-      const panelHeight = Math.min(panel.scrollHeight, height - 24);
-      panel.style.top = `${Math.max(top + 12, Math.min(box.bottom + 8, top + height - panelHeight - 12))}px`;
+      panel.style.left = `${Math.max(left + gutter, Math.min(box.left, left + width - panelWidth - gutter))}px`;
+      const availableHeight = Math.max(0, height - 2 * gutter);
+      const below = top + height - gutter - box.bottom - gap;
+      const above = box.top - gap - top - gutter;
+      const naturalHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
+      const flip = below < naturalHeight && above > below;
+      const room = flip ? above : below;
+      const panelHeight = Math.min(naturalHeight, room >= 120 ? room : availableHeight);
+      panel.style.maxHeight = `${room >= 120 ? room : availableHeight}px`;
+      const preferredTop = flip ? box.top - gap - panelHeight : box.bottom + gap;
+      panel.style.top = `${Math.max(top + gutter, Math.min(preferredTop, top + height - panelHeight - gutter))}px`;
     };
-    const close = () => { const focused = content.current?.contains(document.activeElement); root.current?.removeAttribute('open'); setOpen(false); if (focused) root.current?.querySelector('summary')?.focus({ preventScroll: true }); };
+    const isHidden = () => Boolean(root.current?.closest('[hidden], [inert], [aria-hidden="true"]'));
+    const close = () => {
+      const focused = content.current?.contains(document.activeElement);
+      root.current?.removeAttribute('open');
+      setOpen(false);
+      if (focused && !isHidden()) root.current?.querySelector('summary')?.focus({ preventScroll: true });
+    };
     const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node) && !content.current?.contains(event.target as Node)) close(); };
     const escape = (event: KeyboardEvent) => {
-      if (!root.current?.open || event.key !== 'Escape' || event.defaultPrevented || document.querySelector('dialog[open], [aria-modal="true"], [data-building-metrics-edit], #__colliers_contact_modal_overlay')) return;
-      event.preventDefault(); event.stopPropagation(); close(); root.current?.querySelector('summary')?.focus({ preventScroll: true });
+      if (!root.current?.open || event.key !== 'Escape' || event.defaultPrevented) return;
+      if (isHidden()) { close(); return; }
+      if (document.querySelector('dialog[open], [aria-modal="true"], [data-building-metrics-edit], #__colliers_contact_modal_overlay')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+      root.current.querySelector('summary')?.focus({ preventScroll: true });
     };
     place();
-    window.addEventListener('resize', place); window.addEventListener('scroll', place, true);
+    const repositionOnScroll = (event: Event) => {
+      if (event.target instanceof Node && content.current?.contains(event.target)) return;
+      place();
+    };
+    window.addEventListener('resize', place); window.addEventListener('scroll', repositionOnScroll, true);
     window.visualViewport?.addEventListener('resize', place); window.visualViewport?.addEventListener('scroll', place);
     document.addEventListener('pointerdown', outside); window.addEventListener('keydown', escape, true);
     return () => {
-      window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place); window.removeEventListener('scroll', repositionOnScroll, true);
       window.visualViewport?.removeEventListener('resize', place); window.visualViewport?.removeEventListener('scroll', place);
       document.removeEventListener('pointerdown', outside); window.removeEventListener('keydown', escape, true);
     };
@@ -80,13 +109,15 @@ export function MapDisclosure({ label, children, className = '', active = true, 
       // Native toggle events are deferred/coalesced. Commit the active menu in
       // the click event so an immediate Escape cannot dismiss an older menu.
       event.preventDefault();
+      if (!active) return;
       const next = !root.current?.open;
+      keyboardOpen.current = next && event.detail === 0;
       if (root.current) root.current.open = next;
       if (next) document.querySelectorAll<HTMLDetailsElement>('.map-disclosure[open]').forEach(el => { if (el !== root.current) el.open = false; });
       setOpen(next);
     }}>{label}<ChevronDown size={14} aria-hidden="true" /></summary>
-    {presence.present ? createPortal(<div ref={content} id={id} className="map-disclosure-content" onFocusCapture={event => { if (event.target instanceof HTMLElement) lastFocused.current = event.target; }} onClick={actionMenu ? event => {
+    {presence.present ? createPortal(<div ref={content} id={id} className="map-disclosure-content" tabIndex={-1} role={heading ? 'region' : undefined} aria-labelledby={heading ? `${id}-heading` : undefined} onFocusCapture={event => { if (event.target instanceof HTMLElement) lastFocused.current = event.target; }} onClick={actionMenu ? event => {
       if ((event.target as HTMLElement).closest('button:not([disabled]), a[href]')) closeActionMenu();
-    } : undefined} inert={!open || undefined} aria-hidden={!open || undefined}>{heading ? <div className="map-disclosure-heading"><h2>{heading}</h2><button type="button" className="workspace-icon" aria-label={dismissLabel} title={dismissLabel} onClick={closeActionMenu}><X size={16} aria-hidden="true" /></button></div> : null}{presence.children}</div>, document.body) : null}
+    } : undefined} inert={!open || undefined} aria-hidden={!open || undefined}>{heading ? <div className="map-disclosure-heading"><h2 id={`${id}-heading`}>{heading}</h2><button type="button" className="workspace-icon" aria-label={dismissLabel} title={dismissLabel} onClick={closeActionMenu}><X size={16} aria-hidden="true" /></button></div> : null}{presence.children}</div>, document.body) : null}
   </details>;
 }

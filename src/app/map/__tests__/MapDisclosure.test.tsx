@@ -75,3 +75,23 @@ it('keeps keyboard focus in an open filter list when the focused condition is re
   expect(screen.getByRole('button',{name:'关闭条件列表'})).toHaveFocus();
   expect(screen.getByText('全部条件')).toHaveAttribute('aria-expanded','true');
 });
+
+it('lets a newly active workspace handle Escape after the previous disclosure is hidden', async () => {
+  const escapeWorkspace = vi.fn();
+  function Surface({ hidden }: { hidden: boolean }) {
+    return <div onKeyDown={event => { if (event.key === 'Escape') escapeWorkspace(); }}>
+      <div hidden={hidden}><MapDisclosure label="图例">项目类型</MapDisclosure></div>
+      <button type="button">返回地图</button>
+    </div>;
+  }
+  const { rerender } = render(<Surface hidden={false} />);
+  fireEvent.click(screen.getByText('图例'));
+  expect(await screen.findByText('项目类型')).toBeVisible();
+
+  rerender(<Surface hidden />);
+  const back = screen.getByRole('button', { name: '返回地图' });
+  back.focus();
+  fireEvent.keyDown(back, { key: 'Escape' });
+  expect(escapeWorkspace).toHaveBeenCalledOnce();
+  expect(back).toHaveFocus();
+});

@@ -23,7 +23,7 @@ export async function verifyFutureConditions(page,{width,stock,future}) {
     const calendar=page.getByRole('region',{name:'未来供应',exact:true});
     const toggle=page.getByRole('button',{name:'未来供应',exact:true});
     if(await toggle.getAttribute('aria-pressed')!=='true') await toggle.click();
-    await calendar.getByText(`已纳入统计 ${total} 个项目`,{exact:true}).waitFor();
+    await calendar.locator('.workspace-panel-subtitle, .workspace-heading-meta').filter({hasText:new RegExp(`^${total} 个项目$`)}).waitFor();
     if(!total) assert.equal(await calendar.getByRole('button',{name:new RegExp('^'+future[0].name)}).count(),0);
   };
   console.log(`future conditions ${width}: starting`);
@@ -48,7 +48,8 @@ export async function verifyFutureConditions(page,{width,stock,future}) {
   await count(0);await mapSupplies(0);
   await checkCalendar(0);console.log(`future conditions ${width}: missing rent excluded`);
   await page.getByRole('button',{name:'项目列表',exact:true}).click();
-  await list.getByText('当前地图筛选无匹配项目，可调整筛选条件。',{exact:true}).waitFor();
+  await list.getByText('当前地图筛选无匹配项目',{exact:true}).waitFor();
+  await list.getByRole('button', { name: '调整地图筛选', exact: true }).waitFor();
   await capture(`/tmp/map-future-filter-missing-${width}.png`);
   await showFilters();
   await pane.getByRole('button',{name:'移除第2项筛选条件',exact:true}).click();

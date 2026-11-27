@@ -161,11 +161,18 @@ try {
       assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true');
       const liveStats = page.getByRole('region', { name: '市场实时指标', exact: true });
       await liveStats.getByText('有坐标项目', { exact: true }).waitFor();
-      assert.equal(await liveStats.locator('summary').count(), 1, 'only the area precision disclosure is present');
-      await liveStats.locator('summary').click();
-      await page.getByText('36,077,944 平方米',{exact:true}).waitFor();
+      assert.equal(await liveStats.locator('summary').count(), 0, 'metric values are directly readable');
+      const methodsTrigger = page.locator('.map-context-disclosure > summary');
+      await methodsTrigger.press('Enter');
+      const methodsPanel = page.getByRole('region', { name: '数据与统计口径', exact: true });
+      await methodsPanel.getByText('已知存量面积 36,077,944 ㎡', { exact: true }).waitFor();
+      const methodsBounds = await methodsPanel.boundingBox();
+      assert.ok(methodsBounds.x >= 0 && methodsBounds.x + methodsBounds.width <= width &&
+        methodsBounds.y >= 0 && methodsBounds.y + methodsBounds.height <= height, 'statistical details fit the viewport');
+      assert.ok(await methodsPanel.evaluate(el => el === document.activeElement), 'keyboard opens the portal at its content');
       await page.keyboard.press('Escape');
-      await page.getByText('36,077,944 平方米',{exact:true}).waitFor({state:'detached'});
+      await page.locator('.map-disclosure-content').waitFor({ state: 'detached' });
+      assert.ok(await methodsTrigger.evaluate(el => el === document.activeElement), 'statistical details return keyboard focus');
       const metricBounds = await liveStats.boundingBox();
       assert.ok(metricBounds.x >= 0 && metricBounds.x + metricBounds.width <= width, 'metrics fit the viewport');
       if (width > 1100) assert.ok(metricBounds.width <= 520, `content-sized metrics width ${metricBounds.width}`);

@@ -71,6 +71,7 @@ export function useSubmarketWorkspaceDetail(name: string) {
 
   const { payload, loading, error } = read;
   const profile = payload?.profilePublished ? payload.profile : null;
-  const trendState: SubmarketResearchTrendState = loading ? 'loading' : error || payload?.trendError ? 'error' : 'ready';
+  const trendState: SubmarketResearchTrendState = payload && !payload.trendError ? 'ready'
+    : loading ? 'loading' : error || payload?.trendError ? 'error' : 'ready';
   return { payload, profile, loading, error, trendState, retry, editor, saving, saveError, beginEditing, cancelEditing, save };
 }

@@ -222,7 +222,6 @@ export default function FloatingBuildingList({ buildings, active = true, display
               <button type="button" aria-pressed={viewMode === 'compact'} onClick={() => setViewMode('compact')}>列表</button>
               <button type="button" aria-pressed={viewMode === 'cards'} onClick={() => setViewMode('cards')}>详情</button>
             </div>
-            {onComparisonSelectionChange ? <button type="button" className="workspace-business-action" onClick={() => setSelectionMode(true)}>选择楼宇并导出对比图</button> : null}
           </MapDisclosure>
         </div>
       </div>
@@ -247,8 +246,9 @@ export default function FloatingBuildingList({ buildings, active = true, display
 
         {results.length === 0 ? (
           <div className="flex h-full min-h-48 flex-col items-center justify-center px-5 text-center">
-            <div className="text-[14px] font-semibold text-[#667085]">未找到符合条件的楼宇</div>
-            <div className="mt-1 text-sm text-[#596779]">{query ? '列表搜索没有匹配项目，可清除列表搜索。' : '当前地图筛选无匹配项目，可调整筛选条件。'}</div>
+            <p className="m-0 text-[14px] font-semibold text-[var(--cd-color-text-secondary)]">
+              {query ? '列表搜索无匹配项目' : '当前地图筛选无匹配项目'}
+            </p>
             {query ? <button type="button" className="workspace-business-action" onClick={() => setQuery('')}>清除列表搜索</button> : null}
             {onAdjustFilters ? <button type="button" className="workspace-business-action" onClick={onAdjustFilters}>调整地图筛选</button> : null}
           </div>
@@ -271,11 +271,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
           <div>{visibleBuildings.map(renderCompactRow)}</div>
         )}
 
-        {hasMore ? (
-          <div ref={loadMoreTriggerRef} className="flex items-center justify-center border-t border-[#e7ebf0] py-3 text-[14px] text-[#596779]">继续加载…</div>
-        ) : results.length > INITIAL_LOAD_COUNT ? (
-          <div className="border-t border-[#e7ebf0] py-2.5 text-center text-[14px] text-[#596779]">已加载全部 {results.length} 个项目</div>
-        ) : null}
+        {hasMore && <div ref={loadMoreTriggerRef} aria-hidden="true" className="h-3" />}
       </div>
       {exportOpen && active ? createPortal(
         <div className="map-workspace-modal pointer-events-auto fixed inset-0 z-[800] flex items-center justify-center bg-[#172033]/40 p-4">

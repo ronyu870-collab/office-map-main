@@ -5,7 +5,11 @@ export async function verifyProjectTrendReading(page,width) {
   const trendPanel=page.getByRole('region',{name:'项目历史趋势',exact:true});
   const expanded = (width<640 || width===844) && !await page.locator('.map-workspace-layout[data-expanded]').count();
   if(expanded) await clickWorkspaceAction(page,'全屏阅读工作区');
-  await trendPanel.getByText('最新季度与此前五年年末；缺失数据不补零。',{exact:true}).waitFor();
+  const methods = trendPanel.getByText('数据与统计口径', {exact: true});
+  await methods.focus();
+  await page.keyboard.press('Enter');
+  await trendPanel.getByText('来源为本项目已发布的季度记录。',{exact:false}).waitFor({state:'visible'});
+  await page.keyboard.press('Enter');
   await page.locator('#info-chart-container canvas').scrollIntoViewIfNeeded();
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.waitForFunction(()=>{
