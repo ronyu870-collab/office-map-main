@@ -4,14 +4,28 @@ begin;
 -- and issuance timestamps. Both the preview and the final commit use this.
 create function private.pitch_quarter_edition_evidence(p_snapshots jsonb) returns jsonb
 language sql immutable set search_path='' as $$
-  with receipts as (
-    select jsonb_build_array(s->>'id',s->>'entityId',r->>'operation',r->'parameters'->'executedPlan') intent,
-      jsonb_build_array(r->>'sourceFingerprint',r->'table') version
-    from jsonb_array_elements(case when jsonb_typeof(p_snapshots)='array' then p_snapshots else '[]'::jsonb end) snaps(s)
+  with quarterly as (
+    select s,r,r->'parameters' p from jsonb_array_elements(case
+      when jsonb_typeof(p_snapshots)='array' then p_snapshots else '[]'::jsonb end) snaps(s)
     cross join lateral jsonb_array_elements(case when jsonb_typeof(s->'results')='array' then s->'results' else '[]'::jsonb end) results(r)
     where s->'binding'->>'domain'='quarter' and s->'binding'->>'disclosure'='internal'
-      and s?'id' and s?'entityId' and jsonb_typeof(r->'parameters'->'executedPlan')='object'
+  ), queries as (
+    select s,r,case
+      when jsonb_typeof(p->'executedPlan')='object' then p->'executedPlan'
+      -- Reviewed market reports archive the original query envelope. Its
+      -- observed timestamp and returned groups are not query inputs.
+      when jsonb_typeof(p->'scope')='object' and jsonb_typeof(p->'scope'->'pitchScope')='string'
+        and jsonb_typeof(p->'scope'->'buildingIds')='array' and jsonb_typeof(p->'metric')='string'
+        and ((r->>'operation' in ('aggregate','group_aggregate') and jsonb_typeof(p->'period')='object')
+          or (r->>'operation'='trend' and jsonb_typeof(p->'start')='object' and jsonb_typeof(p->'end')='object'))
+      then jsonb_set(p-'groups','{scope}',(p->'scope')-'readAt') end plan
+    from quarterly
+  ), receipts as (
+    select case when s?'id' and s?'entityId' and plan is not null
       and coalesce(r->>'sourceFingerprint','') ~ '^[0-9a-f]{64}$' and jsonb_typeof(r->'table')='object'
+      then jsonb_build_array(s->>'id',s->>'entityId',r->>'operation',plan) end intent,
+      jsonb_build_array(r->>'sourceFingerprint',r->'table') version
+    from queries
   )
   select case when count(*)>0 and count(*)=count(distinct intent) then
     jsonb_build_object('intent',jsonb_agg(intent order by intent),

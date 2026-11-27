@@ -482,6 +482,18 @@ try {
    sourceVersion[0].results[0].sourceFingerprint = 'f'.repeat(64);
    assert.equal(await probeQuarterCorrection(admin, authored, sourceVersion), 'changed');
 
+   const queryEnvelope = structuredClone(identical.snapshots);
+   queryEnvelope[0].results[0].parameters = { period: { year: 2026, quarter: 3 }, metric: 'rent',
+     scope: { pitchScope: scope.city, buildingIds: BUILDINGS, readAt: '2026-11-27T08:00:00Z' } };
+   const stableVersion = async snapshots => (await db.setup.query(
+     'select private.pitch_quarter_edition_evidence($1::jsonb) evidence', [JSON.stringify(snapshots)])).rows[0].evidence;
+   const savedEnvelope = await stableVersion(queryEnvelope);
+   assert.ok(savedEnvelope);
+   queryEnvelope[0].results[0].parameters.scope.readAt = '2026-11-27T10:00:00Z';
+   assert.deepEqual(await stableVersion(queryEnvelope), savedEnvelope);
+   queryEnvelope[0].results[0].parameters.scope.buildingIds = [BUILDINGS[0]];
+   assert.notDeepEqual((await stableVersion(queryEnvelope)).intent, savedEnvelope.intent);
+
    await db.setup.query('update building_metrics set net_effective_rent=net_effective_rent+19 where building_id=$1 and record_year=2026 and record_quarter=3', [BUILDINGS[0]]);
    const prepare = (oldSnapshot, invalidAsset) => async (actor, confirmed, target, assemble) => {
      await assemble();
