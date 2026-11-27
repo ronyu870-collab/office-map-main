@@ -41,7 +41,7 @@ describe('benchmark research surfaces', () => {
     </MapReadingContext.Provider>;
     const { rerender } = render(workspace(true));
     const select = (name: string) => {
-      const control = screen.getByRole('combobox', { name, exact: true }) as HTMLSelectElement;
+      const control = screen.getByRole('combobox', { name }) as HTMLSelectElement;
       expect(screen.getByLabelText(name, { exact: true })).toBe(control);
       expect(control.id).toBeTruthy();
       expect(control.labels).toHaveLength(1);
@@ -67,14 +67,14 @@ describe('benchmark research surfaces', () => {
     expect(screen.queryByRole('button', { name: '添加比较区域' })).toBeNull();
     expect(fetchResearch).toHaveBeenCalledTimes(2);
     fireEvent.change(select('比较区域 2'), { target: { value: '望京-酒仙桥' } });
-    await screen.findByRole('rowheader', { name: '望京-酒仙桥', exact: true });
+    await screen.findByRole('rowheader', { name: '望京-酒仙桥' });
     fireEvent.change(select('比较区域 1'), { target: { value: '金融街' } });
-    await screen.findByRole('rowheader', { name: '金融街', exact: true });
+    await screen.findByRole('rowheader', { name: '金融街' });
     expect(fetchResearch).toHaveBeenLastCalledWith(['CBD', '金融街', '望京-酒仙桥'], 2026 * 4 + 1, expect.any(AbortSignal));
     fireEvent.click(screen.getByRole('button', { name: '移除比较区域 1' }));
     expect(select('比较区域 1').value).toBe('望京-酒仙桥');
-    expect(screen.queryByRole('combobox', { name: '比较区域 2', exact: true })).toBeNull();
-    await screen.findByRole('rowheader', { name: '望京-酒仙桥', exact: true });
+    expect(screen.queryByRole('combobox', { name: '比较区域 2' })).toBeNull();
+    await screen.findByRole('rowheader', { name: '望京-酒仙桥' });
 
     const reads = fetchResearch.mock.calls.length;
     fireEvent.change(select('产品范围'), { target: { value: 'park' } });
