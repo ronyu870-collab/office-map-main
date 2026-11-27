@@ -3,39 +3,45 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
+import { catalogDimensions, numericFields } from "@/src/lib/intelligence/query/registry";
 import { outlineQuarter, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { WorkspaceError, type Call } from "./client";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel,
   type DataRefreshReview } from "./DataRefreshReview";
 import styles from "./workspace.module.css";
 
+const queryReceiptSchema = z.object({
+  sourceId: z.uuid(), receiptId: z.string(), resultId: z.uuid(),
+  binding: z.object({ dataAsOf: z.iso.date().nullable() }),
+  query: z.object({ fields: z.array(z.string()) }),
+});
+const fieldNames: Record<string, { label: string }> = { ...catalogDimensions, ...numericFields };
 const bindingsSchema = z.object({
   projectVersion: z.number().int(),
   pages: z.array(z.object({
     id: z.uuid(),
     objects: z.array(z.object({
       valueOrigin: z.enum(["manual", "asset", "business"]),
-      binding: z.object({ domain: z.enum(["quarter", "lease"]), dataAsOf: z.iso.date() }).optional(),
-      query: z.object({ period: dataRefreshPeriodSchema }).optional(),
+      binding: z.object({ domain: z.enum(["quarter", "lease", "business"]) }).optional(),
+      query: z.object({ period: dataRefreshPeriodSchema.optional() }).optional(),
+      receipts: z.array(queryReceiptSchema).optional(),
     })),
   })),
 });
-export function DataRefresh({ call, detail, slideId, disabled, suggestedPeriod, onApplied }: {
+type DataRefreshProps = {
   call: Call;
   detail: WorkspaceDetail;
   slideId: string;
   disabled: boolean;
   suggestedPeriod?: string;
   onApplied: (workspace: WorkspaceDetail, expectedVersion: number) => void;
-}) {
+};
+
+export function DataRefresh(props: DataRefreshProps) {
+  const { call, detail, slideId, suggestedPeriod } = props;
   const [binding, setBinding] = useState<z.infer<typeof bindingsSchema>>();
   const [loadingError, setLoadingError] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [period, setPeriod] = useState(suggestedPeriod ?? "");
-  const [review, setReview] = useState<DataRefreshReview>();
-  const [error, setError] = useState("");
-  const [working, setWorking] = useState<"preview" | "apply">();
-  const pending = useRef<AbortController | null>(null);
   const projectId = detail.project.id;
   const expectedVersion = detail.project.version;
 
@@ -50,14 +56,49 @@ export function DataRefresh({ call, detail, slideId, disabled, suggestedPeriod, 
       });
     return () => request.abort();
   }, [attempt, call, projectId, expectedVersion]);
-  useEffect(() => () => pending.current?.abort(), []);
 
-  const business = binding?.projectVersion === expectedVersion
-    ? binding.pages.find(page => page.id === slideId)?.objects.find(item => item.valueOrigin === "business" && item.binding)
-    : undefined;
-  if (!business) return loadingError ? <div role="alert">
+  const pageBindings = binding?.projectVersion === expectedVersion
+    ? binding.pages.find(page => page.id === slideId)?.objects ?? [] : [];
+  const business = pageBindings.find(item => item.valueOrigin === "business" &&
+    (item.binding?.domain === "quarter" || item.binding?.domain === "lease"));
+  const receipts = new Map(pageBindings.flatMap(item => (item.receipts ?? []).map(receipt =>
+    [JSON.stringify([receipt.sourceId, receipt.receiptId, receipt.resultId]), receipt] as const)));
+  const page = detail.slides.find(page => page.id === slideId);
+  const evidence = [...receipts].flatMap(([key, receipt]) => {
+    const source = page?.content.sources.find(source => source.id === receipt.sourceId);
+    return source ? [{ key, source, ...receipt }] : [];
+  });
+  if (!business && !evidence.length) return loadingError ? <div role="alert">
     <p>{loadingError}</p><Button variant="ghost" onClick={() => { setLoadingError(""); setAttempt(value => value + 1); }}>重试读取绑定</Button>
   </div> : null;
+  return <section className={styles.form} aria-label="正式数据绑定">
+    <h2>正式数据绑定</h2>
+    {evidence.length > 0 && <details key={slideId}>
+      <summary>正式查询依据</summary>
+      <ul className={styles.handoffPages}>
+        {evidence.map(({ key, source, binding, query }) => <li key={key}>
+          <strong>{source.label}</strong>
+          <p>{binding.dataAsOf ? `数据截至 ${binding.dataAsOf} · 仅供内部使用` : "资料日期待确认 · 仅供内部使用"}</p>
+          {query.fields.length > 0 && <p>{query.fields.map(field =>
+            Object.hasOwn(fieldNames, field) ? fieldNames[field].label : field).join(" · ")}</p>}
+        </li>)}
+      </ul>
+    </details>}
+    {business && <RefreshActions key={`${slideId}:${suggestedPeriod ?? ""}`} {...props}
+      boundPeriod={business.binding?.domain === "quarter" ? business.query?.period : undefined} />}
+  </section>;
+}
+
+function RefreshActions({ call, detail, slideId, disabled, suggestedPeriod, onApplied, boundPeriod }:
+  DataRefreshProps & { boundPeriod?: z.infer<typeof dataRefreshPeriodSchema> }) {
+  const [period, setPeriod] = useState(suggestedPeriod ?? "");
+  const [review, setReview] = useState<DataRefreshReview>();
+  const [error, setError] = useState("");
+  const [working, setWorking] = useState<"preview" | "apply">();
+  const pending = useRef<AbortController | null>(null);
+  const projectId = detail.project.id;
+  const expectedVersion = detail.project.version;
+  useEffect(() => () => pending.current?.abort(), []);
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
   function commandQuarter() {
     if (!period) return {};
@@ -94,12 +135,11 @@ export function DataRefresh({ call, detail, slideId, disabled, suggestedPeriod, 
     }
   }
 
-  return <section className={styles.form} aria-label="正式数据绑定">
-    <h2>正式数据绑定</h2>
-    {business.query && business.binding?.domain === "quarter" && <label>
+  return <>
+    {boundPeriod && <label>
       目标季度
       <input value={period} onChange={event => { setPeriod(event.target.value); setReview(undefined); }}
-        placeholder={refreshPeriodLabel(business.query.period)} maxLength={7} aria-invalid={!validPeriod}
+        placeholder={refreshPeriodLabel(boundPeriod)} maxLength={7} aria-invalid={!validPeriod}
         disabled={!!working} />
     </label>}
     {!validPeriod && <p role="alert">季度格式为 YYYY-Q1 至 YYYY-Q4。</p>}
@@ -114,5 +154,5 @@ export function DataRefresh({ call, detail, slideId, disabled, suggestedPeriod, 
         loading={working === "apply"} loadingLabel="正在应用…" onClick={() => void run("apply")}>应用数据更新</Button>}>
       {review && <DataRefreshComparison review={review} slides={detail.slides} />}
     </Dialog>
-  </section>;
+  </>;
 }
