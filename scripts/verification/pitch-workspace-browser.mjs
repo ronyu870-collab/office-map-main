@@ -269,12 +269,29 @@ const flagshipScenarios = [
   { button: "单楼项目推介", scenario: "building-promotion", buildings: 1, pages: ["cover", "profile", "next-steps"] },
 ];
 
-function waitForPitchCommand(page, endpoint, action) {
+function waitForPitchCommand(page, endpoint, action, accept = () => true) {
   return page.waitForResponse((response) => {
     const request = response.request();
     return new URL(response.url()).pathname === endpoint &&
-      request.method() === "POST" && request.postDataJSON()?.action === action;
+      request.method() === "POST" && request.postDataJSON()?.action === action && accept(response);
   }, { timeout: 60_000 });
+}
+
+async function confirmFlagshipProposal(page, trigger) {
+  const endpoint = "/api/intelligence/pitch/ai";
+  const [initialReply, completedReply] = await Promise.all([
+    waitForPitchCommand(page, endpoint, "proposal_generate"),
+    waitForPitchCommand(page, endpoint, "proposal_generate", async response =>
+      !response.ok() || !["queued", "running"].includes((await response.json()).state)),
+    trigger.click(),
+  ]);
+  const receipt = await completedReply.json();
+  assert.ok(completedReply.ok(), `proposal_generate HTTP ${completedReply.status()}: ${receipt.code ?? receipt.error ?? ""}`);
+  assert.equal(receipt.state, "completed", "generation did not complete");
+  const command = completedReply.request().postDataJSON();
+  assert.deepEqual(command, initialReply.request().postDataJSON());
+  assert.ok(receipt.projectId);
+  return { projectId: receipt.projectId, command };
 }
 
 async function closeFlagshipBrowser(browser) {
@@ -529,7 +546,7 @@ export async function verifyPitchBuildingInspectorBrowser({ app, who, period, re
   }
 }
 
-export async function verifyPitchFlagshipBrowser({ app, who, period, readProject, requiredVisuals = {} }) {
+export async function verifyPitchFlagshipBrowser({ app, who, period, readProject, requiredVisuals = {}, marketRevision = false }) {
   assert.equal(new URL(app).hostname, "127.0.0.1");
   const browser = await launchBrowser();
   const report = [];
@@ -538,14 +555,16 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
     const page = await context.newPage();
     page.setDefaultTimeout(15_000);
     const button = (name) => page.getByRole("button", { name, exact: true });
-    for (const scenario of flagshipScenarios) {
+    const scenarios = marketRevision ? flagshipScenarios.filter(scenario => scenario.scenario === "market-report") : flagshipScenarios;
+    for (const scenario of scenarios) {
       const result = { scenario: scenario.scenario, stage: "planning" };
       report.push(result);
       try {
         await page.goto(app + "/intelligence/pitch");
+        if (marketRevision) await page.getByLabel("你想制作什么？").fill(`制作北京${period}写字楼市场报告`);
         const [planHttp] = await Promise.all([
           waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_plan"),
-          button(scenario.button).click(),
+          button(marketRevision ? "进入提案助手" : scenario.button).click(),
         ]);
         const plan = await planHttp.json();
         assert.ok(planHttp.ok(), `proposal_plan HTTP ${planHttp.status()}: ${plan.code ?? plan.error ?? ""}`);
@@ -561,27 +580,11 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         if (result.missingPages.length || result.missingVisuals.length) result.gaps = plan.plan.gaps;
 
         result.stage = "generating";
-        const generationEndpoint = "/api/intelligence/pitch/ai";
-        let action = button("确认并生成 Pitch");
-        let receipt;
-        for (let attempt = 0; attempt < 30; attempt++) {
-          const [reply] = await Promise.all([
-            waitForPitchCommand(page, generationEndpoint, "proposal_generate"),
-            action.click(),
-          ]);
-          receipt = await reply.json();
-          assert.ok(reply.ok(), `proposal_generate HTTP ${reply.status()}: ${receipt.code ?? receipt.error ?? ""}`);
-          if (receipt.state === "completed") break;
-          assert.ok(["queued", "running"].includes(receipt.state), `generation state ${receipt.state}`);
-          action = button("查询生成进度");
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-        assert.equal(receipt?.state, "completed", "generation did not complete");
-        assert.ok(receipt.projectId);
+        const { projectId } = await confirmFlagshipProposal(page, button("确认并生成 Pitch"));
 
         result.stage = "editing";
         await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
-        const created = await readProject(receipt.projectId);
+        const created = await readProject(projectId);
         assert.ok(created.slides.length, "the completed project has no pages");
         const editedTitle = `隔离验收 · ${scenario.button}`;
         await page.getByLabel("页面标题", { exact: true }).fill(editedTitle);
@@ -590,7 +593,7 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           button("保存").click(),
         ]);
         assert.ok(savedResponse.ok(), `workspace save HTTP ${savedResponse.status()}`);
-        const reopened = await readProject(receipt.projectId);
+        const reopened = await readProject(projectId);
         assert.ok(reopened.project.version > created.project.version);
         assert.equal(reopened.slides[0].content.title, editedTitle);
 
@@ -621,8 +624,35 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         }
         const pdf = await PDFDocument.load(await downloadPitchFile(page, "pdf"));
         assert.equal(pdf.getPageCount(), reopened.slides.length);
-        result.stage = "completed";
         result.pages = names.length;
+        if (marketRevision) {
+          result.stage = "regenerating the latest market quarter";
+          await button("提案助手").click();
+          await page.getByLabel("需要制作什么页面？").fill("把整套报告更新到最新季度");
+          const [reviewed] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_revision"), button("预览修改").click(),
+          ]);
+          const review = await reviewed.json();
+          assert.ok(reviewed.ok() && review.status === "refresh-review", review.error ?? review.message ?? review.status);
+          assert.equal(review.refreshPlan.brief.period, "2026-Q3");
+          const dialog = page.getByRole("dialog", { name: "核对 AI 修改" });
+          await dialog.getByText(/按正式季度 2026-Q3 生成新版报告/).waitFor();
+          assert.equal((await readProject(projectId)).project.version, reopened.project.version);
+          const generation = await confirmFlagshipProposal(page, dialog.getByRole("button", { name: "确认并生成新版 Pitch" }));
+          assert.deepEqual(generation.command.confirmation.request, review.regeneration);
+          assert.equal(generation.command.confirmation.contextFingerprint, review.refreshPlan.plan.contextFingerprint);
+          const updated = await readProject(generation.projectId);
+          assert.notEqual(generation.projectId, projectId);
+          assert.equal(updated.project.parent_project_id, projectId);
+          assert.equal(updated.workspace.context.period, "2026-Q3");
+          assert.ok(updated.slides.some(slide => slide.content.dataAsOf === "2026-09-30" &&
+            slide.content.blocks.some(block => block.kind === "chart" || block.kind === "metric")));
+          const original = await readProject(projectId);
+          assert.equal(original.project.version, reopened.project.version);
+          assert.equal(original.slides[0].content.title, editedTitle);
+          result.regeneratedPeriod = updated.workspace.context.period;
+        }
+        result.stage = "completed";
       } catch (error) {
         result.error = String(error instanceof Error ? error.message : error).split("\n")[0];
       }

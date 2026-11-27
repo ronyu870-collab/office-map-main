@@ -9,6 +9,7 @@ import { objectId } from "@/src/lib/pitch/workspace/object-layout";
 import { themeLabel, WorkspaceError, type Call } from "./client";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel } from "./DataRefreshReview";
 import { EvidencePages } from "./BusinessEvidence";
+import { ProposalPreview, reviewedProposalSchema } from "./ProposalPreview";
 import styles from "./workspace.module.css";
 
 const chartTypeSchema = z.enum(["bar", "column", "line"]);
@@ -36,6 +37,10 @@ const readySchema = z.object({
   gaps: z.array(z.string()),
   plan: planSchema,
   chartPreview: z.array(chartEditSchema.extend({ pageId: z.uuid(), from: chartTypeSchema })).optional(),
+  shorteningPreview: z.object({
+    originalPageCount: projectVersion.max(50), pageCount: projectVersion.max(50),
+    removed: z.array(z.object({ pageId: z.uuid(), title: z.string() })).min(1).max(49),
+  }).optional(),
   review: dataRefreshReviewSchema.optional(),
   command: commandSchema.optional(),
 });
@@ -58,17 +63,43 @@ const comparisonSchema = z.object({
   }),
 });
 const taskReceiptSchema = z.object({ id: z.uuid(), state: z.enum(["queued", "processing", "completed", "failed", "cancelled"]) });
+const regenerationSchema = z.strictObject({
+  question: z.string().min(1).max(1000), projectId: z.uuid(), city: z.string(),
+  buildingIds: z.array(z.uuid()).max(20), assetIds: z.array(z.uuid()).max(20).optional(),
+  period: outlineQuarter.optional(), language: languages, audience: z.literal("internal"),
+});
 const outcomeSchema = z.union([
   comparisonSchema,
   readySchema.extend({ status: z.literal("ready") }),
   readySchema.extend({ status: z.literal("refresh-review"),
-    refreshPlan: z.object({ brief: z.object({ period: outlineQuarter.nullable() }) }) }),
+    refreshPlan: z.union([reviewedProposalSchema, z.object({ brief: z.object({ period: outlineQuarter.nullable() }) })]),
+    regeneration: regenerationSchema.optional(),
+  }),
   z.object({ status: z.literal("clarification"), message: z.string(), candidates: z.array(buildingSchema).max(10).optional() }),
   z.object({ status: z.literal("unavailable"), message: z.string().optional() }),
 ]);
 type Preview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" }>;
 type Plan = Extract<Preview, { plan: unknown }>;
 const chartLabels = { bar: "条形图", column: "柱状图", line: "折线图" } as const;
+
+function removedPages(plan: Plan | undefined, slides: WorkspaceDetail["slides"]) {
+  if (plan?.scope !== "document") return [];
+  const retained = new Set(plan.plan.pages.map(page => page.id));
+  return slides.filter(slide => !retained.has(slide.id));
+}
+
+function matchesRegeneration(value: Extract<Plan, { status: "refresh-review" }>, detail: WorkspaceDetail) {
+  const { project, workspace } = detail;
+  const { regeneration, refreshPlan } = value;
+  const reference = value.plan.refresh;
+  if (!regeneration || !("plan" in refreshPlan) || !reference || value.scope !== "document" || workspace.context.business !== "market-report") return false;
+  const { plan, brief } = refreshPlan;
+  return regeneration.projectId === project.id && regeneration.city === project.city &&
+    regeneration.language === workspace.context.language && brief.language === regeneration.language &&
+    regeneration.buildingIds.join() === workspace.context.buildingIds.join() && brief.buildingIds.join() === regeneration.buildingIds.join() &&
+    outlineQuarter.safeParse(brief.period).success && (!regeneration.period || regeneration.period === brief.period) &&
+    plan.id === reference.id && plan.version === reference.version && plan.contextFingerprint === reference.contextFingerprint;
+}
 
 function matchesPreview(value: Preview, detail: WorkspaceDetail) {
   if ("mode" in value) {
@@ -84,6 +115,7 @@ function matchesPreview(value: Preview, detail: WorkspaceDetail) {
   }
   const { plan, command, review } = value;
   if (plan.projectId !== detail.project.id || plan.expectedVersion !== detail.project.version) return false;
+  if (value.status === "refresh-review" && value.regeneration && !matchesRegeneration(value, detail)) return false;
   if (command?.action === "apply_data_refresh") {
     return !!review?.period && command.projectId === plan.projectId && command.expectedVersion === plan.expectedVersion &&
       review.projectVersion === plan.expectedVersion && command.fingerprint === review.fingerprint &&
@@ -94,6 +126,16 @@ function matchesPreview(value: Preview, detail: WorkspaceDetail) {
   }
   if (command && (JSON.stringify(command.plan) !== JSON.stringify(plan) || command.scope !== value.scope ||
     JSON.stringify(command.theme) !== JSON.stringify(value.theme))) return false;
+  if (value.shorteningPreview) {
+    const summary = value.shorteningPreview;
+    const removed = removedPages(value, detail.slides);
+    const removedIds = new Set(removed.map(slide => slide.id));
+    const retained = detail.slides.filter(slide => !removedIds.has(slide.id));
+    if (command?.action !== "apply_modification" || value.scope !== "document" || summary.originalPageCount !== detail.slides.length ||
+      summary.pageCount !== retained.length || plan.pages.length !== retained.length || summary.removed.length !== removed.length ||
+      retained.some((slide, index) => plan.pages[index].id !== slide.id) ||
+      removed.some((slide, index) => summary.removed[index].pageId !== slide.id || summary.removed[index].title !== slide.content.title)) return false;
+  }
   const changes = plan.pages.flatMap(page => (page.chartPresentation ?? []).map(chart => ({ ...chart, pageId: page.id })));
   const chartPreview = value.chartPreview ?? [];
   if (changes.length !== chartPreview.length || (changes.length && !command)) return false;
@@ -115,12 +157,14 @@ export type ProposalRevisionProps = {
   onApplied: (result: WorkspaceDetail, expectedVersion: number) => void;
   onOpenData: (period?: string) => void;
   onAppend: (receipt: z.infer<typeof taskReceiptSchema>, expectedVersion: number) => void;
+  onGenerated?: (id: string) => Promise<void>;
 };
 
-export function ProposalRevision({ call, detail, question, active, selected, objectIds, disabled, onApplied, onOpenData, onAppend }: ProposalRevisionProps) {
+export function ProposalRevision({ call, detail, question, active, selected, objectIds, disabled, onApplied, onOpenData, onAppend, onGenerated }: ProposalRevisionProps) {
   const [review, setReview] = useState<{ key: string; value: Preview }>();
   const [candidates, setCandidates] = useState<{ key: string; items: z.infer<typeof buildingSchema>[] }>();
   const [working, setWorking] = useState<"preview" | "apply">();
+  const [regenerating, setRegenerating] = useState(false);
   const [message, setMessage] = useState("");
   const request = useRef<AbortController | null>(null);
   const projectId = detail.project.id;
@@ -185,8 +229,12 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   }
 
   const edits = current?.plan.pages.filter(page => Object.keys(page).some(field => field !== "id")) ?? [];
-  const removed = current?.scope === "document" ? detail.slides.filter(slide => !current.plan.pages.some(page => page.id === slide.id)) : [];
-  const affected = current?.theme ? detail.slides.length : edits.length + removed.length;
+  const removed = removedPages(current, detail.slides);
+  const theme = current?.theme;
+  const themeChanged = theme && (theme.id !== detail.project.theme_id || theme.version !== detail.project.theme_version);
+  const affected = themeChanged ? detail.slides.length : edits.length + removed.length;
+  const regeneration = current?.status === "refresh-review" && onGenerated && current.regeneration && "plan" in current.refreshPlan
+    ? { input: current.regeneration, data: current.refreshPlan } : undefined;
   const suggestedPeriod = current?.status === "refresh-review" ? current.refreshPlan.brief.period ?? undefined : undefined;
   return <>
     <Button variant="ghost" disabled={disabled || !question.trim()}
@@ -198,9 +246,9 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
       {candidates.items.map(candidate => <Button key={candidate.id} variant="secondary" disabled={disabled || !!working}
         onClick={() => void run("preview", candidate.id)}>{candidate.name}{candidate.submarket && ` · ${candidate.submarket}`}</Button>)}
     </div>}
-    <Dialog open={!!visible} onOpenChange={open => { if (!open && !working) setReview(undefined); }}
+    <Dialog open={!!visible} dismissible={!regenerating} onOpenChange={open => { if (!open && !working && !regenerating) setReview(undefined); }}
       title="核对 AI 修改" size="lg" footer={comparison ? <Button disabled={disabled} loading={working === "apply"}
-        loadingLabel="正在提交…" onClick={() => void run("apply")}>{message ? "继续追加" : "追加对比页"}</Button> : current && (
+        loadingLabel="正在提交…" onClick={() => void run("apply")}>{message ? "继续追加" : "追加对比页"}</Button> : current && !regeneration && (
         current.plan.refresh && !quarterReview
           ? <Button onClick={() => { setReview(undefined); onOpenData(suggestedPeriod); }}>打开数据检查器</Button>
           : <Button disabled={disabled || (quarterReview ? !quarterReview.changed : !affected)}
@@ -211,12 +259,21 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         <EvidencePages pages={comparison.review.pages} />
         {message && <p role="alert">{message}</p>}
       </>}
-      {current && <>
+      {regeneration && onGenerated && <>
+        <p>按正式季度 {regeneration.data.brief.period} 生成新版报告，作为当前报告的衍生项目。</p>
+        <ProposalPreview key={regeneration.data.plan.id} call={call} projectId={projectId} projectVersion={expectedVersion}
+          city={regeneration.input.city} question={regeneration.input.question} language={regeneration.input.language}
+          period={regeneration.input.period ?? ""} buildingIds={regeneration.input.buildingIds} disabled={disabled}
+          reviewed={regeneration} onGenerating={setRegenerating}
+          onGenerated={async id => { await onGenerated(id); setReview(undefined); }} />
+      </>}
+      {current && !regeneration && <>
         {quarterReview ? <DataRefreshComparison review={quarterReview} slides={detail.slides} />
           : <p>{current.plan.refresh
             ? `${suggestedPeriod ? `正式季度 ${suggestedPeriod} · ` : ""}逐组核对正式数据，再应用更新。`
+            : current.shorteningPreview ? `从 ${current.shorteningPreview.originalPageCount} 页精简至 ${current.shorteningPreview.pageCount} 页`
             : `影响 ${affected} 页`}</p>}
-        {current.theme && <p>整套主题由「{themeLabel(detail.project.theme_id)}」改为「{themeLabel(current.theme.id)}」。</p>}
+        {themeChanged && <p>整套主题由「{themeLabel(detail.project.theme_id)}」改为「{themeLabel(theme.id)}」。</p>}
         <ul className={styles.handoffPages}>
           {edits.map(edit => {
             const index = detail.slides.findIndex(slide => slide.id === edit.id);

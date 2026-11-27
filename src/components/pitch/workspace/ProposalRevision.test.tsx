@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { layoutFixture } from "@/src/lib/pitch/fixtures/layouts";
-import { workspaceDetailSchema } from "@/src/lib/pitch/workspace/protocol";
+import { workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { ProposalRevision } from "./ProposalRevision";
 import { WorkspaceError, type Call } from "./client";
 
@@ -36,17 +36,18 @@ const refreshPlan = { ...planBase, pages: [{ id: pageId }], refresh: { id: planI
 const quarterCommand = { action: "apply_data_refresh", projectId, slideId: pageId, expectedVersion: version, period, fingerprint };
 
 function setup(reply: Record<string, unknown> | ((input: Record<string, unknown>) => unknown), question: string,
-  apply: () => unknown = () => refreshed) {
+  apply: (input: Record<string, unknown>) => unknown = () => refreshed, workspace: WorkspaceDetail = detail) {
   const user = userEvent.setup();
   const call = vi.fn(async (input: Record<string, unknown>) => input.action === "proposal_revision"
     ? typeof reply === "function" ? reply(input) : reply
-    : apply());
+    : apply(input));
   const onApplied = vi.fn();
   const onOpenData = vi.fn();
   const onAppend = vi.fn();
-  render(<ProposalRevision call={call as unknown as Call} detail={detail} question={question} active={pageId}
-    selected={[]} objectIds={[]} disabled={false} onApplied={onApplied} onOpenData={onOpenData} onAppend={onAppend} />);
-  return { user, call, onApplied, onOpenData, onAppend };
+  const onGenerated = vi.fn(async () => {});
+  render(<ProposalRevision call={call as unknown as Call} detail={workspace} question={question} active={pageId}
+    selected={[]} objectIds={[]} disabled={false} onApplied={onApplied} onOpenData={onOpenData} onAppend={onAppend} onGenerated={onGenerated} />);
+  return { user, call, onApplied, onOpenData, onAppend, onGenerated };
 }
 
 it("shows a reviewed chart format change before applying the exact versioned transaction", async () => {
@@ -71,6 +72,44 @@ it("withholds a chart transaction whose affected changes do not match the review
   }, "将折线图改为柱状图");
   await user.click(screen.getByRole("button", { name: "预览修改" }));
   await screen.findByText(/无法生成可应用的修改/);
+  expect(screen.queryByRole("button", { name: "应用修改" })).not.toBeInTheDocument();
+  expect(call).toHaveBeenCalledTimes(1);
+});
+
+const duplicatePage = "66666666-6666-4666-8666-666666666666";
+const closingPage = "77777777-7777-4777-8777-777777777777";
+const shorteningWorkspace = {
+  ...detail, slides: [detail.slides[0],
+    { ...detail.slides[0], id: duplicatePage, content: { ...content, title: "重复市场说明" } },
+    { ...detail.slides[0], id: closingPage, content: { ...content, title: "下一步" } },
+  ],
+};
+const shorteningPlan = { ...planBase,
+  basePageVersions: shorteningWorkspace.slides.map(slide => ({ id: slide.id, version: 2 })),
+  pages: [{ id: pageId }, { id: closingPage }],
+};
+const shorteningCommand = { action: "apply_modification", scope: "document", plan: shorteningPlan };
+const shorteningPreview = { originalPageCount: 3, pageCount: 2, removed: [{ pageId: duplicatePage, title: "重复市场说明" }] };
+const shortened = { ...refreshed, slides: shorteningWorkspace.slides.filter(slide => slide.id !== duplicatePage) };
+
+it("shows the reviewed slide count and exact removed page before applying a shorter deck", async () => {
+  const { user, call, onApplied } = setup({ status: "ready", scope: "document", gaps: [], plan: shorteningPlan,
+    command: shorteningCommand, shorteningPreview }, "把整套提案精简到2页", () => shortened, shorteningWorkspace);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  expect(await screen.findByText("从 3 页精简至 2 页")).toBeInTheDocument();
+  expect(screen.getByText("移除第 2 页 · 重复市场说明")).toBeInTheDocument();
+  expect(call).toHaveBeenCalledTimes(1);
+  await user.click(screen.getByRole("button", { name: "应用修改" }));
+  await waitFor(() => expect(onApplied).toHaveBeenCalledWith(shortened, version));
+  expect(call.mock.calls[1][0]).toEqual(shorteningCommand);
+});
+
+it("withholds a shortening transaction when its listed removal differs from the saved deck", async () => {
+  const { user, call } = setup({ status: "ready", scope: "document", gaps: [], plan: shorteningPlan,
+    command: shorteningCommand, shorteningPreview: { ...shorteningPreview, removed: [{ pageId: closingPage, title: "下一步" }] },
+  }, "把整套提案精简到2页", () => refreshed, shorteningWorkspace);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  expect(await screen.findByText(/无法生成可应用的修改/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "应用修改" })).not.toBeInTheDocument();
   expect(call).toHaveBeenCalledTimes(1);
 });
@@ -104,6 +143,30 @@ it("passes the server-resolved quarter to the data inspector when an individual 
   await user.click(screen.getByRole("button", { name: "打开数据检查器" }));
   expect(onOpenData).toHaveBeenCalledWith("2026-Q3");
   expect(call).toHaveBeenCalledTimes(1);
+});
+
+it("generates the approved new market edition from the exact reviewed request", async () => {
+  const workspace = { ...detail, workspace: { ...detail.workspace, context: { ...detail.workspace.context,
+    business: "market-report", period: "2026-Q2", buildingIds: [],
+  } } };
+  const input = { question: "最新正式季度的北京写字楼市场报告", projectId, city: "北京", buildingIds: [], assetIds: [],
+    language: "zh", audience: "internal" };
+  const reply = { status: "refresh-review", scope: "document", plan: refreshPlan, gaps: [], regeneration: input,
+    refreshPlan: { status: "ready", selection: "none", plan: { id: planId, title: "获权市场报告", version: 1, contextFingerprint: fingerprint,
+      slides: [{ id: pageId, title: "季度市场摘要" }], gaps: [] },
+    brief: { city: "北京", submarkets: [], period: "2026-Q3", buildingIds: [], language: "zh" } } };
+  const { user, call, onApplied, onGenerated } = setup(reply, "把整套报告更新到最新季度", command => ({
+    taskId: (command.confirmation as { taskId: string }).taskId, projectId: competitor.id, state: "completed",
+  }), workspace);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  expect(await screen.findByText("季度市场摘要")).toBeInTheDocument();
+  expect(screen.getByText(/按正式季度 2026-Q3 生成新版报告/)).toBeInTheDocument();
+  expect(call).toHaveBeenCalledTimes(1);
+  await user.click(screen.getByRole("button", { name: "确认并生成新版 Pitch" }));
+  await waitFor(() => expect(onGenerated).toHaveBeenCalledWith(competitor.id));
+  expect(call.mock.calls[1][0]).toEqual({ action: "proposal_generate", confirmation: { taskId: expect.any(String),
+    projectId, expectedVersion: version, planId, contextFingerprint: fingerprint, request: input } });
+  expect(onApplied).not.toHaveBeenCalled();
 });
 
 const comparisonIds = [buildingId, competitor.id];
