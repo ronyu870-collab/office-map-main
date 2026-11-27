@@ -189,6 +189,9 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [createFromBrief, setCreateFromBrief] = React.useState(false),
     [buildingSearch, setBuildingSearch] = React.useState(false);
   const [dataBuildingsOpen, setDataBuildingsOpen] = React.useState(false);
+  const [refreshSuggestion, setRefreshSuggestion] = React.useState<{ projectId: string; period: string }>();
+  const suggestedPeriod = refreshSuggestion && refreshSuggestion.projectId === detail?.project.id
+    ? refreshSuggestion.period : undefined;
   const [left, setLeft] = React.useState(true),
     [right, setRight] = React.useState(true),
     [mobile, setMobile] = React.useState<MobilePane>("preview"),
@@ -1626,7 +1629,10 @@ function Studio({ session }: { session: AuthSessionResult }) {
                           acceptReviewedChange(value, previous, "AI 修改已应用。");
                           setObjectPage(null);
                         },
-                        onOpenData: () => openInspector("data"),
+                        onOpenData: (period) => {
+                          setRefreshSuggestion(period ? { projectId: detail.project.id, period } : undefined);
+                          openInspector("data");
+                        },
                       }}
                       call={call}
                       projectId={detail.project.id}
@@ -1874,10 +1880,14 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       {page ? (
                         <>
                           {detail.workspace.page_settings[page.id]?.origin === "data" && active === page.id && (
-                            <DataRefresh key={`${detail.project.id}:${detail.project.version}:${page.id}`}
+                            <DataRefresh key={`${detail.project.id}:${detail.project.version}:${page.id}:${suggestedPeriod ?? ""}`}
                               call={call} detail={detail} slideId={page.id}
+                              suggestedPeriod={suggestedPeriod}
                               disabled={dirty || saving || busy || addingAssets || generationPending || conflict}
-                              onApplied={(result, expectedVersion) => acceptReviewedChange(result, expectedVersion, "正式数据已更新。")}
+                              onApplied={(result, expectedVersion) => {
+                                setRefreshSuggestion(undefined);
+                                acceptReviewedChange(result, expectedVersion, "正式数据已更新。");
+                              }}
                             />
                           )}
                           {detail.workspace.page_settings[page.id]?.part && !detail.workspace.page_settings[page.id]?.example && !detail.workspace.page_settings[page.id]?.kit && (

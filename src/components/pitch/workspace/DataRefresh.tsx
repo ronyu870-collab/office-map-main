@@ -5,10 +5,10 @@ import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
 import { outlineQuarter, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { WorkspaceError, type Call } from "./client";
-import { BusinessEvidence, evidenceValueSchema } from "./BusinessEvidence";
+import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel,
+  type DataRefreshReview } from "./DataRefreshReview";
 import styles from "./workspace.module.css";
 
-const periodSchema = z.object({ year: z.number().int(), quarter: z.number().int().min(1).max(4) });
 const bindingsSchema = z.object({
   projectVersion: z.number().int(),
   pages: z.array(z.object({
@@ -16,49 +16,23 @@ const bindingsSchema = z.object({
     objects: z.array(z.object({
       valueOrigin: z.enum(["manual", "asset", "business"]),
       binding: z.object({ domain: z.enum(["quarter", "lease"]), dataAsOf: z.iso.date() }).optional(),
-      query: z.object({ period: periodSchema }).optional(),
+      query: z.object({ period: dataRefreshPeriodSchema }).optional(),
     })),
   })),
 });
-const versionSchema = z.object({
-  dataAsOf: z.iso.date(),
-  blocks: z.array(z.record(z.string(), z.unknown())),
-});
-const refreshSchema = z.object({
-  projectVersion: z.number().int(),
-  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-  changed: z.boolean(),
-  needsConclusionReview: z.boolean(),
-  period: periodSchema.nullable(),
-  changes: z.array(z.object({
-    slideId: z.uuid(),
-    changed: z.boolean(),
-    before: versionSchema,
-    after: versionSchema,
-  })),
-});
-type Review = z.infer<typeof refreshSchema>;
-type Quarter = z.infer<typeof periodSchema>;
-const periodLabel = ({ year, quarter }: Quarter) => `${year}-Q${quarter}`;
-function BlockValue({ value }: { value?: Record<string, unknown> }) {
-  if (!value) return <p>此版本没有该数据项。</p>;
-  const parsed = evidenceValueSchema.safeParse(value);
-  if (!parsed.success) return <p>此数据项在页面生成后可查看。</p>;
-  return <BusinessEvidence block={parsed.data} />;
-}
-
-export function DataRefresh({ call, detail, slideId, disabled, onApplied }: {
+export function DataRefresh({ call, detail, slideId, disabled, suggestedPeriod, onApplied }: {
   call: Call;
   detail: WorkspaceDetail;
   slideId: string;
   disabled: boolean;
+  suggestedPeriod?: string;
   onApplied: (workspace: WorkspaceDetail, expectedVersion: number) => void;
 }) {
   const [binding, setBinding] = useState<z.infer<typeof bindingsSchema>>();
   const [loadingError, setLoadingError] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [period, setPeriod] = useState("");
-  const [review, setReview] = useState<Review>();
+  const [period, setPeriod] = useState(suggestedPeriod ?? "");
+  const [review, setReview] = useState<DataRefreshReview>();
   const [error, setError] = useState("");
   const [working, setWorking] = useState<"preview" | "apply">();
   const pending = useRef<AbortController | null>(null);
@@ -99,7 +73,7 @@ export function DataRefresh({ call, detail, slideId, disabled, onApplied }: {
     try {
       const input = { projectId, slideId, expectedVersion, ...commandQuarter() };
       if (action === "preview") {
-        const result = refreshSchema.parse(await call({ action: "preview_data_refresh", ...input }, true, "workspace", request.signal));
+        const result = dataRefreshReviewSchema.parse(await call({ action: "preview_data_refresh", ...input }, true, "workspace", request.signal));
         if (request.signal.aborted || result.projectVersion !== expectedVersion) return;
         setReview(result);
       } else if (review?.changed) {
@@ -125,7 +99,7 @@ export function DataRefresh({ call, detail, slideId, disabled, onApplied }: {
     {business.query && business.binding?.domain === "quarter" && <label>
       目标季度
       <input value={period} onChange={event => { setPeriod(event.target.value); setReview(undefined); }}
-        placeholder={periodLabel(business.query.period)} maxLength={7} aria-invalid={!validPeriod}
+        placeholder={refreshPeriodLabel(business.query.period)} maxLength={7} aria-invalid={!validPeriod}
         disabled={!!working} />
     </label>}
     {!validPeriod && <p role="alert">季度格式为 YYYY-Q1 至 YYYY-Q4。</p>}
@@ -138,25 +112,7 @@ export function DataRefresh({ call, detail, slideId, disabled, onApplied }: {
       title="核对数据更新" size="lg"
       footer={review?.changed && <Button disabled={disabled || working === "preview"}
         loading={working === "apply"} loadingLabel="正在应用…" onClick={() => void run("apply")}>应用数据更新</Button>}>
-      {review && <>
-        <p>{review.period && `${periodLabel(review.period)} · `}{review.changed ? `影响 ${review.changes.filter(change => change.changed).length} 页` : "当前数据已是所选季度的版本。"}</p>
-        {review.needsConclusionReview && <p role="status">应用后请复核相关分析结论。</p>}
-        {review.changes.filter(change => change.changed).map(change => {
-          const index = detail.slides.findIndex(slide => slide.id === change.slideId);
-          const title = detail.slides[index]?.content.title ?? "页面";
-          return <section key={change.slideId} className={styles.refreshChanges}>
-            <h3>{index >= 0 && `第 ${index + 1} 页 · `}{title}</h3>
-            <p>{change.before.dataAsOf} → {change.after.dataAsOf}</p>
-            {change.after.blocks.map((after, block) => {
-              const before = change.before.blocks[block];
-              return JSON.stringify(before) === JSON.stringify(after) ? null : <div key={block} className={styles.revisionColumns}>
-                <div><h4>更新前</h4><BlockValue value={before} /></div>
-                <div><h4>更新后</h4><BlockValue value={after} /></div>
-              </div>;
-            })}
-          </section>;
-        })}
-      </>}
+      {review && <DataRefreshComparison review={review} slides={detail.slides} />}
     </Dialog>
   </section>;
 }
