@@ -22,8 +22,11 @@ const readingSchema = z.object({
   previousSheetModes: z.record(z.string().max(30), z.enum(['compact', 'reading', 'full'])).optional(),
   filterSections: z.record(z.string().max(40), z.boolean()).optional(), filterScroll: scrollPosition.optional(),
   supplyExpanded: z.record(z.string().max(80), z.boolean()).optional(), supplyScroll: scrollPosition.optional(),
-  submarkets: z.record(z.string().max(256), z.object({ section: z.enum(['overview', 'trend', 'profile', 'buildings']), grade: z.enum(['all', 'a', 'b']), scrollTop: scrollPosition })).optional(),
+  submarkets: z.record(z.string().max(256), z.object({ section: z.enum(['overview', 'trend', 'profile', 'buildings']), grade: z.enum(['all', 'a', 'b', 'park']), scrollTop: scrollPosition, trendRange: z.enum(['default', 'history']).optional() })).optional(),
   submarketScrolls: z.record(z.string().max(320), scrollPosition).optional(),
+  marketAnalysis: z.record(z.string().max(256), z.object({ opened: z.boolean(), period: z.number().int().min(7600).max(8803).nullable(),
+    others: z.array(z.string().max(60)).max(2), product: z.enum(['office', 'a', 'b', 'park']) })).optional(),
+  marketBrochures: z.record(z.string().max(256), z.object({ opened: z.boolean(), selected: z.array(z.string().max(110)).max(6).nullable() })).optional(),
   buildings: z.record(z.string().max(110), z.object({ tab: z.string().max(20).refine(value => ['overview', 'market', 'materials'].includes(value)), scrollTop: scrollPosition, scrolls: z.record(z.string().max(20), scrollPosition).optional(), trendOpen: z.boolean().optional(), trendHeight: scrollPosition.optional(), trend: z.object({ metric: z.enum(['rent', 'vac']), tableOpen: z.boolean() }).optional(), photo: z.object({ open: z.boolean(), index: z.number().int().min(0).max(10000) }).optional() })).optional(),
 });
 const snapshot = z.object({

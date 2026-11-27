@@ -8,7 +8,7 @@ import { SubmarketProfileEditor } from './SubmarketProfileEditor';
 import { SubmarketOverviewResearch } from './SubmarketIntelligenceBrief';
 import { OfficeResearchCoreMetrics, ResearchChapters, ResearchLead, ResearchQuarterPulse } from './SubmarketResearchPresentation';
 import { ProductResearchCore, ProductResearchStructure } from './SubmarketProductResearch';
-import { configuredResearchMarketType, completeProductExamples, representativeProductTrend } from '../model/submarketProductResearch';
+import { configuredResearchMarketType, representativeProductTrend } from '../model/submarketProductResearch';
 import { buildResearchPresentation } from '../model/submarketResearchPresentation';
 import { hasSubmarketProfileContent, SubmarketResearchProfile } from './SubmarketResearchProfile';
 import { SubmarketResearchOverview, SubmarketResearchTrend, type SubmarketResearchFutureState } from './SubmarketResearchData';
@@ -202,10 +202,15 @@ function SubmarketWorkspace({
     {!productResearch && <ResearchQuarterPulse data={allTrend} state={trendState} showValues={!expanded || grade !== 'all'} />}
     {!expanded && marketOverview}
   </div> : marketOverview;
+  // The authorization-wide formal trend establishes the query period; filtered
+  // asset examples must not silently move a market to another quarter.
+  const formalQuarters = [...(payload?.trends.all ?? []), ...(payload?.trends.park ?? [])]
+    .filter(point => point.rentSamples > 0 || point.vacancySamples > 0 || (point.stockSamples ?? 0) > 0)
+    .map(point => point.year * 4 + point.quarter - 1);
+  const authorizedQuarter = formalQuarters.length ? Math.max(...formalQuarters) : null;
   const projects = (compact = false) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}
-    onOpen={onOpenBuilding} compact={compact} curated={productResearch
-      ? completeProductExamples(buildings, name, marketType, presentation?.projects ?? research?.projects)
-      : presentation?.projects ?? research?.projects} />;
+    onOpen={onOpenBuilding} compact={compact} curated={presentation?.projects ?? research?.projects}
+    active={!suspended} researchIdentity={identity} marketType={marketType} authorizedQuarter={authorizedQuarter} />;
 
   return <div hidden={suspended || undefined} aria-hidden={suspended || undefined}
     className={suspended ? 'map-submarket-workspace hidden' : 'map-submarket-workspace'}>

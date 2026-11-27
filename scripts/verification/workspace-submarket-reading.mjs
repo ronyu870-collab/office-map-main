@@ -21,6 +21,23 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
     profile:{submarket:'CBD',headline:withStructured?cbdEdition.positioning:'国际商务集聚区',overview:'区域介绍与已收录办公项目。',industries:'',transport:'',demographics:[],policies:[],insights:[],updatedAt:'2026-11-18T00:00:00Z',updatedBy:null,...(withStructured?{research:cbdEdition}:{})},
     trends:{all:withTrend?points:[],a:withTrend?points:[],b:[]},trendError:false,quarterMethod:'same quarter',source:'building_metrics',
   }});});
+  // Isolated, synthetic asset observations exercise the actual workbench, not the
+  // production database. The first CBD point uses the host's real fixture ID.
+  let assetReads=0;
+  await page.route('**/api/map/data?*',route=>{
+    const params=new URL(route.request().url()).searchParams;
+    if(params.get('mode')!=='research-assets')return route.fallback();
+    assetReads++;
+    const year=Number(params.get('year')),quarter=Number(params.get('quarter'));
+    const names=params.getAll('submarket');
+    const assets=names.flatMap(name=>Array.from({length:10},(_,index)=>{
+      const grade=name==='上地'?'BP':name==='望京-酒仙桥'&&index>=5?'BP':index<8?'A':'B';
+      const id=name==='CBD'&&index===0?'10000000-1111-4111-8111-111111111111':name+'-research-'+index;
+      return {id,name:name==='CBD'&&index===0?'CBD甲楼':name+'分析项目'+index,submarket:name,grade,
+        metrics:[{record_year:year,record_quarter:quarter,is_locked:true,is_draft:false,total_area:10000+1000*index,net_effective_rent:80+10*index,vacant_area:500+100*index}]};
+    }));
+    return route.fulfill({json:{period:year*4+quarter-1,assets,supplies:[],demand:{},demandAvailable:true,contexts:{}}});
+  });
   const layout=page.locator('.map-workspace-layout');
   const panel=page.getByRole('region',{name:'CBD',exact:true});
   const primary=panel.getByRole('button',{name:'查看全部项目',exact:true});
@@ -28,6 +45,17 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   const standard=page.locator('[data-map-submarket-panel][data-submarket-layout="standard"]');
   const expanded=page.locator('[data-map-submarket-panel][data-submarket-layout="expanded"]');
   const readyLayout=()=>page.locator('.map-workspace-layout[data-map-layout-ready="true"]').waitFor();
+  const exactAnalysisSelect=async(analysis,label)=>{
+    // Validate the accessible role and exact label separately. This catches
+    // accidental nested option text in labels before an opaque action timeout.
+    const control=analysis.getByRole('combobox',{name:label,exact:true});
+    await control.waitFor({state:'visible'});
+    assert.equal(await analysis.getByLabel(label,{exact:true}).count(),1,'exact associated label: '+label);
+    assert.equal(await control.evaluate((element,expected)=>element.labels?.length===1
+      && element.labels[0].textContent===expected && element.labels[0].htmlFor===element.id
+      && !element.labels[0].contains(element),label),true,'standalone native label: '+label);
+    return control;
+  };
   const openResearch=async()=>{
     await page.evaluate(()=>window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name:'CBD'}})));
     await panel.waitFor();
@@ -201,8 +229,13 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
 
   await projectsTab.click();
   const projects=panel.getByRole('tabpanel',{name:'代表项目',exact:true}).getByRole('region',{name:'代表性项目',exact:true});
-  // Use the host's located CBD fixture and the actual project button, not a synthetic open event.
-  await projects.getByRole('button',{name:'CBD甲楼',exact:true}).click();
+  // The host fixture has three identical same-quarter rents, two with unusable
+  // coordinates. The actual representative must prefer its locatable equivalent,
+  // rather than relying on Chinese/Latin name collation or a synthetic open event.
+  const representative=projects.getByRole('button',{name:'CBD甲楼',exact:true});
+  await projects.getByRole('heading',{name:'代表性项目',exact:true}).waitFor();
+  await representative.waitFor({state:'visible'});
+  await representative.click();
   const building=page.getByRole('region',{name:'CBD甲楼楼宇详情',exact:true});
   await building.waitFor();
   await building.getByRole('button',{name:'返回子市场研究',exact:true}).click();
@@ -223,6 +256,37 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   await visitAllProjects();
   await projects.waitFor();
   assert.equal(await projectsTab.getAttribute('aria-selected'),'true','all-projects action still returns to the selected research tab');
+  if(width===1536){
+    assert.equal(assetReads,0,'market analysis does not read on map startup or ordinary project reading');
+    const analysis=projects.getByRole('region',{name:'市场深度分析',exact:true});
+    await analysis.getByRole('button',{name:'市场深度分析与区域比较',exact:true}).click();
+    const distribution=analysis.getByRole('region',{name:'租金价格分布',exact:true});
+    await distribution.waitFor();
+    await exactAnalysisSelect(analysis,'查询季度');
+    await exactAnalysisSelect(analysis,'产品范围');
+    await analysis.getByRole('img',{name:'同季度楼宇净有效租金与空置率散点图',exact:true}).locator('canvas').waitFor();
+    assert.equal(assetReads,1,'one request serves distribution and scatter');
+    const ranges=distribution.getByRole('group',{name:'选择租金区间查看楼宇',exact:true});
+    await ranges.getByRole('button').first().click();
+    await distribution.getByRole('button',{name:/CBD甲楼/}).click();
+    await building.waitFor();
+    await building.getByRole('button',{name:'返回子市场研究',exact:true}).click();
+    await distribution.waitFor();
+    await analysis.getByRole('button',{name:'添加比较区域',exact:true}).click();
+    const regionSelect=await exactAnalysisSelect(analysis,'比较区域 1');
+    await regionSelect.selectOption('上地');
+    await analysis.getByRole('table',{name:'子市场同季度比较',exact:true}).waitFor();
+    assert.equal(await analysis.getByRole('rowheader',{name:'上地',exact:true}).count(),1);
+    await analysis.getByRole('button',{name:'添加比较区域',exact:true}).click();
+    const second=await exactAnalysisSelect(analysis,'比较区域 2');
+    assert.equal(await second.locator('option[value="上地"]').count(),0,'selected markets cannot be added twice');
+    await second.selectOption('望京-酒仙桥');
+    await analysis.getByRole('rowheader',{name:'望京-酒仙桥',exact:true}).waitFor();
+    await analysis.getByRole('button',{name:'移除比较区域 2',exact:true}).click();
+    await analysis.getByRole('rowheader',{name:'上地',exact:true}).waitFor();
+    assert.equal(await analysis.getByRole('combobox',{name:'比较区域 2',exact:true}).count(),0);
+    await analysis.getByRole('button',{name:'收起市场深度分析',exact:true}).click();
+  }
 
   withTrend=false;
   await page.reload();await page.waitForFunction(()=>window.__workspaceMap?.getCenter());
@@ -281,6 +345,19 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
         assert.equal(await productPanel.locator('canvas').count(),0);
       }
       await productPanel.getByText('完整子市场 · 产业园',{exact:true}).waitFor();
+      if(market!=='四季青'){
+        await productPanel.getByRole('tab',{name:'代表项目',exact:true}).click();
+        const analysis=productPanel.getByRole('region',{name:'市场深度分析',exact:true});
+        await analysis.getByRole('button',{name:'市场深度分析与区域比较',exact:true}).click();
+        await exactAnalysisSelect(analysis,'查询季度');
+        const product=await exactAnalysisSelect(analysis,'产品范围');
+        await product.selectOption('park');
+        const distribution=analysis.getByRole('region',{name:'租金价格分布',exact:true});
+        await distribution.getByText(market==='上地'?'10 个楼宇样本 · 元/㎡/月':'5 个楼宇样本 · 元/㎡/月',{exact:true}).waitFor();
+        await analysis.getByRole('img',{name:'同季度楼宇净有效租金与空置率散点图',exact:true}).locator('canvas').waitFor();
+        assert.equal(await product.inputValue(),'park');
+        await analysis.getByRole('button',{name:'收起市场深度分析',exact:true}).click();
+      }
       await assertMapReady();
     }
     await openResearch();await openTabbedReading();
