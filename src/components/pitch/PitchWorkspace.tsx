@@ -62,6 +62,8 @@ import { LayoutVariants } from "./workspace/LayoutVariants";
 import { DataRefresh } from "./workspace/DataRefresh";
 import { CurrentPageRevision } from "./workspace/CurrentPageRevision";
 import { ImageReplacement, libraryImagesForReplacement } from "./workspace/ImageReplacement";
+import { PhotoReplacementPicker } from "./workspace/PhotoReplacementPicker";
+import { pinnedBuildingPhoto } from "./workspace/PhotoRevisionReview";
 import { AssetPicker, pitchAssetDragType, readAssetTransfer } from "./workspace/Assets";
 import { PagePreview, usePagePreviews } from "./workspace/Preview";
 import { Projects } from "./workspace/Projects";
@@ -228,6 +230,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [objectPage, setObjectPage] = React.useState<string | null>(null),
     [objectSelection, setObjectSelection] = React.useState<{ ids: string[]; dirty: boolean }>({ ids: [], dirty: false }),
     [imageTarget, setImageTarget] = React.useState<{ slideId: string; index: number; openId: number }>(),
+    [photoTarget, setPhotoTarget] = React.useState<{ projectId: string; version: number; pageId: string; objectId: string }>(),
     [reviewUndo, setReviewUndo] = React.useState<{ version: number; revision: number; projectId: string }>(),
     [savedCanvasHistory, setSavedCanvasHistory] = React.useState<SavedCanvasHistory | null>(null);
   const life = React.useRef(new AbortController()),
@@ -517,6 +520,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setFocusedCanvas(false);
     setObjectPage(null);
     setImageTarget(undefined);
+    setPhotoTarget(undefined);
   };
   async function copyProjectLink(id: string) {
     const url = new URL("/intelligence/pitch", window.location.origin);
@@ -1570,6 +1574,11 @@ function Studio({ session }: { session: AuthSessionResult }) {
                           openInspector("properties");
                         },
                       } : undefined}
+                      photoReplacement={canGenerate && !busy && !saving && !generationPending && !conflict && !dirty &&
+                        page.id === active && page.content.disclosure === "internal" && (page.scene.pagination?.count ?? 1) === 1 ? {
+                          canOpen: id => !!pinnedBuildingPhoto(page, id),
+                          open: objectId => setPhotoTarget({ projectId: detail.project.id, version: detail.project.version, pageId: active, objectId }),
+                        } : undefined}
                       onClose={() => setObjectPage(null)}
                       onApply={({ moves, texts, order, groups }) => {
                         editPage({ objectMoves: moves.length ? moves : undefined, objectTexts: texts.length ? texts : undefined, objectOrder: order, objectGroups: groups });
@@ -1986,6 +1995,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
         grants={grants.flatMap(scope => scope.region && scope.city && scope.businessLine
           ? [{ ...scope, region: scope.region, city: scope.city, businessLine: scope.businessLine }] : [])}
         onOpen={open} onClose={() => setHandoff(null)} />}
+      {photoTarget && detail && photoTarget.projectId === detail.project.id && photoTarget.version === detail.project.version &&
+        photoTarget.pageId === active && <PhotoReplacementPicker key={`${photoTarget.pageId}:${photoTarget.objectId}:${photoTarget.version}`}
+          call={call} detail={detail} pageId={photoTarget.pageId} objectId={photoTarget.objectId} onClose={() => setPhotoTarget(undefined)}
+          onApplied={(result, expectedVersion) => {
+            setObjectPage(null);
+            acceptReviewedChange(result, expectedVersion, "楼宇照片已更换。");
+          }} />}
       {homeProposal && homeGrant && <Dialog open dismissible={!homeGenerating} title="核对提案" size="md"
         onOpenChange={(value) => { if (!value) setHomeProposal(""); }}
         footer={<Button variant="ghost" disabled={homeGenerating} onClick={() => openBriefProjectSettings(homeProposal)}>
