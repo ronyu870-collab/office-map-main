@@ -149,12 +149,14 @@ export function readProposalBrief(input: ProposalRequest): ProposalBrief {
   });
   const style = /高端|精致|premium|luxury/i.test(question) ? "premium"
     : scenario === "market-report" || /研究风格|research style/i.test(question) ? "research" : "professional";
+  const namedClient = /(?:为|面向|给|代表)\s*「([^「」\r\n]{2,80})」(?=\s*(?:制作|生成|做|选址|撰写|汇报|[，,。]|$))/u.exec(question)?.[1]
+    ?? /(?:为|面向|给|代表)\s*(.{2,70}?(?:银行|保险|券商|企业|基金|业主|集团|投资方))(?=\s*(?:制作|生成|做|选址|撰写|汇报|[，,。]|$))/i.exec(question)?.[1];
 
   return {
     scenario,
     language: explicitLanguage ?? input.language ?? (/[\p{Script=Han}]/u.test(question) ? "zh" : "en"),
     style,
-    targetClient: /(?:为|面向|给|代表)\s*(.{2,70}?(?:银行|保险|券商|企业|基金|业主|集团|投资方))(?=\s*(?:制作|生成|做|选址|撰写|汇报|[，,。]|$))/i.exec(question)?.[1] ?? null,
+    targetClient: namedClient ?? null,
     city: city ?? input.city ?? null,
     submarkets: QUESTION_SUBMARKETS.filter(value =>
       value === "CBD" ? /\bCBD\b|中央商务区/i.test(question) : question.includes(value)),

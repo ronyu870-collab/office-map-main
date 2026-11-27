@@ -94,7 +94,7 @@ function editOperation(question: string, literal: string): ProposalEditIntent | 
     const count = Number(/(?:到|至|为|to)\s*(\d{1,2})\s*(?:页|slides?)/i.exec(question)?.[1]);
     return { kind: "shorten", pages: Number.isInteger(count) && count > 0 && count <= 50 ? count : null };
   }
-  const customer = /(?:改为|改成|改作|调整为|调整成|重做为|面向|tailor (?:it )?for)\s*(.{2,80}?)(?:的?(?:选址方案|提案|汇报)|[。.!！]|$)/i.exec(question)?.[1];
+  const customer = /(?:改为|改成|改作|调整为|调整成|重做为|面向|tailor (?:it )?for)\s*(.{2,80}?)(?:的?(?:选址方案|提案|汇报)|[，,。.!！]|$)/i.exec(question)?.[1];
   if (customer && /客户|企业|业主|投资方|银行|保险|券商|基金|client|customer|investor|bank/i.test(customer)) {
     return { kind: "retarget", targetClient: customer.replace(/^面向\s*/, "") };
   }

@@ -3,8 +3,10 @@ import { pitchRpc, type PitchContext } from "../data/store";
 import { STUDIO_THEME } from "../design/theme";
 import { layoutSlides } from "../layout/engine";
 import type { SlideContent } from "../contracts/content";
+import type { ProjectContext } from "../workspace/protocol";
+import { readProposalBrief } from "./proposal-brief";
 import { proposalRevisionRequestSchema } from "./proposal-edit-intent";
-import { planProposalRevision, type PreviewProposalQuarter } from "./proposal-revision-runtime";
+import { planProposalRevision, type PreviewProposalQuarter, type ProposalRevisionServices } from "./proposal-revision-runtime";
 
 vi.mock("../data/store", async importOriginal => {
   const actual = await importOriginal<typeof import("../data/store")>();
@@ -35,6 +37,7 @@ let comparisons: boolean;
 let availableQuarters: { year: number; quarter: number }[];
 let revisionDeck: { id: string; content: SlideContent; manual?: true }[] | undefined;
 let themes: { id: string; current_version: number }[];
+let projectContext: Partial<ProjectContext>;
 
 beforeAll(async () => {
   [scene] = await layoutSlides(content, STUDIO_THEME, "two-columns");
@@ -46,6 +49,7 @@ beforeEach(() => {
   comparisons = false;
   revisionDeck = undefined;
   themes = [];
+  projectContext = { business: "市场报告" };
   availableQuarters = [{ year: 2026, quarter: 1 }, { year: 2026, quarter: 2 }, { year: 2026, quarter: 3 }];
   quarterRpc.mockReset().mockImplementation((action, args) => {
     if (action === "ai_query_authority") return { abortSignal: async () => ({ error: null, data: {
@@ -85,7 +89,7 @@ beforeEach(() => {
         template_id: "fixture", template_version: 1, content: slide, scene,
       })),
       workspace: {
-        context: { business: "市场报告" },
+        context: projectContext,
         page_settings: { [firstPage]: { origin: firstPageOrigin }, [secondPage]: { origin: "data" },
           ...Object.fromEntries((revisionDeck ?? []).filter(page => page.manual).map(page => [page.id, { manual: true }])) },
         active_slide: firstPage,
@@ -100,6 +104,49 @@ function request(question: string, pageIds: string[] = []) {
 }
 
 describe("proposal revision transaction previews", () => {
+  it("returns an executable English review of the saved facts without editing the original project", async () => {
+    projectContext = { business: "office-comparison", language: "zh", buildingIds: [buildingId],
+      client: "Acme Bank", period: "2026-Q2" };
+    const prepareReplan = replanFixture("office-comparison", "parameters");
+    const result = await planProposalRevision(context, request("整套切换成英文"), { prepareReplan });
+    expect(result).toMatchObject({
+      status: "refresh-review", scope: "document", plan: { expectedVersion: 4,
+        basePageVersions: [{ id: firstPage, version: 2 }, { id: secondPage, version: 2 }] },
+      regeneration: { projectId, city: "北京", buildingIds: [buildingId], period: "2026-Q2", language: "en" },
+      refreshPlan: { brief: { targetClient: "Acme Bank", language: "en", period: "2026-Q2" } },
+    });
+    expect(result).not.toHaveProperty("command");
+  });
+
+  it("replans the existing authorized shortlist for the named new client and confirms their supplied conditions", async () => {
+    projectContext = { business: "site-selection", language: "zh", buildingIds: [buildingId],
+      client: "原客户企业", period: "2026-Q2" };
+    const prepareReplan = replanFixture("site-selection", "requirements");
+    const result = await planProposalRevision(context,
+      request("整套面向保险企业，面积要求1500平方米，优先通勤"), { prepareReplan });
+    expect(result).toMatchObject({
+      status: "refresh-review", regeneration: { projectId, period: "2026-Q2", buildingIds: [buildingId],
+        question: expect.stringContaining("面积要求1500平方米") },
+      refreshPlan: { brief: { targetClient: "保险企业" }, plan: { slides: [expect.objectContaining({ pageKind: "requirements" })] } },
+    });
+    expect(prepareReplan.mock.calls[0][1].question).toContain("优先关注面积与可租条件、通勤交通");
+    expect(await planProposalRevision(context, request("本页改成英文"), { prepareReplan })).toMatchObject({ status: "unavailable" });
+    revisionDeck = [{ id: firstPage, content, manual: true }, { id: secondPage, content }];
+    expect(await planProposalRevision(context, request("整套改成英文"), { prepareReplan })).toMatchObject({ status: "unavailable" });
+    expect(prepareReplan).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a replan that drops the customer chapter or changes the formal scope", async () => {
+    projectContext = { business: "site-selection", language: "zh", buildingIds: [buildingId],
+      client: "原客户企业", period: "2026-Q2" };
+    const unadapted = replanFixture("site-selection", "parameters");
+    expect(await planProposalRevision(context, request("整套面向保险企业"), { prepareReplan: unadapted }))
+      .toMatchObject({ status: "unavailable" });
+    const outOfScope = replanFixture("site-selection", "requirements", [secondPage]);
+    expect(await planProposalRevision(context, request("整套切换成英文"), { prepareReplan: outOfScope }))
+      .toMatchObject({ status: "unavailable" });
+  });
+
   it.each([
     ["商务", "colliers-corporate-executive"],
     ["高端", "colliers-premium-portfolio"],
@@ -215,3 +262,14 @@ describe("proposal revision transaction previews", () => {
     expect(review).toHaveBeenCalledOnce();
   });
 });
+
+function replanFixture(scenario: "site-selection" | "office-comparison", pageKind: string, buildingIds = [buildingId]) {
+  return vi.fn<NonNullable<ProposalRevisionServices["prepareReplan"]>>(async (_ctx, input) => ({
+    status: "ready", selection: "explicit", modelCalls: 0, modelStatus: "deterministic",
+    brief: { buildingIds, targetClient: readProposalBrief(input).targetClient, language: input.language!, city: input.city!,
+      period: input.period!, start: null, submarkets: [], scenario, title: "核对的新提案", style: "professional", audience: "internal", pages: 8 },
+    plan: { id: separateAsset, contextFingerprint: latestFingerprint, version: 1, title: "核对的新提案", gaps: [],
+      slides: [{ id: firstPage, pageKind, title: "核对页", businessIntent: "fact", titleCandidates: ["核对页"], keyMessages: [],
+        data: [], visuals: [], chart: null, follows: null, precedes: null, dependsOn: [], uncertainties: [], materialReferences: [] }] },
+  }));
+}
