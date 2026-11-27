@@ -10,6 +10,7 @@ import { themeLabel, WorkspaceError, type Call } from "./client";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel } from "./DataRefreshReview";
 import { EvidencePages } from "./BusinessEvidence";
 import { ProposalPreview, reviewedProposalSchema } from "./ProposalPreview";
+import { appliedPhotoSchema, matchesAppliedPhoto, matchesPhotoReview, PhotoRevisionReview, photoReviewSchema } from "./PhotoRevisionReview";
 import styles from "./workspace.module.css";
 
 const chartTypeSchema = z.enum(["bar", "column", "line"]);
@@ -70,6 +71,7 @@ const regenerationSchema = z.strictObject({
 });
 const outcomeSchema = z.union([
   comparisonSchema,
+  photoReviewSchema,
   readySchema.extend({ status: z.literal("ready") }),
   readySchema.extend({ status: z.literal("refresh-review"),
     refreshPlan: z.union([reviewedProposalSchema, z.object({ brief: z.object({ period: outlineQuarter.nullable() }) })]),
@@ -78,7 +80,8 @@ const outcomeSchema = z.union([
   z.object({ status: z.literal("clarification"), message: z.string(), candidates: z.array(buildingSchema).max(10).optional() }),
   z.object({ status: z.literal("unavailable"), message: z.string().optional() }),
 ]);
-type Preview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" }>;
+type Preview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" | "photo-review" }>;
+type StandardPreview = Exclude<Preview, z.infer<typeof photoReviewSchema>>;
 type Plan = Extract<Preview, { plan: unknown }>;
 const chartLabels = { bar: "条形图", column: "柱状图", line: "折线图" } as const;
 
@@ -108,7 +111,7 @@ function matchesRegeneration(value: Extract<Plan, { status: "refresh-review" }>,
   return context.business === "market-report" && brief.scenario === "market-report";
 }
 
-function matchesPreview(value: Preview, detail: WorkspaceDetail) {
+function matchesPreview(value: StandardPreview, detail: WorkspaceDetail) {
   if ("mode" in value) {
     const { command, review } = value;
     const { buildingIds, period, language } = detail.workspace.context;
@@ -178,6 +181,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   const expectedVersion = detail.project.version;
   const key = JSON.stringify([projectId, expectedVersion, question, active, selected, objectIds]);
   const visible = review?.key === key ? review.value : undefined;
+  const photo = visible?.status === "photo-review" ? visible : undefined;
   const comparison = visible && "mode" in visible ? visible : undefined;
   const current: Plan | undefined = visible && "plan" in visible ? visible : undefined;
   const quarterReview = current?.command?.action === "apply_data_refresh" ? current.review : undefined;
@@ -192,13 +196,16 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
     try {
       if (action === "preview") {
         setCandidates(undefined);
-        const result = outcomeSchema.parse(await call({ action: "proposal_revision", input: {
+        const input = {
           projectId, expectedVersion, question: question.trim(), currentPageId: active,
           pageIds: selected, objectIds,
           ...(competitorBuildingId ? { competitorBuildingId } : {}),
-        } }, true, "ai", controller.signal));
+        };
+        const result = outcomeSchema.parse(await call({ action: "proposal_revision", input }, true, "ai", controller.signal));
         if (controller.signal.aborted) return;
-        if ((result.status === "ready" || result.status === "refresh-review") && matchesPreview(result, detail)) {
+        if (result.status === "photo-review" && matchesPhotoReview(result, detail, input)) {
+          setReview({ key, value: result });
+        } else if ((result.status === "ready" || result.status === "refresh-review") && matchesPreview(result, detail)) {
           setReview({ key, value: result });
         } else {
           setReview(undefined);
@@ -206,6 +213,12 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
           const feedback = "message" in result ? result.message : undefined;
           setMessage(feedback || "当前资料或版式无法生成可应用的修改。请缩小范围或指定要更改的内容。");
         }
+      } else if (photo) {
+        const result = appliedPhotoSchema.parse(await call(photo.command, true, "ai", controller.signal));
+        if (controller.signal.aborted) return;
+        if (!matchesAppliedPhoto(photo, result.workspace)) throw new Error("无法核对保存后的照片，请重新打开项目检查。");
+        setReview(undefined);
+        onApplied(result.workspace, expectedVersion);
       } else if (comparison) {
         const receipt = taskReceiptSchema.parse(await call(comparison.command, true, "workspace", controller.signal));
         if (controller.signal.aborted) return;
@@ -227,7 +240,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         (!(cause instanceof WorkspaceError) || cause.status >= 500 || cause.status === 408);
       if (!mayRetryAppend) setReview(undefined);
       setMessage(cause instanceof WorkspaceError && cause.status === 409
-        ? "项目版本已变化，请重新打开项目后再预览。"
+        ? photo ? "项目或照片来源已更新，请重新打开项目后再核对。" : "项目版本已变化，请重新打开项目后再预览。"
         : cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "修改未完成，请重新预览。");
     } finally {
       request.current = null;
@@ -254,13 +267,16 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         onClick={() => void run("preview", candidate.id)}>{candidate.name}{candidate.submarket && ` · ${candidate.submarket}`}</Button>)}
     </div>}
     <Dialog open={!!visible} dismissible={!regenerating} onOpenChange={open => { if (!open && !working && !regenerating) setReview(undefined); }}
-      title="核对 AI 修改" size="lg" footer={comparison ? <Button disabled={disabled} loading={working === "apply"}
+      title="核对 AI 修改" size="lg" footer={photo ? <Button disabled={disabled} loading={working === "apply"}
+        loadingLabel="正在更换…" onClick={() => void run("apply")}>确认换图</Button>
+        : comparison ? <Button disabled={disabled} loading={working === "apply"}
         loadingLabel="正在提交…" onClick={() => void run("apply")}>{message ? "继续追加" : "追加对比页"}</Button> : current && !regeneration && (
         current.plan.refresh && !quarterReview
           ? <Button onClick={() => { setReview(undefined); onOpenData(suggestedPeriod); }}>打开数据检查器</Button>
           : <Button disabled={disabled || (quarterReview ? !quarterReview.changed : !affected)}
             loading={working === "apply"} loadingLabel="正在应用…" onClick={() => void run("apply")}>应用修改</Button>
       )}>
+      {photo && <PhotoRevisionReview review={photo} detail={detail} />}
       {comparison && <>
         <p>{comparison.review.competitor.name} · {comparison.review.period} · 追加 {comparison.review.pages.length} 页</p>
         <EvidencePages pages={comparison.review.pages} />
