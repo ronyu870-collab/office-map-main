@@ -33,20 +33,23 @@ export function walkingOnlyThreshold(question: string): number | undefined {
 
 export function readMetroScreeningRequest(question: string): MetroScreeningRequest | undefined {
   const original = question.normalize('NFKC').replace(/\s+/gu, '');
-  const text = original.replace(excludedMap, '').replace(requestedMap, '').replace(/[。！？!?]+/gu, '')
-    .replace(/[，,]+/gu, ',').replace(/^,+|,+$/g, '');
+  const withoutMap = original.replace(excludedMap, '').replace(requestedMap, '');
+  const text = withoutMap.replace(/[，,。！？!?、]+/gu, '');
   const office = '(?:办公选址|选址|找办公楼|找写字楼|找办公室|办公楼|写字楼)';
   const markets = [...QUESTION_SUBMARKETS.filter(name => name !== '其他'), '望京'].join('|');
   const intent = new RegExp(office, 'u');
   if (!intent.test(text)) return undefined;
   // A market prefix must end at a complete action word. A station name such
-  // as 中关村地铁站 or 望京西站 must survive intact.
+  // as 中关村地铁站 or 望京西站 must survive intact. A comma immediately after a
+  // market is an explicit scope boundary; other punctuation is conversational.
   const action = '(?:查找|查|找|推荐|列出)';
-  const marketBoundary = `(?:,|(?=地铁(?!站)|${office}|${action}|要求|距|到|离))`;
-  const opening = `^(?:请)?(?:帮我)?(?:北京(?:市)?)?在?(?:(${markets})${marketBoundary})?${office}?,?${action}?(?:要求)?(?:距|到|离)?`;
+  const lead = '^(?:请)?(?:帮我)?(?:北京(?:市)?)?在?';
+  const explicitMarket = new RegExp(`${lead}(?:${markets})[，,]`, 'iu').test(withoutMap);
+  const marketScope = explicitMarket ? `(${markets})` : `(?:(${markets})(?=地铁(?!站)|${office}|${action}|要求|距|到|离))?`;
+  const opening = `${lead}${marketScope}${office}?${action}?(?:要求)?(?:距|到|离)?`;
   const destination = '(?:地铁站?|(?:地铁)?([\\p{L}\\p{N}·]{1,30})(?:地铁)?站)';
   const range = '步行(?:不超过|不高于|小于|约|<=|≤)?(\\d{1,5})(?:米|m)(?:以内|内)?的?';
-  const match = new RegExp(`${opening}${destination}${range},?${office}?(?:,?(?:并|同时))?$`, 'iu').exec(text);
+  const match = new RegExp(`${opening}${destination}${range}${office}?(?:并|同时)?$`, 'iu').exec(text);
   const radiusMeters = Number(match?.[3]);
   if (!(radiusMeters > 0 && radiusMeters <= 10000)) return undefined;
   return { radiusMeters, stationName: match?.[2]?.replace(/地铁$/u, ''),

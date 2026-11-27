@@ -106,6 +106,8 @@ describe('AI6 full-condition execution routing', () => {
     expect(routeTask('在CBD地铁步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: undefined, submarkets: ['CBD'] });
     expect(routeTask('在CBD，地铁站步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: undefined, submarkets: ['CBD'] });
     expect(routeTask('在中关村，地铁站步行800米内办公选址').metroSelection).toMatchObject({ stationName: undefined, submarkets: ['中关村'] });
+    expect(routeTask('在国贸地铁站，步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: '国贸', submarkets: undefined });
+    expect(routeTask('在中关村地铁站，步行800米内办公选址').metroSelection).toMatchObject({ stationName: '中关村', submarkets: undefined });
     expect(routeTask('地铁国贸站步行800米内找办公室，必须有独立电梯').metroSelection).toBeUndefined();
   });
   it('keeps report-period policy tasks out of the narrow semantic extractor', () => {

@@ -206,7 +206,7 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       // point inside the radius, plus a tracked building without coordinates.
       for (const [index, latitude] of [[0, lat], [1, lat + .001], [2, lat], [3, null], [4, lat]])
         await db.query('update public.buildings set location_lng=$2,location_lat=$3 where id=$1', [ids[index], latitude === null ? null : lng, latitude]);
-      const response = await submit(walker, '地铁国贸站步行不超过800米的办公选址，给出地图链接');
+      const response = await submit(walker, '在国贸地铁站，步行不超过800米的办公选址，给出地图链接');
       assert.equal(response.status, 200, JSON.stringify(response.body)); assert.equal(response.calls, 0);
       assert.equal(response.body.agent.executionStatus, 'partial');
       assert.equal(response.body.answerSelection.status, 'partial');
