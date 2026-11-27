@@ -137,16 +137,18 @@ export async function verifyAi5Leases({ db, app, service, keys, output, check, p
     });
     await check('AI6 T17 / 同一会话的三类获权快照经真实登录生成工作簿，逐表回读并在撤权后拒绝', async () => {
       const analyst = await person('admin', 'ai6-workbook');
+      const markerBuilding = randomUUID(), markerTransaction = randomUUID();
       const grantWorkbook = actor => grantQuery({ setup: db }, actor.id, { capabilities: exportCaps,
-        fields: ['height', 'netEffectiveRent', 'totalArea'], allBuildings: false, buildingIds: buildingIds.slice(0, 3) });
-      await grantWorkbook(analyst);
-      await grantWorkbook(other);
-      await grantLeaseResearch(db, analyst.id);
-      await grantLeaseResearch(db, other.id);
-      const markerId = randomUUID();
-      await db.query(`insert into public.lease_transactions(id,company,new_building,industry,sub_market,area_sqm,transaction_year,transaction_quarter,transaction_date)
-        values($1,'合成保密客户_禁止模型日志','=1+1','TMT','CBD',600,2026,'Q1','2026-02-02')`, [markerId]);
+        fields: ['height', 'netEffectiveRent', 'totalArea'], allBuildings: false, buildingIds: [...buildingIds.slice(0, 3), markerBuilding] });
       try {
+        await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,'=1+1','CBD','A','tracked')", [markerBuilding]);
+        await db.query("insert into public.lease_building_name_map(market_code,alias_name,building_id,match_method) values('BJ','=1+1',$1,'manual')", [markerBuilding]);
+        await db.query(`insert into public.lease_transactions(id,company,new_building,industry,sub_market,area_sqm,transaction_year,transaction_quarter,transaction_date)
+          values($1,'合成保密客户_禁止模型日志','=1+1','TMT','CBD',600,2026,'Q1','2026-02-02')`, [markerTransaction]);
+        await grantWorkbook(analyst);
+        await grantWorkbook(other);
+        await grantLeaseResearch(db, analyst.id);
+        await grantLeaseResearch(db, other.id);
         const scope = { inventory: 'tracked', submarkets: ['CBD'], buildingIds: buildingIds.slice(0, 3) };
         const quarter = { year: 2026, quarter: 2 };
         const lease = { source: 'live', from: '2026-01-01', to: '2026-06-30', submarkets: ['CBD'], mode: 'details', fields: ['building', 'area'] };
@@ -220,11 +222,16 @@ export async function verifyAi5Leases({ db, app, service, keys, output, check, p
             await db.query('update private.ai_lease_research_grants set allow_export=false where user_id=$1', [analyst.id]);
             assert.equal((await download({ ...exported, actor: analyst })).status, 403);
             assert.equal((await recover(analyst, exported.body.requestId)).status, 403);
-            assert.equal((await recover(analyst, source.body.requestId)).status, 200);
+            assert.equal((await recover(analyst, source.body.requestId)).status, 403);
+            const fresh = await submit(lease, { question: '列出2026年上半年CBD逐笔租赁成交。' }, analyst);
+            assert.equal(fresh.status, 200, JSON.stringify(fresh.body));
+            assert.equal(fresh.body.result.table.rows.length, detailRows.length - 1);
           }
         }
       } finally {
-        await db.query('delete from public.lease_transactions where id=$1', [markerId]);
+        await db.query('delete from public.lease_transactions where id=$1', [markerTransaction]);
+        await db.query('delete from public.lease_building_name_map where building_id=$1', [markerBuilding]);
+        await db.query('delete from public.buildings where id=$1', [markerBuilding]);
       }
     });
     await check('AI5成交 / CSV中文与来源ZIP真实回读，延续原有公式防护',async()=>{
