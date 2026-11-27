@@ -45,9 +45,12 @@ function evidence(page?: Page) {
   }) ?? [];
 }
 
-function conclusions(page?: Page) {
-  return page?.content.blocks.flatMap(block => block.kind === 'insight'
-    ? [{ claim: block.claim, basis: block.basis, limitations: block.limitations }] : []) ?? [];
+function conclusions(page?: Page, includeNarrative = false): unknown[] {
+  return page?.content.blocks.flatMap((block): unknown[] => {
+    if (block.kind === 'insight') return [{ claim: block.claim, basis: block.basis, limitations: block.limitations }];
+    if (includeNarrative && block.kind === 'paragraph') return [block.text];
+    return [];
+  }) ?? [];
 }
 
 function compareEvidence(before: Evidence[], after: Evidence[]) {
@@ -84,15 +87,16 @@ function compareEvidence(before: Evidence[], after: Evidence[]) {
 }
 
 export function reviewProposalEdition(current: WorkspaceDetail, next: readonly Page[],
-  preserved: ReadonlyMap<string, string>, afterPeriod: string): ProposalEditionReview {
+  preserved: ReadonlyMap<string, string>, afterPeriod: string, analyticalPages: ReadonlySet<string> = new Set()): ProposalEditionReview {
   const incoming = new Map(next.map((page, index) => [page.id, { page, position: index + 1 }]));
   const pages: ProposalEditionReview['pages'] = [];
   const summarize = ({ id, content }: Page, position: number) => ({ id, title: content.title, position, dataAsOf: content.dataAsOf });
-  const hasConclusions = current.slides.some(page => conclusions(page).length) || next.some(page => conclusions(page).length);
+  const hasConclusions = analyticalPages.size > 0 || [...current.slides, ...next].some(page => conclusions(page).length);
   const add = (before?: { page: Page; position: number }, after?: { page: Page; position: number }) => {
     const prior = evidence(before?.page), next = evidence(after?.page);
     const changes = compareEvidence(prior, next);
-    const conclusionChanged = !equal(conclusions(before?.page), conclusions(after?.page));
+    const includeNarrative = !!after && analyticalPages.has(after.page.id);
+    const conclusionChanged = !equal(conclusions(before?.page, includeNarrative), conclusions(after?.page, includeNarrative));
     const dateChanged = (prior.length || next.length) && before?.page.content.dataAsOf !== after?.page.content.dataAsOf;
     if (before && after && !changes.length && !conclusionChanged && !dateChanged) return;
     pages.push({ before: before && summarize(before.page, before.position), after: after && summarize(after.page, after.position),
