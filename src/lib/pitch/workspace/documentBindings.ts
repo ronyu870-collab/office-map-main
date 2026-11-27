@@ -11,7 +11,7 @@ import { digest, mediaRowSchema, pitchRpc, type PitchContext } from '../data/sto
 import type { BusinessDataBinding } from '../integration-contracts';
 import { layoutSlides } from '../layout/engine';
 import { assertSceneQuality } from '../layout/quality';
-import type { WorkspaceCommand, WorkspaceDetail } from './protocol';
+import { stackingHandoffPartSchema, type WorkspaceCommand, type WorkspaceDetail } from './protocol';
 import { captureKey, fieldIndex, readCaptures, usesBusinessEvidence, type Block, type Capture } from './bindingStore';
 import { noteSubtitle, type PageNote } from './presentation-edits';
 import { commitPayload, getWorkspace } from './workflow';
@@ -30,12 +30,23 @@ export async function readDocumentBindings(ctx: PitchContext, projectId: string)
     projectVersion: document.project.version,
     pages: document.slides.map(page => {
       const capture = captures.get(captureKey(page.asset_id, page.asset_version));
+      const settings = document.workspace.page_settings[page.id];
+      const stacking = stackingHandoffPartSchema.safeParse(settings?.part);
       const manualSourceIds = new Set(page.content.sources.filter(s => s.recordId?.startsWith('workspace:')).map(s => s.id));
       return {
         id: page.id, assetId: page.asset_id, assetVersion: page.asset_version,
         disclosure: page.content.disclosure, sources: page.content.sources,
-        manualNote: document.workspace.page_settings[page.id]?.note?.text,
+        manualNote: settings?.note?.text,
         objects: page.content.blocks.map((block, index) => {
+          if (stacking.success && !block.sourceIds.some(id => manualSourceIds.has(id))) {
+            const { stackingSource, dataVersion, dataAsOf, observedOn, permissionRevision, policyVersion } = stacking.data;
+            return {
+              index, kind: block.kind, valueOrigin: 'business' as const, sourceIds: block.sourceIds, query: stackingSource,
+              binding: { domain: 'business' as const, disclosure: 'restricted' as const,
+                dataVersion, dataAsOf, observedOn, permissionRevision, policyVersion },
+              ...(block.kind === 'image' ? { mediaId: block.mediaAssetId, mediaVersion: block.mediaVersion } : {}),
+            };
+          }
           const origin = capture ? fieldIndex(block, capture.content) : -1;
           if (capture && usesBusinessEvidence(block, capture.content) && block.kind !== 'insight') {
             return {

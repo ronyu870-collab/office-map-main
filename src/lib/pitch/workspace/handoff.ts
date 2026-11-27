@@ -11,6 +11,7 @@ import { dynamicParametersSchema } from '../business/protocol';
 import { digest, pitchRpc, type PitchContext } from '../data/store';
 import { projectContextSchema, type WorkspaceCommand } from './protocol';
 import { getWorkspace } from './workflow';
+import { requireStackingHandoff, stackingReviewBinding, stackingReviewFingerprint, type StackingHandoffPort } from './stacking-handoff';
 
 type HandoffCommand = Extract<WorkspaceCommand, { action: 'review_handoff' | 'add_to_pitch' }>;
 type Handoff = HandoffCommand['handoff'];
@@ -46,9 +47,22 @@ async function resolveAnalysis(ctx: PitchContext, requestId: string) {
   if (buildingIds.length > 20 || (!buildingIds.length && submarkets.length !== 1)) throw new Error('PITCH_HANDOFF_UNSUPPORTED');
   return { buildingIds, submarkets, period: data.data.period, inventory: scope.inventory };
 }
-async function prepareHandoff(ctx: PitchContext, input: Handoff) {
+async function prepareHandoff(ctx: PitchContext, input: Handoff, stackingPort?: StackingHandoffPort) {
   const current = input.projectId ? await getWorkspace(ctx, input.projectId) : undefined;
   const source = input.source;
+  if (source.kind === 'stacking-plan') {
+    const language = input.language ?? current?.workspace.context.language ?? 'zh';
+    if (language !== 'zh') throw new Error('PITCH_LANGUAGE_UNAVAILABLE');
+    const evidence = await requireStackingHandoff(stackingPort).read(ctx, source);
+    if (current && current.project.city !== evidence.city) throw new Error('QUERY_DENIED');
+    const { title, blocks, sources } = evidence.content;
+    return {
+      status: 'ready' as const, buildingIds: [source.buildingId], submarkets: [], period: '', language,
+      binding: stackingReviewBinding(evidence), version: evidence.dataVersion,
+      sourceCity: evidence.city, stackingSource: source, fingerprint: stackingReviewFingerprint(evidence, source, input.projectId),
+      pages: [{ title, blocks, sources }],
+    };
+  }
   const lease = source.kind === 'lease-search' ? source : undefined;
   const resolved = source.kind === 'analysis-result' ? await resolveAnalysis(ctx, source.id) : undefined;
   const buildingIds = source.kind === 'buildings' ? source.buildingIds : lease?.buildingIds ?? resolved?.buildingIds ?? [];
@@ -85,10 +99,10 @@ async function prepareHandoff(ctx: PitchContext, input: Handoff) {
     pages: snapshot.content.map(content => ({ title: content.title, blocks: content.blocks, sources: content.sources })),
   };
 }
-export async function reviewHandoff(ctx: PitchContext, command: Extract<HandoffCommand, { action: 'review_handoff' }>) {
-  return prepareHandoff(ctx, command.handoff);
+export async function reviewHandoff(ctx: PitchContext, command: Extract<HandoffCommand, { action: 'review_handoff' }>, stackingPort?: StackingHandoffPort) {
+  return prepareHandoff(ctx, command.handoff, stackingPort);
 }
-export async function startHandoff(ctx: PitchContext, command: Extract<HandoffCommand, { action: 'add_to_pitch' }>) {
+export async function startHandoff(ctx: PitchContext, command: Extract<HandoffCommand, { action: 'add_to_pitch' }>, stackingPort?: StackingHandoffPort) {
   const { handoff, target, taskId } = command;
   const projectId = target.mode === 'create' ? target.projectId : handoff.projectId!;
   if (target.mode === 'create' && handoff.projectId || target.mode === 'append' && !handoff.projectId) throw new Error('PITCH_INVALID');
@@ -96,8 +110,9 @@ export async function startHandoff(ctx: PitchContext, command: Extract<HandoffCo
   const request = { handoff, target, fingerprint: command.fingerprint };
   const replay = await pitchRpc(ctx, { action: 'workspace_handoff_replay', projectId, taskId, request });
   if (replay !== null) return reviewSchema.parse(replay);
-  const review = await prepareHandoff(ctx, handoff);
+  const review = await prepareHandoff(ctx, handoff, stackingPort);
   if (review.status !== 'ready' || review.fingerprint !== command.fingerprint) throw new Error('PITCH_HANDOFF_CHANGED');
+  if (review.stackingSource && target.mode === 'create' && target.scope.city !== review.sourceCity) throw new Error('QUERY_DENIED');
   const create = target.mode === 'create' ? {
     title: target.title, scope: target.scope, themeId: target.themeId, themeVersion: target.themeVersion,
     context: projectContextSchema.parse({ buildingIds: review.buildingIds, language: review.language, period: review.period }),
@@ -105,7 +120,10 @@ export async function startHandoff(ctx: PitchContext, command: Extract<HandoffCo
   return reviewSchema.parse(await pitchRpc(ctx, {
     action: 'workspace_handoff_start', projectId, expectedVersion, taskId, sourceProjectId: randomUUID(), create,
     command: {
-      part: { mode: 'handoff', parameters: review.parameters, language: review.language, dataVersion: review.version,
+      part: { mode: 'handoff', ...(review.stackingSource
+        ? { stackingSource: review.stackingSource, dataAsOf: review.binding.dataAsOf, observedOn: review.binding.observedOn }
+        : { parameters: review.parameters }),
+        language: review.language, dataVersion: review.version,
         policyVersion: review.binding.policyVersion, permissionRevision: review.binding.permissionRevision },
       replaceIds: [], creation: create, request,
     },

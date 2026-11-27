@@ -124,12 +124,27 @@ export const outlinePartSchema = z.strictObject({
   }
 });
 export type OutlinePart = z.infer<typeof outlinePartSchema>;
+export const stackingSelectionSchema = z.strictObject({
+  towerIds: z.array(id).min(1).max(2).refine(ids => ids.length === new Set(ids).size).optional(),
+  levelRange: z.tuple([z.number().int().min(-200).max(300), z.number().int().min(-200).max(300)])
+    .refine(([first, last]) => first <= last).optional(),
+});
+const stackingHandoffSourceSchema = z.strictObject({
+  kind: z.literal("stacking-plan"), buildingId: id, selection: stackingSelectionSchema.default({}),
+});
+export type StackingHandoffSource = z.infer<typeof stackingHandoffSourceSchema>;
+
 const handoffPartSchema = z.strictObject({
   mode: z.literal("handoff"), parameters: dynamicParametersSchema, language: z.enum(["zh", "en"]),
   dataVersion: outlineFingerprint, permissionRevision: z.string().min(1).max(160), policyVersion: z.string().min(1).max(160),
 });
+export const stackingHandoffPartSchema = z.strictObject({
+  mode: z.literal("handoff"), stackingSource: stackingHandoffSourceSchema, language: z.literal("zh"),
+  dataVersion: outlineFingerprint, dataAsOf: z.iso.date().nullable(), observedOn: z.iso.date().optional(),
+  permissionRevision: z.string().min(1).max(160), policyVersion: z.string().min(1).max(160),
+});
 const editableWorkspacePartSchema = z.union([generationPartSchema, examplePartSchema, bundlePartSchema, outlinePartSchema]);
-export const workspacePartSchema = z.union([editableWorkspacePartSchema, handoffPartSchema]);
+export const workspacePartSchema = z.union([editableWorkspacePartSchema, handoffPartSchema, stackingHandoffPartSchema]);
 const leaseHandoffSourceSchema = z.strictObject({
   kind: z.literal("lease-search"),
   dataset: z.enum(["live", "history", "combined"]),
@@ -151,9 +166,11 @@ const handoffSchema = z.strictObject({
     z.strictObject({ kind: z.literal("submarket"), key: z.string().trim().min(1).max(80) }),
     z.strictObject({ kind: z.literal("analysis-result"), id }),
     leaseHandoffSourceSchema,
+    stackingHandoffSourceSchema,
   ]),
   projectId: id.optional(), period: outlineQuarter.optional(), language: z.enum(["zh", "en"]).optional(),
-}).refine(input => input.source.kind !== "lease-search" || !input.period, "Lease handoff specifies its own date range");
+}).refine(input => !["lease-search", "stacking-plan"].includes(input.source.kind) || !input.period,
+  "Lease and historical stacking sources retain their own dates");
 const handoffTargetSchema = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("append"), expectedVersion: z.number().int().positive() }),
   z.strictObject({ mode: z.literal("create"), projectId: id, title, scope: scopeSchema,

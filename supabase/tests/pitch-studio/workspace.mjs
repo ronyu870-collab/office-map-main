@@ -1093,6 +1093,8 @@ try {
       assert.deepEqual(await startProposalTask(ordinary, confirmation, sourceId),
         { taskId: confirmation.taskId, state: "completed", projectId: sourceId });
       assert.ok((await workspace.getWorkspace(ordinary, sourceId)).slides.length);
+      const listed = await db.rpc(OTHER, { action: "workspace_list", q: "已确认提案" });
+      assert.deepEqual(listed.map(item => item.id), [sourceId]);
       assert.equal((await workspace.getWorkspace(ordinary, projectId)).project.version, parent.project.version);
 
       const cancelled = { ...confirmation, taskId: randomUUID() }, cancelledId = randomUUID();
