@@ -1835,8 +1835,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
                     <div className={styles.form}>
                       {page ? (
                         <>
-                          {detail.workspace.page_settings[page.id]?.origin === "data" && active === page.id && (
-                            <DataRefresh key={`${detail.project.id}:${detail.project.version}:${page.id}:${suggestedPeriod ?? ""}`}
+                          {active === page.id && (
+                            <DataRefresh key={`${detail.project.id}:${detail.project.version}`}
                               call={call} detail={detail} slideId={page.id}
                               suggestedPeriod={suggestedPeriod}
                               disabled={dirty || saving || busy || addingAssets || generationPending || conflict}
