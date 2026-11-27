@@ -88,16 +88,22 @@ export function MapDisclosure({ label, children, className = '', active = true, 
       root.current.querySelector('summary')?.focus({ preventScroll: true });
     };
     place();
+    let positionFrame: number | null = null;
+    const queuePlace = () => {
+      if (positionFrame !== null) return;
+      positionFrame = window.requestAnimationFrame(() => { positionFrame = null; place(); });
+    };
     const repositionOnScroll = (event: Event) => {
       if (event.target instanceof Node && content.current?.contains(event.target)) return;
-      place();
+      queuePlace();
     };
-    window.addEventListener('resize', place); window.addEventListener('scroll', repositionOnScroll, true);
-    window.visualViewport?.addEventListener('resize', place); window.visualViewport?.addEventListener('scroll', place);
+    window.addEventListener('resize', queuePlace); window.addEventListener('scroll', repositionOnScroll, true);
+    window.visualViewport?.addEventListener('resize', queuePlace); window.visualViewport?.addEventListener('scroll', queuePlace);
     document.addEventListener('pointerdown', outside); window.addEventListener('keydown', escape, true);
     return () => {
-      window.removeEventListener('resize', place); window.removeEventListener('scroll', repositionOnScroll, true);
-      window.visualViewport?.removeEventListener('resize', place); window.visualViewport?.removeEventListener('scroll', place);
+      if (positionFrame !== null) window.cancelAnimationFrame(positionFrame);
+      window.removeEventListener('resize', queuePlace); window.removeEventListener('scroll', repositionOnScroll, true);
+      window.visualViewport?.removeEventListener('resize', queuePlace); window.visualViewport?.removeEventListener('scroll', queuePlace);
       document.removeEventListener('pointerdown', outside); window.removeEventListener('keydown', escape, true);
     };
   }, [open, children, preferredWidth]);

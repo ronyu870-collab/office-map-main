@@ -85,10 +85,19 @@ export function createSubmarketBubble({ name, summary, mode = 'default', leed = 
     });
     bubble.append(metrics);
   } else bubble.classList.add('map-submarket-bubble--name-only');
-  add(bubble, 'map-submarket-bubble__count', count);
+  const countLine = add(bubble, 'map-submarket-bubble__count', count);
+  if (offices && parks) {
+    countLine.classList.add('map-submarket-bubble__count--mixed');
+    countLine.replaceChildren();
+    add(countLine, 'map-submarket-bubble__count-item', `甲乙级 ${offices}`);
+    add(countLine, 'map-submarket-bubble__count-divider', ' · ');
+    add(countLine, 'map-submarket-bubble__count-item', `园区 ${parks}`);
+  }
   // Complete facts remain available to keyboard, touch accessibility and the brief.
   const coverage = certification ? `，已确认认证 ${certification.certified} 个，明确未认证 ${certification.negative} 个，未收录 ${certification.unknown} 个，共 ${certification.total} 个` : '';
-  const description = `${name}，${count}，${parkOnly ? '园区' : '甲乙级'}净有效租金${rent == null ? '未收录或样本不足' : `${rent.toFixed(1)}元/平方米/月`}，空置率${vacancyText ?? '未收录或样本不足'}${mode === 'leed' ? `，${leedText}${coverage}` : ''}`;
+  const sampleContext = [facts?.rentSampleCount === 1 && '租金单项目观测', facts?.vacancySampleCount === 1 && '空置率单项目观测'].filter(Boolean).join('，');
+  if (sampleContext) bubble.dataset.sampleQuality = 'single';
+  const description = `${name}，${count}，${parkOnly ? '园区' : '甲乙级'}净有效租金${rent == null ? '未收录或样本不足' : `${rent.toFixed(1)}元/平方米/月`}，空置率${vacancyText ?? '未收录或样本不足'}${mode === 'leed' ? `，${leedText}${coverage}` : ''}${sampleContext ? `，${sampleContext}` : ''}`;
   bubble.title = description;
   bubble.setAttribute('aria-label', `查看${description}子市场介绍`);
   return bubble;

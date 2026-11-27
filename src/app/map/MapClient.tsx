@@ -990,7 +990,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           window.dispatchEvent(new CustomEvent('map-workspace-selection', { detail: workspace.history.at(-1)?.kind === 'building' ? (workspace.history.at(-1) as { kind: 'building'; building: FullListBuilding }).building : null }));
         }}
         buildingDetailPanel={buildingDetail && workspace.right?.kind === 'building' ? <BuildingDetailView
-          key={`${buildingDetail.building._dataType}:${buildingDetail.building.id}`} detail={{ ...buildingDetail, canEdit: buildingDetail.canEdit && !getImpersonationTargetUserId() }}
+          key={JSON.stringify([readingScope, buildingDetail.building._dataType, buildingDetail.building.id])} detail={{ ...buildingDetail, canEdit: buildingDetail.canEdit && !getImpersonationTargetUserId() }}
           outsideResults={!fullListBusy && !combinedBuildingList.some(item => item.id === buildingDetail.building.id && item._dataType === buildingDetail.building._dataType)}
           readingState={buildingReadingStates.get(`${buildingDetail.building._dataType}:${buildingDetail.building.id}`)}
           onReadingChange={state => buildingReadingStates.set(`${buildingDetail.building._dataType}:${buildingDetail.building.id}`, state)}

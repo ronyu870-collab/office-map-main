@@ -21,7 +21,8 @@ const SETTINGS = {
   collisionGap: 8,
   uiGap: 8,
   edgeGap: 8,
-  iterations: 36,
+  iterations: 52,
+  attractionIterations: 36,
   spring: 0.06,
   strongSpring: 0.13,
   strongSpringDistance: 64,
@@ -163,7 +164,9 @@ function solve(nodes: LayoutNode[], avoidRects: AvoidRect[], width: number, heig
   ));
 
   for (let iteration = 0; iteration < SETTINGS.iterations; iteration += 1) {
-    if (iteration > 0) {
+    // Finish with pure separation. Attraction on the last pass can pull
+    // nearby markers back into one another on a dense city overview.
+    if (iteration > 0 && iteration < SETTINGS.attractionIterations) {
       for (const node of nodes) {
         const displacement = Math.hypot(node.x - node.anchorX, node.y - node.anchorY);
         const spring = displacement > SETTINGS.strongSpringDistance
@@ -270,8 +273,10 @@ export function installSubmarketCollisionAvoidance(
         element,
         anchorX,
         anchorY,
-        x: anchorX + previousX,
-        y: anchorY + previousY,
+        // Solve from the geographic anchors each time; changing mode or
+        // rebuilding markers must produce the same screen offsets.
+        x: anchorX,
+        y: anchorY,
         radius,
         name: element.dataset.submarket || element.title || element.textContent || '',
       });

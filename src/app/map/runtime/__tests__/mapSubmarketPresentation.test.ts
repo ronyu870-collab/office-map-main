@@ -78,3 +78,17 @@ it('keeps 16 distinct named area anchors across mode changes without using a ref
     expect(bubble.querySelector('.map-submarket-bubble__name')?.textContent).toBe(entry.name);
   }
 });
+
+it('keeps the mixed-market office measure separate from park inventory and discloses single samples', () => {
+  const summary = summarizeBubbleMarkets([
+    {...row('望京-酒仙桥','A',100,.1),id:'office'},
+    {...row('望京-酒仙桥','BP',900,.8),id:'park'},
+  ]).get('望京-酒仙桥');
+  const bubble = createSubmarketBubble({name:'望京-酒仙桥',summary});
+  expect(bubble.textContent).toContain('¥100.0');
+  expect(bubble.textContent).not.toContain('¥900.0');
+  expect(bubble.textContent).toContain('甲乙级 1');
+  expect(bubble.textContent).toContain('园区 1');
+  expect(bubble.dataset.sampleQuality).toBe('single');
+  expect(bubble.getAttribute('aria-label')).toContain('租金单项目观测');
+});

@@ -88,7 +88,7 @@ try {
     const height = width === 844 ? 390 : width === 1280 ? 720 : width === 768 ? 640 : width < 640 ? 844 : 1000;
     const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 640 || width === 844, hasTouch: width < 640 || width === 844, serviceWorkers: 'block' });
     const errors = [];
-    let stockReads = 0, failSDK = false, photoReads = 0;
+    let stockReads = 0, failSDK = false, photoReads = 0, brochureReads = 0;
     let dataRows = stock, futureRows = future, dataGate = null, releaseData = () => {};
     const auditEvents = new Map();
     let auditFailures = 0;
@@ -124,6 +124,13 @@ try {
               [2024,4,null,null],[2023,4,0,0],[2022,4,null,null],[2021,4,180,.11],
             ].map(([record_year,record_quarter,net_effective_rent,vacancy_rate])=>({record_year,record_quarter,net_effective_rent,vacancy_rate})) } });
             if (url.searchParams.get('mode') === 'future') return route.fulfill({ json: { future_supplies: futureRows } });
+            if (url.searchParams.get('mode') === 'compare' && url.searchParams.get('scope') === 'selected') {
+              const ids = url.searchParams.getAll('id');
+              brochureReads++;
+              const buildings = dataRows.filter(row=>ids.includes(row.id));
+              const brochures = ids.includes(stock[0].id) ? [{id:'brochure-fixture',building_id:stock[0].id,created_at:'2026-01-01',clear_height:2.85,elevator_passenger:12,contact_phone:'private-fixture'}] : [];
+              return route.fulfill({json:{buildings,brochures}});
+            }
             stockReads++;
             if (dataGate) await dataGate;
             return route.fulfill({ json: { buildings: dataRows, display_overrides: [] } });
@@ -366,6 +373,14 @@ try {
         await page.keyboard.press('Escape');
         assert.ok(await detail.getByRole('button',{name:'查看大图',exact:true}).evaluate(el=>el===document.activeElement));
         await page.screenshot({path:'/tmp/map-layout-photo-1024.png'});
+        assert.equal(brochureReads,0,'building overview does not prefetch brochure parameters');
+        await detail.getByRole('button',{name:'楼书参数',exact:true}).click();
+        const brochure=detail.getByRole('region',{name:'楼书参数',exact:true});
+        await brochure.getByText('2.85',{exact:true}).waitFor();
+        await brochure.getByText('客梯',{exact:true}).waitFor();
+        assert.equal(brochureReads,1,'brochure reads only on explicit request');
+        assert.equal(await brochure.getByText('private-fixture',{exact:true}).count(),0);
+        await detail.getByRole('button',{name:'楼书参数',exact:true}).click();
 
       }
       assert.equal(await page.locator('.workspace-building').count(), 1);

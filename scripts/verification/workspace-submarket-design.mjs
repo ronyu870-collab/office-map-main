@@ -20,7 +20,7 @@ function installNativeOverlays() {
     constructor(id, options) { super(id, options); this.host = document.getElementById(id); this.zoom = 11; this.center = [116.4, 39.94]; this.markers = new Set(); window.__submarketMap = this; window.__submarketMapInstances = (window.__submarketMapInstances ?? 0) + 1; }
     getContainer() { return this.host; }
     lngLatToContainer(point) { return super.lngLatToContainer(coordinates(point)); }
-    position() { for (const marker of this.markers) { if (!marker.options?.position) continue; const coordinate = marker.options.position; const point = Array.isArray(coordinate) ? coordinate : [coordinate.getLng?.() ?? coordinate.lng, coordinate.getLat?.() ?? coordinate.lat]; if (!point.every(Number.isFinite)) continue; const p = this.lngLatToContainer(point); marker.content.style.cssText = `position:absolute;left:${p.x}px;top:${p.y}px;transform:translate(-50%,-50%);`; } }
+    position() { for (const marker of this.markers) { if (!marker.options?.position) continue; const coordinate = marker.options.position; const point = Array.isArray(coordinate) ? coordinate : [coordinate.getLng?.() ?? coordinate.lng, coordinate.getLat?.() ?? coordinate.lat]; if (!point.every(Number.isFinite)) continue; const p = this.lngLatToContainer(point); marker.content.style.position = 'absolute'; marker.content.style.left = `${p.x}px`; marker.content.style.top = `${p.y}px`; marker.content.style.transform = 'translate(-50%,-50%)'; } }
     add(objects) { super.add(objects); for (const object of [].concat(objects)) this.markers.add(object); this.position(); }
     remove(objects) { super.remove(objects); for (const object of [].concat(objects)) this.markers.delete(object); }
     setZoomAndCenter(zoom, center) { this.emit('zoomstart'); super.setZoomAndCenter(zoom, coordinates(center)); this.position(); this.emit('zoomend'); }
@@ -50,6 +50,15 @@ export async function verifySubmarketDesign(context, { base, width, stock }) {
   const rows = names.map((name, i) => ({ ...stock[0], id: `design-${i}`, name: `${name}测试楼`, submarket: name, grade: ['丰台科技园','上地','四季青','北清路'].includes(name) ? 'BP' : 'A',
     photos: [], location_lng: places[i][0], location_lat: places[i][1],
     building_metrics: stock[0].building_metrics.map((m, index) => ({ ...m, id: `design-metric-${i}-${index}`, building_id: `design-${i}`, net_effective_rent: i === 3 ? null : 205.3, vacancy_rate: i === 3 ? .163 : .12 })) }));
+  if (width >= 1200) {
+    // Park-only and mixed product fixtures exercise actual aggregation, while
+    // 四季青 intentionally retains a single observation.
+    for (const [market, grade, rent, index] of [['上地','BP',180,16], ['望京-酒仙桥','BP',900,17]]) {
+      const baseRow = rows.find(row => row.submarket === market);
+      rows.push({ ...baseRow, id: `design-${index}`, name: market + '第二项目', grade,
+        building_metrics: baseRow.building_metrics.map((m,i)=>({...m,id:`design-metric-${index}-${i}`,building_id:`design-${index}`,net_effective_rent:rent})) });
+    }
+  }
   assert.ok(rows.every(row => !row.photos.length && row.building_metrics.every(metric => metric.building_id === row.id)), 'design fixtures never inherit another building’s assets');
   try {
     await page.route('https://webapi.amap.com/maps**', route => route.fulfill({ contentType: 'application/javascript', body: `(${installSyntheticMap})();(${installNativeOverlays})();` }));
@@ -72,8 +81,8 @@ export async function verifySubmarketDesign(context, { base, width, stock }) {
       const bubbles = await page.locator('#map-container .map-submarket-bubble').evaluateAll(elements => elements.filter(e => getComputedStyle(e).display !== 'none').map(e => {
         const box = e.getBoundingClientRect(), name = e.querySelector('.map-submarket-bubble__name');
         const css = getComputedStyle(e), nameBox = name.getBoundingClientRect();
-        return { name: name.textContent, text: e.textContent, width: box.width, height: box.height, background: css.backgroundColor, nameWidth: name.scrollWidth, nameClient: name.clientWidth, nameHeight: name.scrollHeight, nameClientHeight: name.clientHeight,
-          fits: nameBox.left >= box.left && nameBox.right <= box.right && [...e.querySelectorAll('span')].every(s => s.scrollWidth <= s.clientWidth + 1), alpha: css.opacity };
+        return { name: name.textContent, text: e.textContent, x: box.x, y: box.y, width: box.width, height: box.height, background: css.backgroundColor, nameWidth: name.scrollWidth, nameClient: name.clientWidth, nameHeight: name.scrollHeight, nameClientHeight: name.clientHeight,
+          fits: nameBox.left >= box.left && nameBox.right <= box.right && [...e.querySelectorAll('span')].every(s => s.scrollWidth <= s.clientWidth + 1), alpha: css.opacity, parentAlpha: getComputedStyle(e.parentElement).opacity };
       }));
       for (const name of names) {
         const bubble = bubbles.find(b => b.name === name);
@@ -81,9 +90,27 @@ export async function verifySubmarketDesign(context, { base, width, stock }) {
         assert.ok(Math.abs(bubble.width - bubble.height) < 0.5, 'circle remains square within browser subpixel rounding'); assert.ok(bubble.fits && bubble.nameHeight <= bubble.nameClientHeight + 1, `${name} text fits ${JSON.stringify(bubble)}`);
         assert.match(bubble.background, /^rgb\(/, 'solid fill without alpha');
         assert.equal(bubble.alpha,'1','the displayed bubble is fully opaque');
+        assert.equal(bubble.parentAlpha,'1','the native marker wrapper is fully opaque');
         assert.ok(!bubble.text.includes('¥—') && !bubble.text.includes('甲乙级 0'), 'no meaningless financial placeholders or zero office inventory');
       }
       if (mode === 'default') assert.ok(bubbles.find(b => b.name === '丰台科技园').text.includes('产业园 1 个'));
+      if (width >= 1200) {
+        const mapBounds = await page.locator('#map-container').boundingBox();
+        assert.equal(bubbles.length,16,'all named regions are represented exactly once');
+        for (const a of bubbles) {
+          assert.ok(a.x >= mapBounds.x-1 && a.y >= mapBounds.y-1 && a.x+a.width <= mapBounds.x+mapBounds.width+1 && a.y+a.height <= mapBounds.y+mapBounds.height+1, `${a.name} fits the map extent`);
+        }
+        for (let i=0;i<bubbles.length;i++) for (let j=i+1;j<bubbles.length;j++) {
+          const a=bubbles[i], b=bubbles[j];
+          assert.ok(Math.hypot(a.x+a.width/2-b.x-b.width/2,a.y+a.height/2-b.y-b.height/2) >= (a.width+b.width)/2-1, `${a.name} and ${b.name} do not overlap`);
+        }
+        if (mode === 'default') {
+          assert.ok(bubbles.find(b=>b.name==='上地').text.includes('产业园 2 个'));
+          const mixed=bubbles.find(b=>b.name==='望京-酒仙桥').text;
+          assert.ok(mixed.includes('甲乙级 1') && mixed.includes('园区 1') && mixed.includes('¥205.3') && !mixed.includes('¥900'));
+          assert.ok(bubbles.find(b=>b.name==='四季青').text.includes('样本不足'));
+        }
+      }
       assert.deepEqual(errors, [], 'active native overlay has no runtime errors');
       if (mode === 'vacancy') assert.equal(await page.locator('[data-submarket="东城商务区"] .map-submarket-bubble__primary').textContent(), '16.3%');
       await page.screenshot({ path: `/tmp/map-submarket-design-${width}-${mode}.png` });

@@ -388,7 +388,7 @@ describe('native map visual hierarchy', () => {
     harness.emitMap('zoomchange');
     const subDuring = harness.markerInstances[0].setOpacity.mock.lastCall?.[0] as number;
     const dotDuring = harness.massMarksInstances[0].setOpacity.mock.lastCall?.[0] as number;
-    expect(subDuring).toBeGreaterThan(0);
+    expect(subDuring).toBe(1);
     expect(dotDuring).toBeGreaterThan(0);
 
     harness.setZoom(11.7);

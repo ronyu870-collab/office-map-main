@@ -228,3 +228,7 @@ body:has(#map-container) .amap-info-content:not(:has(.building-popup)) [data-map
 /* Keep mixed-market composition legible without increasing the map marker diameter. */
 body:has(#map-container) .map-submarket-bubble__count { max-width: calc(var(--sm-render-size) - 16px); white-space: normal; text-align: center; line-height: 16px; }
 body:has(#map-container) .map-submarket-bubble[aria-pressed="true"]:focus-visible { outline: 3px solid #003e7e; outline-offset: 4px; }
+
+body:has(#map-container) .map-submarket-bubble__count--mixed { display:flex; flex-wrap:wrap; justify-content:center; align-items:baseline; gap:0 3px; }
+body:has(#map-container) .map-submarket-bubble__count-item { white-space:nowrap; }
+body:has(#map-container) .map-submarket-bubble__count-divider { display:none; }
