@@ -516,6 +516,33 @@ try {
           (s) => s.pageId === media.source_page_id,
         ),
       );
+      own = await workspace.saveWorkspace(owner, save(own, { pages: [
+        { id: page.id }, { id: randomUUID(), duplicateOf: page.id, title: "同一图片的复用页" },
+      ] }));
+      const selection = { action: "export_start", projectId: own.project.id, exportId: randomUUID(),
+        format: "pptx", audience: "internal", pages: [1, 0] };
+      const exportReader = ctx(OWNER), sourceStorage = exportReader.client.storage.from;
+      let imageDownloads = 0;
+      exportReader.client.storage.from = () => {
+        const storage = sourceStorage();
+        return { ...storage, download(path) { imageDownloads++; return storage.download(path); } };
+      };
+      await render.prepareRenderExport(exportReader, selection);
+      await render.runRenderExport(exportReader, selection);
+      assert.equal(imageDownloads, 1);
+      const packageBytes = (await render.downloadArtifact(exportReader, selection)).bytes;
+      const packageZip = await JSZip.loadAsync(packageBytes, { checkCRC32: true });
+      const pictureParts = Object.keys(packageZip.files).filter(path => /^ppt\/media\/[^/]+$/.test(path));
+      assert.equal(pictureParts.length, 1);
+      const sharedPart = pictureParts[0].replace(/^ppt\//, "../");
+      for (const number of [1, 2]) {
+        const slide = await packageZip.file(`ppt/slides/slide${number}.xml`).async("string");
+        const relationships = await packageZip.file(`ppt/slides/_rels/slide${number}.xml.rels`).async("string");
+        const imageId = /<a:blip\b[^>]*r:embed="(rId\d+)"/.exec(slide)?.[1];
+        assert.ok(imageId);
+        assert.ok(relationships.includes(`Id="${imageId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${sharedPart}"`));
+      }
+      assert.match(await packageZip.file("ppt/slides/slide1.xml").async("string"), /同一图片的复用页/);
       // Publish the synthetic original and replacement for this recipient. The
       // sharing-specific test subsequently withdraws the same pinned image.
       for (const sample of [first, second]) {
@@ -553,6 +580,7 @@ try {
         [media.id],
       );
       await assert.rejects(renderSharedSlide(ctx(VIEWER), presentation), /PITCH_DENIED/);
+      await assert.rejects(render.downloadArtifact(owner, selection), /PITCH_DENIED/);
       await assert.rejects(
         render.previewPage(owner, {
           action: "preview",
