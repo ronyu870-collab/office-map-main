@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
 import { contentBlockSchema, sourceReferenceSchema } from "@/src/lib/pitch/contracts/content";
+import { visualReferenceReceiptSchema } from "@/src/lib/pitch/contracts/visual-reference";
+import { proposalRevisionRequestSchema } from "@/src/lib/pitch/ai/proposal-edit-intent";
 import { outlineQuarter, saveSchema, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { objectId } from "@/src/lib/pitch/workspace/object-layout";
 import { themeLabel, WorkspaceError, type Call } from "./client";
@@ -68,7 +70,22 @@ const regenerationSchema = z.strictObject({
   buildingIds: z.array(z.uuid()).max(20), assetIds: z.array(z.uuid()).max(20).optional(),
   period: outlineQuarter.optional(), language: languages, audience: z.literal("internal"),
 });
+const photoChoiceSchema = z.object({ caption: z.string(), pin: visualReferenceReceiptSchema });
+const photoReviewSchema = z.object({
+  status: z.literal("photo-review"),
+  projectId: z.uuid(), projectVersion,
+  changes: z.array(z.object({ pageId: z.uuid(), objectId: z.string(), buildingId: z.uuid(),
+    before: photoChoiceSchema, after: photoChoiceSchema.extend({ sourceLabel: z.string() }),
+  })).min(1).max(50),
+  fingerprint,
+  command: z.strictObject({
+    action: z.literal("proposal_apply_photo"),
+    confirmation: z.strictObject({ input: proposalRevisionRequestSchema, fingerprint }),
+  }),
+});
+const photoAppliedSchema = z.object({ status: z.literal("photo-applied"), workspace: workspaceDetailSchema });
 const outcomeSchema = z.union([
+  photoReviewSchema,
   comparisonSchema,
   readySchema.extend({ status: z.literal("ready") }),
   readySchema.extend({ status: z.literal("refresh-review"),
@@ -80,6 +97,7 @@ const outcomeSchema = z.union([
 ]);
 type Preview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" }>;
 type Plan = Extract<Preview, { plan: unknown }>;
+type PhotoReview = z.infer<typeof photoReviewSchema>;
 const chartLabels = { bar: "条形图", column: "柱状图", line: "折线图" } as const;
 
 function removedPages(plan: Plan | undefined, slides: WorkspaceDetail["slides"]) {
@@ -153,6 +171,22 @@ function matchesPreview(value: Preview, detail: WorkspaceDetail) {
   });
 }
 
+function matchesPhotoReview(review: PhotoReview, detail: WorkspaceDetail, input: z.input<typeof proposalRevisionRequestSchema>) {
+  const { confirmation } = review.command;
+  if (review.projectId !== detail.project.id || review.projectVersion !== detail.project.version ||
+    confirmation.fingerprint !== review.fingerprint ||
+    JSON.stringify(proposalRevisionRequestSchema.parse(input)) !== JSON.stringify(confirmation.input)) return false;
+  return review.changes.every(({ pageId, objectId: selected, buildingId, before: { pin: before }, after: { pin: after } }) => {
+    const page = detail.slides.find(slide => slide.id === pageId);
+    return before.kind === "photo" && after.kind === "photo" && before.id !== after.id &&
+      before.buildingIds.length === 1 && before.buildingIds[0] === buildingId &&
+      after.buildingIds.length === 1 && after.buildingIds[0] === buildingId &&
+      page?.content.sources.some(source => source.visual?.id === before.id && source.visual.versionHash === before.versionHash) &&
+      page.scene.elements.some((element, index) => objectId(element, index) === selected &&
+        element.kind === "image" && element.mediaAssetId === before.id && element.mediaVersion === before.version);
+  });
+}
+
 export type ProposalRevisionProps = {
   call: Call;
   detail: WorkspaceDetail;
@@ -168,7 +202,7 @@ export type ProposalRevisionProps = {
 };
 
 export function ProposalRevision({ call, detail, question, active, selected, objectIds, disabled, onApplied, onOpenData, onAppend, onGenerated }: ProposalRevisionProps) {
-  const [review, setReview] = useState<{ key: string; value: Preview }>();
+  const [review, setReview] = useState<{ key: string; value: Preview | PhotoReview }>();
   const [candidates, setCandidates] = useState<{ key: string; items: z.infer<typeof buildingSchema>[] }>();
   const [working, setWorking] = useState<"preview" | "apply">();
   const [regenerating, setRegenerating] = useState(false);
@@ -178,6 +212,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   const expectedVersion = detail.project.version;
   const key = JSON.stringify([projectId, expectedVersion, question, active, selected, objectIds]);
   const visible = review?.key === key ? review.value : undefined;
+  const photoReview = visible?.status === "photo-review" ? visible : undefined;
   const comparison = visible && "mode" in visible ? visible : undefined;
   const current: Plan | undefined = visible && "plan" in visible ? visible : undefined;
   const quarterReview = current?.command?.action === "apply_data_refresh" ? current.review : undefined;
@@ -192,13 +227,12 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
     try {
       if (action === "preview") {
         setCandidates(undefined);
-        const result = outcomeSchema.parse(await call({ action: "proposal_revision", input: {
-          projectId, expectedVersion, question: question.trim(), currentPageId: active,
-          pageIds: selected, objectIds,
-          ...(competitorBuildingId ? { competitorBuildingId } : {}),
-        } }, true, "ai", controller.signal));
+        const input = { projectId, expectedVersion, question: question.trim(), currentPageId: active,
+          pageIds: selected, objectIds, ...(competitorBuildingId ? { competitorBuildingId } : {}) };
+        const result = outcomeSchema.parse(await call({ action: "proposal_revision", input }, true, "ai", controller.signal));
         if (controller.signal.aborted) return;
-        if ((result.status === "ready" || result.status === "refresh-review") && matchesPreview(result, detail)) {
+        if ((result.status === "photo-review" && matchesPhotoReview(result, detail, input)) ||
+          ((result.status === "ready" || result.status === "refresh-review") && matchesPreview(result, detail))) {
           setReview({ key, value: result });
         } else {
           setReview(undefined);
@@ -206,6 +240,13 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
           const feedback = "message" in result ? result.message : undefined;
           setMessage(feedback || "当前资料或版式无法生成可应用的修改。请缩小范围或指定要更改的内容。");
         }
+      } else if (photoReview) {
+        const result = photoAppliedSchema.parse(await call(photoReview.command, true, "ai", controller.signal));
+        if (controller.signal.aborted) return;
+        if (result.workspace.project.id !== projectId || result.workspace.project.version <= expectedVersion)
+          throw new Error("请重新打开项目核对换图结果。");
+        setReview(undefined);
+        onApplied(result.workspace, expectedVersion);
       } else if (comparison) {
         const receipt = taskReceiptSchema.parse(await call(comparison.command, true, "workspace", controller.signal));
         if (controller.signal.aborted) return;
@@ -254,23 +295,37 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         onClick={() => void run("preview", candidate.id)}>{candidate.name}{candidate.submarket && ` · ${candidate.submarket}`}</Button>)}
     </div>}
     <Dialog open={!!visible} dismissible={!regenerating} onOpenChange={open => { if (!open && !working && !regenerating) setReview(undefined); }}
-      title="核对 AI 修改" size="lg" footer={comparison ? <Button disabled={disabled} loading={working === "apply"}
+      title="核对 AI 修改" size="lg" footer={photoReview ? <Button disabled={disabled} loading={working === "apply"}
+        loadingLabel="正在应用…" onClick={() => void run("apply")}>应用换图</Button> : comparison ? <Button disabled={disabled} loading={working === "apply"}
         loadingLabel="正在提交…" onClick={() => void run("apply")}>{message ? "继续追加" : "追加对比页"}</Button> : current && !regeneration && (
         current.plan.refresh && !quarterReview
           ? <Button onClick={() => { setReview(undefined); onOpenData(suggestedPeriod); }}>打开数据检查器</Button>
           : <Button disabled={disabled || (quarterReview ? !quarterReview.changed : !affected)}
             loading={working === "apply"} loadingLabel="正在应用…" onClick={() => void run("apply")}>应用修改</Button>
       )}>
+      {photoReview && <ul className={styles.handoffPages}>
+        {photoReview.changes.map(change => <li key={change.pageId}>
+          <strong>{detail.slides.find(slide => slide.id === change.pageId)?.content.title}</strong>
+          <p>{change.before.caption} → {change.after.caption}</p>
+          <p>{change.after.sourceLabel}</p>
+        </li>)}
+      </ul>}
       {comparison && <>
         <p>{comparison.review.competitor.name} · {comparison.review.period} · 追加 {comparison.review.pages.length} 页</p>
         <EvidencePages pages={comparison.review.pages} />
         {message && <p role="alert">{message}</p>}
       </>}
-      {regeneration && onGenerated && <ProposalPreview key={regeneration.data.plan.id} call={call} projectId={projectId} projectVersion={expectedVersion}
+      {regeneration && onGenerated && <>
+        {(regeneration.input.language !== detail.workspace.context.language ||
+          (regeneration.data.brief.targetClient ?? "") !== detail.workspace.context.client) &&
+          <p>{["生成衍生项目", regeneration.data.brief.period, regeneration.input.language === "en" ? "英文" : "中文",
+            regeneration.data.brief.targetClient].filter(Boolean).join(" · ")}</p>}
+        <ProposalPreview key={regeneration.data.plan.id} call={call} projectId={projectId} projectVersion={expectedVersion}
           city={regeneration.input.city} question={regeneration.input.question} language={regeneration.input.language}
           period={regeneration.input.period ?? ""} buildingIds={regeneration.input.buildingIds} disabled={disabled}
           reviewed={regeneration} onGenerating={setRegenerating}
-          onGenerated={async id => { await onGenerated(id); setReview(undefined); }} />}
+          onGenerated={async id => { await onGenerated(id); setReview(undefined); }} />
+      </>}
       {current && !regeneration && <>
         {quarterReview ? <DataRefreshComparison review={quarterReview} slides={detail.slides} />
           : <p>{current.plan.refresh

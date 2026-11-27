@@ -1,5 +1,4 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { z } from "zod";
 import { slideContentSchema } from "../contracts/content";
 import type { PitchContext, PitchDependencies } from "../data/store";
 import { STUDIO_THEME } from "../design/theme";
@@ -11,15 +10,6 @@ import type { ProposalPhotoServices } from "./proposal-photo-revision";
 const fixture = vi.hoisted(() => ({ actor: vi.fn(), rpc: vi.fn() }));
 vi.mock("../data/store", async original => ({ ...await original<typeof import("../data/store")>(),
   authorizePitch: fixture.actor, pitchRpc: fixture.rpc }));
-vi.mock("../contracts/content", async original => {
-  const schema = await original<typeof import("../contracts/content")>();
-  if ("visual" in schema.sourceReferenceSchema.shape) return schema;
-  const sourceReferenceSchema = schema.sourceReferenceSchema.safeExtend({ visual: z.unknown().optional() });
-  return { ...schema, sourceReferenceSchema, slideContentSchema: schema.slideContentSchema.safeExtend({
-    sources: z.array(sourceReferenceSchema).min(1).max(100),
-  }) };
-});
-
 const id = (number: number) => `540cb696-b236-4fbf-8328-${String(number).padStart(12, "0")}`;
 const projectId = id(1), pageId = id(2), buildingId = id(3), otherBuildingId = id(10);
 const dependency = { enabled: true } as PitchDependencies;
@@ -30,8 +20,8 @@ function photo(number: number, building: string, category: string, label: string
   const versionHash = number.toString(16).repeat(64), contentHash = (number + 4).toString(16).repeat(64);
   const source = { kind: "record" as const, id: id(number + 20), label, recordId: id(number + 30),
     dataAsOf: "2026-11-10", locator: "授权楼宇照片目录", version: versionHash, sha256: contentHash,
-    visual: { id: id(number), version: 8, kind: "photo", versionHash, contentHash, buildingIds: [building],
-      origin: { type: "building-photo", buildingId: building, photoId: id(number + 30) } },
+    visual: { id: id(number), version: 8, kind: "photo" as const, versionHash, contentHash, buildingIds: [building],
+      origin: { type: "building-photo" as const, buildingId: building, photoId: id(number + 30) } },
   };
   const image = { kind: "image" as const, mediaAssetId: id(number), mediaVersion: 8, alt: label, sourceIds: [source.id] };
   return { category, image, source };

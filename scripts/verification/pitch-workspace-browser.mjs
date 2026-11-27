@@ -749,6 +749,31 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           assert.equal((await readProject(projectId)).slides[0].content.title, editedTitle);
           result.replacedCandidate = true;
         }
+        if (scenario.scenario === "building-promotion") {
+          result.stage = "replacing building photo";
+          await button("提案助手").click();
+          await page.getByLabel("需要制作什么页面？").fill("替换当前页的外立面照片");
+          const [photoHttp] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_revision"), button("预览修改").click(),
+          ]);
+          const review = await photoHttp.json();
+          assert.ok(photoHttp.ok() && review.status === "photo-review", review.message ?? review.error ?? review.status);
+          assert.equal(review.changes.length, 1);
+          const [change] = review.changes;
+          assert.equal(change.after.pin.origin.buildingId, change.before.pin.origin.buildingId);
+          const dialog = page.getByRole("dialog", { name: "核对 AI 修改" });
+          await dialog.getByText(change.before.caption + " → " + change.after.caption, { exact: true }).waitFor();
+          const [savedPhoto] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_apply_photo"),
+            dialog.getByRole("button", { name: "应用换图", exact: true }).click(),
+          ]);
+          const applied = await savedPhoto.json();
+          assert.ok(savedPhoto.ok() && applied.status === "photo-applied", applied.error ?? applied.status);
+          const changed = await readProject(projectId);
+          assert.equal(changed.slides[0].content.title, editedTitle);
+          assert.ok(changed.slides[0].content.sources.some(source => source.visual?.id === change.after.pin.id));
+          result.replacedBuildingPhoto = true;
+        }
         result.stage = "completed";
       } catch (error) {
         result.error = String(error instanceof Error ? error.message : error).split("\n")[0];

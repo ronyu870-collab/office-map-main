@@ -39,7 +39,7 @@ const env = {
 const directory = new URL("../../supabase/migrations/", import.meta.url);
 const gallery = 'building-sales-materials';
 
-async function addPhoto(buildingId, index) {
+async function addPhoto(buildingId, index, caption = "隔离合成视觉素材") {
   const id = randomUUID();
   const path = `building-photos/v1/${buildingId}/${id}/isolated-fixture.png`;
   const width = 1120, height = 720;
@@ -49,8 +49,8 @@ async function addPhoto(buildingId, index) {
   assert.equal(uploaded.error, null);
   await db.query(`insert into public.building_photos(id,building_id,storage_path,sha256,file_size,width,height,
     photo_kind,caption,sort_order,source_url,source_name,attribution_text,collected_at,status)
-    values($1,$2,$3,$4,$5,$6,$7,'exterior','隔离合成视觉素材',0,'https://example.com/fixture','隔离测试','合成样本',now(),'ready')`,
-  [id,buildingId,path,createHash('sha256').update(image).digest('hex'),image.length,width,height]);
+    values($1,$2,$3,$4,$5,$6,$7,'exterior',$8,$9,'https://example.com/fixture','隔离测试','合成样本',now(),'ready')`,
+  [id,buildingId,path,createHash('sha256').update(image).digest('hex'),image.length,width,height,caption,index]);
 }
 
 async function seed() {
@@ -124,6 +124,7 @@ async function seed() {
     await db.query(`insert into public.buildings(id,name,submarket,grade,tracking_scope,city,location_lat,location_lng,completion_year,leasable_area)
       values($1,$2,$3,'A','tracked','北京',$4,$5,'2015',12500)`, [buildingId, name, submarket, 39.90 + index * 0.0012, 116.43 + index * 0.0015]);
     await addPhoto(buildingId, index);
+    if (name === "五矿广场") await addPhoto(buildingId, 12, "隔离外立面备选");
     if (index === 0) {
       const sourceId = 'isolated-flagship-stacking';
       await db.query(`insert into public.stacking_plan_sources(id,building_id,title,source_as_of,as_of_kind,review_state)

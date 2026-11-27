@@ -28,7 +28,7 @@ type PhotoPin = z.infer<typeof photoPin>;
 export type ProposalPhotoCandidate = { category: string; source: SourceReference };
 export type ProposalPhotoServices = {
   readChoices(ctx: PitchContext, buildingId: string, category: PhotoCategory, usedHashes: readonly string[]): Promise<readonly ProposalPhotoCandidate[]>;
-  resolve(ctx: PitchContext, source: SourceReference): Promise<{ image: Image; source: SourceReference }>;
+  resolve(ctx: PitchContext, source: SourceReference): Promise<{ image: Image; source: SourceReference; cropAllowed?: boolean }>;
   verifyPage(ctx: PitchContext, projectId: string, page: Page): Promise<void>;
   persist(ctx: PitchContext, current: PhotoWorkspace, updated: Page[]): Promise<WorkspaceDetail>;
 };
@@ -125,7 +125,7 @@ function replacePhotoAndGeneratedCaptions(content: SlideContent, previous: Image
 
 /** Reconcile the renderer's photo and credit changes with the saved native
  * canvas. The caller verifies the final Scene and all its visual receipts. */
-async function buildProposalPhotoScene(ctx: PitchContext, page: Page, content: SlideContent, selected: string) {
+async function buildProposalPhotoScene(ctx: PitchContext, page: Page, content: SlideContent, selected: string, cropAllowed: boolean) {
   const layout = layoutIdSchema.safeParse(page.scene.layoutId);
   if (!layout.success) return null;
   const changedIndex = page.scene.elements.findIndex((element, index) => objectId(element, index) === selected);
@@ -146,7 +146,8 @@ async function buildProposalPhotoScene(ctx: PitchContext, page: Page, content: S
         previous.mediaAssetId === selectedImage.mediaAssetId && previous.mediaVersion === selectedImage.mediaVersion) {
         if (changed.has(changedIndex)) return null;
         const { x, y, w, h, editorId, editorGroup, rotation, allowOverlap } = selectedImage;
-        elements[changedIndex] = { ...next, x, y, w, h, editorId, editorGroup, rotation, allowOverlap };
+        elements[changedIndex] = { ...next, x, y, w, h, editorId, editorGroup, rotation, allowOverlap,
+          fit: cropAllowed ? next.fit : "contain" };
         changed.add(changedIndex);
       } else if (previous.kind === "text" && next.kind === "text") {
         if (previous.text === next.text) continue;
@@ -218,7 +219,7 @@ export async function reviewProposalPhotoReplacement(ctx: PitchContext, current:
     const keepPrevious = blocks.some(block => block.sourceIds.includes(old.source.id));
     const replacement = slideContentSchema.parse({ ...page.content, blocks,
       sources: [...page.content.sources.filter(source => keepPrevious || source.id !== old.source.id), asset.source] });
-    const scene = await buildProposalPhotoScene(ctx, page, replacement, old.object);
+    const scene = await buildProposalPhotoScene(ctx, page, replacement, old.object, asset.cropAllowed === true);
     if (!scene || !preserveObjects(page, slideSceneSchema.parse(scene), old.object, old.image, nextPin)) {
       return incomplete("unavailable", "替换会影响原画布的对象绑定，请选择另一张照片或页面。");
     }
