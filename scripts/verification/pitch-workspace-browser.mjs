@@ -768,10 +768,10 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           const [change] = review.changes;
           assert.equal(change.after.pin.origin.buildingId, change.before.pin.origin.buildingId);
           const dialog = page.getByRole("dialog", { name: "核对 AI 修改" });
-          await dialog.getByText(change.before.caption + " → " + change.after.caption, { exact: true }).waitFor();
+          await dialog.getByText(change.after.caption, { exact: true }).waitFor();
           const [savedPhoto] = await Promise.all([
             waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_apply_photo"),
-            dialog.getByRole("button", { name: "应用换图", exact: true }).click(),
+            dialog.getByRole("button", { name: "确认换图", exact: true }).click(),
           ]);
           const applied = await savedPhoto.json();
           assert.ok(savedPhoto.ok() && applied.status === "photo-applied", applied.error ?? applied.status);

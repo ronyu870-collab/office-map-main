@@ -1,10 +1,20 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { layoutFixture } from "@/src/lib/pitch/fixtures/layouts";
 import { workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { ProposalRevision } from "./ProposalRevision";
 import { WorkspaceError, type Call } from "./client";
+
+vi.mock("@/src/lib/pitch/contracts/content", async original => {
+  const schemas = await original<typeof import("@/src/lib/pitch/contracts/content")>();
+  if ("visual" in schemas.sourceReferenceSchema.shape) return schemas;
+  const sourceReferenceSchema = schemas.sourceReferenceSchema.safeExtend({ visual: z.unknown().optional() });
+  return { ...schemas, sourceReferenceSchema, slideContentSchema: schemas.slideContentSchema.safeExtend({
+    sources: z.array(sourceReferenceSchema).min(1).max(100),
+  }) };
+});
 
 afterEach(cleanup);
 const projectId = "11111111-1111-4111-8111-111111111111";
@@ -36,7 +46,7 @@ const refreshPlan = { ...planBase, pages: [{ id: pageId }], refresh: { id: planI
 const quarterCommand = { action: "apply_data_refresh", projectId, slideId: pageId, expectedVersion: version, period, fingerprint };
 
 function setup(reply: Record<string, unknown> | ((input: Record<string, unknown>) => unknown), question: string,
-  apply: (input: Record<string, unknown>) => unknown = () => refreshed, workspace: WorkspaceDetail = detail) {
+  apply: (input: Record<string, unknown>) => unknown = () => refreshed, workspace: WorkspaceDetail = detail, objectIds: string[] = []) {
   const user = userEvent.setup();
   const call = vi.fn(async (input: Record<string, unknown>) => input.action === "proposal_revision"
     ? typeof reply === "function" ? reply(input) : reply
@@ -46,7 +56,7 @@ function setup(reply: Record<string, unknown> | ((input: Record<string, unknown>
   const onAppend = vi.fn();
   const onGenerated = vi.fn(async () => {});
   render(<ProposalRevision call={call as unknown as Call} detail={workspace} question={question} active={pageId}
-    selected={[]} objectIds={[]} disabled={false} onApplied={onApplied} onOpenData={onOpenData} onAppend={onAppend} onGenerated={onGenerated} />);
+    selected={[]} objectIds={objectIds} disabled={false} onApplied={onApplied} onOpenData={onOpenData} onAppend={onAppend} onGenerated={onGenerated} />);
   return { user, call, onApplied, onOpenData, onAppend, onGenerated };
 }
 
@@ -228,4 +238,83 @@ it("withholds a competitor append when the command and reviewed building scope d
   expect(await screen.findByText(/无法生成可应用的修改/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "追加对比页" })).not.toBeInTheDocument();
   expect(call).toHaveBeenCalledTimes(1);
+});
+
+const photoKey = (number: number) => `dbe5662b-9748-40bc-a55a-${String(number).padStart(12, "0")}`;
+const selectedPhoto = "object-17";
+const photoQuestion = "把所选对象换用楼宇大堂照片";
+
+function buildingPhoto(number: number, caption: string, building = buildingId) {
+  const versionHash = String(number).repeat(64);
+  const contentHash = String(number + 1).repeat(64);
+  const source = {
+    id: photoKey(number + 10), recordId: photoKey(number + 20), kind: "record",
+    version: versionHash, sha256: contentHash, label: "核验的楼宇照片档案", locator: "楼宇照片目录", dataAsOf: "2026-11-20",
+    visual: { id: photoKey(number), version: 3, versionHash, contentHash, kind: "photo", buildingIds: [building],
+      origin: { type: "building-photo", buildingId: building, photoId: photoKey(number + 20) } },
+  };
+  return { caption, pin: source.visual, source };
+}
+
+const exterior = buildingPhoto(4, "主入口外立面");
+const lobby = buildingPhoto(6, "首层大堂");
+const photoInput = {
+  projectId, expectedVersion: version, question: photoQuestion, currentPageId: pageId, pageIds: [], objectIds: [selectedPhoto],
+};
+const photoCommand = { action: "proposal_apply_photo", confirmation: { input: photoInput, fingerprint } };
+const photoChange = { pageId, pageVersion: 8, objectId: selectedPhoto, buildingId,
+  before: { caption: exterior.caption, pin: exterior.pin },
+  after: { caption: lobby.caption, pin: lobby.pin, category: "lobby", sourceLabel: lobby.source.label } };
+const photoReply = { status: "photo-review", projectId, projectVersion: version, fingerprint, changes: [photoChange], command: photoCommand };
+
+function photoWorkspace(photo: typeof exterior, projectVersion = version) {
+  const { pin, caption, source } = photo;
+  const asset = { mediaAssetId: pin.id, mediaVersion: pin.version, alt: caption };
+  return workspaceDetailSchema.parse({
+    ...detail,
+    project: { ...detail.project, version: projectVersion },
+    slides: [{
+      ...detail.slides[0], content: { ...content, title: "楼宇概况", isTestData: false, sources: [source],
+        blocks: [{ kind: "image", ...asset, sourceIds: [source.id] }] },
+      scene: { ...detail.slides[0].scene, layoutId: "image-text",
+        elements: [{ kind: "image", ...asset, editorId: selectedPhoto, x: 2, y: 1, w: 6, h: 5 }] },
+    }],
+  });
+}
+
+it("reviews a pinned photo on the selected object, then applies the exact AI command", async () => {
+  const applied = photoWorkspace(lobby, version + 1);
+  const { user, call, onApplied } = setup(photoReply, photoQuestion, () => ({ status: "photo-applied", workspace: applied }),
+    photoWorkspace(exterior), [selectedPhoto]);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  expect(await screen.findByRole("dialog", { name: "核对 AI 修改" })).toHaveTextContent("同楼宇实景换图 · 影响 1 页");
+  expect(screen.getByText("第 1 页 · 楼宇概况")).toBeInTheDocument();
+  expect(screen.getByText("主入口外立面")).toBeInTheDocument();
+  expect(screen.getByText("首层大堂")).toBeInTheDocument();
+  expect(screen.getByText("核验的楼宇照片档案")).toBeInTheDocument();
+  expect(onApplied).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "确认换图" }));
+  await waitFor(() => expect(onApplied).toHaveBeenCalledWith(applied, version));
+  expect(call.mock.calls.map(([command]) => command)).toEqual([{ action: "proposal_revision", input: photoInput }, photoCommand]);
+});
+
+it.each([
+  { ...photoReply, changes: [{ ...photoChange, objectId: "object-18" }] },
+  { ...photoReply, changes: [{ ...photoChange, after: { ...photoChange.after, pin: buildingPhoto(8, "其他楼宇大堂", competitor.id).pin } }] },
+  { ...photoReply, command: { ...photoCommand, confirmation: { ...photoCommand.confirmation, fingerprint: "f".repeat(64) } } },
+])("withholds a photo review outside its pinned selection or confirmation", async reply => {
+  const { user, call } = setup(reply, photoQuestion, undefined, photoWorkspace(exterior), [selectedPhoto]);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("无法生成可应用的修改");
+  expect(screen.queryByRole("button", { name: "确认换图" })).not.toBeInTheDocument();
+  expect(call).toHaveBeenCalledTimes(1);
+});
+
+it("requires the saved workspace to contain the reviewed version and source", async () => {
+  const unrelatedReceipt = { status: "photo-applied", workspace: photoWorkspace(exterior, version + 1) };
+  const { user, onApplied } = setup(photoReply, photoQuestion, () => unrelatedReceipt, photoWorkspace(exterior), [selectedPhoto]);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  await user.click(await screen.findByRole("button", { name: "确认换图" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("无法核对保存后的照片");
+  expect(onApplied).not.toHaveBeenCalled();
 });

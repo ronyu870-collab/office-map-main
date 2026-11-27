@@ -4,14 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
 import { contentBlockSchema, sourceReferenceSchema } from "@/src/lib/pitch/contracts/content";
-import { visualReferenceReceiptSchema } from "@/src/lib/pitch/contracts/visual-reference";
-import { proposalRevisionRequestSchema } from "@/src/lib/pitch/ai/proposal-edit-intent";
 import { outlineQuarter, saveSchema, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { objectId } from "@/src/lib/pitch/workspace/object-layout";
 import { themeLabel, WorkspaceError, type Call } from "./client";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel } from "./DataRefreshReview";
 import { EvidencePages } from "./BusinessEvidence";
 import { ProposalPreview, reviewedProposalSchema } from "./ProposalPreview";
+import { appliedPhotoSchema, matchesAppliedPhoto, matchesPhotoReview, PhotoRevisionReview, photoReviewSchema } from "./PhotoRevisionReview";
 import styles from "./workspace.module.css";
 
 const chartTypeSchema = z.enum(["bar", "column", "line"]);
@@ -70,23 +69,9 @@ const regenerationSchema = z.strictObject({
   buildingIds: z.array(z.uuid()).max(20), assetIds: z.array(z.uuid()).max(20).optional(),
   period: outlineQuarter.optional(), language: languages, audience: z.literal("internal"),
 });
-const photoChoiceSchema = z.object({ caption: z.string(), pin: visualReferenceReceiptSchema });
-const photoReviewSchema = z.object({
-  status: z.literal("photo-review"),
-  projectId: z.uuid(), projectVersion,
-  changes: z.array(z.object({ pageId: z.uuid(), objectId: z.string(), buildingId: z.uuid(),
-    before: photoChoiceSchema, after: photoChoiceSchema.extend({ sourceLabel: z.string() }),
-  })).min(1).max(50),
-  fingerprint,
-  command: z.strictObject({
-    action: z.literal("proposal_apply_photo"),
-    confirmation: z.strictObject({ input: proposalRevisionRequestSchema, fingerprint }),
-  }),
-});
-const photoAppliedSchema = z.object({ status: z.literal("photo-applied"), workspace: workspaceDetailSchema });
 const outcomeSchema = z.union([
-  photoReviewSchema,
   comparisonSchema,
+  photoReviewSchema,
   readySchema.extend({ status: z.literal("ready") }),
   readySchema.extend({ status: z.literal("refresh-review"),
     refreshPlan: z.union([reviewedProposalSchema, z.object({ brief: z.object({ period: outlineQuarter.nullable() }) })]),
@@ -95,9 +80,9 @@ const outcomeSchema = z.union([
   z.object({ status: z.literal("clarification"), message: z.string(), candidates: z.array(buildingSchema).max(10).optional() }),
   z.object({ status: z.literal("unavailable"), message: z.string().optional() }),
 ]);
-type Preview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" }>;
+type Preview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" | "photo-review" }>;
+type StandardPreview = Exclude<Preview, z.infer<typeof photoReviewSchema>>;
 type Plan = Extract<Preview, { plan: unknown }>;
-type PhotoReview = z.infer<typeof photoReviewSchema>;
 const chartLabels = { bar: "条形图", column: "柱状图", line: "折线图" } as const;
 
 function removedPages(plan: Plan | undefined, slides: WorkspaceDetail["slides"]) {
@@ -126,7 +111,7 @@ function matchesRegeneration(value: Extract<Plan, { status: "refresh-review" }>,
   return context.business === "market-report" && brief.scenario === "market-report";
 }
 
-function matchesPreview(value: Preview, detail: WorkspaceDetail) {
+function matchesPreview(value: StandardPreview, detail: WorkspaceDetail) {
   if ("mode" in value) {
     const { command, review } = value;
     const { buildingIds, period, language } = detail.workspace.context;
@@ -171,22 +156,6 @@ function matchesPreview(value: Preview, detail: WorkspaceDetail) {
   });
 }
 
-function matchesPhotoReview(review: PhotoReview, detail: WorkspaceDetail, input: z.input<typeof proposalRevisionRequestSchema>) {
-  const { confirmation } = review.command;
-  if (review.projectId !== detail.project.id || review.projectVersion !== detail.project.version ||
-    confirmation.fingerprint !== review.fingerprint ||
-    JSON.stringify(proposalRevisionRequestSchema.parse(input)) !== JSON.stringify(confirmation.input)) return false;
-  return review.changes.every(({ pageId, objectId: selected, buildingId, before: { pin: before }, after: { pin: after } }) => {
-    const page = detail.slides.find(slide => slide.id === pageId);
-    return before.kind === "photo" && after.kind === "photo" && before.id !== after.id &&
-      before.buildingIds.length === 1 && before.buildingIds[0] === buildingId &&
-      after.buildingIds.length === 1 && after.buildingIds[0] === buildingId &&
-      page?.content.sources.some(source => source.visual?.id === before.id && source.visual.versionHash === before.versionHash) &&
-      page.scene.elements.some((element, index) => objectId(element, index) === selected &&
-        element.kind === "image" && element.mediaAssetId === before.id && element.mediaVersion === before.version);
-  });
-}
-
 export type ProposalRevisionProps = {
   call: Call;
   detail: WorkspaceDetail;
@@ -202,7 +171,7 @@ export type ProposalRevisionProps = {
 };
 
 export function ProposalRevision({ call, detail, question, active, selected, objectIds, disabled, onApplied, onOpenData, onAppend, onGenerated }: ProposalRevisionProps) {
-  const [review, setReview] = useState<{ key: string; value: Preview | PhotoReview }>();
+  const [review, setReview] = useState<{ key: string; value: Preview }>();
   const [candidates, setCandidates] = useState<{ key: string; items: z.infer<typeof buildingSchema>[] }>();
   const [working, setWorking] = useState<"preview" | "apply">();
   const [regenerating, setRegenerating] = useState(false);
@@ -212,7 +181,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   const expectedVersion = detail.project.version;
   const key = JSON.stringify([projectId, expectedVersion, question, active, selected, objectIds]);
   const visible = review?.key === key ? review.value : undefined;
-  const photoReview = visible?.status === "photo-review" ? visible : undefined;
+  const photo = visible?.status === "photo-review" ? visible : undefined;
   const comparison = visible && "mode" in visible ? visible : undefined;
   const current: Plan | undefined = visible && "plan" in visible ? visible : undefined;
   const quarterReview = current?.command?.action === "apply_data_refresh" ? current.review : undefined;
@@ -227,12 +196,16 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
     try {
       if (action === "preview") {
         setCandidates(undefined);
-        const input = { projectId, expectedVersion, question: question.trim(), currentPageId: active,
-          pageIds: selected, objectIds, ...(competitorBuildingId ? { competitorBuildingId } : {}) };
+        const input = {
+          projectId, expectedVersion, question: question.trim(), currentPageId: active,
+          pageIds: selected, objectIds,
+          ...(competitorBuildingId ? { competitorBuildingId } : {}),
+        };
         const result = outcomeSchema.parse(await call({ action: "proposal_revision", input }, true, "ai", controller.signal));
         if (controller.signal.aborted) return;
-        if ((result.status === "photo-review" && matchesPhotoReview(result, detail, input)) ||
-          ((result.status === "ready" || result.status === "refresh-review") && matchesPreview(result, detail))) {
+        if (result.status === "photo-review" && matchesPhotoReview(result, detail, input)) {
+          setReview({ key, value: result });
+        } else if ((result.status === "ready" || result.status === "refresh-review") && matchesPreview(result, detail)) {
           setReview({ key, value: result });
         } else {
           setReview(undefined);
@@ -240,11 +213,10 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
           const feedback = "message" in result ? result.message : undefined;
           setMessage(feedback || "当前资料或版式无法生成可应用的修改。请缩小范围或指定要更改的内容。");
         }
-      } else if (photoReview) {
-        const result = photoAppliedSchema.parse(await call(photoReview.command, true, "ai", controller.signal));
+      } else if (photo) {
+        const result = appliedPhotoSchema.parse(await call(photo.command, true, "ai", controller.signal));
         if (controller.signal.aborted) return;
-        if (result.workspace.project.id !== projectId || result.workspace.project.version <= expectedVersion)
-          throw new Error("请重新打开项目核对换图结果。");
+        if (!matchesAppliedPhoto(photo, result.workspace)) throw new Error("无法核对保存后的照片，请重新打开项目检查。");
         setReview(undefined);
         onApplied(result.workspace, expectedVersion);
       } else if (comparison) {
@@ -268,7 +240,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         (!(cause instanceof WorkspaceError) || cause.status >= 500 || cause.status === 408);
       if (!mayRetryAppend) setReview(undefined);
       setMessage(cause instanceof WorkspaceError && cause.status === 409
-        ? "项目版本已变化，请重新打开项目后再预览。"
+        ? photo ? "项目或照片来源已更新，请重新打开项目后再核对。" : "项目版本已变化，请重新打开项目后再预览。"
         : cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "修改未完成，请重新预览。");
     } finally {
       request.current = null;
@@ -295,21 +267,16 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         onClick={() => void run("preview", candidate.id)}>{candidate.name}{candidate.submarket && ` · ${candidate.submarket}`}</Button>)}
     </div>}
     <Dialog open={!!visible} dismissible={!regenerating} onOpenChange={open => { if (!open && !working && !regenerating) setReview(undefined); }}
-      title="核对 AI 修改" size="lg" footer={photoReview ? <Button disabled={disabled} loading={working === "apply"}
-        loadingLabel="正在应用…" onClick={() => void run("apply")}>应用换图</Button> : comparison ? <Button disabled={disabled} loading={working === "apply"}
+      title="核对 AI 修改" size="lg" footer={photo ? <Button disabled={disabled} loading={working === "apply"}
+        loadingLabel="正在更换…" onClick={() => void run("apply")}>确认换图</Button>
+        : comparison ? <Button disabled={disabled} loading={working === "apply"}
         loadingLabel="正在提交…" onClick={() => void run("apply")}>{message ? "继续追加" : "追加对比页"}</Button> : current && !regeneration && (
         current.plan.refresh && !quarterReview
           ? <Button onClick={() => { setReview(undefined); onOpenData(suggestedPeriod); }}>打开数据检查器</Button>
           : <Button disabled={disabled || (quarterReview ? !quarterReview.changed : !affected)}
             loading={working === "apply"} loadingLabel="正在应用…" onClick={() => void run("apply")}>应用修改</Button>
       )}>
-      {photoReview && <ul className={styles.handoffPages}>
-        {photoReview.changes.map(change => <li key={change.pageId}>
-          <strong>{detail.slides.find(slide => slide.id === change.pageId)?.content.title}</strong>
-          <p>{change.before.caption} → {change.after.caption}</p>
-          <p>{change.after.sourceLabel}</p>
-        </li>)}
-      </ul>}
+      {photo && <PhotoRevisionReview review={photo} detail={detail} />}
       {comparison && <>
         <p>{comparison.review.competitor.name} · {comparison.review.period} · 追加 {comparison.review.pages.length} 页</p>
         <EvidencePages pages={comparison.review.pages} />
