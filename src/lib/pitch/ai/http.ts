@@ -95,7 +95,8 @@ export async function handleAiRequest(
     }
     if (c.action === "proposal_revision") {
       const { planProposalRevision } = await import("./proposal-revision-runtime");
-      return reply(await planProposalRevision(ctx, c.input, revisionServices));
+      const { installedWorkspaceReviewServices } = await import("./workspace-review");
+      return reply(await planProposalRevision(ctx, c.input, revisionServices ?? installedWorkspaceReviewServices(request, deps)));
     }
     if (c.action === "outline")
       return reply(await suggestOutline(ctx, c.query, c.projectId));
