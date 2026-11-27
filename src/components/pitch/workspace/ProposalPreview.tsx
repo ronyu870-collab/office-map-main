@@ -77,17 +77,18 @@ type Destination =
   | { projectId: string; projectVersion: number; createProject?: never }
   | { projectId?: never; projectVersion?: never; createProject: (input: ProposalProjectInput) => Promise<Project> };
 
-function PlannedPhotos({ slides, onStale }: {
+function PlannedPhotos({ slides, initiallyOpen, onStale }: {
   slides: z.infer<typeof reviewedProposalSchema>["plan"]["slides"];
+  initiallyOpen: boolean;
   onStale: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [selected, setSelected] = useState(0);
   const photos = [...new Map(slides.flatMap(slide => slide.visuals.map(photo =>
     [photo.pin.versionHash, photo] as const))).values()];
   const photo = photos[selected] ?? photos[0];
   if (!photo) return null;
-  return <details className={styles.refreshChanges} onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details className={styles.refreshChanges} open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>已选楼宇照片（{photos.length}）</summary>
     {open && <div className={styles.form}>
       {photos.length > 1 && <label>
@@ -102,7 +103,7 @@ function PlannedPhotos({ slides, onStale }: {
   </details>;
 }
 
-export function ProposalPreview({ call, projectId, city, question, language, period, buildingIds, initialQuestion, disabled, projectVersion, createProject, onGenerated, onGenerating, reviewed }: Destination & {
+export function ProposalPreview({ call, projectId, city, question, language, period, buildingIds, initialQuestion, disabled, projectVersion, createProject, onGenerated, onGenerating, reviewed, onPromotionPeriod }: Destination & {
   call: Call;
   city?: string;
   question: string;
@@ -111,6 +112,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   buildingIds: string[];
   initialQuestion?: string;
   disabled: boolean;
+  onPromotionPeriod?: (period: string) => void;
   onGenerated: (projectId: string) => Promise<void>;
   onGenerating?: (generating: boolean) => void;
   reviewed?: { data: z.infer<typeof reviewedProposalSchema>; input: Request };
@@ -123,6 +125,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   const [working, setWorking] = useState<"plan" | "generate">();
   const [recovery, setRecovery] = useState(false);
   const [taskProgress, setTaskProgress] = useState<{ key: string; state: "queued" | "running" }>();
+  const [promotionPeriod, setPromotionPeriod] = useState(period);
   const submission = useRef<{ key: string; taskId: string; sourceId: string; source?: Project; completedProject?: string }>(null);
   const request = useRef<AbortController | null>(null);
   const autoStarted = useRef(false);
@@ -130,6 +133,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   const visible = result?.key === inputKey ? result.data : undefined;
   const taskState = taskProgress?.key === inputKey ? taskProgress.state : undefined;
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
+  const buildingPromotion = !!onPromotionPeriod;
 
   useLayoutEffect(() => { currentInput.current = inputKey; }, [inputKey]);
   useEffect(() => () => request.current?.abort(), []);
@@ -162,6 +166,11 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         audience: "internal",
       };
       const data = responseSchema.parse(await call({ action: "proposal_plan", input }, true, "ai", current.signal));
+      if (buildingPromotion && data.status === "ready" && (data.brief.scenario !== "building-promotion" || data.selection !== "explicit" ||
+        (!!period && data.brief.period !== period) || data.brief.buildingIds.length !== 1 || data.brief.buildingIds[0] !== buildingIds[0] ||
+        data.plan.slides.some(slide => slide.visuals.some(photo => photo.pin.origin.buildingId !== buildingIds[0])))) {
+        throw new Error("推介方案与所选楼宇或季度不一致，请重新核对。");
+      }
       if (!current.signal.aborted) setResult({ key: inputKey, data, input });
     } catch (cause) {
       if (current.signal.aborted) return;
@@ -267,7 +276,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         ? "可在「数据」中指定楼宇后重新核对。"
         : "如需指定楼宇，可先打开项目设置。"}</p>}
       <ol>{visible.plan.slides.map(slide => <li key={slide.id}>{slide.title}</li>)}</ol>
-      <PlannedPhotos key={visible.plan.id} slides={visible.plan.slides} onStale={() => {
+      <PlannedPhotos key={visible.plan.id} slides={visible.plan.slides} initiallyOpen={buildingPromotion} onStale={() => {
         if (request.current || working || taskState || recovery) return;
         setResult(undefined);
         setError(reviewed ? "照片版本已更新，请关闭核对窗口后重新预览修改。" : "照片版本已更新，请重新规划正式提案。");
@@ -285,10 +294,21 @@ export function ProposalPreview({ call, projectId, city, question, language, per
     </>}
     {visible && visible.status !== "ready" && <>
       <p role="status">{visible.message}</p>
-      {visible.candidates?.map(candidate => <Button variant="ghost" key={candidate.id}
+      {!buildingPromotion && visible.candidates?.map(candidate => <Button variant="ghost" key={candidate.id}
         disabled={disabled || !!working} onClick={() => void preview(candidate.id)}>
         {candidate.name}{candidate.submarket ? ` · ${candidate.submarket}` : ""}
       </Button>)}
     </>}
+    {onPromotionPeriod && !taskState && !recovery && working !== "generate" && <details>
+      <summary>调整正式季度</summary>
+      <form className={styles.form} onSubmit={event => {
+        event.preventDefault();
+        if (promotionPeriod !== period && outlineQuarter.safeParse(promotionPeriod).success) onPromotionPeriod(promotionPeriod);
+      }}>
+        <label>正式季度<input value={promotionPeriod} maxLength={7} placeholder="例如 2026-Q3"
+          onChange={event => setPromotionPeriod(event.target.value.toUpperCase())} /></label>
+        <Button type="submit" disabled={disabled || promotionPeriod === period || !outlineQuarter.safeParse(promotionPeriod).success}>按此季度核对</Button>
+      </form>
+    </details>}
   </section>;
 }

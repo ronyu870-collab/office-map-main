@@ -163,6 +163,7 @@ let detail: ReturnType<typeof initial>,
   expandedCatalog = false,
   workspaceBuildingLookup = false,
   templateCapabilities: string[] = [],
+  promotionPlanBuilding: string | undefined,
   readyProposal = false,
   dropProposalCreateResponse = false,
   bindingResponse: (() => unknown) | undefined,
@@ -176,6 +177,7 @@ beforeEach(() => {
   expandedCatalog = false;
   workspaceBuildingLookup = false;
   templateCapabilities = [];
+  promotionPlanBuilding = undefined;
   failTaskPoll = false;
   failCompletedRead = false;
   completedTask = false;
@@ -201,7 +203,7 @@ beforeEach(() => {
       if (c.action === "catalog")
         body = path === "business" ? {
           recipes: expandedCatalog ? BUSINESS_RECIPES.map(r => ({...r, revision: 1, categoryId: sourceId, enabled: true})) : [],
-          dynamic: ["competition-map", "stacking-plan", "lease-representatives", "lease-industry-distribution"]
+          dynamic: ["competition-map", "stacking-plan", "lease-representatives", "lease-industry-distribution", "building-profile"]
             .map(id => ({ id, name: id, status: "available", reason: "" })),
         } : catalog;
       else if (c.action === "capabilities")
@@ -239,7 +241,13 @@ beforeEach(() => {
           if (dropProposalCreateResponse) throw new Error("建项响应中断");
         }
       } else if (c.action === "proposal_plan") {
-        body = readyProposal ? {
+        body = promotionPlanBuilding ? {
+          status: "ready", selection: "explicit",
+          plan: { id: sourceId, version: 1, title: "已选楼宇推介", contextFingerprint: "a".repeat(64),
+            theme: { id: "colliers-default-v1", version: 3 }, slides: [{ id: pageId, title: "写字楼项目介绍" }], gaps: [] },
+          brief: { city: "test", scenario: "building-promotion", submarkets: [], period: c.input.period ?? "2026-Q3",
+            language: "zh", buildingIds: [promotionPlanBuilding] },
+        } : readyProposal ? {
           status: "ready", selection: "scoped-sample",
           plan: { id: sourceId, version: 1, title: "CBD 选址方案", contextFingerprint: "a".repeat(64),
             theme: { id: "colliers-default-v1", version: 3 },
@@ -569,6 +577,42 @@ describe("Pitch workspace continuous editing", () => {
     await user.click(await within(settings).findByRole("button", { name: "工作台核对楼宇" }));
     await user.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(detail.workspace.context.buildingIds).toEqual([assetId]));
+  });
+  it("opens a photo-backed promotion with the exact picked building and confirms a separate project", async () => {
+    workspaceBuildingLookup = true;
+    templateCapabilities = ["building-profile"];
+    promotionPlanBuilding = pageId;
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "数据" }));
+    await user.click(screen.getByText("查找楼宇数据", { selector: "summary" }));
+    await user.type(await screen.findByLabelText("搜索楼宇"), "工作台核对");
+    await user.click(await screen.findByRole("button", { name: "工作台核对楼宇" }));
+    await user.click(screen.getByText("楼宇资料页", { selector: "summary" }));
+    await user.click(screen.getByRole("button", { name: "新建楼宇推介" }));
+    const dialog = await screen.findByRole("dialog", { name: "新建楼宇推介" });
+    expect(await within(dialog).findByText("推介方案与所选楼宇或季度不一致，请重新核对。")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "确认并生成 Pitch" })).not.toBeInTheDocument();
+    expect(writes.find(entry => entry.action === "proposal_plan")).toEqual({ action: "proposal_plan", input: {
+      question: "为所选楼宇制作项目推介", city: "test", audience: "internal", buildingIds: [assetId], language: "zh",
+    } });
+    promotionPlanBuilding = assetId;
+    await user.click(within(dialog).getByText("调整正式季度", { selector: "summary" }));
+    await user.type(within(dialog).getByLabelText("正式季度"), "2026-Q2");
+    await user.click(within(dialog).getByRole("button", { name: "按此季度核对" }));
+    await within(dialog).findByText("写字楼项目介绍");
+    const input = writes.filter(entry => entry.action === "proposal_plan").at(-1)?.input;
+    expect(input).toMatchObject({ period: "2026-Q2", buildingIds: [assetId] });
+    expect(writes.some(entry => entry.action === "create")).toBe(false);
+    await user.click(within(dialog).getByRole("button", { name: "确认并生成 Pitch" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "新建楼宇推介" })).not.toBeInTheDocument());
+    const created = writes.find(entry => entry.action === "create")!;
+    expect(created.projectId).not.toBe(projectId);
+    expect(created).toMatchObject({ scope: { organizationId: "test", region: "test", city: "test", businessLine: "test" },
+      context: { buildingIds: [assetId], period: "2026-Q2" } });
+    expect(writes.find(entry => entry.action === "proposal_generate")?.confirmation).toMatchObject({
+      projectId: created.projectId, request: { ...(input as object), projectId: created.projectId },
+    });
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
   });
   it.each([
     ["competition-map", "添加区位图", "添加历史堆叠图"],

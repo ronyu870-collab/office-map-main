@@ -36,12 +36,13 @@ function photo(photoId: string, caption: string, contentHash: string, version: s
   };
 }
 
-it("reads one pinned original at a time and requires a new plan when a reviewed photo changes", async () => {
+it.each([false, true])("reads one pinned original at a time and requires a new plan when a reviewed photo changes (auto open: %s)", async (autoOpen) => {
   const user = userEvent.setup();
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", storage);
   vi.stubGlobal("crypto", webcrypto);
   vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:pitch-test-photo");
   const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  vi.mocked(loadStoredBuildingPhoto).mockClear();
   vi.mocked(loadStoredBuildingPhoto).mockImplementation(async (_id, photoId) => ({
     url: storage + "/storage/v1/object/sign/building-sales-materials/building-photos/v1/" + buildingId + "/" + photoId + "/photo.png",
     can_download: true, is_preview: false, source_url: "https://example.org", source_name: "隔离照片",
@@ -57,14 +58,17 @@ it("reads one pinned original at a time and requires a new plan when a reviewed 
         { id: firstId, title: "项目封面", visuals: [exterior, invalid, interior] },
         { id: secondId, title: "项目简介", visuals: [exterior] },
       ] },
-    brief: { city: "北京", submarkets: ["CBD"], period: "2026-Q3", buildingIds: [buildingId] },
+    brief: { city: "北京", submarkets: ["CBD"], period: "2026-Q3", scenario: "building-promotion", buildingIds: [buildingId] },
   })) as unknown as Call;
   render(<ProposalPreview call={call} projectId={id} projectVersion={1} city="北京" question="制作楼宇推介"
-    buildingIds={[buildingId]} period="2026-Q3" language="zh" onGenerated={vi.fn()} disabled={false} />);
+    buildingIds={[buildingId]} period="2026-Q3" language="zh" onGenerated={vi.fn()} disabled={false}
+    onPromotionPeriod={autoOpen ? vi.fn() : undefined} />);
   await user.click(screen.getByRole("button", { name: "规划正式提案" }));
   const photos = await screen.findByText("已选楼宇照片（2）");
-  expect(loadStoredBuildingPhoto).not.toHaveBeenCalled();
-  await user.click(photos);
+  if (!autoOpen) {
+    expect(loadStoredBuildingPhoto).not.toHaveBeenCalled();
+    await user.click(photos);
+  }
   expect(await screen.findByRole("img", { name: "楼宇外立面" })).toBeInTheDocument();
   expect(screen.getByText("获权实景来源")).toBeInTheDocument();
   expect(screen.queryByRole("option", { name: "错配来源" })).not.toBeInTheDocument();
