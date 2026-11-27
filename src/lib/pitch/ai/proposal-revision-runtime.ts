@@ -68,6 +68,7 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   let scope: "selected" | "document" = "selected";
   let theme: { id: string; version: number } | undefined;
   let chartPreview: ({ pageId: string } & ProposalChartChange)[] | undefined;
+  let shorteningPreview: { originalPageCount: number; pageCount: number; removed: { pageId: string; title: string }[] } | undefined;
   let refreshPlan: Extract<Awaited<ReturnType<typeof prepareProposal>>, { status: "ready" }> | undefined;
   let regeneration: ProposalRequest | undefined;
   let quarterTransaction: { review: z.infer<typeof quarterReviewSchema>; command: {
@@ -155,14 +156,30 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
           theme = { id: matches[0].id, version: matches[0].current_version };
           continue;
         }
-        if (operation.kind === "shorten" && operation.pages) {
-          if (scope !== "document" || operation.pages >= base.length) return null;
-          // Preserve manual work and the opening/closing pages. Proposed removals
-          // are reviewed as part of the complete ordered document plan.
-          const removable = base.slice(1, -1).filter(page => !page.manual).reverse();
-          const removeCount = base.length - operation.pages;
-          if (removable.length < removeCount) return null;
-          for (const page of removable.slice(0, removeCount)) pageEdits.delete(page.id);
+        if (operation.kind === "shorten") {
+          if (scope !== "document" || (operation.pages ?? 0) >= base.length
+            || target.operations.some(item => item.kind !== "shorten" && item.kind !== "set-style")) return null;
+          const desired = operation.pages ?? Math.min(base.length - 1, Math.ceil(base.length * 0.75));
+          const candidateIds = new Set(base.slice(1, -1).filter(page => !page.manual).map(page => page.id));
+          const cited = slides.map(slide => ({
+            slide,
+            sources: new Set(slide.content.blocks.flatMap(block => block.sourceIds)),
+          }));
+          const references = new Map<string, number>();
+          for (const { sources } of cited) for (const id of sources) references.set(id, (references.get(id) ?? 0) + 1);
+          const removed: { pageId: string; title: string }[] = [];
+          for (const { slide, sources } of cited.reverse()) {
+            if (pageEdits.size <= desired) break;
+            if (!candidateIds.has(slide.id) || slide.content.disclosure === "restricted"
+              || (slide.scene.pagination?.count ?? 1) !== 1
+              || slide.content.blocks.some(block => block.kind !== "paragraph")
+              || [...sources].some(id => references.get(id) === 1)) continue;
+            for (const id of sources) references.set(id, references.get(id)! - 1);
+            removed.unshift({ pageId: slide.id, title: slide.content.title });
+            pageEdits.delete(slide.id);
+          }
+          if (!removed.length || operation.pages !== null && pageEdits.size !== desired) return null;
+          shorteningPreview = { originalPageCount: base.length, pageCount: pageEdits.size, removed };
           continue;
         }
         if (operation.kind !== "revise-text") return null;
@@ -214,5 +231,6 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
     ...(regeneration ? { regeneration } : {}) };
   const command = { action: "apply_modification" as const, plan: outcome.plan, scope, ...(theme ? { theme } : {}) };
   if (chartPreview) workspaceCommandSchema.parse(command);
-  return { ...outcome, scope, ...(theme ? { theme } : {}), ...(chartPreview ? { chartPreview } : {}), command };
+  return { ...outcome, scope, ...(theme ? { theme } : {}), ...(chartPreview ? { chartPreview } : {}),
+    ...(shorteningPreview ? { shorteningPreview } : {}), command };
 }
