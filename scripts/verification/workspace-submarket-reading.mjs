@@ -198,7 +198,15 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   assert.equal(await projectsTab.getAttribute('aria-selected'),'true','building round trip preserves the representative projects tab');
 
   assert.equal(await panel.locator('.map-methodology-trigger').count(),0,'customer submarket reading does not expose statistical methodology');
-  assert.equal(await panel.locator('a[target="_blank"]').count(),0,'representative projects do not expose research source links');
+  // The shared photo viewer pre-renders three anchors, including hidden license
+  // and original-image controls. These are media provenance/actions, not research
+  // citations. Only allow those exact controls inside the real gallery; still
+  // reject all other anchors, even ones without target="_blank" or currently hidden.
+  const researchLinks = await projects.locator('a').evaluateAll(links => links
+    .filter(link => !(link.closest('.workspace-building-photos [data-building-photo-gallery]') &&
+      link.matches('[data-building-photo-source], [data-building-photo-license], [data-building-photo-original]')))
+    .map(link => ({ text: link.textContent?.trim(), href: link.getAttribute('href') })));
+  assert.deepEqual(researchLinks, [], 'representative projects do not expose research source links');
 
   await visitAllProjects();
   await projects.waitFor();
