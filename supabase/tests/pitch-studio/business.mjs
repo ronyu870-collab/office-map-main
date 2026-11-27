@@ -455,6 +455,93 @@ try {
      expectedVersion: updated.project.version, revision: initial.project.version });
    assert.deepEqual(previous.slides.find(page => page.id === first.id).content, first.content);
  });
+ await check('a quarterly research handoff uses the authorized Beijing Grade A cohort and pins the selected edition', async () => {
+   const workspace = require('../../../src/lib/pitch/workspace/workflow.ts');
+   const handoff = require('../../../src/lib/pitch/workspace/handoff.ts');
+   const { workspaceCommandSchema } = require('../../../src/lib/pitch/workspace/protocol.ts');
+   const { readDocumentBindings, previewDataRefresh, applyDataRefresh } = require('../../../src/lib/pitch/workspace/documentBindings.ts');
+   const marketScope = { ...scope, city: '北京' };
+   const ordinaryQuarter = BUILDINGS[0], foreign = BUILDINGS[1], gradeB = BUILDINGS[2], untracked = BUILDINGS[3];
+   const members = Array.from({ length: 21 }, () => randomUUID());
+   await db.setup.query("update public.buildings set city='北京' where id=any($1::uuid[])", [BUILDINGS]);
+   await db.setup.query("update public.buildings set city='上海' where id=$1", [foreign]);
+   await db.setup.query("update public.buildings set grade='B' where id=$1", [gradeB]);
+   await db.setup.query("update public.buildings set tracking_scope='untracked' where id=$1", [untracked]);
+   await db.setup.query(`insert into public.buildings(id,name,submarket,city,grade)
+     select id,'合成市场样本 '||n,'CBD','北京','A' from unnest($1::uuid[]) with ordinality sample(id,n)`, [members]);
+   await db.setup.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,
+     vacant_area,is_draft,is_locked,locked_at,locked_by)
+     select id,2026,quarter,10000,quarter*100,1000,false,true,now(),$2
+     from unnest($1::uuid[]) id cross join (values (2),(3)) periods(quarter)`, [members, ADMIN]);
+   await db.setup.query(`insert into private.pitch_grants(user_id,organization_id,region,city,business_line,can_generate,valid_until,granted_by)
+     values($1,$2,$3,'北京',$4,true,now()+interval '1 day',$1)`, [ADMIN, scope.organizationId, scope.region, scope.businessLine]);
+
+   const selected = { source: { kind: 'quarterly-research', edition: '2026Q2' } };
+   const request = workspaceCommandSchema.parse({ action: 'review_handoff', handoff: selected });
+   assert.equal(workspaceCommandSchema.safeParse({ action: 'review_handoff', handoff: { ...selected, period: '2026-Q3' } }).success, false);
+   assert.equal(workspaceCommandSchema.safeParse({ action: 'review_handoff', handoff: { source: { ...selected.source, values: [999] } } }).success, false);
+   await assert.rejects(handoff.reviewHandoff(ordinary, request), /QUERY_DENIED/);
+   const review = await handoff.reviewHandoff(admin, request);
+   assert.equal(review.period, '2026-Q2');
+   assert.equal(review.binding.dataAsOf, '2026-06-30');
+   assert.equal(review.sourceCity, '北京');
+   assert.equal(review.parameters.researchScope, 'beijing-office-grade-a');
+   assert.match(review.pages[0].title, /北京甲级写字楼/);
+   const projectId = randomUUID(), taskId = randomUUID();
+   const target = { mode: 'create', projectId, title: '北京甲级写字楼研究选期交接', scope: marketScope,
+     themeId: 'colliers-default-v1', themeVersion: 2 };
+   const confirm = { action: 'add_to_pitch', handoff: selected, taskId, fingerprint: review.fingerprint, target };
+   await assert.rejects(handoff.startHandoff(admin, { ...confirm, target: { ...target, scope } }), /QUERY_DENIED/);
+   const queued = await handoff.startHandoff(admin, confirm);
+   await workspace.runWorkspaceTask(admin, projectId, taskId);
+   assert.equal((await db.rpc(ADMIN, { action: 'workspace_task_status', projectId, taskId })).state, 'completed');
+   const generation = await db.rpc(ADMIN, { action: 'business_generation', projectId: queued.source_project_id });
+   const [snapshot] = generation.snapshots;
+   const result = snapshot.results[0];
+   assert.deepEqual(result.parameters.executedPlan.scope.buildingIds, [ordinaryQuarter, ...members].sort());
+   assert.deepEqual(result.parameters.executedPlan.period, { year: 2026, quarter: 2 });
+   assert.ok(result.sources.every(source => source.entityId === ordinaryQuarter || members.includes(source.entityId)));
+   const metrics = result.sources.filter(source => source.table === 'building_metrics');
+   assert.ok(metrics.length > 0);
+   assert.ok(metrics.every(source => source.period?.year === 2026 && source.period.quarter === 2));
+
+   const opened = await workspace.getWorkspace(admin, projectId);
+   const table = opened.slides.find(page => page.content.blocks.some(block => block.kind === 'table'));
+   assert.ok(table.scene.elements.some(element => element.kind === 'table'));
+   const bindings = await readDocumentBindings(admin, projectId);
+   assert.ok(bindings.pages.some(page => page.objects.some(block => block.query?.researchScope === 'beijing-office-grade-a')));
+   const append = { ...selected, projectId };
+   const reviewAppend = await handoff.reviewHandoff(admin, { action: 'review_handoff', handoff: append });
+   await db.setup.query('update public.buildings set city=$1 where id=$2', ['上海', members[0]]);
+   await assert.rejects(handoff.startHandoff(admin, { action: 'add_to_pitch', handoff: append, taskId: randomUUID(),
+     fingerprint: reviewAppend.fingerprint, target: { mode: 'append', expectedVersion: opened.project.version } }), /PITCH_HANDOFF_CHANGED/);
+   await db.setup.query('update public.buildings set city=$1 where id=$2', ['北京', members[0]]);
+
+   const refresh = { projectId, slideId: table.id, expectedVersion: opened.project.version, period: { year: 2026, quarter: 3 } };
+   const preview = await previewDataRefresh(admin, { action: 'preview_data_refresh', ...refresh });
+   const next = await applyDataRefresh(admin, { action: 'apply_data_refresh', ...refresh, fingerprint: preview.fingerprint });
+   assert.equal(next.slides.find(page => page.id === table.id).content.dataAsOf, '2026-09-30');
+   const restored = await workspace.restoreWorkspace(admin, { action: 'restore', projectId, expectedVersion: next.project.version,
+     revision: opened.project.version });
+   assert.deepEqual(restored.slides.find(page => page.id === table.id).content, table.content);
+
+   const limitedReader = randomUUID();
+   await db.setup.query("insert into auth.users(id) values($1)", [limitedReader]);
+   await db.setup.query("insert into public.user_roles(user_id,role) values($1,'admin')", [limitedReader]);
+   await db.setup.query("insert into auth.sessions values($1,$2,now()+interval '1 day')", [sessionFor(limitedReader), limitedReader]);
+   await grantQuery(db, limitedReader, { allBuildings: false, buildingIds: [members[1], foreign],
+     capabilities: ['query:catalog','query:quarter','export:internal'], fields: ['totalArea','vacantArea','netEffectiveRent'] });
+   const limited = await handoff.reviewHandoff(ctx(limitedReader), request);
+   assert.notEqual(limited.fingerprint, review.fingerprint);
+   const cohort = await db.rpc(limitedReader, { action: 'business_quarterly_research_snapshot',
+     period: { year: 2026, quarter: 2 }, permissionRevision: limited.binding.permissionRevision });
+   assert.deepEqual(cohort.buildingIds, [members[1]]);
+   await assert.rejects(db.asUser(ADMIN, 'select public.pitch_studio_access($1,$2,$3)',
+     [ADMIN, sessionFor(ADMIN), { action: 'business_quarterly_research_snapshot' }]), error => error.code === '42501');
+   await db.setup.query("delete from public.building_metrics where building_id=any($1::uuid[])", [members]);
+   await db.setup.query("delete from public.buildings where id=any($1::uuid[])", [members]);
+   await db.setup.query("update public.buildings set city='北京',grade='A',tracking_scope='tracked' where id=any($1::uuid[])", [BUILDINGS]);
+ });
  await check('dynamic snapshots cannot be client-exported or reused after independent data permission revocation',async()=>{
    const c={action:'export_start',projectId:dynamicProject.projectId,exportId:randomUUID(),audience:'internal',format:'pptx'};await render.prepareRenderExport(admin,c);await render.runRenderExport(admin,c);const file=await render.downloadArtifact(admin,c);await writeFile('tmp/pitch-business-fixtures/隔离正式数据_原生趋势.pptx',file.bytes);const zip=await JSZip.loadAsync(file.bytes);const chart=Object.values(zip.files).find(f=>/^ppt\/charts\/chart\d+\.xml$/.test(f.name));assert.ok(chart);assert.match(await chart.async('string'),/lineChart/);await assert.rejects(render.prepareRenderExport(admin,{...c,exportId:randomUUID(),audience:'client'}),/PITCH_DENIED/);
    const p=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});

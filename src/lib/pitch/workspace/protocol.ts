@@ -1,3 +1,4 @@
+import { researchEditions } from '@/src/config/quarterlyResearch';
 import { z } from "zod";
 import { scopeSchema, slideContentSchema } from "../contracts/content";
 import {
@@ -164,13 +165,15 @@ const handoffSchema = z.strictObject({
   source: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("buildings"), buildingIds: z.array(id).min(1).max(20).refine(ids => new Set(ids).size === ids.length) }),
     z.strictObject({ kind: z.literal("submarket"), key: z.string().trim().min(1).max(80) }),
+    z.strictObject({ kind: z.literal("quarterly-research"), edition: z.enum(researchEditions) }),
     z.strictObject({ kind: z.literal("analysis-result"), id }),
     leaseHandoffSourceSchema,
     stackingHandoffSourceSchema,
   ]),
   projectId: id.optional(), period: outlineQuarter.optional(), language: z.enum(["zh", "en"]).optional(),
-}).refine(input => !["lease-search", "stacking-plan"].includes(input.source.kind) || !input.period,
-  "Lease and historical stacking sources retain their own dates");
+}).refine(input => !["lease-search", "stacking-plan", "quarterly-research"].includes(input.source.kind) || !input.period,
+  "Dated sources retain their own periods");
+export type WorkspaceHandoffInput = z.input<typeof handoffSchema>;
 const handoffTargetSchema = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("append"), expectedVersion: z.number().int().positive() }),
   z.strictObject({ mode: z.literal("create"), projectId: id, title, scope: scopeSchema,

@@ -56,6 +56,7 @@ export async function prepareBusinessProject(ctx:PitchContext,command:BusinessGe
   if(new Set(currentPeriods).size>1)throw new DocumentError('PITCH_PERIOD_MISMATCH','同一 Pitch 的项目对比页面需要采用同一正式季度。');
   for(const part of command.parts) {
     if(part.mode==='dynamic') {
+      if (part.parameters.researchScope && command.scope.city !== '北京') throw new Error('QUERY_DENIED');
       if (['competition-map', 'stacking-plan'].includes(part.parameters.templateId)) {
         if (part.researchAssetId || expectedDataFingerprint || preparedSnapshot || expectedBinding) throw new Error('PITCH_DATA_UNAVAILABLE');
         const page = await readVisualGenerationPage(ctx, part.parameters, theme, command.scope.city, command.language);

@@ -13,6 +13,7 @@ import { slideContentSchema, type SlideContent } from '../contracts/content';
 import type { PitchContext } from '../data/store';
 import { digest } from '../data/store';
 import { DocumentError } from '@/src/lib/intelligence/knowledge/safeArchive';
+import { readQuarterlyResearchSnapshot } from './quarterly-research';
 import { DYNAMIC_CAPABILITIES } from './recipes';
 import type { DynamicParameters } from './protocol';
 export type DataBinding = { domain: 'quarter'|'lease'; permissionRevision: string; policyVersion: string };
@@ -30,6 +31,7 @@ export async function searchPitchBuildings(ctx:PitchContext,q:string,offset:numb
 }
 /** A reviewed adapter owns every query/metric. Business templates receive only SlideContent and an immutable receipt. */
 export function quarterPlans(p: DynamicParameters): QueryPlan[] {
+  if (p.researchScope) return rejected('季度研究的城市样本须由服务端读取。');
   const scope={inventory:p.inventory,...(p.submarkets.length?{submarkets:p.submarkets}:{}),...(p.buildingIds.length?{buildingIds:p.buildingIds}:{})};
   const list=(fields:string[])=>parseQueryPlan({operation:'list',scope,fields,period:p.period});
   if(['building-profile','project-comparison'].includes(p.templateId)) {
@@ -58,7 +60,8 @@ function resultContent(r: QueryResultView, p: DynamicParameters, language: 'zh'|
   const capability=DYNAMIC_CAPABILITIES.find(c=>c.id===p.templateId)!;
   const sourceId=randomUUID(), sourceIds=[sourceId];
   const marketSummary = p.templateId === 'quarter-market-summary';
-  const title=language==='en'?(marketSummary?'Quarterly market indicators':p.templateId):capability.name;
+  const researchTitle = language === 'en' ? 'Beijing Grade A office indicators' : '北京甲级写字楼季度指标';
+  const title = p.researchScope ? researchTitle : language === 'en' ? (marketSummary ? 'Quarterly market indicators' : p.templateId) : capability.name;
   const provenance={id:sourceId,kind:'record' as const,label:'已授权正式数据库 · '+[...new Set(r.sources.map(s=>s.table))].join(' / '),recordId:r.resultId,locator:`结果 ${r.resultId}`,version:r.dataVersion.slice(0,100),dataAsOf:asOf};
   const columns=r.table.columns;
   const rows=[...r.table.rows];
@@ -93,7 +96,8 @@ function resultContent(r: QueryResultView, p: DynamicParameters, language: 'zh'|
     blocks.push({kind:'table',columns:columns.map(c=>c.label+(c.unit?` (${units[c.unit]??c.unit})`:'')),rows:rows.map(row=>columns.map(c=>cellText(row.cells[c.key],c.unit))),sourceIds});
   }
   const data:SlideContent={protocol:'colliers-pitch/1',locale:language,title:index?title+' · 参考统计':title,subtitle:trend?`${p.start.year} Q${p.start.quarter} – ${p.end.year} Q${p.end.quarter}`:
-    marketSummary?`${p.period.year} Q${p.period.quarter}`:undefined,dataAsOf:asOf,disclosure:'internal',isTestData:false,sources:[provenance],blocks};
+    marketSummary ? [`${p.period.year} Q${p.period.quarter}`, p.researchScope &&
+      (language === 'en' ? 'Authorized tracked buildings' : '获权跟踪样本')].filter(Boolean).join(' · ') : undefined,dataAsOf:asOf,disclosure:'internal',isTestData:false,sources:[provenance],blocks};
   return slideContentSchema.parse(data);
 }
 export async function runPitchDataAdapter(ctx:PitchContext,p:DynamicParameters,language:'zh'|'en', compareOutline = false):Promise<PitchDataSnapshot> {
@@ -110,7 +114,12 @@ export async function runPitchDataAdapter(ctx:PitchContext,p:DynamicParameters,l
     const fresh=await loadLeaseSnapshot(ctx.client,ctx.identity,ctx.signal);if(!fresh.export||fresh.permission_revision!==binding.permissionRevision)throw new Error('QUERY_DENIED');
   }else {
     const authority=await loadDataAuthority(ctx.client,ctx.identity,ctx.signal);if(!authority.grants.includes('export:internal'))throw new Error('QUERY_DENIED');
-    if (compareOutline) {
+    if (p.researchScope) {
+      if (compareOutline) throw new Error('PITCH_INVALID');
+      const { plan, snapshots } = await readQuarterlyResearchSnapshot(ctx, authority, p.period);
+      plans.push(plan);
+      results.push(resultViewSchema.parse(executeQueryPlan(plan, snapshots)));
+    } else if (compareOutline) {
       const { previous, priorYear } = comparisonQuarters(p.period);
       const scope = { inventory: p.inventory, buildingIds: p.buildingIds };
       // Fetch the three periods from one DB snapshot so current values cannot drift between comparisons.
