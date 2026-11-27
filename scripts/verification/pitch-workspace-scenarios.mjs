@@ -327,7 +327,10 @@ export async function verifyPitchWorkspace({
         changeQuarter: () => db.query("update public.building_metrics set net_effective_rent=80 where building_id=$1 and record_year=2026 and record_quarter=2", [building]),
         readProject: async projectId => (await workspace(admin, { action: "get", projectId })).body,
         assertClientDenied: async projectId => {
-          const gate = await db.query("select id, can_client_export from private.pitch_grants where user_id=$1 and region=$2", [admin.id, scope.region]);
+          const gate = await db.query(`select g.id, g.can_client_export from private.pitch_grants g
+            join public.pitch_projects p on (g.organization_id,g.region,g.city,g.business_line)
+              =(p.organization_id,p.region,p.city,p.business_line)
+            where g.user_id=$1 and p.id=$2 and g.valid_until>now()`, [admin.id, projectId]);
           assert.equal(gate.rows.length, 1);
           const grant = gate.rows[0];
           await db.query("update private.pitch_grants set can_client_export=true where id=$1", [grant.id]);
@@ -654,8 +657,9 @@ export async function verifyPitchQuarterlyResearch({ app, db, admin, other, scop
       vacant_area,is_draft,is_locked,locked_at,locked_by) values($1,2026,2,10000,100,1000,false,true,now(),$2)`, [id, admin.id]);
   }
   const marketScope = { ...scope, city: "北京" };
-  await db.query(`insert into private.pitch_grants(user_id,organization_id,region,city,business_line,can_generate,valid_until,granted_by)
-    values($1,$2,$3,'北京',$4,true,now()+interval '1 day',$1) on conflict do nothing`, [admin.id, scope.organizationId, scope.region, scope.businessLine]);
+  const { rows: [researchGrant] } = await db.query(`insert into private.pitch_grants(user_id,organization_id,region,city,business_line,can_generate,valid_until,granted_by)
+    values($1,$2,$3,'北京',$4,true,now()+interval '1 day',$1) on conflict do nothing returning id`,
+    [admin.id, scope.organizationId, scope.region, scope.businessLine]);
   try {
     const handoff = { source: { kind: "quarterly-research", edition: "2026Q2" } };
     const preview = { action: "review_handoff", handoff };
@@ -688,6 +692,7 @@ export async function verifyPitchQuarterlyResearch({ app, db, admin, other, scop
     assert.ok(pinned.scope.buildingIds.includes(eligible));
     assert.ok(!pinned.scope.buildingIds.includes(foreign) && !pinned.scope.buildingIds.includes(gradeB));
   } finally {
+    if (researchGrant) await db.query("delete from private.pitch_grants where id=$1", [researchGrant.id]);
     const ids = records.map(([id]) => id);
     await db.query("delete from public.building_metrics where building_id=any($1::uuid[])", [ids]);
     await db.query("delete from public.buildings where id=any($1::uuid[])", [ids]);
