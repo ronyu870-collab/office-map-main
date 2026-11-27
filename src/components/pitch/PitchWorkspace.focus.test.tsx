@@ -163,6 +163,7 @@ let detail: ReturnType<typeof initial>,
   workspaceBuildingLookup = false,
   readyProposal = false,
   dropProposalCreateResponse = false,
+  bindingResponse: (() => unknown) | undefined,
   proposalSource: { id: string; detail: unknown } | undefined;
 const proposalId = "66666666-6666-4666-8666-666666666666";
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
@@ -177,6 +178,7 @@ beforeEach(() => {
   completedTask = false;
   readyProposal = false;
   dropProposalCreateResponse = false;
+  bindingResponse = undefined;
   proposalSource = undefined;
   detail = clone(initial());
   writes = [];
@@ -200,6 +202,10 @@ beforeEach(() => {
       else if (c.action === "buildings")
         body = { items: [{ id: assetId, name: "工作台核对楼宇" }], next: null };
       else if (c.action === "preferences") body = { favorites: [], recent: [] };
+      else if (c.action === "document_bindings") {
+        if (bindingResponse) body = bindingResponse();
+        else { status = 400; body = { error: "不支持此命令" }; }
+      }
       else if (c.action === "list")
         body = {
           items: [
@@ -349,6 +355,64 @@ async function enter() {
   return user;
 }
 describe("Pitch workspace continuous editing", () => {
+  it("protects a formally bound paragraph in the inspector and canvas while submitting only the new manual text", async () => {
+    const page = detail.slides[0];
+    const manualId = "99999999-9999-4999-8999-999999999999";
+    const official = "正式净有效租金为 145 元／平方米／月";
+    const manual = "联络说明";
+    page.content.blocks = [
+      { kind: "paragraph", text: official, sourceIds: [sourceId] },
+      { kind: "paragraph", text: manual, sourceIds: [manualId] },
+    ];
+    page.content.sources.push({ ...page.content.sources[0], id: manualId, recordId: "workspace:" + projectId, label: "人工说明" });
+    page.scene.elements.push(
+      { kind: "text", x: 1, y: 2, w: 9, h: 1, text: official, role: "body", bold: false },
+      { kind: "text", x: 1, y: 4, w: 9, h: 1, text: manual, role: "body", bold: false },
+    );
+    bindingResponse = () => ({ projectVersion: detail.project.version, pages: [{ id: pageId, objects: [
+      { index: 0, kind: "paragraph", sourceIds: [sourceId], valueOrigin: "business", receipts: [{
+        sourceId, receiptId: "formal-rent", resultId: assetId,
+        binding: { dataAsOf: "2026-01-01" }, query: { fields: ["netEffectiveRent"] },
+      }] },
+      { index: 1, kind: "paragraph", sourceIds: [manualId], valueOrigin: "manual" },
+    ] }] });
+    const user = await enter();
+    const protectedField = await screen.findByLabelText("正文 1 · 只读");
+    expect(protectedField).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("正文 2")).not.toHaveAttribute("readonly");
+    await user.click(screen.getByRole("button", { name: "查看数据与来源" }));
+    expect(await screen.findByText("正式查询依据")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "属性" }));
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: `对象 2：${official}` }));
+    expect(screen.queryByRole("button", { name: "编辑所选文字" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: `对象 3：${manual}` }));
+    expect(screen.getByRole("button", { name: "编辑所选文字" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "返回预览" }));
+    const bindingReads = () => vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("document_bindings"));
+    expect(bindingReads()).toHaveLength(1);
+    const notes = screen.getByLabelText("正文 2");
+    await user.clear(notes);
+    await user.type(notes, "已核对联络安排");
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(writes.find(entry => entry.action === "save")).toMatchObject({
+      pages: [{ id: pageId, paragraphs: [official, "已核对联络安排"] }],
+    }));
+    await waitFor(() => expect(bindingReads()).toHaveLength(2));
+  });
+  it("keeps paragraph editing locked until bindings for the current revision arrive", async () => {
+    let fresh = false;
+    bindingResponse = () => ({ projectVersion: fresh ? detail.project.version : detail.project.version + 1,
+      pages: [{ id: pageId, objects: [{ index: 0, kind: "paragraph", sourceIds: [sourceId], valueOrigin: "asset" }] }] });
+    const user = await enter();
+    expect(await screen.findByText("项目版本已变化，请重新打开项目检查数据绑定。")).toBeInTheDocument();
+    expect(screen.getByLabelText("正文 1")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("页面标题")).not.toHaveAttribute("readonly");
+    fresh = true;
+    await user.click(screen.getByRole("button", { name: "重试读取绑定" }));
+    await waitFor(() => expect(screen.getByLabelText("正文 1")).not.toHaveAttribute("readonly"));
+    expect(writes.some(entry => entry.action === "save")).toBe(false);
+  });
   it("plans a workbench brief before writes and opens the project assistant when settings are needed", async () => {
     const user = userEvent.setup();
     render(<PitchWorkspace />);
