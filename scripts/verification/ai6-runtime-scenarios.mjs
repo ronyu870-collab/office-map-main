@@ -84,7 +84,7 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
     };
     const address = '合成路 8 号', metro = '楼书记录可前往合成地铁站', photoId = randomUUID();
     const dossiers = [[0, '合成国贸大厦A座（三期）', 80], [1, '合成海岳大厦B座', 120], [3, '合成通运中心A座', null]];
-    await check('AI6 D1 / 三栋楼宇档案在真实登录下使用原照片、楼书和正式季度 ID', async () => {
+    await check('AI6 D1 / 三栋楼宇档案在真实登录下使用原照片目录、楼书和正式季度 ID', async () => {
       const reader = await person('admin', 'ai6-dossier-sample');
       await grant(reader);
       await grantBusiness(db, reader.id, { modules: ['profile'], fields: ['address', 'metro'], allBuildings: false, buildingIds: [ids[0]] });

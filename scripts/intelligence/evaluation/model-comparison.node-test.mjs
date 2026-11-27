@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { comparisonPlan, comparisonPricingSource, runModelComparison } from './model-comparison.mjs';
 
+const revision = { commit: 'a'.repeat(40), dirty: false };
+
 function approval(t) {
   const directory = mkdtempSync(path.join(os.tmpdir(), 'ai6-comparison-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const taskId = 'comparison-test';
-  return { taskId, runDirectory: path.join(directory, taskId), totalNanodollars: 250_000_000,
+  return { taskId, runDirectory: path.join(directory, taskId), commit: revision.commit, totalNanodollars: 250_000_000,
     currency: 'USD', pricingSource: comparisonPricingSource, pricingCheckedAt: new Date().toISOString(),
     rates: { 'deepseek-flash': { input: .30, output: 1.20 }, 'deepseek-v4-pro': { input: 1.32, output: 3.96 } } };
 }
@@ -39,11 +41,13 @@ test('AI6 comparison plan reserves all twelve requests for the same four cases',
 test('AI6 comparison rejects absent, stale or insufficient approval before loading the adapter', async t => {
   const approved = approval(t);
   const neverLoad = async () => assert.fail('adapter loaded before approval validation');
-  await assert.rejects(runModelComparison(null, neverLoad), /APPROVAL_REQUIRED/);
-  await assert.rejects(runModelComparison({ ...approved, pricingCheckedAt: 'invalid' }, neverLoad), /PRICE_RECHECK/);
-  await assert.rejects(runModelComparison({ ...approved, totalNanodollars: 241_919_999 }, neverLoad), /BUDGET_BLOCKED/);
-  await assert.rejects(runModelComparison({ ...approved, totalNanodollars: 250_000_001 }, neverLoad), /APPROVAL_REQUIRED/);
-  await assert.rejects(runModelComparison({ ...approved, rates: { ...approved.rates, 'deepseek-v4-pro': { input: 1.31, output: 3.96 } } }, neverLoad), /PRICE_UPPER_BOUND/);
+  await assert.rejects(runModelComparison(null, neverLoad, revision), /APPROVAL_REQUIRED/);
+  await assert.rejects(runModelComparison(approved, neverLoad, { ...revision, commit: 'b'.repeat(40) }), /APPROVAL_REQUIRED/);
+  await assert.rejects(runModelComparison(approved, neverLoad, { ...revision, dirty: true }), /APPROVAL_REQUIRED/);
+  await assert.rejects(runModelComparison({ ...approved, pricingCheckedAt: 'invalid' }, neverLoad, revision), /PRICE_RECHECK/);
+  await assert.rejects(runModelComparison({ ...approved, totalNanodollars: 241_919_999 }, neverLoad, revision), /BUDGET_BLOCKED/);
+  await assert.rejects(runModelComparison({ ...approved, totalNanodollars: 250_000_001 }, neverLoad, revision), /APPROVAL_REQUIRED/);
+  await assert.rejects(runModelComparison({ ...approved, rates: { ...approved.rates, 'deepseek-v4-pro': { input: 1.31, output: 3.96 } } }, neverLoad, revision), /PRICE_UPPER_BOUND/);
 });
 
 test('AI6 comparison runs sequentially with matched inputs, records assertions, and never repeats an approved run', async t => {
@@ -58,7 +62,7 @@ test('AI6 comparison runs sequentially with matched inputs, records assertions, 
       suggestedTools: ['query_quarterly_metrics'], answer: '2026Q2 净有效租金为 180 元/㎡/月。' };
     return result(options.model, seen.length <= 3 ? correctFirstCase : { ...correctFirstCase, facts: {} });
   };
-  const run = await runModelComparison(approved, load, { commit: 'fixture' });
+  const run = await runModelComparison(approved, load, revision);
   assert.equal(run.halted, null);
   assert.equal(run.actualBill, null);
   assert.equal(run.providerAttempts, 12);
@@ -74,7 +78,9 @@ test('AI6 comparison runs sequentially with matched inputs, records assertions, 
     assert.deepEqual(seen[offset].messages, seen[offset + 2].messages);
     assert.deepEqual(seen.slice(offset, offset + 3).map(call => call.options.reasoningEffort), [undefined, 'low', 'high']);
   }
-  await assert.rejects(runModelComparison(approved, load), { code: 'EEXIST' });
+  await assert.rejects(runModelComparison(approved, load, revision), { code: 'EEXIST' });
+  renameSync(approved.runDirectory, approved.runDirectory + '-archive');
+  await assert.rejects(runModelComparison(approved, load, revision), { code: 'EEXIST' });
   assert.equal(seen.length, 12);
 });
 
@@ -85,7 +91,7 @@ test('AI6 comparison keeps the reservation and stops every later model on suppli
       const run = await runModelComparison(approved, async () => async (_messages, _signal, _delta, options) => {
         if (reason === 'payment_required') throw Object.assign(Error(), { code: reason });
         return result(options.model, {}, { outputTokens: reason === 'USAGE_MISSING' ? null : 8001 });
-      });
+      }, revision);
       assert.equal(run.halted, reason);
       assert.equal(run.providerAttempts, 1);
       assert.equal(run.pendingNanodollars, reason === 'usage_exceeded_reservation' ? 0 : 11_100_000);

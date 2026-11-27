@@ -1030,12 +1030,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       await history.contextRecheck?.();
       await recheckLeases();
       const workbookDelivered = generatedResults.some(result => result.parameters.agentWorkbook !== undefined);
-      if (preparedReport || researchAnswer || workbookDelivered) {
+      const supplementalDossierDenied = execution.unresolvedFailures.some(failure =>
+        failure.tool === 'query_building_dossier' && failure.code === 'field_not_available');
+      if (preparedReport || researchAnswer || workbookDelivered || supplementalDossierDenied && execution.result) {
         const read = await readOwnResult(client, actor, requestId, 'archive', signal);
         await recoverOwnResult(client, actor, keys, requestId, read, signal, workbookDelivered ? { exporting: true } : undefined);
       }
     } catch (error) {
-      await audit.append(requestId, 'correction', { reason: 'artifact_sources_changed_before_response', delivery: 'not_sent' });
+      await audit.append(requestId, 'correction', { reason: 'result_sources_changed_before_response', delivery: 'not_sent' });
       throw error;
     }
     const finalAuthority = await fresh();

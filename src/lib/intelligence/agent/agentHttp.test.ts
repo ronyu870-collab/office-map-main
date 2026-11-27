@@ -200,7 +200,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(body.message).toContain('部分研究数据源受独立资格限制');
   });
 
-  it.each(['allowed', 'missing_fields', 'denied_scope'])('uses the exact named tower to obtain independently authorized dossier fields (%s)', async access => {
+  it.each(['allowed', 'missing_fields', 'denied_scope', 'changed_primary_scope'])('uses the exact named tower to obtain independently authorized dossier fields (%s)', async access => {
     const buildingId = randomUUID();
     const period = { year: 2026, quarter: 2 };
     const original = fixture(period);
@@ -222,9 +222,17 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
         version: 'b'.repeat(64), recordedAt: null, asOf: null, period: null, values: { address: '合成路2号', gfaTotal: '25000' } }] }] };
     const allowed = access === 'allowed';
     const dependencies = deps(true, undefined, { permitted: access === 'missing_fields' ? [] : ['address', 'gfaTotal'],
-      snapshot: access === 'denied_scope' ? { allowed: false } : snapshot });
+      snapshot: ['denied_scope', 'changed_primary_scope'].includes(access) ? { allowed: false } : snapshot });
+    if (access === 'changed_primary_scope') state.recoverArchive.mockRejectedValueOnce(Error('QUERY_DENIED'));
     const response = await handleAgentSubmission(fakeRequest('请介绍海岳大厦A座，并附上照片、地址、建筑面积和最新正式季度净有效租金、空置率').request, dependencies);
     const body = await response.json();
+    if (access === 'changed_primary_scope') {
+      expect(response.status).toBe(403);
+      expect(body.result).toBeUndefined();
+      expect(state.recoverArchive).toHaveBeenCalledOnce();
+      expect(state.provider).not.toHaveBeenCalled();
+      return;
+    }
     expect(response.status).toBe(200);
     expect(body.result.resultId).toBe(result.resultId);
     expect(body.answerSelection.results).toHaveLength(allowed ? 2 : 1);
@@ -239,7 +247,10 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
       expect(JSON.stringify(body)).not.toContain('合成路2号');
       expect(body.answerSelection).toMatchObject({ status: 'partial', notice: expect.stringContaining('建筑面积') });
       if (access === 'missing_fields') expect(dependencies.client.rpc).toHaveBeenCalledTimes(2);
-      else expect(body.agent.unresolvedFailures).toContainEqual({ tool: 'query_building_dossier', code: 'field_not_available' });
+      else {
+        expect(body.agent.unresolvedFailures).toContainEqual({ tool: 'query_building_dossier', code: 'field_not_available' });
+        expect(state.recoverArchive).toHaveBeenCalledOnce();
+      }
     }
     expect(state.provider).not.toHaveBeenCalled();
   });

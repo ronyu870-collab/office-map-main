@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { BudgetLedger, envelope, nanos } from './budget.mjs';
@@ -83,14 +83,15 @@ export function comparisonPlan() {
   };
 }
 
-function validateApproval(approval) {
+function validateApproval(approval, revision) {
   const now = Date.now();
   const checkedAt = Date.parse(approval?.pricingCheckedAt);
   if (approval?.currency !== currency || approval.pricingSource !== comparisonPricingSource
     || !Number.isSafeInteger(approval.totalNanodollars) || approval.totalNanodollars <= 0
     || approval.totalNanodollars > approvedCeiling || typeof approval.taskId !== 'string' || !/^[a-z0-9-]{8,80}$/.test(approval.taskId)
     || typeof approval.runDirectory !== 'string' || !path.isAbsolute(approval.runDirectory)
-    || path.basename(path.resolve(approval.runDirectory)) !== approval.taskId) throw Error('COMPARISON_APPROVAL_REQUIRED');
+    || path.basename(path.resolve(approval.runDirectory)) !== approval.taskId
+    || !/^[0-9a-f]{40}$/.test(approval.commit) || approval.commit !== revision?.commit || revision.dirty) throw Error('COMPARISON_APPROVAL_REQUIRED');
   if (!Number.isFinite(checkedAt) || checkedAt > now || now - checkedAt > 86_400_000) throw Error('PRICE_RECHECK_REQUIRED');
   const rates = {};
   for (const [model, floor] of Object.entries(priceFloor)) {
@@ -116,10 +117,13 @@ function assertResponse(content, spec) {
 }
 
 export async function runModelComparison(approval, loadAdapter, revision) {
-  const { rows, rates } = validateApproval(approval);
+  const { rows, rates } = validateApproval(approval, revision);
   const adapter = await loadAdapter();
   const directory = path.resolve(approval.runDirectory);
-  // One approved run directory is consumed even on interruption. Resuming is inspection only.
+  // Keep consumption outside the result directory so archiving it does not renew the approval.
+  const receipt = path.join(path.dirname(directory), `.ai6-comparison-${approval.taskId}.receipt.json`);
+  writeFileSync(receipt, JSON.stringify({ taskId: approval.taskId, revision, directory, consumedAt: new Date().toISOString() }) + '\n',
+    { flag: 'wx', mode: 0o600, flush: true });
   mkdirSync(directory, { mode: 0o700 });
   const journal = path.join(directory, 'comparison.jsonl');
   const log = record => appendFileSync(journal, JSON.stringify(record) + '\n', { mode: 0o600 });
