@@ -93,8 +93,9 @@ describe("Proposal Director review and generation", () => {
   it.each([projectId, undefined])("replays a reviewed brief in the leased worker and rechecks formal evidence (initial project %s)", async initialProject => {
     const director = recipePorts("market-report");
     const periods = vi.spyOn(director, "periods");
+    const compose = vi.spyOn(director, "compose");
     const invoke = vi.fn<ProposalModel["invoke"]>().mockResolvedValue({ provider: "deepseek", model: "fixture", message: { role: "assistant",
-      content: JSON.stringify({ scenario: "market-report", priorities: ["market-trend"] }) }, inputTokens: 10, outputTokens: 10 });
+      content: JSON.stringify({ scenario: "market-report", style: "premium", priorities: ["market-trend"] }) }, inputTokens: 10, outputTokens: 10 });
     modelAuthorization.mockResolvedValueOnce({ cacheScope: { actorId: projectId, sessionId: taskId,
       configurationVersion: `review-fixture/${initialProject ?? "landing"}` }, invoke });
     const queue: (() => Promise<void>)[] = [];
@@ -146,6 +147,7 @@ describe("Proposal Director review and generation", () => {
     await queue.shift()!();
     expect(evidence).toHaveBeenCalledWith(expect.objectContaining({ plan: reviewed.plan, modelCalls: 0, modelStatus: "reviewed" }));
     expect(periods).toHaveBeenCalledTimes(2);
+    expect(compose.mock.calls.map(([input]) => input.requestedStyle)).toEqual(["premium", "premium"]);
     periods.mockResolvedValue([{ period: "2026-Q3", status: "formal" }]);
     expect((await submit({ ...confirmation, taskId: randomUUID() })).status).toBe(200);
     await expect(queue.shift()!()).rejects.toThrow("PITCH_PROPOSAL_REVIEW_REQUIRED");

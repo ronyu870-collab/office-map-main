@@ -134,6 +134,12 @@ describe("proposal revision transaction previews", () => {
     revisionDeck = [{ id: firstPage, content, manual: true }, { id: secondPage, content }];
     expect(await planProposalRevision(context, request("整套改成英文"), { prepareReplan })).toMatchObject({ status: "unavailable" });
     expect(prepareReplan).toHaveBeenCalledOnce();
+    const withManualPages = await planProposalRevision(context, request("整套面向券商企业，优先租金"), { prepareReplan });
+    expect(withManualPages).toMatchObject({ status: "refresh-review", refreshPlan: { brief: { targetClient: "券商企业" } },
+      plan: { pages: [{ id: firstPage }, { id: secondPage }], basePageVersions: [{ id: firstPage, version: 2 }, { id: secondPage, version: 2 }] },
+      gaps: [expect.stringContaining("原项目保留 1 页人工编辑")] });
+    expect(withManualPages).not.toHaveProperty("command");
+    expect(vi.mocked(pitchRpc).mock.calls.every(([, action]) => ["workspace_get", "catalog"].includes(String(action.action)))).toBe(true);
   });
 
   it("rejects a replan that drops the customer chapter or changes the formal scope", async () => {
