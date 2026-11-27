@@ -8,7 +8,7 @@
 | POST `preview_data_refresh` | 传 `projectId`、`slideId`、`expectedVersion` 和可选正式 `period`。按所选页的快照复核同组关联页，比较数据值和真实来源版本，并返回审阅指纹及结论复核提示。 |
 | POST `apply_data_refresh` | 使用相同参数和审阅指纹。正式事实和来源、项目版本或权限出现变化时需重新核对。保存同时提交替换数据的私有归档及项目新版本，历史恢复沿用 `restore`。版式或分页无法安全保留时拒绝保存。含独立研究素材的组合页暂不开放自动刷新。 |
 | POST `apply_modification` | 传共享 `DocumentModificationPlan`，支持已有 `PageEdit` 的受控更新。默认 `scope: selected`，其余页自动保留。显式 `scope: document` 时传完整目标顺序和原始页版本，可复制、删除及排序。可选 `theme` 指定已注册主题版本。`PageEdit.manualNote` 保存页面标题区的人工说明，传 `null` 清除。`chartPresentation` 按块索引切换原生条形、柱状或折线图，系列和来源保持固定。刷新时沿用人工说明和图表类型。数据更新走带审阅指纹的刷新命令。 |
-| POST `review_handoff` | 传共享 `AddToPitch`。楼宇与子市场由当前账号查询授权及正式季度数据解析。Colliers AI `analysis-result.id` 接受获权查数存档的请求 ID，复核当前会话和原始权限。支持楼宇列表、楼宇对比及可解析的单子市场上下文。需要指定正式季度时返回 `period_required`。成交库可传 `lease-search`，包括 `dataset`、`from`、`to`、`buildingIds`、`submarkets`、`view` 与可选 `direction`。`view` 可为 `transactions`、`industry-count` 或 `industry-area`。服务端沿用成交查询的独立导出、明细权限和分组披露阈值。 |
+| POST `review_handoff` | 传共享 `AddToPitch`。楼宇与子市场由当前账号查询授权及正式季度数据解析。Colliers AI `analysis-result.id` 接受获权查询的请求 ID，`resultId` 可固定其中一项结果。正式楼宇及季度查询保留原指标、字段、筛选、分组和期间。需要指定正式季度时返回 `period_required`。成交库可传 `lease-search`，包括 `dataset`、`from`、`to`、`buildingIds`、`submarkets`、`view` 与可选 `direction`。`view` 可为 `transactions`、`industry-count` 或 `industry-area`。服务端沿用成交查询的独立导出、明细权限和分组披露阈值。 |
 | POST `add_to_pitch` | 传相同 `handoff`、预览 `fingerprint`、稳定 `taskId` 和显式 `target`。追加使用 `mode: append, expectedVersion`；新建使用 `mode: create, projectId, title, scope, themeId, themeVersion`。新建和排队在同一事务。后台重新读取并核对事实，应用整个任务结果时持有项目版本锁。 |
 
 任务收据保留 `state`、`attempts` 和实际阶段 `preparing`、`assembling`、`saved`。查询已入库的排队任务可恢复后台执行，并发查询仍由数据库原子领取。请求结果不确定时用原 `taskId` 与原始参数重放，已完成的任务返回原回执。跨模块确认请求的精确重放在新查数之前读取原任务，保留原目标版本及审批指纹。取消、重试及审批继续使用现有权限和版本控制。
@@ -27,7 +27,9 @@
 
 季度研究交接传 `source: { kind: "quarterly-research", edition }`，版本沿用研究页的管理员可读版本清单。服务端从该版本确定季度，对北京甲级写字楼的获权跟踪样本重新读取已锁定的正式数据，保存实际样本 ID、统计口径、业务日期及授权版本。目标项目须在北京。
 
-子市场交接使用所选的一个正式季度汇总市场指标，并保留有效样本与分母。Colliers AI 已获权的汇总结果沿用原指标和筛选条件，在服务端按当前权限重查。选择新季度更新时，原查询范围保持固定。
+子市场交接使用所选正式季度汇总市场指标，保留有效样本与分母。
+
+Colliers AI 的正式查询会在审阅和后台保存时重新核对原存档、结果身份和资料权限。较宽的结果拆成可编辑表格，各续页保留分组和期间列。日期已明确的导入沿用原期间。后续确认换季时，跨季比较和趋势继续使用原窗口长度与统计口径。搜索摘要等缺少可重放正式查询的结果沿用各自入口。
 
 GET `export_eligibility` 返回指定受众是否获授权、项目版本以及每页拦截原因。POST `export_start` 保留既有 `page`、`pages` 选择约定，支持 PPTX、PDF、高清 PNG、SVG 与 XLSX。所选页面中任何一页不符合要求时返回 403 及页面列表，调用方可以改选。审核通过的导出按所选页固定资产和图片版本，下载时复核；已完成的文件继续使用自己的权限清单。PPTX 继续由统一 Scene 写出原生对象。PDF 逐页复用 2560 像素场景渲染，适用于固定版式阅读。旧导出记录沿用原工作流读取。同一账号重复导出相同版本、页序、格式、受众和权限清单时，可复用同一渲染版本的归档文件。每个请求仍保留自己的回执和下载鉴权。
 

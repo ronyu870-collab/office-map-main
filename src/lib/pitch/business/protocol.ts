@@ -45,6 +45,13 @@ const aggregateFilterSchema = z.unknown().transform((filter, ctx) => {
     return z.NEVER;
   }
 });
+const analysisResultSchema = z.strictObject({ requestId: id, resultId: id, plan: z.unknown().transform((value, ctx) => {
+  try { return parseQueryPlan(value); }
+  catch {
+    ctx.addIssue({ code: 'custom', message: 'Invalid archived query plan' });
+    return z.NEVER;
+  }
+}) });
 export const dynamicParametersSchema = z.strictObject({
   templateId: z.enum(dynamicIds), buildingIds: z.array(id).max(20), targetBuildingId: id.optional(),
   submarkets: z.array(z.string().trim().min(1).max(80)).max(30), inventory: z.enum(['tracked','all_authorized']),
@@ -57,9 +64,17 @@ export const dynamicParametersSchema = z.strictObject({
   aggregateMetrics: z.array(z.enum(['rent','vacancy','totalArea'])).min(1).max(3)
     .refine(metrics => new Set(metrics).size === metrics.length).optional(),
   aggregateFilter: aggregateFilterSchema.optional(),
-}).refine(p => p.templateId === 'quarter-market-summary' || !p.aggregateMetrics && !p.aggregateFilter && !p.researchScope)
+  analysisResult: analysisResultSchema.optional(),
+}).refine(p => p.templateId === 'quarter-market-summary' || !p.aggregateMetrics && !p.aggregateFilter && !p.researchScope && !p.analysisResult)
   .refine(p => !p.researchScope || (p.inventory === 'tracked' && !p.buildingIds.length && !p.submarkets.length
-    && !p.aggregateMetrics && !p.aggregateFilter && !p.targetBuildingId));
+    && !p.aggregateMetrics && !p.aggregateFilter && !p.targetBuildingId && !p.analysisResult))
+  .refine(p => {
+    if (!p.analysisResult) return true;
+    const { inventory, submarkets = [], buildingIds = [] } = p.analysisResult.plan.scope;
+    return !p.aggregateFilter && !p.aggregateMetrics && !p.targetBuildingId && !p.fields.length && p.chart === 'table'
+      && p.inventory === inventory && JSON.stringify(p.submarkets) === JSON.stringify(submarkets)
+      && JSON.stringify(p.buildingIds) === JSON.stringify(buildingIds.length <= 20 ? buildingIds : []);
+  });
 export type DynamicParameters = z.infer<typeof dynamicParametersSchema>;
 export const generationPartSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.enum(['static','semi-dynamic']), templateId: z.string().min(1).max(100), assetIds: z.array(id).min(1).max(30),

@@ -13,8 +13,12 @@ import {BUILDINGS} from '../ai-query-authority/snapshot-fixture.mjs';
 const require=createRequire(import.meta.url),workflow=require('../../../src/lib/pitch/business/workflow.ts'),library=require('../../../src/lib/pitch/library/workflow.ts'),render=require('../../../src/lib/pitch/data/renderWorkflow.ts'),{digest}=require('../../../src/lib/pitch/data/store.ts');
 const db=await createPitchDatabase(),files=new Map();let count=0;
 const check=async(name,fn)=>{await fn();count++;console.log('PASS '+name);};
-const rpcOrder={ai_lease_research_snapshot:['p_actor','p_effective','p_session'],ai_query_authority:['p_actor','p_effective','p_session'],ai_query_snapshot_read:['p_actor','p_effective','p_session','p_permission_revision','p_fields','p_periods','p_inventory','p_submarkets','p_building_ids']};
-function ctx(uid){return {identity:{actorId:uid,effectiveUserId:uid,sessionId:sessionFor(uid),expiresAt:Date.now()+600000},signal:new AbortController().signal,client:{rpc(name,args){return {async abortSignal(){try{if(name==='pitch_studio_access')return {data:await db.rpc(uid,args.p_input),error:null};const keys=rpcOrder[name];assert.ok(keys);const query=`select public.${name}(${keys.map((_,i)=>'$'+(i+1)).join(',')}) result`;const result=await db.setup.query(query,keys.map(k=>k==='p_periods'?JSON.stringify(args[k]):args[k]));return {data:result.rows[0].result,error:null};}catch(e){return {data:null,error:{code:e.code,message:e.message}};}}};},storage:{from(){return {async upload(path,bytes){if(files.has(path))return {error:{message:'exists'}};files.set(path,new Uint8Array(bytes));return {error:null};},async download(path){const bytes=files.get(path);return bytes?{data:new Blob([bytes]),error:null}:{data:null,error:{message:'missing'}};}};}}}};}
+const rpcOrder={ai_lease_research_snapshot:['p_actor','p_effective','p_session'],ai_query_authority:['p_actor','p_effective','p_session'],ai_query_snapshot_read:['p_actor','p_effective','p_session','p_permission_revision','p_fields','p_periods','p_inventory','p_submarkets','p_building_ids'],
+  ai_query_audit_receive: ['p_request_id','p_event_id','p_actor','p_effective','p_policy_version','p_payload_digest','p_cipher'],
+  ai_query_audit_append: ['p_request_id','p_event_id','p_kind','p_payload_digest','p_cipher'],
+  ai_query_result_read: ['p_actor','p_effective','p_session','p_request_id','p_action'],
+  ai_query_result_sources_allowed: ['p_actor','p_effective','p_session','p_request_id','p_permission_revision','p_sources']};
+function ctx(uid){return {identity:{actorId:uid,effectiveUserId:uid,sessionId:sessionFor(uid),expiresAt:Date.now()+600000},signal:new AbortController().signal,client:{rpc(name,args){return {async abortSignal(){try{if(name==='pitch_studio_access')return {data:await db.rpc(uid,args.p_input),error:null};if(name.endsWith('_operational'))return {data:null,error:{code:'PGRST202',message:name+' is unavailable in the audit fixture'}};const keys=rpcOrder[name];assert.ok(keys);const query=`select public.${name}(${keys.map((_,i)=>'$'+(i+1)).join(',')}) result`;const result=await db.setup.query(query,keys.map(k=>['p_periods','p_sources'].includes(k)?JSON.stringify(args[k]):args[k]));return {data:result.rows[0].result,error:null};}catch(e){return {data:null,error:{code:e.code,message:e.message}};}}};},storage:{from(){return {async upload(path,bytes){if(files.has(path))return {error:{message:'exists'}};files.set(path,new Uint8Array(bytes));return {error:null};},async download(path){const bytes=files.get(path);return bytes?{data:new Blob([bytes]),error:null}:{data:null,error:{message:'missing'}};}};}}}};}
 const owner=ctx(OWNER),ordinary=ctx(OTHER),admin=ctx(ADMIN);let category;const ids={};
 async function asset(kind,index=0,who=owner,language='zh') {
  const fixture=businessFixture(kind,index,language),bytes=new TextEncoder().encode(fixture.content.title+'\n隔离合成资料，不代表真实业务事实。');
@@ -137,6 +141,115 @@ try {
    await render.prepareRenderExport(admin, { action: 'export_start', projectId, exportId, audience: 'internal', format: 'pdf' });
    const stored = await db.setup.query('select visual_source_snapshot from pitch_exports where id=$1',[exportId]);
    assert.deepEqual(stored.rows[0].visual_source_snapshot, [reference.source]);
+ });
+ await check('Colliers AI handoff reopens an encrypted archive and saves its actual grouped and comparative query scope', async () => {
+   for (const file of ['20261113042352_ai_query_result_recovery.sql', '20261113145743_ai_query_group_dimensions.sql'])
+     await db.setup.query(await readFile(new URL('../../migrations/' + file, import.meta.url), 'utf8'));
+   const { parseQueryPlan } = require('../../../src/lib/intelligence/query/plan.ts');
+   const { executeQueryPlan } = require('../../../src/lib/intelligence/query/executePlan.ts');
+   const { loadDataAuthority } = require('../../../src/lib/intelligence/query/serverAuthority.ts');
+   const { readQuerySnapshots } = require('../../../src/lib/intelligence/query/snapshotReader.ts');
+   const { createRpcAuditPort } = require('../../../src/lib/intelligence/query/auditStore.ts');
+   const { queryHttpDependencies } = require('../../../src/lib/intelligence/query/http.ts');
+   const { reviewHandoff, startHandoff } = require('../../../src/lib/pitch/workspace/handoff.ts');
+   const { runWorkspaceTask, getWorkspace } = require('../../../src/lib/pitch/workspace/workflow.ts');
+   const { readDocumentBindings, previewDataRefresh, applyDataRefresh } = require('../../../src/lib/pitch/workspace/documentBindings.ts');
+   const { runPitchDataAdapter, quarterPlans } = require('../../../src/lib/pitch/business/adapter.ts');
+   const fixtureEnv = {
+     NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:9', SUPABASE_SECRET_KEY: 'synthetic-pitch-test',
+     AI_QUERY_AUDIT_KEY_ID: 'pitch-business-fixture', AI_QUERY_AUDIT_ENCRYPTION_KEY: 'ab'.repeat(32),
+     AI_QUERY_AUDIT_DIGEST_KEY: 'cd'.repeat(32), AI_QUERY_HTTP_ENABLED: 'true',
+   };
+   const inherited = Object.fromEntries(Object.keys(fixtureEnv).map(key => [key, process.env[key]]));
+   Object.assign(process.env, fixtureEnv);
+   await db.setup.query("update public.buildings set submarket='燕莎' where id=$1", [BUILDINGS[1]]);
+   try {
+     const { keys } = queryHttpDependencies();
+     const audit = createRpcAuditPort(admin.client, admin.identity, keys);
+     const authority = await loadDataAuthority(admin.client, admin.identity, admin.signal);
+     const dataScope = { inventory: 'tracked', submarkets: ['CBD', '燕莎'] };
+     const filter = { operator: 'gte', field: 'totalArea', value: '10000' };
+     const period = { year: 2026, quarter: 3 }, base = { year: 2026, quarter: 2 };
+     const archive = async input => {
+       const plan = parseQueryPlan(input), id = randomUUID();
+       const facts = await readQuerySnapshots(admin.client, admin.identity, authority, plan, admin.signal);
+       const result = executeQueryPlan(plan, facts);
+       await audit.receive({ requestId: id, authority, plan, submittedText: '隔离分析交接回归' });
+       await audit.append(id, 'running', { phase: 'execute' });
+       await audit.append(id, 'response_generated', { result });
+       await audit.append(id, 'succeeded', { delivery: 'not_yet_sent' });
+       return { handoff: { source: { kind: 'analysis-result', id, resultId: result.resultId } }, plan, result };
+     };
+     const grouped = await archive({ operation: 'group_aggregate', scope: dataScope, period,
+       metric: 'rent', metrics: ['rent', 'vacancy'], groupBy: 'submarket', filter });
+     const review = await reviewHandoff(admin, { action: 'review_handoff', handoff: grouped.handoff });
+     assert.equal(review.period, '2026-Q3');
+     assert.deepEqual(review.submarkets, dataScope.submarkets);
+     assert.deepEqual(review.parameters.analysisResult, { requestId: grouped.handoff.source.id, resultId: grouped.result.resultId, plan: grouped.plan });
+     const previews = review.pages[0].blocks.filter(block => block.kind === 'table');
+     assert.ok(previews.length > 1 && previews.every(block => block.rows.length === 2 && block.columns.length <= 6));
+     assert.ok(grouped.result.table.columns.every(column => previews.some(block => block.columns.some(label => label.startsWith(column.label)))));
+     await assert.rejects(reviewHandoff(ordinary, { action: 'review_handoff', handoff: grouped.handoff }), /QUERY_DENIED/);
+     await assert.rejects(reviewHandoff(admin, { action: 'review_handoff', handoff: { ...grouped.handoff, period: '2026-Q2' } }), /PITCH_HANDOFF_CHANGED/);
+     await assert.rejects(reviewHandoff(admin, { action: 'review_handoff', handoff: { source: { ...grouped.handoff.source, resultId: randomUUID() } } }), /QUERY_DENIED/);
+     await assert.rejects(runPitchDataAdapter(admin, { ...review.parameters,
+       analysisResult: { ...review.parameters.analysisResult, plan: { ...grouped.plan, groupBy: 'grade' } } }, 'zh'), /PITCH_HANDOFF_CHANGED/);
+
+     const target = { mode: 'create', projectId: randomUUID(), scope, title: '隔离获权分组分析',
+       themeId: 'colliers-default-v1', themeVersion: 2 };
+     const submit = { action: 'add_to_pitch', taskId: randomUUID(), handoff: grouped.handoff, fingerprint: review.fingerprint, target };
+     await startHandoff(admin, submit);
+     await runWorkspaceTask(admin, target.projectId, submit.taskId);
+     const saved = await getWorkspace(admin, target.projectId);
+     assert.equal(saved.workspace.context.period, review.period);
+     assert.equal((await startHandoff(admin, submit)).state, 'completed');
+     const binding = (await readDocumentBindings(admin, target.projectId)).pages.flatMap(page => page.objects).find(object => object.kind === 'table');
+     assert.ok(binding, 'the saved project retains its native table binding');
+     assert.equal(binding.valueOrigin, 'business');
+     assert.deepEqual(binding.query.analysisResult.plan, grouped.plan);
+     const delivery = { action: 'export_start', projectId: target.projectId, exportId: randomUUID(), audience: 'internal', format: 'pptx' };
+     await render.prepareRenderExport(admin, delivery);
+     await render.runRenderExport(admin, delivery);
+     const artifactBefore = (await render.downloadArtifact(admin, delivery)).bytes;
+     const asset = await JSZip.loadAsync(artifactBefore);
+     assert.match(await asset.file('ppt/slides/slide1.xml').async('string'), /<a:tbl>/);
+     await assert.rejects(render.prepareRenderExport(admin, { ...delivery, exportId: randomUUID(), audience: 'client' }), /PITCH_DENIED/);
+
+     const selectedTable = saved.slides.find(page => page.content.blocks.some(block => block.kind === 'table'));
+     const refresh = { projectId: target.projectId, slideId: selectedTable.id, expectedVersion: saved.project.version, period: base };
+     const difference = await previewDataRefresh(admin, { action: 'preview_data_refresh', ...refresh });
+     assert.equal(difference.changed, true);
+     assert.deepEqual(difference.period, base);
+     const updated = await applyDataRefresh(admin, { action: 'apply_data_refresh', ...refresh, fingerprint: difference.fingerprint });
+     assert.ok(updated.project.version > saved.project.version);
+     assert.ok(updated.slides.some(page => page.content.dataAsOf === '2026-06-30' && page.content.blocks.some(block => block.kind === 'table')));
+     assert.deepEqual((await render.downloadArtifact(admin, delivery)).bytes, artifactBefore);
+
+     const compare = await archive({ operation: 'compare', scope: dataScope, base, current: period, metric: 'rent', mode: 'paired', filter });
+     const compared = await reviewHandoff(admin, { action: 'review_handoff', handoff: compare.handoff });
+     assert.equal(compared.period, '2026-Q3');
+     assert.deepEqual(quarterPlans(compared.parameters), [compare.plan]);
+     assert.deepEqual(quarterPlans({ ...compared.parameters, period: { year: 2027, quarter: 1 } })[0],
+       { ...compare.plan, base: { year: 2026, quarter: 4 }, current: { year: 2027, quarter: 1 } });
+     assert.ok(compared.pages[0].blocks.some(block => block.kind === 'table'));
+
+     const pending = { ...submit, taskId: randomUUID(), target: { ...target, projectId: randomUUID() } };
+     await startHandoff(admin, pending);
+     await db.setup.query('update building_metrics set is_draft=true where building_id=$1 and record_year=2026 and record_quarter=3', [BUILDINGS[1]]);
+     try {
+       await runWorkspaceTask(admin, pending.target.projectId, pending.taskId);
+       assert.equal((await db.rpc(ADMIN, { action: 'workspace_task_status', projectId: pending.target.projectId, taskId: pending.taskId })).state, 'failed');
+       assert.equal((await getWorkspace(admin, pending.target.projectId)).slides.length, 0);
+     } finally {
+       await db.setup.query('update building_metrics set is_draft=false where building_id=$1 and record_year=2026 and record_quarter=3', [BUILDINGS[1]]);
+     }
+   } finally {
+     await db.setup.query("update public.buildings set submarket='CBD' where id=$1", [BUILDINGS[1]]);
+     for (const [key, value] of Object.entries(inherited)) {
+       if (value === undefined) delete process.env[key];
+       else process.env[key] = value;
+     }
+   }
  });
  await check('reviewed query receipts bind their actual objects and preserve independent human notes', async () => {
    const { captureReviewedQuery } = require('../../../src/lib/pitch/business/document-version.ts');
