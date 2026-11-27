@@ -109,7 +109,7 @@ function evidenceContext(research: SubmarketIntelligence, sourceIds: readonly st
   const periods = [...new Set((asOf ? [asOf] : sources.map(source => source.observedAt)).map(dateLabel).filter(Boolean))];
   // Scope labels describe the evidence, not an attribution or a new data source.
   const scope = sources.some(source => source.scopeType === 'external_market')
-    ? (/甲级.*空置率/.test(title) || /空置率/.test(title) ? '公开甲级办公样本（独立监测）' : '公开市场研究')
+    ? (/甲级.*空置率/.test(title) || (research.market === 'CBD' && /空置率/.test(title)) ? '公开甲级办公样本（独立监测）' : '公开市场研究')
     : sources.some(source => source.scopeType === 'functional') ? research.market + '功能区' : '';
   return [...periods, scope].filter(Boolean).join(' · ');
 }
@@ -126,7 +126,9 @@ function selectLead(research: SubmarketIntelligence, marketType: ResearchMarketT
     (marketType === 'office' && observationTheme(item) === 'competition' ? 4 : 0)
     + (marketType === 'office' && /新供应|新供给|供应驱动|竞争阶段/.test(item.title) ? 5 : 0)
     + (measuredSupply.some(fact => related(fact.sourceIds, item.sourceIds)) ? 2 : 0)
-    + (marketType === 'park' && observationTheme(item) === 'demand' ? 4 : 0);
+    + (marketType === 'park' && /研发办公|研发载体|产业链|科技需求|专业空间|特色项目/.test(item.title) ? 6 : 0)
+    + (marketType === 'park' && observationTheme(item) === 'demand' ? 4 : 0)
+    + (marketType === 'mixed' && /不是同质|差异|使用适配|品质升级/.test(item.title) ? 6 : 0);
   return [...candidates].sort((a, b) => score(b) - score(a) || b.asOf.localeCompare(a.asOf) || a.title.localeCompare(b.title, 'zh-CN'))[0] ?? null;
 }
 
@@ -166,7 +168,9 @@ export function buildResearchPresentation(research: SubmarketIntelligence, marke
     ? ['demand', 'location', 'competition', 'outlook']
     : ['competition', 'demand', 'location', 'outlook'];
   const chapters = themeOrder.map(theme => ({
-    theme, title: chapterTitles[theme],
+    theme, title: marketType === 'park' ? ({ demand: '产业集聚与研发需求', location: '园区功能与通勤', competition: '载体供给与竞争', outlook: '市场展望' } as const)[theme]
+      : marketType === 'mixed' ? ({ competition: '商务办公与研发载体', demand: '企业需求与选址', location: '区域功能与通勤', outlook: '市场展望' } as const)[theme]
+        : chapterTitles[theme],
     observations: observations.filter(item => item.theme === theme).sort((a, b) => Number(b.key === lead?.key) - Number(a.key === lead?.key)),
     facts: facts.filter(item => item.theme === theme),
   })).filter(chapter => chapter.observations.length || chapter.facts.length);

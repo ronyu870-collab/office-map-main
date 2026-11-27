@@ -403,3 +403,24 @@
   .submarket-v3-kpis dd.submarket-v3-context { grid-column: 1 / -1; }
   .submarket-v3-preview-facts, .submarket-v3-pulse-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Product research reuses the Goal 01 typography and reading grid. */
+.submarket-product-core, .submarket-product-structure, .submarket-product-section {
+  display: grid;
+  min-width: 0;
+  gap: var(--cd-space-3);
+}
+.submarket-product-section { gap: var(--cd-space-1); }
+.submarket-product-core .submarket-v3-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.submarket-product-comparison { display: grid; gap: var(--cd-space-2); }
+.submarket-product-comparison > div { display: grid; min-width: 0; gap: 2px; }
+.submarket-product-comparison > div + div { border-top: 1px solid var(--cd-color-border); padding-top: var(--cd-space-2); }
+.submarket-product-comparison dt { color: var(--cd-color-text-secondary); }
+@container submarket-research (min-width: 52rem) {
+  .submarket-product-core .submarket-v3-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .submarket-product-core:has(> :nth-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .submarket-product-core:has(> :nth-child(2)) .submarket-v3-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container submarket-research (max-width: 20rem) {
+  .submarket-product-core .submarket-v3-kpis { grid-template-columns: minmax(0, 1fr); }
+}
