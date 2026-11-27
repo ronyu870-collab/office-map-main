@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { localizedTextSchema, scopeSchema, slideContentSchema } from '../contracts/content';
 import { layoutIdSchema } from '../contracts/scene';
 import { quarterSchema } from '@/src/lib/intelligence/query/contracts';
+import { parseQueryPlan } from '@/src/lib/intelligence/query/plan';
 const text = z.string().trim().min(1).max(4000), label = text.max(160), id = z.uuid();
 const translated = localizedTextSchema;
 const list = z.array(text).max(30);
@@ -34,7 +35,16 @@ export const recipeSchema = z.strictObject({
   layoutId: layoutIdSchema, maxAssets: z.number().int().min(1).max(30),
 });
 export type BusinessRecipe = z.infer<typeof recipeSchema>;
-export const dynamicIds = ['building-profile','project-comparison','rent-comparison','vacancy-comparison','rent-trend','vacancy-trend','building-submarket','lease-representatives','lease-area-distribution','lease-industry-distribution','competition-map','stacking-plan'] as const;
+export const dynamicIds = ['building-profile','project-comparison','rent-comparison','vacancy-comparison','rent-trend','vacancy-trend','building-submarket','quarter-market-summary','lease-representatives','lease-area-distribution','lease-industry-distribution','competition-map','stacking-plan'] as const;
+const aggregateFilterSchema = z.unknown().transform((filter, ctx) => {
+  try {
+    return parseQueryPlan({ operation: 'aggregate', metric: 'rent', scope: { inventory: 'tracked' },
+      period: { year: 2000, quarter: 1 }, filter }).filter;
+  } catch {
+    ctx.addIssue({ code: 'custom', message: 'Invalid market aggregate filter' });
+    return z.NEVER;
+  }
+});
 export const dynamicParametersSchema = z.strictObject({
   templateId: z.enum(dynamicIds), buildingIds: z.array(id).max(20), targetBuildingId: id.optional(),
   submarkets: z.array(z.string().trim().min(1).max(80)).max(30), inventory: z.enum(['tracked','all_authorized']),
@@ -43,7 +53,10 @@ export const dynamicParametersSchema = z.strictObject({
   direction: z.enum(['asc','desc']), chart: z.enum(['bar','column','line','table']),
   from: z.iso.date(), to: z.iso.date(), leaseSource: z.enum(['live','history','combined']),
   measure: z.enum(['count','area']),
-});
+  aggregateMetrics: z.array(z.enum(['rent','vacancy','totalArea'])).min(1).max(3)
+    .refine(metrics => new Set(metrics).size === metrics.length).optional(),
+  aggregateFilter: aggregateFilterSchema.optional(),
+}).refine(p => p.templateId === 'quarter-market-summary' || !p.aggregateMetrics && !p.aggregateFilter);
 export type DynamicParameters = z.infer<typeof dynamicParametersSchema>;
 export const generationPartSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.enum(['static','semi-dynamic']), templateId: z.string().min(1).max(100), assetIds: z.array(id).min(1).max(30),

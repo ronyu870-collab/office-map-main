@@ -217,6 +217,32 @@ export async function verifyPitchWorkspace({
     assert.deepEqual([...new Set(titles)], ["公司资料之一", "市场研究章节"]);
     for (const page of generated.body.slides) assert.ok(page.content.sources.length);
   });
+  await check("a real Auth submarket handoff saves the selected formal quarter as a native table", async () => {
+    const handoff = { source: { kind: "submarket", key: "CBD" }, period: "2026-Q3" };
+    const review = { action: "review_handoff", handoff };
+    assert.equal((await workspace(other, review)).status, 403);
+    const reviewed = await workspace(admin, review);
+    assert.equal(reviewed.status, 200, JSON.stringify(reviewed.body));
+    assert.equal(reviewed.body.status, "ready");
+    assert.equal(reviewed.body.parameters.templateId, "quarter-market-summary");
+    const projectId = randomUUID(), taskId = randomUUID();
+    const queued = await workspace(admin, { action: "add_to_pitch", handoff, taskId,
+      fingerprint: reviewed.body.fingerprint,
+      target: { mode: "create", projectId, title: "正式市场汇总交接", scope, themeId: "colliers-default-v1", themeVersion: 2 },
+    });
+    assert.equal(queued.status, 202, JSON.stringify(queued.body));
+    await until(async () => {
+      const status = await workspace(admin, { action: "status", projectId, taskId });
+      assert.equal(status.status, 200, JSON.stringify(status.body));
+      assert.notEqual(status.body.state, "failed", JSON.stringify(status.body));
+      return status.body.state === "completed";
+    }, "save formal submarket handoff");
+    const saved = await workspace(admin, { action: "get", projectId });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    const table = saved.body.slides.find(page => page.scene.elements.some(element => element.kind === "table"));
+    assert.equal(table?.content.dataAsOf, "2026-09-30");
+    assert.match(table.content.subtitle, /2026 Q3/);
+  });
   await check("mixed reviewed outline is atomic, uses the exact formal quarter and cannot be exported to clients", async () => {
     const building = randomUUID(), projectId = randomUUID(), period = "2026-Q3";
     await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,'提纲核对测试楼','CBD','A','tracked')", [building]);
