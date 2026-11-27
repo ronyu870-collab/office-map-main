@@ -77,6 +77,45 @@ try {
    await installPitchDataFixture(db);await db.setup.query('update private.ai_query_control set enabled=true');await grantQuery(db,ADMIN,{capabilities:['query:catalog','query:brochure','query:quarter','export:internal'],fields:['height','floors','parking','totalArea','vacantArea','netEffectiveRent']});
    dynamicProject=command([{mode:'dynamic',parameters:dynamicFixture}]);dynamicProject.parts[0].researchAssetId=ids.research;const generated=await workflow.generateBusinessProject(admin,dynamicProject);assert.ok(generated.pages>=2);const receipt=await db.rpc(ADMIN,{action:'business_generation',projectId:dynamicProject.projectId});assert.ok(receipt.bindings.some(b=>b.id===ids.research));assert.ok(receipt.snapshots[0].content.some(c=>c.blocks.some(b=>b.kind==='chart')&&c.blocks.some(b=>b.kind==='insight')));await db.setup.query('begin read only');try{await db.setup.query("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({sub:ADMIN,session_id:sessionFor(ADMIN)})]);await db.setup.query('set local role authenticated');assert.equal((await db.setup.query('select * from pitch_business_generations where project_id=$1',[dynamicProject.projectId])).rowCount,0);}finally{await db.setup.query('rollback');}assert.equal(receipt.snapshots[0].results[0].operation,'trend');assert.equal(receipt.snapshots[0].dataAsOf,'2026-09-30');assert.equal(receipt.snapshots[0].parameters.period.quarter,3);assert.ok(receipt.snapshots[0].results[0].sources.every(s=>s.table==='building_metrics'||s.table==='buildings'));await assert.rejects(workflow.generateBusinessProject(ordinary,command([{mode:'dynamic',parameters:dynamicFixture}])),/QUERY_DENIED/);
  });
+ await check('matching chapter queries share one official snapshot without mixing research and plain text', async () => {
+   let snapshotsRead = 0;
+   const ctx = { ...admin, client: { ...admin.client, rpc(name, args) {
+     if (name === 'ai_query_snapshot_read') snapshotsRead++;
+     return admin.client.rpc(name, args);
+   } } };
+   const section = { mode: 'dynamic', parameters: dynamicFixture };
+   const c = command([
+     { ...section, title: '租金趋势事实' },
+     { ...section, title: '同一趋势附录' },
+     { ...section, title: '获准研究说明', researchAssetId: ids.research },
+     { ...section, title: '不同统计范围', parameters: { ...dynamicFixture, buildingIds: [BUILDINGS[0]] } },
+   ]);
+   let checked;
+   await workflow.generateBusinessProject(ctx, c, undefined, undefined, false, snapshots => {
+     checked = snapshots;
+   });
+   assert.equal(snapshotsRead, 2);
+   assert.equal(checked.length, 4);
+   assert.equal(checked[0].results[0].resultId, checked[2].results[0].resultId);
+   assert.notEqual(checked[0].results[0].resultId, checked[3].results[0].resultId);
+   const receipt = await db.rpc(ADMIN, { action: 'business_generation', projectId: c.projectId });
+   assert.equal(receipt.snapshots.length, 2);
+   assert.equal(receipt.snapshots[0].results.length, 1);
+   assert.equal(receipt.snapshots[0].content.length, checked[0].content.length + 1);
+   const { slides } = await db.rpc(ADMIN, { action: 'get_project', projectId: c.projectId });
+   const plain = slides.find(page => page.content.title === '租金趋势事实' && page.content.blocks.some(block => block.kind === 'chart'));
+   const repeat = slides.find(page => page.content.title === '同一趋势附录' && page.content.blocks.some(block => block.kind === 'chart'));
+   const research = slides.find(page => page.content.title === '获准研究说明' && page.content.blocks.some(block => block.kind === 'insight'));
+   assert.deepEqual(plain.content.blocks, repeat.content.blocks);
+   assert.ok(plain.content.blocks.every(block => block.kind !== 'insight'));
+   const { readDocumentBindings } = require('../../../src/lib/pitch/workspace/documentBindings.ts');
+   const bindings = await readDocumentBindings(ctx, c.projectId);
+   const chartBinding = id => bindings.pages.find(page => page.id === id).objects.find(object => object.kind === 'chart');
+   assert.equal(chartBinding(plain.id).valueOrigin, 'business');
+   assert.deepEqual(chartBinding(plain.id).binding, chartBinding(research.id).binding);
+   const [original, distinct] = receipt.snapshots;
+   assert.equal(workflow.compareBusinessSnapshots({ snapshots: [original, original, distinct] }, receipt).changed, false);
+ });
  await check('zero vacancy differs from missing/invalid data and comparison keeps the verified formula',async()=>{
    await db.setup.query('update building_metrics set vacant_area=0 where building_id=$1 and record_year=2026 and record_quarter=3',[BUILDINGS[0]]);
    const c=command([{mode:'dynamic',parameters:{...dynamicFixture,templateId:'vacancy-comparison',buildingIds:BUILDINGS,targetBuildingId:BUILDINGS[0],chart:'bar'}}]);await workflow.generateBusinessProject(admin,c);const receipt=await db.rpc(ADMIN,{action:'business_generation',projectId:c.projectId});const chart=receipt.snapshots[0].content[0].blocks[0];assert.equal(chart.kind,'chart');assert.ok(chart.series[0].values.includes(0));assert.equal(chart.series[0].values.filter(v=>v===null).length,2);assert.ok(chart.categories.some(s=>s.includes('目标')));assert.ok(receipt.snapshots[0].results[0].table.rows.find(r=>r.entityId===BUILDINGS[3]).cells.vacancyRatio.kind==='unknown');
@@ -94,12 +133,15 @@ try {
  await check('document refresh compares pinned data, rejects a stale review, saves one new revision, and restores the previous facts',async()=>{
    const workspace=require('../../../src/lib/pitch/workspace/workflow.ts');
    const bindings=require('../../../src/lib/pitch/workspace/documentBindings.ts');
-   const c=command([{mode:'dynamic',parameters:{...dynamicFixture,templateId:'building-profile',buildingIds:[BUILDINGS[0]],chart:'table'}}]);
+   const part = { mode: 'dynamic', parameters: { ...dynamicFixture, templateId: 'building-profile',
+     buildingIds: [BUILDINGS[0]], chart: 'table' } };
+   const c=command([{ ...part, title: '楼宇快照' }, { ...part, title: '同一快照附录' }]);
    await workflow.generateBusinessProject(admin,c);
    const initial=await workspace.getWorkspace(admin,c.projectId);
    const custom=await workspace.customWorkspace(admin,{action:'custom',projectId:c.projectId,expectedVersion:initial.project.version,
      title:'人工说明',body:'此页由用户维护。'});
    const firstTable=custom.slides.find(s=>s.content.blocks.some(b=>b.kind==='table'));
+   const appendix=custom.slides.find(s=>s.content.title==='同一快照附录' && s.content.blocks.some(b=>b.kind==='table'));
    const noted=await workspace.applyDocumentModification(admin,{action:'apply_modification',scope:'selected',
      plan:{id:randomUUID(),projectId:c.projectId,expectedVersion:custom.project.version,
        basePageVersions:[{id:firstTable.id,version:firstTable.version}],
@@ -123,6 +165,7 @@ try {
    await bump();
    const first=await bindings.previewDataRefresh(admin,{...request,action:'preview_data_refresh'});
    assert.equal(first.changed,true);
+   assert.equal(first.changes.find(change => change.slideId === appendix.id)?.changed, true);
    assert.notDeepEqual(first.changes[0].before.blocks,first.changes[0].after.blocks);
    assert.deepEqual((await workspace.getWorkspace(admin,c.projectId)).slides.find(p=>p.id===page.id).content,page.content);
    await bump();
@@ -134,6 +177,7 @@ try {
    assert.notDeepEqual(newPage.content.blocks,page.content.blocks);
    assert.equal(newPage.scene.layoutId,page.scene.layoutId);
    assert.equal(newPage.content.subtitle,page.content.subtitle);
+   assert.deepEqual(updated.slides.find(p=>p.id===appendix.id).content.blocks,newPage.content.blocks);
    assert.deepEqual(updated.slides.find(p=>p.id===unrelated.id).content,unrelated.content);
    const previous=await workspace.restoreWorkspace(admin,{action:'restore',projectId:c.projectId,
      expectedVersion:updated.project.version,revision:noted.project.version});
