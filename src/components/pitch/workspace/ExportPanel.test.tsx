@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import type { WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { ExportPanel } from "./ExportPanel";
-import type { Call } from "./client";
+import { WorkspaceError, type Call } from "./client";
 
 const projectId = "10000000-0000-4000-8000-000000000000";
 const first = "10000000-0000-4000-8000-000000000001";
@@ -91,3 +91,40 @@ it("only offers the ready file for the currently selected format and pages", asy
   await user.selectOptions(screen.getByLabelText("页面范围"), "current");
   expect(download).not.toBeInTheDocument();
 }, 45000);
+
+it("requires a fresh review after a concurrent export conflict and preserves the selected page ID", async () => {
+  const user = userEvent.setup();
+  let serverVersion = 3;
+  const advanced = {
+    ...detail,
+    project: { ...detail.project, version: 4 },
+    slides: [detail.slides[1], detail.slides[0]],
+  };
+  const call = vi.fn(async (input: Record<string, unknown>) => {
+    if (input.action === "export_eligibility") return { projectVersion: serverVersion, audienceAllowed: true, pages: [] };
+    if (serverVersion === 3) {
+      serverVersion = 4;
+      throw new WorkspaceError("版本冲突", 409);
+    }
+    return { state: "ready", progress: 100, filename: "楼宇介绍.pptx" };
+  });
+  const panel = (project: WorkspaceDetail) => <ExportPanel call={call as unknown as Call} detail={project}
+    active={first} selected={[first]} flush={async () => project} canClient={false} disabled={false} />;
+  const view = render(panel(detail));
+  await user.click(screen.getByRole("button", { name: "导出" }));
+  await user.selectOptions(screen.getByLabelText("页面范围"), "selected");
+  const generate = screen.getByRole("button", { name: "生成文件" });
+  await waitFor(() => expect(generate).toBeEnabled());
+  await user.click(generate);
+  expect(await screen.findByText("项目已在其他窗口更新。请重新打开项目后再导出。")).toBeInTheDocument();
+  expect(generate).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "下载已生成文件" })).not.toBeInTheDocument();
+
+  view.rerender(panel(advanced));
+  await waitFor(() => expect(generate).toBeEnabled());
+  await user.click(generate);
+  expect(await screen.findByRole("button", { name: "下载已生成文件" })).toBeEnabled();
+  const starts = call.mock.calls.map(([command]) => command).filter(command => command.action === "export_start");
+  expect(starts.map(command => command.pages)).toEqual([[0], [1]]);
+  expect(starts[0].exportId).not.toEqual(starts[1].exportId);
+});

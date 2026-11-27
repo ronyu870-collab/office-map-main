@@ -2,6 +2,7 @@
 import * as React from "react";
 import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
+import { pitchCommandSchema } from "@/src/lib/pitch/contracts/api";
 import type { WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { downloadBlob, WorkspaceError, type Call } from "./client";
 import styles from "./workspace.module.css";
@@ -11,6 +12,8 @@ const eligibilitySchema = z.object({
   pages: z.array(z.object({ id: z.uuid(), position: z.number().int(), reasons: z.array(z.string()) })),
 });
 type Eligibility = z.infer<typeof eligibilitySchema>;
+const versionedExport = pitchCommandSchema.options.some(command =>
+  command.shape.action.value === "export_start" && Object.hasOwn(command.shape, "expectedVersion"));
 const exportReasons: Record<string, string> = {
   restricted: "页面受到披露限制",
   internal_only: "页面仅供内部使用",
@@ -186,6 +189,7 @@ export function ExportPanel({
         {
           action: "export_start",
           projectId: saved.project.id,
+          ...(versionedExport ? { expectedVersion: saved.project.version } : {}),
           exportId,
           audience,
           format,
@@ -204,9 +208,11 @@ export function ExportPanel({
     } catch (e) {
       if (e instanceof WorkspaceError && e.status < 500 && e.status !== 408) {
         pendingStart.current = null;
-        if (e.status === 403) setEligibilityAttempt(value => value + 1);
+        if (e.status === 403 || e.status === 409) setEligibilityAttempt(value => value + 1);
       }
-      setError(e instanceof Error ? e.message : "导出未启动。");
+      setError(e instanceof WorkspaceError && e.status === 409
+        ? "项目已在其他窗口更新。请重新打开项目后再导出。"
+        : e instanceof Error ? e.message : "导出未启动。");
     } finally {
       setBusy(false);
     }
@@ -326,7 +332,7 @@ export function ExportPanel({
               <Button variant="ghost" onClick={() => setEligibilityAttempt(value => value + 1)}>重新核对导出权限</Button>
             </div>
           )}
-          {error && <p role="alert">{error}</p>}
+          {error && !eligibilityStale && <p role="alert">{error}</p>}
           {pollFailed && running && (
             <Button
               variant="secondary"
