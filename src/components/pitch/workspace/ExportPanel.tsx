@@ -65,6 +65,7 @@ export function ExportPanel({
     [range, setRange] = React.useState("all"),
     [exportState, setReceipt] = React.useState<{
       id: string;
+      key: string;
       state: string;
       progress: number;
       filename?: string;
@@ -82,12 +83,15 @@ export function ExportPanel({
   const dialogOpen = open || openSignal > dismissedSignal;
   const projectId = detail.project.id;
   const version = detail.project.version;
-  const receipt = exportState?.projectId === projectId ? exportState : null;
+  const activeReceipt = exportState?.projectId === projectId ? exportState : null;
   const eligibilityKey = JSON.stringify([projectId, version, audience, eligibilityAttempt, openSignal]);
   const currentEligibility = eligibility?.key === eligibilityKey ? eligibility : undefined;
   const receivedReport = currentEligibility?.report;
   const report = receivedReport && receivedReport.projectVersion === version ? receivedReport : null;
   const indexes = selectSlideIndexes(detail.slides, range, active, selected);
+  const exportKey = JSON.stringify([projectId, version, audience, format, range, indexes]);
+  const running = !!activeReceipt && ["pending", "queued", "running"].includes(activeReceipt.state);
+  const receipt = running || activeReceipt?.key === exportKey ? activeReceipt : null;
   const pageIds = new Set(indexes.map(index => detail.slides[index].id));
   const blockedPages = report?.pages.filter(page => pageIds.has(page.id) && page.reasons.length) ?? [];
   const audienceBlocked = report?.audienceAllowed === false;
@@ -106,9 +110,7 @@ export function ExportPanel({
     });
     return () => controller.abort();
   }, [audience, call, dialogOpen, eligibilityKey, projectId]);
-  const running =
-      receipt && ["pending", "queued", "running"].includes(receipt.state),
-    life = React.useRef(new AbortController());
+  const life = React.useRef(new AbortController());
   React.useEffect(() => {
     const c = life.current;
     return () => c.abort();
@@ -138,6 +140,7 @@ export function ExportPanel({
             setError("");
             setReceipt({
               id,
+              key: receipt.key,
               state: r.state,
               progress: r.progress,
               filename: r.filename,
@@ -196,7 +199,7 @@ export function ExportPanel({
         "",
       );
       pendingStart.current = null;
-      setReceipt({ id: exportId, audience, projectId: saved.project.id, state: ack.state ?? "pending",
+      setReceipt({ id: exportId, key, audience, projectId: saved.project.id, state: ack.state ?? "pending",
         progress: ack.progress ?? (ack.state === "ready" ? 100 : 0), filename: ack.filename });
     } catch (e) {
       if (e instanceof WorkspaceError && e.status < 500 && e.status !== 408) {

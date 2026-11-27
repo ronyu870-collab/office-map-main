@@ -290,7 +290,7 @@ async function downloadPitchFile(page, format) {
   await page.getByRole("button", { name: "导出", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "导出 Pitch" });
   await dialog.getByLabel("文件格式").selectOption(format);
-  await dialog.getByRole("button", { name: "生成文件" }).click();
+  await dialog.getByRole("button", { name: "生成文件", exact: true }).click();
   const downloadButton = dialog.getByRole("button", { name: "下载已生成文件" });
   await downloadButton.waitFor({ timeout: 60_000 });
   const [download] = await Promise.all([page.waitForEvent("download"), downloadButton.click()]);
@@ -547,8 +547,8 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_plan"),
           button(scenario.button).click(),
         ]);
-        assert.ok(planHttp.ok(), `proposal_plan HTTP ${planHttp.status()}`);
         const plan = await planHttp.json();
+        assert.ok(planHttp.ok(), `proposal_plan HTTP ${planHttp.status()}: ${plan.code ?? plan.error ?? ""}`);
         assert.equal(plan.status, "ready", plan.code ?? plan.message);
         assert.equal(plan.brief.scenario, scenario.scenario);
         assert.equal(plan.brief.period, period);
@@ -557,6 +557,7 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         const visualKinds = new Set(plan.plan.slides.flatMap((slide) => slide.visuals ?? []).map((visual) => visual.kind));
         result.missingPages = scenario.pages.filter((kind) => !pageKinds.has(kind));
         result.missingVisuals = (requiredVisuals[scenario.scenario] ?? []).filter((kind) => !visualKinds.has(kind));
+        if (result.missingPages.length || result.missingVisuals.length) result.gaps = plan.plan.gaps;
 
         result.stage = "generating";
         const generationEndpoint = "/api/intelligence/pitch/ai";
@@ -567,8 +568,8 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
             waitForPitchCommand(page, generationEndpoint, "proposal_generate"),
             action.click(),
           ]);
-          assert.ok(reply.ok(), `proposal_generate HTTP ${reply.status()}`);
           receipt = await reply.json();
+          assert.ok(reply.ok(), `proposal_generate HTTP ${reply.status()}: ${receipt.code ?? receipt.error ?? ""}`);
           if (receipt.state === "completed") break;
           assert.ok(["queued", "running"].includes(receipt.state), `generation state ${receipt.state}`);
           action = button("查询生成进度");
@@ -603,7 +604,8 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         const names = Object.keys(archive.files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name));
         assert.equal(names.length, reopened.slides.length);
         const first = await archive.file("ppt/slides/slide1.xml").async("string");
-        assert.ok(first.includes(editedTitle), "export omitted the saved title");
+        const texts = [...first.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(([, value]) => value);
+        assert.ok(texts.join("").includes(editedTitle), `export omitted the saved title: ${texts.slice(0, 6).join(" | ")}`);
         assert.match(first, /<p:sp>/);
         const pdf = await PDFDocument.load(await downloadPitchFile(page, "pdf"));
         assert.equal(pdf.getPageCount(), reopened.slides.length);
