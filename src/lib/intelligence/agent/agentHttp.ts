@@ -1,5 +1,5 @@
 import { bindRuntimeControl } from '../control/runtimeControl';
-import { readAvailablePeriodGroups } from '../query/availablePeriods';
+import { readAvailablePeriods, readAvailablePeriodGroups } from '../query/availablePeriods';
 import { numericFields, type NumericField } from '../query/registry';
 import { KNOWLEDGE_TOOL_NAMES, isKnowledgeResult, type KnowledgeToolName } from '../knowledge/protocol';
 import { queryKnowledge, knowledgeModelObservation, recheckKnowledgeResults } from '../knowledge/research';
@@ -44,6 +44,7 @@ import { estimateAgentCostRange } from './agentCost';
 import { createModelRuntime, modelModeSchema } from './modelRuntime';
 import { validatedResultTableView } from '../query/tableView';
 import { precedingMarketComparison, routeTask } from './taskRouting';
+import { siteSelectionPlan, siteSelectionScope } from './siteSelection';
 import { nextAgentMemory } from './agentMemory';
 import { queryVerifiedRealEstate, executeStructuredDataTool } from './verifiedDataTool';
 import { queryCapabilityManifest } from '../query/capabilityManifest';
@@ -303,6 +304,21 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
 
     const previousResult = history.contextResults?.length ? history.contextResults.length === 1 ? history.contextResults[0] : undefined : history.contextResult;
     const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextPlan, !!research.task, !!previousResult, previousResult, (history.contextComparisonIds?.length ?? 0) > 1);
+    if (taskRoute.siteSelection) {
+      const site = taskRoute.siteSelection;
+      if (!authority.grants.includes('query:quarter') || !authority.fields.includes('netEffectiveRent')) {
+        taskRoute.route = 'direct_response';
+        taskRoute.reply = '当前身份无权查阅正式季度净有效租金，无法按预算初筛楼宇。';
+      } else {
+        const period = site.period ?? (await readAvailablePeriods(client, actor, authority,
+          siteSelectionScope(site), ['netEffectiveRent'], signal)).periods.at(-1);
+        if (period) taskRoute.plan = siteSelectionPlan(site, period);
+        else {
+          taskRoute.route = 'direct_response';
+          taskRoute.reply = '当前获权的选址范围没有可用于预算初筛的正式净有效租金记录。';
+        }
+      }
+    }
     await audit.append(requestId, 'tool_finished', { executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), phase: 'task_routed' });
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
@@ -572,10 +588,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             observation = await executeStructuredDataTool({ client, keys, identity: actor, audit: audit!,
               requestId, authority, signal: toolSignal }, name as StructuredDataToolName, args);
           } else throw new Error('AGENT_UNREGISTERED_TOOL');
-          if (observation.result && name === 'execute_query_plan' && (taskRoute.planNotices?.length || taskRoute.unavailableFields?.length)) {
+          if (observation.result && name === 'execute_query_plan'
+            && (taskRoute.planNotices?.length || taskRoute.unavailableFields?.length || taskRoute.siteSelection)) {
             observation.result = { ...observation.result,
-              ...(taskRoute.unavailableFields?.length ? { parameters: { ...observation.result.parameters,
-                interpretation: { ...(observation.result.parameters.interpretation as object | undefined), unavailableFields: taskRoute.unavailableFields } } } : {}),
+              parameters: { ...observation.result.parameters,
+                ...(taskRoute.siteSelection ? { siteSelection: taskRoute.siteSelection } : {}),
+                ...(taskRoute.unavailableFields?.length ? { interpretation: {
+                  ...(observation.result.parameters.interpretation as object | undefined), unavailableFields: taskRoute.unavailableFields,
+                } } : {}),
+              },
               limitations: [...new Set([...observation.result.limitations, ...(taskRoute.planNotices ?? [])])] };
           }
           if (observation.result) {

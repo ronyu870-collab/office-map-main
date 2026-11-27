@@ -2,6 +2,7 @@ import type { QueryResult } from '../query/result';
 import { answerSelectionSchema, selectedAnswerResult, type AnswerSelection } from '../query/answerSelection';
 import { resultAvailability } from '../query/resultAvailability';
 import { quarterlyAnswerIssues } from '../query/answerCompleteness';
+import { siteSelectionNotice, siteSelectionSchema } from './siteSelection';
 import { isLeaseResult, leaseBindingSchema } from '../lease/protocol';
 
 export const isLatestLeaseQuestion = (question: string) => /成交|租赁/.test(question)
@@ -89,6 +90,10 @@ export function applyAnswerPolicy(question: string, selection: AnswerSelection,
       deniedFields?.length ? `当前身份未获授权查阅${deniedFields.join('、')}。` : undefined,
     ];
     next = { ...next, status: 'partial', notice: notices.filter(Boolean).join(' ') };
+  }
+  const site = siteSelectionSchema.safeParse(primary.parameters.siteSelection);
+  if (site.success && ['answered', 'partial'].includes(next.status)) {
+    next = { ...next, status: 'partial', notice: [next.notice, siteSelectionNotice(site.data)].filter(Boolean).join(' ') };
   }
   if ((primary.parameters.interpretation as { buildingProfile?: boolean } | undefined)?.buildingProfile
     && primary.table.rows.length && ['answered', 'partial'].includes(next.status)) {

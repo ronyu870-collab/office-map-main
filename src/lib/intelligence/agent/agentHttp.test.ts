@@ -4,7 +4,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildTrendResult, buildListResult, buildAggregateResult, buildRankResult } from '../query/result';
 import { fixture, nameSource, source } from '../query/__tests__/fixtures';
 import { resolveNumericFact } from '../query/facts';
-import { parseQueryPlan } from '../query/plan';
+import { parseQueryPlan, type QueryPlan } from '../query/plan';
+import { executeQueryPlan } from '../query/executePlan';
+import { describePlanRead } from '../query/snapshotReader';
 import { encryptAuditContent } from '../query/auditCrypto';
 import { attachResearchAnalysis } from '../query/researchAnalysis';
 
@@ -60,10 +62,11 @@ function fakeRequest(question = '你好') {
     body: JSON.stringify(input),
   }) };
 }
-function deps(allowed = true, leaseSnapshot?: object, business?: { permitted: string[]; snapshot: object }) {
+function deps(allowed = true, leaseSnapshot?: object, business?: { permitted: string[]; snapshot: object }, availablePeriods?: object) {
   const rpc = vi.fn((name: string, args?: { p_plan?: { tool?: string } }) => {
     if(name==='ai_control_runtime')return {abortSignal:()=>Promise.resolve({data:null,error:{code:'PGRST202',message:'Could not find ai_control_runtime'}})};
     if (name === 'ai_lease_research_snapshot' && leaseSnapshot) return { abortSignal: async () => ({ data: leaseSnapshot, error: null }) };
+    if (name === 'ai_query_available_periods' && availablePeriods) return { abortSignal: async () => ({ data: availablePeriods, error: null }) };
     if (name === 'ai_business_research_snapshot' && business) {
       return { abortSignal: async () => ({ error: null, data: args?.p_plan?.tool === 'capabilities'
         ? { allowed: true, modules: ['profile'], profileFields: business.permitted, submissions: false, export: false }
@@ -129,6 +132,59 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
       expect(body.answerSelection).toMatchObject({ status: 'partial', notice: expect.stringContaining('建筑面积') });
       expect(dependencies.client.rpc).toHaveBeenCalledTimes(2);
     }
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { market: '金融街', budget: 300, area: 2000, route: 800, grade: 'A', expected: 250 },
+    { market: '丽泽', budget: 220, area: 1200, route: 500, grade: 'P', expected: 200 },
+  ])('screens real candidate IDs at $market under the authorized formal rent and leaves availability/route as pending', async test => {
+    const period = { year: 2026, quarter: 2 } as const;
+    const scope = { inventory: 'tracked', submarkets: [test.market] };
+    const match = randomUUID();
+    const inventory = [{ id: match, rent: test.expected, grade: test.grade },
+      { id: randomUUID(), rent: test.budget + 20, grade: test.grade },
+      { id: randomUUID(), rent: 100, grade: 'B' }];
+    const snapshot = { ...fixture(period), rows: inventory.map((item, index) => {
+      const name = `合成办公楼 ${index + 1}`;
+      const fact = (field: 'netEffectiveRent' | 'totalArea' | 'vacantArea', value: number) =>
+        resolveNumericFact(field, item.id, [source(item.id, field, value, period)], period);
+      const catalog = (field: 'grade' | 'submarket', value: string) => ({ value, source: {
+        ...nameSource(item.id, value), id: `${item.id}/${field}`, field,
+      } });
+      return { id: item.id, name, nameSource: nameSource(item.id, name), facts: {
+        netEffectiveRent: fact('netEffectiveRent', item.rent), totalArea: fact('totalArea', 18000), vacantArea: fact('vacantArea', 2700),
+      }, dimensions: { grade: catalog('grade', item.grade), submarket: catalog('submarket', test.market) } };
+    }), expectedCount: inventory.length };
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'query:quarter', 'query:brochure'],
+      fields: ['netEffectiveRent', 'totalArea', 'vacantArea'], allBuildings: true, allSubmarkets: true });
+    state.structured.mockImplementation(async (_env, _name, { plan }: { plan: QueryPlan }) => {
+      const result = executeQueryPlan(plan, [{ ...snapshot, queryScope: { ...plan.scope, filter: plan.filter ?? null,
+        requestedFields: describePlanRead(plan).fields, inventoryTime: 'current_catalog', brochureSelection: 'all_unresolved_record_candidates' },
+      }]);
+      return { result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) };
+    });
+    const dossier = { allowed: true, version: 'business-research/1', permission_revision: authority.permissionRevision, export: false,
+      records: [{ id: match, name: '合成办公楼 1', buildingId: match, data: [{ table: 'buildings', id: match, version: 'a'.repeat(64),
+        recordedAt: null, asOf: null, period: null, values: { name: '合成办公楼 1', grade: test.grade } }, { table: 'building_brochure_data', id: randomUUID(),
+        version: 'b'.repeat(64), recordedAt: null, asOf: null, period: null, values: { metro: '楼书记录邻近两条地铁线路' } }] }] };
+    const dependencies = deps(true, undefined, { permitted: ['grade', 'metro'], snapshot: dossier }, {
+      version: 'authorized-periods/1', permission_revision: authority.permissionRevision,
+      read_at: '2026-06-30T09:00:00Z', inventory_time: 'current_catalog', fields: ['netEffectiveRent'],
+      truncated: false, periods: [{ year: 2026, quarter: 1 }, period],
+    });
+    const question = `金融企业在${test.market}选址租赁${test.area}㎡，预算${test.budget}元/㎡/月，只看${test.grade === 'A' ? '甲级' : 'P级'}，地铁步行${test.route}米内，重视形象并给出地图。`;
+    const response = await handleAgentSubmission(fakeRequest(question).request, dependencies);
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.result.parameters.executedPlan).toMatchObject({ operation: 'rank', scope, period, filter: {
+      operator: 'and', terms: [{ field: 'netEffectiveRent', operator: 'lte', value: String(test.budget) }, { field: 'grade', operator: 'eq', value: test.grade }],
+    } });
+    expect(body.result.table.rows.map((row: { entityId: string }) => row.entityId)).toEqual([match]);
+    expect(body.result.parameters.agentMap.buildingIds).toEqual([match]);
+    expect(body.answerSelection).toMatchObject({ status: 'partial', notice: expect.stringContaining(`${test.area} ㎡连续可租面积`) });
+    expect(body.answerSelection.notice).toContain(`${test.route} 米步行路径`);
+    expect(body.answerSelection.results[1].result.table.rows[0].cells.metro.value).toBe('楼书记录邻近两条地铁线路');
     expect(state.provider).not.toHaveBeenCalled();
   });
 

@@ -7,6 +7,7 @@ import type { QueryPlan } from '../query/plan';
 import { requestedArtifactFormats } from './artifactFulfillment';
 import { preferredChartRequest } from './resultTools';
 import { resultViewSchema } from '../query/presentation';
+import { resultBuildingRows } from '../query/buildingCards';
 import { restoredResultTableView } from '../query/tableView';
 import { structuredQueryPlan } from './structuredQueryPlan';
 import type { StructuredDataToolName } from './toolRegistry';
@@ -178,6 +179,21 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
       return undefined;
     }
   };
+  const addDossier = async (source: T, ids: string[], requested: string[], task: 'list' | 'ranking') => {
+    if (!ids.length || ids.length > 20) return;
+    const primary = resultViewSchema.parse(source);
+    const available = await run('get_data_capabilities', {});
+    const profileFields = available && JSON.parse(available.content).business?.profileFields as string[] | undefined;
+    const fields = requested.filter(field => profileFields?.includes(field));
+    if (!fields.length) return;
+    const dossier = await run('query_building_dossier', { buildingIds: ids, fields });
+    result = source;
+    if (dossier?.result) {
+      const evidence = resultViewSchema.parse(dossier.result);
+      if (evidence.table.rows.length) await run('select_answer_results', { primaryResultId: primary.resultId,
+        auxiliary: [{ resultId: evidence.resultId, role: 'supporting' }], task, status: 'answered' });
+    }
+  };
   let clarification: string | undefined;
   let serverReply: string | undefined;
   if (task.capabilities) {
@@ -192,8 +208,16 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
       else serverReply = fields ? `当前允许的数值字段：${fields}。范围受当前子市场与楼宇授权约束；权限不保证存在有效数据。`
         : '当前未开放数值字段；实际范围和操作仍受独立资格约束。';
     }
-  } else if (task.plan) await run('execute_query_plan', { plan: task.plan });
-  else if (task.reuseComparison && task.exportFormat && input.previousComparisonIds?.length)
+  } else if (task.plan) {
+    const observed = await run('execute_query_plan', { plan: task.plan });
+    if (task.siteSelection && observed?.result) {
+      const candidates = resultViewSchema.parse(observed.result);
+      const ids = resultBuildingRows(candidates).map(row => row.id);
+      await addDossier(observed.result, ids, ['submarket', 'grade', 'address', 'standardFloorArea', 'metro', 'leed', 'propertyManagement'], 'ranking');
+      if (task.siteSelection.mapRequested && ids.length)
+        await run('prepare_map_selection', { resultId: candidates.resultId, buildingIds: ids, intent: 'select' });
+    }
+  } else if (task.reuseComparison && task.exportFormat && input.previousComparisonIds?.length)
     await run('export_table', { resultIds: input.previousComparisonIds, format: task.exportFormat });
   else if (task.reuseComparison && input.previousComparisonIds && input.previousComparisonIds.length >= 2) {
     const [primaryResultId, ...comparisons] = input.previousComparisonIds;
@@ -213,21 +237,10 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
       const primary = resultViewSchema.parse(observed.result);
       const plan = primary.parameters.executedPlan as QueryPlan | undefined;
       const ids = plan?.scope.buildingIds;
-      if (ids?.length && ids.length <= 20 && primary.table.rows.length === ids.length
+      if (ids?.length && primary.table.rows.length === ids.length
         && primary.table.rows.every(row => ids.includes(row.entityId))) {
-        const available = await run('get_data_capabilities', {});
-        const profileFields = available && JSON.parse(available.content).business?.profileFields as string[] | undefined;
-        const fields = ['address', 'completionYear', 'completionDate', 'gfaTotal', 'gfaOffice', 'standardFloorArea', 'metro']
-          .filter(field => profileFields?.includes(field));
-        if (fields.length) {
-          const dossier = await run('query_building_dossier', { buildingIds: ids, fields });
-          if (dossier?.result) {
-            result = observed.result;
-            const evidence = resultViewSchema.parse(dossier.result);
-            await run('select_answer_results', { primaryResultId: primary.resultId,
-              auxiliary: [{ resultId: evidence.resultId, role: 'supporting' }], task: 'list', status: 'answered' });
-          }
-        }
+        await addDossier(observed.result, ids, ['address', 'completionYear', 'completionDate', 'gfaTotal',
+          'gfaOffice', 'standardFloorArea', 'metro'], 'list');
       }
     }
   } else if (!task.reply) failures.push({ tool: 'verified_data', code: 'result_not_found' });

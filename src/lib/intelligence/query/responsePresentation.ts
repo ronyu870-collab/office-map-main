@@ -223,6 +223,7 @@ export function responseTableTitle(result: QueryResultView): string {
   if (result.parameters.dataDomain === 'business-research/1') return '业务资料';
   const scope = z.object({ submarkets: z.array(z.string()).optional() }).safeParse(result.parameters.scope).data;
   const object = scope?.submarkets?.join('、') ?? '';
+  if (result.parameters.siteSelection) return object + '选址初筛候选';
   const field = typeof result.parameters.field === 'string' ? result.table.columns.find(column => column.key === result.parameters.field)?.label : null;
   if (['trend', 'group_trend', 'cross_trend', 'compare'].includes(result.operation)) return object + '季度数据与样本';
   return result.operation === 'rank' ? `${object}${field ?? '楼宇'}排名`

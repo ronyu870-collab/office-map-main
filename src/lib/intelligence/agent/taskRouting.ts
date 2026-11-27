@@ -4,6 +4,7 @@ import { requiresDataFactEvidence } from './queryObligation';
 import type { QueryPlan } from '../query/plan';
 import { restoredResultTableView, type ResultTableView, type ResultTableReference } from '../query/tableView';
 import { externalModelForbidden } from './modelContext';
+import { readSiteSelectionRequest, type SiteSelectionRequest } from './siteSelection';
 
 export type ExecutionRoute = 'direct_response' | 'deterministic_query' | 'single_interpretation' | 'bounded_agent' | 'deep_research';
 export type TaskRoute = {
@@ -16,6 +17,7 @@ export type TaskRoute = {
   reusePrevious?: boolean;
   reuseComparison?: boolean;
   catalogLookup?: 'location' | 'profile';
+  siteSelection?: SiteSelectionRequest;
   planNotices?: string[];
   unavailableFields?: string[];
   capabilities?: boolean;
@@ -129,6 +131,8 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
   }
   if (research || /研究报告|综合报告|深度研究|Word|PPT|PowerPoint|docx|pptx|PDF/i.test(text))
     return { route: 'deep_research', taskType: 'research', question };
+  const siteSelection = readSiteSelectionRequest(text);
+  if (siteSelection) return { route: 'deterministic_query', taskType: 'query', question, siteSelection };
   if (!requiresDataFactEvidence(text, contextPlan) && /概念|含义|是什么|什么是|定义|方法|如何计算|怎么计算|写一|解释|what is|define|explain/i.test(text))
     return { route: 'bounded_agent', taskType: 'analysis', question };
   const chart = /^(?:请)?(?:把|将)?(.+?)(?:[,，]?(?:并|再|然后))?(?:生成|绘制|画成)\s*(柱状图|折线图|散点图|图表|图)$/.exec(text);
