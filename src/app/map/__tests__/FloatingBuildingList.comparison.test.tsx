@@ -3,6 +3,7 @@ import * as React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SearchBar } from '@/src/components/SearchBar';
+import { PitchHandoffProvider, readPitchHandoff } from '@/src/components/pitch/PitchHandoffLink';
 import FloatingBuildingList from '../components/FloatingBuildingList';
 
 const exports = vi.hoisted(() => ({ download: vi.fn() }));
@@ -96,5 +97,33 @@ describe('floating map building list comparison', () => {
     fireEvent.click(screen.getByRole('button', { name: 'B · 每栋楼一列' }));
     fireEvent.click(screen.getByRole('button', { name: '下载 PNG' }));
     await waitFor(() => expect(exports.download).toHaveBeenCalledWith([ALL[0]], 'columns', undefined));
+  });
+
+  it('carries an agreed formal quarter with the real selection and leaves mixed periods for review', () => {
+    const buildings = [3, 3, 2].map((quarter, index) => ({
+      id: `11111111-1111-4111-8111-11111111111${index}`, name: `楼宇${index}`,
+      metrics: [
+        { record_year: 2026, record_quarter: 4, is_locked: true, is_draft: true },
+        { record_year: 2026, record_quarter: quarter, is_locked: true, is_draft: false },
+      ],
+    }));
+    function Selection() {
+      const [selected, setSelected] = React.useState<typeof buildings>([]);
+      return <PitchHandoffProvider enabled>
+        <FloatingBuildingList buildings={buildings} onClose={vi.fn()} selectedComparisonBuildings={selected}
+          onComparisonSelectionChange={(items, checked) => setSelected(current => checked
+            ? [...current, ...items] : current.filter(item => !items.some(other => other.id === item.id)))} />
+      </PitchHandoffProvider>;
+    }
+    render(<Selection />);
+    fireEvent.click(screen.getByRole('button', { name: '选择项目' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择楼宇0' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择楼宇1' }));
+    const href = () => screen.getByRole('link', { name: '将所选楼宇加入 Pitch' }).getAttribute('href')!;
+    const handoff = () => readPitchHandoff(new URL(href(), window.location.origin).hash);
+    expect(handoff()).toEqual({ source: { kind: 'buildings', buildingIds: buildings.slice(0, 2).map(building => building.id) },
+      period: '2026-Q3' });
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择楼宇2' }));
+    expect(handoff()).toEqual({ source: { kind: 'buildings', buildingIds: buildings.map(building => building.id) } });
   });
 });

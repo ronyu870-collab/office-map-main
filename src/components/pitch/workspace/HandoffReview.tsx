@@ -35,6 +35,15 @@ type Submit = { action: "add_to_pitch"; handoff: AddToPitch; target: Target; fin
 
 export type HandoffDestination = { id: string; title: string };
 
+function matchesSourceScope(source: AddToPitch["source"], preview: Ready) {
+  const same = (left: string[], right: string[]) => left.length === right.length &&
+    new Set(right).size === right.length && right.every(item => left.includes(item));
+  if (source.kind === "buildings") return same(source.buildingIds, preview.buildingIds) && !preview.submarkets.length;
+  if (source.kind === "submarket") return same([source.key], preview.submarkets) && !preview.buildingIds.length;
+  if (source.kind === "lease-search") return same(source.buildingIds, preview.buildingIds) && same(source.submarkets, preview.submarkets);
+  return true;
+}
+
 export function HandoffReview({ source, call, grants, theme, destination, onOpen, onClose }: {
   source: PitchHandoffNavigation;
   call: Call;
@@ -54,7 +63,9 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
   const [period, setPeriod] = useState(source.period ?? "");
   const lease = source.source.kind === "lease-search" ? source.source : undefined;
   const stacking = source.source.kind === "stacking-plan" ? source.source : undefined;
-  const carriesSourceDate = !!lease || !!stacking || !!research;
+  const analysisPeriod = source.source.kind === "analysis-result" ? source.period : undefined;
+  const fixedPeriod = researchPeriod ?? analysisPeriod;
+  const carriesSourceDate = !!lease || !!stacking || !!fixedPeriod;
   const [title, setTitle] = useState("");
   const [review, setReview] = useState<{ data: Ready; handoff: AddToPitch; version?: number }>();
   const [error, setError] = useState("");
@@ -124,6 +135,11 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
       }
       if (research && (response.period !== researchPeriod || response.sourceCity !== researchCity)) {
         setError("返回的季度研究范围与所选版次不一致，请重新核对。");
+        return;
+      }
+      const expectedPeriod = analysisPeriod ?? handoff.period;
+      if ((expectedPeriod && response.period !== expectedPeriod) || !matchesSourceScope(handoff.source, response)) {
+        setError("返回的范围或季度与所选来源不一致，请重新核对。");
         return;
       }
       if (stacking) {
@@ -201,7 +217,7 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
     <div className={`${styles.studio} ${styles.form}`}>
       <div>
         <p>{sourceLabel}</p>
-        {researchPeriod && !review && <p>{researchPeriod}</p>}
+        {fixedPeriod && !review && <p>{fixedPeriod}</p>}
         {lease && <p>{lease.from} 至 {lease.to} · {lease.dataset === "live" ? "日常填报" : lease.dataset === "history" ? "历史导入" : "合并来源"}</p>}
       </div>
       {destination ? <p>追加到 {destination.title}</p> : <label>

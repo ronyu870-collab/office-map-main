@@ -54,11 +54,12 @@ it("preserves source selection through review and confirms one versioned handoff
   const item = readPitchHandoff("#add-to-pitch=" + encodeURIComponent(transfer));
   expect(item).toEqual({ source, period: "2026-Q3" });
   const requests: Record<string, unknown>[] = [];
+  let scopeMatches = false;
   const call = vi.fn(async (request: Record<string, unknown>) => {
     requests.push(request);
     if (request.action === "list") return { items: [] };
     if (request.action === "review_handoff") return {
-      status: "ready", fingerprint, period: "2026-Q3", submarkets: [], buildingIds: source.buildingIds,
+      status: "ready", fingerprint, period: "2026-Q3", submarkets: [], buildingIds: scopeMatches ? source.buildingIds : [buildingId],
       binding: { dataAsOf: "2026-09-30" }, pages: [{ title: "已选楼宇对比", sources: [{ label: "正式季度数据" }] }],
     };
     return { state: "queued" };
@@ -67,6 +68,10 @@ it("preserves source selection through review and confirms one versioned handoff
   const onClose = vi.fn();
   render(<HandoffReview source={item!} call={call} grants={[scope]}
     theme={{ id: "colliers-default-v1", current_version: 2 }} onOpen={onOpen} onClose={onClose} />);
+  await user.click(screen.getByRole("button", { name: "核对来源" }));
+  await screen.findByText("返回的范围或季度与所选来源不一致，请重新核对。");
+  expect(screen.queryByRole("button", { name: "确认并创建" })).not.toBeInTheDocument();
+  scopeMatches = true;
   await user.click(screen.getByRole("button", { name: "核对来源" }));
   expect(await screen.findByText("正式季度数据")).toBeInTheDocument();
   expect(requests.find(entry => entry.action === "review_handoff")).toEqual({ action: "review_handoff", handoff: { source, period: "2026-Q3" } });
@@ -79,6 +84,38 @@ it("preserves source selection through review and confirms one versioned handoff
     target: { mode: "create", title: "已选楼宇对比", projectId: expect.any(String), scope,
       themeId: "colliers-default-v1", themeVersion: 2 } });
   expect(onOpen).toHaveBeenCalledWith((command.target as { projectId: string }).projectId);
+});
+
+it("verifies a trusted analysis against its archived quarter without sending a period override", async () => {
+  const user = userEvent.setup();
+  const source = { kind: "analysis-result", id } as const;
+  let period = "2026-Q3";
+  const call = vi.fn(async (request: Record<string, unknown>) => {
+    if (request.action === "list") return { items: [] };
+    if (request.action === "review_handoff") return {
+      status: "ready", fingerprint, period, buildingIds: [], submarkets: ["CBD"],
+      binding: { dataAsOf: "2026-06-30" },
+      pages: [{ title: "子市场正式分析", sources: [{ label: "归档结果的获权来源" }] }],
+    };
+    return { state: "queued" };
+  });
+  const onOpen = vi.fn(async () => {});
+  render(<HandoffReview source={{ source, period: "2026-Q2" }} call={call as unknown as Call} grants={[scope]}
+    theme={{ id: "colliers-default-v1", current_version: 2 }} onOpen={onOpen} onClose={() => {}} />);
+  expect(screen.getByText("2026-Q2")).toBeInTheDocument();
+  expect(screen.queryByLabelText("正式季度")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "核对来源" }));
+  await screen.findByText("返回的范围或季度与所选来源不一致，请重新核对。");
+  period = "2026-Q2";
+  await user.click(screen.getByRole("button", { name: "核对来源" }));
+  await screen.findByText("归档结果的获权来源");
+  await user.click(screen.getByRole("button", { name: "确认并创建" }));
+  await waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1));
+  const commands = call.mock.calls.map(([command]) => command);
+  expect(commands.filter(command => command.action === "review_handoff")).toEqual([
+    { action: "review_handoff", handoff: { source } }, { action: "review_handoff", handoff: { source } },
+  ]);
+  expect(commands.find(command => command.action === "add_to_pitch")?.handoff).toEqual({ source });
 });
 
 it("reviews the historical stacking selection with its observed date and confirmed city", async () => {
