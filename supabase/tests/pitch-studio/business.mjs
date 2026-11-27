@@ -257,6 +257,44 @@ try {
    assert.ok(bound.pages.some(page=>page.objects.some(object=>object.valueOrigin==='business')));
    assert.deepEqual(opened.workspace.context.buildingIds,[BUILDINGS[0]]);
  });
+ await check('a submarket Add to Pitch saves exactly one formal quarter and refreshes as a market aggregate', async () => {
+   const workspace = require('../../../src/lib/pitch/workspace/workflow.ts');
+   const handoff = require('../../../src/lib/pitch/workspace/handoff.ts');
+   const bindings = require('../../../src/lib/pitch/workspace/documentBindings.ts');
+   const { runPitchDataAdapter } = require('../../../src/lib/pitch/business/adapter.ts');
+   const selected = { source: { kind: 'submarket', key: 'CBD' }, period: '2026-Q3' };
+   const reviewCommand = { action: 'review_handoff', handoff: selected };
+   await assert.rejects(handoff.reviewHandoff(ordinary, reviewCommand), /QUERY_DENIED/);
+   const review = await handoff.reviewHandoff(admin, reviewCommand);
+   assert.equal(review.status, 'ready');
+   assert.equal(review.parameters.templateId, 'quarter-market-summary');
+   assert.equal(review.pages[0].blocks[0].columns.length, 2);
+   assert.equal(review.pages[0].blocks[0].rows.length, 8);
+   const projectId = randomUUID(), taskId = randomUUID();
+   await handoff.startHandoff(admin, { action: 'add_to_pitch', handoff: selected, fingerprint: review.fingerprint, taskId,
+     target: { mode: 'create', projectId, title: '隔离季度市场交接', scope, themeId: 'colliers-default-v1', themeVersion: 2 } });
+   await workspace.runWorkspaceTask(admin, projectId, taskId);
+   assert.equal((await db.rpc(ADMIN, { action: 'workspace_task_status', projectId, taskId })).state, 'completed');
+   const initial = await workspace.getWorkspace(admin, projectId);
+   const first = initial.slides.find(page => page.content.blocks.some(block => block.kind === 'table'));
+   assert.equal(first.content.dataAsOf, '2026-09-30');
+   const source = (await bindings.readDocumentBindings(admin, projectId)).pages.find(page => page.id === first.id);
+   assert.deepEqual(source.objects[0].query.submarkets, ['CBD']);
+   assert.equal(source.objects[0].valueOrigin, 'business');
+   const filtered = await runPitchDataAdapter(admin, { ...review.parameters, aggregateMetrics: ['rent'],
+     aggregateFilter: { field: 'netEffectiveRent', operator: 'gt', value: '110' } }, 'zh');
+   assert.equal(filtered.results[0].operation, 'aggregate');
+   assert.equal(filtered.results[0].parameters.executedPlan.metric, 'rent');
+   assert.equal(filtered.results[0].parameters.executedPlan.filter.value, '110');
+   assert.equal(filtered.results[0].table.columns.length, 1);
+   const refresh = { projectId, expectedVersion: initial.project.version, slideId: first.id, period: { year: 2026, quarter: 2 } };
+   const preview = await bindings.previewDataRefresh(admin, { ...refresh, action: 'preview_data_refresh' });
+   const updated = await bindings.applyDataRefresh(admin, { ...refresh, action: 'apply_data_refresh', fingerprint: preview.fingerprint });
+   assert.equal(updated.slides.find(page => page.id === first.id).content.dataAsOf, '2026-06-30');
+   const previous = await workspace.restoreWorkspace(admin, { action: 'restore', projectId,
+     expectedVersion: updated.project.version, revision: initial.project.version });
+   assert.deepEqual(previous.slides.find(page => page.id === first.id).content, first.content);
+ });
  await check('dynamic snapshots cannot be client-exported or reused after independent data permission revocation',async()=>{
    const c={action:'export_start',projectId:dynamicProject.projectId,exportId:randomUUID(),audience:'internal',format:'pptx'};await render.prepareRenderExport(admin,c);await render.runRenderExport(admin,c);const file=await render.downloadArtifact(admin,c);await writeFile('tmp/pitch-business-fixtures/隔离正式数据_原生趋势.pptx',file.bytes);const zip=await JSZip.loadAsync(file.bytes);const chart=Object.values(zip.files).find(f=>/^ppt\/charts\/chart\d+\.xml$/.test(f.name));assert.ok(chart);assert.match(await chart.async('string'),/lineChart/);await assert.rejects(render.prepareRenderExport(admin,{...c,exportId:randomUUID(),audience:'client'}),/PITCH_DENIED/);
    const p=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});

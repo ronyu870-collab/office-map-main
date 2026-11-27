@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { quarterSchema } from '@/src/lib/intelligence/query/contracts';
 import { queryHttpDependencies } from '@/src/lib/intelligence/query/http';
+import { parseQueryPlan, planMetrics } from '@/src/lib/intelligence/query/plan';
 import { readOwnResult, recoverOwnResult } from '@/src/lib/intelligence/query/recovery';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
 import { runPitchDataAdapter } from '../business/adapter';
@@ -26,6 +27,16 @@ async function resolveAnalysis(ctx: PitchContext, requestId: string) {
   const view = resultViewSchema.parse(result.result);
   const data = z.object({ scope: sourceScope, period: quarterSchema.nullish() }).safeParse(view.parameters);
   if (!data.success || !['list', 'compare', 'aggregate'].includes(view.operation)) throw new Error('PITCH_HANDOFF_UNSUPPORTED');
+  if (view.operation === 'aggregate') {
+    if (!view.parameters.executedPlan) throw new Error('PITCH_HANDOFF_UNSUPPORTED');
+    const plan = parseQueryPlan(view.parameters.executedPlan);
+    if (plan.operation !== 'aggregate') throw new Error('PITCH_HANDOFF_UNSUPPORTED');
+    const { buildingIds = [], submarkets = [], inventory } = plan.scope;
+    if (buildingIds.length > 20 || submarkets.length > 1 || (!buildingIds.length && !submarkets.length))
+      throw new Error('PITCH_HANDOFF_UNSUPPORTED');
+    return { buildingIds, submarkets, period: plan.period, inventory, aggregateMetrics: planMetrics(plan),
+      aggregateFilter: plan.filter };
+  }
   const scope = data.data.scope;
   const rowIds = view.operation === 'list' || view.operation === 'compare'
     ? view.table.rows.flatMap(row => z.uuid().safeParse(row.entityId).success ? [row.entityId] : [])
@@ -52,15 +63,18 @@ async function prepareHandoff(ctx: PitchContext, input: Handoff) {
   const parameters = dynamicParametersSchema.parse({
     templateId: lease
       ? (lease.view === 'transactions' ? 'lease-representatives' : 'lease-industry-distribution')
-      : buildingIds.length === 1 ? 'building-profile' : buildingIds.length ? 'project-comparison' : 'rent-trend',
+      : resolved?.aggregateMetrics || !buildingIds.length ? 'quarter-market-summary'
+        : buildingIds.length === 1 ? 'building-profile' : 'project-comparison',
     buildingIds, submarkets, inventory: resolved?.inventory ?? 'all_authorized', period, start: period, end: period,
     fields: lease ? [] : ['totalArea', 'vacantArea', 'netEffectiveRent'],
     chart: lease && lease.view !== 'transactions' ? 'bar' : 'table', direction: lease?.direction ?? 'asc',
     from: lease?.from ?? period.year + '-01-01', to: lease?.to ?? period.year + '-12-31',
     leaseSource: lease?.dataset ?? 'combined', measure: lease?.view === 'industry-area' ? 'area' : 'count',
+    aggregateMetrics: resolved?.aggregateMetrics,
+    aggregateFilter: resolved?.aggregateFilter,
   });
   const snapshot = await runPitchDataAdapter(ctx, parameters, language);
-  if (!lease && buildingIds.length) {
+  if (!lease && !resolved?.aggregateMetrics && buildingIds.length) {
     const included = new Set(snapshot.results[0].table.rows.map(row => row.entityId));
     if (buildingIds.some(id => !included.has(id))) throw new Error('QUERY_DENIED');
   }

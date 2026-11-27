@@ -28,6 +28,7 @@ export const DYNAMIC_CAPABILITIES = [
   ['rent-trend','市场租金历史趋势','available','连续季度，按有效总面积加权净有效租金'],
   ['vacancy-trend','市场空置率历史趋势','available','连续季度，同有效记录空置面积／总面积'],
   ['building-submarket','项目与子市场表现','available','项目与获权子市场采用同一季度和方法'],
+  ['quarter-market-summary','季度市场指标','available','同一正式季度内按已授权范围汇总，保留样本口径'],
   ['lease-representatives','近期代表性租赁成交','available','独立成交权限；确定性按面积排序，并非主观推荐'],
   ['lease-area-distribution','成交面积区间分布','unavailable','现有可信成交查询未提供面积区间分组接口；不另建冲突计算'],
   ['lease-industry-distribution','成交行业分布','available','独立成交权限；笔数或面积、缺失行业及有效样本分别保留'],

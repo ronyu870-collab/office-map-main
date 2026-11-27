@@ -167,6 +167,8 @@ export async function handleWorkspaceRequest(
       return reply({ code, error: "正式数据需从已授权来源重新绑定，或另加人工说明。" }, 422);
     if (code === "PITCH_HANDOFF_CHANGED")
       return reply({ code, error: "转入内容或数据权限已变化，请重新核对。" }, 409);
+    if (code === "PITCH_HANDOFF_UNSUPPORTED")
+      return reply({ code, error: "该查询缺少可核验的范围或转入参数。" }, 422);
     if (code === "PITCH_DATA_REFRESH_CHANGED")
       return reply({ code, error: "业务数据已更新，请重新核对预览。" }, 409);
     if (code === "PITCH_DATA_REFRESH_LAYOUT" || code === "PITCH_DATA_REFRESH_UNAVAILABLE")
