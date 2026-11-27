@@ -44,13 +44,17 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
   onOpen: (id: string) => Promise<void>;
   onClose: () => void;
 }) {
+  const research = source.source.kind === "quarterly-research" ? source.source : undefined;
+  const researchPeriod = research?.edition.replace("Q", "-Q");
+  const researchCity = research ? "北京" : undefined;
   const [projects, setProjects] = useState<z.infer<typeof projectsSchema>["items"]>([]);
   const [projectId, setProjectId] = useState(destination?.id ?? "");
-  const [scopeIndex, setScopeIndex] = useState(0);
+  const [scopeIndex, setScopeIndex] = useState(() => researchCity
+    ? Math.max(0, grants.findIndex(scope => scope.city === researchCity)) : 0);
   const [period, setPeriod] = useState(source.period ?? "");
   const lease = source.source.kind === "lease-search" ? source.source : undefined;
   const stacking = source.source.kind === "stacking-plan" ? source.source : undefined;
-  const carriesSourceDate = !!lease || !!stacking;
+  const carriesSourceDate = !!lease || !!stacking || !!research;
   const [title, setTitle] = useState("");
   const [review, setReview] = useState<{ data: Ready; handoff: AddToPitch; version?: number }>();
   const [error, setError] = useState("");
@@ -61,9 +65,9 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
   const operation = useRef<AbortController>(null);
   const autoReviewed = useRef(false);
   const command = useRef<{ payload: Submit; projectId: string; accepted: boolean }>(null);
-  const canCreate = !!grants[scopeIndex] && !!theme;
-  const sourceCity = stacking ? review?.data.sourceCity : undefined;
+  const sourceCity = researchCity ?? (stacking ? review?.data.sourceCity : undefined);
   const eligibleForSource = !sourceCity || grants[scopeIndex]?.city === sourceCity;
+  const canCreate = !!grants[scopeIndex] && !!theme && eligibleForSource;
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
 
   useEffect(() => {
@@ -118,6 +122,10 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
         setError(carriesSourceDate ? "暂时无法核对原始来源日期。" : "请选择正式季度后重新核对。");
         return;
       }
+      if (research && (response.period !== researchPeriod || response.sourceCity !== researchCity)) {
+        setError("返回的季度研究范围与所选版次不一致，请重新核对。");
+        return;
+      }
       if (stacking) {
         if (!response.sourceCity || !response.stackingSource || response.period || response.binding.disclosure !== "restricted" ||
           response.buildingIds.length !== 1 || response.buildingIds[0] !== stacking.buildingId ||
@@ -146,7 +154,7 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
       const scope = grants[scopeIndex];
       const target: Target | null = projectId
         ? review.version === undefined ? null : { mode: "append", expectedVersion: review.version }
-        : scope && theme && eligibleForSource && title.trim() ? { mode: "create", projectId: destination, title: title.trim(),
+        : scope && theme && canCreate && title.trim() ? { mode: "create", projectId: destination, title: title.trim(),
           scope: { organizationId: scope.organizationId, region: scope.region, city: scope.city, businessLine: scope.businessLine },
           themeId: theme.id, themeVersion: theme.current_version } : null;
       if (!target) return;
@@ -177,13 +185,14 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
     }
   }
 
-  const sourceLabel = stacking ? "历史 Stacking Plan" : lease ? "成交库的代表成交" : source.source.kind === "buildings"
+  const sourceLabel = research ? "北京甲级写字楼 · 获权跟踪样本"
+    : stacking ? "历史 Stacking Plan" : lease ? "成交库的代表成交" : source.source.kind === "buildings"
     ? `已选 ${source.source.buildingIds.length} 栋楼宇`
     : source.source.kind === "submarket" ? source.source.key : "Colliers AI 的获权分析结果";
 
   return <Dialog open onOpenChange={value => { if (!value && !busy) onClose(); }}
     title="加入 Pitch" size="md" footer={
-      review ? <Button disabled={busy === "review" || (!projectId && (!title.trim() || !eligibleForSource))}
+      review ? <Button disabled={busy === "review" || (!projectId && (!title.trim() || !canCreate))}
         loading={busy === "submit"} onClick={() => void submit()}>
         {submitted ? "重新查询或继续提交" : projectId ? "确认并追加" : "确认并创建"}
       </Button> : <Button disabled={(!projectId && !canCreate) || !validPeriod}
@@ -192,6 +201,7 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
     <div className={`${styles.studio} ${styles.form}`}>
       <div>
         <p>{sourceLabel}</p>
+        {researchPeriod && !review && <p>{researchPeriod}</p>}
         {lease && <p>{lease.from} 至 {lease.to} · {lease.dataset === "live" ? "日常填报" : lease.dataset === "history" ? "历史导入" : "合并来源"}</p>}
       </div>
       {destination ? <p>追加到 {destination.title}</p> : <label>
@@ -216,7 +226,7 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
           </option>)}
         </select>
       </label>}
-      {!projectId && (!canCreate || !eligibleForSource) && <p>当前没有可创建{sourceCity ? `${sourceCity} ` : ""}提案的授权范围。</p>}
+      {!projectId && !canCreate && <p>当前没有可创建{sourceCity ? `${sourceCity} ` : ""}提案的授权范围。</p>}
       {!carriesSourceDate && <label>
         正式季度
         <input placeholder={projectId ? "默认沿用目标项目" : "例如 2026-Q3"} value={period} maxLength={7}

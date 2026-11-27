@@ -4,6 +4,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import { FilePlus2 } from "lucide-react";
 import Link from "next/link";
 import { z } from "zod";
+import { researchEditions } from "@/src/config/quarterlyResearch";
 
 const PitchHandoffVisibility = createContext(false);
 export function PitchHandoffProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
@@ -39,6 +40,7 @@ export const pitchStackingSourceSchema = z.strictObject({
 const sourceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("buildings"), buildingIds: z.array(z.uuid()).min(1).max(20).refine(ids => new Set(ids).size === ids.length) }),
   z.object({ kind: z.literal("submarket"), key: z.string().trim().min(1).max(80) }),
+  z.strictObject({ kind: z.literal("quarterly-research"), edition: z.enum(researchEditions) }),
   z.object({ kind: z.literal("analysis-result"), id: z.uuid() }),
   leaseSearchSourceSchema,
   pitchStackingSourceSchema,
@@ -47,7 +49,7 @@ const navigationSchema = z.object({
   source: sourceSchema,
   period: z.string().regex(/^\d{4}-Q[1-4]$/).optional(),
   language: z.enum(["zh", "en"]).optional(),
-}).refine(input => !["lease-search", "stacking-plan"].includes(input.source.kind) || !input.period);
+}).refine(input => !["lease-search", "stacking-plan", "quarterly-research"].includes(input.source.kind) || !input.period);
 
 export type PitchHandoffNavigation = z.infer<typeof navigationSchema>;
 

@@ -121,6 +121,52 @@ it("reviews the historical stacking selection with its observed date and confirm
     target: { mode: "create", scope } });
 });
 
+it("uses the research edition's fixed quarter and confirms only the reviewed Beijing sample", async () => {
+  const user = userEvent.setup();
+  const source = { kind: "quarterly-research", edition: "2026Q2" } as const;
+  const hash = (input: object) => "#add-to-pitch=" + encodeURIComponent(JSON.stringify(input));
+  const item = readPitchHandoff(hash({ source }));
+  expect(item).toEqual({ source });
+  expect(readPitchHandoff(hash({ source, period: "2026-Q3" }))).toBeNull();
+  expect(readPitchHandoff(hash({ source: { ...source, edition: "2026Q4" } }))).toBeNull();
+  let period = "2026-Q3";
+  const call = vi.fn(async (input: Record<string, unknown>) => {
+    if (input.action === "list") return { items: [
+      { id, city: "上海", title: "上海选址" }, { id: newId, city: "北京", title: "北京写字楼" },
+    ] };
+    if (input.action === "review_handoff") return {
+      status: "ready", period, sourceCity: "北京", fingerprint, submarkets: [], buildingIds: [],
+      binding: { dataAsOf: "2026-06-30" },
+      pages: [{ title: "北京甲级写字楼季度指标", sources: [{ label: "获权跟踪样本来源" }] }],
+    };
+    return { state: "queued" };
+  });
+  const onOpen = vi.fn(async () => {});
+  render(<HandoffReview source={item!} call={call as unknown as Call}
+    grants={[{ ...scope, city: "上海" }, scope]} theme={{ id: "colliers-default-v1", current_version: 2 }}
+    onOpen={onOpen} onClose={() => {}} />);
+  await screen.findByRole("option", { name: "北京写字楼" });
+  expect(screen.queryByRole("option", { name: "上海选址" })).not.toBeInTheDocument();
+  expect(screen.getByLabelText("所属区域")).toHaveValue("1");
+  expect(screen.queryByLabelText("正式季度")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "核对来源" }));
+  await screen.findByText("返回的季度研究范围与所选版次不一致，请重新核对。");
+  expect(screen.queryByRole("button", { name: "确认并创建" })).not.toBeInTheDocument();
+
+  period = "2026-Q2";
+  await user.click(screen.getByRole("button", { name: "核对来源" }));
+  expect(await screen.findByText("获权跟踪样本来源")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "确认并创建" }));
+  await waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1));
+  const commands = call.mock.calls.map(([command]) => command);
+  expect(commands.filter(command => command.action === "review_handoff")).toEqual([
+    { action: "review_handoff", handoff: { source } }, { action: "review_handoff", handoff: { source } },
+  ]);
+  expect(commands.find(command => command.action === "add_to_pitch")).toMatchObject({
+    handoff: { source }, fingerprint, target: { mode: "create", scope },
+  });
+});
+
 it("rechecks the same home project version when confirming a newly reviewed plan", async () => {
   const user = userEvent.setup();
   let version = 1;
