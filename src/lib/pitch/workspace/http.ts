@@ -30,6 +30,7 @@ import {
   startWorkspaceTask,
   runWorkspaceTask,
 } from "./workflow";
+import type { StackingHandoffPort } from "./stacking-handoff";
 const headers = {
   "Cache-Control": "private, no-store",
   Vary: "Authorization, x-colliers-impersonate-user",
@@ -42,6 +43,7 @@ export async function handleWorkspaceRequest(
   request: Request,
   deps: PitchDependencies,
   schedule?: (task: () => Promise<void>) => void,
+  stackingPort?: StackingHandoffPort,
 ) {
   try {
     const ctx = await authorizePitch(request, deps);
@@ -49,7 +51,7 @@ export async function handleWorkspaceRequest(
       if (!schedule) return;
       const task = taskReceipt.parse(receipt);
       if (task.state === "queued" && task.workflow !== "proposal") {
-        schedule(() => runWorkspaceTask({ ...ctx, signal: AbortSignal.timeout(45000) }, projectId, taskId));
+        schedule(() => runWorkspaceTask({ ...ctx, signal: AbortSignal.timeout(45000) }, projectId, taskId, stackingPort));
       }
     };
     if (!isQuerySameOrigin(request))
@@ -101,10 +103,10 @@ export async function handleWorkspaceRequest(
     }
     const c = workspaceCommandSchema.parse(raw);
     if (c.action === "get") return reply(await getWorkspace(ctx, c.projectId));
-    if (c.action === "review_handoff") return reply(await reviewHandoff(ctx, c));
+    if (c.action === "review_handoff") return reply(await reviewHandoff(ctx, c, stackingPort));
     if (c.action === "add_to_pitch") {
       if (!schedule) throw new Error("PITCH_WORKER_UNAVAILABLE");
-      const receipt = await startHandoff(ctx, c);
+      const receipt = await startHandoff(ctx, c, stackingPort);
       const projectId = c.target.mode === "create" ? c.target.projectId : c.handoff.projectId!;
       dispatchQueuedTask(projectId, c.taskId, receipt);
       return reply(receipt, 202);
@@ -169,6 +171,8 @@ export async function handleWorkspaceRequest(
       return reply({ code, error: "正式数据需从已授权来源重新绑定，或另加人工说明。" }, 422);
     if (code === "PITCH_HANDOFF_CHANGED")
       return reply({ code, error: "转入内容或数据权限已变化，请重新核对。" }, 409);
+    if (code === "PITCH_LANGUAGE_UNAVAILABLE")
+      return reply({ code, error: "当前历史楼层资料仅可转入中文 Pitch。" }, 422);
     if (code === "PITCH_HANDOFF_UNSUPPORTED")
       return reply({ code, error: "该查询缺少可核验的范围或转入参数。" }, 422);
     if (code === "PITCH_DATA_REFRESH_CHANGED")

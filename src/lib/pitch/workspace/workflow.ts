@@ -15,11 +15,12 @@ import { generateBusinessProject } from "../business/workflow";
 import { generationSchema } from "../business/protocol";
 import { runPitchDataAdapter } from "../business/adapter";
 import { reviewedBuildingData } from "../business/outline-data";
-import { outlineDataParameters, workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
+import { outlineDataParameters, stackingHandoffPartSchema, workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
 import { workspaceDetailSchema, type WorkspaceDetail } from "./protocol";
 import { applyObjectMoves, applyObjectTexts, applyObjectOrder, applyObjectGroups } from "./object-layout";
 import { noteSubtitle, workspaceChartTypeSchema } from "./presentation-edits";
 import { captureKey, readCaptures, usesBusinessEvidence } from "./bindingStore";
+import { requireStackingHandoff, stackingReviewBinding, type StackingHandoffPort } from "./stacking-handoff";
 import type { DocumentModificationPlan } from "../integration-contracts";
 type Page = WorkspaceDetail["slides"][number];
 type Settings = WorkspaceDetail["workspace"]["page_settings"];
@@ -126,6 +127,8 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
     )
       throw new Error("PITCH_INVALID");
     const prior = settings[original.id] ?? {};
+    const historicalStacking = stackingHandoffPartSchema.safeParse(prior.part).success;
+    if (historicalStacking && edit.images) throw new Error("PITCH_BOUND_VALUE_EDIT");
     const binding = bindings?.get(captureKey(original.asset_id, original.asset_version));
     const changedParagraphs = new Set<number>();
     const noteChanged = edit.manualNote !== undefined && (edit.manualNote ?? undefined) !== prior.note?.text;
@@ -158,7 +161,7 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
         if (block.kind !== "paragraph") return block;
         const text = edit.paragraphs![n++];
         if (text === block.text) return block;
-        if (binding && usesBusinessEvidence(block, binding.content)) throw new Error("PITCH_BOUND_VALUE_EDIT");
+        if (historicalStacking || binding && usesBusinessEvidence(block, binding.content)) throw new Error("PITCH_BOUND_VALUE_EDIT");
         changedParagraphs.add(index);
         return { ...block, text };
       });
@@ -814,6 +817,7 @@ export async function runWorkspaceTask(
   ctx: PitchContext,
   projectId: string,
   taskId: string,
+  stackingPort?: StackingHandoffPort,
 ) {
   const token = randomUUID(),
     args = { projectId, taskId, token };
@@ -840,6 +844,47 @@ export async function runWorkspaceTask(
     checkVersion(current, receipt.task.expected_version);
     const part = workspacePartSchema.parse(receipt.task.command.part);
     assertOutlineDataContext(current, part);
+    if (part.mode === "handoff" && "stackingSource" in part) {
+      const { stackingSource, dataVersion, permissionRevision, policyVersion } = part;
+      const port = requireStackingHandoff(stackingPort);
+      const readReviewed = async () => {
+        const evidence = await port.read(ctx, stackingSource);
+        if (evidence.city !== p.city || evidence.content.disclosure !== "restricted") throw new Error("QUERY_DENIED");
+        if (evidence.dataVersion !== dataVersion || evidence.permissionRevision !== permissionRevision
+          || evidence.policyVersion !== policyVersion || evidence.businessDate !== part.dataAsOf
+          || (evidence.businessDate === null && evidence.content.dataAsOf !== part.observedOn)) throw new Error("PITCH_HANDOFF_CHANGED");
+        return evidence;
+      };
+      const evidence = await readReviewed();
+      await pitchRpc(ctx, { action: "workspace_task_check", ...args });
+      const { theme } = await studioRegistry(ctx, p.theme_id, p.theme_version);
+      const rendered = await port.render(ctx, evidence.content, theme.definition);
+      const targetPages = rendered.slides.map(page => ({
+        id: randomUUID(), asset_id: page.assetId, asset_version: page.assetVersion,
+        template_id: "business-content", template_version: 1, content: page.content, scene: page.scene,
+      }));
+      const settings = { ...current.workspace.page_settings };
+      for (const page of targetPages) settings[page.id] = { manual: false, origin: "data", part };
+      const save = await commitPayload(ctx, current, [...current.slides, ...targetPages], settings, {
+        activeSlide: targetPages[0]?.id,
+      });
+      await readReviewed();
+      const binding = stackingReviewBinding(evidence);
+      await pitchRpc(ctx, {
+        action: "workspace_task_complete_stacking", ...args, save,
+        generation: {
+          action: "business_generate_commit", projectId: receipt.task.source_project_id,
+          parentProjectId: p.id, expectedParentVersion: p.version, title: p.title,
+          scope: { organizationId: p.organization_id, region: p.region, city: p.city, businessLine: p.business_line },
+          themeId: p.theme_id, themeVersion: p.theme_version, language: "zh",
+          requestKey: hash([taskId, stackingSource, binding]),
+          ...rendered, bindings: [], recipes: [],
+          snapshots: [{ id: "historical-stacking-handoff", entityId: stackingSource.buildingId,
+            binding, dataVersion, dataAsOf: binding.dataAsOf, results: [] }],
+        },
+      });
+      return;
+    }
     const command = part.mode === "example" ? undefined : generationSchema.parse({
       action: "generate",
       projectId: receipt.task.source_project_id,
@@ -898,12 +943,10 @@ export async function runWorkspaceTask(
     });
   } catch (error) {
     try {
-      await pitchRpc(ctx, {
-        action: "workspace_task_fail",
-        ...args,
-        errorCode:
-          error instanceof Error && "code" in error && typeof error.code === "string"
-            ? error.code : error instanceof Error ? error.message : "PITCH_GENERATION_FAILED",
+      const errorCode = error instanceof Error && "code" in error && typeof error.code === "string"
+        ? error.code : error instanceof Error ? error.message : "PITCH_GENERATION_FAILED";
+      await pitchRpc({ ...ctx, signal: AbortSignal.timeout(4000) }, {
+        action: "workspace_task_fail", ...args, errorCode: errorCode === "QUERY_DENIED" ? "PITCH_DENIED" : errorCode,
       });
     } catch {
       /* A cancelled/revoked receipt cannot be committed; status expires a lost lease. */
