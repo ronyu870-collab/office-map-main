@@ -304,6 +304,50 @@ async function downloadPptx(page) {
   return JSZip.loadAsync(await downloadPitchFile(page, "pptx"), { checkCRC32: true });
 }
 
+export async function verifyPitchImageReplacementBrowser({ app, who, readProject, imageReplacement }) {
+  assert.equal(new URL(app).hostname, "127.0.0.1");
+  const { projectId, first, replacement } = imageReplacement;
+  const before = await readProject(projectId);
+  const browser = await launchBrowser();
+  try {
+    const context = await openWorkspaceContext(browser, app, who, 1440);
+    const page = await context.newPage();
+    page.setDefaultTimeout(15_000);
+    const button = name => page.getByRole("button", { name, exact: true });
+    await page.goto(`${app}/intelligence/pitch?project=${projectId}`);
+    await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+    await button("调整画布对象").click();
+    const imagePosition = before.slides[0].scene.elements.findIndex(element => element.kind === "image" && element.mediaAssetId === first.id);
+    assert.ok(imagePosition >= 0);
+    await button(`对象 ${imagePosition + 1}：隔离原图`).click();
+    await button("更换所选图片").click();
+    const search = page.getByLabel("搜索已发布图片");
+    await search.fill(replacement.name);
+    const picker = page.getByRole("combobox", { name: "所选图片 · 隔离原图" });
+    const value = `${replacement.id}:${replacement.version}`;
+    await picker.locator(`option[value="${value}"]`).waitFor({ state: "attached" });
+    assert.equal((await readProject(projectId)).project.version, before.project.version);
+    const [saved] = await Promise.all([
+      waitForPitchCommand(page, "/api/intelligence/pitch/workspace", "save"), picker.selectOption(value),
+    ]);
+    assert.ok(saved.ok(), `image save HTTP ${saved.status()}`);
+    assert.deepEqual(saved.request().postDataJSON().pages[0].images.map(({ id, version }) => ({ id, version })),
+      [{ id: replacement.id, version: replacement.version }]);
+    const updated = await readProject(projectId);
+    const { content } = updated.slides[0];
+    const image = content.blocks.find(block => block.kind === "image");
+    assert.equal(image.mediaAssetId, replacement.id);
+    assert.equal(image.mediaVersion, replacement.version);
+    assert.ok(content.sources.some(source => image.sourceIds.includes(source.id) && source.documentId === replacement.documentId));
+    assert.equal(before.slides[0].content.blocks.find(block => block.kind === "image").mediaAssetId, first.id);
+    const archive = await downloadPptx(page);
+    assert.match(await archive.file("ppt/slides/slide1.xml").async("string"), /<p:pic>/);
+    console.log("PASS canvas selection, published image replacement, saved provenance and native PPTX");
+  } finally {
+    await closeFlagshipBrowser(browser);
+  }
+}
+
 export async function verifyPitchChartRevisionBrowser({ app, who, readProject }) {
   assert.equal(new URL(app).hostname, "127.0.0.1");
   const projectId = randomUUID();

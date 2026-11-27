@@ -11,6 +11,7 @@ import {
   RefreshCw, Search, X,
 } from 'lucide-react';
 import { useAppSession } from '@/src/components/SessionProvider';
+import { PitchHandoffLink } from '@/src/components/pitch/PitchHandoffLink';
 import { isUserAdmin } from '@/src/utils/accessControl';
 import { getSessionFast } from '@/src/services/Auth';
 import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
@@ -514,6 +515,11 @@ export function StackingPlanWorkspace({ buildingId, backHref }: { buildingId: st
                         <FileSpreadsheet size={16}/> Excel · 堆叠图与明细</button>
                       <button type="button" onClick={() => void exportPlan('svg')} disabled={!!busy}>
                         <Download size={16}/> 单楼矢量 SVG</button>
+                      {allowed && source && !getImpersonationTargetUserId() &&
+                        (scope === 'all' || !isFiltered(filter, search)) && (view === 'overview' || tower) && <PitchHandoffLink
+                          source={{ kind: 'stacking-plan', buildingId: payload.building.id,
+                            selection: view === 'detail' && tower ? { towerIds: [tower.id] } : {} }} language="zh"
+                          label="将历史堆叠图加入 Pitch" />}
                       {busy && <span role="status" className={styles.exportProgress}>正在生成{busy === 'xlsx' ? ' Excel' : '图片'}…</span>}
                     </div>
                   </details>

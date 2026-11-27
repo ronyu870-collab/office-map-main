@@ -94,11 +94,18 @@ function matchesRegeneration(value: Extract<Plan, { status: "refresh-review" }>,
   const reference = value.plan.refresh;
   if (!regeneration || !("plan" in refreshPlan) || !reference || value.scope !== "document") return false;
   const { plan, brief } = refreshPlan;
-  return regeneration.projectId === project.id && regeneration.city === project.city &&
-    brief.language === regeneration.language &&
-    regeneration.buildingIds.join() === workspace.context.buildingIds.join() && brief.buildingIds.join() === regeneration.buildingIds.join() &&
-    outlineQuarter.safeParse(brief.period).success && (!regeneration.period || regeneration.period === brief.period) &&
-    plan.id === reference.id && plan.version === reference.version && plan.contextFingerprint === reference.contextFingerprint;
+  const context = workspace.context;
+  if (regeneration.projectId !== project.id || regeneration.city !== project.city || brief.language !== regeneration.language ||
+    regeneration.buildingIds.join() !== context.buildingIds.join() || brief.buildingIds.join() !== regeneration.buildingIds.join() ||
+    !outlineQuarter.safeParse(brief.period).success || regeneration.period && regeneration.period !== brief.period ||
+    plan.id !== reference.id || plan.version !== reference.version || plan.contextFingerprint !== reference.contextFingerprint) return false;
+  const client = brief.targetClient ?? "";
+  const samePeriod = regeneration.period === context.period && brief.period === context.period;
+  if (regeneration.language !== context.language)
+    return samePeriod && brief.scenario === context.business && client === context.client;
+  if (client !== context.client)
+    return samePeriod && brief.scenario === "site-selection" && !!client && plan.slides.some(page => page.pageKind === "requirements");
+  return context.business === "market-report" && brief.scenario === "market-report";
 }
 
 function matchesPreview(value: Preview, detail: WorkspaceDetail) {

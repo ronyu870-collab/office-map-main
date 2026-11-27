@@ -93,6 +93,34 @@ it("keeps the handoff quarter focused while projects load and confirms the revie
   expect(onOpen).toHaveBeenCalledWith((command.target as { projectId: string }).projectId);
 });
 
+it("reviews the historical stacking selection with its observed date and confirmed city", async () => {
+  const user = userEvent.setup();
+  const source = { kind: "stacking-plan" as const, buildingId, selection: { towerIds: [secondBuildingId] } };
+  const call = vi.fn(async (input: Record<string, unknown>) => {
+    if (input.action === "list") return { items: [] };
+    if (input.action === "review_handoff") return {
+      status: "ready", period: "", sourceCity: "北京", stackingSource: source, fingerprint, submarkets: [], buildingIds: [buildingId],
+      binding: { dataAsOf: null, disclosure: "restricted", observedOn: "2026-09-30" },
+      pages: [{ title: "A 座历史堆叠图", sources: [{ label: "受限历史来源" }] }],
+    };
+    return { state: "queued" };
+  });
+  const onOpen = vi.fn(async () => {});
+  render(<HandoffReview source={{ source, language: "zh" }} call={call as unknown as Call}
+    grants={[{ ...scope, city: "上海" }, scope]} theme={{ id: "colliers-default-v1", current_version: 2 }} onOpen={onOpen} onClose={() => {}} />);
+  expect(screen.queryByLabelText("正式季度")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "核对来源" }));
+  expect(await screen.findByText("来源日期待确认 · 观察日期 2026-09-30 · 受限来源")).toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "上海 · office" })).toBeDisabled();
+  expect(screen.getByLabelText("所属区域")).toHaveValue("1");
+  await user.click(screen.getByRole("button", { name: "确认并创建" }));
+  await waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1));
+  const sent = call.mock.calls.filter(([command]) => command.action !== "list").map(([command]) => command);
+  expect(sent[0]).toEqual({ action: "review_handoff", handoff: { source, language: "zh" } });
+  expect(sent[1]).toMatchObject({ action: "add_to_pitch", handoff: { source, language: "zh" }, fingerprint,
+    target: { mode: "create", scope } });
+});
+
 it("rechecks the same home project version when confirming a newly reviewed plan", async () => {
   const user = userEvent.setup();
   let version = 1;

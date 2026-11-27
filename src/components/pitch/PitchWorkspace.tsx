@@ -61,6 +61,7 @@ import { HandoffReview, type HandoffDestination } from "./workspace/HandoffRevie
 import { LayoutVariants } from "./workspace/LayoutVariants";
 import { DataRefresh } from "./workspace/DataRefresh";
 import { CurrentPageRevision } from "./workspace/CurrentPageRevision";
+import { ImageReplacement, libraryImagesForReplacement } from "./workspace/ImageReplacement";
 import { AssetPicker, pitchAssetDragType, readAssetTransfer } from "./workspace/Assets";
 import { PagePreview, usePagePreviews } from "./workspace/Preview";
 import { Projects } from "./workspace/Projects";
@@ -68,7 +69,7 @@ import { PanelSeparator } from "./workspace/PanelSeparator";
 import { SlideNavigator } from "./workspace/SlideNavigator";
 import { Presentation } from "./workspace/Presentation";
 import { ProposalPreview, type ProposalProjectInput } from "./workspace/ProposalPreview";
-import { canMoveObject } from "@/src/lib/pitch/workspace/object-layout";
+import { canMoveObject, objectId } from "@/src/lib/pitch/workspace/object-layout";
 const ObjectCanvas = dynamic(() => import("./workspace/ObjectCanvas").then(module => module.ObjectCanvas), {
   loading: () => <p role="status">正在打开对象编辑…</p>,
 });
@@ -226,6 +227,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [historyOpen, setHistoryOpen] = React.useState(false),
     [objectPage, setObjectPage] = React.useState<string | null>(null),
     [objectSelection, setObjectSelection] = React.useState<{ ids: string[]; dirty: boolean }>({ ids: [], dirty: false }),
+    [imageTarget, setImageTarget] = React.useState<{ slideId: string; index: number; openId: number }>(),
     [reviewUndo, setReviewUndo] = React.useState<{ version: number; revision: number; projectId: string }>(),
     [savedCanvasHistory, setSavedCanvasHistory] = React.useState<SavedCanvasHistory | null>(null);
   const life = React.useRef(new AbortController()),
@@ -514,6 +516,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setInspector("properties");
     setFocusedCanvas(false);
     setObjectPage(null);
+    setImageTarget(undefined);
   };
   async function copyProjectLink(id: string) {
     const url = new URL("/intelligence/pitch", window.location.origin);
@@ -674,6 +677,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
     page = detail?.slides.find(
       (p) => p.id === (pageEdit?.duplicateOf ?? active),
     ),
+    libraryImages = page ? libraryImagesForReplacement(page) : null,
+    pictureTarget = imageTarget?.slideId === active ? imageTarget : undefined,
     previews = usePagePreviews(call, detail, active),
     canGenerate = catalog?.scopes.some((s) => s.canGenerate) ?? false,
     canManage =
@@ -1551,6 +1556,20 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       pendingOrder={pageEdit?.objectOrder}
                       pendingGroups={pageEdit?.objectGroups}
                       onSelectionChange={setObjectSelection}
+                      imageReplacement={libraryImages && canGenerate ? {
+                        identify: id => {
+                          const layer = page.scene.elements.find((element, index) => objectId(element, index) === id);
+                          if (layer?.kind !== "image") return undefined;
+                          const matches = libraryImages.flatMap((image, index) =>
+                            image.id === layer.mediaAssetId && image.version === layer.mediaVersion ? [index] : []);
+                          return matches.length === 1 ? matches[0] : undefined;
+                        },
+                        open: index => {
+                          setImageTarget(previous => ({ slideId: active, index, openId: (previous?.openId ?? 0) + 1 }));
+                          setObjectPage(null);
+                          openInspector("properties");
+                        },
+                      } : undefined}
                       onClose={() => setObjectPage(null)}
                       onApply={({ moves, texts, order, groups }) => {
                         editPage({ objectMoves: moves.length ? moves : undefined, objectTexts: texts.length ? texts : undefined, objectOrder: order, objectGroups: groups });
@@ -1802,87 +1821,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
                               )}
                             </>
                           ))}
-                          {page.content.blocks.some(
-                            (b) => b.kind === "image",
-                          ) && (
-                            <details
-                              onToggle={(e) => {
-                                if (e.currentTarget.open)
-                                  void call<{ items: typeof media }>(
-                                    {
-                                      action: "search",
-                                      kind: "media",
-                                      state: "published",
-                                      validity: "valid",
-                                    },
-                                    false,
-                                    "library",
-                                  )
-                                    .then((r) => setMedia(r.items))
-                                    .catch((e) => setMessage(e.message));
-                              }}
-                            >
-                              <summary>更换图片</summary>
-                              {page.content.blocks
-                                .filter((b) => b.kind === "image")
-                                .map((b, i) => (
-                                  <label key={i}>
-                                    项目图片 {i + 1}
-                                    <select
-                                      value={
-                                        pageEdit?.images?.[i]?.id ??
-                                        b.mediaAssetId
-                                      }
-                                      onChange={(e) => {
-                                        const selected = media.find(
-                                          (m) => m.id === e.target.value,
-                                        );
-                                        if (selected) {
-                                          const images =
-                                            pageEdit?.images ??
-                                            page.content.blocks.flatMap((b) =>
-                                              b.kind === "image"
-                                                ? [
-                                                    {
-                                                      id: b.mediaAssetId,
-                                                      version: b.mediaVersion,
-                                                      alt: b.alt.slice(0, 400),
-                                                    },
-                                                  ]
-                                                : [],
-                                            );
-                                          editPage({
-                                            images: images.map((v, n) =>
-                                              n === i
-                                                ? {
-                                                    id: selected.id,
-                                                    version: selected.version,
-                                                    alt: selected.alt.slice(
-                                                      0,
-                                                      400,
-                                                    ),
-                                                  }
-                                                : v,
-                                            ),
-                                          });
-                                        }
-                                      }}
-                                    >
-                                      <option value={b.mediaAssetId}>
-                                        当前图片
-                                      </option>
-                                      {media
-                                        .filter((m) => m.id !== b.mediaAssetId)
-                                        .map((m) => (
-                                          <option key={m.id} value={m.id}>
-                                            {m.alt || "企业图片"}
-                                          </option>
-                                        ))}
-                                    </select>
-                                  </label>
-                                ))}
-                            </details>
-                          )}
+                          {libraryImages && <ImageReplacement
+                            key={`${active}:${pictureTarget?.openId ?? 0}`}
+                            call={call} originals={libraryImages} pending={pageEdit?.images} selectedIndex={pictureTarget?.index}
+                            disabled={!canGenerate || busy || saving || generationPending || conflict ||
+                              (objectPage === active && objectSelection.dirty) ||
+                              !!(pageEdit?.objectMoves || pageEdit?.objectTexts || pageEdit?.objectOrder || pageEdit?.objectGroups)}
+                            onChange={images => editPage({ images })} />}
                         </>
                       ) : <p>选择页面以编辑属性。</p>}
                     </div>

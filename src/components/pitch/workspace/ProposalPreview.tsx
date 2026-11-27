@@ -18,7 +18,7 @@ const responseSchema = z.discriminatedUnion("status", [
       version: z.number().int().positive(),
       contextFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
       theme: projectThemeSchema.optional(),
-      slides: z.array(z.object({ id: z.uuid(), title: z.string() })),
+      slides: z.array(z.object({ id: z.uuid(), title: z.string(), pageKind: z.string().optional() })),
       gaps: z.array(z.object({ pageKind: z.string(), reason: z.string() })),
     }),
     brief: z.object({
@@ -27,6 +27,8 @@ const responseSchema = z.discriminatedUnion("status", [
       period: z.string().nullable(),
       buildingIds: z.array(z.uuid()),
       language: z.enum(["zh", "en"]).optional(),
+      scenario: z.string().optional(),
+      targetClient: z.string().nullable().optional(),
     }),
     selection: z.enum(["explicit", "scoped-sample", "none"]),
   }),

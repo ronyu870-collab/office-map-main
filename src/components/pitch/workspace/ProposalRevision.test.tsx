@@ -154,7 +154,7 @@ it("generates the approved new market edition from the exact reviewed request", 
   const reply = { status: "refresh-review", scope: "document", plan: refreshPlan, gaps: [], regeneration: input,
     refreshPlan: { status: "ready", selection: "none", plan: { id: planId, title: "获权市场报告", version: 1, contextFingerprint: fingerprint,
       slides: [{ id: pageId, title: "季度市场摘要" }], gaps: [] },
-    brief: { city: "北京", submarkets: [], period: "2026-Q3", buildingIds: [], language: "zh" } } };
+    brief: { city: "北京", submarkets: [], period: "2026-Q3", buildingIds: [], language: "zh", scenario: "market-report" } } };
   const { user, call, onApplied, onGenerated } = setup(reply, "把整套报告更新到最新季度", command => ({
     taskId: (command.confirmation as { taskId: string }).taskId, projectId: competitor.id, state: "completed",
   }), workspace);
@@ -167,6 +167,28 @@ it("generates the approved new market edition from the exact reviewed request", 
   expect(call.mock.calls[1][0]).toEqual({ action: "proposal_generate", confirmation: { taskId: expect.any(String),
     projectId, expectedVersion: version, planId, contextFingerprint: fingerprint, request: input } });
   expect(onApplied).not.toHaveBeenCalled();
+});
+
+it("shows the new client and keeps the saved quarterly shortlist in the exact confirmation", async () => {
+  const workspace = { ...detail, workspace: { ...detail.workspace, context: { ...detail.workspace.context,
+    business: "site-selection", period: "2026-Q3", client: "原客户",
+  } } };
+  const input = { question: "面向「保险企业」的选址提案，2026-Q3", projectId, city: "北京", buildingIds: [buildingId],
+    language: "zh", audience: "internal", period: "2026-Q3" };
+  const reply = { status: "refresh-review", scope: "document", plan: refreshPlan, gaps: [], regeneration: input,
+    refreshPlan: { status: "ready", selection: "explicit", plan: { id: planId, title: "保险企业选址提案", version: 1,
+      contextFingerprint: fingerprint, slides: [{ id: pageId, title: "客户选址要求", pageKind: "requirements" }], gaps: [] },
+    brief: { city: "北京", submarkets: [], period: "2026-Q3", buildingIds: [buildingId], language: "zh",
+      scenario: "site-selection", targetClient: "保险企业" } } };
+  const { user, call, onGenerated } = setup(reply, "整套面向保险企业", command => ({
+    taskId: (command.confirmation as { taskId: string }).taskId, projectId: competitor.id, state: "completed",
+  }), workspace);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  expect(await screen.findByText("生成衍生项目 · 2026-Q3 · 中文 · 保险企业")).toBeInTheDocument();
+  expect(screen.getByText("客户选址要求")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "确认并生成新版 Pitch" }));
+  await waitFor(() => expect(onGenerated).toHaveBeenCalledWith(competitor.id));
+  expect(call.mock.calls[1][0]).toMatchObject({ action: "proposal_generate", confirmation: { request: input, expectedVersion: version } });
 });
 
 const comparisonIds = [buildingId, competitor.id];
