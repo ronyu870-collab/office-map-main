@@ -247,7 +247,7 @@ try {
       headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ action, projectId }) } : { headers };
     if (action !== "get") url.search = new URLSearchParams({ action, projectId }).toString();
     const result = await fetch(url, options);
-    assert.equal(result.status, 200, `${action} HTTP ${result.status()}`);
+    assert.equal(result.status, 200, `${action} HTTP ${result.status}`);
     return result.json();
   };
   await verify({
