@@ -1,4 +1,5 @@
 import type { SubmarketIntelligence } from './submarketIntelligence';
+import { marketResearchArrangement } from './submarketResearchArrangement';
 
 /** Presentation-only contract. The published edition remains the source of truth. */
 export type ResearchReadingMode = 'quick' | 'standard' | 'expanded';
@@ -57,7 +58,7 @@ export function customerResearchText(value: string, research: SubmarketIntellige
   let copy = value;
   const publishers = [...new Set(research.sources
     .filter(source => source.scopeType === 'external_market')
-    .map(source => source.publisher.trim()).filter(Boolean))]
+    .flatMap(source => [source.publisher.trim(), source.publisher.split(/[（(]/)[0].trim()]).filter(Boolean))]
     .sort((a, b) => b.length - a.length);
   for (const publisher of publishers) {
     const replacements = [
@@ -121,6 +122,9 @@ function related(a: readonly string[], b: readonly string[]) {
 /** Select the CBD lead by a supply-backed competition thesis, not array position. */
 function selectLead(research: SubmarketIntelligence, marketType: ResearchMarketType): Observation | null {
   const candidates = research.observations.filter(item => item.kind === 'inference');
+  const plan = marketResearchArrangement(research.market);
+  const curated = candidates.find(item => item.title === plan?.leadTitle);
+  if (curated && !plan?.benchmark) return curated;
   const measuredSupply = research.facts.filter(item => item.kind === 'supply' && item.status === 'observed' && item.measure);
   const score = (item: Observation) =>
     (marketType === 'office' && observationTheme(item) === 'competition' ? 4 : 0)
@@ -133,6 +137,8 @@ function selectLead(research: SubmarketIntelligence, marketType: ResearchMarketT
 }
 
 export function buildResearchPresentation(research: SubmarketIntelligence, marketType: ResearchMarketType): SubmarketResearchPresentation {
+  const plan = marketResearchArrangement(research.market);
+  const arranged = plan && !plan.benchmark ? plan : undefined;
   const facts = research.facts.map((item): ResearchFactPresentation => ({
     key: item.title,
     title: customerResearchText(item.title, research),
@@ -149,7 +155,7 @@ export function buildResearchPresentation(research: SubmarketIntelligence, marke
     title: customerResearchText(item.title, research),
     body: customerResearchText(item.body, research),
     context: evidenceContext(research, item.sourceIds, item.title, item.asOf),
-    theme: observationTheme(item),
+    theme: item.kind === 'outlook' ? 'outlook' : arranged?.observationThemes?.[item.title] ?? (item.title === arranged?.leadTitle ? arranged?.leadTheme : undefined) ?? observationTheme(item),
   }));
   const rawLead = selectLead(research, marketType);
   const lead = observations.find(item => item.key === rawLead?.title) ?? null;
@@ -161,20 +167,22 @@ export function buildResearchPresentation(research: SubmarketIntelligence, marke
     const original = research.facts.find(fact => fact.title === item.key);
     return original && item.theme === lead?.theme && related(original.sourceIds, rawLead.sourceIds);
   });
-  const structuralFact = previewCandidates.find(item => item.theme === 'demand' && item.key !== leadFact?.key);
+  const structuralFact = arranged
+    ? previewCandidates.find(item => item.theme === lead?.theme && item.key !== leadFact?.key)
+    : previewCandidates.find(item => item.theme === 'demand' && item.key !== leadFact?.key);
   const previewFacts = [leadFact, structuralFact].filter((item): item is ResearchFactPresentation => Boolean(item));
   if (!previewFacts.length && previewCandidates.length) previewFacts.push(previewCandidates[0]);
-  const themeOrder: ResearchTheme[] = marketType === 'park'
+  const themeOrder: readonly ResearchTheme[] = arranged?.themeOrder ?? (marketType === 'park'
     ? ['demand', 'location', 'competition', 'outlook']
-    : ['competition', 'demand', 'location', 'outlook'];
+    : ['competition', 'demand', 'location', 'outlook']);
   const chapters = themeOrder.map(theme => ({
-    theme, title: marketType === 'park' ? ({ demand: '产业集聚与研发需求', location: '园区功能与通勤', competition: '载体供给与竞争', outlook: '市场展望' } as const)[theme]
+    theme, title: arranged?.chapterTitles?.[theme] ?? (marketType === 'park' ? ({ demand: '产业集聚与研发需求', location: '园区功能与通勤', competition: '载体供给与竞争', outlook: '市场展望' } as const)[theme]
       : marketType === 'mixed' ? ({ competition: '商务办公与研发载体', demand: '企业需求与选址', location: '区域功能与通勤', outlook: '市场展望' } as const)[theme]
-        : chapterTitles[theme],
+        : chapterTitles[theme]),
     observations: observations.filter(item => item.theme === theme).sort((a, b) => Number(b.key === lead?.key) - Number(a.key === lead?.key)),
     facts: facts.filter(item => item.theme === theme),
   })).filter(chapter => chapter.observations.length || chapter.facts.length);
-  const positioning = customerResearchText(research.positioning, research);
+  const positioning = customerResearchText(arranged?.positioning && research.positioning === arranged.positioning[0] ? arranged.positioning[1] : research.positioning, research);
   // Current CBD editions separate the durable positioning and dated thesis with
   // a semicolon; only separate a dated clause when a research lead is present.
   const durable = lead ? positioning.replace(/[；;]\s*(?:\d{4}Q[1-4]|\d{4}年).*$/, '') : positioning;

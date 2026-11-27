@@ -9,6 +9,7 @@ import { useMapObjectReadingState } from '../workspace/continuity';
 import { classifyResearchMarket } from '../model/submarketProductResearch';
 import type { ResearchMarketType } from '../model/submarketResearchPresentation';
 import { MIN_RESEARCH_MARKET_SAMPLES } from '../model/submarketMarketTrend';
+import { marketResearchArrangement, researchAnalysisModules, type ResearchAnalysisModule } from '../model/submarketResearchArrangement';
 import { researchNumber } from '../model/submarketResearch';
 import { analyzeMarketAssets, latestAssetQuarter, productNames, RESEARCH_PRODUCTS, summarizeResearchSupply,
   type AssetObservation, type MarketAssetResearchPayload, type ResearchProductScope } from '../model/marketAssetAnalytics';
@@ -38,6 +39,7 @@ function Distribution({ analysis, onOpen }: { analysis: Analysis; onOpen: (id: s
   const [selected, setSelected] = React.useState<number | null>(null);
   if (!distribution) return null;
   const { count, min, max, q1, median, q3, bins, observations } = distribution;
+  if (count === 1) return <section className={styles.section} aria-label="租金价格分布"><h4>单项目租金观测</h4><p className={styles.subtle}>元/㎡/月 · 不代表区域租金分布</p><ProjectList points={observations} onOpen={onOpen} /></section>;
   const selectedIds = selected !== null && bins[selected] ? new Set(bins[selected].ids) : null;
   return <section className={styles.section} aria-label="租金价格分布">
     <div className={styles.heading}><h4>租金价格分布</h4><span className={styles.subtle}>{count} 个楼宇样本 · 元/㎡/月</span></div>
@@ -157,7 +159,11 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen, identity, a
   const [reading, setReading] = useMapObjectReadingState<AnalysisReading>('marketAnalysis', identity ?? name, {
     opened: false, period: null, others: [], product: type === 'park' ? 'park' : 'office',
   });
-  const { opened, others, product } = reading;
+  const { opened, others } = reading;
+  const plan = marketResearchArrangement(name);
+  const allowedProducts: readonly ResearchProductScope[] = type === 'park' ? ['park'] : type === 'office' ? ['office', 'a', 'b'] : ['office', ...RESEARCH_PRODUCTS];
+  const product = allowedProducts.includes(reading.product) ? reading.product : allowedProducts[0];
+  const [showOther, setShowOther] = React.useState(false);
   const [retry, setRetry] = React.useState(0);
   const [read, setRead] = React.useState<{ key: string; data: MarketAssetResearchPayload | null; error: boolean } | null>(null);
   const now = new Date();
@@ -191,14 +197,14 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen, identity, a
   return <section className={styles.analytics} aria-label="市场深度分析">
     <button className={styles.action} type="button" aria-expanded={opened} onClick={() => {
       setRead(null); setReading(previous => ({ ...previous, opened: !previous.opened }));
-    }}>{opened ? '收起市场深度分析' : '市场深度分析与区域比较'}</button>
+    }}>{opened ? '收起市场深度分析' : (plan?.analysisTitle ?? '市场深度分析与区域比较')}</button>
     {opened && <>
       <div className={styles.toolbar}>
         <label>查询季度<select value={period} onChange={event => setReading(previous => ({ ...previous, period: Number(event.target.value) }))}>
           {quarters.map(value => <option key={value} value={value}>{quarterLabel(value)}</option>)}
         </select></label>
         <label>产品范围<select value={product} onChange={event => setReading(previous => ({ ...previous, product: event.target.value as ResearchProductScope }))}>
-          {(['office', ...RESEARCH_PRODUCTS] as const).map(grade => <option key={grade} value={grade}>{productNames[grade]}</option>)}
+          {allowedProducts.map(grade => <option key={grade} value={grade}>{productNames[grade]}</option>)}
         </select></label>
         {others.map((market, index) => <div key={index}><label>比较区域 {index + 1}<select value={market} onChange={event => updateOthers(others.map((value, i) => i === index ? event.target.value : value))}>
           <option value="">选择区域</option>{markets.filter(item => item !== name && (!others.includes(item) || item === market)).map(item => <option key={item}>{item}</option>)}
@@ -209,9 +215,11 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen, identity, a
       {!payload ? read?.key === key && read.error ? <div role="status">分析暂不可用。<button type="button" className={styles.action} onClick={() => setRetry(value => value + 1)}>重试</button></div>
         : <p role="status">正在读取同季度行情…</p> : <>
         {comparison.length > 1 && <Matrix rows={comparison} heading="子市场同季度比较" />}
-        {productRows.length > 1 && <Matrix rows={productRows} heading="产品结构与行情比较" />}
-        {analysis?.distribution ? <Distribution key={key + product} analysis={analysis} onOpen={onOpen} /> : <p className={styles.subtle}>当前产品在该季度暂无有效租金观测。</p>}
-        {analysis && analysis.paired.length > 0 && <section className={styles.section} aria-label="租金与空置率关联">
+        {(() => {
+          const modules: Record<ResearchAnalysisModule, React.ReactNode> = {
+            product: productRows.length > 1 ? <Matrix rows={productRows} heading="产品结构与行情比较" /> : null,
+            distribution: analysis?.distribution ? <Distribution key={key + product} analysis={analysis} onOpen={onOpen} /> : null,
+            scatter: analysis && analysis.paired.length > 0 && <section className={styles.section} aria-label="租金与空置率关联">
           <div className={styles.heading}><h4>租金与空置率</h4><span className={styles.subtle}>{analysis.paired.length} 个同季度配对项目</span></div>
           {analysis.paired.length >= 3 ? <>
             <p className={styles.subtle}>横轴净有效租金（元/㎡/月） · 纵轴空置率（%）</p>
@@ -220,10 +228,21 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen, identity, a
             <p className={styles.subtle}>点大小反映已知面积{analysis.paired.length >= 5 ? '；虚线为配对样本中位数' : ''}。</p>
             <details><summary>查看散点对应楼宇</summary><ProjectList points={analysis.paired} onOpen={onOpen} /></details>
           </> : <ProjectList points={analysis.paired} onOpen={onOpen} />}
-        </section>}
-        <MarketContexts payload={payload} names={comparison.map(row => row.label)} product={product} period={period} onOpen={onOpen} />
-        <Demand payload={payload} name={name} onOpen={onOpen} />
-        <Supply payload={payload} name={name} />
+        </section>,
+            context: <MarketContexts payload={payload} names={comparison.map(row => row.label)} product={product} period={period} onOpen={onOpen} />,
+            demand: !payload.demandAvailable || payload.demand[name] ? <Demand payload={payload} name={name} onOpen={onOpen} /> : null,
+            supply: payload.supplies === null || (() => { const summary = summarizeResearchSupply(payload.supplies, name); return summary.count > 0 || summary.enteredCount > 0; })()
+              ? <Supply payload={payload} name={name} /> : null,
+          };
+          const order = plan?.analysis ?? researchAnalysisModules;
+          const more = researchAnalysisModules.filter(module => !order.includes(module) && modules[module]);
+          return <>
+            {order.map(module => <React.Fragment key={module}>{modules[module]}</React.Fragment>)}
+            {order.includes('distribution') && !analysis?.distribution && (plan?.benchmark || !plan) && <p className={styles.subtle}>当前产品在该季度暂无有效租金观测。</p>}
+            {!!more.length && <button type="button" className={styles.action} aria-expanded={showOther} onClick={() => setShowOther(value => !value)}>{showOther ? '收起其他分析' : '其他可用分析'}</button>}
+            {showOther && more.map(module => <React.Fragment key={module}>{modules[module]}</React.Fragment>)}
+          </>;
+        })()}
       </>}
     </>}
   </section>;

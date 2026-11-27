@@ -34,12 +34,13 @@ export function ResearchCoreMetrics({ items, scope, measured = true, label = '�
   </section>;
 }
 
-export function OfficeResearchCoreMetrics({ name, summary, buildings, beijingBenchmarkBuildings, measured }: {
+export function OfficeResearchCoreMetrics({ name, summary, buildings, beijingBenchmarkBuildings, measured, projectFirst = false }: {
   name: string;
   summary: SubmarketSummary;
   buildings: readonly MarketBuilding[];
   beijingBenchmarkBuildings?: readonly MarketBuilding[];
   measured?: boolean;
+  projectFirst?: boolean;
 }) {
   const current = useMemo(() => describeCurrentResearchMarket(name, buildings, beijingBenchmarkBuildings), [name, buildings, beijingBenchmarkBuildings]);
   const rentPeriods = current.rent.periods;
@@ -50,13 +51,13 @@ export function OfficeResearchCoreMetrics({ name, summary, buildings, beijingBen
     [available(value) && !sharedPeriod && (periods.length > 1 ? `跨期 ${periods[0]}–${periods[periods.length - 1]}` : periods[0] || '期间未收录'),
       samples === 1 && '单项目样本', available(benchmark) && `较北京同口径 ${signedResearchNumber(benchmark)} ${unit}`].filter(Boolean).join(' · ');
   return <ResearchCoreMetrics measured={measured} scope={'当前筛选 · 甲乙级' + (sharedPeriod ? ' · 租金／空置率 ' + sharedPeriod : '')}
-    items={[
+    items={([
       { key: 'rent', label: '平均净有效租金', value: summary.rent, unit: '元/㎡/月',
         context: context(summary.rent, rentPeriods, summary.rentSampleCount, measured === false ? undefined : current.rent.benchmark?.difference, '元/㎡/月') },
       { key: 'vacancy', label: '平均空置率', value: summary.vacancyPct, unit: '%',
         context: context(summary.vacancyPct, vacancyPeriods, summary.vacancySampleCount, measured === false ? undefined : current.vacancyPct.benchmark?.difference, '个百分点') },
       { key: 'projects', label: '甲乙级项目', value: summary.officeCount, unit: '个', precision: 0 },
-    ]} />;
+    ] satisfies ResearchCoreMetric[]).filter(item => !projectFirst || item.key === 'projects' || (available(item.value) && (item.key === 'rent' ? summary.rentSampleCount : summary.vacancySampleCount) >= 2))} />;
 }
 
 type Pulse = { key: string; label: string; period: string; value: number; unit: string; change: string; matched: string };
