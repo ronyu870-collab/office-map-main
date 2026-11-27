@@ -14,7 +14,7 @@ type Settings = WorkspaceDetail['workspace']['page_settings'];
 const editionPageSchema = z.object({
   slideId: z.uuid(), ownerProjectId: z.uuid().nullable(), recipeKey: z.string().nullable(), content: slideContentSchema,
 });
-const baselineSchema = z.object({ pages: z.array(editionPageSchema), recipeKeys: z.array(z.string()), title: z.string().nullable() });
+const baselineSchema = z.object({ pages: z.array(editionPageSchema), recipeKeys: z.array(z.string()), title: z.string().nullable(), submarkets: z.array(z.string()).nullable().optional() });
 type Baseline = z.infer<typeof baselineSchema>;
 
 export async function readEditionBaseline(ctx: PitchContext, current: WorkspaceDetail) {

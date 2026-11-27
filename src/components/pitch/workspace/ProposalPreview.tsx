@@ -54,7 +54,7 @@ type Request = {
 };
 const receiptSchema = z.discriminatedUnion("state", [
   z.object({ taskId: z.uuid(), state: z.literal("completed"), projectId: z.uuid() }),
-  z.object({ taskId: z.uuid(), state: z.enum(["queued", "running", "failed", "cancelled"]), projectId: z.uuid().optional() }),
+  z.object({ taskId: z.uuid(), state: z.enum(["queued", "running", "failed", "cancelled"]), projectId: z.uuid().optional(), errorCode: z.string().optional() }),
 ]);
 type Project = { id: string; version: number };
 export type ProposalProjectInput = {
@@ -185,7 +185,8 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         setTaskProgress(undefined);
         if (receipt.state !== "completed") {
           submission.current = { ...entry, taskId: crypto.randomUUID() };
-          setError(receipt.state === "cancelled" ? "生成已取消。可以重新生成。" : "生成失败。可以重新生成。");
+          setError(receipt.errorCode === "PITCH_EDITION_LAYOUT" ? "新一季度的内容无法与部分已编辑页面对应。请核对原稿布局和文字后重新生成。"
+            : receipt.state === "cancelled" ? "生成已取消。可以重新生成。" : "生成失败。可以重新生成。");
           return;
         }
         entry.completedProject = receipt.projectId;

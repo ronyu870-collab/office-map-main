@@ -134,9 +134,9 @@ export async function prepareBusinessProject(ctx:PitchContext,command:BusinessGe
     }
     for(const page of buildBusinessPages(recipe,assets,command.language,part.length,part.variant))groups.push({...page,content:part.title?{...page.content,title:part.title}:page.content});
   }
-  const { capturedAssets, ...rendered } = await prepareBusinessPages(ctx, groups, theme, mediaRows);
-  const visualSources = getVisualPageReceipts(rendered.slides.map(page => page.content));
-  const input={...command,action:'business_generate_commit',requestKey:hash(visualSources.length ? [command,visualSources] : command),bindings,snapshots,recipes,...rendered};
+  const { capturedAssets, slides, generated, changes } = await prepareBusinessPages(ctx, groups, theme, mediaRows);
+  const visualSources = getVisualPageReceipts(slides.map(page => page.content));
+  const input={...command,action:'business_generate_commit',requestKey:hash(visualSources.length ? [command,visualSources] : command),bindings,snapshots,recipes,changes,generated,slides};
   checkGenerationSize(input);
   return { input, capturedAssets, snapshotsByPart };
 }
@@ -146,7 +146,7 @@ export function checkGenerationSize(input: unknown) {
 }
 
 export async function prepareBusinessPages(ctx: PitchContext, groups: readonly PageGroup[], theme: DesignTheme, mediaRows: MediaRow[]) {
-  const slides=[],generated=[];const changes:{group:number;reason:string}[]=[];
+  const slides=[],generated=[];const slideGroups: number[] = [];const changes:{group:number;reason:string}[]=[];
   const capturedAssets: { assetId:string; snapshotIndex:number; contentIndex:number }[]=[];
   for(const [group,page]of groups.entries()) {
     const content = slideContentSchema.parse(page.content);
@@ -170,7 +170,10 @@ export async function prepareBusinessPages(ctx: PitchContext, groups: readonly P
     for (const [index, part] of parts.entries()) {
       const id = normalized || index === 0 ? assetId : randomUUID();
       if (!normalized) generated.push({ id, content: part.content, sha256: hash(part.content) });
-      for (const scene of part.scenes) slides.push({ slideId: randomUUID(), assetId: id, assetVersion: 1, content: part.content, scene, theme });
+      for (const scene of part.scenes) {
+        slides.push({ slideId: randomUUID(), assetId: id, assetVersion: 1, content: part.content, scene, theme });
+        slideGroups.push(group);
+      }
     }
     if(slides.length>50)throw new DocumentError('PITCH_PAGE_LIMIT','本次生成超过 50 页，请拆为多个 Pitch；未静默删减内容。');
   }
@@ -183,7 +186,7 @@ export async function prepareBusinessPages(ctx: PitchContext, groups: readonly P
     await assertSceneQuality(page.scene, theme, media);
   }
   const numbered=numberDeckPages(slides).map(({slideId,assetId,assetVersion,content,scene})=>({slideId,assetId,assetVersion,content,scene}));
-  return { changes, generated, slides: numbered, capturedAssets };
+  return { changes, generated, slides: numbered, capturedAssets, slideGroups };
 }
 export async function generateBusinessProject(
   ctx: PitchContext, command: BusinessGenerationCommand, expectedAssetVersions?: ReadonlyMap<string, number>,

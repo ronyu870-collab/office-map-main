@@ -154,16 +154,17 @@ it("rechecks the same home project version when confirming a newly reviewed plan
 
 it("follows the original task automatically and resumes after an interrupted progress request", async () => {
   const user = userEvent.setup();
-  const confirmations: { taskId: string }[] = [];
+  const interpretationReceipt = "reviewed-slots." + "r".repeat(43);
+  const confirmations: { taskId: string; interpretationReceipt?: string }[] = [];
   const onGenerated = vi.fn(async () => {});
   const call = vi.fn(async (entry: Record<string, unknown>) => {
     if (entry.action === "proposal_plan") {
-      return { status: "ready", selection: "none",
+      return { status: "ready", selection: "none", interpretationReceipt,
         plan: { id, title: "季度市场报告", version: 1, contextFingerprint: fingerprint,
           slides: [{ id: newId, title: "北京市场" }], gaps: [] },
         brief: { city: "北京", submarkets: [], period: "2026-Q3", buildingIds: [] } };
     }
-    const confirmation = entry.confirmation as { taskId: string };
+    const confirmation = entry.confirmation as (typeof confirmations)[number];
     confirmations.push(confirmation);
     if (confirmations.length === 2) throw new Error("进度查询中断");
     const state = ["queued", null, "running", "cancelled", "completed"][confirmations.length - 1];
@@ -179,6 +180,7 @@ it("follows the original task automatically and resumes after an interrupted pro
   await user.click(screen.getByRole("button", { name: "重新查询生成进度" }));
   await screen.findByText("正在生成提案…", {}, { timeout: 4000 });
   await screen.findByText("生成已取消。可以重新生成。", {}, { timeout: 4000 });
+  expect(confirmations[0].interpretationReceipt).toBe(interpretationReceipt);
   expect(confirmations).toEqual(Array(4).fill(confirmations[0]));
   expect(onGenerated).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "确认并生成 Pitch" }));

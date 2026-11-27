@@ -3,7 +3,7 @@ import { mediaRowSchema, pitchRpc, type PitchContext } from "../data/store";
 import { loadMedia, studioRegistry } from "../data/renderWorkflow";
 import { assertSceneQuality } from "../layout/quality";
 import type { WorkspaceDetail, WorkspaceSave } from "../workspace/protocol";
-import { resolveVisualPageMedia } from "../visual-data/resolve";
+import { resolveVisualPageMedia, type ResolvedVisualMedia } from "../visual-data/resolve";
 import { getWorkspace } from "../workspace/workflow";
 
 export type RevisionPage = WorkspaceDetail["slides"][number] & { version: number };
@@ -43,14 +43,15 @@ export function createProposalCanvasServices({ readPageMedia, commitPayload }: C
 
 const previewMedia = z.object({ media: z.array(mediaRowSchema) });
 
-export const readProposalPageMedia: CanvasBinding["readPageMedia"] = async (ctx, projectId, page) => {
+export async function readProposalPageMedia(ctx: PitchContext, projectId: string,
+  page: Pick<RevisionPage, "content" | "scene">, resolvedMedia?: ResolvedVisualMedia[]) {
   if (!page.scene.elements.some(element => element.kind === "image")) return [];
   const [context, resolved] = await Promise.all([
     pitchRpc(ctx, { action: "preview_context", projectId }),
-    resolveVisualPageMedia(ctx, [page], "internal"),
+    resolvedMedia ?? resolveVisualPageMedia(ctx, [page], "internal"),
   ]);
   return loadMedia(ctx, previewMedia.parse(context).media, [page.scene], { resolved });
-};
+}
 
 export async function installedLanguageCanvasServices() {
   const { commitPayload } = await import("../workspace/workflow");

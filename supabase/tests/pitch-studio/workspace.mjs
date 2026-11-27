@@ -14,7 +14,10 @@ import {
   VIEWER,
   sessionFor,
 } from "./database.mjs";
-import { businessFixture, TEST_SCOPE as scope } from "./business-fixtures.mjs";
+import { businessFixture, dynamicFixture, TEST_SCOPE as scope } from "./business-fixtures.mjs";
+import { installPitchDataFixture } from "./business-data-fixture.mjs";
+import { grantQuery } from "../ai-query-authority/database.mjs";
+import { BUILDINGS } from "../ai-query-authority/snapshot-fixture.mjs";
 const require = createRequire(import.meta.url),
   workflow = require("../../../src/lib/pitch/business/workflow.ts"),
   library = require("../../../src/lib/pitch/library/workflow.ts"),
@@ -1156,30 +1159,40 @@ try {
       const { layoutSlides } = require("../../../src/lib/pitch/layout/engine.ts");
       const { studioRegistry } = require("../../../src/lib/pitch/data/renderWorkflow.ts");
       const { randomUUID } = require("node:crypto");
+      await installPitchDataFixture(db);
+      await db.setup.query("update private.ai_query_control set enabled=true");
+      await grantQuery(db, ADMIN, { capabilities: ["query:catalog", "query:quarter", "export:internal"],
+        fields: ["totalArea", "vacantArea", "netEffectiveRent"] });
+      const author = ctx(ADMIN);
       const sourceId = randomUUID();
+      const parts = quarter => [staticPart("corporate-overview", [ids.corporate]), {
+        mode: "dynamic", parameters: { ...dynamicFixture, templateId: "vacancy-comparison",
+          buildingIds: BUILDINGS, targetBuildingId: BUILDINGS[0], chart: "bar", period: { year: 2026, quarter } },
+      }];
       const inputs = {
         action: "generate", projectId: sourceId, title: "旧季度草稿", scope, language: "zh", themeId: "colliers-default-v1", themeVersion: 2,
-        parts: [staticPart("corporate-overview", [ids.corporate])],
+        parts: parts(3),
       };
-      const { input } = await workflow.prepareBusinessProject(ordinary, inputs);
+      const { input } = await workflow.prepareBusinessProject(author, inputs);
       const byPosition = slides => Object.fromEntries(slides.map((slide, index) => [slide.slideId, "overview:" + index]));
-      await db.rpc(OTHER, { ...input, reviewedPlanId: randomUUID(), reviewedSlideKeys: byPosition(input.slides) });
-      const project = await workspace.getWorkspace(ordinary, sourceId);
+      await db.rpc(ADMIN, { ...input, reviewedPlanId: randomUUID(), reviewedSlideKeys: byPosition(input.slides) });
+      const project = await workspace.getWorkspace(author, sourceId);
       const slideId = project.slides[0].id;
-      const withNote = await workspace.saveWorkspace(ordinary, save(project, {
+      const withNote = await workspace.saveWorkspace(author, save(project, {
         context: { ...project.workspace.context, period: "2026-Q3" },
         pages: [{ id: slideId, title: "自定义标题", manualNote: "注释跨季度保留" }, ...project.slides.slice(1).map(page => ({ id: page.id }))],
       }));
-      const before = await workspace.customWorkspace(ordinary, {
+      const before = await workspace.customWorkspace(author, {
         action: "custom", projectId: sourceId, expectedVersion: withNote.project.version,
         title: "独立人工页", body: "由项目组维护的说明。",
       });
       await assert.rejects(readEditionBaseline(owner, before), /PITCH_DENIED/);
-      await assert.rejects(readEditionBaseline(ordinary, project), /PITCH_CONFLICT/);
+      await assert.rejects(readEditionBaseline(author, project), /PITCH_CONFLICT/);
+      let preparationError;
       const prepare = failure => async (actor, stored, destination, assemble) => {
         await assemble();
         const { input: payload } = await workflow.prepareBusinessProject(actor, { ...inputs, projectId: destination, parentProjectId: sourceId,
-          title: "新季度草稿" });
+          title: "新季度草稿", parts: parts(2) });
         const recipeKeys = byPosition(payload.slides);
         const fresh = payload.slides.map(page => ({
           id: page.slideId, asset_id: page.assetId, asset_version: page.assetVersion, template_id: "business-content",
@@ -1192,7 +1205,10 @@ try {
             const rendered = await layoutSlides(content, theme.definition, previous.layoutId, previous.variant);
             assert.equal(rendered.length, 1);
             return rendered[0];
-          } });
+          } }).catch(error => {
+          if (!failure) preparationError = error;
+          throw error;
+        });
         const editionSave = await workspace.commitPayload(actor, { ...before,
           project: { ...before.project, id: destination, version: 1 } }, overlay.pages, overlay.settings, {
           activeSlide: overlay.activeSlide, context: { ...before.workspace.context, period: "2026-Q2" },
@@ -1206,23 +1222,29 @@ try {
         planId: randomUUID(), contextFingerprint: "a".repeat(64), request: { projectId: sourceId, question: "更新正式季度" } });
       for (const reason of ["asset", "period"]) {
         const discarded = randomUUID(), failure = queued();
-        await startProposalTask(ordinary, failure, discarded);
-        await runProposalTask(ordinary, sourceId, failure.taskId, prepare(reason));
-        await assert.rejects(workspace.getWorkspace(ordinary, discarded), /PITCH_DENIED/);
-        assert.equal((await db.rpc(OTHER, { action: "workspace_task_status", projectId: sourceId, taskId: failure.taskId })).state, "failed");
+        await startProposalTask(author, failure, discarded);
+        await runProposalTask(author, sourceId, failure.taskId, prepare(reason));
+        await assert.rejects(workspace.getWorkspace(author, discarded), /PITCH_DENIED/);
+        assert.equal((await db.rpc(ADMIN, { action: "workspace_task_status", projectId: sourceId, taskId: failure.taskId })).state, "failed");
       }
       const targetId = randomUUID(), confirmed = queued();
-      await startProposalTask(ordinary, confirmed, targetId);
-      await runProposalTask(ordinary, sourceId, confirmed.taskId, prepare());
-      const state = await db.rpc(OTHER, { action: "workspace_task_status", projectId: sourceId, taskId: confirmed.taskId });
+      await startProposalTask(author, confirmed, targetId);
+      await runProposalTask(author, sourceId, confirmed.taskId, prepare());
+      const state = await db.rpc(ADMIN, { action: "workspace_task_status", projectId: sourceId, taskId: confirmed.taskId });
+      if (preparationError) throw preparationError;
       assert.equal(state.state, "completed", JSON.stringify(state));
-      const renewed = await workspace.getWorkspace(ordinary, targetId);
+      const renewed = await workspace.getWorkspace(author, targetId);
       const oldNote = before.workspace.page_settings[slideId].note;
       assert.equal(renewed.slides[0].content.title, "自定义标题");
       assert.equal(renewed.workspace.page_settings[renewed.slides[0].id].note.text, oldNote.text);
       assert.ok(renewed.slides.some(page => page.content.title === "独立人工页"));
       assert.equal(renewed.workspace.context.period, "2026-Q2");
-      const original = await workspace.getWorkspace(ordinary, sourceId);
+      const evidence = await db.rpc(ADMIN, { action: "business_generation", projectId: targetId });
+      assert.equal(evidence.snapshots[0].parameters.period.quarter, 2);
+      assert.equal(evidence.snapshots[0].dataAsOf, "2026-06-30");
+      assert.ok(renewed.slides.some(page => page.content.dataAsOf === "2026-06-30"),
+        JSON.stringify(renewed.slides.map(page => [page.content.title, page.content.dataAsOf])));
+      const original = await workspace.getWorkspace(author, sourceId);
       assert.deepEqual(original.slides, before.slides);
       assert.equal(original.workspace.context.period, "2026-Q3");
     },

@@ -715,12 +715,14 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           assert.notEqual(child, projectId);
           assert.equal(changed.workspace.context.period, "2026-Q2");
           assert.equal(changed.project.parent_project_id, projectId);
+          assert.equal(changed.slides[0].content.title, editedTitle, "quarter switch lost the operator's saved title");
           assert.ok(changed.slides.some(slide => slide.content.dataAsOf === "2026-06-30" &&
             slide.content.blocks.some(block => block.kind === "chart" || block.kind === "metric")));
           const original = await readProject(projectId);
           assert.equal(original.project.version, reopened.project.version);
           assert.equal(original.slides[0].content.title, editedTitle);
           result.regeneratedPeriod = changed.workspace.context.period;
+          result.preservedQuarterEdit = true;
         }
         if (scenario.scenario === "site-selection" && replacementCandidates.length) {
           result.stage = "replacing candidate";
