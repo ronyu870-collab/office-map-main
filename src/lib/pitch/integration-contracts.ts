@@ -1,8 +1,8 @@
 import type { DataBinding, PitchDataSnapshot } from './business/adapter';
 import type { PitchScope, SlideContent, SourceReference } from './contracts/content';
 import type { LayoutId } from './contracts/scene';
-import type { ExportArtifact, PitchProject } from './contracts/entities';
-import type { ProjectContext, WorkspaceSave } from './workspace/protocol';
+import type { ExportArtifact } from './contracts/entities';
+import type { ProjectContext, WorkspaceHandoffInput, WorkspaceSave } from './workspace/protocol';
 
 export type ProposalScenario = 'leasing-agency' | 'office-comparison' | 'market-report'
   | 'building-promotion' | 'site-selection' | 'analysis-briefing';
@@ -71,11 +71,4 @@ export type DocumentModificationPlan = Pick<WorkspaceSave, 'projectId' | 'expect
 };
 
 /** Navigation or an explicit append action. The source ID must be resolved in the active session. */
-export type AddToPitch = {
-  source: { kind: 'buildings'; buildingIds: string[] }
-    | { kind: 'submarket'; key: string }
-    | { kind: 'analysis-result'; id: string };
-  projectId?: PitchProject['id'];
-  period?: ProjectContext['period'];
-  language?: ProjectContext['language'];
-};
+export type AddToPitch = WorkspaceHandoffInput;

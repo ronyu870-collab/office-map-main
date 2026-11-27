@@ -64,12 +64,14 @@ async function prepareHandoff(ctx: PitchContext, input: Handoff, stackingPort?: 
     };
   }
   const lease = source.kind === 'lease-search' ? source : undefined;
+  const research = source.kind === 'quarterly-research' ? source : undefined;
+  if (research && current && current.project.city !== '北京') throw new Error('QUERY_DENIED');
   const resolved = source.kind === 'analysis-result' ? await resolveAnalysis(ctx, source.id) : undefined;
   const buildingIds = source.kind === 'buildings' ? source.buildingIds : lease?.buildingIds ?? resolved?.buildingIds ?? [];
   const submarkets = source.kind === 'submarket' ? [source.key] : lease?.submarkets ?? resolved?.submarkets ?? [];
   const language = input.language ?? current?.workspace.context.language ?? 'zh';
-  const periodKey = lease ? '' : input.period ||
-    (resolved?.period ? `${resolved.period.year}-Q${resolved.period.quarter}` : current?.workspace.context.period);
+  const periodKey = lease ? '' : research ? research.edition.replace('Q', '-Q')
+    : input.period || (resolved?.period ? `${resolved.period.year}-Q${resolved.period.quarter}` : current?.workspace.context.period);
   if (!lease && !periodKey) return { status: 'period_required' as const, buildingIds, submarkets, language };
   const period = quarterSchema.parse(lease
     ? { year: Number(lease.to.slice(0, 4)), quarter: Math.ceil(Number(lease.to.slice(5, 7)) / 3) }
@@ -79,7 +81,8 @@ async function prepareHandoff(ctx: PitchContext, input: Handoff, stackingPort?: 
       ? (lease.view === 'transactions' ? 'lease-representatives' : 'lease-industry-distribution')
       : resolved?.aggregateMetrics || !buildingIds.length ? 'quarter-market-summary'
         : buildingIds.length === 1 ? 'building-profile' : 'project-comparison',
-    buildingIds, submarkets, inventory: resolved?.inventory ?? 'all_authorized', period, start: period, end: period,
+    buildingIds, submarkets, inventory: research ? 'tracked' : resolved?.inventory ?? 'all_authorized', period, start: period, end: period,
+    ...(research ? { researchScope: 'beijing-office-grade-a' } : {}),
     fields: lease ? [] : ['totalArea', 'vacantArea', 'netEffectiveRent'],
     chart: lease && lease.view !== 'transactions' ? 'bar' : 'table', direction: lease?.direction ?? 'asc',
     from: lease?.from ?? period.year + '-01-01', to: lease?.to ?? period.year + '-12-31',
@@ -96,6 +99,7 @@ async function prepareHandoff(ctx: PitchContext, input: Handoff, stackingPort?: 
   const version = documentDataVersion(snapshot.results);
   const fingerprint = digest(Buffer.from(JSON.stringify({ source, projectId: input.projectId, parameters, language, version, authority: snapshot.binding })));
   return { status: 'ready' as const, buildingIds, submarkets, period: periodKey ?? '', language, binding, version, parameters, fingerprint,
+    ...(research ? { sourceCity: '北京' } : {}),
     pages: snapshot.content.map(content => ({ title: content.title, blocks: content.blocks, sources: content.sources })),
   };
 }
@@ -112,7 +116,7 @@ export async function startHandoff(ctx: PitchContext, command: Extract<HandoffCo
   if (replay !== null) return reviewSchema.parse(replay);
   const review = await prepareHandoff(ctx, handoff, stackingPort);
   if (review.status !== 'ready' || review.fingerprint !== command.fingerprint) throw new Error('PITCH_HANDOFF_CHANGED');
-  if (review.stackingSource && target.mode === 'create' && target.scope.city !== review.sourceCity) throw new Error('QUERY_DENIED');
+  if (review.sourceCity && target.mode === 'create' && target.scope.city !== review.sourceCity) throw new Error('QUERY_DENIED');
   const create = target.mode === 'create' ? {
     title: target.title, scope: target.scope, themeId: target.themeId, themeVersion: target.themeVersion,
     context: projectContextSchema.parse({ buildingIds: review.buildingIds, language: review.language, period: review.period }),

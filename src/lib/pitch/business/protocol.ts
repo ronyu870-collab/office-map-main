@@ -53,10 +53,13 @@ export const dynamicParametersSchema = z.strictObject({
   direction: z.enum(['asc','desc']), chart: z.enum(['bar','column','line','table']),
   from: z.iso.date(), to: z.iso.date(), leaseSource: z.enum(['live','history','combined']),
   measure: z.enum(['count','area']),
+  researchScope: z.literal('beijing-office-grade-a').optional(),
   aggregateMetrics: z.array(z.enum(['rent','vacancy','totalArea'])).min(1).max(3)
     .refine(metrics => new Set(metrics).size === metrics.length).optional(),
   aggregateFilter: aggregateFilterSchema.optional(),
-}).refine(p => p.templateId === 'quarter-market-summary' || !p.aggregateMetrics && !p.aggregateFilter);
+}).refine(p => p.templateId === 'quarter-market-summary' || !p.aggregateMetrics && !p.aggregateFilter && !p.researchScope)
+  .refine(p => !p.researchScope || (p.inventory === 'tracked' && !p.buildingIds.length && !p.submarkets.length
+    && !p.aggregateMetrics && !p.aggregateFilter && !p.targetBuildingId));
 export type DynamicParameters = z.infer<typeof dynamicParametersSchema>;
 export const generationPartSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.enum(['static','semi-dynamic']), templateId: z.string().min(1).max(100), assetIds: z.array(id).min(1).max(30),
