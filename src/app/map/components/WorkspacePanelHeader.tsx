@@ -33,7 +33,7 @@ export function WorkspacePanelHeader({ title, subtitle, metadata, onClose, close
         </button> : inlineSubtitle ? <span className="workspace-heading-inline"><span>{title}</span><span className="workspace-heading-meta">{subtitle}</span></span> : title}
       </h2>
       {primaryAction}
-      {context?.compact ? <MapDisclosure width={264} actionMenu className="workspace-mobile-tools" label={<><MoreHorizontal size={16} aria-hidden="true" /><span className="sr-only">工作区操作</span></>}>
+      {context?.compact ? <MapDisclosure width={264} active={context.active !== false} actionMenu className="workspace-mobile-tools" label={<><MoreHorizontal size={16} aria-hidden="true" /><span className="sr-only">工作区操作</span></>}>
         <div className="workspace-mobile-tool-options">
           <button type="button" aria-pressed={context.mode === 'reading'}
             onClick={() => context.setMode(context.mode === 'reading' ? 'compact' : 'reading')}>{context.mode === 'reading' ? '收起为摘要' : '展开到阅读高度'}</button>

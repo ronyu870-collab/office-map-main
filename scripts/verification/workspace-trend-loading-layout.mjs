@@ -13,7 +13,7 @@ export async function verifyTrendLoadingLayout(page, { base, width }) {
       .map(([record_year, record_quarter, net_effective_rent, vacancy_rate]) => ({ record_year, record_quarter, net_effective_rent, vacancy_rate })) } });
   });
   const geometry = () => {
-    const host = document.querySelector('.workspace-project-trend-host'), source = document.querySelector('#info-chart-panel > p:last-child');
+    const host = document.querySelector('.workspace-project-trend-host'), source = document.querySelector('#info-chart-panel > details > summary');
     const scroll = document.querySelector('.workspace-building-scroll'), data = document.querySelector('[data-building-trend-data]');
     return { height: host.getBoundingClientRect().height, sourceTop: source.getBoundingClientRect().top, dataHeight: data.getBoundingClientRect().height, scrollHeight: scroll.scrollHeight, scrollTop: scroll.scrollTop };
   };
@@ -37,7 +37,7 @@ export async function verifyTrendLoadingLayout(page, { base, width }) {
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     const after = await page.evaluate(geometry);
     assert.ok(Math.abs(after.height - before.height) <= 1, `async trend data must retain reserved reading height: ${JSON.stringify({ before, after })}`);
-    assert.ok(Math.abs(after.sourceTop - before.sourceTop) <= 1, 'source note does not move when the period entry arrives');
+    assert.ok(Math.abs(after.sourceTop - before.sourceTop) <= 1, 'methodology trigger does not move when the period entry arrives');
     assert.ok(Math.abs(after.scrollHeight - before.scrollHeight) <= 1 && Math.abs(after.scrollTop - before.scrollTop) <= 1, 'async period entry preserves the scroll range and position');
     return { width, trendLoadingLayout: { requestActuallyDelayed: true, before, after } };
   } finally { release(); }

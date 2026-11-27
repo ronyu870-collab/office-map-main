@@ -131,6 +131,17 @@ describe('submarket research workspace', () => {
     expect(props.onShowAll).not.toHaveBeenCalled();
   });
 
+  it('shows a single-project warning beside the affected KPI and keeps ordinary sample counts on demand', async () => {
+    render(<SubmarketDetailPanel {...props} summary={{ ...summary, rentSampleCount: 1 }} />);
+    await screen.findByText(profile.headline);
+    const metrics = within(screen.getByRole('region', { name: '市场核心指标' }));
+    expect(metrics.getByText('平均净有效租金').parentElement).toHaveTextContent('单项目样本');
+    expect(metrics.getByText('平均空置率').parentElement).not.toHaveTextContent('有效样本');
+    expect(screen.queryByText('2 个有效样本', { exact: false })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('数据与统计口径'));
+    expect(await screen.findByRole('region', { name: '数据与统计口径' })).toHaveTextContent('2 个有效样本');
+  });
+
   it('keeps the region profile tab visible while loading and retries an unavailable profile in place', async () => {
     api.read.mockResolvedValueOnce({ ...payload, profileAvailable: false, profilePublished: false });
     let finishRetry!: (value: SubmarketDetailPayload) => void;
@@ -149,6 +160,22 @@ describe('submarket research workspace', () => {
     expect(active.getByText(profile.overview)).toBeInTheDocument();
     expect(tab).toHaveAttribute('aria-selected', 'true');
     expect(api.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the visible trend mounted during a profile refresh and removes it on permission denial', async () => {
+    const point = { period: '2026Q3', year: 2026, quarter: 3, rent: 180, vacancyPct: 10, rentSamples: 2, vacancySamples: 2, rentArea: 100, vacancyArea: 100 };
+    api.read.mockResolvedValueOnce({ ...payload, profileAvailable: false, profilePublished: false,
+      trends: { all: [point], a: [], b: [] } });
+    let rejectRefresh!: (error: unknown) => void;
+    api.read.mockReturnValueOnce(new Promise<SubmarketDetailPayload>((_, reject) => { rejectRefresh = reject; }));
+    render(<WorkspacePanelContext.Provider value={{ compact: false, mode: 'full', setMode: vi.fn() }}>
+      <SubmarketDetailPanel {...props} />
+    </WorkspacePanelContext.Provider>);
+    const trend = await screen.findByRole('region', { name: '指标走势' });
+    fireEvent.click(screen.getByRole('button', { name: '重试区域画像' }));
+    expect(screen.getByRole('region', { name: '指标走势' })).toBe(trend);
+    await act(async () => rejectRefresh({ status: 403 }));
+    expect(screen.queryByRole('region', { name: '指标走势' })).not.toBeInTheDocument();
   });
 
   it('shows zero future projects only after a successful read and hides unavailable area', async () => {
@@ -198,12 +225,19 @@ describe('submarket research workspace', () => {
     </WorkspacePanelContext.Provider>);
     expect(await screen.findByRole('region', { name: '指标走势' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '季度变化' })).not.toBeInTheDocument();
-    expect(screen.getByText('季度行情口径与来源').closest('details')).toHaveTextContent('历史按当前楼宇归属及等级统计');
+    const method = screen.getByText('数据与统计口径');
+    expect(method).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(method);
+    const details = await screen.findByRole('region', { name: '数据与统计口径' });
+    expect(details).toHaveTextContent('历史按当前楼宇归属及等级统计');
+    expect(details).toHaveTextContent('2 个有效样本');
+    fireEvent.keyDown(details, { key: 'Escape' });
+    expect(method).toHaveFocus();
 
     fireEvent.click(screen.getByRole('button', { name: '甲级' }));
     expect(screen.getByRole('region', { name: '指标走势' })).toHaveTextContent('2026Q3');
-    expect(screen.getByRole('region', { name: '季度行情' })).toHaveTextContent('完整授权子市场 · 甲级');
-    expect(screen.getAllByText('数据口径与来源')).toHaveLength(1);
+    expect(screen.getByRole('region', { name: '季度行情' })).toHaveTextContent('完整子市场 · 甲级');
+    expect(screen.getAllByText('数据与统计口径')).toHaveLength(1);
   });
 
   it('falls back to building composition when a published profile has only introduction copy', async () => {
@@ -323,7 +357,7 @@ describe('submarket research workspace', () => {
     });
     render(<SubmarketDetailPanel {...props} />);
     const edit = await screen.findByRole('button', { name: '维护资料' });
-    expect(screen.getByText('CBD办公市场概览')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^CBD$/ })).toBeInTheDocument();
     expect(screen.getAllByRole('tab')).toHaveLength(4);
     expect(screen.getByText('186.8')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: '区域画像' }));
@@ -399,7 +433,9 @@ describe('submarket research workspace', () => {
     render(<SubmarketDetailPanel {...props} />);
     await screen.findByText('同季度甲乙级租金差');
     expect(screen.getByText(/2026Q2 甲级减乙级/)).toHaveTextContent('+40 元/㎡/月');
-    expect(screen.queryByRole('region', { name: '季度变化' })).not.toBeInTheDocument();
+    const changes = within(screen.getByRole('region', { name: '季度变化' }));
+    expect(changes.getByText('190.0 元/㎡/月')).toBeVisible();
+    expect(changes.getByText('10.0%')).toBeVisible();
 
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
     const trend = within(screen.getByRole('region', { name: '季度行情' }));

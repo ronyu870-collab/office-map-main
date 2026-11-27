@@ -13,7 +13,7 @@ export function MarketTrendSummary({ data, compact = false }: {
   if (compact && plots.every(plot => !plot.latest)) return null;
   return <section className={styles.block} aria-label="季度变化">
     <h3>季度变化</h3>
-    {!compact && <p className={styles.secondary}>完整授权甲乙级子市场 · 正式季度行情</p>}
+    {!compact && <p className={styles.secondary}>完整子市场 · 甲乙级</p>}
     {plots.some(plot => plot.latest) ? <dl className={styles.summaryTrends}>
       {plots.map(({ metric, latest, latestChange, kind, axis }) => {
         if (!latest) return null;

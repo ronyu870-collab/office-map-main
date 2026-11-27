@@ -15,8 +15,9 @@ import type { WorkspaceView } from '../workspace/workspaceState';
 import { MapWorkspaceLayout } from './MapWorkspaceLayout';
 import { WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { MapDisclosure } from './MapDisclosure';
+import { MapMarketDataDetails } from './MarketDataDetails';
 import { SUBMARKET_COLORS, SUBMARKET_NEUTRAL } from '../runtime/mapSubmarketPresentation';
-import { marketObservationLabel, compactMarketArea } from '../model/mapMetricPresentation';
+import { compactMarketArea } from '../model/mapMetricPresentation';
 import { futureSupplyImage } from '../runtime/mapSelectionMarker';
 import { animateWorkspace, WORKSPACE_MOTION } from '../runtime/workspaceMotion';
 import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
@@ -291,22 +292,22 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
 function MetricStrip({ stats, busy }: { stats: MapStatsState; busy: boolean }) {
   const area = compactMarketArea(stats);
   const metrics = [
-    { label: '净有效租金', value: stats.avgRent, unit: '元/㎡/月' },
-    { label: '空置率', value: stats.overallVacancyPct, unit: '%' },
+    { label: '净有效租金', value: stats.avgRent, unit: '元/㎡/月', singleSample: stats.rentSample?.count === 1 },
+    { label: '空置率', value: stats.overallVacancyPct, unit: '%', singleSample: stats.vacancySample?.count === 1 },
     { label: '有坐标项目', value: stats.visibleProjectCount, unit: '个' },
-    { label: '存量面积', value: area.value, unit: area.unit, exact: area.exact, showsUpdating: true },
+    { label: '存量面积', value: area.value, unit: area.unit, showsUpdating: true },
   ];
 
   const [announcement, setAnnouncement] = React.useState('');
-  const description = metrics.map(metric => `${metric.label} ${metric.value} ${metric.unit}`).join('，');
+  const description = metrics.map(metric => `${metric.label} ${metric.value} ${metric.unit}${metric.singleSample ? '，单项目样本' : ''}`).join('，');
   React.useEffect(() => { if (busy) return; const timer = window.setTimeout(() => setAnnouncement(description), 400); return () => window.clearTimeout(timer); }, [busy, description]);
   return (
     <section className="map-live-stats" aria-label="市场实时指标" aria-busy={busy} aria-describedby="map-market-context">
-      <dl className="map-workspace-kpis" aria-live="off">{metrics.map(metric => <MetricValue key={metric.label} metric={metric} updating={busy && Boolean(metric.showsUpdating)} exact={metric.exact} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
+      <dl className="map-workspace-kpis" aria-live="off">{metrics.map(metric => <MetricValue key={metric.label} metric={metric} updating={busy && Boolean(metric.showsUpdating)} />)}</dl><span className="sr-only" role="status" aria-live="polite">{announcement}</span>
     </section>
   );
 }
-function MetricValue({ metric, updating = false, exact }: { updating?: boolean; exact?: string; metric: { label: string; value: string; unit: string } }) {
+function MetricValue({ metric, updating = false }: { updating?: boolean; metric: { label: string; value: string; unit: string; singleSample?: boolean } }) {
   const number = React.useRef<HTMLElement>(null);
   const previous = React.useRef(metric.value);
   React.useEffect(() => {
@@ -315,7 +316,11 @@ function MetricValue({ metric, updating = false, exact }: { updating?: boolean; 
     const animation = animateWorkspace(number.current, [{ opacity: .7 }, { opacity: 1 }], WORKSPACE_MOTION.feedback);
     return () => animation?.cancel();
   }, [metric.value]);
-  return <div><dt><span>{metric.label}</span>{updating ? <span className="map-stats-updating">更新中</span> : null}</dt><dd>{exact ? <MapDisclosure className="map-metric-precision" width={280} label={<><b ref={number} className="map-metric-number">{metric.value}</b><span>{metric.unit}</span><span className="sr-only">，查看精确面积</span></>}><h2>筛选存量面积</h2><p>{exact} 平方米</p><p>每楼最新正式观测；未知面积不计入，产业园包含在存量中。</p></MapDisclosure> : <><b ref={number} className="map-metric-number">{metric.value}</b><span>{metric.unit}</span></>}</dd></div>;
+  return <div>
+    <dt><span>{metric.label}</span>{updating && <span className="map-stats-updating">更新中</span>}</dt>
+    <dd><b ref={number} className="map-metric-number">{metric.value}</b><span>{metric.unit}</span></dd>
+    {metric.singleSample && <dd className="map-metric-caution">单项目样本</dd>}
+  </div>;
 }
 
 function SupplyProjectList({ projects, onSelect }: { projects: FullListBuilding[]; onSelect: (project: FullListBuilding) => void }) {
@@ -360,7 +365,7 @@ function SupplyPanel({
   const first = SUPPLY_CALENDAR_CATEGORIES.find(category => calendar[category].total > 0);
   const empty = SUPPLY_CALENDAR_CATEGORIES.filter(category => !calendar[category].total);
   return <section className="map-workspace-supply" aria-label="未来供应" aria-busy={Boolean(loading)}>
-    <WorkspacePanelHeader title="未来供应" subtitle={loading && !total ? (loading === 'initial' ? '正在读取项目' : '正在更新项目') : `已纳入统计 ${total} 个项目`} onClose={onClose} closeLabel="关闭未来供应" />
+    <WorkspacePanelHeader title="未来供应" subtitle={loading && !total ? (loading === 'initial' ? '正在读取项目' : '正在更新项目') : `${total} 个项目`} onClose={onClose} closeLabel="关闭未来供应" />
     <div ref={scroll} className="workspace-scroll workspace-supply-scroll">
       {loading ? <p role="status" className="workspace-note">{loading === 'initial' ? '正在读取未来供应…' : '正在更新未来供应…'}</p> : null}
       {warning ? <p role="alert" className="workspace-note">{warning}</p> : null}
@@ -727,7 +732,8 @@ export function MapWorkbenchView({
       <div className="map-workbench-tools">
       <header className="relative z-[500] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <div className="map-page-header">
-          <BrokerSearchLink /><div className="map-page-identity"><MapDisclosure className="map-context-disclosure" width={320} label={<h1 title="北京办公楼市场地图">北京办公楼市场地图<span id="map-market-context">{Object.keys(stats.periods ?? {}).length > 1 ? '筛选存量 · 混合季度' : marketObservationLabel(stats.periods)}</span></h1>}><h2>当前统计范围</h2><p>{marketObservationLabel(stats.periods)}</p><p>行情与面积包含当前筛选存量及产业园，采用每楼最新正式记录，允许不同观测季度。项目数量为可定位的当前列表项目，含已显示的未来供应。</p></MapDisclosure></div>
+          <BrokerSearchLink />
+          <div className="map-page-identity"><MapMarketDataDetails title="北京办公楼市场地图" stats={stats} active={!isFullListVisible} /></div>
           <MetricStrip stats={stats} busy={mapDataLoading || (!mapReady && !mapError)} />
           <div className="map-header-navigation">
             <Link href="/" className="workspace-header-link"><Home size={16} aria-hidden="true" />主页</Link>
