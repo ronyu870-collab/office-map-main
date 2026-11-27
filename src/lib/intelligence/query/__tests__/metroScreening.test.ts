@@ -6,6 +6,7 @@ import { attachMetroScreening, recheckMetroSources, screenMetroCandidates } from
 import type { DataAuthority, VerifiedQueryIdentity } from '../serverAuthority';
 import { buildListResult } from '../result';
 import { resultViewSchema } from '../presentation';
+import { sanitizeAuditContent } from '../auditStore';
 import { fixture, nameSource } from './fixtures';
 
 const read = vi.hoisted(() => vi.fn());
@@ -49,6 +50,10 @@ describe('metro catalog distance screening', () => {
     expect(resultViewSchema.safeParse(result).success).toBe(true);
     expect(result.table.rows.map(row => row.entityId)).toEqual(ids.slice(0, 2));
     expect(result.sources.filter(source => source.field === 'location_lng / location_lat').map(source => source.rawValue)).toEqual([null, null]);
+    const nearest = await screenMetroCandidates(client, actor, authority, { radiusMeters: 800, mapRequested: false }, signal);
+    if (typeof nearest === 'string') throw new Error(nearest);
+    expect(Object.hasOwn(nearest, 'stationName')).toBe(false);
+    expect(() => sanitizeAuditContent(nearest)).not.toThrow();
     await expect(recheckMetroSources(client, signal, result.sources, result.parameters)).resolves.toEqual(result.sources.slice(0, 2));
     rows[1].location_lat! += .002;
     await expect(recheckMetroSources(client, signal, result.sources, result.parameters)).rejects.toThrow('QUERY_DENIED');

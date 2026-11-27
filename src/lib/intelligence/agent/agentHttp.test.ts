@@ -7,13 +7,14 @@ import { resolveNumericFact } from '../query/facts';
 import { parseQueryPlan, type QueryPlan } from '../query/plan';
 import { executeQueryPlan } from '../query/executePlan';
 import { describePlanRead } from '../query/snapshotReader';
+import { sanitizeAuditContent } from '../query/auditStore';
 import { encryptAuditContent } from '../query/auditCrypto';
 import { formalTrend } from '../research/testFixtures';
 import { attachResearchAnalysis } from '../query/researchAnalysis';
 
 const state = vi.hoisted(() => ({
   receive: vi.fn(), append: vi.fn(), provider: vi.fn(), tool: vi.fn(), structured: vi.fn(), knowledge: vi.fn(), knowledgeCheck: vi.fn(),
-  readArchive: vi.fn(), recoverArchive: vi.fn(), identity: vi.fn(), authority: vi.fn(), intake: vi.fn(), history: vi.fn(), save: vi.fn(),
+  readArchive: vi.fn(), recoverArchive: vi.fn(), identity: vi.fn(), authority: vi.fn(), intake: vi.fn(), history: vi.fn(), save: vi.fn(), metro: vi.fn(),
 }));
 
 vi.mock('../query/serverAuthority', () => ({
@@ -24,6 +25,9 @@ vi.mock('../query/auditStore', async original => ({
   createRpcAuditPort: () => ({ receive: state.receive, append: state.append }),
 }));
 vi.mock('../query/recovery', () => ({ readOwnResult: state.readArchive, recoverOwnResult: state.recoverArchive }));
+vi.mock('../query/metroScreening', async original => ({
+  ...(await original<typeof import('../query/metroScreening')>()), screenMetroCandidates: state.metro,
+}));
 vi.mock('../query/intake', () => ({ recordQueryIntake: state.intake }));
 vi.mock('../query/historyStore', () => ({ recordHistorySubmission: state.save }));
 vi.mock('./modelProvider', async original => ({
@@ -95,6 +99,27 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it('writes a named-station result without a market through the real JSON audit sanitizer', async () => {
+    const id = randomUUID(), name = '合成楼宇';
+    state.metro.mockResolvedValue({ radiusMeters: 800, stationName: '国贸', datasetVersion: 'a'.repeat(64),
+      generatedAt: '2026-04-03T05:39:01.612Z', locatedCount: 1, missingCoordinates: 0, matchedCount: 1,
+      candidates: [{ buildingId: id, locationVersion: 'b'.repeat(64), stationId: 'fixture-station', stationName: '国贸',
+        stationLine: '地铁1号线', stationCenter: [116.46, 39.91], meters: 111 }] });
+    state.structured.mockImplementation(async (_env, _tool, { plan }: { plan: QueryPlan }) => {
+      const result = executeQueryPlan(plan, [{ ...fixture(), period: null, expectedCount: 1,
+        rows: [{ id, name, nameSource: nameSource(id, name), facts: {} }],
+        queryScope: { ...plan.scope, filter: null, requestedFields: [], inventoryTime: 'current_catalog', brochureSelection: 'all_unresolved_record_candidates' } }]);
+      return { result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) };
+    });
+    state.append.mockImplementation(async (_requestId, _kind, content) => { sanitizeAuditContent(content); });
+    const response = await handleAgentSubmission(fakeRequest('在国贸地铁站，步行不超过800米的办公选址，给出地图链接').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.result.table.rows[0].cells.metroStraightLine.value.numeric).toBe(111);
+    expect(body.result.parameters.agentMap.buildingIds).toEqual([id]);
+    expect(body.message).toContain('实际步行路线待核验');
+    expect(state.provider).not.toHaveBeenCalled();
+  });
   it.each(['available', 'unavailable', 'denied'])('keeps the concept and only uses verified quarterly examples (%s)', async stateOfSource => {
     const period = { year: 2026, quarter: 2 };
     if (stateOfSource !== 'denied') state.authority.mockResolvedValue({ ...authority,

@@ -104,7 +104,7 @@ export async function screenMetroCandidates(client: SupabaseClient, actor: Verif
   const missingCoordinates = ids.length - locations.size;
   if (!candidates.length) return `在 ${locations.size} 栋有坐标的获权楼宇中，未找到距${request.stationName ? `「${request.stationName}」站` : '目录地铁站'}直线 ${request.radiusMeters} 米以内的楼宇。另有 ${missingCoordinates} 栋缺少有效坐标，实际步行路线待核验。`;
   candidates.sort((a, b) => a.meters - b.meters || a.buildingId.localeCompare(b.buildingId));
-  return screeningSchema.parse({ radiusMeters: request.radiusMeters, stationName: request.stationName, datasetVersion: catalog.version,
+  return screeningSchema.parse({ radiusMeters: request.radiusMeters, ...(request.stationName ? { stationName: request.stationName } : {}), datasetVersion: catalog.version,
     generatedAt: catalog.generatedAt, locatedCount: locations.size, missingCoordinates, matchedCount: candidates.length, candidates: candidates.slice(0, 8) });
 }
 

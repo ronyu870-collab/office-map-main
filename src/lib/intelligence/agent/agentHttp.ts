@@ -319,8 +319,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       taskRoute.reply = metroScreening;
     } else if (metroScreening) {
       const { candidates, locatedCount, matchedCount, missingCoordinates, radiusMeters, stationName } = metroScreening;
+      const submarkets = taskRoute.metroSelection?.submarkets;
       taskRoute.plan = parseQueryPlan({ operation: 'list', fields: [], period: null,
-        scope: { inventory: 'tracked', submarkets: taskRoute.metroSelection?.submarkets, buildingIds: candidates.map(item => item.buildingId) } });
+        scope: { inventory: 'tracked', ...(submarkets?.length ? { submarkets } : {}), buildingIds: candidates.map(item => item.buildingId) } });
       taskRoute.reply = `在 ${locatedCount} 栋有坐标的获权楼宇中，${matchedCount} 栋距${stationName ? `「${stationName}」站` : '目录内最近地铁站'}直线 ${radiusMeters} 米以内。`
         + (matchedCount > candidates.length ? `以下按距离列出前 ${candidates.length} 栋。` : '')
         + (missingCoordinates ? `另有 ${missingCoordinates} 栋缺少有效坐标。` : '') + '实际步行路线待核验。';
