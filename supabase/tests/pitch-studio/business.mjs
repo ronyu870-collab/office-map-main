@@ -441,6 +441,91 @@ try {
    await db.setup.query("delete from public.buildings where id=any($1::uuid[])", [members]);
    await db.setup.query("update public.buildings set city='北京',grade='A',tracking_scope='tracked' where id=any($1::uuid[])", [BUILDINGS]);
  });
+ await check('corrected facts within one quarter require fresh evidence and save an isolated edition', async () => {
+   const workspace = require('../../../src/lib/pitch/workspace/workflow.ts');
+   const { prepareProposalEdition, probeQuarterCorrection, readEditionBaseline } =
+     require('../../../src/lib/pitch/workspace/proposal-edition.ts');
+   const { startProposalTask, runProposalTask } = require('../../../src/lib/pitch/workspace/proposal-tasks.ts');
+   const { captureReviewedQuery } = require('../../../src/lib/pitch/business/document-version.ts');
+   const { studioRegistry } = require('../../../src/lib/pitch/data/renderWorkflow.ts');
+   const { layoutSlides } = require('../../../src/lib/pitch/layout/engine.ts');
+   const { projectContextSchema } = require('../../../src/lib/pitch/workspace/protocol.ts');
+   const context = projectContextSchema.parse({ business: 'market-report', language: 'zh', period: '2026-Q3' });
+   const base = command([{ mode: 'dynamic', parameters: { ...dynamicFixture, templateId: 'quarter-market-summary', chart: 'table' } }]);
+   const sourceId = base.projectId;
+   const build = async (ctx, projectId, parentProjectId) => {
+     const { input } = await workflow.prepareBusinessProject(ctx, { ...base, projectId, parentProjectId });
+     const snapshots = input.snapshots.map(s => ({ ...s, id: 'market-quarter', entityId: scope.city,
+       binding: { ...s.binding, disclosure: 'internal' }, results: s.results.map(captureReviewedQuery) }));
+     const keys = Object.fromEntries(input.slides.map((slide, i) => [slide.slideId, 'market:' + i]));
+     return { ...input, snapshots, proposalContext: context, reviewedSlideKeys: keys, reviewedPlanId: randomUUID() };
+   };
+   const original = await build(admin, sourceId);
+   await db.rpc(ADMIN, original);
+   const initial = await workspace.getWorkspace(admin, sourceId);
+   const first = initial.slides[0].id;
+   const authored = await workspace.saveWorkspace(admin, { action: 'save', projectId: sourceId,
+     expectedVersion: initial.project.version, title: initial.project.title, themeId: base.themeId,
+     themeVersion: base.themeVersion, context, activeSlide: first,
+     pages: initial.slides.map(page => page.id === first ? { id: first, title: '保留人工标题', manualNote: '继续复核样本口径' } : { id: page.id }),
+   });
+   const identical = await build(admin, randomUUID(), sourceId);
+   assert.notEqual(identical.snapshots[0].results[0].resultId, original.snapshots[0].results[0].resultId);
+   assert.equal(await probeQuarterCorrection(admin, authored, identical.snapshots), 'unchanged');
+   await assert.rejects(probeQuarterCorrection(ordinary, authored, identical.snapshots), /PITCH_DENIED/);
+   await assert.rejects(probeQuarterCorrection(admin, initial, identical.snapshots), /PITCH_CONFLICT/);
+
+   const transient = structuredClone(identical.snapshots);
+   transient[0].results[0].parameters.executedPlan.scope.submarkets = ['燕莎'];
+   assert.equal(await probeQuarterCorrection(admin, authored, transient), 'scope_changed');
+   const sourceVersion = structuredClone(identical.snapshots);
+   sourceVersion[0].results[0].sourceFingerprint = 'f'.repeat(64);
+   assert.equal(await probeQuarterCorrection(admin, authored, sourceVersion), 'changed');
+
+   await db.setup.query('update building_metrics set net_effective_rent=net_effective_rent+19 where building_id=$1 and record_year=2026 and record_quarter=3', [BUILDINGS[0]]);
+   const prepare = (oldSnapshot, invalidAsset) => async (actor, confirmed, target, assemble) => {
+     await assemble();
+     const payload = await build(actor, target, sourceId);
+     const overlay = await prepareProposalEdition({ current: authored, baseline: await readEditionBaseline(actor, authored),
+       nextPeriod: context.period, recipeKeys: payload.reviewedSlideKeys,
+       fresh: payload.slides.map(page => ({ id: page.slideId, asset_id: page.assetId, asset_version: page.assetVersion,
+         template_id: 'business-content', template_version: 1, content: page.content, scene: page.scene })),
+       async render(content, previous) {
+         const { theme } = await studioRegistry(actor, previous.themeId, previous.themeVersion);
+         const slides = await layoutSlides(content, theme.definition, previous.layoutId, previous.variant);
+         return slides[previous.pagination?.index ?? 0];
+       } });
+     const editionSave = await workspace.commitPayload(actor, { ...authored, project: { ...authored.project, id: target, version: 1 } },
+       overlay.pages, overlay.settings, { activeSlide: overlay.activeSlide, context });
+     if (invalidAsset) editionSave.slides[0].assetId = randomUUID();
+     return { ...payload, snapshots: oldSnapshot ? identical.snapshots : payload.snapshots,
+       expectedParentVersion: confirmed.expectedVersion, reviewedPlanId: confirmed.planId, quarterCorrection: true, editionSave };
+   };
+   const run = async (oldSnapshot, invalidAsset) => {
+     const target = randomUUID();
+     const confirmation = { projectId: sourceId, expectedVersion: authored.project.version, taskId: randomUUID(),
+       planId: randomUUID(), contextFingerprint: '4'.repeat(64), request: { projectId: sourceId, editionMode: 'market-refresh' } };
+     await startProposalTask(admin, confirmation, target);
+     await runProposalTask(admin, sourceId, confirmation.taskId, prepare(oldSnapshot, invalidAsset));
+     return { target, task: await db.rpc(ADMIN, { action: 'workspace_task_status', projectId: sourceId, taskId: confirmation.taskId }) };
+   };
+   const stale = await run(true, false), invalid = await run(false, true);
+   for (const rejected of [stale, invalid]) {
+     assert.equal(rejected.task.state, 'failed');
+     await assert.rejects(workspace.getWorkspace(admin, rejected.target), /PITCH_DENIED/);
+   }
+   const applied = await run(false, false);
+   assert.equal(applied.task.state, 'completed', JSON.stringify(applied.task));
+   const revised = await workspace.getWorkspace(admin, applied.target);
+   assert.equal(revised.workspace.context.period, context.period);
+   assert.equal(revised.project.parent_project_id, sourceId);
+   assert.equal(revised.slides[0].content.title, '保留人工标题');
+   assert.equal(revised.workspace.page_settings[revised.slides[0].id].note.text, '继续复核样本口径');
+   assert.notDeepEqual(revised.slides[0].content.blocks, authored.slides[0].content.blocks);
+   assert.deepEqual((await workspace.getWorkspace(admin, sourceId)).slides, authored.slides);
+   const changed = await build(admin, randomUUID(), applied.target);
+   assert.equal(await probeQuarterCorrection(admin, revised, changed.snapshots), 'unchanged');
+ });
  await check('dynamic snapshots cannot be client-exported or reused after independent data permission revocation',async()=>{
    const c={action:'export_start',projectId:dynamicProject.projectId,exportId:randomUUID(),audience:'internal',format:'pptx'};await render.prepareRenderExport(admin,c);await render.runRenderExport(admin,c);const file=await render.downloadArtifact(admin,c);await writeFile('tmp/pitch-business-fixtures/隔离正式数据_原生趋势.pptx',file.bytes);const zip=await JSZip.loadAsync(file.bytes);const chart=Object.values(zip.files).find(f=>/^ppt\/charts\/chart\d+\.xml$/.test(f.name));assert.ok(chart);assert.match(await chart.async('string'),/lineChart/);await assert.rejects(render.prepareRenderExport(admin,{...c,exportId:randomUUID(),audience:'client'}),/PITCH_DENIED/);
    const p=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});

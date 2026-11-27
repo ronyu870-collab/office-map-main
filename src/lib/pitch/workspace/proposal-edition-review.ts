@@ -16,6 +16,7 @@ export const proposalEditionReviewSchema = z.object({
   beforePeriod: z.string().regex(/^20\d{2}-Q[1-4]$/),
   afterPeriod: z.string().regex(/^20\d{2}-Q[1-4]$/),
   needsConclusionReview: z.boolean(),
+  sourcesChanged: z.literal(true).optional(),
   pages: z.array(z.object({
     before: endpoint.optional(), after: endpoint.optional(), changes: z.array(comparison), conclusionChanged: z.boolean(),
   }).refine(page => !!page.before || !!page.after)).max(100),

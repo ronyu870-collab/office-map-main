@@ -22,6 +22,15 @@ export async function readEditionBaseline(ctx: PitchContext, current: WorkspaceD
     projectId: current.project.id, expectedVersion: current.project.version }));
 }
 
+const correctionProbeSchema = z.object({ state: z.enum(['unavailable', 'scope_changed', 'unchanged', 'changed']) });
+
+export async function probeQuarterCorrection(ctx: PitchContext, current: WorkspaceDetail, snapshots: unknown[]) {
+  return correctionProbeSchema.parse(await pitchRpc(ctx, {
+    action: 'workspace_edition_correction_probe', projectId: current.project.id, expectedVersion: current.project.version,
+    period: current.workspace.context.period, snapshots,
+  })).state;
+}
+
 function periodTitle(title: string, period: string) {
   const [year, quarter] = period.split('-Q');
   return quarter ? title.replace(new RegExp(`(?<!\\d)${year}\\s*(?:[-年]\\s*)?(?:Q${quarter}|第?${quarter}季度)(?!\\d)`, 'giu'), '{quarter}') : title;
