@@ -23,9 +23,22 @@ function bindingMetadata(capture: Capture): BusinessDataBinding {
   return { ...capture.binding, dataVersion: capture.data_version, dataAsOf: capture.data_as_of };
 }
 
+function bindingObject(block: Block, index: number) {
+  const mediaRefs = block.kind === 'image' ? [{ id: block.mediaAssetId, version: block.mediaVersion }]
+    : block.kind === 'team' ? block.members.flatMap(member => member.mediaAssetId && member.mediaVersion
+      ? [{ id: member.mediaAssetId, version: member.mediaVersion }] : []) : [];
+  return {
+    index, kind: block.kind, sourceIds: block.sourceIds,
+    ...(mediaRefs.length ? { mediaRefs } : {}),
+    ...(block.kind === 'image' ? { mediaId: block.mediaAssetId, mediaVersion: block.mediaVersion } : {}),
+    ...(block.kind === 'map' ? { mapReference: { id: block.mapId, version: block.snapshotVersion,
+      buildingIds: block.buildingIds, bounds: block.bounds } } : {}),
+  };
+}
+
 export async function readDocumentBindings(ctx: PitchContext, projectId: string) {
   const document = await getWorkspace(ctx, projectId);
-  const { captures, receipts } = await readBindings(ctx, projectId, document.project.version);
+  const { captures, receipts, materials } = await readBindings(ctx, projectId, document.project.version, true);
   return {
     projectVersion: document.project.version,
     pages: document.slides.map(page => {
@@ -37,22 +50,23 @@ export async function readDocumentBindings(ctx: PitchContext, projectId: string)
       return {
         id: page.id, assetId: page.asset_id, assetVersion: page.asset_version,
         disclosure: page.content.disclosure, sources: page.content.sources,
+        materials: materials.get(page.id),
         manualNote: settings?.note?.text,
         objects: page.content.blocks.map((block, index) => {
+          const object = bindingObject(block, index);
           if (stacking.success && !block.sourceIds.some(id => manualSourceIds.has(id))) {
             const { stackingSource, dataVersion, dataAsOf, observedOn, permissionRevision, policyVersion } = stacking.data;
             return {
-              index, kind: block.kind, valueOrigin: 'business' as const, sourceIds: block.sourceIds, query: stackingSource,
+              ...object, valueOrigin: 'business' as const, query: stackingSource,
               binding: { domain: 'business' as const, disclosure: 'restricted' as const,
                 dataVersion, dataAsOf, observedOn, permissionRevision, policyVersion },
-              ...(block.kind === 'image' ? { mediaId: block.mediaAssetId, mediaVersion: block.mediaVersion } : {}),
             };
           }
           const originalQueries = blockQueryReceipts(block, receipts.get(assetKey));
           if (originalQueries.length) {
             return {
-              index, kind: block.kind, valueOrigin: block.kind === 'insight' ? 'asset' as const : 'business' as const,
-              sourceIds: block.sourceIds, receipts: originalQueries.map(({ source_id, generation_id, receipt_id, result_id, entity_id, binding, query }) => ({
+              ...object, valueOrigin: block.kind === 'insight' ? 'asset' as const : 'business' as const,
+              receipts: originalQueries.map(({ source_id, generation_id, receipt_id, result_id, entity_id, binding, query }) => ({
                 sourceId: source_id, generationId: generation_id, receiptId: receipt_id, resultId: result_id, entityId: entity_id, binding, query,
               })),
             };
@@ -60,16 +74,14 @@ export async function readDocumentBindings(ctx: PitchContext, projectId: string)
           const origin = capture ? fieldIndex(block, capture.content) : -1;
           if (capture && usesBusinessEvidence(block, capture.content) && block.kind !== 'insight') {
             return {
-              index, kind: block.kind, valueOrigin: 'business' as const,
+              ...object, valueOrigin: 'business' as const,
               ...(origin >= 0 ? { blockIndex: origin } : { derived: true }),
-              binding: bindingMetadata(capture), query: capture.parameters, sourceIds: block.sourceIds,
+              binding: bindingMetadata(capture), query: capture.parameters,
             };
           }
           return {
-            index, kind: block.kind, valueOrigin: block.sourceIds.some(id => manualSourceIds.has(id))
+            ...object, valueOrigin: block.sourceIds.some(id => manualSourceIds.has(id))
               ? 'manual' as const : 'asset' as const,
-            sourceIds: block.sourceIds,
-            ...(block.kind === 'image' ? { mediaId: block.mediaAssetId, mediaVersion: block.mediaVersion } : {}),
           };
         }),
       };

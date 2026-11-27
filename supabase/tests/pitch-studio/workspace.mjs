@@ -519,6 +519,18 @@ try {
       own = await workspace.saveWorkspace(owner, save(own, { pages: [
         { id: page.id }, { id: randomUUID(), duplicateOf: page.id, title: "同一图片的复用页" },
       ] }));
+      const { readDocumentBindings } = require("../../../src/lib/pitch/workspace/documentBindings.ts");
+      const bindingReader = ctx(OWNER);
+      bindingReader.client.storage = { from() { assert.fail("binding inspection must not download media"); } };
+      const boundImages = (await readDocumentBindings(bindingReader, own.project.id)).pages;
+      for (const bound of boundImages) {
+        const picture = bound.objects.find(object => object.kind === "image");
+        assert.deepEqual(picture.mediaRefs, [{ id: media.id, version: media.version }]);
+        assert.deepEqual(bound.materials.media.map(item => [item.id, item.version, item.pageId, item.sha256]),
+          [[media.id, media.version, media.source_page_id, media.sha256]]);
+        const source = bound.materials.documents.find(item => item.pageId === media.source_page_id);
+        assert.ok(picture.sourceIds.includes(source.sourceId));
+      }
       const selection = { action: "export_start", projectId: own.project.id, exportId: randomUUID(),
         format: "pptx", audience: "internal", pages: [1, 0] };
       const exportReader = ctx(OWNER), sourceStorage = exportReader.client.storage.from;
@@ -579,6 +591,8 @@ try {
         "update pitch_media_assets set state='archived' where id=$1",
         [media.id],
       );
+      const revokedBindings = (await readDocumentBindings(bindingReader, own.project.id)).pages;
+      assert.ok(revokedBindings.every(bound => bound.materials.media.length === 0));
       await assert.rejects(renderSharedSlide(ctx(VIEWER), presentation), /PITCH_DENIED/);
       await assert.rejects(render.downloadArtifact(owner, selection), /PITCH_DENIED/);
       await assert.rejects(

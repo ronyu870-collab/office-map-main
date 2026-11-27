@@ -31,6 +31,7 @@ try{
  await check('corruption fails explicitly, unknown business dates stay manual and no guessed candidates are published',async()=>{const damaged=await prep(new Uint8Array([1,2,3]),'损坏.pptx');await upload(damaged,new Uint8Array([1,2,3]));await workflow.runParseSlice(owner,damaged.job.id);assert.equal((await db.rpc(OWNER,{action:'library_job_status',jobId:damaged.job.id})).job.state,'failed');const raw=new TextEncoder().encode('公司介绍\n未知日期的完整原文'),unknown=await prep(raw,'未知日期.txt',{metadata:{...metadata,dataAsOf:null}});await upload(unknown,raw);await workflow.runParseSlice(owner,unknown.job.id);const p=(await db.setup.query('select * from pitch_source_pages where document_id=$1',[unknown.documentId])).rows[0];assert.equal(p.asset_id,null);assert.match(p.structure.warnings.join(' '),/日期未知/);});
  await check('maintainers can edit/review scoped enterprise drafts; version source references cannot disappear',async()=>{const current=await workflow.assetContext(ctx(ADMIN),caseAsset),input=workflow.assetInput(current.asset,current.version.content);input.names.zh='人工确认的案例标题';input.content.title=input.names.zh;input.content.dataAsOf='2026-03-31';input.state='draft';await workflow.saveLibraryAsset(ctx(ADMIN),{action:'save_asset',assetId:caseAsset,expectedVersion:2,asset:input,acknowledgePartial:true});assert.equal((await workflow.assetContext(owner,caseAsset)).asset.current_version,3);const bad=structuredClone(input);bad.content.sources[0].sha256='c'.repeat(64);await assert.rejects(workflow.saveLibraryAsset(owner,{action:'save_asset',assetId:caseAsset,expectedVersion:3,asset:bad,acknowledgePartial:true}),/PITCH_SOURCE_REQUIRED/);await workflow.confirmAssets(owner,{action:'confirm',items:[{assetId:caseAsset,expectedVersion:3}],acknowledgePartial:true});});
  await check('a reviewed prior material version can be reused after publishing a newer revision', async () => {
+   const {readDocumentBindings}=require('../../../src/lib/pitch/workspace/documentBindings.ts');
    const id = randomUUID();
    const pinned = { action:'normalize', projectId:id, assetId:caseAsset, assetVersion:2, title:'隔离版本锁定',
      themeId:'colliers-default-v1', themeVersion:2 };
@@ -66,6 +67,22 @@ try{
    assert.deepEqual(rendered.slides[0].source_snapshot, original.version.content.sources);
    assert.equal(rendered.project.normalization_report.assetVersion, 2);
    assert.equal(rendered.project.data_as_of, '2025-12-31');
+   const bindings=await readDocumentBindings(ordinary,id);
+   const tableBinding=bindings.pages.find(page=>page.objects.some(object=>object.kind==='table'));
+   assert.equal(bindings.projectVersion,rendered.project.version);
+   assert.deepEqual(tableBinding.materials.asset,{
+     id:caseAsset,version:2,sha256:original.version.sha256,dataAsOf:'2025-12-31',scope,
+     policy:{visibility:'organization',disclosure:'internal',internalGeneration:true,clientExport:false,externalAi:false,isTestData:true},
+   });
+   const originalSource=original.version.content.sources[0];
+   const documentBinding=tableBinding.materials.documents[0];
+   assert.deepEqual({id:documentBinding.documentId,page:documentBinding.pageId,version:documentBinding.version,sha256:documentBinding.sha256},
+     {id:prepared.documentId,page:originalSource.pageId,version:1,sha256:digest(fixtures.pptx)});
+   assert.equal(documentBinding.dataAsOf,'2025-12-31');
+   assert.ok(tableBinding.objects.find(object=>object.kind==='table').sourceIds.includes(documentBinding.sourceId));
+   assert.equal(tableBinding.objects.find(object=>object.kind==='table').valueOrigin,'asset');
+   assert.doesNotMatch(JSON.stringify(bindings),/storage_path|extracted_text/);
+   await assert.rejects(readDocumentBindings(owner,id),/PITCH_DENIED/);
 
    const skipLayout = { ...ordinary, client: { ...ordinary.client, rpc(name, args) {
      assert.notEqual(args.p_input.action, 'registry', 'replaying a receipt need not lay out the pages again');
@@ -93,6 +110,7 @@ try{
    await db.setup.query("update public.pitch_source_documents set state='archived' where id=$1", [prepared.documentId]);
    try {
      assert.equal((await request(pinned)).status,403);
+     await assert.rejects(readDocumentBindings(ordinary,id),/PITCH_DENIED/);
      await assert.rejects(render.downloadArtifact(ordinary, command), /PITCH_DENIED/);
    } finally {
      await db.setup.query("update public.pitch_source_documents set state='published' where id=$1", [prepared.documentId]);

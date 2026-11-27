@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { documentResultSchema } from '../business/document-version';
 import { dynamicParametersSchema } from '../business/protocol';
-import { slideContentSchema, type SlideContent } from '../contracts/content';
+import { disclosureSchema, scopeSchema, slideContentSchema, type SlideContent } from '../contracts/content';
 import { workspaceChartTypeSchema } from "./presentation-edits";
 import { pitchRpc, type PitchContext } from '../data/store';
 
@@ -32,11 +32,64 @@ const queryReceiptSchema = z.object({
 });
 type QueryReceipt = z.infer<typeof queryReceiptSchema>;
 
-export async function readBindings(ctx: PitchContext, projectId: string, version: number) {
-  const result = await pitchRpc(ctx, { action: 'workspace_document_bindings', projectId, expectedVersion: version, includeQueryReceipts: true });
+const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
+const materialIdentity = z.object({ version: z.number().int().positive(), sha256, scope: scopeSchema });
+const documentPolicy = z.object({
+  visibility: z.enum(['private', 'organization']), clientExportConfigured: z.boolean(), isTestData: z.boolean(),
+});
+const materialReceipt = z.object({
+  kind: z.literal('material_receipt'), slideId: z.uuid(),
+  asset: materialIdentity.extend({
+    id: z.uuid(), dataAsOf: z.iso.date(),
+    policy: documentPolicy.omit({ clientExportConfigured: true }).extend({
+      disclosure: disclosureSchema, internalGeneration: z.boolean(), clientExport: z.boolean(), externalAi: z.boolean(),
+    }),
+  }),
+  documents: z.array(materialIdentity.extend({
+    source_id: z.uuid(), document_id: z.uuid(), page_id: z.uuid().nullable(), data_as_of: z.iso.date().nullable(),
+    revision: z.number().int().positive(), policy: documentPolicy,
+  })),
+  media: z.array(materialIdentity.extend({
+    id: z.uuid(), data_as_of: z.iso.date().nullable(), page_id: z.uuid(), document_id: z.uuid(),
+    document_version: z.number().int().positive(), document_sha256: sha256, revision: z.number().int().positive(), policy: documentPolicy,
+  })),
+  visuals: z.array(z.object({
+    source_id: z.uuid(), kind: z.enum(['photo', 'map', 'stacking-plan']), id: z.uuid(), version: z.number().int().positive(),
+    version_hash: sha256, content_hash: sha256, building_ids: z.array(z.uuid()).min(1).max(1000),
+    query: z.record(z.string(), z.unknown()), source_date: z.iso.date(),
+    binding: z.object({ dataAsOf: z.iso.date().nullable(), permissionRevision: z.string(), policyVersion: z.string() }).nullable(),
+  })),
+}).transform(({ kind, slideId, asset, documents, media, visuals }) => ({
+  kind, slideId, asset,
+  documents: documents.map(({ source_id, document_id, page_id, data_as_of, revision, ...metadata }) => ({
+    sourceId: source_id, documentId: document_id, pageId: page_id, dataAsOf: data_as_of, revision, ...metadata,
+  })),
+  media: media.map(({ data_as_of, page_id, document_id, document_version, document_sha256, revision, ...metadata }) => ({
+    dataAsOf: data_as_of, pageId: page_id, documentId: document_id, documentVersion: document_version,
+    documentSha256: document_sha256, documentRevision: revision, ...metadata,
+  })),
+  visuals: visuals.map(({ source_id, version_hash, content_hash, building_ids, source_date, binding, ...visual }) => ({
+    ...visual, sourceId: source_id, versionHash: version_hash, sha256: content_hash, buildingIds: building_ids,
+    sourceDate: source_date, dataAsOf: binding?.dataAsOf ?? null,
+    ...(binding ? { permissionRevision: binding.permissionRevision, policyVersion: binding.policyVersion } : {}),
+    fields: visual.kind === 'photo' ? ['photo'] : visual.kind === 'map' ? ['location_lat', 'location_lng'] : ['towers', 'levels'],
+    policy: { scope: visual.kind === 'stacking-plan' ? 'admin-internal' as const : 'internal' as const,
+      clientExport: false as const, externalAi: false as const, sourceRecheckRequired: true as const },
+  })),
+}));
+type MaterialReceipt = z.infer<typeof materialReceipt>;
+
+export async function readBindings(ctx: PitchContext, projectId: string, version: number, includeMaterialReceipts = false) {
+  const result = await pitchRpc(ctx, { action: 'workspace_document_bindings', projectId, expectedVersion: version,
+    includeQueryReceipts: true, ...(includeMaterialReceipts ? { includeMaterialReceipts } : {}) });
   const captures = new Map<string, Capture>();
   const receipts = new Map<string, QueryReceipt[]>();
-  for (const row of z.array(z.union([captureSchema, queryReceiptSchema])).parse(result)) {
+  const materials = new Map<string, Omit<MaterialReceipt, 'kind' | 'slideId'>>();
+  for (const row of z.array(z.union([captureSchema, queryReceiptSchema, materialReceipt])).parse(result)) {
+    if ('kind' in row && row.kind === 'material_receipt') {
+      materials.set(row.slideId, { asset: row.asset, documents: row.documents, media: row.media, visuals: row.visuals });
+      continue;
+    }
     const key = captureKey(row.asset_id, row.asset_version);
     if ('kind' in row) {
       const current = receipts.get(key);
@@ -46,7 +99,7 @@ export async function readBindings(ctx: PitchContext, projectId: string, version
       captures.set(key, row);
     }
   }
-  return { captures, receipts };
+  return { captures, receipts, materials };
 }
 
 export function blockQueryReceipts(block: Block, receipts: readonly QueryReceipt[] = []) {
