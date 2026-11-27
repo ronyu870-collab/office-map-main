@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- private pinned photos use short-lived local object URLs. */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "@/src/components/ui";
 import { BUILDING_PHOTO_BUCKET, isBuildingPhotoPath } from "@/src/lib/building-photos/model";
 import { matchesMaterialSignature, materialMimeType } from "@/src/lib/sales-materials/model";
@@ -40,6 +40,7 @@ async function readPhoto(pin: PhotoPin, signal: AbortSignal) {
 export function PhotoPreviewImage({ pin, caption, onStale }: { pin: PhotoPin; caption: string; onStale?: () => void }) {
   const [result, setResult] = useState<{ attempt: number; url: string } | { attempt: number; error: string; stale: boolean }>();
   const [attempt, setAttempt] = useState(0);
+  const notifyStale = useEffectEvent(() => onStale?.());
   useEffect(() => {
     const request = new AbortController();
     let url: string | undefined;
@@ -50,7 +51,7 @@ export function PhotoPreviewImage({ pin, caption, onStale }: { pin: PhotoPin; ca
     }).catch((error: unknown) => {
       if (request.signal.aborted) return;
       const stale = error instanceof PhotoVersionChanged;
-      if (stale) onStale?.();
+      if (stale) notifyStale();
       setResult({ attempt, stale, error: error instanceof TypeError || !(error instanceof Error)
         ? "照片暂不可预览。" : error.message });
     });
@@ -58,7 +59,7 @@ export function PhotoPreviewImage({ pin, caption, onStale }: { pin: PhotoPin; ca
       request.abort();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [pin, attempt, onStale]);
+  }, [pin, attempt]);
   const preview = result?.attempt === attempt ? result : undefined;
   if (preview && "url" in preview) return <img src={preview.url} className={styles.photoThumbnail} alt={caption} />;
   if (preview) return <div>
