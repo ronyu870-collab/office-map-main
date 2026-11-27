@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ZodError } from 'zod';
 import type { SourceRef } from '../query/contracts';
 import type { QueryResult, ResultCell } from '../query/result';
 import type { VerifiedQueryIdentity } from '../query/serverAuthority';
@@ -28,10 +29,10 @@ export async function readDossierGfa(client: SupabaseClient, identity: VerifiedQ
   // The governed dossier RPC refuses an entire mixed-scope batch. Query only
   // the already matched IDs and keep the independent result of each permission check.
   const access = await businessCapabilities(client, identity, signal).catch(error => {
-    if (signal.aborted) return null;
+    if (signal.aborted || error instanceof ZodError) return null;
     throw error;
   });
-  if (!access) return [{ ids, issue: 'unavailable' }];
+  if (!access || 'reason' in access && access.reason === 'source_unavailable') return [{ ids, issue: 'unavailable' }];
   if (!('profileFields' in access) || !access.modules.includes('profile') || !access.profileFields.includes('gfaTotal')) return [batch];
   const outcomes: DossierGfaRead[] = [];
   for (let start = 0; start < ids.length; start += 4)

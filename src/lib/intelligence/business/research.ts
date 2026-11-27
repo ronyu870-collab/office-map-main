@@ -127,6 +127,7 @@ export async function recheckBusinessResults(client:SupabaseClient,identity:Veri
 export async function businessCapabilities(client:SupabaseClient,identity:VerifiedQueryIdentity,signal:AbortSignal){
  const {data,error}=await client.rpc('ai_business_research_snapshot',{p_actor:identity.actorId,p_effective:identity.effectiveUserId,p_session:identity.sessionId,p_plan:{tool:'capabilities'}}).abortSignal(signal);
  signal.throwIfAborted();
- if(error||data?.allowed!==true)return {available:false,note:'业务资料需独立模块及字段资格；未部署或未获权不代表数据不存在。'};
+ if(error||data?.allowed!==true)return {available:false,...(error ? {reason:'source_unavailable' as const} : {}),
+   note:'业务资料需独立模块及字段资格；未部署或未获权不代表数据不存在。'};
  return z.strictObject({allowed:z.literal(true),modules:z.array(z.enum(['profile','submarket','supply','stacking'])),profileFields:z.array(z.string()),submissions:z.boolean(),export:z.boolean()}).parse(data);
 }

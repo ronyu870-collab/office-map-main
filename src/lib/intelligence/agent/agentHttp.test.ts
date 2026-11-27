@@ -67,7 +67,7 @@ function fakeRequest(question = '你好') {
     body: JSON.stringify(input),
   }) };
 }
-function deps(allowed = true, leaseSnapshot?: object, business?: { permitted: string[]; snapshot: object;
+function deps(allowed = true, leaseSnapshot?: object, business?: { permitted: string[]; snapshot: object; capabilityUnavailable?: boolean;
   read?: (buildingIds: string[]) => { data: object | null; error: object | null } }, availablePeriods?: object) {
   const rpc = vi.fn((name: string, args?: { p_plan?: { tool?: string; buildingIds?: string[] } }) => {
     if(name==='ai_control_runtime')return {abortSignal:()=>Promise.resolve({data:null,error:{code:'PGRST202',message:'Could not find ai_control_runtime'}})};
@@ -75,7 +75,8 @@ function deps(allowed = true, leaseSnapshot?: object, business?: { permitted: st
     if (name === 'ai_query_available_periods' && availablePeriods) return { abortSignal: async () => ({ data: availablePeriods, error: null }) };
     if (name === 'ai_business_research_snapshot' && business) {
       return { abortSignal: async () => args?.p_plan?.tool === 'capabilities'
-        ? { error: null, data: { allowed: true, modules: ['profile'], profileFields: business.permitted, submissions: false, export: false } }
+        ? business.capabilityUnavailable ? { error: { code: 'XX000' }, data: null }
+          : { error: null, data: { allowed: true, modules: ['profile'], profileFields: business.permitted, submissions: false, export: false } }
         : business.read?.(args?.p_plan?.buildingIds ?? []) ?? { error: null, data: business.snapshot } };
     }
     expect(name).toBe('ai_query_model_budget');
@@ -437,7 +438,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.provider).not.toHaveBeenCalled();
   });
 
-  it.each(['restricted row', 'source failure'])('keeps both formally matched rows while recovering optional dossier fields (%s)', async scenario => {
+  it.each(['restricted row', 'source failure', 'capability failure'])('keeps both formally matched rows while recovering optional dossier fields (%s)', async scenario => {
     const period = { year: 2026, quarter: 3 };
     const ids = [randomUUID(), randomUUID(), randomUUID()];
     const rows = ids.map((id, index) => {
@@ -462,7 +463,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     const read = vi.fn((wanted: string[]) => scenario === 'source failure' ? { data: null, error: { code: 'XX000' } }
       : { data: wanted.length === 1 && wanted[0] === allowed ? dossier : { allowed: false }, error: null });
     const response = await handleAgentSubmission(fakeRequest('2026Q3 CBD筛选净有效租金低于250元/㎡/月、空置率超过15%的楼宇，附上建筑面积').request,
-      deps(true, undefined, { permitted: ['gfaTotal'], snapshot: dossier, read }));
+      deps(true, undefined, { permitted: ['gfaTotal'], snapshot: dossier, read, capabilityUnavailable: scenario === 'capability failure' }));
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.result.table.rows.map((row: { entityId: string }) => row.entityId)).toEqual([allowed, excluded]);

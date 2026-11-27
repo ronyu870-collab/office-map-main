@@ -216,15 +216,24 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
         assert.equal((await artifact(other, download)).status, 403);
 
         const original = (await db.query("select pg_get_functiondef('public.ai_business_research_snapshot(uuid,uuid,uuid,jsonb)'::regprocedure) as definition")).rows[0].definition;
-        try {
-          await db.query(`create or replace function public.ai_business_research_snapshot(p_actor uuid,p_effective uuid,p_session uuid,p_plan jsonb)
-            returns jsonb language plpgsql security invoker set search_path='' as $$ begin raise exception 'injected T12 dossier service failure'; end $$`);
-          const outage = await submit(analyst, query);
-          const retained = verified(outage);
-          assert.equal(retained.cell(matched).reason, 'business_field_unavailable');
-          assert.equal(retained.result.parameters.businessBindings, undefined);
-          assert.match(outage.body.answerSelection.notice, /楼书资料暂时不可用/);
-        } finally { await db.query(original); }
+        for (const capabilityOnly of [false, true]) {
+          try {
+            await db.query(`create or replace function public.ai_business_research_snapshot(p_actor uuid,p_effective uuid,p_session uuid,p_plan jsonb)
+              returns jsonb language plpgsql security invoker set search_path='' as $$ begin
+              if ${capabilityOnly ? "p_plan->>'tool'='capabilities'" : 'true'} then raise exception 'injected T12 dossier service failure'; end if;
+              return private.ai_business_research_snapshot(p_actor,p_effective,p_session,p_plan); end $$`);
+            const outage = await submit(analyst, query);
+            const retained = verified(outage);
+            assert.equal(retained.cell(matched).reason, 'business_field_unavailable');
+            assert.equal(retained.result.parameters.businessBindings, undefined);
+            assert.match(outage.body.answerSelection.notice, /楼书资料暂时不可用/);
+            const archived = await recover(analyst, partial.body.requestId);
+            assert.equal(archived.status, capabilityOnly ? 200 : 503);
+            if (capabilityOnly) assert.deepEqual(archived.body.result, scoped.result);
+            else assert.equal(archived.body.result, undefined);
+          } finally { await db.query(original); }
+          assert.deepEqual((await recover(analyst, partial.body.requestId)).body.result, scoped.result);
+        }
         await db.query('update private.ai_business_research_grants set enabled=false where user_id=$1', [analyst.id]);
         assert.equal((await recover(analyst, partial.body.requestId)).status, 403);
         assert.equal((await artifact(analyst, download)).status, 403);
