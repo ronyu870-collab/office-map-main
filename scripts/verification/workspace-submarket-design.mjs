@@ -34,8 +34,12 @@ export async function verifySubmarketDesign(context, { base, width, stock }) {
   const errors = []; page.on('pageerror', error => errors.push(error.stack));
   const names = ['通惠河传媒走廊', '望京-酒仙桥', '丰台科技园', '东城商务区'];
   const places = [[116.54, 39.89], [116.49, 40.015], [116.27, 39.82], [116.4, 39.94]];
+  // Synthetic buildings have new identities. Do not inherit identity-bound
+  // photo records from the CBD fixture: research now previews them on visibility.
   const rows = names.map((name, i) => ({ ...stock[0], id: `design-${i}`, name: `${name}测试楼`, submarket: name, grade: i === 2 ? 'BP' : 'A',
-    location_lng: places[i][0], location_lat: places[i][1], building_metrics: stock[0].building_metrics.map(m => ({ ...m, building_id: `design-${i}`, net_effective_rent: i === 3 ? null : 205.3, vacancy_rate: i === 3 ? .163 : .12 })) }));
+    photos: [], location_lng: places[i][0], location_lat: places[i][1],
+    building_metrics: stock[0].building_metrics.map((m, index) => ({ ...m, id: `design-metric-${i}-${index}`, building_id: `design-${i}`, net_effective_rent: i === 3 ? null : 205.3, vacancy_rate: i === 3 ? .163 : .12 })) }));
+  assert.ok(rows.every(row => !row.photos.length && row.building_metrics.every(metric => metric.building_id === row.id)), 'design fixtures never inherit another building’s assets');
   try {
     await page.route('https://webapi.amap.com/maps**', route => route.fulfill({ contentType: 'application/javascript', body: `(${installSyntheticMap})();(${installNativeOverlays})();` }));
     await page.route('**/api/map/data**', route => {

@@ -2,7 +2,7 @@ import * as React from 'react';
 import { ChevronRight } from 'lucide-react';
 import { photoSummaries, type BuildingPhotoSummary } from '@/src/lib/building-photos/model';
 import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger } from '@/src/services/map/buildingPhotoGallery';
-import { normalizeMapSubmarket, officeGrade } from '../model/marketIdentity';
+import { hasMarketCoordinates, normalizeMapSubmarket, officeGrade } from '../model/marketIdentity';
 import type { MarketBuilding } from '../model/marketStatistics';
 import { latestFormalMetric, quarterKey } from '../model/quarterlyFacts';
 import { marketResearchArrangement, researchCatalogReferences, type ResearchProjectReference } from '../model/submarketResearchArrangement';
@@ -59,6 +59,11 @@ export function selectRepresentativeProjects(buildings: readonly MarketBuilding[
   }
   const candidates = [...eligible.values()];
   const compareName = (a: Project, b: Project) => a.name.localeCompare(b.name, 'zh-CN') || a.id.localeCompare(b.id);
+  // Coordinates are a presentation tie-break only. Keep every eligible asset
+  // in the median and scale samples, and never discard a curated/unlocated asset.
+  // Among otherwise equivalent examples, prefer one that can also be located on the map.
+  const compareNavigation = (a: Project, b: Project) =>
+    Number(hasMarketCoordinates(b.building)) - Number(hasMarketCoordinates(a.building)) || compareName(a, b);
   const examples: Example[] = [];
   const used = new Set<string>();
   function add(project: Project, role: string, reason: string, detailReason?: string) {
@@ -83,11 +88,11 @@ export function selectRepresentativeProjects(buildings: readonly MarketBuilding[
       const low = comparable[Math.floor((comparable.length - 1) / 2)].rent;
       const high = comparable[Math.floor(comparable.length / 2)].rent;
       const median = (low + high) / 2;
-      const central = comparable.filter(project => project.rent === low || project.rent === high).sort(compareName)[0];
+      const central = comparable.filter(project => project.rent === low || project.rent === high).sort(compareNavigation)[0];
       add(central, gradeNames[grade] + '租金参照', '同级项目租金中位区间', central.period + ' · ' + comparable.length + ' 个同级有效项目，中位数 ' + number.format(median) + ' 元/㎡/月。');
     } else {
       const project = peers.sort((a, b) => Number(b.quarter === quarter) - Number(a.quarter === quarter)
-        || Number(b.area > 0) - Number(a.area > 0) || compareName(a, b))[0];
+        || Number(b.area > 0) - Number(a.area > 0) || compareNavigation(a, b))[0];
       add(project, gradeNames[grade] + '项目', project.period ? '同类产品参照' : '暂无已发布季度记录');
     }
   }
