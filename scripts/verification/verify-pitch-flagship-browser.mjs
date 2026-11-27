@@ -10,13 +10,18 @@ import pg from "pg";
 import sharp from "sharp";
 import { grantQuery } from "../../supabase/tests/ai-query-authority/database.mjs";
 import { BUILDINGS } from "../../supabase/tests/ai-query-authority/snapshot-fixture.mjs";
+import { grantBusiness, installBusinessFixture } from "../../supabase/tests/ai-business-research/fixture.mjs";
+import { grantLeaseResearch, installLeaseResearchFixture, seedLeaseResearch } from "../../supabase/tests/ai-lease-research/fixture.mjs";
 import { installPitchDataFixture } from "../../supabase/tests/pitch-studio/business-data-fixture.mjs";
 import { verifyPitchBuildingInspectorBrowser, verifyPitchChartRevisionBrowser, verifyPitchFlagshipBrowser } from "./pitch-workspace-browser.mjs";
 
 assert.equal(process.env.PITCH_TEST_ALLOW_LOCAL, "disposable");
 const settings = JSON.parse(await readFile(process.env.PITCH_AUTH_STATUS, "utf8"));
 for (const url of [settings.API_URL, settings.DB_URL]) assert.equal(new URL(url).hostname, "127.0.0.1");
-const app = "http://127.0.0.1:3291";
+const appPort = process.env.PITCH_TEST_APP_PORT ?? "3291";
+assert.match(appPort, /^\d{1,5}$/);
+assert.ok(Number(appPort) > 0 && Number(appPort) <= 65535);
+const app = `http://127.0.0.1:${appPort}`;
 const db = new pg.Client({ connectionString: settings.DB_URL });
 const authOptions = { auth: { persistSession: false, autoRefreshToken: false } };
 const service = createClient(settings.API_URL, settings.SERVICE_ROLE_KEY, authOptions);
@@ -66,6 +71,23 @@ async function seed() {
   await db.query(`insert into private.pitch_grants(user_id,organization_id,region,city,business_line,can_generate,valid_until,granted_by)
     values($1,'synthetic-org','华北','北京','office',true,now()+interval '1 day',$1)`, [id]);
   await installPitchDataFixture({ setup: db });
+  await installBusinessFixture(db);
+  await grantBusiness(db, id, { modules: ['profile', 'submarket'], allSubmarkets: true });
+  const leaseSchema = await readFile(new URL('../../supabase/tests/lease-expiry/fixture.sql', import.meta.url), 'utf8');
+  const liveTable = leaseSchema.indexOf('create table public.lease_transactions(');
+  const historyTable = leaseSchema.indexOf('create table public.lease_transactions_history(');
+  assert.ok(liveTable >= 0 && historyTable > liveTable);
+  await db.query(leaseSchema.slice(liveTable, historyTable));
+  await db.query('alter table public.lease_transactions alter column submitter_id type varchar using submitter_id::text');
+  await installLeaseResearchFixture(db);
+  await seedLeaseResearch(db, BUILDINGS);
+  await grantLeaseResearch(db, id);
+  const baseSchema = await readFile(new URL('20260730043721_create_colliers_lite_schema.sql', directory), 'utf8');
+  const auditTable = baseSchema.match(/create table public\.audit_logs \([\s\S]*?\n\);/)?.[0];
+  assert.ok(auditTable);
+  await db.query(auditTable);
+  await db.query('grant insert on public.audit_logs to service_role');
+  await db.query('grant usage on sequence public.audit_logs_id_seq to service_role');
   await db.query("update private.ai_query_control set enabled=true");
   await grantQuery({ setup: db }, id, {
     capabilities: ["query:catalog", "query:brochure", "query:quarter", "export:internal"],
@@ -82,14 +104,16 @@ async function seed() {
   await db.query("update public.buildings set grade='B',city='北京' where id=any($1::uuid[])", [BUILDINGS]);
   const buildings = [
     ["霄云路33号", "燕莎"], ["五矿广场", "东二环"], ["国贸写字楼1座", "CBD"], ["国际财源中心（IFC）", "CBD"],
-    ["新华保险大厦（NCI）", "CBD"], ["大家保险大厦B座", "CBD"], ["泰康金融大厦", "CBD"],
+    ["新华保险大厦（NCI）", "CBD"], ["大家保险大厦B座", "CBD"], ["泰康金融大厦", "CBD"], ["金地中心", "CBD"],
   ];
+  const replacementCandidates = [];
   for (const [index, [name, submarket]] of buildings.entries()) {
     const buildingId = randomUUID();
-    await db.query(`insert into public.buildings(id,name,submarket,grade,tracking_scope,city,location_lat,location_lng)
-      values($1,$2,$3,'A','tracked','北京',$4,$5)`, [buildingId, name, submarket, 39.90 + index * 0.006, 116.43 + index * 0.007]);
+    if (submarket === "CBD") replacementCandidates.push({ id: buildingId, name });
+    await db.query(`insert into public.buildings(id,name,submarket,grade,tracking_scope,city,location_lat,location_lng,completion_year,leasable_area)
+      values($1,$2,$3,'A','tracked','北京',$4,$5,'2015',12500)`, [buildingId, name, submarket, 39.90 + index * 0.006, 116.43 + index * 0.007]);
     await addPhoto(buildingId, index);
-    await db.query("insert into public.building_brochure_data(building_id,building_height,parking_total) values($1,$2,$3)",
+    await db.query("insert into public.building_brochure_data(building_id,building_height,parking_total,address,standard_floor_area,metro_access) values($1,$2,$3,'合成路一号',1500,'合成轨道交通')",
       [buildingId, 180 + index, 400 + index]);
     for (const [year, quarter] of [[2025, 4], [2026, 1], [2026, 2], [2026, 3]]) {
       await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,
@@ -97,11 +121,13 @@ async function seed() {
         [buildingId, year, quarter, 30000 + index * 2000, 100 + index * 12 + quarter, 1500 + index * 210, id]);
     }
   }
+  await db.query(`insert into public.map_submarket_profiles(submarket,headline,overview,industries,transport,is_published,published_at)
+    values('燕莎','合成区域定位','合成区域介绍','合成产业描述','合成轨道交通',true,now())`);
   await db.query("notify pgrst,'reload schema'");
   const client = createClient(settings.API_URL, settings.ANON_KEY, authOptions);
   const signed = await client.auth.signInWithPassword({ email, password });
   assert.equal(signed.error, null);
-  return { client, token: signed.data.session.access_token };
+  return { client, token: signed.data.session.access_token, replacementCandidates };
 }
 
 await mkdir("tmp", { recursive: true });
@@ -119,7 +145,7 @@ try {
     const build = spawn("npm", ["run", "build"], { env, stdio });
     assert.equal((await once(build, "exit"))[0], 0, "Production build failed");
   }
-  server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", "127.0.0.1", "--port", "3291"],
+  server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", "127.0.0.1", "--port", appPort],
     { env, stdio });
   const deadline = Date.now() + 60_000;
   let ready = false;
@@ -135,6 +161,7 @@ try {
     : process.argv.includes("--chart-revision") ? verifyPitchChartRevisionBrowser : verifyPitchFlagshipBrowser;
   await verify({
     app, who, period: quarterRevision ? "2026-Q2" : "2026-Q3", quarterRevision, competitorRevision,
+    replacementCandidates: who.replacementCandidates,
     requiredVisuals: { 'leasing-agency': ['photo', 'map'], 'site-selection': ['photo', 'map'],
       'market-report': ['map'], 'building-promotion': ['photo', 'map'] },
     readProject: async (projectId) => {

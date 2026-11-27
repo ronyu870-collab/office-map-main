@@ -9,6 +9,7 @@ import { objectId } from "@/src/lib/pitch/workspace/object-layout";
 import { themeLabel, WorkspaceError, type Call } from "./client";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel } from "./DataRefreshReview";
 import { EvidencePages } from "./BusinessEvidence";
+import { ProposalPreview, reviewedProposalSchema } from "./ProposalPreview";
 import styles from "./workspace.module.css";
 
 const chartTypeSchema = z.enum(["bar", "column", "line"]);
@@ -62,7 +63,11 @@ const outcomeSchema = z.union([
   comparisonSchema,
   readySchema.extend({ status: z.literal("ready") }),
   readySchema.extend({ status: z.literal("refresh-review"),
-    refreshPlan: z.object({ brief: z.object({ period: outlineQuarter.nullable() }) }) }),
+    refreshPlan: z.union([reviewedProposalSchema, z.object({ brief: z.object({ period: outlineQuarter.nullable() }) })]),
+    regeneration: z.object({ question: z.string().min(1).max(1000), projectId: z.uuid(), city: z.string(),
+      buildingIds: z.array(z.uuid()).max(20), period: outlineQuarter.optional(), language: languages,
+      audience: z.literal("internal") }).optional(),
+  }),
   z.object({ status: z.literal("clarification"), message: z.string(), candidates: z.array(buildingSchema).max(10).optional() }),
   z.object({ status: z.literal("unavailable"), message: z.string().optional() }),
 ]);
@@ -115,9 +120,10 @@ export type ProposalRevisionProps = {
   onApplied: (result: WorkspaceDetail, expectedVersion: number) => void;
   onOpenData: (period?: string) => void;
   onAppend: (receipt: z.infer<typeof taskReceiptSchema>, expectedVersion: number) => void;
+  onGenerated?: (id: string) => Promise<void>;
 };
 
-export function ProposalRevision({ call, detail, question, active, selected, objectIds, disabled, onApplied, onOpenData, onAppend }: ProposalRevisionProps) {
+export function ProposalRevision({ call, detail, question, active, selected, objectIds, disabled, onApplied, onOpenData, onAppend, onGenerated }: ProposalRevisionProps) {
   const [review, setReview] = useState<{ key: string; value: Preview }>();
   const [candidates, setCandidates] = useState<{ key: string; items: z.infer<typeof buildingSchema>[] }>();
   const [working, setWorking] = useState<"preview" | "apply">();
@@ -187,6 +193,11 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   const edits = current?.plan.pages.filter(page => Object.keys(page).some(field => field !== "id")) ?? [];
   const removed = current?.scope === "document" ? detail.slides.filter(slide => !current.plan.pages.some(page => page.id === slide.id)) : [];
   const affected = current?.theme ? detail.slides.length : edits.length + removed.length;
+  const refreshRequest = current?.status === "refresh-review" ? current.regeneration : undefined;
+  const replan = refreshRequest && current?.status === "refresh-review" && "plan" in current.refreshPlan
+    && refreshRequest.projectId === projectId && current.refreshPlan.plan.id === current.plan.refresh?.id
+    && current.refreshPlan.plan.contextFingerprint === current.plan.refresh.contextFingerprint
+    ? current.refreshPlan : undefined;
   const suggestedPeriod = current?.status === "refresh-review" ? current.refreshPlan.brief.period ?? undefined : undefined;
   return <>
     <Button variant="ghost" disabled={disabled || !question.trim()}
@@ -200,7 +211,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
     </div>}
     <Dialog open={!!visible} onOpenChange={open => { if (!open && !working) setReview(undefined); }}
       title="核对 AI 修改" size="lg" footer={comparison ? <Button disabled={disabled} loading={working === "apply"}
-        loadingLabel="正在提交…" onClick={() => void run("apply")}>{message ? "继续追加" : "追加对比页"}</Button> : current && (
+        loadingLabel="正在提交…" onClick={() => void run("apply")}>{message ? "继续追加" : "追加对比页"}</Button> : current && !replan && (
         current.plan.refresh && !quarterReview
           ? <Button onClick={() => { setReview(undefined); onOpenData(suggestedPeriod); }}>打开数据检查器</Button>
           : <Button disabled={disabled || (quarterReview ? !quarterReview.changed : !affected)}
@@ -211,7 +222,13 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         <EvidencePages pages={comparison.review.pages} />
         {message && <p role="alert">{message}</p>}
       </>}
-      {current && <>
+      {replan && refreshRequest && onGenerated && <ProposalPreview key={replan.plan.id} call={call}
+        projectId={projectId} projectVersion={expectedVersion} disabled={disabled}
+        city={refreshRequest.city} question={refreshRequest.question} language={refreshRequest.language}
+        period={refreshRequest.period ?? ""} buildingIds={refreshRequest.buildingIds}
+        reviewed={{ data: replan, input: refreshRequest }}
+        onGenerated={async id => { await onGenerated(id); setReview(undefined); }} />}
+      {current && !replan && <>
         {quarterReview ? <DataRefreshComparison review={quarterReview} slides={detail.slides} />
           : <p>{current.plan.refresh
             ? `${suggestedPeriod ? `正式季度 ${suggestedPeriod} · ` : ""}逐组核对正式数据，再应用更新。`

@@ -8,7 +8,7 @@ import { layoutSlides } from "../layout/engine";
 import { LayoutError } from "../layout/metrics";
 import { objectId, textAnchors } from "../workspace/object-layout";
 import { pageEditSchema, workspaceCommandSchema, workspaceDetailSchema, type WorkspaceSave } from "../workspace/protocol";
-import { proposalRequestSchema, readProposalBrief } from "./proposal-brief";
+import { proposalRequestSchema, readProposalBrief, type ProposalRequest } from "./proposal-brief";
 import { compileProposalChartEdits, type ProposalChartChange } from "./proposal-chart-revision";
 import { previewProposalCompetitor, type ProposalCompetitorData, type ReviewProposalHandoff } from "./proposal-competitor-revision";
 import { resolveQuarterRevision } from "./proposal-quarter-revision";
@@ -69,6 +69,7 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   let theme: { id: string; version: number } | undefined;
   let chartPreview: ({ pageId: string } & ProposalChartChange)[] | undefined;
   let refreshPlan: Extract<Awaited<ReturnType<typeof prepareProposal>>, { status: "ready" }> | undefined;
+  let regeneration: ProposalRequest | undefined;
   let quarterTransaction: { review: z.infer<typeof quarterReviewSchema>; command: {
     action: "apply_data_refresh"; projectId: string; slideId: string; expectedVersion: number;
     period: z.infer<typeof quarterSchema>; fingerprint: string;
@@ -115,29 +116,34 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
           if (target.operations.length !== 1) return null;
           if (previewQuarter) {
             const resolved = await resolveQuarterRevision(ctx, current, selected.map(page => page.id), scope === "document", operation.period);
-            if (!resolved) return null;
-            const { period, slideId, pageIds } = resolved;
-            const command = { action: "preview_data_refresh" as const, projectId: project.id, slideId, expectedVersion: project.version, period };
-            const review = quarterReviewSchema.parse(await previewQuarter(ctx, command));
-            if (review.projectVersion !== project.version) throw new Error("PITCH_CONFLICT");
-            if (review.period.year !== period.year || review.period.quarter !== period.quarter) return null;
-            const ids = new Set(review.changes.map(change => change.slideId));
-            if (ids.size !== review.changes.length || ids.size !== pageIds.length || pageIds.some(id => !ids.has(id))) return null;
-            const id = randomUUID();
-            quarterTransaction = { review, command: { ...command, action: "apply_data_refresh", fingerprint: review.fingerprint } };
-            return { id, pages: [...pageEdits.values()], refresh: { id, version: 1, contextFingerprint: review.fingerprint } };
+            if (resolved) {
+              const { period, slideId, pageIds } = resolved;
+              const command = { action: "preview_data_refresh" as const, projectId: project.id, slideId, expectedVersion: project.version, period };
+              const review = quarterReviewSchema.parse(await previewQuarter(ctx, command));
+              if (review.projectVersion !== project.version) throw new Error("PITCH_CONFLICT");
+              if (review.period.year !== period.year || review.period.quarter !== period.quarter) return null;
+              const ids = new Set(review.changes.map(change => change.slideId));
+              if (ids.size !== review.changes.length || ids.size !== pageIds.length || pageIds.some(id => !ids.has(id))) return null;
+              const id = randomUUID();
+              quarterTransaction = { review, command: { ...command, action: "apply_data_refresh", fingerprint: review.fingerprint } };
+              return { id, pages: [...pageEdits.values()], refresh: { id, version: 1, contextFingerprint: review.fingerprint } };
+            }
+            if (scope !== "document" || workspace.context.business !== "market-report") return null;
           }
           const projectQuestion = `${workspace.context.business} ${project.title}`.trim();
           const brief = readProposalBrief(proposalRequestSchema.parse({ question: projectQuestion }));
-          if (!brief.scenario || brief.scenario === "analysis-briefing") return null;
-          if (brief.scenario !== "market-report" && !workspace.context.buildingIds.length) return null;
+          const scenario = workspace.context.business === "market-report" ? "market-report" : brief.scenario;
+          if (!scenario || scenario === "analysis-briefing") return null;
+          if (scenario !== "market-report" && !workspace.context.buildingIds.length) return null;
           const period = operation.period;
           const location = brief.submarkets.join("、");
-          const question = [period ?? "最新正式季度", location, scenarioQuestions[brief.scenario]].filter(Boolean).join("，");
-          const proposal = await prepareProposal(ctx, proposalRequestSchema.parse({ question, projectId: input.projectId,
-            buildingIds: workspace.context.buildingIds, language: workspace.context.language, period: period ?? undefined }));
+          const question = [period ?? "最新正式季度", location, scenarioQuestions[scenario]].filter(Boolean).join("，");
+          const request = proposalRequestSchema.parse({ question, projectId: input.projectId, city: project.city,
+            buildingIds: workspace.context.buildingIds, language: workspace.context.language, period: period ?? undefined });
+          const proposal = await prepareProposal(ctx, request);
           if (proposal.status !== "ready") return null;
           refreshPlan = proposal;
+          if (scope === "document" && workspace.context.business === "market-report") regeneration = request;
           continue;
         }
         if (operation.kind === "set-style") {
@@ -204,7 +210,8 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   if (quarterTransaction) return { ...outcome, scope, ...quarterTransaction };
   // Agent 06's document transaction accepts reviewed page edits. A refreshed
   // proposal has its own source review and can't be applied as a page edit.
-  if (refreshPlan) return { ...outcome, status: "refresh-review" as const, scope, ...(theme ? { theme } : {}), refreshPlan };
+  if (refreshPlan) return { ...outcome, status: "refresh-review" as const, scope, ...(theme ? { theme } : {}), refreshPlan,
+    ...(regeneration ? { regeneration } : {}) };
   const command = { action: "apply_modification" as const, plan: outcome.plan, scope, ...(theme ? { theme } : {}) };
   if (chartPreview) workspaceCommandSchema.parse(command);
   return { ...outcome, scope, ...(theme ? { theme } : {}), ...(chartPreview ? { chartPreview } : {}), command };

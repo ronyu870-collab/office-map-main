@@ -36,6 +36,7 @@ const responseSchema = z.discriminatedUnion("status", [
     candidates: z.array(z.object({ id: z.uuid(), name: z.string(), submarket: z.string().nullish() })).optional(),
   }),
 ]);
+export const reviewedProposalSchema = responseSchema.options[0];
 type Result = z.infer<typeof responseSchema>;
 type Request = {
   question: string;
@@ -63,7 +64,7 @@ type Destination =
   | { projectId: string; projectVersion: number; createProject?: never }
   | { projectId?: never; projectVersion?: never; createProject: (input: ProposalProjectInput) => Promise<Project> };
 
-export function ProposalPreview({ call, projectId, city, question, language, period, buildingIds, initialQuestion, disabled, projectVersion, createProject, onGenerated, onGenerating }: Destination & {
+export function ProposalPreview({ call, projectId, city, question, language, period, buildingIds, initialQuestion, disabled, projectVersion, createProject, onGenerated, onGenerating, reviewed }: Destination & {
   call: Call;
   city?: string;
   question: string;
@@ -74,8 +75,12 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   disabled: boolean;
   onGenerated: (projectId: string) => Promise<void>;
   onGenerating?: (generating: boolean) => void;
+  reviewed?: { data: z.infer<typeof reviewedProposalSchema>; input: Request };
 }) {
-  const [result, setResult] = useState<{ key: string; data: Result; input: Request }>();
+  const inputKey = JSON.stringify([projectId, projectVersion, city, question, language, period, buildingIds]);
+  const [result, setResult] = useState<{ key: string; data: Result; input: Request } | undefined>(
+    () => reviewed && { key: inputKey, ...reviewed },
+  );
   const [error, setError] = useState("");
   const [working, setWorking] = useState<"plan" | "generate">();
   const [recovery, setRecovery] = useState(false);
@@ -83,7 +88,6 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   const submission = useRef<{ key: string; taskId: string; sourceId: string; source?: Project; completedProject?: string }>(null);
   const request = useRef<AbortController | null>(null);
   const autoStarted = useRef(false);
-  const inputKey = JSON.stringify([projectId, projectVersion, city, question, language, period, buildingIds]);
   const visible = result?.key === inputKey ? result.data : undefined;
   const taskState = taskProgress?.key === inputKey ? taskProgress.state : undefined;
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
@@ -194,10 +198,10 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   }
 
   return <section className={styles.proposalReview} aria-label="业务提案规划">
-    <Button variant="secondary" disabled={disabled || !question.trim() || !validPeriod || !!taskState || working === "generate"}
+    {(!reviewed || !visible) && <Button variant="secondary" disabled={disabled || !question.trim() || !validPeriod || !!taskState || working === "generate"}
       loading={working === "plan"} loadingLabel="正在核对范围与正式资料…" onClick={() => void preview()}>
       规划正式提案
-    </Button>
+    </Button>}
     {error && <p role="alert">{error}</p>}
     {visible?.status === "ready" && <>
       <h3>{visible.plan.title}</h3>
@@ -215,7 +219,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
       {taskState && <p role="status">{taskState === "queued" ? "等待生成提案…" : "正在生成提案…"}</p>}
       <Button disabled={disabled || working === "plan"} loading={working === "generate"}
         loadingLabel={taskState ? "正在查询生成进度…" : "正在按已核对的方案生成…"} onClick={() => void generate()}>
-        {taskState ? "查询生成进度" : recovery ? "重新查询或继续生成" : "确认并生成 Pitch"}
+        {taskState ? "查询生成进度" : recovery ? "重新查询或继续生成" : reviewed ? "确认并生成新版 Pitch" : "确认并生成 Pitch"}
       </Button>
     </>}
     {visible && visible.status !== "ready" && <>

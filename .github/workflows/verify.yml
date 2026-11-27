@@ -743,12 +743,20 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pitch-browser" --no-save --ignore-scripts playwright-core@1.58.2
           node "$RUNNER_TEMP/pitch-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
           PITCH_TEST_ALLOW_LOCAL=disposable PITCH_TEST_REUSE_BUILD=true PITCH_WORKSPACE_BROWSER=true PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/pitch-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium PITCH_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-pitch-studio-http.mjs
+      - name: Verify the four flagship proposals with real local Auth and Storage
+        shell: bash
+        run: |
+          supabase db reset --local --no-seed --workdir "$RUNNER_TEMP/ai-query-auth-integration"
+          PITCH_TEST_ALLOW_LOCAL=disposable PITCH_TEST_REUSE_BUILD=true PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/pitch-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium PITCH_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-pitch-flagship-browser.mjs
       - name: Retain isolated Pitch workspace browser results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: pitch-workspace-browser
-          path: tmp/pitch-workspace-browser/
+          path: |
+            tmp/pitch-workspace-browser/
+            tmp/pitch-flagship-browser/
+            tmp/pitch-flagship-http.log
           if-no-files-found: ignore
           retention-days: 3
       - name: Stop only the disposable query Auth stack

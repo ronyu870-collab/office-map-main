@@ -261,7 +261,7 @@ export function AiAssist({
         question={question} language={language} period={period} buildingIds={buildingIds}
         initialQuestion={autoPlan ? initialQuestion : undefined} projectVersion={projectVersion}
         onGenerated={onProposalGenerated} disabled={busy} />}
-      {revision?.detail.slides.length ? <ProposalRevision call={call} question={question} {...revision} /> : null}
+      {revision?.detail.slides.length ? <ProposalRevision call={call} question={question} onGenerated={onProposalGenerated} {...revision} /> : null}
       <details open={initialQuestion.trim() ? true : undefined}>
         <summary>提案结构建议</summary>
         <Button
