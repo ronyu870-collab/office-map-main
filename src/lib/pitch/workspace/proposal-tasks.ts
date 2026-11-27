@@ -12,6 +12,7 @@ const confirmationSchema = z.object({
 const receiptSchema = z.object({
   id: z.uuid(),
   source_project_id: z.uuid(),
+  error_code: z.string().nullable().optional(),
   state: z.enum(['queued', 'processing', 'completed', 'failed', 'cancelled']),
 });
 const claimSchema = z.object({
@@ -34,6 +35,7 @@ async function proposalReceipt(ctx: PitchContext, input: unknown, sourceProjectI
     taskId: receipt.id,
     state: receipt.state === 'processing' ? 'running' as const : receipt.state,
     ...(receipt.state === 'completed' ? { projectId: receipt.source_project_id } : {}),
+    ...(receipt.state === 'failed' && receipt.error_code === 'PITCH_EDITION_LAYOUT' ? { errorCode: receipt.error_code } : {}),
   };
 }
 

@@ -1149,6 +1149,85 @@ try {
     },
   );
   await check(
+    "published quarter editions atomically keep reviewed source assets and the operator's existing edits",
+    async () => {
+      const { startProposalTask, runProposalTask } = require("../../../src/lib/pitch/workspace/proposal-tasks.ts");
+      const { prepareProposalEdition, readEditionBaseline } = require("../../../src/lib/pitch/workspace/proposal-edition.ts");
+      const { layoutSlides } = require("../../../src/lib/pitch/layout/engine.ts");
+      const { studioRegistry } = require("../../../src/lib/pitch/data/renderWorkflow.ts");
+      const { randomUUID } = require("node:crypto");
+      const sourceId = randomUUID();
+      const inputs = {
+        action: "generate", projectId: sourceId, title: "旧季度草稿", scope, language: "zh", themeId: "colliers-default-v1", themeVersion: 2,
+        parts: [staticPart("corporate-overview", [ids.corporate])],
+      };
+      const { input } = await workflow.prepareBusinessProject(ordinary, inputs);
+      const byPosition = slides => Object.fromEntries(slides.map((slide, index) => [slide.slideId, "overview:" + index]));
+      await db.rpc(OTHER, { ...input, reviewedPlanId: randomUUID(), reviewedSlideKeys: byPosition(input.slides) });
+      const project = await workspace.getWorkspace(ordinary, sourceId);
+      const slideId = project.slides[0].id;
+      const withNote = await workspace.saveWorkspace(ordinary, save(project, {
+        context: { ...project.workspace.context, period: "2026-Q3" },
+        pages: [{ id: slideId, title: "自定义标题", manualNote: "注释跨季度保留" }, ...project.slides.slice(1).map(page => ({ id: page.id }))],
+      }));
+      const before = await workspace.customWorkspace(ordinary, {
+        action: "custom", projectId: sourceId, expectedVersion: withNote.project.version,
+        title: "独立人工页", body: "由项目组维护的说明。",
+      });
+      await assert.rejects(readEditionBaseline(owner, before), /PITCH_DENIED/);
+      await assert.rejects(readEditionBaseline(ordinary, project), /PITCH_CONFLICT/);
+      const prepare = failure => async (actor, stored, destination, assemble) => {
+        await assemble();
+        const { input: payload } = await workflow.prepareBusinessProject(actor, { ...inputs, projectId: destination, parentProjectId: sourceId,
+          title: "新季度草稿" });
+        const recipeKeys = byPosition(payload.slides);
+        const fresh = payload.slides.map(page => ({
+          id: page.slideId, asset_id: page.assetId, asset_version: page.assetVersion, template_id: "business-content",
+          template_version: 1, content: page.content, scene: page.scene,
+        }));
+        const overlay = await prepareProposalEdition({ current: before, baseline: await readEditionBaseline(actor, before),
+          nextPeriod: "2026-Q2", fresh, recipeKeys,
+          render: async (content, previous) => {
+            const { theme } = await studioRegistry(actor, previous.themeId, previous.themeVersion);
+            const rendered = await layoutSlides(content, theme.definition, previous.layoutId, previous.variant);
+            assert.equal(rendered.length, 1);
+            return rendered[0];
+          } });
+        const editionSave = await workspace.commitPayload(actor, { ...before,
+          project: { ...before.project, id: destination, version: 1 } }, overlay.pages, overlay.settings, {
+          activeSlide: overlay.activeSlide, context: { ...before.workspace.context, period: "2026-Q2" },
+        });
+        if (failure === "asset") editionSave.slides[0].assetId = randomUUID();
+        if (failure === "period") editionSave.context.period = "2026-Q1";
+        return { ...payload, expectedParentVersion: stored.expectedVersion, reviewedPlanId: stored.planId,
+          proposalContext: { ...before.workspace.context, period: "2026-Q2" }, reviewedSlideKeys: recipeKeys, editionSave };
+      };
+      const queued = () => ({ projectId: sourceId, expectedVersion: before.project.version, taskId: randomUUID(),
+        planId: randomUUID(), contextFingerprint: "a".repeat(64), request: { projectId: sourceId, question: "更新正式季度" } });
+      for (const reason of ["asset", "period"]) {
+        const discarded = randomUUID(), failure = queued();
+        await startProposalTask(ordinary, failure, discarded);
+        await runProposalTask(ordinary, sourceId, failure.taskId, prepare(reason));
+        await assert.rejects(workspace.getWorkspace(ordinary, discarded), /PITCH_DENIED/);
+        assert.equal((await db.rpc(OTHER, { action: "workspace_task_status", projectId: sourceId, taskId: failure.taskId })).state, "failed");
+      }
+      const targetId = randomUUID(), confirmed = queued();
+      await startProposalTask(ordinary, confirmed, targetId);
+      await runProposalTask(ordinary, sourceId, confirmed.taskId, prepare());
+      const state = await db.rpc(OTHER, { action: "workspace_task_status", projectId: sourceId, taskId: confirmed.taskId });
+      assert.equal(state.state, "completed", JSON.stringify(state));
+      const renewed = await workspace.getWorkspace(ordinary, targetId);
+      const oldNote = before.workspace.page_settings[slideId].note;
+      assert.equal(renewed.slides[0].content.title, "自定义标题");
+      assert.equal(renewed.workspace.page_settings[renewed.slides[0].id].note.text, oldNote.text);
+      assert.ok(renewed.slides.some(page => page.content.title === "独立人工页"));
+      assert.equal(renewed.workspace.context.period, "2026-Q2");
+      const original = await workspace.getWorkspace(ordinary, sourceId);
+      assert.deepEqual(original.slides, before.slides);
+      assert.equal(original.workspace.context.period, "2026-Q3");
+    },
+  );
+  await check(
     "cancelled generation is never committed, even when cancellation races after source generation",
     async () => {
       const taskId = randomUUID(),
