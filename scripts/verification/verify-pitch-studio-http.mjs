@@ -160,7 +160,23 @@ try {
   const items=pages.body.items.map(p=>({assetId:p.asset_id,expectedVersion:1}));assert.equal((await library(owner,{action:'confirm',items,acknowledgePartial:false},true)).status,409);assert.equal((await library(owner,{action:'confirm',items,acknowledgePartial:true},true)).status,200);
   const results=await library(viewer,{action:'search',kind:'pages',documentId,q:'案例'});assert.equal(results.status,200);assert.equal(results.body.items.length,1);assert.equal((await library(viewer,{action:'original',documentId})).status,403);
   const sourcePage=results.body.items[0],detail=await library(viewer,{action:'page',pageId:sourcePage.id});assert.equal(detail.body.document.sha256,input.sha256);assert.doesNotMatch(JSON.stringify(detail.body.page),new RegExp(NOTE_SECRET+'|'+HIDDEN_SECRET));
-  const normalized=randomUUID();const generated=await library(owner,{action:'normalize',assetId:sourcePage.asset_id,projectId:normalized,title:'隔离历史案例标准化',themeId:'colliers-default-v1',themeVersion:2},true);assert.equal(generated.status,200,JSON.stringify(generated.body));const opened=await call(owner,{action:'get_project',projectId:normalized});assert.equal(opened.body.slides[0].source_snapshot[0].pageId,sourcePage.id);
+  const assetId=sourcePage.asset_id,prior=await library(owner,{action:'asset',assetId,version:2});
+  assert.equal(prior.status,200,JSON.stringify(prior.body));
+  const {asset}=prior.body,title='新发布的隔离案例标题';
+  const revised={scope,categoryId:asset.category_id,tags:asset.tags,names:{zh:title},content:{...prior.body.version.content,title},
+   state:'published',visibility:asset.visibility,allowInternalGeneration:asset.allow_internal_generation,
+   allowClientExport:asset.allow_client_export,allowExternalAi:asset.allow_external_ai,validFrom:asset.valid_from,validUntil:asset.valid_until};
+  const published=await library(owner,{action:'save_asset',assetId,expectedVersion:2,asset:revised,acknowledgePartial:true},true);
+  assert.equal(published.status,200,JSON.stringify(published.body));
+  const normalized=randomUUID(),request={action:'normalize',assetId,assetVersion:2,projectId:normalized,
+   title:'隔离历史案例标准化',themeId:'colliers-default-v1',themeVersion:2};
+  assert.equal((await library(owner,{...request,assetVersion:'2'},true)).status,400);
+  const generated=await library(owner,request,true);assert.equal(generated.status,200,JSON.stringify(generated.body));
+  const replay=await library(owner,request,true);assert.equal(replay.status,200,JSON.stringify(replay.body));assert.equal(replay.body.replayed,true);
+  assert.equal((await library(owner,{...request,assetVersion:3},true)).status,409);
+  const opened=await call(owner,{action:'get_project',projectId:normalized});
+  assert.equal(opened.body.slides[0].source_snapshot[0].pageId,sourcePage.id);
+  assert.ok(opened.body.slides.every(slide=>slide.asset_version===2&&slide.content.title===prior.body.version.content.title));
   const exportId=randomUUID();assert.equal((await call(owner,{action:'export_start',projectId:normalized,exportId,format:'pptx',audience:'internal'},true)).status,202);await until(async()=>{const value=await call(owner,{action:'export_status',projectId:normalized,exportId});assert.notEqual(value.body.state,'failed',JSON.stringify(value.body));return value.body.state==='ready';},'normalized export');const file=await call(owner,{action:'download',projectId:normalized,exportId,audience:'internal'});assert.equal(file.status,200);const zip=await JSZip.loadAsync(file.body),xml=(await Promise.all(Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+[.]xml$/.test(n)).map(n=>zip.file(n).async('string')))).join('');assert.match(xml,/<a:tbl>/);assert.match(xml,/测试楼 A/);
   const media=(await db.query('select m.storage_path from pitch_media_assets m join pitch_source_pages p on p.id=m.source_page_id where p.document_id=$1',[documentId])).rows;assert.ok((await viewer.client.storage.from('pitch-studio-private').download(media[0].storage_path)).error);
   await db.query('update private.pitch_grants set enabled=false where user_id=$1',[viewer.id]);assert.equal((await library(viewer,{action:'page',pageId:sourcePage.id})).status,403);
