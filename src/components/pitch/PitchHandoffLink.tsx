@@ -5,13 +5,32 @@ import { FilePlus2 } from "lucide-react";
 import Link from "next/link";
 import { z } from "zod";
 import { researchEditions } from "@/src/config/quarterlyResearch";
+import { quarterKey, quarterSchema } from "@/src/lib/intelligence/query/contracts";
 
-const PitchHandoffVisibility = createContext(false);
-export function PitchHandoffProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
-  return <PitchHandoffVisibility.Provider value={enabled}>{children}</PitchHandoffVisibility.Provider>;
+const PitchHandoffVisibility = createContext({ enabled: false, analysisReplay: false });
+export function PitchHandoffProvider({ enabled, analysisReplay = false, children }: {
+  enabled: boolean; analysisReplay?: boolean; children: ReactNode;
+}) {
+  return <PitchHandoffVisibility.Provider value={{ enabled, analysisReplay }}>{children}</PitchHandoffVisibility.Provider>;
 }
 export function usePitchHandoffEnabled() {
-  return useContext(PitchHandoffVisibility);
+  return useContext(PitchHandoffVisibility).enabled;
+}
+export function usePitchAnalysisReplay() {
+  return useContext(PitchHandoffVisibility).analysisReplay;
+}
+
+const analysisPeriodsSchema = z.object({
+  base: quarterSchema.optional(), current: quarterSchema.optional(),
+  start: quarterSchema.optional(), end: quarterSchema.optional(), period: quarterSchema.nullish(),
+});
+export function readPitchAnalysisPeriods(parameters: unknown) {
+  const parsed = analysisPeriodsSchema.safeParse(parameters);
+  if (!parsed.success) return {};
+  const { base, current, start, end, period } = parsed.data;
+  const first = base ?? start;
+  const last = current ?? end ?? period;
+  return { start: first && quarterKey(first), end: last ? quarterKey(last) : undefined };
 }
 
 const prefix = "#add-to-pitch=";
@@ -41,7 +60,7 @@ const sourceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("buildings"), buildingIds: z.array(z.uuid()).min(1).max(20).refine(ids => new Set(ids).size === ids.length) }),
   z.object({ kind: z.literal("submarket"), key: z.string().trim().min(1).max(80) }),
   z.strictObject({ kind: z.literal("quarterly-research"), edition: z.enum(researchEditions) }),
-  z.object({ kind: z.literal("analysis-result"), id: z.uuid() }),
+  z.strictObject({ kind: z.literal("analysis-result"), id: z.uuid(), resultId: z.uuid().optional() }),
   leaseSearchSourceSchema,
   pitchStackingSourceSchema,
 ]);

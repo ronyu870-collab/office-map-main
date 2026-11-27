@@ -146,6 +146,40 @@ it("reviews the historical stacking selection with its observed date and confirm
     target: { mode: "create", scope } });
 });
 
+it("keeps the pinned analysis result and shows both original quarters before applying", async () => {
+  const user = userEvent.setup();
+  const source = { kind: "analysis-result", id, resultId: newId } as const;
+  let returned = secondBuildingId;
+  const call = vi.fn(async (request: Record<string, unknown>) => {
+    if (request.action === "list") return { items: [] };
+    if (request.action === "review_handoff") return {
+      status: "ready", fingerprint, period: "2026-Q3", buildingIds: [], submarkets: ["CBD"],
+      binding: { dataAsOf: "2026-09-30" },
+      parameters: { analysisResult: { requestId: id, resultId: returned, plan: {
+        operation: "compare", base: { year: 2026, quarter: 2 }, current: { year: 2026, quarter: 3 },
+      } } },
+      pages: [{ title: "跨季比较", sources: [{ label: "已授权分析" }] }],
+    };
+    return { state: "queued" };
+  });
+  const onOpen = vi.fn(async () => {});
+  render(<HandoffReview source={{ source, period: "2026-Q3" }} call={call as unknown as Call} grants={[scope]}
+    theme={{ id: "colliers-default-v1", current_version: 2 }} onOpen={onOpen} onClose={() => {}} />);
+  await user.click(screen.getByRole("button", { name: "核对来源" }));
+  await screen.findByText("返回的归档与所选分析结果不一致，请重新打开分析结果。");
+  expect(screen.queryByRole("button", { name: "确认并创建" })).not.toBeInTheDocument();
+  returned = newId;
+  await user.click(screen.getByRole("button", { name: "核对来源" }));
+  await screen.findByText(/2026-Q2 至 2026-Q3/);
+  await user.click(screen.getByRole("button", { name: "确认并创建" }));
+  await waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1));
+  const commands = call.mock.calls.map(([command]) => command);
+  expect(commands.filter(command => command.action === "review_handoff")).toEqual([
+    { action: "review_handoff", handoff: { source } }, { action: "review_handoff", handoff: { source } },
+  ]);
+  expect(commands.find(command => command.action === "add_to_pitch")?.handoff).toEqual({ source });
+});
+
 it("uses the research edition's fixed quarter and confirms only the reviewed Beijing sample", async () => {
   const user = userEvent.setup();
   const source = { kind: "quarterly-research", edition: "2026Q2" } as const;

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
 import { contentBlockSchema, type PitchScope } from "@/src/lib/pitch/contracts/content";
 import { outlineQuarter, workspaceDetailSchema } from "@/src/lib/pitch/workspace/protocol";
-import { pitchStackingSourceSchema, type PitchHandoffNavigation } from "../PitchHandoffLink";
+import { pitchStackingSourceSchema, readPitchAnalysisPeriods, type PitchHandoffNavigation } from "../PitchHandoffLink";
 import { WorkspaceError, type Call } from "./client";
 import { EvidencePages } from "./BusinessEvidence";
 import styles from "./workspace.module.css";
@@ -20,6 +20,9 @@ const readySchema = z.object({
     disclosure: z.enum(["internal", "restricted"]).optional() }),
   sourceCity: z.string().optional(),
   stackingSource: pitchStackingSourceSchema.optional(),
+  parameters: z.object({ analysisResult: z.object({
+    requestId: z.uuid(), resultId: z.uuid(), plan: z.unknown(),
+  }).optional() }).optional(),
   pages: z.array(z.object({ title: z.string(), sources: z.array(z.object({ label: z.string() })),
     blocks: z.array(contentBlockSchema).optional() })),
 });
@@ -63,7 +66,8 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
   const [period, setPeriod] = useState(source.period ?? "");
   const lease = source.source.kind === "lease-search" ? source.source : undefined;
   const stacking = source.source.kind === "stacking-plan" ? source.source : undefined;
-  const analysisPeriod = source.source.kind === "analysis-result" ? source.period : undefined;
+  const analysis = source.source.kind === "analysis-result" ? source.source : undefined;
+  const analysisPeriod = analysis ? source.period : undefined;
   const fixedPeriod = researchPeriod ?? analysisPeriod;
   const carriesSourceDate = !!lease || !!stacking || !!fixedPeriod;
   const [title, setTitle] = useState("");
@@ -137,6 +141,11 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
         setError("返回的季度研究范围与所选版次不一致，请重新核对。");
         return;
       }
+      const archived = response.parameters?.analysisResult;
+      if (analysis?.resultId && (archived?.requestId !== analysis.id || archived.resultId !== analysis.resultId)) {
+        setError("返回的归档与所选分析结果不一致，请重新打开分析结果。");
+        return;
+      }
       const expectedPeriod = analysisPeriod ?? handoff.period;
       if ((expectedPeriod && response.period !== expectedPeriod) || !matchesSourceScope(handoff.source, response)) {
         setError("返回的范围或季度与所选来源不一致，请重新核对。");
@@ -205,6 +214,10 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
     : stacking ? "历史 Stacking Plan" : lease ? "成交库的代表成交" : source.source.kind === "buildings"
     ? `已选 ${source.source.buildingIds.length} 栋楼宇`
     : source.source.kind === "submarket" ? source.source.key : "Colliers AI 的获权分析结果";
+  const reviewedPeriod = review?.data.period;
+  const reviewedAnalysisStart = readPitchAnalysisPeriods(review?.data.parameters?.analysisResult?.plan).start;
+  const periodRange = reviewedAnalysisStart && reviewedPeriod && reviewedAnalysisStart !== reviewedPeriod
+    ? `${reviewedAnalysisStart} 至 ${reviewedPeriod}` : reviewedPeriod;
 
   return <Dialog open onOpenChange={value => { if (!value && !busy) onClose(); }}
     title="加入 Pitch" size="md" footer={
@@ -256,7 +269,7 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
           项目名称
           <input value={title} maxLength={160} disabled={!!busy || submitted} onChange={event => setTitle(event.target.value)} />
         </label>}
-        <p>{[review.data.period, review.data.binding.dataAsOf ?? "来源日期待确认",
+        <p>{[periodRange, review.data.binding.dataAsOf ?? "来源日期待确认",
           review.data.binding.observedOn && `观察日期 ${review.data.binding.observedOn}`,
           review.data.binding.disclosure === "restricted" ? "受限来源" : "仅供内部使用"].filter(Boolean).join(" · ")}</p>
         <EvidencePages pages={review.data.pages} />
