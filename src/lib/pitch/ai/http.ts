@@ -17,7 +17,7 @@ import {
   operationsSummary,
 } from "./workflow";
 import { recommendAssets, preparePitch, suggestOutline } from "./routing";
-import type { PreviewProposalQuarter } from "./proposal-revision-runtime";
+import type { PreviewProposalQuarter, ProposalRevisionServices } from "./proposal-revision-runtime";
 import type { ProposalExecution } from "./proposal-workflow";
 const headers = {
   "Cache-Control": "private, no-store",
@@ -30,7 +30,7 @@ export async function handleAiRequest(
   request: Request,
   deps: PitchDependencies,
   schedule?: (work: () => Promise<void>) => void,
-  previewProposalQuarter?: PreviewProposalQuarter,
+  revisionServices?: PreviewProposalQuarter | ProposalRevisionServices,
   proposalExecution?: (ctx: PitchContext) => ProposalExecution,
 ) {
   let ctx: Awaited<ReturnType<typeof authorizePitch>> | undefined;
@@ -95,7 +95,7 @@ export async function handleAiRequest(
     }
     if (c.action === "proposal_revision") {
       const { planProposalRevision } = await import("./proposal-revision-runtime");
-      return reply(await planProposalRevision(ctx, c.input, previewProposalQuarter));
+      return reply(await planProposalRevision(ctx, c.input, revisionServices));
     }
     if (c.action === "outline")
       return reply(await suggestOutline(ctx, c.query, c.projectId));

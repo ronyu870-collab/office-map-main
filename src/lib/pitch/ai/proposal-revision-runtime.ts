@@ -10,8 +10,9 @@ import { objectId, textAnchors } from "../workspace/object-layout";
 import { pageEditSchema, workspaceCommandSchema, workspaceDetailSchema, type WorkspaceSave } from "../workspace/protocol";
 import { proposalRequestSchema, readProposalBrief } from "./proposal-brief";
 import { compileProposalChartEdits, type ProposalChartChange } from "./proposal-chart-revision";
+import { previewProposalCompetitor, type ProposalCompetitorData, type ReviewProposalHandoff } from "./proposal-competitor-revision";
 import type { ProposalScenario } from "../integration-contracts";
-import type { ProposalRevisionRequest } from "./proposal-edit-intent";
+import { readProposalEdit, type ProposalRevisionRequest } from "./proposal-edit-intent";
 import { prepareProposal } from "./proposal-runtime";
 import { previewProposalRevision, type ProposalRevisionPort } from "./proposal-workflow";
 
@@ -43,11 +44,26 @@ export type PreviewProposalQuarter = (ctx: PitchContext, command: {
   period: z.infer<typeof quarterSchema>;
 }) => Promise<unknown>;
 
-export async function planProposalRevision(ctx: PitchContext, input: ProposalRevisionRequest, previewQuarter?: PreviewProposalQuarter) {
+export type ProposalRevisionServices = {
+  previewQuarter?: PreviewProposalQuarter;
+  reviewHandoff?: ReviewProposalHandoff;
+  competitorData?: ProposalCompetitorData;
+};
+
+export async function planProposalRevision(ctx: PitchContext, input: ProposalRevisionRequest, providers?: PreviewProposalQuarter | ProposalRevisionServices) {
+  const services = typeof providers === "function" ? { previewQuarter: providers } : providers;
+  const previewQuarter = services?.previewQuarter;
   const current = versionedWorkspace.parse(await pitchRpc(ctx, { action: "workspace_get", projectId: input.projectId }));
   const { project, workspace, slides } = current;
   if (project.version !== input.expectedVersion) throw new Error("PITCH_CONFLICT");
   await pitchRpc(ctx, { action: "catalog" });
+  const intention = readProposalEdit(input);
+  if (intention.kind === "intent" && intention.operations.length === 1 && intention.operations[0].kind === "add-competitor") {
+    if (intention.target.kind === "pages" && intention.target.pageIds.some(id => !slides.some(slide => slide.id === id))) {
+      throw new Error("PITCH_INVALID");
+    }
+    return previewProposalCompetitor(ctx, current, input, intention.operations[0], services?.reviewHandoff, services?.competitorData);
+  }
   let scope: "selected" | "document" = "selected";
   let theme: { id: string; version: number } | undefined;
   let chartPreview: ({ pageId: string } & ProposalChartChange)[] | undefined;
@@ -185,7 +201,7 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
           gaps: refreshPlan.plan.gaps.map(gap => gap.reason) } : {}) };
     },
   };
-  const outcome = await previewProposalRevision(input, port, ctx.signal);
+  const outcome = await previewProposalRevision(input, port, ctx.signal, intention);
   if (outcome.status !== "ready") return outcome;
   if (quarterTransaction) return { ...outcome, scope, ...quarterTransaction };
   // Agent 06's document transaction accepts reviewed page edits. A refreshed

@@ -67,12 +67,12 @@ export type ProposalRevisionPort = {
 
 export async function previewProposalRevision(
   input: ProposalRevisionRequest, port: ProposalRevisionPort, signal: AbortSignal,
+  intent = readProposalEdit(input),
 ) {
   signal.throwIfAborted();
   const current = await port.read(input.projectId, signal);
   signal.throwIfAborted();
   if (current.version !== input.expectedVersion) throw new Error("PITCH_CONFLICT");
-  const intent = readProposalEdit(input);
   if (intent.kind === "clarification") return { status: "clarification" as const, message: intent.message };
   const { target } = intent;
   const chosen = target.kind === "pages" ? target.pageIds : target.kind === "objects" ? [target.pageId] : current.pages.map(page => page.id);
