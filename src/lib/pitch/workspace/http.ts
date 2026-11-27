@@ -37,7 +37,7 @@ const headers = {
 };
 const reply = (value: unknown, status = 200) =>
   Response.json(value, { status, headers });
-const taskReceipt = z.object({ state: z.string() }).passthrough();
+const taskReceipt = z.object({ state: z.string(), workflow: z.enum(["workspace", "proposal"]).optional() });
 export async function handleWorkspaceRequest(
   request: Request,
   deps: PitchDependencies,
@@ -46,7 +46,9 @@ export async function handleWorkspaceRequest(
   try {
     const ctx = await authorizePitch(request, deps);
     const dispatchQueuedTask = (projectId: string, taskId: string, receipt: unknown) => {
-      if (schedule && taskReceipt.parse(receipt).state === "queued") {
+      if (!schedule) return;
+      const task = taskReceipt.parse(receipt);
+      if (task.state === "queued" && task.workflow !== "proposal") {
         schedule(() => runWorkspaceTask({ ...ctx, signal: AbortSignal.timeout(45000) }, projectId, taskId));
       }
     };
