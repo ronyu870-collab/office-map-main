@@ -3,12 +3,15 @@ import { contentBlockSchema } from "@/src/lib/pitch/contracts/content";
 import styles from "./workspace.module.css";
 
 const [paragraph, metric, , table, chart] = contentBlockSchema.options;
-export const evidenceValueSchema = z.discriminatedUnion("kind", [
-  paragraph.omit({ sourceIds: true }),
+const numericEvidence = [
   metric.omit({ sourceIds: true }),
-  table.omit({ sourceIds: true }),
-  chart.omit({ sourceIds: true }),
-]);
+  z.object({ kind: table.shape.kind, columns: table.shape.columns, rows: table.shape.rows }),
+  z.object({ kind: chart.shape.kind, categories: chart.shape.categories, series: chart.shape.series,
+    xAxis: z.object({ label: z.string().min(1).max(100), unit: z.string().max(60),
+      values: z.array(z.number().finite().nullable()).min(1).max(200) }).optional() }),
+] as const;
+export const formalEvidenceValueSchema = z.discriminatedUnion("kind", numericEvidence);
+export const evidenceValueSchema = z.discriminatedUnion("kind", [paragraph.omit({ sourceIds: true }), ...numericEvidence]);
 
 function ValueTable({ columns, rows }: { columns: string[]; rows: (string | number | null)[][] }) {
   return <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="数据预览">
@@ -32,8 +35,10 @@ export function BusinessEvidence({ block }: { block: z.infer<typeof evidenceValu
         {block.yoy !== undefined && <div><dt>同比</dt><dd>{block.yoy ?? "—"}</dd></div>}
       </dl>;
     case "chart":
-      return <ValueTable columns={["类别", ...block.series.map(series => series.unit ? `${series.name}（${series.unit}）` : series.name)]}
-        rows={block.categories.map((item, index) => [item, ...block.series.map(series => series.values[index] ?? null)])} />;
+      return <ValueTable columns={["类别", ...(block.xAxis ? [block.xAxis.unit ? `${block.xAxis.label}（${block.xAxis.unit}）` : block.xAxis.label] : []),
+        ...block.series.map(series => series.unit ? `${series.name}（${series.unit}）` : series.name)]}
+        rows={block.categories.map((item, index) => [item, ...(block.xAxis ? [block.xAxis.values[index] ?? null] : []),
+          ...block.series.map(series => series.values[index] ?? null)])} />;
   }
 }
 

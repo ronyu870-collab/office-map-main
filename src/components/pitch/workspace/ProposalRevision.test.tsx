@@ -159,28 +159,70 @@ it("passes the server-resolved quarter to the data inspector when an individual 
   expect(call).toHaveBeenCalledTimes(1);
 });
 
-it("generates the approved new market edition from the exact reviewed request", async () => {
-  const workspace = { ...detail, workspace: { ...detail.workspace, context: { ...detail.workspace.context,
+const beforeRent = { kind: "metric" as const, label: "正式净有效租金", value: 128, unit: "元/㎡/月" };
+const afterRent = { ...beforeRent, value: 142 };
+const marketOriginal = { ...detail, slides: [{
+  ...detail.slides[0], content: { ...content, title: "已编辑的季度摘要", dataAsOf: "2026-06-30",
+    blocks: [{ ...beforeRent, sourceIds: [content.sources[0].id] }] },
+}], workspace: { ...detail.workspace, context: { ...detail.workspace.context,
     business: "market-report", period: "2026-Q2", buildingIds: [],
-  } } };
-  const input = { question: "最新正式季度的北京写字楼市场报告", projectId, city: "北京", buildingIds: [], assetIds: [],
-    language: "zh", audience: "internal" };
-  const reply = { status: "refresh-review", scope: "document", plan: refreshPlan, gaps: [], regeneration: input,
-    refreshPlan: { status: "ready", selection: "none", plan: { id: planId, title: "获权市场报告", version: 1, contextFingerprint: fingerprint,
+} } };
+const marketRequest = { question: "最新正式季度的北京写字楼市场报告", projectId, city: "北京", buildingIds: [], assetIds: [],
+  language: "zh", audience: "internal" };
+const interpretationReceipt = "isolated." + "a".repeat(43);
+const marketChange = {
+  before: { id: pageId, position: 1, title: marketOriginal.slides[0].content.title, dataAsOf: "2026-06-30" },
+  after: { id: closingPage, position: 1, title: marketOriginal.slides[0].content.title, dataAsOf: "2026-09-30" },
+  changes: [{ before: beforeRent, after: afterRent }], conclusionChanged: true,
+};
+const marketEdition = { beforePeriod: "2026-Q2", afterPeriod: "2026-Q3", needsConclusionReview: true, pages: [marketChange] };
+const marketReply = { status: "refresh-review", scope: "document", plan: refreshPlan, gaps: [], regeneration: marketRequest,
+    editionReview: marketEdition,
+    refreshPlan: { status: "ready", selection: "none", interpretationReceipt,
+      plan: { id: planId, title: "获权市场报告", version: 1, contextFingerprint: fingerprint,
       slides: [{ id: pageId, title: "季度市场摘要" }], gaps: [] },
-    brief: { city: "北京", submarkets: [], period: "2026-Q3", buildingIds: [], language: "zh", scenario: "market-report" } } };
-  const { user, call, onApplied, onGenerated } = setup(reply, "把整套报告更新到最新季度", command => ({
+      brief: { city: "北京", submarkets: [], period: "2026-Q3", buildingIds: [], language: "zh", scenario: "market-report" } } };
+
+it("shows versioned quarterly evidence and uses the exact approved request and receipt", async () => {
+  const { user, call, onApplied, onGenerated } = setup(marketReply, "把整套报告更新到最新季度", command => ({
     taskId: (command.confirmation as { taskId: string }).taskId, projectId: competitor.id, state: "completed",
-  }), workspace);
+  }), marketOriginal);
   await user.click(screen.getByRole("button", { name: "预览修改" }));
   expect(await screen.findByText("季度市场摘要")).toBeInTheDocument();
-  expect(screen.getByText(/按正式季度 2026-Q3 生成新版报告/)).toBeInTheDocument();
+  expect(screen.getByText("2026-Q2 → 2026-Q3 · 1 页有变化")).toBeInTheDocument();
+  await user.click(screen.getByText("第 1 页 · 已编辑的季度摘要"));
+  expect(screen.getByText("2026-06-30 → 2026-09-30")).toBeVisible();
+  expect(screen.getByText("128 元/㎡/月")).toBeVisible();
+  expect(screen.getByText("142 元/㎡/月")).toBeVisible();
+  expect(screen.getByText("请复核受数据更新影响的分析结论。")).toBeVisible();
   expect(call).toHaveBeenCalledTimes(1);
   await user.click(screen.getByRole("button", { name: "确认并生成新版 Pitch" }));
   await waitFor(() => expect(onGenerated).toHaveBeenCalledWith(competitor.id));
   expect(call.mock.calls[1][0]).toEqual({ action: "proposal_generate", confirmation: { taskId: expect.any(String),
-    projectId, expectedVersion: version, planId, contextFingerprint: fingerprint, request: input } });
+    projectId, expectedVersion: version, planId, contextFingerprint: fingerprint, interpretationReceipt, request: marketRequest } });
   expect(onApplied).not.toHaveBeenCalled();
+});
+
+it("withholds confirmation when the quarter comparison shows a different number from the saved project", async () => {
+  const editionReview = { ...marketEdition, pages: [{ ...marketChange,
+    changes: [{ before: { ...beforeRent, value: 999 }, after: afterRent }] }] };
+  const { user, call } = setup({ ...marketReply, editionReview }, "把整套报告更新到最新季度", undefined, marketOriginal);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  expect(await screen.findByText(/无法生成可应用的修改/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "确认并生成新版 Pitch" })).not.toBeInTheDocument();
+  expect(call).toHaveBeenCalledTimes(1);
+});
+
+it("requires a new edition comparison after a conflicting generation confirmation", async () => {
+  const { user, call, onGenerated } = setup(marketReply, "把整套报告更新到最新季度",
+    () => { throw new WorkspaceError("版本已经变化", 409); }, marketOriginal);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  await user.click(await screen.findByRole("button", { name: "确认并生成新版 Pitch" }));
+  expect(await screen.findByText("项目或资料已更新，请关闭核对窗口后重新预览修改。")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "确认并生成新版 Pitch" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "规划正式提案" })).not.toBeInTheDocument();
+  expect(call).toHaveBeenCalledTimes(2);
+  expect(onGenerated).not.toHaveBeenCalled();
 });
 
 it("shows the new client and keeps the saved quarterly shortlist in the exact confirmation", async () => {

@@ -12,6 +12,7 @@ const projectThemeSchema = z.object({ id: z.string().min(1).max(100), version: z
 const responseSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("ready"),
+    interpretationReceipt: z.string().max(8192).regex(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/).optional(),
     plan: z.object({
       id: z.uuid(),
       title: z.string(),
@@ -52,7 +53,8 @@ type Request = {
 };
 const receiptSchema = z.discriminatedUnion("state", [
   z.object({ taskId: z.uuid(), state: z.literal("completed"), projectId: z.uuid() }),
-  z.object({ taskId: z.uuid(), state: z.enum(["queued", "running", "failed", "cancelled"]), projectId: z.uuid().optional() }),
+  z.object({ taskId: z.uuid(), state: z.enum(["queued", "running", "failed", "cancelled"]),
+    projectId: z.uuid().optional(), errorCode: z.string().optional() }),
 ]);
 type Project = { id: string; version: number };
 export type ProposalProjectInput = {
@@ -143,7 +145,8 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   async function generate() {
     if (!result || visible?.status !== "ready" || disabled || working || request.current) return;
     const { id: planId, contextFingerprint } = visible.plan;
-    const key = JSON.stringify([inputKey, planId, contextFingerprint]);
+    const { interpretationReceipt } = visible;
+    const key = JSON.stringify([inputKey, planId, contextFingerprint, interpretationReceipt]);
     if (submission.current?.key !== key) submission.current = {
       key, taskId: crypto.randomUUID(), sourceId: projectId ?? crypto.randomUUID(),
     };
@@ -169,7 +172,8 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         const receipt = receiptSchema.parse(await call({
           action: "proposal_generate",
           confirmation: { taskId: entry.taskId, projectId: source.id, expectedVersion: source.version,
-            planId, contextFingerprint, request: { ...result.input, projectId: source.id } },
+            planId, contextFingerprint, ...(interpretationReceipt ? { interpretationReceipt } : {}),
+            request: { ...result.input, projectId: source.id } },
         }, true, "ai", current.signal));
         if (current.signal.aborted) return;
         if (receipt.taskId !== entry.taskId) throw new Error("生成任务编号不匹配，请重新查询。");
@@ -181,7 +185,9 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         setTaskProgress(undefined);
         if (receipt.state !== "completed") {
           submission.current = { ...entry, taskId: crypto.randomUUID() };
-          setError(receipt.state === "cancelled" ? "生成已取消。可以重新生成。" : "生成失败。可以重新生成。");
+          setError(receipt.errorCode === "PITCH_EDITION_LAYOUT" ? "新季度内容无法与部分已编辑页面对应。请核对原稿布局和文字后再预览。"
+            : receipt.state === "cancelled" ? "生成已取消。可以重新生成。" : "生成失败。可以重新生成。");
+          if (receipt.errorCode === "PITCH_EDITION_LAYOUT") setResult(undefined);
           return;
         }
         entry.completedProject = receipt.projectId;
@@ -193,7 +199,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         if (!projectId) entry.source = undefined;
         setTaskProgress(undefined);
         setResult(undefined);
-        setError("项目或资料已更新，请重新规划正式提案。");
+        setError(reviewed ? "项目或资料已更新，请关闭核对窗口后重新预览修改。" : "项目或资料已更新，请重新规划正式提案。");
       } else {
         setRecovery(true);
         setError(cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "生成结果暂时无法读取。");
@@ -214,7 +220,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   }, [following, taskProgress]);
 
   return <section className={styles.proposalReview} aria-label="业务提案规划">
-    {(!reviewed || !visible) && <Button variant="secondary" disabled={disabled || !question.trim() || !validPeriod || !!taskState || working === "generate"}
+    {!reviewed && <Button variant="secondary" disabled={disabled || !question.trim() || !validPeriod || !!taskState || working === "generate"}
       loading={working === "plan"} loadingLabel="正在核对范围与正式资料…" onClick={() => void preview()}>
       规划正式提案
     </Button>}
