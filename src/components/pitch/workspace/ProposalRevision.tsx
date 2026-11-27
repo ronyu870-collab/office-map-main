@@ -5,9 +5,10 @@ import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
 import { contentBlockSchema, sourceReferenceSchema } from "@/src/lib/pitch/contracts/content";
 import { outlineQuarter, saveSchema, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
+import { proposalEditionReviewSchema } from "@/src/lib/pitch/workspace/proposal-edition-review";
 import { objectId } from "@/src/lib/pitch/workspace/object-layout";
 import { themeLabel, WorkspaceError, type Call } from "./client";
-import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel } from "./DataRefreshReview";
+import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, ProposalEditionComparison, refreshPeriodLabel } from "./DataRefreshReview";
 import { EvidencePages } from "./BusinessEvidence";
 import {
   appliedLanguageSchema, LanguageRevisionReview, languageReviewSchema, matchesAppliedLanguage, matchesLanguageReview,
@@ -83,6 +84,7 @@ const outcomeSchema = z.union([
   readySchema.extend({ status: z.literal("refresh-review"),
     refreshPlan: z.union([reviewedProposalSchema, z.object({ brief: z.object({ period: outlineQuarter.nullable() }) })]),
     regeneration: regenerationSchema.optional(),
+    editionReview: proposalEditionReviewSchema.optional(),
   }),
   z.object({ status: z.literal("clarification"), message: z.string(), candidates: z.array(buildingSchema).max(10).optional() }),
   z.object({ status: z.literal("unavailable"), message: z.string().optional() }),
@@ -125,7 +127,10 @@ function matchesRegeneration(value: Extract<Plan, { status: "refresh-review" }>,
     return samePeriod && brief.scenario === context.business && client === context.client;
   if (client !== context.client)
     return samePeriod && brief.scenario === "site-selection" && !!client && plan.slides.some(page => page.pageKind === "requirements");
-  return context.business === "market-report" && brief.scenario === "market-report";
+  const edition = value.editionReview;
+  return context.business === "market-report" && brief.scenario === "market-report" &&
+    (!edition || edition.beforePeriod === context.period && edition.afterPeriod === brief.period &&
+      edition.pages.every(page => !page.before || detail.slides[page.before.position - 1]?.id === page.before.id));
 }
 
 function matchesPreview(value: StandardPreview, detail: WorkspaceDetail) {
@@ -297,7 +302,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   const themeChanged = theme && (theme.id !== detail.project.theme_id || theme.version !== detail.project.theme_version);
   const affected = themeChanged ? detail.slides.length : edits.length + removed.length;
   const regeneration = current?.status === "refresh-review" && onGenerated && current.regeneration && "plan" in current.refreshPlan
-    ? { input: current.regeneration, data: current.refreshPlan } : undefined;
+    ? { input: current.regeneration, data: current.refreshPlan, edition: current.editionReview } : undefined;
   const suggestedPeriod = current?.status === "refresh-review" ? current.refreshPlan.brief.period ?? undefined : undefined;
   return <>
     <Button variant="ghost" disabled={disabled || !question.trim()}
@@ -337,6 +342,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         {message && <p role="alert">{message}</p>}
       </>}
       {regeneration && onGenerated && <>
+        {regeneration.edition && <ProposalEditionComparison review={regeneration.edition} />}
         {(regeneration.input.language !== detail.workspace.context.language ||
           (regeneration.data.brief.targetClient ?? "") !== detail.workspace.context.client) &&
           <p>{["生成衍生项目", regeneration.data.brief.period, regeneration.input.language === "en" ? "英文" : "中文",

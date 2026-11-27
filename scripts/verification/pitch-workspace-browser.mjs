@@ -708,7 +708,12 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           const review = await reviewHttp.json();
           assert.ok(reviewHttp.ok() && review.status === "refresh-review", review.error ?? review.message ?? review.status);
           assert.equal(review.refreshPlan.brief.period, "2026-Q2");
+          assert.equal(review.editionReview.beforePeriod, period);
+          assert.equal(review.editionReview.afterPeriod, "2026-Q2");
+          assert.ok(review.editionReview.pages.some(page => page.changes.some(change => change.before && change.after)));
           const dialog = page.getByRole("dialog", { name: "核对 AI 修改" });
+          await dialog.getByText(/2026-Q3 → 2026-Q2/).waitFor();
+          await dialog.locator("summary").filter({ hasText: "页 ·" }).first().click();
           await dialog.getByRole("heading", { name: review.refreshPlan.plan.title, exact: true }).waitFor();
           const child = await confirmFlagshipProposal(page, dialog.getByRole("button", { name: "确认并生成新版 Pitch" }));
           const changed = await readProject(child);
@@ -817,6 +822,32 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           assert.equal(styled.project.theme_id, requestedTheme);
           assert.equal(styled.project.theme_version, styledPlan.plan.theme.version);
           result.explicitTheme = requestedTheme;
+
+          result.stage = "replacing a canvas photo directly";
+          await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+          const pinned = styled.slides[0].content.sources.find(source => source.visual?.kind === "photo").visual;
+          const imageIndex = styled.slides[0].scene.elements.findIndex(item => item.kind === "image" && item.mediaAssetId === pinned.id);
+          assert.ok(imageIndex >= 0);
+          await button("调整画布对象").click();
+          const canvas = page.getByRole("region", { name: "画布对象编辑" });
+          await canvas.getByRole("button", { name: new RegExp(`^对象 ${imageIndex + 1}：`) }).focus();
+          const [canvasReviewHttp] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_revision"),
+            button("更换楼宇照片").click(),
+          ]);
+          const canvasReview = await canvasReviewHttp.json();
+          assert.ok(canvasReviewHttp.ok() && canvasReview.status === "photo-review", canvasReview.message ?? canvasReview.error ?? canvasReview.status);
+          const canvasPicker = page.getByRole("dialog", { name: "更换楼宇照片" });
+          const [canvasApplied] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_apply_photo"),
+            canvasPicker.getByRole("button", { name: "确认换图" }).click(),
+          ]);
+          assert.ok(canvasApplied.ok());
+          await canvasPicker.waitFor({ state: "hidden" });
+          const savedCanvas = await readProject(styledId);
+          assert.ok(savedCanvas.slides[0].content.sources.some(source => source.visual?.id === canvasReview.changes[0].after.pin.id));
+          assert.equal(canvasReview.changes[0].before.pin.origin.buildingId, canvasReview.changes[0].after.pin.origin.buildingId);
+          result.replacedCanvasPhoto = true;
         }
         result.stage = "completed";
       } catch (error) {

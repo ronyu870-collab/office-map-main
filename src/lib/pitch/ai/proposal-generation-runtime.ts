@@ -1,6 +1,7 @@
 import { loadBusinessSnapshot, recheckBusinessResults } from "@/src/lib/intelligence/business/research";
 import { BUSINESS_DOMAIN } from "@/src/lib/intelligence/business/protocol";
 import { recheckLeaseResults } from "@/src/lib/intelligence/lease/research";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { generationSchema } from "../business/protocol";
 import { captureReviewedQuery } from "../business/document-version";
@@ -8,8 +9,9 @@ import { checkGenerationSize, prepareBusinessPages, prepareBusinessProject } fro
 import { studioRegistry } from "../data/renderWorkflow";
 import { pitchRpc, type PitchContext } from "../data/store";
 import { fitResolvedVisualImages, getVisualPageReceipts, resolveReferencedVisualMedia, resolveVisualPageMedia } from "../visual-data/resolve";
-import { projectContextSchema } from "../workspace/protocol";
+import { projectContextSchema, type WorkspaceDetail } from "../workspace/protocol";
 import { commitPayload, getWorkspace } from "../workspace/workflow";
+import { reviewProposalEdition } from "../workspace/proposal-edition-review";
 import { carryPageGeometry, prepareProposalEdition, readEditionBaseline } from "../workspace/proposal-edition";
 import { layoutSlides } from "../layout/engine";
 import { LayoutError } from "../layout/metrics";
@@ -22,12 +24,14 @@ import { scheduleConfirmedProposal, type ProposalGenerationLease } from "./propo
 import { createProposalDirectorPorts, proposalEvidenceVersion } from "./proposal-runtime";
 import type { ReviewedProposal } from "./proposal-workflow";
 
+type ProposalParent = Pick<ConfirmedProposal, "projectId" | "expectedVersion">;
+
 const receiptBinding = z.object({
   domain: z.enum(['quarter', 'lease', 'business']), dataVersion: z.string(), dataAsOf: z.iso.date().nullable(),
   permissionRevision: z.string(), policyVersion: z.string(), disclosure: z.literal('internal'),
 });
 
-async function prepareReviewedPages(ctx: PitchContext, command: ConfirmedProposal, reviewed: ReviewedProposal, projectId: string) {
+async function prepareReviewedPages(ctx: PitchContext, command: ProposalParent, reviewed: ReviewedProposal, projectId: string) {
   const { snapshot, plan, queryReceipts } = reviewed;
   if (snapshot.brief.audience !== 'internal' || !queryReceipts?.length || !plan.theme)
     throw new Error('PITCH_PROPOSAL_GENERATION_UNAVAILABLE');
@@ -93,8 +97,8 @@ function proposalContext(brief: ReviewedProposal["snapshot"]["brief"]) {
     business: brief.scenario, language: brief.language, period: brief.period ?? "" });
 }
 
-async function prepareFreshGeneration(ctx: PitchContext, command: ConfirmedProposal, reviewed: ReviewedProposal, projectId: string,
-  project: Awaited<ReturnType<typeof getWorkspace>>["project"],
+async function prepareFreshGeneration(ctx: PitchContext, command: ProposalParent, reviewed: ReviewedProposal, projectId: string,
+  project: WorkspaceDetail["project"],
 ) {
   if (!reviewed.generation?.length) return prepareReviewedPages(ctx, command, reviewed, projectId);
   const generation = generationSchema.parse({ action: "generate", projectId, parentProjectId: command.projectId,
@@ -111,25 +115,25 @@ async function prepareFreshGeneration(ctx: PitchContext, command: ConfirmedPropo
     proposalContext: proposalContext(reviewed.snapshot.brief) };
 }
 
-async function prepareGeneration(ctx: PitchContext, command: ConfirmedProposal, reviewed: ReviewedProposal, projectId: string) {
-  const current = await getWorkspace(ctx, command.projectId);
-  if (current.project.version !== command.expectedVersion) throw new Error("PITCH_CONFLICT");
-  const input = await prepareFreshGeneration(ctx, command, reviewed, projectId, current.project);
+async function prepareMarketEdition(ctx: PitchContext, current: WorkspaceDetail, reviewed: ReviewedProposal,
+  input: Awaited<ReturnType<typeof prepareFreshGeneration>>, mode: "review" | "save",
+) {
   const prior = current.workspace.context;
   const next = input.proposalContext;
   if (prior.business !== "market-report" || next.business !== prior.business || !prior.period || !next.period ||
     prior.period === next.period || prior.client !== next.client || prior.language !== next.language ||
-    prior.buildingIds.join() !== next.buildingIds.join() || !current.slides.length) return input;
+    prior.buildingIds.join() !== next.buildingIds.join() || !current.slides.length) return;
 
   const baseline = await readEditionBaseline(ctx, current);
   const submarkets = (items: string[]) => [...items].sort().join("|");
-  if (baseline.submarkets && submarkets(baseline.submarkets) !== submarkets(reviewed.snapshot.brief.submarkets)) return input;
+  if (baseline.submarkets && submarkets(baseline.submarkets) !== submarkets(reviewed.snapshot.brief.submarkets)) return;
   const overlay = await prepareProposalEdition({
     current, baseline, nextPeriod: next.period, recipeKeys: input.reviewedSlideKeys ?? {},
     fresh: input.slides.map(({ slideId, assetId, assetVersion, content, scene }) => ({
       id: slideId, asset_id: assetId, asset_version: assetVersion, template_id: "business-content", template_version: 1, content, scene,
     })),
     async render(content, previous, fresh) {
+      if (mode === "review") return fresh;
       const { theme } = await studioRegistry(ctx, fresh.themeId, fresh.themeVersion);
       try {
         const candidates = await layoutSlides(content, theme.definition, previous.layoutId, previous.variant);
@@ -147,13 +151,31 @@ async function prepareGeneration(ctx: PitchContext, command: ConfirmedProposal, 
       }
     },
   });
+  const title = baseline.title && current.project.title !== baseline.title ? current.project.title : input.title;
+  return { ...overlay, title };
+}
+
+export async function previewMarketEdition(ctx: PitchContext, current: WorkspaceDetail, reviewed: ReviewedProposal) {
+  if (!reviewed.snapshot.brief.period || reviewed.snapshot.brief.period === current.workspace.context.period) return;
+  const command = { projectId: current.project.id, expectedVersion: current.project.version };
+  const input = await prepareFreshGeneration(ctx, command, reviewed, randomUUID(), current.project);
+  const overlay = await prepareMarketEdition(ctx, current, reviewed, input, "review");
+  if (overlay) return reviewProposalEdition(current, overlay.pages, overlay.preserved, input.proposalContext.period);
+}
+
+async function prepareGeneration(ctx: PitchContext, command: ConfirmedProposal, reviewed: ReviewedProposal, projectId: string) {
+  const current = await getWorkspace(ctx, command.projectId);
+  if (current.project.version !== command.expectedVersion) throw new Error("PITCH_CONFLICT");
+  const input = await prepareFreshGeneration(ctx, command, reviewed, projectId, current.project);
+  const overlay = await prepareMarketEdition(ctx, current, reviewed, input, "save");
+  if (!overlay) return input;
   const editionSave = await commitPayload(ctx, {
     ...current, project: { ...current.project, id: projectId, version: 1 },
   }, overlay.pages, overlay.settings, {
-    title: baseline.title && current.project.title !== baseline.title ? current.project.title : input.title,
+    title: overlay.title,
     themeId: input.themeId,
     themeVersion: input.themeVersion,
-    context: next,
+    context: input.proposalContext,
     activeSlide: overlay.activeSlide,
   });
   const result = { ...input, editionSave };

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ProposalEditionReview } from "@/src/lib/pitch/workspace/proposal-edition-review";
 import type { WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { BusinessEvidence, evidenceValueSchema } from "./BusinessEvidence";
 import styles from "./workspace.module.css";
@@ -56,6 +57,26 @@ export function DataRefreshComparison({ review, slides }: {
           </div>;
         })}
       </section>;
+    })}
+  </>;
+}
+
+export function ProposalEditionComparison({ review }: { review: ProposalEditionReview }) {
+  return <>
+    <p>{review.beforePeriod} → {review.afterPeriod} · {review.pages.length} 页有变化</p>
+    {review.needsConclusionReview && <p role="status">请复核受数据更新影响的分析结论。</p>}
+    {review.pages.map(({ before, after, changes, conclusionChanged }) => {
+      const page = after ?? before;
+      if (!page) return null;
+      return <details key={page.id} className={styles.refreshChanges}>
+        <summary>第 {page.position} 页 · {page.title}{!before ? " · 新增" : !after ? " · 移除" : ""}</summary>
+        {before && after ? <p>{before.dataAsOf} → {after.dataAsOf}</p> : <p>{page.dataAsOf}</p>}
+        {conclusionChanged && <p>本页分析结论有变化。</p>}
+        {changes.map((change, index) => <div key={index} className={styles.revisionColumns}>
+          <div><h4>更新前</h4><BlockValue value={change.before} /></div>
+          <div><h4>更新后</h4><BlockValue value={change.after} /></div>
+        </div>)}
+      </details>;
     })}
   </>;
 }

@@ -18,7 +18,7 @@ import { getBuildingPhotoChoices } from "../visual-data/photos";
 import { readStackingAppendix } from "../visual-data/stacking-delivery";
 import { getWorkspace } from "../workspace/workflow";
 import type { ProposalRequest } from "./proposal-brief";
-import { directProposal, type ComposedProposalPage, type ProposalComposerInput, type ProposalDirectorPorts } from "./proposal-director";
+import { directProposal, type ComposedProposalPage, type ProposalComposerInput, type ProposalDirectorPorts, type ProposalPlanningResult } from "./proposal-director";
 import type { ProposalModel } from "./proposal-interpretation";
 import { createUnifiedProposalComposer } from "./proposal-unified-runtime";
 import { sealProposalInterpretation } from "./proposal-interpretation-receipt";
@@ -201,9 +201,12 @@ function toQuarter(period: string): DynamicParameters["period"] {
 }
 
 export async function prepareProposal(ctx: PitchContext, input: ProposalRequest, model?: ProposalModel,
-  ports = createProposalDirectorPorts(ctx)) {
+  ports = createProposalDirectorPorts(ctx),
+  inspect?: (reviewed: Extract<ProposalPlanningResult, { status: "ready" }>) => Promise<void>,
+) {
   const result = await directProposal(input, ports, ctx.signal, model);
   if (result.status !== "ready") return result;
+  await inspect?.(result);
   const interpretationReceipt = result.acceptedSlots
     ? sealProposalInterpretation(ctx.identity, input, result.plan, result.acceptedSlots) : undefined;
   return {

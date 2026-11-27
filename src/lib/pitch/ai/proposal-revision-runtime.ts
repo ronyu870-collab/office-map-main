@@ -16,6 +16,7 @@ import { reviewProposalPhotoReplacement, type ProposalPhotoServices } from "./pr
 import { reviewProposalLanguage } from "./proposal-language-revision";
 import { registeredProposalTheme } from "./proposal-theme";
 import { resolveQuarterRevision } from "./proposal-quarter-revision";
+import type { ProposalEditionReview } from "../workspace/proposal-edition-review";
 import type { ProposalScenario } from "../integration-contracts";
 import { readProposalEdit, type ProposalRevisionRequest } from "./proposal-edit-intent";
 import { prepareProposal } from "./proposal-runtime";
@@ -97,6 +98,7 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   let shorteningPreview: { originalPageCount: number; pageCount: number; removed: { pageId: string; title: string }[] } | undefined;
   let refreshPlan: Extract<Awaited<ReturnType<typeof prepareProposal>>, { status: "ready" }> | undefined;
   let regeneration: ProposalRequest | undefined;
+  let editionReview: ProposalEditionReview | undefined;
   let quarterTransaction: { review: z.infer<typeof quarterReviewSchema>; command: {
     action: "apply_data_refresh"; projectId: string; slideId: string; expectedVersion: number;
     period: z.infer<typeof quarterSchema>; fingerprint: string;
@@ -211,10 +213,14 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
           const question = [period ?? "最新正式季度", location, scenarioQuestions[scenario]].filter(Boolean).join("，");
           const request = proposalRequestSchema.parse({ question, projectId: input.projectId, city: project.city,
             buildingIds: workspace.context.buildingIds, language: workspace.context.language, period: period ?? undefined });
-          const proposal = await prepareProposal(ctx, request);
+          const isEdition = scope === "document" && workspace.context.business === "market-report";
+          const proposal = await prepareProposal(ctx, request, undefined, undefined, isEdition ? async reviewed => {
+            const { previewMarketEdition } = await import("./proposal-generation-runtime");
+            editionReview = await previewMarketEdition(ctx, current, reviewed);
+          } : undefined);
           if (proposal.status !== "ready") return null;
           refreshPlan = proposal;
-          if (scope === "document" && workspace.context.business === "market-report") regeneration = request;
+          if (isEdition) regeneration = request;
           continue;
         }
         if (operation.kind === "set-style") {
@@ -295,7 +301,7 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   // Agent 06's document transaction accepts reviewed page edits. A refreshed
   // proposal has its own source review and can't be applied as a page edit.
   if (refreshPlan) return { ...outcome, status: "refresh-review" as const, scope, ...(theme ? { theme } : {}), refreshPlan,
-    ...(regeneration ? { regeneration } : {}) };
+    ...(regeneration ? { regeneration } : {}), ...(editionReview ? { editionReview } : {}) };
   const command = { action: "apply_modification" as const, plan: outcome.plan, scope, ...(theme ? { theme } : {}) };
   if (chartPreview) workspaceCommandSchema.parse(command);
   return { ...outcome, scope, ...(theme ? { theme } : {}), ...(chartPreview ? { chartPreview } : {}),
