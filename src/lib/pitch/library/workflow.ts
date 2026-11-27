@@ -86,7 +86,11 @@ export async function thumbnailFile(ctx:PitchContext,input:{pageId?:string;media
  const current=z.object({thumbnail:z.unknown()}).parse(input.pageId?z.object({page:z.unknown()}).parse(await pitchRpc(ctx,args)).page:await pitchRpc(ctx,args));
  if(!current.thumbnail)throw new Error('PITCH_INVALID');const file=current.thumbnail as Parameters<typeof readFile>[1],bytes=await readFile(ctx,file);await pitchRpc(ctx,args);return {bytes,mime:file.mime,filename:'thumbnail.'+file.mime.split('/')[1]};
 }
-export async function assetContext(ctx:PitchContext,assetId:string){return z.object({asset:object,version:z.object({content:slideContentSchema}),media:z.array(mediaRowSchema),versions:z.array(object).optional()}).parse(await pitchRpc(ctx,{action:'library_asset',assetId}));}
+export async function assetContext(ctx:PitchContext,assetId:string,version?:number){
+ return z.object({asset:object,version:z.object({content:slideContentSchema,version:z.number().int().positive(),
+  sha256:z.string().regex(/^[a-f0-9]{64}$/)}),media:z.array(mediaRowSchema),versions:z.array(object).optional()})
+  .parse(await pitchRpc(ctx,{action:'library_asset',assetId,version}));
+}
 export function assetInput(row:Record<string,unknown>,content:unknown):ContentAssetInput{return assetInputSchema.parse({scope:{organizationId:row.organization_id,region:row.region,city:row.city,businessLine:row.business_line},categoryId:row.category_id,tags:row.tags,names:row.names,content,state:row.state,visibility:row.visibility,allowInternalGeneration:row.allow_internal_generation,allowClientExport:row.allow_client_export,allowExternalAi:row.allow_external_ai,validFrom:row.valid_from,validUntil:row.valid_until});}
 export async function saveLibraryAsset(ctx:PitchContext,c:Extract<LibraryCommand,{action:'save_asset'}>){
  const existing=c.expectedVersion?await assetContext(ctx,c.assetId):null;
@@ -98,14 +102,24 @@ export async function confirmAssets(ctx:PitchContext,c:Extract<LibraryCommand,{a
  return pitchRpc(ctx,{...c,action:'library_confirm',items});
 }
 export async function normalizeAsset(ctx:PitchContext,c:Extract<LibraryCommand,{action:'normalize'}>){
- const current=await assetContext(ctx,c.assetId),registry=z.object({template:z.object({config:templateConfigSchema}),theme:z.object({definition:designThemeSchema})}).parse(await pitchRpc(ctx,{action:'registry',templateId:'history-standardizer',templateVersion:1,themeId:c.themeId,themeVersion:c.themeVersion}));
+ const current=await assetContext(ctx,c.assetId,c.assetVersion);
+ const assetVersion=current.version.version;
+ const sourceSha=current.version.sha256;
+ if(c.assetVersion!==undefined && assetVersion!==c.assetVersion)throw new Error('PITCH_CONFLICT');
+ const compositionKey=c.assetVersion===undefined ? undefined : contentHash(['history-standardizer/1',c.projectId,c.assetId,assetVersion,sourceSha,c.title,c.themeId,c.themeVersion]);
+ if(compositionKey){
+  const prior=await pitchRpc(ctx,{...c,action:'library_normalize_pinned_lookup',compositionKey,sourceSha});
+  if(prior!==null)return prior;
+ }
+ const registry=z.object({template:z.object({config:templateConfigSchema}),theme:z.object({definition:designThemeSchema})}).parse(await pitchRpc(ctx,{action:'registry',templateId:'history-standardizer',templateVersion:1,themeId:c.themeId,themeVersion:c.themeVersion}));
  const content=buildTemplateContent(registry.template.config,current.version.content,{language:current.version.content.locale.startsWith('en')?'en':'zh',layoutId:'two-columns',variant:'standard'}),plan=await normalizationPlan(content,registry.theme.definition),pages=[];
  for(const part of plan)for(const scene of await layoutSlides(part.content,registry.theme.definition,part.layoutId,part.variant))pages.push({slideId:randomUUID(),scene,content:part.content,theme:registry.theme.definition});
  if(pages.length>50)throw limited();const refs=pages.flatMap(p=>p.scene.elements.filter(e=>e.kind==='image'));const files:SceneMedia[]=[];
- for(const ref of refs){const row=current.media.find(m=>m.id===ref.mediaAssetId&&m.version===ref.mediaVersion);if(!row)throw new Error('PITCH_DENIED');if(!files.some(f=>f.id===row.id))files.push({id:row.id,version:row.version,mime:row.mime,bytes:await readFile(ctx,{bucket:'pitch-studio-private',path:row.storage_path,mime:row.mime,size:row.size_bytes,sha256:row.sha256})});}
+ for(const ref of refs){const row=current.media.find(m=>m.id===ref.mediaAssetId&&m.version===ref.mediaVersion);if(!row)throw new Error('PITCH_DENIED');if(!files.some(f=>f.id===row.id&&f.version===row.version))files.push({id:row.id,version:row.version,mime:row.mime,bytes:await readFile(ctx,{bucket:'pitch-studio-private',path:row.storage_path,mime:row.mime,size:row.size_bytes,sha256:row.sha256})});}
  const media=await inspectMedia(files);for(const page of pages)await assertSceneQuality(page.scene,page.theme,media);
- const report={engine:'history-normalize/1',assetId:c.assetId,assetVersion:current.asset.current_version,inputSha:contentHash(content),segments:plan.map(p=>({blockIndices:p.blockIndices,layoutId:p.layoutId,changes:p.changes})),sourcePages:content.sources.map(s=>s.pageId).filter(Boolean)};
- return pitchRpc(ctx,{...c,action:'library_normalize_commit',assetVersion:current.asset.current_version,compositionKey:contentHash([c,report]),report,slides:numberDeckPages(pages).map(({slideId,scene,content})=>({slideId,scene,content}))});
+ const report={engine:'history-normalize/1',assetId:c.assetId,assetVersion,inputSha:contentHash(content),segments:plan.map(p=>({blockIndices:p.blockIndices,layoutId:p.layoutId,changes:p.changes})),sourcePages:content.sources.map(s=>s.pageId).filter(Boolean)};
+ return pitchRpc(ctx,{...c,action:compositionKey?'library_normalize_pinned_commit':'library_normalize_commit',assetVersion,
+  compositionKey:compositionKey??contentHash([c,report]),sourceSha,report,slides:numberDeckPages(pages).map(({slideId,scene,content})=>({slideId,scene,content}))});
 }
 export async function mergeAssets(ctx:PitchContext,c:Extract<LibraryCommand,{action:'merge'}>){
  const target=await assetContext(ctx,c.targetId),input=assetInput(target.asset,target.version.content),sources=[];

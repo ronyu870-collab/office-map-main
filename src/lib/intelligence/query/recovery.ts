@@ -152,7 +152,7 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
   };
   await recheck();
   // Return the exact decoded archive, not the narrowed schema projection above.
-  return {result:archive.result,resultId:result.resultId,redactionTypes:archive.redactionTypes,recheck};
+  return {result:archive.result,resultId:result.resultId,redactionTypes:archive.redactionTypes,recheck,quarterPlan:plan};
 }
 
 /** A selected answer has no new authority. Reuse the original domain checks

@@ -13,6 +13,9 @@ import { slideContentSchema, type SlideContent } from '../contracts/content';
 import type { PitchContext } from '../data/store';
 import { digest } from '../data/store';
 import { DocumentError } from '@/src/lib/intelligence/knowledge/safeArchive';
+import { readQuarterlyResearchSnapshot } from './quarterly-research';
+import { analysisPlanAtPeriod, readAnalysisPlan } from './analysis-source';
+import { quarterKey } from '@/src/lib/intelligence/query/contracts';
 import { DYNAMIC_CAPABILITIES } from './recipes';
 import type { DynamicParameters } from './protocol';
 export type DataBinding = { domain: 'quarter'|'lease'; permissionRevision: string; policyVersion: string };
@@ -30,6 +33,8 @@ export async function searchPitchBuildings(ctx:PitchContext,q:string,offset:numb
 }
 /** A reviewed adapter owns every query/metric. Business templates receive only SlideContent and an immutable receipt. */
 export function quarterPlans(p: DynamicParameters): QueryPlan[] {
+  if (p.researchScope) return rejected('季度研究的城市样本须由服务端读取。');
+  if (p.analysisResult) return [analysisPlanAtPeriod(p.analysisResult.plan, p.period)];
   const scope={inventory:p.inventory,...(p.submarkets.length?{submarkets:p.submarkets}:{}),...(p.buildingIds.length?{buildingIds:p.buildingIds}:{})};
   const list=(fields:string[])=>parseQueryPlan({operation:'list',scope,fields,period:p.period});
   if(['building-profile','project-comparison'].includes(p.templateId)) {
@@ -41,6 +46,12 @@ export function quarterPlans(p: DynamicParameters): QueryPlan[] {
     return p.templateId==='rent-comparison'?[list(['netEffectiveRent']),parseQueryPlan({operation:'aggregate',scope,period:p.period,metric:'rent'})]:[list(['vacantArea','totalArea']),parseQueryPlan({operation:'aggregate',scope,period:p.period,metric:'vacancy'})];
   }
   if(['rent-trend','vacancy-trend'].includes(p.templateId))return [parseQueryPlan({operation:'trend',scope,metric:p.templateId==='rent-trend'?'rent':'vacancy',start:p.start,end:p.end,mode:'per_period'})];
+  if (p.templateId === 'quarter-market-summary') {
+    if (!p.buildingIds.length && !p.submarkets.length) return rejected('请选择已确认的楼宇或子市场范围。');
+    const metrics = p.aggregateMetrics ?? ['rent','vacancy'];
+    return [parseQueryPlan({ operation: 'aggregate', scope, period: p.period, metric: metrics[0], filter: p.aggregateFilter,
+      ...(metrics.length > 1 ? { metrics } : {}) })];
+  }
   if(p.templateId==='building-submarket') {
     if(!p.targetBuildingId||p.submarkets.length!==1)rejected('需要一个目标项目和一个已确认子市场。');
     return [parseQueryPlan({operation:'aggregate',scope:{...scope,buildingIds:[p.targetBuildingId]},period:p.period,metric:'rent',metrics:['rent','vacancy']}),parseQueryPlan({operation:'aggregate',scope:{inventory:p.inventory,submarkets:p.submarkets},period:p.period,metric:'rent',metrics:['rent','vacancy']})];
@@ -48,10 +59,31 @@ export function quarterPlans(p: DynamicParameters): QueryPlan[] {
   return rejected('此模板没有受控季度数据适配器。');
 }
 function quarterDate(year:number,quarter:number) {return new Date(Date.UTC(year,quarter*3,0)).toISOString().slice(0,10);}
+
+function analysisTables(table: QueryResultView['table'], sourceIds: string[]): SlideContent['blocks'] {
+  const { columns, rows } = table;
+  if (!rows.length || rows.length > 200 || !columns.length)
+    return rejected('获权分析没有可展示的结果，或行数超出文档容量。');
+  const identityKeys = new Set(['name', 'submarket', 'grade', 'period']);
+  const fixed = columns.filter((column, index) => index === 0 || identityKeys.has(column.key));
+  const remaining = columns.filter(column => !fixed.includes(column));
+  // The standard Pitch table renderer fits six columns. Keep row identifiers
+  // on each continuation and include every source column and every value.
+  const capacity = 6 - fixed.length;
+  const columnSets = columns.length <= 6 ? [columns] : Array.from({ length: Math.ceil(remaining.length / capacity) },
+    (_, index) => [...fixed, ...remaining.slice(index * capacity, (index + 1) * capacity)]);
+  return columnSets.map(group => ({ kind: 'table',
+    columns: group.map(column => column.label + (column.unit ? ` (${units[column.unit] ?? column.unit})` : '')),
+    rows: rows.map(row => group.map(column => cellText(row.cells[column.key], column.unit))), sourceIds }));
+}
+
 function resultContent(r: QueryResultView, p: DynamicParameters, language: 'zh'|'en', asOf:string, index:number): SlideContent {
   const capability=DYNAMIC_CAPABILITIES.find(c=>c.id===p.templateId)!;
   const sourceId=randomUUID(), sourceIds=[sourceId];
-  const title=language==='en'?p.templateId:capability.name;
+  const marketSummary = p.templateId === 'quarter-market-summary';
+  const researchTitle = language === 'en' ? 'Beijing Grade A office indicators' : '北京甲级写字楼季度指标';
+  const title = p.analysisResult ? (language === 'en' ? 'Authorized analysis results' : '已授权分析结果')
+    : p.researchScope ? researchTitle : language === 'en' ? (marketSummary ? 'Quarterly market indicators' : p.templateId) : capability.name;
   const provenance={id:sourceId,kind:'record' as const,label:'已授权正式数据库 · '+[...new Set(r.sources.map(s=>s.table))].join(' / '),recordId:r.resultId,locator:`结果 ${r.resultId}`,version:r.dataVersion.slice(0,100),dataAsOf:asOf};
   const columns=r.table.columns;
   const rows=[...r.table.rows];
@@ -66,7 +98,16 @@ function resultContent(r: QueryResultView, p: DynamicParameters, language: 'zh'|
   }
   const trend=r.operation==='trend';
   const blocks:SlideContent['blocks']=[];
-  if(p.templateId==='lease-industry-distribution'&&p.chart!=='table') {
+  if (p.analysisResult && r.operation !== 'aggregate') {
+    blocks.push(...analysisTables(r.table, sourceIds));
+  } else if (marketSummary) {
+    if (rows.length !== 1 || !p.analysisResult && columns.length > 12) return rejected('季度汇总超出页面容量，请缩小范围。');
+    const labels = language === 'en' ? ['Metric and coverage', 'Quarter result'] : ['指标与口径', '本期结果'];
+    blocks.push({ kind: 'table', columns: labels, rows: columns.map(column => [
+      column.label + (column.unit ? ` (${units[column.unit] ?? column.unit})` : ''),
+      cellText(rows[0].cells[column.key], column.unit),
+    ]), sourceIds });
+  } else if(p.templateId==='lease-industry-distribution'&&p.chart!=='table') {
     const chart=buildResultChart(r,{kind:'bar',field:p.measure});
     blocks.push({kind:'chart',chartType:p.chart==='line'?'column':p.chart,categories:chart.points.map(v=>v.label),series:[{name:p.measure==='area'?'成交面积（㎡）':'成交笔数',values:chart.points.map(v=>v.y),unit:p.measure==='area'?'㎡':'笔'}],sourceIds});
   }else if(trend&&p.chart!=='table') {
@@ -78,10 +119,16 @@ function resultContent(r: QueryResultView, p: DynamicParameters, language: 'zh'|
     if(columns.length>12||rows.length>200)rejected('查询结果超出本次页面容量，请缩小范围。');
     blocks.push({kind:'table',columns:columns.map(c=>c.label+(c.unit?` (${units[c.unit]??c.unit})`:'')),rows:rows.map(row=>columns.map(c=>cellText(row.cells[c.key],c.unit))),sourceIds});
   }
-  const data:SlideContent={protocol:'colliers-pitch/1',locale:language,title:index?title+' · 参考统计':title,subtitle:trend?`${p.start.year} Q${p.start.quarter} – ${p.end.year} Q${p.end.quarter}`:undefined,dataAsOf:asOf,disclosure:'internal',isTestData:false,sources:[provenance],blocks};
+  const analysisPlan = p.analysisResult && analysisPlanAtPeriod(p.analysisResult.plan, p.period);
+  const analysisStart = analysisPlan && ('base' in analysisPlan ? analysisPlan.base : 'start' in analysisPlan ? analysisPlan.start : null);
+  const analysisPeriod = analysisPlan && [analysisStart && quarterKey(analysisStart), quarterKey(p.period)].filter(Boolean).join(' – ');
+  const data:SlideContent={protocol:'colliers-pitch/1',locale:language,title:index?title+' · 参考统计':title,subtitle:analysisPeriod || (trend?`${p.start.year} Q${p.start.quarter} – ${p.end.year} Q${p.end.quarter}`:
+    marketSummary ? [`${p.period.year} Q${p.period.quarter}`, p.researchScope &&
+      (language === 'en' ? 'Authorized tracked buildings' : '获权跟踪样本')].filter(Boolean).join(' · ') : undefined),dataAsOf:asOf,disclosure:'internal',isTestData:false,sources:[provenance],blocks};
   return slideContentSchema.parse(data);
 }
-export async function runPitchDataAdapter(ctx:PitchContext,p:DynamicParameters,language:'zh'|'en', compareOutline = false):Promise<PitchDataSnapshot> {
+export async function runPitchDataAdapter(ctx:PitchContext,p:DynamicParameters,language:'zh'|'en', compareOutline = false,
+  verifiedAnalysisPlan?: QueryPlan):Promise<PitchDataSnapshot> {
   const capability=DYNAMIC_CAPABILITIES.find(c=>c.id===p.templateId);
   if(capability?.status!=='available')return rejected(capability?.reason??'模板不存在。');
   const results:QueryResultView[]=[],plans:unknown[]=[];let binding:DataBinding;
@@ -95,7 +142,16 @@ export async function runPitchDataAdapter(ctx:PitchContext,p:DynamicParameters,l
     const fresh=await loadLeaseSnapshot(ctx.client,ctx.identity,ctx.signal);if(!fresh.export||fresh.permission_revision!==binding.permissionRevision)throw new Error('QUERY_DENIED');
   }else {
     const authority=await loadDataAuthority(ctx.client,ctx.identity,ctx.signal);if(!authority.grants.includes('export:internal'))throw new Error('QUERY_DENIED');
-    if (compareOutline) {
+    if (p.analysisResult) {
+      const plan = verifiedAnalysisPlan ?? (await readAnalysisPlan(ctx, p.analysisResult.requestId, p.analysisResult.resultId)).plan;
+      if (compareOutline || JSON.stringify(plan) !== JSON.stringify(p.analysisResult.plan)) throw new Error('PITCH_HANDOFF_CHANGED');
+    }
+    if (p.researchScope) {
+      if (compareOutline) throw new Error('PITCH_INVALID');
+      const { plan, snapshots } = await readQuarterlyResearchSnapshot(ctx, authority, p.period);
+      plans.push(plan);
+      results.push(resultViewSchema.parse(executeQueryPlan(plan, snapshots)));
+    } else if (compareOutline) {
       const { previous, priorYear } = comparisonQuarters(p.period);
       const scope = { inventory: p.inventory, buildingIds: p.buildingIds };
       // Fetch the three periods from one DB snapshot so current values cannot drift between comparisons.

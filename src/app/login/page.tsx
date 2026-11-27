@@ -14,6 +14,7 @@ import { setTrustedDevice } from '@/src/services/trustedDevice';
 import { hasPasswordChangeNotice, setPasswordChangeNotice, subscribeToPasswordChangeNotice } from '@/src/services/passwordChangeNotice';
 import { Button, IconButton, Input } from '@/src/components/ui';
 import { isEditorialVisualPreview } from '@/src/utils/visualPreview';
+import { pitchSharePath, pitchShareQueryKey } from '@/src/lib/pitch/workspace/shareLink';
 
 export default function LoginPage() {
   const { t } = useLanguage();
@@ -37,7 +38,8 @@ export default function LoginPage() {
   React.useEffect(() => {
     if (!destination || submitting) return;
     perfMark('登录-开始客户端跳转');
-    router.replace(destination);
+    const share = new URLSearchParams(window.location.search).get(pitchShareQueryKey);
+    router.replace(destination === '/' ? pitchSharePath(share) ?? destination : destination);
   }, [destination, router, submitting]);
 
   async function handleSubmit(e: React.FormEvent) {

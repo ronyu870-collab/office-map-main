@@ -1,3 +1,4 @@
+import { researchEditions } from '@/src/config/quarterlyResearch';
 import { z } from "zod";
 import { scopeSchema, slideContentSchema } from "../contracts/content";
 import {
@@ -5,6 +6,7 @@ import {
   variantSchema,
   slideSceneSchema,
 } from "../contracts/scene";
+import { pageNoteSchema, pageNoteTextSchema, workspaceChartTypeSchema } from "./presentation-edits";
 import { objectMoveSchema, objectTextSchema, objectOrderSchema, objectGroupsSchema } from "./object-layout";
 import { dynamicParametersSchema, generationPartSchema } from "../business/protocol";
 import { revisionRefs } from "../ai/protocol";
@@ -29,6 +31,10 @@ export const pageEditSchema = z.strictObject({
   duplicateOf: id.optional(),
   title: title.optional(),
   paragraphs: z.array(z.string().min(1).max(4000)).max(50).optional(),
+  manualNote: pageNoteTextSchema.nullable().optional(),
+  chartPresentation: z.array(z.strictObject({
+    blockIndex: z.number().int().min(0).max(49), type: workspaceChartTypeSchema,
+  })).min(1).max(10).optional(),
   images: z
     .array(
       z.strictObject({
@@ -59,6 +65,22 @@ export const saveSchema = z.strictObject({
   activeSlide: id.nullable(),
 });
 export type WorkspaceSave = z.infer<typeof saveSchema>;
+const reviewedDocumentRefreshSchema = z.strictObject({
+  kind: z.literal("reviewed-data"), slideId: id, period: quarterSchema.optional(),
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export type ReviewedDocumentRefresh = z.infer<typeof reviewedDocumentRefreshSchema>;
+const documentModificationSchema = z.strictObject({
+  id, projectId: id, expectedVersion: z.number().int().positive(),
+  basePageVersions: z.array(z.strictObject({ id, version: z.number().int().positive() })).max(50),
+  pages: saveSchema.shape.pages,
+  refresh: z.union([reviewedDocumentRefreshSchema,
+    z.strictObject({ id, version: z.number().int().positive(), contextFingerprint: z.string().regex(/^[a-f0-9]{64}$/) }),
+  ]).optional(),
+});
+const dataRefreshOptions = {
+  projectId: id, slideId: id, expectedVersion: z.number().int().positive(), period: quarterSchema.optional(),
+};
 export const preferencesSchema = z.strictObject({
   favorites: z.array(z.string().min(1).max(100)).max(100).default([]),
   recent: z.array(z.string().max(100)).max(20).default([]),
@@ -110,8 +132,61 @@ export const outlinePartSchema = z.strictObject({
   }
 });
 export type OutlinePart = z.infer<typeof outlinePartSchema>;
-export const workspacePartSchema=z.union([generationPartSchema,examplePartSchema,bundlePartSchema,outlinePartSchema]);
-export type WorkspacePart=z.infer<typeof workspacePartSchema>;
+export const stackingSelectionSchema = z.strictObject({
+  towerIds: z.array(id).min(1).max(2).refine(ids => ids.length === new Set(ids).size).optional(),
+  levelRange: z.tuple([z.number().int().min(-200).max(300), z.number().int().min(-200).max(300)])
+    .refine(([first, last]) => first <= last).optional(),
+});
+const stackingHandoffSourceSchema = z.strictObject({
+  kind: z.literal("stacking-plan"), buildingId: id, selection: stackingSelectionSchema.default({}),
+});
+export type StackingHandoffSource = z.infer<typeof stackingHandoffSourceSchema>;
+
+const handoffPartSchema = z.strictObject({
+  mode: z.literal("handoff"), parameters: dynamicParametersSchema, language: z.enum(["zh", "en"]),
+  dataVersion: outlineFingerprint, permissionRevision: z.string().min(1).max(160), policyVersion: z.string().min(1).max(160),
+});
+export const stackingHandoffPartSchema = z.strictObject({
+  mode: z.literal("handoff"), stackingSource: stackingHandoffSourceSchema, language: z.literal("zh"),
+  dataVersion: outlineFingerprint, dataAsOf: z.iso.date().nullable(), observedOn: z.iso.date().optional(),
+  permissionRevision: z.string().min(1).max(160), policyVersion: z.string().min(1).max(160),
+});
+const editableWorkspacePartSchema = z.union([generationPartSchema, examplePartSchema, bundlePartSchema, outlinePartSchema]);
+export const workspacePartSchema = z.union([editableWorkspacePartSchema, handoffPartSchema, stackingHandoffPartSchema]);
+const leaseHandoffSourceSchema = z.strictObject({
+  kind: z.literal("lease-search"),
+  dataset: z.enum(["live", "history", "combined"]),
+  from: z.iso.date(),
+  to: z.iso.date(),
+  buildingIds: z.array(id).max(20).default([]),
+  submarkets: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
+  view: z.enum(["transactions", "industry-count", "industry-area"]),
+  direction: z.enum(["asc", "desc"]).default("desc"),
+}).superRefine((input, ctx) => {
+  if (input.from > input.to || Number(input.to.slice(0, 4)) - Number(input.from.slice(0, 4)) > 20)
+    ctx.addIssue({ code: "custom", path: ["to"], message: "Invalid lease period" });
+  if (new Set(input.buildingIds).size !== input.buildingIds.length || new Set(input.submarkets).size !== input.submarkets.length)
+    ctx.addIssue({ code: "custom", message: "Duplicate lease filter" });
+});
+const handoffSchema = z.strictObject({
+  source: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("buildings"), buildingIds: z.array(id).min(1).max(20).refine(ids => new Set(ids).size === ids.length) }),
+    z.strictObject({ kind: z.literal("submarket"), key: z.string().trim().min(1).max(80) }),
+    z.strictObject({ kind: z.literal("quarterly-research"), edition: z.enum(researchEditions) }),
+    z.strictObject({ kind: z.literal("analysis-result"), id, resultId: id.optional() }),
+    leaseHandoffSourceSchema,
+    stackingHandoffSourceSchema,
+  ]),
+  projectId: id.optional(), period: outlineQuarter.optional(), language: z.enum(["zh", "en"]).optional(),
+}).refine(input => !["lease-search", "stacking-plan", "quarterly-research"].includes(input.source.kind) || !input.period,
+  "Dated sources retain their own periods");
+export type WorkspaceHandoffInput = z.input<typeof handoffSchema>;
+const handoffTargetSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("append"), expectedVersion: z.number().int().positive() }),
+  z.strictObject({ mode: z.literal("create"), projectId: id, title, scope: scopeSchema,
+    themeId: z.string().min(1).max(100), themeVersion: z.number().int().positive() }),
+]);
+export type WorkspacePart = z.infer<typeof editableWorkspacePartSchema>;
 const revisionCanvasOptions = {
   projectId: id, slideId: id, taskId: id, expectedVersion: z.number().int().positive(),
   selectedRefs: revisionRefs.optional(), revisionFingerprint: outlineFingerprint,
@@ -135,6 +210,17 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("preview_canvas_revision"), ...revisionCanvasOptions }),
   z.strictObject({ action: z.literal("apply_canvas_revision"), ...revisionCanvasOptions, canvasFingerprint: outlineFingerprint }),
   z.strictObject({ action: z.literal("get"), projectId: id }),
+  z.strictObject({ action: z.literal("review_handoff"), handoff: handoffSchema }),
+  z.strictObject({ action: z.literal("add_to_pitch"), handoff: handoffSchema, target: handoffTargetSchema, fingerprint: outlineFingerprint, taskId: id })
+    .refine(c => Boolean(c.handoff.projectId) === (c.target.mode === "append"), "Append requires an owned Pitch ID"),
+  z.strictObject({ action: z.literal("preview_data_refresh"), ...dataRefreshOptions }),
+  z.strictObject({ action: z.literal("apply_data_refresh"), ...dataRefreshOptions, fingerprint: outlineFingerprint }),
+  z.strictObject({
+    action: z.literal("apply_modification"),
+    plan: documentModificationSchema,
+    scope: z.enum(["selected", "document"]).default("selected"),
+    theme: z.strictObject({ id: z.string().min(1).max(100), version: z.number().int().positive() }).optional(),
+  }),
   saveSchema,
   z.strictObject({
     action: z.literal("append"),
@@ -161,7 +247,7 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     projectId: id,
     expectedVersion: z.number().int().positive(),
     taskId: id,
-    part: workspacePartSchema,
+    part: editableWorkspacePartSchema,
     replaceIds: z.array(id).max(50).default([]),
   }),
   z.strictObject({
@@ -196,12 +282,23 @@ export const workspaceCommandSchema = z.discriminatedUnion("action", [
     state: z.enum(["draft", "archived", "deleted"]),
   }),
   z.strictObject({
+    action: z.literal("share_create"), projectId: id, shareId: id, expectedVersion: z.number().int().positive(),
+    recipientId: id.optional(), recipientEmail: z.string().trim().max(254).pipe(z.email()).optional(),
+    expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
+    slideIds: z.array(id).min(1).max(50).refine(ids => new Set(ids).size === ids.length).optional(),
+  }).refine(c => !!c.recipientId !== !!c.recipientEmail),
+  z.strictObject({ action: z.literal("share_revoke"), projectId: id, shareId: id }),
+  z.strictObject({
     action: z.literal("preferences"),
     value: preferencesSchema.optional(),
   }),
 ]);
 export type WorkspaceCommand = z.infer<typeof workspaceCommandSchema>;
 export const workspaceReadSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("shares"), projectId: id }),
+  z.strictObject({ action: z.literal("shared_presentation"), shareId: id }),
+  z.strictObject({ action: z.literal("shared_slide"), shareId: id, slideId: id }),
+  z.strictObject({ action: z.literal("document_bindings"), projectId: id }),
   z.strictObject({
     action: z.literal("list"),
     q: z.string().max(120).default(""),
@@ -227,6 +324,7 @@ export const workspaceReadSchema = z.discriminatedUnion("action", [
 const settingSchema = z
   .object({
     manual: z.boolean().optional(),
+    note: pageNoteSchema.optional(),
     origin: z.enum(["asset", "data", "user"]).optional(),
     part: z.unknown().optional(),
   })
@@ -248,6 +346,7 @@ export const workspaceDetailSchema = z.object({
   slides: z.array(
     z.object({
       id: z.uuid(),
+      version: z.number().int().positive().optional(),
       asset_id: z.uuid(),
       asset_version: z.number(),
       template_id: z.string(),

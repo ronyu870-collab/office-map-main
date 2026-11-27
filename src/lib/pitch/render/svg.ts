@@ -73,7 +73,9 @@ export async function renderSceneSvg(raw: SlideScene, rawTheme: DesignTheme, raw
     if (el.kind === 'text') parts.push(text(el.text, el.x, el.y, el.w, theme.typography[el.role], el.bold, el.purpose ? theme.colors.muted : el.role === 'title' ? theme.colors.primary : theme.colors.text));
     else if (el.kind === 'image') {
       const image = media.find(m => m.id === el.mediaAssetId && m.version === el.mediaVersion)!;
-      parts.push(`<image x="${px(el.x)}" y="${px(el.y)}" width="${px(el.w)}" height="${px(el.h)}" preserveAspectRatio="xMidYMid meet" href="data:${image.mime};base64,${Buffer.from(image.bytes).toString('base64')}"><title>${xml(el.alt)}</title></image>`);
+      const { buffer, byteOffset, byteLength } = image.bytes;
+      const base64 = Buffer.from(buffer, byteOffset, byteLength).toString('base64');
+      parts.push(`<image x="${px(el.x)}" y="${px(el.y)}" width="${px(el.w)}" height="${px(el.h)}" preserveAspectRatio="xMidYMid meet" href="data:${image.mime};base64,${base64}"><title>${xml(el.alt)}</title></image>`);
     } else if (el.kind === 'brand') {
       parts.push(`<image x="${px(el.x)}" y="${px(el.y)}" width="${px(el.w)}" height="${px(el.h)}" preserveAspectRatio="xMidYMid meet" href="${COLLIERS_LOGO_DATA_URI}"/>`);
     } else if (el.kind === 'shape') {
@@ -110,8 +112,10 @@ export async function renderSceneSvg(raw: SlideScene, rawTheme: DesignTheme, raw
   if (Buffer.byteLength(svg) > 16 * 1024 * 1024) throw new Error('PITCH_SVG_LIMIT');
   return svg;
 }
-export async function renderScenePng(scene: SlideScene, theme: DesignTheme, media: SceneMedia[]) {
+export async function renderSceneRaster(scene: SlideScene, theme: DesignTheme, media: SceneMedia[]) {
   const svg = await renderSceneSvg(scene, theme, media), { renderAsync } = await import('@resvg/resvg-js');
-  const png = await renderAsync(svg, { fitTo: { mode: 'width', value: 2560 }, font: { loadSystemFonts: false } });
-  return new Uint8Array(png.asPng());
+  return renderAsync(svg, { fitTo: { mode: 'width', value: 2560 }, font: { loadSystemFonts: false } });
+}
+export async function renderScenePng(scene: SlideScene, theme: DesignTheme, media: SceneMedia[]) {
+  return new Uint8Array((await renderSceneRaster(scene, theme, media)).asPng());
 }

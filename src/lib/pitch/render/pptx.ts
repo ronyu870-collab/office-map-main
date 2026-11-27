@@ -3,6 +3,7 @@ import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { slideSceneSchema, type SlideScene } from '../contracts/scene';
 import { designThemeSchema, type DesignTheme } from '../design/theme';
 import type PptxGenJS from 'pptxgenjs';
+import { createPitchPicturePackage } from '../data/pptx-package';
 import { chartScale, contain, mapGeometry } from './geometry';
 import { cellText } from './format';
 import { assertSceneQuality } from '../layout/quality';
@@ -15,6 +16,7 @@ const clean = (text: string) => text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\
 export async function renderPitchPptx(title: string, pages: { scene: SlideScene; theme: DesignTheme }[], media: SceneMedia[]): Promise<Uint8Array> {
   if (!pages.length || pages.length > 50) throw new Error('PITCH_PAGE_LIMIT');
   const deck = await createOfficePresentation({ author: 'Colliers Pitch Studio', title: clean(title), subject: 'Pitch Studio', font: pages[0].theme.fonts.zh });
+  const pictures = createPitchPicturePackage();
   const measured = pages.some(p => p.scene.rendererVersion) ? await inspectMedia(media) : [];
   for (const [i, page] of pages.entries()) {
     const scene = slideSceneSchema.parse(page.scene), theme = designThemeSchema.parse(page.theme);
@@ -22,7 +24,8 @@ export async function renderPitchPptx(title: string, pages: { scene: SlideScene;
     const slide = deck.addSlide(); slide.background = { color: theme.colors.background };
     if (scene.rendererVersion === 'pitch-scene/2') {
       await assertSceneQuality(scene, theme, measured);
-      addNativeScene(slide, scene, theme, measured);
+      addNativeScene(slide, scene, theme, measured, pictures.imageData);
+      pictures.reuseParts(slide);
       continue;
     }
     for (const element of scene.elements) {
@@ -34,7 +37,7 @@ export async function renderPitchPptx(title: string, pages: { scene: SlideScene;
       else if (element.kind === 'image') {
         const image = media.find(m => m.id === element.mediaAssetId && m.version === element.mediaVersion);
         if (!image || !['image/png', 'image/jpeg', 'image/webp'].includes(image.mime)) throw new Error('PITCH_MEDIA_UNAVAILABLE');
-        slide.addImage({ data: image.mime + ';base64,' + Buffer.from(image.bytes).toString('base64'), x, y, w, h, altText: clean(element.alt) });
+        slide.addImage({ data: pictures.imageData(image), x, y, w, h, altText: clean(element.alt) });
       }
     }
     if (theme.logo.enabled) slide.addImage({ data: COLLIERS_LOGO_DATA_URI, x: theme.width - theme.margin - 1, y: theme.margin, w: 1, h: .562 });
@@ -42,13 +45,14 @@ export async function renderPitchPptx(title: string, pages: { scene: SlideScene;
       x: theme.margin, y: 6.85, w: theme.width - 2 * theme.margin, h: .35, margin: 0,
       fontSize: theme.typography.body, fontFace: theme.fonts.zh, color: theme.colors.muted,
     });
+    pictures.reuseParts(slide);
   }
   const bytes = new Uint8Array(await deck.write({ outputType: 'uint8array', compression: true }) as Uint8Array);
   if (bytes.length > 16 * 1024 * 1024) throw new Error('PITCH_EXPORT_LIMIT');
   return bytes;
 }
 
-function addNativeScene(slide: PptxGenJS.Slide, scene: SlideScene, theme: DesignTheme, media: Awaited<ReturnType<typeof inspectMedia>>) {
+function addNativeScene(slide: PptxGenJS.Slide, scene: SlideScene, theme: DesignTheme, media: Awaited<ReturnType<typeof inspectMedia>>, imageData: (image: SceneMedia) => string) {
   for (const el of scene.elements) {
     const { x, y, w, h } = el;
     if (el.kind === 'text') slide.addText(el.text, { x, y, w, h, margin: 0, breakLine: false, valign: 'top', fit: 'none',
@@ -57,7 +61,7 @@ function addNativeScene(slide: PptxGenJS.Slide, scene: SlideScene, theme: Design
       lineSpacingMultiple: 1.32, paraSpaceAfter: 0, lang: /\p{Script=Han}/u.test(el.text) ? 'zh-CN' : 'en-US' });
     else if (el.kind === 'image') {
       const image = media.find(m => m.id === el.mediaAssetId && m.version === el.mediaVersion)!;
-      const data = image.mime + ';base64,' + Buffer.from(image.bytes).toString('base64');
+      const data = imageData(image);
       slide.addImage({ data, ...contain(el, image.width, image.height), altText: el.alt, rotate: el.rotation ?? 0 });
     } else if (el.kind === 'brand') {
       slide.addImage({ data: COLLIERS_LOGO_DATA_URI, ...contain(el, 400, 225) });

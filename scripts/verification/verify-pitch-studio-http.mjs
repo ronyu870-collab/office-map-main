@@ -5,6 +5,8 @@ import {verifyPitchEcosystem} from './pitch-ecosystem-scenarios.mjs';
 import {verifyPitchAi} from './verify-pitch-ai-http.mjs';
 import {verifyPitchWorkspace} from './pitch-workspace-scenarios.mjs';
 import {verifyPitchBusiness} from './pitch-business-scenarios.mjs';
+import {verifyPitchDocumentDelivery} from './pitch-document-delivery-scenarios.mjs';
+import { loadPitchMigrations } from '../../supabase/tests/pitch-studio/migrations.mjs';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { readFile, mkdir, open } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -12,6 +14,7 @@ import { once } from 'node:events';
 import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 import JSZip from 'jszip';
+import { PDFDocument } from 'pdf-lib';
 import { materialFixtures, NOTE_SECRET, HIDDEN_SECRET } from '../../supabase/tests/pitch-studio/library-fixtures.mjs';
 assert.equal(process.env.PITCH_TEST_ALLOW_LOCAL,'disposable');
 const settings=JSON.parse(await readFile(process.env.PITCH_AUTH_STATUS,'utf8'));
@@ -31,7 +34,7 @@ async function person(role){
  await db.query('insert into public.user_roles(user_id,role) values($1,$2) on conflict(user_id) do update set role=excluded.role',[id,role]);
  const client=createClient(settings.API_URL,settings.ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
  const signed=await client.auth.signInWithPassword({email,password});assert.equal(signed.error,null);
- return {id,token:signed.data.session.access_token,client};
+ return {id,email,token:signed.data.session.access_token,client};
 }
 async function call(who,input,write=false,extra={}){
  const res=await fetch(app+'/api/intelligence/pitch'+(write?'':'?'+new URLSearchParams(input)),{method:write?'POST':'GET',headers:{...(who?{Authorization:'Bearer '+who.token}:{}),...(write?{'Content-Type':'application/json'}:{}),...extra},...(write?{body:JSON.stringify(input)}:{})});
@@ -43,7 +46,7 @@ try {
    create table if not exists public.user_roles(user_id uuid primary key references auth.users(id),role text not null,email text,chinese_name text,full_name text);
    grant select on public.user_roles to service_role;
  `);
- for (const migration of ['20261125165826_pitch_studio_foundation.sql', '20261125174626_pitch_studio_render_engine.sql', '20261125182357_pitch_studio_material_library.sql', '20261125192547_pitch_studio_business_templates.sql', '20261125201503_pitch_studio_workspace.sql', '20261126083359_pitch_studio_template_ecosystem.sql', '20261126090000_pitch_studio_ai.sql', '20261126163000_pitch_workspace_revision_apply.sql']) await db.query(await readFile('supabase/migrations/'+migration,'utf8'));
+ await loadPitchMigrations(db);
  await db.query("notify pgrst,'reload schema'");
  const owner=await person('editor'),other=await person('editor'),viewer=await person('viewer'),admin=await person('admin');
  const env={...process.env,NEXT_PUBLIC_SUPABASE_URL:settings.API_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:settings.ANON_KEY,SUPABASE_SECRET_KEY:settings.SERVICE_ROLE_KEY,PITCH_STUDIO_ENABLED:'true',DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'syntheticfixture'};
@@ -125,17 +128,19 @@ try {
    assert.equal((await call(owner,{action:'preview',projectId:studioProject,page:0,scene:{execute:'JS'}},true)).status,400);
    assert.equal((await call(owner,{action:'export',projectId:studioProject,audience:'internal'},true)).status,422);
  });
- for(const format of ['pptx','png','svg','xlsx'])await check(`real background ${format} export acknowledges HTTP, records durable progress and downloads exact archived bytes`,async()=>{
-   const exportId=randomUUID(),input={action:'export_start',projectId:studioProject,exportId,audience:'internal',format,...(format==='pptx'?{}:{page:7})};
+ for(const format of ['pptx','pdf','png','svg','xlsx'])await check(`real background ${format} export acknowledges HTTP, records durable progress and downloads exact archived bytes`,async()=>{
+   const exportId=randomUUID(),input={action:'export_start',projectId:studioProject,exportId,audience:'internal',format,...(['pptx','pdf'].includes(format)?{}:{page:7})};
    const out=await call(owner,input,true);assert.equal(out.status,202,JSON.stringify(out.body));
    let status;await until(async()=>{status=await call(owner,{action:'export_status',projectId:studioProject,exportId});assert.equal(status.status,200,JSON.stringify(status.body));assert.notEqual(status.body.state,'failed',JSON.stringify(status.body));return status.body.state==='ready';},'durable '+format);
    assert.equal(status.body.progress,100);assert.ok(status.body.filename.endsWith('.'+format));
    const file=await call(owner,{action:'download',projectId:studioProject,exportId,audience:'internal'});assert.equal(file.status,200,JSON.stringify(file.body));assert.match(file.headers.get('content-disposition'),/filename\*=UTF-8/);
    if(format==='pptx'){const zip=await JSZip.loadAsync(file.body);assert.equal(Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+[.]xml$/.test(n)).length,12);studioExport=exportId;}
+   if(format==='pdf'){assert.equal(file.headers.get('content-type'),'application/pdf');assert.equal((await PDFDocument.load(file.body)).getPageCount(),12);}
    if(format==='png')assert.deepEqual([...file.body.slice(0,8)],[137,80,78,71,13,10,26,10]);
    if(format==='svg')assert.match(new TextDecoder().decode(file.body),/<svg/);
    if(format==='xlsx'){const zip=await JSZip.loadAsync(file.body);assert.ok(zip.file('xl/workbook.xml'));}
  });
+ await verifyPitchDocumentDelivery({app,db,owner,other,viewer,scope,call,check,until,studioProject,studioExport});
  async function library(who,input,write=false){
   const res=await fetch(app+'/api/intelligence/pitch/library'+(write?'':'?'+new URLSearchParams(input)),{method:write?'POST':'GET',headers:{Authorization:'Bearer '+who.token,...(write?{'Content-Type':'application/json'}:{})},...(write?{body:JSON.stringify(input)}:{})});
   return {status:res.status,body:res.headers.get('content-type')?.includes('application/json')?await res.json():new Uint8Array(await res.arrayBuffer())};
@@ -155,7 +160,23 @@ try {
   const items=pages.body.items.map(p=>({assetId:p.asset_id,expectedVersion:1}));assert.equal((await library(owner,{action:'confirm',items,acknowledgePartial:false},true)).status,409);assert.equal((await library(owner,{action:'confirm',items,acknowledgePartial:true},true)).status,200);
   const results=await library(viewer,{action:'search',kind:'pages',documentId,q:'案例'});assert.equal(results.status,200);assert.equal(results.body.items.length,1);assert.equal((await library(viewer,{action:'original',documentId})).status,403);
   const sourcePage=results.body.items[0],detail=await library(viewer,{action:'page',pageId:sourcePage.id});assert.equal(detail.body.document.sha256,input.sha256);assert.doesNotMatch(JSON.stringify(detail.body.page),new RegExp(NOTE_SECRET+'|'+HIDDEN_SECRET));
-  const normalized=randomUUID();const generated=await library(owner,{action:'normalize',assetId:sourcePage.asset_id,projectId:normalized,title:'隔离历史案例标准化',themeId:'colliers-default-v1',themeVersion:2},true);assert.equal(generated.status,200,JSON.stringify(generated.body));const opened=await call(owner,{action:'get_project',projectId:normalized});assert.equal(opened.body.slides[0].source_snapshot[0].pageId,sourcePage.id);
+  const assetId=sourcePage.asset_id,prior=await library(owner,{action:'asset',assetId,version:2});
+  assert.equal(prior.status,200,JSON.stringify(prior.body));
+  const {asset}=prior.body,title='新发布的隔离案例标题';
+  const revised={scope,categoryId:asset.category_id,tags:asset.tags,names:{zh:title},content:{...prior.body.version.content,title},
+   state:'published',visibility:asset.visibility,allowInternalGeneration:asset.allow_internal_generation,
+   allowClientExport:asset.allow_client_export,allowExternalAi:asset.allow_external_ai,validFrom:asset.valid_from,validUntil:asset.valid_until};
+  const published=await library(owner,{action:'save_asset',assetId,expectedVersion:2,asset:revised,acknowledgePartial:true},true);
+  assert.equal(published.status,200,JSON.stringify(published.body));
+  const normalized=randomUUID(),request={action:'normalize',assetId,assetVersion:2,projectId:normalized,
+   title:'隔离历史案例标准化',themeId:'colliers-default-v1',themeVersion:2};
+  assert.equal((await library(owner,{...request,assetVersion:'2'},true)).status,400);
+  const generated=await library(owner,request,true);assert.equal(generated.status,200,JSON.stringify(generated.body));
+  const replay=await library(owner,request,true);assert.equal(replay.status,200,JSON.stringify(replay.body));assert.equal(replay.body.replayed,true);
+  assert.equal((await library(owner,{...request,assetVersion:3},true)).status,409);
+  const opened=await call(owner,{action:'get_project',projectId:normalized});
+  assert.equal(opened.body.slides[0].source_snapshot[0].pageId,sourcePage.id);
+  assert.ok(opened.body.slides.every(slide=>slide.asset_version===2&&slide.content.title===prior.body.version.content.title));
   const exportId=randomUUID();assert.equal((await call(owner,{action:'export_start',projectId:normalized,exportId,format:'pptx',audience:'internal'},true)).status,202);await until(async()=>{const value=await call(owner,{action:'export_status',projectId:normalized,exportId});assert.notEqual(value.body.state,'failed',JSON.stringify(value.body));return value.body.state==='ready';},'normalized export');const file=await call(owner,{action:'download',projectId:normalized,exportId,audience:'internal'});assert.equal(file.status,200);const zip=await JSZip.loadAsync(file.body),xml=(await Promise.all(Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+[.]xml$/.test(n)).map(n=>zip.file(n).async('string')))).join('');assert.match(xml,/<a:tbl>/);assert.match(xml,/测试楼 A/);
   const media=(await db.query('select m.storage_path from pitch_media_assets m join pitch_source_pages p on p.id=m.source_page_id where p.document_id=$1',[documentId])).rows;assert.ok((await viewer.client.storage.from('pitch-studio-private').download(media[0].storage_path)).error);
   await db.query('update private.pitch_grants set enabled=false where user_id=$1',[viewer.id]);assert.equal((await library(viewer,{action:'page',pageId:sourcePage.id})).status,403);

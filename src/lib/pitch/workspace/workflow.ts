@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { slideContentSchema, type SlideContent } from "../contracts/content";
 import { type LayoutId } from "../contracts/scene";
-import { pitchRpc, digest, type PitchContext } from "../data/store";
+import { pitchRpc, digest, mediaRowSchema, type PitchContext } from "../data/store";
 import { loadMedia, studioRegistry } from "../data/renderWorkflow";
 import { layoutSlides, sceneSourceLine } from "../layout/engine";
 import { numberDeckPages } from "../layout/pagination";
@@ -15,9 +15,13 @@ import { generateBusinessProject } from "../business/workflow";
 import { generationSchema } from "../business/protocol";
 import { runPitchDataAdapter } from "../business/adapter";
 import { reviewedBuildingData } from "../business/outline-data";
-import { outlineDataParameters, workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
+import { outlineDataParameters, stackingHandoffPartSchema, workspacePartSchema, type WorkspaceCommand, type WorkspaceSave } from "./protocol";
 import { workspaceDetailSchema, type WorkspaceDetail } from "./protocol";
 import { applyObjectMoves, applyObjectTexts, applyObjectOrder, applyObjectGroups } from "./object-layout";
+import { noteSubtitle, workspaceChartTypeSchema } from "./presentation-edits";
+import { blockQueryReceipts, captureKey, readBindings, usesBusinessEvidence } from "./bindingStore";
+import { requireStackingHandoff, stackingReviewBinding, type StackingHandoffPort } from "./stacking-handoff";
+import type { DocumentModificationPlan } from "../integration-contracts";
 type Page = WorkspaceDetail["slides"][number];
 type Settings = WorkspaceDetail["workspace"]["page_settings"];
 export async function getWorkspace(ctx: PitchContext, id: string) {
@@ -28,7 +32,7 @@ export async function getWorkspace(ctx: PitchContext, id: string) {
 function checkVersion(current: WorkspaceDetail, expected: number) {
   if (current.project.version !== expected) throw new Error("PITCH_CONFLICT");
 }
-async function commitPayload(
+export async function commitPayload(
   ctx: PitchContext,
   current: WorkspaceDetail,
   pages: Page[],
@@ -92,6 +96,19 @@ async function commitPayload(
 }
 export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
   const current = await getWorkspace(ctx, command.projectId);
+  return saveCurrentWorkspace(ctx, current, command);
+}
+async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail, command: WorkspaceSave) {
+  const save = await prepareWorkspaceSave(ctx, current, command);
+  await pitchRpc(ctx, { action: "workspace_save", ...save });
+  return getWorkspace(ctx, command.projectId);
+}
+export async function prepareWorkspaceSave(
+  ctx: PitchContext,
+  current: WorkspaceDetail,
+  command: WorkspaceSave,
+  prepared?: { mediaRows: z.infer<typeof mediaRowSchema>[]; bindingContents: ReadonlyMap<string, SlideContent> },
+) {
   checkVersion(current, command.expectedVersion);
   if (new Set(command.pages.map((p) => p.id)).size !== command.pages.length)
     throw new Error("PITCH_INVALID");
@@ -100,14 +117,16 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
   ).theme.definition;
   const pages: Page[] = [],
     settings: Settings = { ...current.workspace.page_settings };
-  const mediaContext = z
-    .object({ media: z.array((await import("../data/store")).mediaRowSchema) })
+  const media = prepared ? [...prepared.mediaRows] : z
+    .object({ media: z.array(mediaRowSchema) })
     .parse(
       await pitchRpc(ctx, {
         action: "preview_context",
         projectId: command.projectId,
       }),
-    );
+    ).media;
+  const bindings = command.pages.some(edit => edit.paragraphs || edit.objectTexts)
+    ? await readBindings(ctx, command.projectId, command.expectedVersion) : undefined;
   for (const edit of command.pages) {
     const original = current.slides.find(
       (p) => p.id === (edit.duplicateOf ?? edit.id),
@@ -118,17 +137,48 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
     )
       throw new Error("PITCH_INVALID");
     const prior = settings[original.id] ?? {};
+    const historicalStacking = stackingHandoffPartSchema.safeParse(prior.part).success;
+    if (historicalStacking && edit.images) throw new Error("PITCH_BOUND_VALUE_EDIT");
+    const assetKey = captureKey(original.asset_id, original.asset_version);
+    const boundContent = prepared?.bindingContents.get(assetKey) ?? bindings?.captures.get(assetKey)?.content;
+    const receipts = bindings?.receipts.get(assetKey);
+    const isBound = (block: SlideContent['blocks'][number]) =>
+      Boolean(boundContent && usesBusinessEvidence(block, boundContent)) || blockQueryReceipts(block, receipts).length > 0;
+    const changedParagraphs = new Set<number>();
+    const noteChanged = edit.manualNote !== undefined && (edit.manualNote ?? undefined) !== prior.note?.text;
+    let note = prior.note;
     let content: SlideContent = structuredClone(original.content);
     if (edit.title) content.title = edit.title;
+    if (noteChanged) {
+      const baseSubtitle = prior.note ? prior.note.baseSubtitle : original.content.subtitle;
+      note = edit.manualNote ? { text: edit.manualNote, baseSubtitle } : undefined;
+      content.subtitle = note ? noteSubtitle(baseSubtitle, note.text, content.locale) : baseSubtitle;
+    }
+    if (edit.chartPresentation) {
+      const indexes = new Set<number>();
+      for (const chart of edit.chartPresentation) {
+        const block = content.blocks[chart.blockIndex];
+        if (!block || block.kind !== "chart" || indexes.has(chart.blockIndex) ||
+          !workspaceChartTypeSchema.safeParse(block.chartType).success)
+          throw new Error("PITCH_INVALID");
+        indexes.add(chart.blockIndex);
+        content.blocks[chart.blockIndex] = { ...block, chartType: chart.type };
+      }
+    }
     if (edit.paragraphs) {
       if ((original.scene.pagination?.count ?? 1) > 1)
         throw new Error("PITCH_PAGINATED_EDIT");
       const count = content.blocks.filter((b) => b.kind === "paragraph").length;
       if (count !== edit.paragraphs.length) throw new Error("PITCH_INVALID");
       let n = 0;
-      content.blocks = content.blocks.map((b) =>
-        b.kind === "paragraph" ? { ...b, text: edit.paragraphs![n++] } : b,
-      );
+      content.blocks = content.blocks.map((block, index) => {
+        if (block.kind !== "paragraph") return block;
+        const text = edit.paragraphs![n++];
+        if (text === block.text) return block;
+        if (historicalStacking || isBound(block)) throw new Error("PITCH_BOUND_VALUE_EDIT");
+        changedParagraphs.add(index);
+        return { ...block, text };
+      });
     }
     if (edit.images) {
       if (
@@ -148,8 +198,8 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
         };
       });
       for (const image of edit.images) {
-        mediaContext.media.push(
-          (await import("../data/store")).mediaRowSchema.parse(
+        media.push(
+          mediaRowSchema.parse(
             await pitchRpc(ctx, {
               action: "library_media_file",
               mediaId: image.id,
@@ -182,17 +232,21 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
     if ((objectEdit && (relayoutRequested || edit.resetObjectLayout)) ||
       (relayoutRequested && hasObjectLayout && !edit.resetObjectLayout))
       throw new Error("PITCH_OBJECT_LAYOUT_RESET_REQUIRED");
-    const textChange = edit.objectTexts ? applyObjectTexts(original.scene, content, edit.objectTexts, prior.origin !== "data") : null;
+    const textChange = edit.objectTexts ? applyObjectTexts(original.scene, content, edit.objectTexts, prior.origin !== "data" || Boolean(boundContent)) : null;
+    if (textChange && [...textChange.changedBlocks].some(index => isBound(original.content.blocks[index])))
+      throw new Error("PITCH_BOUND_VALUE_EDIT");
     if (textChange) content = textChange.content;
     const manual =
       prior.manual ||
       !!textChange ||
+      noteChanged ||
       edit.images !== undefined ||
-      edit.paragraphs !== undefined ||
+      changedParagraphs.size > 0 ||
       content.title !== original.content.title;
     if (
       textChange ||
-      edit.paragraphs ||
+      noteChanged ||
+      changedParagraphs.size > 0 ||
       edit.images ||
       content.title !== original.content.title
     ) {
@@ -210,9 +264,9 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
         version: String(command.expectedVersion + 1),
         dataAsOf: content.dataAsOf,
       });
-      if (edit.paragraphs || textChange?.changedBlocks.size)
+      if (changedParagraphs.size || textChange?.changedBlocks.size)
         content.blocks = content.blocks.map((b, index) =>
-          b.kind === "paragraph" && (edit.paragraphs || textChange?.changedBlocks.has(index))
+          b.kind === "paragraph" && (changedParagraphs.has(index) || textChange?.changedBlocks.has(index))
             ? { ...b, sourceIds: [sourceId] } : b,
         );
       if (content.disclosure !== "restricted") content.disclosure = "internal";
@@ -232,8 +286,8 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
           throw new Error("PITCH_THEME_REPAGINATION");
         scenes = [scenes[original.scene.pagination!.index]];
       }
-      const media = await loadMedia(ctx, mediaContext.media, scenes);
-      for (const scene of scenes) await assertSceneQuality(scene, theme, media);
+      const sceneMedia = await loadMedia(ctx, media, scenes);
+      for (const scene of scenes) await assertSceneQuality(scene, theme, sceneMedia);
     }
     if (objectEdit) {
       let textScene = original.scene;
@@ -252,8 +306,8 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
       const positioned = edit.objectMoves ? applyObjectMoves(textScene, edit.objectMoves) : textScene;
       const ordered = edit.objectOrder ? applyObjectOrder(positioned, edit.objectOrder) : positioned;
       const scene = edit.objectGroups ? applyObjectGroups(ordered, edit.objectGroups) : ordered;
-      const media = await loadMedia(ctx, mediaContext.media, [scene]);
-      await assertSceneQuality(scene, theme, media);
+      const sceneMedia = await loadMedia(ctx, media, [scene]);
+      await assertSceneQuality(scene, theme, sceneMedia);
       scenes = [scene];
     }
     for (const [index, scene] of scenes.entries()) {
@@ -262,6 +316,7 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
       settings[id] = {
         ...prior,
         manual: !!manual,
+        note,
         origin:
           prior.origin ??
           (original.content.sources.some((s) =>
@@ -272,11 +327,49 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
       };
     }
   }
-  await pitchRpc(ctx, {
-    action: "workspace_save",
-    ...(await commitPayload(ctx, current, pages, settings, command)),
-  });
-  return getWorkspace(ctx, command.projectId);
+  return commitPayload(ctx, current, pages, settings, command);
+}
+export async function applyDocumentModification(
+  ctx: PitchContext,
+  command: Extract<WorkspaceCommand, { action: "apply_modification" }>,
+) {
+  const plan: DocumentModificationPlan = command.plan;
+  if (plan.refresh && !("kind" in plan.refresh)) throw new Error("PITCH_DATA_REFRESH_REVIEW_REQUIRED");
+  const current = await getWorkspace(ctx, plan.projectId);
+  checkVersion(current, plan.expectedVersion);
+  const live = new Map(current.slides.map(page => [page.id, page.version]));
+  const base = new Map(plan.basePageVersions.map(page => [page.id, page.version]));
+  const edit = new Map(plan.pages.map(page => [page.id, page]));
+  if (base.size !== plan.basePageVersions.length || edit.size !== plan.pages.length)
+    throw new Error("PITCH_INVALID");
+  for (const [id, version] of base)
+    if (live.get(id) !== version) throw new Error("PITCH_CONFLICT");
+  if (command.scope === "document" && base.size !== live.size ||
+    plan.pages.some(page => !base.has(page.duplicateOf ?? page.id)))
+    throw new Error("PITCH_CONFLICT");
+  if (command.scope === "selected" && plan.pages.some(page => page.duplicateOf || !live.has(page.id)))
+    throw new Error("PITCH_INVALID");
+  const pages = command.scope === "document" ? plan.pages : current.slides.map(page => edit.get(page.id) ?? { id: page.id });
+  const save: WorkspaceSave = {
+    action: "save",
+    projectId: plan.projectId,
+    expectedVersion: plan.expectedVersion,
+    title: current.project.title,
+    themeId: command.theme?.id ?? current.project.theme_id,
+    themeVersion: command.theme?.version ?? current.project.theme_version,
+    context: current.workspace.context,
+    activeSlide: current.workspace.active_slide,
+    pages,
+  };
+  if (plan.refresh) {
+    const { slideId, period, fingerprint } = plan.refresh;
+    if (!base.has(slideId) || !pages.some(page => page.id === slideId))
+      throw new Error("PITCH_DATA_REFRESH_SCOPE");
+    const { applyDataRefresh } = await import("./documentBindings");
+    return applyDataRefresh(ctx, { action: "apply_data_refresh", projectId: plan.projectId,
+      expectedVersion: plan.expectedVersion, slideId, period, fingerprint }, { current, save, base });
+  }
+  return saveCurrentWorkspace(ctx, current, save);
 }
 function editableCanvasPage(current: WorkspaceDetail, slideId: string) {
   const page = current.slides.find(candidate => candidate.id === slideId);
@@ -722,11 +815,14 @@ export async function startWorkspaceTask(
   c: Extract<WorkspaceCommand, { action: "start" }>,
 ) {
   const current = await getWorkspace(ctx, c.projectId);
-  checkVersion(current, c.expectedVersion);
-  assertOutlineDataContext(current, c.part);
-  if ((c.part.mode === "outline" && c.replaceIds.length > 0) ||
-    c.replaceIds.some((id) => !current.slides.some((p) => p.id === id)))
-    throw new Error("PITCH_INVALID");
+  // The database checks the original command before comparing the current
+  // project version. A completed task can be replayed with its old version.
+  if (current.project.version === c.expectedVersion && !current.tasks.some(task => task.id === c.taskId)) {
+    assertOutlineDataContext(current, c.part);
+    if ((c.part.mode === "outline" && c.replaceIds.length > 0) ||
+      c.replaceIds.some((id) => !current.slides.some((p) => p.id === id)))
+      throw new Error("PITCH_INVALID");
+  }
   return pitchRpc(ctx, {
     action: "workspace_task_start",
     projectId: c.projectId,
@@ -740,6 +836,7 @@ export async function runWorkspaceTask(
   ctx: PitchContext,
   projectId: string,
   taskId: string,
+  stackingPort?: StackingHandoffPort,
 ) {
   const token = randomUUID(),
     args = { projectId, taskId, token };
@@ -747,6 +844,7 @@ export async function runWorkspaceTask(
     const receipt = z
       .object({
         claimed: z.boolean(),
+        sourceReady: z.boolean().optional(),
         task: z
           .object({
             source_project_id: z.uuid(),
@@ -765,6 +863,47 @@ export async function runWorkspaceTask(
     checkVersion(current, receipt.task.expected_version);
     const part = workspacePartSchema.parse(receipt.task.command.part);
     assertOutlineDataContext(current, part);
+    if (part.mode === "handoff" && "stackingSource" in part) {
+      const { stackingSource, dataVersion, permissionRevision, policyVersion } = part;
+      const port = requireStackingHandoff(stackingPort);
+      const readReviewed = async () => {
+        const evidence = await port.read(ctx, stackingSource);
+        if (evidence.city !== p.city || evidence.content.disclosure !== "restricted") throw new Error("QUERY_DENIED");
+        if (evidence.dataVersion !== dataVersion || evidence.permissionRevision !== permissionRevision
+          || evidence.policyVersion !== policyVersion || evidence.businessDate !== part.dataAsOf
+          || (evidence.businessDate === null && evidence.content.dataAsOf !== part.observedOn)) throw new Error("PITCH_HANDOFF_CHANGED");
+        return evidence;
+      };
+      const evidence = await readReviewed();
+      await pitchRpc(ctx, { action: "workspace_task_check", ...args });
+      const { theme } = await studioRegistry(ctx, p.theme_id, p.theme_version);
+      const rendered = await port.render(ctx, evidence.content, theme.definition);
+      const targetPages = rendered.slides.map(page => ({
+        id: randomUUID(), asset_id: page.assetId, asset_version: page.assetVersion,
+        template_id: "business-content", template_version: 1, content: page.content, scene: page.scene,
+      }));
+      const settings = { ...current.workspace.page_settings };
+      for (const page of targetPages) settings[page.id] = { manual: false, origin: "data", part };
+      const save = await commitPayload(ctx, current, [...current.slides, ...targetPages], settings, {
+        activeSlide: targetPages[0]?.id,
+      });
+      await readReviewed();
+      const binding = stackingReviewBinding(evidence);
+      await pitchRpc(ctx, {
+        action: "workspace_task_complete_stacking", ...args, save,
+        generation: {
+          action: "business_generate_commit", projectId: receipt.task.source_project_id,
+          parentProjectId: p.id, expectedParentVersion: p.version, title: p.title,
+          scope: { organizationId: p.organization_id, region: p.region, city: p.city, businessLine: p.business_line },
+          themeId: p.theme_id, themeVersion: p.theme_version, language: "zh",
+          requestKey: hash([taskId, stackingSource, binding]),
+          ...rendered, bindings: [], recipes: [],
+          snapshots: [{ id: "historical-stacking-handoff", entityId: stackingSource.buildingId,
+            binding, dataVersion, dataAsOf: binding.dataAsOf, results: [] }],
+        },
+      });
+      return;
+    }
     const command = part.mode === "example" ? undefined : generationSchema.parse({
       action: "generate",
       projectId: receipt.task.source_project_id,
@@ -775,25 +914,27 @@ export async function runWorkspaceTask(
         city: p.city,
         businessLine: p.business_line,
       },
-      language: current.workspace.context.language,
+      language: part.mode === 'handoff' ? part.language : current.workspace.context.language,
       themeId: p.theme_id,
       themeVersion: p.theme_version,
-      parts: part.mode === 'bundle' || part.mode === 'outline' ? part.parts : [part],
+      parts: part.mode === 'bundle' || part.mode === 'outline' ? part.parts :
+        part.mode === 'handoff' ? [{ mode: 'dynamic', parameters: part.parameters }] : [part],
     });
     if(part.mode==='bundle'){
       const kit=(await import('../templates/deckKits')).DECK_KIT_BY_ID.get(part.kit.id);
       if(!kit||kit.version!==part.kit.version||part.parts.some(p=>p.mode==='dynamic'||!kit.sections.some(s=>s.templateId===p.templateId)))throw new Error('PITCH_INVALID');
     }
-    if(part.mode==='example') {
+    if (!receipt.sourceReady && part.mode === "example") {
       await (await import('./examples')).generateExampleProject(ctx,{
         projectId:receipt.task.source_project_id,requestId:taskId,title:p.title,
         scope:{organizationId:p.organization_id,region:p.region,city:p.city,businessLine:p.business_line},
         language:current.workspace.context.language,themeId:p.theme_id,themeVersion:p.theme_version,part,
       });
-    } else await generateBusinessProject(ctx, command!, part.mode === 'outline'
+    } else if (part.mode === "outline" || part.mode === "handoff" || !receipt.sourceReady) await generateBusinessProject(ctx, command!, part.mode === 'outline'
       ? new Map(part.bindings.map(binding => [binding.id, binding.version])) : undefined,
       part.mode === "outline" ? part.dataFingerprint : undefined,
-      part.mode === "outline" && part.compareQuarters);
+      part.mode === "outline" && part.compareQuarters,
+      part.mode === "handoff" ? { ...part, domain: part.parameters.templateId.startsWith("lease-") ? "lease" : "quarter" } : undefined);
     await pitchRpc(ctx, { action: "workspace_task_check", ...args });
     const source = await getWorkspace(ctx, receipt.task.source_project_id),
       settings = { ...current.workspace.page_settings };
@@ -802,7 +943,7 @@ export async function runWorkspaceTask(
       settings[id] = {
         manual: false,
         // Keep every page in a mixed deck inside formal-data editing controls.
-        origin: part.mode === "dynamic" || (part.mode === "outline" && part.dataFingerprint) ? "data" : "asset",
+        origin: part.mode === "dynamic" || part.mode === "handoff" || (part.mode === "outline" && part.dataFingerprint) ? "data" : "asset",
         part,
         ...(part.mode === "example" ? {example:true,kit:part.kit} : part.mode==='bundle'?{kit:part.kit}:{}),
       };
@@ -821,12 +962,10 @@ export async function runWorkspaceTask(
     });
   } catch (error) {
     try {
-      await pitchRpc(ctx, {
-        action: "workspace_task_fail",
-        ...args,
-        errorCode:
-          error instanceof Error && "code" in error && typeof error.code === "string"
-            ? error.code : error instanceof Error ? error.message : "PITCH_GENERATION_FAILED",
+      const errorCode = error instanceof Error && "code" in error && typeof error.code === "string"
+        ? error.code : error instanceof Error ? error.message : "PITCH_GENERATION_FAILED";
+      await pitchRpc({ ...ctx, signal: AbortSignal.timeout(4000) }, {
+        action: "workspace_task_fail", ...args, errorCode: errorCode === "QUERY_DENIED" ? "PITCH_DENIED" : errorCode,
       });
     } catch {
       /* A cancelled/revoked receipt cannot be committed; status expires a lost lease. */

@@ -4,6 +4,8 @@ import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import JSZip from "jszip";
+import { PDFDocument } from "pdf-lib";
+import pg from "pg";
 import {
   createPitchDatabase,
   OWNER,
@@ -19,6 +21,7 @@ const require = createRequire(import.meta.url),
   render = require("../../../src/lib/pitch/data/renderWorkflow.ts"),
   { digest } = require("../../../src/lib/pitch/data/store.ts");
 const workspace = require("../../../src/lib/pitch/workspace/workflow.ts"),
+  { renderSharedSlide } = require("../../../src/lib/pitch/workspace/sharing.ts"),
   foundation = require("../../../src/lib/pitch/data/workflow.ts");
 const db = await createPitchDatabase(),
   files = new Map();
@@ -513,10 +516,131 @@ try {
           (s) => s.pageId === media.source_page_id,
         ),
       );
+      own = await workspace.saveWorkspace(owner, save(own, { pages: [
+        { id: page.id }, { id: randomUUID(), duplicateOf: page.id, title: "同一图片的复用页" },
+      ] }));
+      const { readDocumentBindings } = require("../../../src/lib/pitch/workspace/documentBindings.ts");
+      const bindingReader = ctx(OWNER);
+      bindingReader.client.storage = { from() { assert.fail("binding inspection must not download media"); } };
+      const boundImages = (await readDocumentBindings(bindingReader, own.project.id)).pages;
+      for (const bound of boundImages) {
+        const picture = bound.objects.find(object => object.kind === "image");
+        assert.deepEqual(picture.mediaRefs, [{ id: media.id, version: media.version }]);
+        assert.deepEqual(bound.materials.media.map(item => [item.id, item.version, item.pageId, item.sha256]),
+          [[media.id, media.version, media.source_page_id, media.sha256]]);
+        const source = bound.materials.documents.find(item => item.pageId === media.source_page_id);
+        assert.ok(picture.sourceIds.includes(source.sourceId));
+      }
+      const selection = { action: "export_start", projectId: own.project.id, exportId: randomUUID(),
+        format: "pptx", audience: "internal", pages: [1, 0] };
+      const exportReader = ctx(OWNER), sourceStorage = exportReader.client.storage.from;
+      let imageDownloads = 0;
+      exportReader.client.storage.from = () => {
+        const storage = sourceStorage();
+        return { ...storage, download(path) { imageDownloads++; return storage.download(path); } };
+      };
+      await render.prepareRenderExport(exportReader, selection);
+      await render.runRenderExport(exportReader, selection);
+      assert.equal(imageDownloads, 1);
+      const packageBytes = (await render.downloadArtifact(exportReader, selection)).bytes;
+      const packageZip = await JSZip.loadAsync(packageBytes, { checkCRC32: true });
+      const pictureParts = Object.keys(packageZip.files).filter(path => /^ppt\/media\/[^/]+$/.test(path));
+      assert.equal(pictureParts.length, 1);
+      const sharedPart = pictureParts[0].replace(/^ppt\//, "../");
+      for (const number of [1, 2]) {
+        const slide = await packageZip.file(`ppt/slides/slide${number}.xml`).async("string");
+        const relationships = await packageZip.file(`ppt/slides/_rels/slide${number}.xml.rels`).async("string");
+        const imageId = /<a:blip\b[^>]*r:embed="(rId\d+)"/.exec(slide)?.[1];
+        assert.ok(imageId);
+        assert.ok(relationships.includes(`Id="${imageId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${sharedPart}"`));
+      }
+      assert.match(await packageZip.file("ppt/slides/slide1.xml").async("string"), /同一图片的复用页/);
+      const pdfProject = randomUUID();
+      const photoPart = assetId => ({ assetId, layoutId: "image-text", variant: "standard" });
+      await render.composeProject(owner, { action: "project_compose", projectId: pdfProject, title: "隔离 PDF 图片读取",
+        themeId: "colliers-default-v1", themeVersion: 2, parts: [photoPart(first.assetId), photoPart(second.assetId), photoPart(first.assetId)] });
+      const firstMedia = (await db.rpc(OWNER, { action: "library_asset", assetId: first.assetId })).media[0];
+      const pdfExport = { action: "export_start", projectId: pdfProject, exportId: randomUUID(), format: "pdf", audience: "internal" };
+      const damaged = Buffer.from("isolated image format failure");
+      const pdfReader = ctx(OWNER), normalStorage = pdfReader.client.storage.from;
+      const reads = [];
+      let uploads = 0;
+      let invalidFirstPhoto = true;
+      pdfReader.client.storage.from = () => {
+        const storage = normalStorage();
+        return { async download(path) {
+          reads.push(path);
+          if (path === firstMedia.storage_path && invalidFirstPhoto) return { data: new Blob([damaged]), error: null };
+          return storage.download(path);
+        }, upload(path, value, options) {
+          uploads++;
+          return storage.upload(path, value, options);
+        } };
+      };
+      await render.prepareRenderExport(owner, pdfExport);
+      // The original size and checksum agree with the isolated stored bytes,
+      // while the image decoder rejects their format.
+      await db.setup.query("update pitch_media_assets set size_bytes=$1,sha256=$2 where id=$3 and version=$4",
+        [damaged.length, digest(damaged), firstMedia.id, firstMedia.version]);
+      try {
+        await render.runRenderExport(pdfReader, pdfExport);
+        const status = await db.rpc(OWNER, { ...pdfExport, action: "export_status" });
+        assert.equal(status.state, "failed");
+        assert.deepEqual(reads, [firstMedia.storage_path]);
+        assert.equal(uploads, 0);
+      } finally {
+        await db.setup.query("update pitch_media_assets set size_bytes=$1,sha256=$2 where id=$3 and version=$4",
+          [firstMedia.size_bytes, firstMedia.sha256, firstMedia.id, firstMedia.version]);
+        invalidFirstPhoto = false;
+      }
+      reads.length = 0;
+      const secondPdf = { ...pdfExport, exportId: randomUUID(), pages: [2, 1, 0] };
+      await render.prepareRenderExport(owner, secondPdf);
+      await render.runRenderExport(pdfReader, secondPdf);
+      assert.deepEqual(reads, [firstMedia.storage_path, media.storage_path]);
+      assert.equal(uploads, 1);
+      const pdfData = await render.downloadArtifact(owner, secondPdf);
+      assert.equal((await PDFDocument.load(pdfData.bytes)).getPageCount(), 3);
+      // Publish the synthetic original and replacement for this recipient. The
+      // sharing-specific test subsequently withdraws the same pinned image.
+      for (const sample of [first, second]) {
+        await db.setup.query("update pitch_content_assets set visibility='organization' where id=$1", [sample.assetId]);
+        await db.setup.query("update pitch_asset_versions set visibility='organization' where asset_id=$1", [sample.assetId]);
+      }
+      for (const source of own.slides[0].content.sources) {
+        if (source.documentId) await db.setup.query("update pitch_source_documents set visibility='organization' where id=$1", [source.documentId]);
+      }
+      const share = await db.rpc(OWNER, { action: "workspace_share_create", projectId: own.project.id,
+        expectedVersion: own.project.version, shareId: randomUUID(), recipientId: VIEWER });
+      const presentation = { shareId: share.id, slideId: page.id };
+      assert.match((await renderSharedSlide(ctx(VIEWER), presentation)).svg, /data:image\/png;base64,/);
+      const mediaDocument = (await db.setup.query("select document_id from pitch_source_pages where id=$1", [media.source_page_id])).rows[0];
+      await db.setup.query("update pitch_source_documents set valid_until=current_date-1 where id=$1", [mediaDocument.document_id]);
+      await assert.rejects(renderSharedSlide(ctx(VIEWER), presentation), /PITCH_DENIED/);
+      await db.setup.query("update pitch_source_documents set valid_until=null where id=$1", [mediaDocument.document_id]);
+
+      const concurrent = await db.rpc(OWNER, { action: "workspace_share_create", projectId: own.project.id,
+        expectedVersion: own.project.version, shareId: randomUUID(), recipientId: VIEWER });
+      const revocationRace = ctx(VIEWER);
+      const from = revocationRace.client.storage.from;
+      revocationRace.client.storage.from = () => {
+        const storage = from();
+        return { ...storage, async download(path) {
+          const bytes = await storage.download(path);
+          await db.rpc(OWNER, { action: "workspace_share_revoke", projectId: own.project.id, shareId: concurrent.id });
+          return bytes;
+        } };
+      };
+      await assert.rejects(renderSharedSlide(revocationRace, { ...presentation, shareId: concurrent.id }), /PITCH_DENIED/);
+
       await db.setup.query(
         "update pitch_media_assets set state='archived' where id=$1",
         [media.id],
       );
+      const revokedBindings = (await readDocumentBindings(bindingReader, own.project.id)).pages;
+      assert.ok(revokedBindings.every(bound => bound.materials.media.length === 0));
+      await assert.rejects(renderSharedSlide(ctx(VIEWER), presentation), /PITCH_DENIED/);
+      await assert.rejects(render.downloadArtifact(owner, selection), /PITCH_DENIED/);
       await assert.rejects(
         render.previewPage(owner, {
           action: "preview",
@@ -525,6 +649,98 @@ try {
         }),
         /PITCH_DENIED/,
       );
+    },
+  );
+  await check(
+    "named recipients can present only the pinned pages through revision pruning, expiry, and revocation",
+    async () => {
+      let shared = await create(ordinary, "原共享提案");
+      for (const title of ["获准页", "个人草稿"]) {
+        shared = await workspace.customWorkspace(ordinary, {
+          action: "custom", projectId: shared.project.id, expectedVersion: shared.project.version,
+          title, body: "仅用于隔离环境的页面说明。",
+        });
+      }
+      const [allowed, privatePage] = shared.slides;
+      const request = { action: "workspace_share_create", projectId: shared.project.id,
+        shareId: randomUUID(), expectedVersion: shared.project.version, recipientId: VIEWER, slideIds: [allowed.id] };
+      await assert.rejects(db.rpc(OWNER, request), error => error.code === "42501");
+      const { recipientId, ...base } = request;
+      const recipientEmail = "pitch-reader@example.test";
+      const byEmail = { ...base, recipientEmail: "  PITCH-READER@example.test  " };
+      await db.setup.query("update auth.users set email=$1 where id=$2", [recipientEmail, recipientId]);
+      await assert.rejects(db.rpc(OTHER, byEmail), error => error.code === "42501");
+      await db.setup.query("update auth.users set email_confirmed_at=now() where id=$1", [recipientId]);
+      await assert.rejects(db.rpc(OWNER, byEmail), error => error.code === "42501");
+      await assert.rejects(db.rpc(OTHER, { ...byEmail, recipientId }), error => error.code === "42501");
+      await assert.rejects(db.rpc(OTHER, { ...byEmail, recipientEmail: "unknown@example.test" }), error => error.code === "42501");
+      await db.setup.query("update auth.users set email=$1,email_confirmed_at=now() where id=$2", [recipientEmail, OTHER]);
+      await assert.rejects(db.rpc(OTHER, byEmail), error => error.code === "42501");
+      await db.setup.query("update auth.users set email=null,email_confirmed_at=null where id=$1", [OTHER]);
+      const receipt = await db.rpc(OTHER, byEmail);
+      assert.equal(receipt.recipientId, VIEWER);
+      assert.equal(receipt.version, shared.project.version);
+      assert.deepEqual(receipt.pageIds, [allowed.id]);
+      assert.deepEqual(await db.rpc(OTHER, byEmail), receipt);
+      assert.deepEqual(await db.rpc(OTHER, request), receipt);
+      assert.deepEqual(await db.rpc(OTHER, { action: "workspace_shares", projectId: shared.project.id }), [receipt]);
+      await assert.rejects(db.rpc(OTHER, { ...request, recipientId: ADMIN }), error => error.code === "23505");
+      const lookup = { action: "workspace_shared_presentation", shareId: receipt.id };
+      await assert.rejects(db.rpc(ADMIN, lookup), error => error.code === "42501");
+      const opened = await db.rpc(VIEWER, lookup);
+      assert.deepEqual(opened.pages, [{ id: allowed.id, title: "获准页" }]);
+      const slide = await renderSharedSlide(ctx(VIEWER), { shareId: receipt.id, slideId: allowed.id });
+      assert.match(slide.svg, /^<svg/);
+      assert.deepEqual(Object.keys(slide), ["id", "svg"]);
+      await assert.rejects(renderSharedSlide(ctx(VIEWER), { shareId: receipt.id, slideId: privatePage.id }), /PITCH_DENIED/);
+      await assert.rejects(workspace.getWorkspace(ctx(VIEWER), shared.project.id), /PITCH_DENIED/);
+      assert.equal((await db.asUser(VIEWER, "select id from public.pitch_project_slides where project_id=$1", [shared.project.id])).rowCount, 0);
+      await assert.rejects(db.asUser(VIEWER, "select id from private.pitch_workspace_shares"), error => error.code === "42501");
+
+      const expired = await db.rpc(OTHER, { ...request, shareId: randomUUID(), expiresAt: "2099-01-01T00:00:00Z" });
+      await db.setup.query("update private.pitch_workspace_shares set expires_at=now()-interval '1 second' where id=$1", [expired.id]);
+      await assert.rejects(db.rpc(VIEWER, { ...lookup, shareId: expired.id }), error => error.code === "42501");
+      shared = await workspace.saveWorkspace(ordinary, save(shared, {
+        title: "新编辑版", pages: [{ id: allowed.id, title: "改名后的页面" }, { id: privatePage.id }],
+      }));
+      // Execute the actual workspace save and pruning, preserving a share
+      // on a revision older than the ordinary history limit.
+      for (let i = 0; i < 30; i++) shared = await workspace.saveWorkspace(ordinary, save(shared));
+      assert.deepEqual(await db.rpc(VIEWER, lookup), opened);
+      assert.deepEqual(await renderSharedSlide(ctx(VIEWER), { shareId: receipt.id, slideId: allowed.id }), slide);
+      assert.deepEqual(await db.rpc(OTHER, request), receipt);
+
+      await db.setup.query("update private.pitch_grants set enabled=false where user_id=$1", [VIEWER]);
+      await assert.rejects(db.rpc(VIEWER, lookup), error => error.code === "42501");
+      await db.setup.query("update private.pitch_grants set enabled=true where user_id=$1", [VIEWER]);
+      const revoke = { action: "workspace_share_revoke", projectId: shared.project.id, shareId: receipt.id };
+      await assert.rejects(db.rpc(VIEWER, revoke), error => error.code === "42501");
+      assert.ok((await db.rpc(OTHER, revoke)).revokedAt);
+      await assert.rejects(db.rpc(VIEWER, lookup), error => error.code === "42501");
+      await workspace.saveWorkspace(ordinary, save(shared));
+      assert.equal((await db.setup.query("select 1 from private.pitch_workspace_revisions where project_id=$1 and version=$2",
+        [shared.project.id, receipt.version])).rowCount, 0);
+    },
+  );
+  await check(
+    "a named presentation of a static recipe rechecks the reader's original published material",
+    async () => {
+      const page = (await db.setup.query(`
+        select s.id from public.pitch_project_slides s join public.pitch_content_assets a on a.id=s.asset_id
+        join public.pitch_business_generations g on g.project_id=a.generated_project_id
+        where s.project_id=$1 and g.bindings @> $2::jsonb order by s.position limit 1
+      `, [deck.project.id, JSON.stringify([{ id: ids.corporate }])])).rows[0];
+      assert.ok(page);
+      const receipt = await db.rpc(OTHER, { action: "workspace_share_create", projectId: deck.project.id,
+        expectedVersion: deck.project.version, shareId: randomUUID(), recipientId: VIEWER, slideIds: [page.id] });
+      const lookup = { action: "workspace_shared_presentation", shareId: receipt.id };
+      assert.deepEqual((await db.rpc(VIEWER, lookup)).pages.map(item => item.id), [page.id]);
+      await db.setup.query("update pitch_content_assets set state='archived' where id=$1", [ids.corporate]);
+      try {
+        await assert.rejects(db.rpc(VIEWER, lookup), error => error.code === "42501");
+      } finally {
+        await db.setup.query("update pitch_content_assets set state='published' where id=$1", [ids.corporate]);
+      }
     },
   );
   await check(
@@ -613,9 +829,18 @@ try {
         action: "export_start",
         projectId: deck.project.id,
         exportId: randomUUID(),
-        format: "pptx",
+        format: "png",
+        page: 0,
         audience: "internal",
       };
+      const png = { ...c, page: 1, exportId: randomUUID() };
+      await render.prepareRenderExport(ordinary, png);
+      await render.runRenderExport(ordinary, png);
+      const image = Buffer.from((await render.downloadArtifact(ordinary, png)).bytes);
+      assert.equal(image.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+      assert.equal(image.subarray(12, 16).toString("ascii"), "IHDR");
+      assert.equal(image.readUInt32BE(16), 2560);
+      assert.ok(Math.abs(image.readUInt32BE(20) - 1440) <= 1);
       await render.prepareRenderExport(ordinary, c);
       deck = await workspace.saveWorkspace(
         ordinary,
@@ -638,6 +863,223 @@ try {
     },
   );
   await check(
+    "fifty saved pages reopen with stable IDs and a sparse export preserves selection order",
+    async () => {
+      let full = await create(ordinary, "五十页隔离压力夹具");
+      full = await workspace.customWorkspace(ordinary, {
+        action: "custom", projectId: full.project.id, expectedVersion: full.project.version,
+        title: "首张说明", body: "同一素材版本的多页保存回归。",
+      });
+      const first = full.slides[0];
+      const pages = [{ id: first.id }, ...Array.from({ length: 49 }, (_, i) => ({
+        id: randomUUID(), duplicateOf: first.id,
+        ...(i === 48 ? { title: "尾张说明" } : {}),
+      }))];
+      full = await workspace.saveWorkspace(ordinary, save(full, { pages, activeSlide: pages.at(-1).id }));
+      const reopened = await workspace.getWorkspace(ordinary, full.project.id);
+      assert.deepEqual(reopened.slides.map(slide => slide.id), pages.map(page => page.id));
+      assert.equal(reopened.workspace.active_slide, pages.at(-1).id);
+      assert.equal(new Set(reopened.slides.map(slide => slide.asset_id)).size, 1);
+      const request = { action: "export_start", projectId: full.project.id, exportId: randomUUID(),
+        format: "pptx", audience: "internal", pages: [49, 0] };
+      const queuedDuplicate = { ...request, exportId: randomUUID() };
+      assert.equal((await render.prepareRenderExport(ordinary, request)).state, "pending");
+      assert.equal((await render.prepareRenderExport(ordinary, queuedDuplicate)).state, "pending");
+      const packagesBefore = files.size;
+      await render.runRenderExport(ordinary, request);
+      await render.runRenderExport(ordinary, queuedDuplicate);
+      const repeated = { ...request, exportId: randomUUID() };
+      const reused = await render.prepareRenderExport(ordinary, repeated);
+      assert.deepEqual(reused, { exportId: repeated.exportId, state: "ready", reused: true });
+      await render.runRenderExport(ordinary, repeated);
+      assert.equal(files.size, packagesBefore + 1);
+      for (const alias of [queuedDuplicate, repeated]) {
+        const [row] = (await db.setup.query("select file_export_id, state from pitch_exports where id=$1", [alias.exportId])).rows;
+        assert.deepEqual(row, { file_export_id: request.exportId, state: "ready" });
+        assert.deepEqual((await render.downloadArtifact(ordinary, alias)).bytes, (await render.downloadArtifact(ordinary, request)).bytes);
+      }
+      await assert.rejects(render.downloadArtifact(owner, repeated), /PITCH_DENIED/);
+      const zip = await JSZip.loadAsync((await render.downloadArtifact(ordinary, request)).bytes);
+      const exportedPages = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide[0-9]+\.xml$/.test(name));
+      assert.equal(exportedPages.length, 2);
+      assert.match(await zip.file("ppt/slides/slide1.xml").async("string"), /尾张说明/);
+      assert.match(await zip.file("ppt/slides/slide2.xml").async("string"), /首张说明/);
+      assert.equal((await render.prepareRenderExport(ordinary, { ...request, exportId: randomUUID(), pages: [0, 49] })).state, "pending");
+      await workspace.saveWorkspace(ordinary, save(reopened, { title: "已修改的五十页项目" }));
+      assert.equal((await render.prepareRenderExport(ordinary, { ...request, exportId: randomUUID() })).state, "pending");
+    },
+  );
+  await check(
+    "equivalent concurrent exports render once and a follower takes over a failed worker",
+    async () => {
+      let project = await create(ordinary, "并行导出回归");
+      project = await workspace.customWorkspace(ordinary, {
+        action: "custom", projectId: project.project.id, expectedVersion: project.project.version,
+        title: "原生可编辑页", body: "相同版本和范围的独立导出收据。",
+      });
+      const command = { action: "export_start", projectId: project.project.id, format: "pptx", audience: "internal" };
+      const start = async (format = command.format) => {
+        const request = { ...command, format, exportId: randomUUID() };
+        assert.equal((await render.prepareRenderExport(ordinary, request)).state, "pending");
+        return request;
+      };
+      const first = await start();
+      const duplicate = await start();
+      const separate = await start("pdf");
+      const claim = request => ({
+        action: "export_claim", projectId: request.projectId, exportId: request.exportId, workerToken: randomUUID(),
+      });
+      const status = request => db.rpc(OTHER, { action: "export_status", projectId: request.projectId, exportId: request.exportId });
+      const archiveBefore = files.size;
+      const paused = Promise.withResolvers();
+      const reachedUpload = Promise.withResolvers();
+      const slowWorker = { ...ordinary, client: { ...ordinary.client, storage: { from(bucket) {
+        const storage = ordinary.client.storage.from(bucket);
+        return { ...storage, async upload(path, bytes) {
+          reachedUpload.resolve();
+          await paused.promise;
+          return storage.upload(path, bytes);
+        } };
+      } } } };
+      const working = render.runRenderExport(slowWorker, first);
+      try {
+        await Promise.race([reachedUpload.promise, working.then(() => assert.fail("first renderer did not reach upload"))]);
+        assert.equal((await status(first)).stage, "storing");
+        await assert.rejects(db.rpc(OWNER, claim(duplicate)), error => error.code === "42501");
+        assert.equal((await status(duplicate)).stage, "waiting_for_package");
+        assert.equal((await status(separate)).stage, "queued");
+        await render.runRenderExport(ordinary, duplicate);
+        assert.equal((await status(duplicate)).stage, "waiting_for_package");
+        assert.equal(files.size, archiveBefore);
+      } finally {
+        paused.resolve();
+        await working;
+      }
+      assert.equal((await status(first)).state, "ready");
+      assert.equal((await status(duplicate)).state, "ready");
+      assert.equal(files.size, archiveBefore + 1);
+      assert.equal((await db.setup.query("select file_export_id from pitch_exports where id=$1", [duplicate.exportId])).rows[0].file_export_id, first.exportId);
+      assert.deepEqual((await render.downloadArtifact(ordinary, duplicate)).bytes, (await render.downloadArtifact(ordinary, first)).bytes);
+
+      const requests = [separate, await start("pdf")];
+      const claims = requests.map(claim);
+      const peer = new pg.Client({ ...db.config, database: db.database, statement_timeout: 5000 });
+      await peer.connect();
+      let results;
+      try {
+        results = await Promise.all([db.rpc(OTHER, claims[0]), db.rpc(OTHER, claims[1], peer)]);
+      } finally {
+        await peer.end();
+      }
+      assert.equal(results.filter(item => item.claimed).length, 1, JSON.stringify(results));
+      const failed = results.findIndex(item => item.claimed);
+      const successor = requests[1 - failed];
+      assert.equal((await status(successor)).stage, "waiting_for_package");
+      await db.rpc(OTHER, { ...claims[failed], action: "export_fail", errorCode: "PITCH_STORAGE_UNAVAILABLE" });
+      assert.equal((await status(successor)).stage, "queued");
+      await render.runRenderExport(ordinary, successor);
+      assert.equal((await status(successor)).state, "ready");
+      assert.equal((await PDFDocument.load((await render.downloadArtifact(ordinary, successor)).bytes)).getPageCount(), 1);
+    },
+  );
+  await check(
+    "accepted structured AI changes are scoped to selected versions and roll back together when a page edit fails",
+    async () => {
+      let isolated = await create();
+      for (const [title, body] of [["AI 目标页", "目标页原始说明。"], ["保留页", "旁边页面保持原样。"]])
+        isolated = await workspace.customWorkspace(ordinary, { action: "custom", projectId: isolated.project.id,
+          expectedVersion: isolated.project.version, title, body });
+      const [target, untouched] = isolated.slides;
+      const base = { id: randomUUID(), projectId: isolated.project.id, expectedVersion: isolated.project.version,
+        basePageVersions: [{ id: target.id, version: target.version }, { id: untouched.id, version: untouched.version }] };
+      await assert.rejects(workspace.applyDocumentModification(ordinary, { action: "apply_modification", scope: "selected",
+        plan: { ...base, pages: [{ id: target.id, title: "未提交更新" }, { id: untouched.id, paragraphs: ["一", "二"] }] },
+      }), /PITCH_INVALID/);
+      assert.equal((await workspace.getWorkspace(ordinary, isolated.project.id)).project.version, isolated.project.version);
+      const command = { action: "apply_modification", scope: "selected",
+        plan: { ...base, pages: [{ id: target.id, title: "采用的 AI 标题" }] } };
+      const result = await workspace.applyDocumentModification(ordinary, command);
+      assert.equal(result.slides[0].content.title, "采用的 AI 标题");
+      assert.deepEqual(result.slides[1].content, untouched.content);
+      assert.deepEqual(result.slides[1].scene, untouched.scene);
+      await assert.rejects(workspace.applyDocumentModification(ordinary, command), /PITCH_CONFLICT/);
+    },
+  );
+  await check(
+    "PDF and client eligibility honor explicit page selection and recheck pinned data and media at delivery",
+    async () => {
+      const approvedAsset = randomUUID(), sourceId = randomUUID();
+      const approvedContent = {
+        protocol: "colliers-pitch/1", locale: "zh", title: "对客批准测试页",
+        dataAsOf: "2026-09-30", disclosure: "client_approved", isTestData: false,
+        sources: [{ id: sourceId, kind: "record", label: "隔离审批夹具", locator: "测试记录",
+          version: "test-1", dataAsOf: "2026-09-30" }],
+        blocks: [{ kind: "paragraph", text: "已批准的文字内容。", sourceIds: [sourceId] }],
+      };
+      await db.rpc(OWNER, { action: "asset_save", assetId: approvedAsset, expectedVersion: 0,
+        sha256: digest(new TextEncoder().encode(JSON.stringify(approvedContent))), asset: {
+          scope, categoryId: category, tags: [], names: { zh: approvedContent.title }, content: approvedContent,
+          state: "published", visibility: "organization", allowInternalGeneration: true, allowClientExport: true,
+          allowExternalAi: false, validFrom: null, validUntil: null,
+        } });
+      const composedId = randomUUID();
+      await render.composeProject(ordinary, { action: "project_compose", projectId: composedId,
+        title: "页面披露隔离测试", themeId: "colliers-default-v1", themeVersion: 2,
+        parts: [{ assetId: approvedAsset, layoutId: "two-columns", variant: "standard" }] });
+      const mixed = await workspace.customWorkspace(ordinary, { action: "custom", projectId: composedId,
+        expectedVersion: 1, title: "仅内部说明", body: "这段内容属于另一页，仅限公司内部。" });
+      const command = { action: "export_start", projectId: composedId, exportId: randomUUID(), audience: "client", format: "pdf" };
+      const report = await db.rpc(OTHER, { action: "export_eligibility", projectId: composedId, audience: "client" });
+      assert.equal(report.projectVersion, mixed.project.version);
+      assert.deepEqual(report.pages[0].reasons, []);
+      assert.ok(report.pages[1].reasons.includes("internal_only"));
+      await assert.rejects(render.prepareRenderExport(ordinary, command), error => error.report.pages[1].id === mixed.slides[1].id);
+      assert.equal((await db.setup.query("select id from pitch_exports where id=$1", [command.exportId])).rowCount, 0);
+      const selected = { ...command, pages: [0], expectedVersion: report.projectVersion };
+      await render.prepareRenderExport(ordinary, selected);
+      await render.runRenderExport(ordinary, selected);
+      assert.equal((await db.rpc(OTHER, { action: "export_status", projectId: composedId, exportId: selected.exportId })).state, "ready");
+      const file = await render.downloadArtifact(ordinary, selected);
+      assert.equal(file.mime, "application/pdf");
+      const pdf = await PDFDocument.load(file.bytes);
+      assert.equal(pdf.getPageCount(), 1);
+      assert.ok(Math.abs(pdf.getPage(0).getWidth() / pdf.getPage(0).getHeight() - 16/9) < .01);
+      await mkdir("tmp/pitch-workspace-fixtures", { recursive: true });
+      await writeFile("tmp/pitch-workspace-fixtures/isolated-client-selection.pdf", file.bytes);
+      await assert.rejects(render.downloadArtifact(owner, selected), /PITCH_DENIED/);
+      await assert.rejects(render.downloadArtifact(ordinary, { ...selected, audience: "internal" }), /PITCH_DENIED/);
+      const cachedClient = { ...selected, exportId: randomUUID() };
+      assert.equal((await render.prepareRenderExport(ordinary, cachedClient)).reused, true);
+      assert.deepEqual((await render.downloadArtifact(ordinary, cachedClient)).bytes, file.bytes);
+
+      const beforeReorder = await db.rpc(OTHER, { action: "export_eligibility", projectId: composedId, audience: "internal" });
+      const reordered = await workspace.saveWorkspace(ordinary, save(mixed, {
+        pages: [...mixed.slides].reverse().map(page => ({ id: page.id })),
+      }));
+      assert.equal(reordered.slides[0].id, mixed.slides[1].id);
+      const stale = { ...selected, exportId: randomUUID(), audience: "internal", expectedVersion: beforeReorder.projectVersion };
+      await assert.rejects(render.prepareRenderExport(ordinary, stale), /PITCH_CONFLICT/);
+      assert.equal((await db.setup.query("select id from pitch_jobs where id=$1", [stale.exportId])).rowCount, 0);
+      assert.equal((await db.setup.query("select id from pitch_exports where id=$1", [stale.exportId])).rowCount, 0);
+      assert.equal((await render.prepareRenderExport(ordinary, selected)).replayed, true);
+      await assert.rejects(render.prepareRenderExport(ordinary, { ...selected, expectedVersion: reordered.project.version }), /PITCH_CONFLICT/);
+      assert.deepEqual((await render.downloadArtifact(ordinary, selected)).bytes, file.bytes);
+      const nextClient = { ...selected, exportId: randomUUID(), pages: [1], expectedVersion: reordered.project.version };
+      await render.prepareRenderExport(ordinary, nextClient);
+      const { rows: [admission] } = await db.setup.query(
+        "select slide_versions,requested_project_version from pitch_exports where id=$1", [nextClient.exportId]);
+      assert.equal(admission.slide_versions[0].id, mixed.slides[0].id);
+      assert.equal(admission.requested_project_version, reordered.project.version);
+      await render.runRenderExport(ordinary, nextClient);
+      assert.equal((await PDFDocument.load((await render.downloadArtifact(ordinary, nextClient)).bytes)).getPageCount(), 1);
+      await workspace.saveWorkspace(ordinary, save(reordered, { pages: [{ id: reordered.slides[1].id }] }));
+      await assert.rejects(render.prepareRenderExport(ordinary, { ...nextClient, exportId: randomUUID() }), /PITCH_CONFLICT/);
+      await db.setup.query("update pitch_content_assets set allow_client_export=false where id=$1", [approvedAsset]);
+      await assert.rejects(render.downloadArtifact(ordinary, selected), /PITCH_DENIED/);
+      await assert.rejects(render.downloadArtifact(ordinary, cachedClient), /PITCH_DENIED/);
+    },
+  );
+  await check(
     "legacy ready files freeze their original authorization before adoption and cannot acquire unrelated edited-page permissions",
     async () => {
       let legacy = await workspace.copyWorkspace(ordinary, {
@@ -653,7 +1095,8 @@ try {
         format: "pptx",
         audience: "internal",
       };
-      await render.prepareRenderExport(ordinary, command);
+      // Use the pre-delivery RPC path to produce an actual legacy artifact.
+      await db.rpc(OTHER, { ...command, action: "export_prepare", asynchronous: true });
       await render.runRenderExport(ordinary, command);
       // Only the isolated fixture emulates a file produced before phase 05.
       await db.setup.query(
@@ -725,6 +1168,199 @@ try {
     },
   );
   await check(
+    "confirmed proposal work uses a private one-time lease and commits the child and receipt atomically",
+    async () => {
+      const { lookupProposalTask, startProposalTask, runProposalTask } = require("../../../src/lib/pitch/workspace/proposal-tasks.ts");
+      const parent = await create(ordinary, "准备整套提案");
+      const projectId = parent.project.id;
+      const confirmation = { taskId: randomUUID(), projectId, expectedVersion: parent.project.version,
+        planId: randomUUID(), contextFingerprint: "a".repeat(64), request: { projectId, question: "按已确认提纲生成" } };
+      const sourceId = randomUUID();
+      const status = taskId => db.rpc(OTHER, { action: "workspace_task_status", projectId, taskId });
+      const exists = async id => (await db.setup.query("select id from pitch_projects where id=$1", [id])).rowCount > 0;
+      const prepare = async (context, input, resultProject, assemble) => {
+        assert.equal(input.projectId, projectId);
+        await assemble();
+        const { input: generated } = await workflow.prepareBusinessProject(context, {
+          action: "generate", projectId: resultProject, parentProjectId: projectId,
+          title: "已确认提案", scope, language: "zh", themeId: parent.project.theme_id,
+          themeVersion: parent.project.theme_version, parts: [staticPart("corporate-overview", [ids.corporate])],
+        });
+        return { ...generated, expectedParentVersion: input.expectedVersion, reviewedPlanId: input.planId };
+      };
+      assert.equal(await lookupProposalTask(ordinary, confirmation, sourceId), null);
+      await assert.rejects(startProposalTask(owner, confirmation, sourceId), /PITCH_DENIED/);
+      const queued = await startProposalTask(ordinary, confirmation, sourceId);
+      assert.deepEqual(queued, { taskId: confirmation.taskId, state: "queued" });
+      assert.deepEqual(await startProposalTask(ordinary, confirmation, sourceId), queued);
+      assert.deepEqual(await lookupProposalTask(ordinary, confirmation, sourceId), queued);
+      await assert.rejects(startProposalTask(ordinary, confirmation, randomUUID()), /PITCH_CONFLICT/);
+      await assert.rejects(lookupProposalTask(ordinary, { ...confirmation, contextFingerprint: "b".repeat(64) }, sourceId), /PITCH_CONFLICT/);
+      assert.deepEqual(await db.rpc(OTHER, { action: "workspace_task_claim", projectId, taskId: confirmation.taskId, token: randomUUID() }), { claimed: false });
+      assert.equal(await exists(sourceId), false);
+
+      const reached = Promise.withResolvers(), resume = Promise.withResolvers();
+      const working = runProposalTask(ordinary, projectId, confirmation.taskId, async (...args) => {
+        const payload = await prepare(...args);
+        reached.resolve();
+        await resume.promise;
+        return payload;
+      });
+      try {
+        await Promise.race([reached.promise, working.then(() => assert.fail("proposal did not reach persistence"))]);
+        const receipt = await status(confirmation.taskId);
+        assert.equal(receipt.workflow, "proposal");
+        assert.equal(receipt.stage, "assembling");
+        assert.equal(receipt.token, undefined);
+        assert.equal(receipt.command, undefined);
+        assert.deepEqual(await startProposalTask(ordinary, confirmation, sourceId), { taskId: confirmation.taskId, state: "running" });
+        let duplicateRuns = 0;
+        await runProposalTask(ordinary, projectId, confirmation.taskId, async () => { duplicateRuns++; });
+        assert.equal(duplicateRuns, 0);
+        assert.equal(await exists(sourceId), false);
+      } finally {
+        resume.resolve();
+        await working;
+      }
+      assert.equal((await status(confirmation.taskId)).attempts, 1);
+      assert.deepEqual(await startProposalTask(ordinary, confirmation, sourceId),
+        { taskId: confirmation.taskId, state: "completed", projectId: sourceId });
+      assert.ok((await workspace.getWorkspace(ordinary, sourceId)).slides.length);
+      const listed = await db.rpc(OTHER, { action: "workspace_list", q: "已确认提案" });
+      assert.deepEqual(listed.map(item => item.id), [sourceId]);
+      assert.equal((await workspace.getWorkspace(ordinary, projectId)).project.version, parent.project.version);
+
+      const cancelled = { ...confirmation, taskId: randomUUID() }, cancelledId = randomUUID();
+      await startProposalTask(ordinary, cancelled, cancelledId);
+      await runProposalTask(ordinary, projectId, cancelled.taskId, async (...args) => {
+        const payload = await prepare(...args);
+        await db.rpc(OTHER, { action: "workspace_task_cancel", projectId, taskId: cancelled.taskId });
+        return payload;
+      });
+      assert.equal((await status(cancelled.taskId)).state, "cancelled");
+      assert.equal(await exists(cancelledId), false);
+
+      const retry = { ...confirmation, taskId: randomUUID() }, retryId = randomUUID();
+      await startProposalTask(ordinary, retry, retryId);
+      await db.setup.query(`create function private.reject_test_proposal_audit() returns trigger language plpgsql as
+        $$begin if new.action='workspace_proposal_complete' then raise exception 'isolated audit outage'; end if; return new; end$$;
+        create trigger reject_test_proposal_audit before insert on private.pitch_events
+          for each row execute function private.reject_test_proposal_audit()`);
+      try {
+        await runProposalTask(ordinary, projectId, retry.taskId, prepare);
+        assert.equal((await status(retry.taskId)).state, "failed");
+        assert.equal(await exists(retryId), false);
+      } finally {
+        await db.setup.query("drop trigger reject_test_proposal_audit on private.pitch_events");
+      }
+      await db.rpc(OTHER, { action: "workspace_task_retry", projectId, taskId: retry.taskId });
+      await runProposalTask(ordinary, projectId, retry.taskId, prepare);
+      assert.equal((await status(retry.taskId)).attempts, 2);
+      assert.equal((await status(retry.taskId)).source_project_id, retryId);
+      assert.equal(await exists(retryId), true);
+
+      const interrupted = { ...confirmation, taskId: randomUUID() }, interruptedId = randomUUID();
+      const interrupt = new AbortController();
+      await startProposalTask(ordinary, interrupted, interruptedId);
+      await runProposalTask({ ...ordinary, signal: interrupt.signal }, projectId, interrupted.taskId, async (...args) => {
+        const payload = await prepare(...args);
+        interrupt.abort();
+        return payload;
+      });
+      assert.equal((await status(interrupted.taskId)).state, "failed");
+      assert.equal(await exists(interruptedId), false);
+
+      const stale = { ...confirmation, taskId: randomUUID() }, staleId = randomUUID();
+      await startProposalTask(ordinary, stale, staleId);
+      await runProposalTask(ordinary, projectId, stale.taskId, async (...args) => {
+        const payload = await prepare(...args);
+        await workspace.saveWorkspace(ordinary, save(parent, { title: "确认后修改父项目" }));
+        return payload;
+      });
+      assert.equal((await status(stale.taskId)).error_code, "PITCH_CONFLICT");
+      assert.equal(await exists(staleId), false);
+    },
+  );
+  await check(
+    "published quarter editions atomically keep reviewed source assets and the operator's existing edits",
+    async () => {
+      const { startProposalTask, runProposalTask } = require("../../../src/lib/pitch/workspace/proposal-tasks.ts");
+      const { prepareProposalEdition, readEditionBaseline } = require("../../../src/lib/pitch/workspace/proposal-edition.ts");
+      const { layoutSlides } = require("../../../src/lib/pitch/layout/engine.ts");
+      const { studioRegistry } = require("../../../src/lib/pitch/data/renderWorkflow.ts");
+      const { randomUUID } = require("node:crypto");
+      const sourceId = randomUUID();
+      const inputs = {
+        action: "generate", projectId: sourceId, title: "旧季度草稿", scope, language: "zh", themeId: "colliers-default-v1", themeVersion: 2,
+        parts: [staticPart("corporate-overview", [ids.corporate])],
+      };
+      const { input } = await workflow.prepareBusinessProject(ordinary, inputs);
+      const byPosition = slides => Object.fromEntries(slides.map((slide, index) => [slide.slideId, "overview:" + index]));
+      await db.rpc(OTHER, { ...input, reviewedPlanId: randomUUID(), reviewedSlideKeys: byPosition(input.slides) });
+      const project = await workspace.getWorkspace(ordinary, sourceId);
+      const slideId = project.slides[0].id;
+      const withNote = await workspace.saveWorkspace(ordinary, save(project, {
+        context: { ...project.workspace.context, period: "2026-Q3" },
+        pages: [{ id: slideId, title: "自定义标题", manualNote: "注释跨季度保留" }, ...project.slides.slice(1).map(page => ({ id: page.id }))],
+      }));
+      const before = await workspace.customWorkspace(ordinary, {
+        action: "custom", projectId: sourceId, expectedVersion: withNote.project.version,
+        title: "独立人工页", body: "由项目组维护的说明。",
+      });
+      await assert.rejects(readEditionBaseline(owner, before), /PITCH_DENIED/);
+      await assert.rejects(readEditionBaseline(ordinary, project), /PITCH_CONFLICT/);
+      const prepare = failure => async (actor, stored, destination, assemble) => {
+        await assemble();
+        const { input: payload } = await workflow.prepareBusinessProject(actor, { ...inputs, projectId: destination, parentProjectId: sourceId,
+          title: "新季度草稿" });
+        const recipeKeys = byPosition(payload.slides);
+        const fresh = payload.slides.map(page => ({
+          id: page.slideId, asset_id: page.assetId, asset_version: page.assetVersion, template_id: "business-content",
+          template_version: 1, content: page.content, scene: page.scene,
+        }));
+        const overlay = await prepareProposalEdition({ current: before, baseline: await readEditionBaseline(actor, before),
+          nextPeriod: "2026-Q2", fresh, recipeKeys,
+          render: async (content, previous) => {
+            const { theme } = await studioRegistry(actor, previous.themeId, previous.themeVersion);
+            const rendered = await layoutSlides(content, theme.definition, previous.layoutId, previous.variant);
+            assert.equal(rendered.length, 1);
+            return rendered[0];
+          } });
+        const editionSave = await workspace.commitPayload(actor, { ...before,
+          project: { ...before.project, id: destination, version: 1 } }, overlay.pages, overlay.settings, {
+          activeSlide: overlay.activeSlide, context: { ...before.workspace.context, period: "2026-Q2" },
+        });
+        if (failure === "asset") editionSave.slides[0].assetId = randomUUID();
+        if (failure === "period") editionSave.context.period = "2026-Q1";
+        return { ...payload, expectedParentVersion: stored.expectedVersion, reviewedPlanId: stored.planId,
+          proposalContext: { ...before.workspace.context, period: "2026-Q2" }, reviewedSlideKeys: recipeKeys, editionSave };
+      };
+      const queued = () => ({ projectId: sourceId, expectedVersion: before.project.version, taskId: randomUUID(),
+        planId: randomUUID(), contextFingerprint: "a".repeat(64), request: { projectId: sourceId, question: "更新正式季度" } });
+      for (const reason of ["asset", "period"]) {
+        const discarded = randomUUID(), failure = queued();
+        await startProposalTask(ordinary, failure, discarded);
+        await runProposalTask(ordinary, sourceId, failure.taskId, prepare(reason));
+        await assert.rejects(workspace.getWorkspace(ordinary, discarded), /PITCH_DENIED/);
+        assert.equal((await db.rpc(OTHER, { action: "workspace_task_status", projectId: sourceId, taskId: failure.taskId })).state, "failed");
+      }
+      const targetId = randomUUID(), confirmed = queued();
+      await startProposalTask(ordinary, confirmed, targetId);
+      await runProposalTask(ordinary, sourceId, confirmed.taskId, prepare());
+      const state = await db.rpc(OTHER, { action: "workspace_task_status", projectId: sourceId, taskId: confirmed.taskId });
+      assert.equal(state.state, "completed", JSON.stringify(state));
+      const renewed = await workspace.getWorkspace(ordinary, targetId);
+      const oldNote = before.workspace.page_settings[slideId].note;
+      assert.equal(renewed.slides[0].content.title, "自定义标题");
+      assert.equal(renewed.workspace.page_settings[renewed.slides[0].id].note.text, oldNote.text);
+      assert.ok(renewed.slides.some(page => page.content.title === "独立人工页"));
+      assert.equal(renewed.workspace.context.period, "2026-Q2");
+      const original = await workspace.getWorkspace(ordinary, sourceId);
+      assert.deepEqual(original.slides, before.slides);
+      assert.equal(original.workspace.context.period, "2026-Q3");
+    },
+  );
+  await check(
     "cancelled generation is never committed, even when cancellation races after source generation",
     async () => {
       const taskId = randomUUID(),
@@ -771,6 +1407,35 @@ try {
         ),
         before,
       );
+    },
+  );
+  await check(
+    "lost generation acknowledgement replays the same completed receipt without regenerating or saving, and rejects changed intents",
+    async () => {
+      const input = {
+        action: "start",
+        projectId: deck.project.id,
+        expectedVersion: deck.project.version,
+        taskId: randomUUID(),
+        part: staticPart("corporate-overview", [ids.corporate]),
+        replaceIds: [deck.slides[0].id],
+      };
+      const queued = await workspace.startWorkspaceTask(ordinary, input);
+      await workspace.runWorkspaceTask(ordinary, input.projectId, input.taskId);
+      const saved = await workspace.getWorkspace(ordinary, input.projectId);
+      const replay = await workspace.startWorkspaceTask(ctx(OTHER), input);
+      assert.equal(replay.state, "completed");
+      assert.equal(replay.stage, "saved");
+      assert.equal(replay.source_project_id, queued.source_project_id);
+      assert.equal(replay.expected_version, input.expectedVersion);
+      assert.equal(replay.attempts, 1);
+      await workspace.runWorkspaceTask(ordinary, input.projectId, input.taskId);
+      assert.equal(saved.project.version, input.expectedVersion + 1);
+      assert.equal((await workspace.getWorkspace(ordinary, input.projectId)).project.version, saved.project.version);
+      await assert.rejects(workspace.startWorkspaceTask(ordinary, { ...input, replaceIds: [] }), /PITCH_CONFLICT/);
+      await assert.rejects(workspace.startWorkspaceTask(ordinary, { ...input, taskId: randomUUID() }), /PITCH_CONFLICT/);
+      await assert.rejects(workspace.startWorkspaceTask(owner, input), /PITCH_DENIED/);
+      deck = saved;
     },
   );
   await check(

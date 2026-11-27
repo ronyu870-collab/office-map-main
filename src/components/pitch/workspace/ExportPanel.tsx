@@ -2,7 +2,7 @@
 import * as React from "react";
 import { Button, Dialog } from "@/src/components/ui";
 import type { WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
-import { downloadBlob, type Call } from "./client";
+import { downloadBlob, WorkspaceError, type Call } from "./client";
 import styles from "./workspace.module.css";
 export function ExportPanel({
   call,
@@ -108,6 +108,7 @@ export function ExportPanel({
         {
           action: "export_start",
           projectId: saved.project.id,
+          expectedVersion: saved.project.version,
           exportId,
           audience,
           format,
@@ -122,7 +123,9 @@ export function ExportPanel({
       );
       setReceipt({ id: exportId, state: "pending", progress: 0 });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "导出未启动。");
+      setError(e instanceof WorkspaceError && e.status === 409
+        ? "项目已更新，请重新打开项目并核对导出范围。"
+        : e instanceof Error ? e.message : "导出未启动。");
     } finally {
       setBusy(false);
     }

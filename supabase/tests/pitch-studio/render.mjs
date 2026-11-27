@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import JSZip from 'jszip';
 import { Resvg } from '@resvg/resvg-js';
+import { PDFDocument } from 'pdf-lib';
+import sharp from 'sharp';
 const require = createRequire(import.meta.url);
 const { layoutFixture } = require('../../../src/lib/pitch/fixtures/layouts.ts');
 const { layoutSlides } = require('../../../src/lib/pitch/layout/engine.ts');
@@ -11,6 +13,7 @@ const LAYOUTS=legacyLayoutIds.map(id=>({id}));
 const { STUDIO_THEME, VERIFICATION_THEME } = require('../../../src/lib/pitch/design/theme.ts');
 const { renderPitchPptx } = require('../../../src/lib/pitch/render/pptx.ts');
 const { renderSceneSvg, renderScenePng } = require('../../../src/lib/pitch/render/svg.ts');
+const { renderScenePdf } = require('../../../src/lib/pitch/render/pdf.ts');
 const { renderSceneXlsx } = require('../../../src/lib/pitch/render/xlsx.ts');
 const { checkScene } = require('../../../src/lib/pitch/layout/quality.ts');
 const { artifactName } = require('../../../src/lib/pitch/render/format.ts');
@@ -67,6 +70,24 @@ await check('PNG/SVG use the actual shared scene and bundled CJK outlines; no re
   assert.match(svg, /<path d=/); assert.doesNotMatch(svg, /<foreignObject|<script|https?:\/\/(?!www.w3.org)/);
   const png = await renderScenePng(scene, STUDIO_THEME, []); assert.deepEqual([...png.slice(0, 8)], [137,80,78,71,13,10,26,10]);
   assert.equal(new DataView(png.buffer, png.byteOffset).getUint32(16), 2560);
+});
+await check('direct PDF raster keeps the fixed-size rendering, JPEG quality and alpha compositing', async () => {
+  const scene = (await layoutSlides(sample('image-text'), STUDIO_THEME, 'image-text'))[0];
+  const translucent = await sharp({ create: { width: 1200, height: 800, channels: 4,
+    background: { r: 22, g: 72, b: 114, alpha: .55 } } }).png().toBuffer();
+  // A view over a larger buffer must serialize exactly the chosen image bytes.
+  const padded = Buffer.concat([Buffer.from('test prefix'), translucent, Buffer.from('test suffix')]);
+  const view = padded.subarray(11, 11 + translucent.length);
+  assert.deepEqual(view, translucent);
+  const photos = [{ ...media[0], bytes: view }];
+  const png = await renderScenePng(scene, STUDIO_THEME, photos);
+  const expected = await sharp(png).flatten({ background: '#ffffff' })
+    .jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();
+  const bytes = await renderScenePdf([{ scene, theme: STUDIO_THEME }], async () => photos, new AbortController().signal);
+  const pdf = await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(), 1);
+  assert.deepEqual(pdf.getPage(0).getSize(), { width: scene.width * 72, height: scene.height * 72 });
+  assert.ok(Buffer.from(bytes).includes(expected));
 });
 await check('Excel exports only selected scene data as safe typed cells; source, zero, negative and unknown retained', async () => {
   const content = sample('data-table'); content.blocks[0].rows = [['=HYPERLINK("https://invalid")', -1, null], ['零 / Zero', 0, 0]];
