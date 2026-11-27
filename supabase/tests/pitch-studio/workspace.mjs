@@ -555,6 +555,52 @@ try {
         assert.ok(relationships.includes(`Id="${imageId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${sharedPart}"`));
       }
       assert.match(await packageZip.file("ppt/slides/slide1.xml").async("string"), /同一图片的复用页/);
+      const pdfProject = randomUUID();
+      const photoPart = assetId => ({ assetId, layoutId: "image-text", variant: "standard" });
+      await render.composeProject(owner, { action: "project_compose", projectId: pdfProject, title: "隔离 PDF 图片读取",
+        themeId: "colliers-default-v1", themeVersion: 2, parts: [photoPart(first.assetId), photoPart(second.assetId), photoPart(first.assetId)] });
+      const firstMedia = (await db.rpc(OWNER, { action: "library_asset", assetId: first.assetId })).media[0];
+      const pdfExport = { action: "export_start", projectId: pdfProject, exportId: randomUUID(), format: "pdf", audience: "internal" };
+      const damaged = Buffer.from("isolated image format failure");
+      const pdfReader = ctx(OWNER), normalStorage = pdfReader.client.storage.from;
+      const reads = [];
+      let uploads = 0;
+      let invalidFirstPhoto = true;
+      pdfReader.client.storage.from = () => {
+        const storage = normalStorage();
+        return { async download(path) {
+          reads.push(path);
+          if (path === firstMedia.storage_path && invalidFirstPhoto) return { data: new Blob([damaged]), error: null };
+          return storage.download(path);
+        }, upload(path, value, options) {
+          uploads++;
+          return storage.upload(path, value, options);
+        } };
+      };
+      await render.prepareRenderExport(owner, pdfExport);
+      // The original size and checksum agree with the isolated stored bytes,
+      // while the image decoder rejects their format.
+      await db.setup.query("update pitch_media_assets set size_bytes=$1,sha256=$2 where id=$3 and version=$4",
+        [damaged.length, digest(damaged), firstMedia.id, firstMedia.version]);
+      try {
+        await render.runRenderExport(pdfReader, pdfExport);
+        const status = await db.rpc(OWNER, { ...pdfExport, action: "export_status" });
+        assert.equal(status.state, "failed");
+        assert.deepEqual(reads, [firstMedia.storage_path]);
+        assert.equal(uploads, 0);
+      } finally {
+        await db.setup.query("update pitch_media_assets set size_bytes=$1,sha256=$2 where id=$3 and version=$4",
+          [firstMedia.size_bytes, firstMedia.sha256, firstMedia.id, firstMedia.version]);
+        invalidFirstPhoto = false;
+      }
+      reads.length = 0;
+      const secondPdf = { ...pdfExport, exportId: randomUUID(), pages: [2, 1, 0] };
+      await render.prepareRenderExport(owner, secondPdf);
+      await render.runRenderExport(pdfReader, secondPdf);
+      assert.deepEqual(reads, [firstMedia.storage_path, media.storage_path]);
+      assert.equal(uploads, 1);
+      const pdfData = await render.downloadArtifact(owner, secondPdf);
+      assert.equal((await PDFDocument.load(pdfData.bytes)).getPageCount(), 3);
       // Publish the synthetic original and replacement for this recipient. The
       // sharing-specific test subsequently withdraws the same pinned image.
       for (const sample of [first, second]) {

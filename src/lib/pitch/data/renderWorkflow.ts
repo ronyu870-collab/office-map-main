@@ -17,19 +17,50 @@ import { makeFile, mediaRowSchema, pitchRpc, readFile, uploadFile, type PitchCon
 const deliveryRevision = 'pitch-export-output/1' + (process.env.VERCEL_GIT_COMMIT_SHA ? '/' + process.env.VERCEL_GIT_COMMIT_SHA : '');
 const pageSchema = z.object({ id: z.uuid(), content: slideContentSchema, scene: slideSceneSchema });
 const previewContextSchema = z.object({ slides: z.array(pageSchema).min(1).max(50), themes: z.array(z.object({ definition: designThemeSchema })), media: z.array(mediaRowSchema) });
+const mediaKey = ({ id, version }: Pick<SceneMedia, 'id' | 'version'>) => `${id}:${version}`;
+async function readStoredMedia(ctx: PitchContext, row: z.infer<typeof mediaRowSchema>): Promise<SceneMedia> {
+  ctx.signal.throwIfAborted();
+  const bytes = await readFile(ctx, { bucket: 'pitch-studio-private', path: row.storage_path,
+    mime: row.mime, size: row.size_bytes, sha256: row.sha256 });
+  return { id: row.id, version: row.version, mime: row.mime, bytes };
+}
 export async function loadMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>[], scenes: z.infer<typeof slideSceneSchema>[], missing = 'PITCH_MEDIA_UNAVAILABLE') {
   const refs = sceneMediaReferences(scenes), files: SceneMedia[] = [];
-  const available = new Map(rows.map(row => [`${row.id}:${row.version}`, row]));
+  const available = new Map(rows.map(row => [mediaKey(row), row]));
   const seen = new Set<string>();
   for (const ref of refs) {
-    const key = `${ref.id}:${ref.version}`;
+    const key = mediaKey(ref);
     if (seen.has(key)) continue;
     const row = available.get(key);
     if (!row) throw new Error(missing);
     seen.add(key);
-    files.push({ id: row.id, version: row.version, mime: row.mime, bytes: await readFile(ctx, { bucket: 'pitch-studio-private', path: row.storage_path, mime: row.mime, size: row.size_bytes, sha256: row.sha256 }) });
+    files.push(await readStoredMedia(ctx, row));
   }
   return inspectMedia(files);
+}
+function createPdfPageMedia(ctx: PitchContext, rows: z.infer<typeof mediaRowSchema>[], scenes: z.infer<typeof slideSceneSchema>[]) {
+  const available = new Map(rows.map(row => [mediaKey(row), row]));
+  const keysByPage = scenes.map(scene => [...new Set(sceneMediaReferences([scene]).map(mediaKey))]);
+  const lastPage = new Map<string, number>();
+  const retained = new Map<string, SceneMedia>();
+  for (const [page, keys] of keysByPage.entries()) {
+    for (const key of keys) {
+      if (!available.has(key)) throw new Error('PITCH_MEDIA_UNAVAILABLE');
+      lastPage.set(key, page);
+    }
+  }
+  // The PDF renderer consumes this selection in order. Keep the verified bytes
+  // only between a picture's first and last page, including use across a gap.
+  return async (page: number) => {
+    const media: SceneMedia[] = [];
+    for (const key of keysByPage[page]) {
+      const image = retained.get(key) ?? await readStoredMedia(ctx, available.get(key)!);
+      if (lastPage.get(key) === page) retained.delete(key);
+      else retained.set(key, image);
+      media.push(image);
+    }
+    return media;
+  };
 }
 export async function studioRegistry(ctx: PitchContext, themeId: string, themeVersion: number) {
   const reg = z.object({ template: z.object({ config: templateConfigSchema }), theme: z.object({ definition: designThemeSchema }) }).parse(await pitchRpc(ctx, { action: 'registry', templateId: 'studio-content', templateVersion: 1, themeId, themeVersion }));
@@ -109,12 +140,15 @@ export async function runRenderExport(ctx: PitchContext, command: { projectId: s
     const selected = context.export.render_options.page;
     const slides = context.selected ? context.slides : context.export.render_options.pages ? context.export.render_options.pages.map(i => context.slides[i]) : selected === undefined ? context.slides : [context.slides[selected]];
     if (!slides.length || slides.some(s => !s)) throw new Error('PITCH_INVALID');
-    const media = await loadMedia(ctx, context.media, slides.map(s => s.scene)), pages = slides.map(s => ({ scene: s.scene, theme: pageTheme(s.scene, context.themes) }));
+    const format = context.export.format, scenes = slides.map(s => s.scene);
+    const pages = scenes.map(scene => ({ scene, theme: pageTheme(scene, context.themes) }));
+    const pdfPageMedia = format === 'pdf' ? createPdfPageMedia(ctx, context.media, scenes) : null;
+    const media = pdfPageMedia ? [] : await loadMedia(ctx, context.media, scenes);
     await pitchRpc(ctx, { action: 'export_progress', ...args, progress: 30 });
-    let bytes: Uint8Array; const format = context.export.format;
+    let bytes: Uint8Array;
     if (format === 'pptx') bytes = await (await import('../render/pptx')).renderPitchPptx(context.project.title, pages, media);
     else if (format === 'xlsx') bytes = await (await import('../render/xlsx')).renderSceneXlsx(pages.map(p => p.scene));
-    else if (format === 'pdf') bytes = await (await import('../render/pdf')).renderScenePdf(pages, media, ctx.signal);
+    else if (pdfPageMedia) bytes = await (await import('../render/pdf')).renderScenePdf(pages, pdfPageMedia, ctx.signal);
     else {
       if (pages.length !== 1) throw new Error('PITCH_SINGLE_PAGE_REQUIRED');
       const renderer = await import('../render/svg');
