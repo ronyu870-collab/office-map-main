@@ -590,7 +590,7 @@ async function confirmFlagshipProposal(page, trigger) {
   return receipt.projectId;
 }
 
-export async function verifyPitchFlagshipBrowser({ app, who, period, readProject, requiredVisuals = {}, replacementCandidates = [] }) {
+export async function verifyPitchFlagshipBrowser({ app, who, period, readProject, readBindings, requiredVisuals = {}, replacementCandidates = [] }) {
   assert.equal(new URL(app).hostname, "127.0.0.1");
   const browser = await launchBrowser();
   const report = [];
@@ -630,6 +630,12 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
         const created = await readProject(projectId);
         assert.ok(created.slides.length, "the completed project has no pages");
+        const bindings = await readBindings(projectId);
+        assert.equal(bindings.projectVersion, created.project.version);
+        const cited = bindings.pages.flatMap(page => page.objects.flatMap(object => object.receipts ?? []));
+        assert.ok(cited.some(receipt => receipt.binding.domain === "quarter"), "formal objects lost their query receipts");
+        if (scenario.scenario === "leasing-agency") assert.ok(cited.some(receipt => receipt.receiptId === "submarket-research"));
+        if (scenario.scenario === "market-report") assert.ok(cited.some(receipt => receipt.query.parameters.groupBy === "grade"));
         if ((requiredVisuals[scenario.scenario] ?? []).includes("stacking-plan")) {
           const appendix = created.slides.find(slide => slide.content.sources.some(source => source.visual?.kind === "stacking-plan"));
           assert.equal(appendix?.content.disclosure, "restricted");

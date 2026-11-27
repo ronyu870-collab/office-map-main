@@ -3,9 +3,10 @@ import { BUSINESS_DOMAIN } from "@/src/lib/intelligence/business/protocol";
 import { recheckLeaseResults } from "@/src/lib/intelligence/lease/research";
 import { z } from "zod";
 import { generationSchema } from "../business/protocol";
+import { captureReviewedQuery } from "../business/document-version";
 import { checkGenerationSize, prepareBusinessPages, prepareBusinessProject } from "../business/workflow";
 import { studioRegistry } from "../data/renderWorkflow";
-import { digest, pitchRpc, type PitchContext } from "../data/store";
+import { pitchRpc, type PitchContext } from "../data/store";
 import { getVisualPageReceipts, resolveReferencedVisualMedia } from "../visual-data/resolve";
 import { projectContextSchema } from "../workspace/protocol";
 import { getWorkspace } from "../workspace/workflow";
@@ -36,9 +37,7 @@ async function prepareReviewedPages(ctx: PitchContext, command: ConfirmedProposa
   const snapshots = queryReceipts.map(({ id, entityId, binding: unverified, result }) => {
     const binding = receiptBinding.parse(unverified);
     return { id, entityId, binding, dataVersion: binding.dataVersion, dataAsOf: binding.dataAsOf,
-      results: [{ resultId: result.resultId, operation: result.operation, parameters: result.parameters, table: result.table,
-        scopeFingerprint: result.scopeFingerprint, registryVersion: result.registryVersion,
-        sourceFingerprint: digest(Buffer.from(JSON.stringify(result.sources))) }] };
+      results: [captureReviewedQuery(result)] };
   });
   const pins = getVisualPageReceipts(slides.map(page => page.content));
   for (const pin of new Map(pins.map(pin => [pin.id, pin])).values()) {

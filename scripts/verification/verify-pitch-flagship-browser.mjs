@@ -240,20 +240,22 @@ try {
   const verify = imageReplacement ? verifyPitchImageReplacementBrowser
     : quarterRevision || competitorRevision || process.argv.includes("--building-inspector") ? verifyPitchBuildingInspectorBrowser
     : process.argv.includes("--chart-revision") ? verifyPitchChartRevisionBrowser : verifyPitchFlagshipBrowser;
+  const readWorkspace = async (action, projectId) => {
+    const result = await fetch(app + "/api/intelligence/pitch/workspace", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + who.token, "Content-Type": "application/json" },
+      body: JSON.stringify({ action, projectId }),
+    });
+    assert.equal(result.status, 200);
+    return result.json();
+  };
   await verify({
     app, who, period: quarterRevision ? "2026-Q2" : "2026-Q3", quarterRevision, competitorRevision, imageReplacement,
     replacementCandidates: who.replacementCandidates,
     requiredVisuals: { 'leasing-agency': ['photo', 'map', 'stacking-plan'], 'site-selection': ['photo', 'map'],
       'market-report': ['map'], 'building-promotion': ['photo', 'map'] },
-    readProject: async (projectId) => {
-      const result = await fetch(app + "/api/intelligence/pitch/workspace", {
-        method: "POST",
-        headers: { Authorization: "Bearer " + who.token, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "get", projectId }),
-      });
-      assert.equal(result.status, 200);
-      return result.json();
-    },
+    readProject: projectId => readWorkspace("get", projectId),
+    readBindings: projectId => readWorkspace("document_bindings", projectId),
   });
   if (verify === verifyPitchFlagshipBrowser) {
     const audit = await db.query(`select distinct details->>'stage' as stage from public.audit_operation_receipts
