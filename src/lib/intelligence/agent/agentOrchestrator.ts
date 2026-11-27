@@ -295,6 +295,15 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
     if (result !== undefined && resultAvailability(resultViewSchema.parse(result)))
       failures.push({ tool: 'execute_query_plan', code: 'no_valid_sample' });
   }
+  if (task.unavailableFields?.includes('建筑面积') && result !== undefined) {
+    const interpretation = resultViewSchema.parse(result).parameters.interpretation as {
+      missingBuildingArea?: number; deniedBuildingArea?: number; unavailableBuildingArea?: number;
+    } | undefined;
+    const { missingBuildingArea, deniedBuildingArea, unavailableBuildingArea } = interpretation ?? {};
+    if (missingBuildingArea) failures.push({ tool: 'query_building_dossier', code: 'no_valid_sample' });
+    if (deniedBuildingArea) failures.push({ tool: 'query_building_dossier', code: 'field_not_available' });
+    if (unavailableBuildingArea) failures.push({ tool: 'query_building_dossier', code: 'source_unavailable' });
+  }
   if (task.walkingRouteUnavailable) failures.push({ tool: 'verified_data', code: 'unsupported' });
   if (task.route !== 'direct_response' && !result && !failures.length) failures.push({ tool: 'verified_data', code: 'no_verified_result' });
   await input.revalidate?.(input.signal);

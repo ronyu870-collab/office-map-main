@@ -114,7 +114,7 @@ describe('immutable source-rechecked Agent result recovery', () => {
       export: true, records: [{ id: buildingId, name, buildingId, data: [{ table: 'buildings', id: buildingId, version: 'a'.repeat(64),
         recordedAt: null, asOf: null, period: null, values: { name } }, { table: 'building_brochure_data', id: randomUUID(),
         version: 'b'.repeat(64), recordedAt: null, asOf: null, period: null, values: { gfaTotal: '28000' } }] }] });
-    const result = addDossierGfa(source, buildBusinessResult(snapshot, dossierPlan))!.result;
+    const result = addDossierGfa(source, [{ ids: [buildingId], dossier: buildBusinessResult(snapshot, dossierPlan) }]).result;
     const selection = { version: 'answer-selection/1', task: 'list', status: 'answered', primaryResultId: result.resultId,
       results: [{ role: 'primary', result }] };
     const events = [

@@ -146,6 +146,102 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       assert.equal(signedOut.body.result, undefined);
       assert.equal(signedOut.calls, 0);
     });
+    await check('AI6 T12 / 正式租金与空置率复合筛选逐栋保留获权建筑面积及其缺项原因', async () => {
+      const buildings = Array.from({ length: 7 }, () => randomUUID());
+      const [matched, alsoMatched] = buildings;
+      const brochureId = randomUUID();
+      const query = '2026Q3 CBD筛选净有效租金低于250元/㎡/月、空置率超过15%的楼宇，附上建筑面积';
+      const facts = [[200, 10000, 2000], [249, 10000, 1501], [250, 10000, 2000], [200, 10000, 1500],
+        [200, 0, 0], [200, 10000, 2000], [200, 10000, 2000]];
+      const analyst = await person('admin', 'ai6-composite-filter');
+      const grantQuarter = (actor, fields = ['netEffectiveRent', 'totalArea', 'vacantArea']) => grantQuery({ setup: db }, actor.id, {
+        capabilities: exportCaps, fields, allSubmarkets: false, submarkets: ['CBD'], allBuildings: false, buildingIds: buildings.slice(0, 6),
+      });
+      const grantDossier = buildingIds => grantBusiness(db, analyst.id, { modules: ['profile'], fields: ['gfaTotal'], allBuildings: false, buildingIds });
+      try {
+        for (const [index, id] of buildings.entries()) {
+          await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,$2,'CBD','A','tracked')", [id, `合成T12楼宇${index}`]);
+          const [rent, area, vacant] = facts[index];
+          await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft,is_locked,locked_at,locked_by)
+            values($1,2026,3,$2,$3,$4,$5,not $5,case when not $5 then now() end,case when not $5 then $1 end)`, [id, area, rent, vacant, index === 5]);
+        }
+        await db.query('insert into public.building_brochure_data(id,building_id,gfa_total) values($1,$2,48000)', [brochureId, matched]);
+        await db.query('insert into public.building_brochure_data(id,building_id,gfa_total) values($1,$2,99000)', [randomUUID(), buildings[2]]);
+        await grantQuarter(analyst);
+        await grantDossier([matched, alsoMatched]);
+        const expected = (await db.query(`select building_id from public.building_metrics where building_id=any($1::uuid[])
+          and record_year=2026 and record_quarter=3 and is_locked and not is_draft and total_area>0
+          and net_effective_rent<250 and vacant_area>total_area*0.15 order by building_id`, [buildings.slice(0, 6)])).rows.map(row => row.building_id);
+        assert.deepEqual(expected, [matched, alsoMatched].sort());
+        const verified = reply => {
+          assert.equal(reply.status, 200, JSON.stringify(reply.body));
+          assert.equal(reply.calls, 0);
+          assert.equal(reply.body.agent.executionStatus, 'partial');
+          assert.equal(reply.body.answerSelection.status, 'partial');
+          const result = reply.body.result;
+          assert.deepEqual(result.table.rows.map(row => row.entityId).sort(), expected);
+          assert.deepEqual(result.parameters.executedPlan.period, { year: 2026, quarter: 3 });
+          assert.deepEqual(result.parameters.executedPlan.filter, { operator: 'and', terms: [
+            { field: 'netEffectiveRent', operator: 'lt', value: '250' }, { field: 'vacancyRate', operator: 'gt', value: '0.15' },
+          ] });
+          const { total, matched: count, notMatched, unknown } = result.parameters.filterEvaluation[0];
+          assert.deepEqual([total, count, notMatched, unknown], [6, 2, 2, 2]);
+          const cell = id => result.table.rows.find(row => row.entityId === id).cells.gfaTotal;
+          return { result, cell };
+        };
+        const all = await submit(analyst, query);
+        const full = verified(all);
+        assert.equal(full.cell(matched).value.numeric, 48000);
+        assert.equal(full.cell(alsoMatched).reason, 'business_field_missing');
+        assert.match(all.body.answerSelection.notice, /1 栋楼宇的建筑面积缺少可核验的楼书记录/);
+
+        await grantDossier([matched]);
+        const partial = await submit(analyst, query);
+        const scoped = verified(partial);
+        assert.equal(scoped.cell(matched).value.numeric, 48000);
+        assert.deepEqual(scoped.cell(alsoMatched), { kind: 'unknown', state: 'unverified', reason: 'business_field_not_authorized', sourceIds: [] });
+        assert.deepEqual(scoped.result.parameters.businessBindings.map(binding => binding.plan.buildingIds), [[matched]]);
+        assert.match(partial.body.answerSelection.notice, /1 栋楼宇的楼书建筑面积未获授权/);
+        assert.ok(scoped.cell(matched).sourceIds.every(id => scoped.result.sources.some(ref => ref.id === id
+          && ref.recordId === brochureId && ref.entityId === matched && ref.field === 'gfa_total' && ref.period === null)));
+        assert.deepEqual((await recover(analyst, partial.body.requestId)).body.result, scoped.result);
+        const download = { requestId: partial.body.requestId, resultId: scoped.result.resultId, action: 'export', format: 'xlsx' };
+        const file = await artifact(analyst, download);
+        assert.equal(file.status, 200, JSON.stringify(file.body));
+        const book = XLSX.read(file.bytes, { type: 'array' });
+        const data = XLSX.utils.sheet_to_json(book.Sheets['数据'], { header: 1 });
+        const gfaIndex = data[0].findIndex(label => /建筑面积/.test(label));
+        assert.equal(data.find(row => row[0] === matched)[gfaIndex], 48000);
+        assert.equal(data.find(row => row[0] === alsoMatched)[gfaIndex], '未核验');
+        assert.equal((await artifact(other, download)).status, 403);
+
+        const original = (await db.query("select pg_get_functiondef('public.ai_business_research_snapshot(uuid,uuid,uuid,jsonb)'::regprocedure) as definition")).rows[0].definition;
+        try {
+          await db.query(`create or replace function public.ai_business_research_snapshot(p_actor uuid,p_effective uuid,p_session uuid,p_plan jsonb)
+            returns jsonb language plpgsql security invoker set search_path='' as $$ begin raise exception 'injected T12 dossier service failure'; end $$`);
+          const outage = await submit(analyst, query);
+          const retained = verified(outage);
+          assert.equal(retained.cell(matched).reason, 'business_field_unavailable');
+          assert.equal(retained.result.parameters.businessBindings, undefined);
+          assert.match(outage.body.answerSelection.notice, /楼书资料暂时不可用/);
+        } finally { await db.query(original); }
+        await db.query('update private.ai_business_research_grants set enabled=false where user_id=$1', [analyst.id]);
+        assert.equal((await recover(analyst, partial.body.requestId)).status, 403);
+        assert.equal((await artifact(analyst, download)).status, 403);
+        const withoutDossier = verified(await submit(analyst, query));
+        assert.equal(withoutDossier.cell(matched).reason, 'business_field_not_authorized');
+        const noVacancy = await person('admin', 'ai6-no-hard-field');
+        await grantQuarter(noVacancy, ['netEffectiveRent', 'totalArea']);
+        const denied = await submit(noVacancy, query);
+        assert.equal(denied.status, 403);
+        assert.equal(denied.body.result, undefined);
+        assert.equal(denied.calls, 0);
+      } finally {
+        await db.query('delete from public.building_brochure_data where building_id=any($1::uuid[])', [buildings]);
+        await db.query('delete from public.building_metrics where building_id=any($1::uuid[])', [buildings]);
+        await db.query('delete from public.buildings where id=any($1::uuid[])', [buildings]);
+      }
+    });
     const buildingContext = async (who, reply, options = {}) => {
       const response = await originalFetch(app + '/api/intelligence/query/buildings', { method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + who.token },

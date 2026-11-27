@@ -12,7 +12,7 @@ import { generateResearchDeliverable } from '../research/deliverable';
 import { artifactFulfillment, artifactLabels } from './artifactFulfillment';
 import { BUSINESS_TOOL_NAMES, isBusinessResult, type BusinessToolName } from '../business/protocol';
 import { queryBusinessResearch, businessModelObservation, recheckBusinessResults, businessCapabilities } from '../business/research';
-import { addDossierGfa } from '../business/dossierProjection';
+import { addDossierGfa, readDossierGfa } from '../business/dossierProjection';
 import { attachMetroScreening, screenMetroCandidates } from '../query/metroScreening';
 import { resultBuildingRows } from '../query/buildingCards';
 import { isLeaseResult } from '../lease/protocol';
@@ -661,27 +661,18 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             let result = observation.result;
             let unavailableFields = taskRoute.unavailableFields ?? [];
             const requestedBuildingArea = unavailableFields.includes('建筑面积');
-            let missingBuildingArea = 0;
-            if (requestedBuildingArea && ['rank', 'list'].includes(result.operation) && rechecked.grants.includes('query:brochure')) {
+            let missingBuildingArea = 0, deniedBuildingArea = 0, unavailableBuildingArea = 0;
+            if (requestedBuildingArea && ['rank', 'list'].includes(result.operation)) {
               const ids = resultBuildingRows(result as AnswerSelection['results'][number]['result']).map(row => row.id);
               if (ids.length && ids.length <= 20 && ids.length === result.table.rows.length) {
-                const access = await businessCapabilities(client, actor, toolSignal);
-                if ('profileFields' in access && access.profileFields?.includes('gfaTotal')) {
-                  try {
-                    const dossier = await queryBusinessResearch(client, actor, toolSignal, 'query_building_dossier', { buildingIds: ids, fields: ['gfaTotal'] });
-                    const enriched = addDossierGfa(result, dossier.result);
-                    if (enriched) {
-                      result = enriched.result;
-                      businessResults.set(dossier.result.resultId, dossier.result);
-                      unavailableFields = unavailableFields.filter(field => field !== '建筑面积');
-                      missingBuildingArea = enriched.missing;
-                    }
-                  } catch (error) {
-                    if (toolSignal.aborted || !(error instanceof Error)
-                      || !['QUERY_READ_UNAVAILABLE', 'QUERY_DENIED'].includes(error.message)) throw error;
-                    await revalidateModel(toolSignal);
-                  }
-                }
+                const reads = rechecked.grants.includes('query:brochure') ? await readDossierGfa(client, actor, toolSignal, ids)
+                  : [{ ids, issue: 'denied' as const }];
+                if (reads.some(read => 'issue' in read)) await revalidateModel(signal);
+                const enriched = addDossierGfa(result, reads);
+                result = enriched.result;
+                for (const dossier of enriched.dossiers) businessResults.set(dossier.resultId, dossier);
+                unavailableFields = unavailableFields.filter(field => field !== '建筑面积');
+                ({ missing: missingBuildingArea, denied: deniedBuildingArea, unavailable: unavailableBuildingArea } = enriched);
               }
             }
             observation.result = { ...result,
@@ -689,7 +680,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
                 ...(taskRoute.siteSelection ? { siteSelection: taskRoute.siteSelection } : {}),
                 ...(taskRoute.unavailableFields?.length ? { interpretation: {
                   ...(result.parameters.interpretation as object | undefined), unavailableFields,
-                  ...(requestedBuildingArea ? { requestedBuildingArea, missingBuildingArea } : {}),
+                  ...(requestedBuildingArea ? { requestedBuildingArea, missingBuildingArea, deniedBuildingArea, unavailableBuildingArea } : {}),
                 } } : {}),
               },
               limitations: [...new Set([...result.limitations, ...(taskRoute.planNotices ?? [])])] };
@@ -971,7 +962,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           : execution.unresolvedFailures.some(item => item.code === 'analysis_not_available')
             ? '文件已生成，但尚未取得可核验的分析结论；任务尚未全部完成。'
           : onlyMapFailure || primary.parameters.metroScreening && execution.unresolvedFailures.every(item => item.tool === 'verified_data' && item.code === 'unsupported')
-            || selectedAnswer.notice && execution.unresolvedFailures.every(item => item.tool === 'select_answer_results')
+            || selectedAnswer.notice && execution.unresolvedFailures.every(item => ['select_answer_results', 'query_building_dossier'].includes(item.tool))
               ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
         selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, executionNotice].filter(Boolean).join(' ') };
       }

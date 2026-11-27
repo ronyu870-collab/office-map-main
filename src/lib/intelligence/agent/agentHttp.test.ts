@@ -67,15 +67,16 @@ function fakeRequest(question = '你好') {
     body: JSON.stringify(input),
   }) };
 }
-function deps(allowed = true, leaseSnapshot?: object, business?: { permitted: string[]; snapshot: object }, availablePeriods?: object) {
-  const rpc = vi.fn((name: string, args?: { p_plan?: { tool?: string } }) => {
+function deps(allowed = true, leaseSnapshot?: object, business?: { permitted: string[]; snapshot: object;
+  read?: (buildingIds: string[]) => { data: object | null; error: object | null } }, availablePeriods?: object) {
+  const rpc = vi.fn((name: string, args?: { p_plan?: { tool?: string; buildingIds?: string[] } }) => {
     if(name==='ai_control_runtime')return {abortSignal:()=>Promise.resolve({data:null,error:{code:'PGRST202',message:'Could not find ai_control_runtime'}})};
     if (name === 'ai_lease_research_snapshot' && leaseSnapshot) return { abortSignal: async () => ({ data: leaseSnapshot, error: null }) };
     if (name === 'ai_query_available_periods' && availablePeriods) return { abortSignal: async () => ({ data: availablePeriods, error: null }) };
     if (name === 'ai_business_research_snapshot' && business) {
-      return { abortSignal: async () => ({ error: null, data: args?.p_plan?.tool === 'capabilities'
-        ? { allowed: true, modules: ['profile'], profileFields: business.permitted, submissions: false, export: false }
-        : business.snapshot }) };
+      return { abortSignal: async () => args?.p_plan?.tool === 'capabilities'
+        ? { error: null, data: { allowed: true, modules: ['profile'], profileFields: business.permitted, submissions: false, export: false } }
+        : business.read?.(args?.p_plan?.buildingIds ?? []) ?? { error: null, data: business.snapshot } };
     }
     expect(name).toBe('ai_query_model_budget');
     return { abortSignal: () => Promise.resolve({ data: { allowed }, error: null }) };
@@ -433,6 +434,51 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(body.result.parameters.businessBindings[0].plan).toEqual({ tool: 'query_building_dossier', buildingIds: [id], fields: ['gfaTotal'] });
     expect(body.result.table.rows[0]).toMatchObject({ entityId: id, cells: { vacancy: { value: { numeric: .2 } }, gfaTotal: { value: { numeric: 48000 } } } });
     expect(body.result.sources.find((item: { field: string }) => item.field === 'gfa_total')).toMatchObject({ recordId: brochureId, entityId: id, period: null });
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
+  it.each(['restricted row', 'source failure'])('keeps both formally matched rows while recovering optional dossier fields (%s)', async scenario => {
+    const period = { year: 2026, quarter: 3 };
+    const ids = [randomUUID(), randomUUID(), randomUUID()];
+    const rows = ids.map((id, index) => {
+      const name = `合成楼宇${index}`, fact = (field: 'netEffectiveRent' | 'totalArea' | 'vacantArea', value: number) =>
+        resolveNumericFact(field, id, [source(id, field, value, period)], period);
+      return { id, name, nameSource: nameSource(id, name), facts: { netEffectiveRent: fact('netEffectiveRent', 200),
+        totalArea: fact('totalArea', 10000), vacantArea: fact('vacantArea', index === 2 ? 1500 : 2000) } };
+    });
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'query:quarter', 'query:brochure'],
+      fields: ['netEffectiveRent', 'totalArea', 'vacantArea'], allBuildings: true, allSubmarkets: true });
+    state.structured.mockImplementation(async (_env, _name, { plan }: { plan: QueryPlan }) => {
+      const result = executeQueryPlan(plan, [{ ...fixture(period), rows, expectedCount: rows.length,
+        queryScope: { ...plan.scope, filter: plan.filter ?? null, requestedFields: describePlanRead(plan).fields,
+          inventoryTime: 'current_catalog', brochureSelection: 'all_unresolved_record_candidates' } }]);
+      return { result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) };
+    });
+    const [allowed, excluded] = ids;
+    const brochureId = randomUUID();
+    const dossier = { allowed: true, version: 'business-research/1', permission_revision: authority.permissionRevision, export: false,
+      records: [{ id: allowed, name: rows[0].name, buildingId: allowed, data: [{ table: 'building_brochure_data', id: brochureId,
+        version: 'b'.repeat(64), recordedAt: null, asOf: null, period: null, values: { gfaTotal: '48000' } }] }] };
+    const read = vi.fn((wanted: string[]) => scenario === 'source failure' ? { data: null, error: { code: 'XX000' } }
+      : { data: wanted.length === 1 && wanted[0] === allowed ? dossier : { allowed: false }, error: null });
+    const response = await handleAgentSubmission(fakeRequest('2026Q3 CBD筛选净有效租金低于250元/㎡/月、空置率超过15%的楼宇，附上建筑面积').request,
+      deps(true, undefined, { permitted: ['gfaTotal'], snapshot: dossier, read }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.result.table.rows.map((row: { entityId: string }) => row.entityId)).toEqual([allowed, excluded]);
+    expect(body.agent.executionStatus).toBe('partial');
+    expect(body.answerSelection.status).toBe('partial');
+    if (scenario === 'restricted row') {
+      expect(body.result.table.rows[0].cells.gfaTotal.value.numeric).toBe(48000);
+      expect(body.result.table.rows[1].cells.gfaTotal).toMatchObject({ kind: 'unknown', reason: 'business_field_not_authorized', sourceIds: [] });
+      expect(body.result.parameters.businessBindings.map((binding: { plan: { buildingIds: string[] } }) => binding.plan.buildingIds)).toEqual([[allowed]]);
+      expect(body.answerSelection.notice).toContain('1 栋楼宇的楼书建筑面积未获授权');
+    } else {
+      expect(body.result.table.rows[0].cells.gfaTotal).toMatchObject({ kind: 'unknown', reason: 'business_field_unavailable', sourceIds: [] });
+      expect(body.result.parameters.businessBindings).toBeUndefined();
+      expect(body.answerSelection.notice).toContain('楼书资料暂时不可用');
+    }
+    expect(read.mock.calls.flat(2)).not.toContain(ids[2]);
     expect(state.provider).not.toHaveBeenCalled();
   });
 
