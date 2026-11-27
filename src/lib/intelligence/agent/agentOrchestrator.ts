@@ -271,10 +271,13 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
         ...(view.sort ? { sort: { field: view.sort.key, direction: view.sort.direction } } : {}) } : {}),
     });
   }
+  if (task.conceptExample && !task.plan) failures.push({ tool: 'execute_query_plan', code: 'field_not_available' });
   if (task.route !== 'direct_response' && !result && !failures.length) failures.push({ tool: 'verified_data', code: 'no_verified_result' });
   await input.revalidate?.(input.signal);
   phases.push('verification', 'completed');
-  return { answer: task.reply ?? serverReply ?? clarification ?? (result ? '查询结果见下方表格。' : '本轮未取得可核验的数据结果，请明确查询条件。'),
+  const answer = task.conceptExample && task.plan && failures.length && !result
+    ? `${task.reply ?? ''}本轮未取得可核验的案例数据，请稍后重试。` : task.reply;
+  return { answer: answer ?? serverReply ?? clarification ?? (result ? '查询结果见下方表格。' : '本轮未取得可核验的数据结果，请明确查询条件。'),
     result, model: '', calls: 0, toolCalls: toolNames.length, inputTokens: 0, outputTokens: 0,
     toolNames, phases, executionStatus: failures.length ? result ? 'partial' : 'limited' : 'completed', unresolvedFailures: failures };
 }

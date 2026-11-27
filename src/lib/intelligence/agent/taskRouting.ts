@@ -19,6 +19,7 @@ export type TaskRoute = {
   catalogLookup?: 'location' | 'profile';
   siteSelection?: SiteSelectionRequest;
   pendingSemantic?: SemanticContext;
+  conceptExample?: true;
   planNotices?: string[];
   unavailableFields?: string[];
   capabilities?: boolean;
@@ -139,6 +140,16 @@ export function routeTask(question: string, previousContext?: QueryPlan | Semant
   }
   if (research || /研究报告|综合报告|深度研究|(?:管理层|市场|研究)简报|research brief|Word|PPT|PowerPoint|docx|pptx|PDF/i.test(text))
     return { route: 'deep_research', taskType: 'research', question };
+  const example = /^(?:请)?(?:解释|说明|讲解|介绍)(?:一下)?(净有效租金|空置率)(?:的(?:含义|定义|计算方法))?[,;、]?(?:并|再|然后)?(?:以|用|结合)(.+?)的?(?:正式季度数据|正式数据|实际数据|真实数据|实际案例)(?:来|作(?:为)?)?(?:举例|示例|说明|演示|为例)$/u.exec(text.replace(/\s+/gu, ''));
+  if (example) {
+    const metric = example[1] === '空置率' ? 'vacancy' : 'rent';
+    const resolution = resolveSemanticQuestion({ question: example[2] + example[1], now: new Date(), availablePeriods: [] });
+    if (resolution.kind === 'plan' && resolution.plan.operation === 'aggregate' && resolution.plan.metric === metric) {
+      const reply = metric === 'vacancy' ? '本平台的季度空置率，用有效空置面积合计除以对应的有效总面积合计。'
+        : '净有效租金反映折算租赁优惠后的单位面积月租。本平台按有效总面积对样本楼宇的净有效租金加权。';
+      return { route: 'deterministic_query', taskType: 'analysis', question, plan: resolution.plan, reply, conceptExample: true };
+    }
+  }
   const siteSelection = readSiteSelectionRequest(text);
   if (siteSelection) return { route: 'deterministic_query', taskType: 'query', question, siteSelection };
   if (!requiresDataFactEvidence(text, contextPlan) && /概念|含义|是什么|什么是|定义|方法|如何计算|怎么计算|写一|解释|what is|define|explain/i.test(text))

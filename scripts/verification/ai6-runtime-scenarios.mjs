@@ -75,6 +75,77 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       assert.equal(periods.status, 200, JSON.stringify(periods.body)); assert.equal(periods.calls, 0);
       assert.match(periods.body.message, /2026Q2/); assert.match(periods.body.message, /不代表每栋楼/);
     });
+    await check('AI6 / 三市场澄清及六轮排名使用真实登录、正式快照与可读工作簿', async () => {
+      const catalog = [
+        { market: 'CBD', grade: 'P', rent: 260, area: 30000, vacancy: 6000 },
+        { market: 'CBD', grade: 'A', rent: 210, area: 10000, vacancy: 1200 },
+        { market: 'CBD', grade: 'A', rent: 190, area: 20000, vacancy: 3000 },
+        { market: '金融街', grade: 'A', rent: 225, area: 20000, vacancy: 2000 },
+        { market: '金融街', grade: 'B', rent: 230, area: 10000, vacancy: 500 },
+        { market: '望京-酒仙桥', grade: 'A', rent: 175, area: 15000, vacancy: 1500 },
+      ].map((row, i) => ({ ...row, id: randomUUID(), name: `合成续问楼宇-${i + 1}` }));
+      for (const row of catalog) {
+        await db.query('insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,$2,$3,$4,$5)',
+          [row.id, row.name, row.market, row.grade, 'tracked']);
+        await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft,is_locked,locked_at,locked_by)
+          values($1,2026,2,$2,$3,$4,false,true,now(),$1)`, [row.id, row.area, row.rent, row.vacancy]);
+      }
+      await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft,is_locked)
+        values($1,2026,3,30000,999,0,true,false)`, [catalog[0].id]);
+      const analyst = await person('admin', 'ai6-multiturn');
+      await grantQuery({ setup: db }, analyst.id, { capabilities: exportCaps, fields: ['netEffectiveRent', 'totalArea', 'vacantArea'],
+        allBuildings: false, buildingIds: catalog.map(row => row.id) });
+      const ask = async (question, parent) => {
+        const run = await submit(analyst, question, parent ? { conversation: { id: parent.conversation.id, parentRequestId: parent.requestId } } : {});
+        assert.equal(run.status, 200, JSON.stringify(run.body));
+        assert.equal(run.calls, 0);
+        return run.body;
+      };
+      const clarify = await ask('比较2026Q2 CBD、金融街和望京的租金、空置率和市场存量，按子市场列出表格');
+      assert.match(clarify.message, /请选择要比较的指标/);
+      const grouped = await ask('净有效租金', clarify);
+      assert.equal(grouped.result.table.rows.length, 3);
+      for (const row of grouped.result.table.rows) {
+        const sample = catalog.filter(item => item.market === row.cells.name.value);
+        const area = sample.reduce((sum, item) => sum + item.area, 0);
+        const rent = sample.reduce((sum, item) => sum + item.rent * item.area, 0) / area;
+        const vacancy = sample.reduce((sum, item) => sum + item.vacancy, 0) / area;
+        for (const [key, expected, unit] of [['value', rent, 'CNY/m2/month'], ['vacancy_value', vacancy, 'ratio'], ['totalArea_value', area, 'm2']]) {
+          assert.equal(row.cells[key].value.numeric, expected);
+          assert.equal(grouped.result.table.columns.find(column => column.key === key).unit, unit);
+          assert.ok(row.cells[key].sourceIds.length > 0);
+        }
+        for (const key of ['usedCount', 'vacancy_usedCount', 'totalArea_usedCount']) assert.equal(row.cells[key].value.numeric, sample.length);
+      }
+      const start = await ask('CBD最新正式季度净有效租金前两栋');
+      const idsIn = reply => reply.result.table.rows.map(row => row.entityId);
+      assert.deepEqual(start.result.parameters.executedPlan.period, { year: 2026, quarter: 2 });
+      assert.deepEqual(idsIn(start), [catalog[0].id, catalog[1].id]);
+      const strict = await ask('只保留甲级', start);
+      assert.deepEqual(idsIn(strict), [catalog[1].id, catalog[2].id]);
+      const projected = await ask('再加空置率和建筑面积', strict);
+      assert.deepEqual(idsIn(projected), idsIn(strict));
+      assert.deepEqual(projected.result.table.rows.map(row => row.cells.vacancy.value.numeric), [.12, .15]);
+      assert.equal(projected.answerSelection.status, 'partial');
+      const moved = await ask('金融街呢', projected);
+      assert.deepEqual(idsIn(moved), [catalog[3].id]);
+      assert.deepEqual(moved.result.parameters.executedPlan.scope.submarkets, ['金融街']);
+      const compared = await ask('把这两个子市场并排比较', moved);
+      const expectedIds = [projected.result.resultId, moved.result.resultId];
+      assert.deepEqual(compared.answerSelection.results.map(item => item.result.resultId), expectedIds);
+      assert.deepEqual((await recover(analyst, compared.requestId)).body.answerSelection.results.map(item => item.result.resultId), expectedIds);
+      const exported = await ask('把刚才的对比导出 Excel', compared);
+      assert.deepEqual(exported.result.parameters.agentExport.selection.resultIds, expectedIds);
+      const download = { requestId: exported.requestId, resultId: exported.result.resultId, action: 'export', format: 'xlsx' };
+      const file = await artifact(analyst, download);
+      assert.equal(file.status, 200);
+      const book = XLSX.read(file.bytes, { type: 'array' });
+      const values = book.SheetNames.filter(name => !['来源', '口径与快照'].includes(name))
+        .flatMap(name => XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1 }).flat());
+      for (const index of [1, 2, 3]) assert.ok(values.includes(catalog[index].name));
+      for (const index of [0, 4, 5]) assert.ok(!values.includes(catalog[index].name));
+      assert.equal((await artifact(other, download)).status, 403);
+    });
     await check('AI6 / 已重新鉴权的上一轮快照直接生成CSV与图表，不重新查数或调用供应商', async () => {
       const conversation = { id: grouped.body.conversation.id, parentRequestId: grouped.body.requestId };
       const sorted = await submit(owner, '按净有效租金从高到低排列', { conversation });

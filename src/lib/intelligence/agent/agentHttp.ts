@@ -308,6 +308,12 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
 
     const previousResult = imported.length === 1 && !research.task ? imported[0] : undefined;
     const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextSemantic ?? history.contextPlan, !!research.task, !!previousResult, previousResult, (history.contextComparisonIds?.length ?? 0) > 1);
+    if (taskRoute.conceptExample && taskRoute.plan && (!authority.grants.includes('query:quarter')
+      || planOutputFields(taskRoute.plan).some(field => !authority.fields.includes(field)))) {
+      taskRoute.route = 'direct_response';
+      taskRoute.plan = undefined;
+      taskRoute.reply = `${taskRoute.reply ?? ''}当前身份没有该案例指标的查询资格。`;
+    }
     if (taskRoute.siteSelection) {
       const site = taskRoute.siteSelection;
       if (!authority.grants.includes('query:quarter') || !authority.fields.includes('netEffectiveRent')) {
@@ -828,7 +834,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       if (generatedResults.length) execution.result = generatedResults.find(r => r.resultId === execution.result!.resultId)
         ?? generatedResults.at(-1)!;
       const delivery = !!(preparedExport || preparedReport || chartFile || preparedResearch);
-      const listing = !isKnowledgeResult(execution.result) && !isResearchResult(execution.result)
+      const listing = !taskRoute.conceptExample && !isKnowledgeResult(execution.result) && !isResearchResult(execution.result)
         && !/(?:详细|完整报告|解释方法|为什么|原因|方法说明)/.test(valid.question);
       const narrativeRole = delivery ? 'delivery_status' : listing ? 'result_summary' : 'analysis';
       // Already-generated files bind the original digest. Never mutate their
@@ -907,7 +913,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
               ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
         selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, executionNotice].filter(Boolean).join(' ') };
       }
-      if (selectedAnswer.notice) execution.answer = selectedAnswer.notice;
+      if (taskRoute.conceptExample && selectedAnswer.status === 'unavailable') selectedAnswer = { ...selectedAnswer,
+        status: 'partial', notice: '该季度范围没有可核验的有效案例数值。' };
+      if (selectedAnswer.notice && !taskRoute.conceptExample) execution.answer = selectedAnswer.notice;
     }
     await audit.append(requestId, 'accounting', { provider: 'server_policy', executionRoute: taskRoute.route, taskType: taskRoute.taskType, operations: runtime.summary(), status: execution.executionStatus, formalResult: !!execution.result, filesRequested: fulfillment.requested.length, filesCompleted: fulfillment.requested.filter(f => fulfillment.available.includes(f)).length, reusedTools: toolTrace.filter(t => t.reused).length,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,

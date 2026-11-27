@@ -16,7 +16,7 @@ const topic = '(?:' + terms.map(term => /^[a-z ]+$/i.test(term)
 // it becomes a fact task only when it also asks for actual data or refers to
 // concrete periods/results. These are a bounded supplement to normal planning.
 const discussionIntent = /概念|定义|含义|意思|什么是|是什么|思路|大纲|方法|框架|步骤|讨论|写作|撰写|起草|如何避免|怎么避免|解释|说明|讲解|如何计算|怎么计算|(?:写)(?:一|封|份|篇|邮件|报告)|\b(?:define|meaning|explain|discuss|draft|write|method|methodology|outline)\b|\bwhat\s+does\b.+\bmean\b|\bwhat\s+is\b|\bhow\b.+\bcalculate\b/iu;
-const actualFactRequest = /多少|几栋|几座|哪(?:些|栋|座|个|笔)|数值|具体(?:值|数字)|查(?:询|出)|列出|排名|最高|最低|\b(?:how\s+much|show\s+me|list|query|rank)\b|\bwhat\s+is\s+(?:the\s+)?(?:average|mean|median|total)\b/iu;
+const actualFactRequest = /实际案例|真实数据|实际数据|多少|几栋|几座|哪(?:些|栋|座|个|笔)|数值|具体(?:值|数字)|查(?:询|出)|列出|排名|最高|最低|\b(?:how\s+much|show\s+me|list|query|rank)\b|\bwhat\s+is\s+(?:the\s+)?(?:average|mean|median|total)\b/iu;
 const concreteDataReference = /(?:19\d{2}|20\d{2}|21\d{2}|2200)\s*(?:年|Q[1-4])|本季度|上(?:一|个)?季度|最新(?:有数据)?|当前|现在|实时|截至|刚才|上述结果|这(?:张图|份数据)|\b(?:current|latest|now|previous\s+result|Q[1-4]\s+\d{4})\b/iu;
 const fieldMention = new RegExp(topic, 'iu');
 

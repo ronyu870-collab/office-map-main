@@ -95,6 +95,32 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it.each(['available', 'unavailable', 'denied'])('keeps the concept and only uses verified quarterly examples (%s)', async stateOfSource => {
+    const period = { year: 2026, quarter: 2 };
+    if (stateOfSource !== 'denied') state.authority.mockResolvedValue({ ...authority,
+      grants: ['query:catalog', 'query:quarter'], fields: ['vacantArea', 'totalArea'], allBuildings: true, allSubmarkets: true });
+    state.structured.mockImplementation(async (_env, _name, { plan }: { plan: QueryPlan }) => {
+      if (stateOfSource === 'unavailable') throw Error('QUERY_READ_UNAVAILABLE');
+      const result = executeQueryPlan(plan, [{ ...fixture(period), queryScope: { ...plan.scope, filter: null,
+        requestedFields: describePlanRead(plan).fields, inventoryTime: 'current_catalog', brochureSelection: 'all_unresolved_record_candidates' },
+      }]);
+      return { result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) };
+    });
+    const body = await (await handleAgentSubmission(fakeRequest('请解释空置率的定义，并用2026Q2 CBD的实际数据举例。').request, deps())).json();
+    expect(body.message).toContain('有效空置面积合计除以对应的有效总面积合计');
+    if (stateOfSource === 'available') {
+      expect(body.result.table.rows[0].cells.value.value.numeric).toBeCloseTo(1 / 7);
+      expect(body.result.parameters.executedPlan).toMatchObject({ operation: 'aggregate', metric: 'vacancy', period, scope: { submarkets: ['CBD'] } });
+      expect(body.answerSelection.status).toBe('answered');
+    } else {
+      expect(body.status).toBe('assistant');
+      expect(body.result).toBeUndefined();
+      expect(body.message).toContain(stateOfSource === 'denied' ? '当前身份没有该案例指标的查询资格' : '本轮未取得可核验的案例数据');
+    }
+    if (stateOfSource === 'denied') expect(state.structured).not.toHaveBeenCalled();
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
   it('clarifies the rent basis and retains all nine market/metric cells after a short confirmed choice', async () => {
     const period = { year: 2026, quarter: 2 };
     const marketNames = ['CBD', '金融街', '望京-酒仙桥', 'CBD'];
