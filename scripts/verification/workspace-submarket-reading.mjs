@@ -197,14 +197,8 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   await projects.waitFor();
   assert.equal(await projectsTab.getAttribute('aria-selected'),'true','building round trip preserves the representative projects tab');
 
-  const methodology = panel.locator('.map-methodology-trigger > summary');
-  await methodology.scrollIntoViewIfNeeded();
-  await methodology.press('Enter');
-  const methodologyPanel=page.getByRole('region',{name:'数据与统计口径',exact:true});
-  await methodologyPanel.getByRole('heading',{name:'当前筛选的存量',exact:true}).waitFor();
-  await page.keyboard.press('Escape');
-  await page.locator('.map-disclosure-content').waitFor({state:'detached'});
-  assert.ok(await methodology.evaluate(el=>el===document.activeElement),'research methodology closes without leaving the reading workspace');
+  assert.equal(await panel.locator('.map-methodology-trigger').count(),0,'customer submarket reading does not expose statistical methodology');
+  assert.equal(await panel.locator('a[target="_blank"]').count(),0,'representative projects do not expose research source links');
 
   await visitAllProjects();
   await projects.waitFor();

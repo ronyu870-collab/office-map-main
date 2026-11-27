@@ -131,13 +131,15 @@ describe('submarket research workspace', () => {
     expect(props.onShowAll).not.toHaveBeenCalled();
   });
 
-  it('shows a single-project warning beside the affected KPI and keeps ordinary sample counts on demand', async () => {
+  it('keeps essential single-project context while confining methodology to the maintenance editor', async () => {
     render(<SubmarketDetailPanel {...props} summary={{ ...summary, rentSampleCount: 1 }} />);
     await screen.findByText(profile.headline);
     const metrics = within(screen.getByRole('region', { name: '市场核心指标' }));
     expect(metrics.getByText('平均净有效租金').parentElement).toHaveTextContent('单项目样本');
     expect(metrics.getByText('平均空置率').parentElement).not.toHaveTextContent('有效样本');
     expect(screen.queryByText('2 个有效样本', { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByText('数据与统计口径')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
     fireEvent.click(screen.getByText('数据与统计口径'));
     expect(await screen.findByRole('region', { name: '数据与统计口径' })).toHaveTextContent('2 个有效样本');
   });
@@ -225,19 +227,12 @@ describe('submarket research workspace', () => {
     </WorkspacePanelContext.Provider>);
     expect(await screen.findByRole('region', { name: '指标走势' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '季度变化' })).not.toBeInTheDocument();
-    const method = screen.getByText('数据与统计口径');
-    expect(method).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(method);
-    const details = await screen.findByRole('region', { name: '数据与统计口径' });
-    expect(details).toHaveTextContent('历史按当前楼宇归属及等级统计');
-    expect(details).toHaveTextContent('2 个有效样本');
-    fireEvent.keyDown(details, { key: 'Escape' });
-    expect(method).toHaveFocus();
+    expect(screen.queryByText('数据与统计口径')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '甲级' }));
     expect(screen.getByRole('region', { name: '指标走势' })).toHaveTextContent('2026Q3');
     expect(screen.getByRole('region', { name: '季度行情' })).toHaveTextContent('完整子市场 · 甲级');
-    expect(screen.getAllByText('数据与统计口径')).toHaveLength(1);
+    expect(screen.queryByText('数据与统计口径')).not.toBeInTheDocument();
   });
 
   it('falls back to building composition when a published profile has only introduction copy', async () => {
@@ -267,7 +262,8 @@ describe('submarket research workspace', () => {
     expect(screen.getByRole('heading', { name: '交通与配套' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '人口与就业参考' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '政策与规划' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /政策原文/ })).toHaveAttribute('target', '_blank');
+    expect(screen.queryByRole('link', { name: /政策原文|数据来源/ })).not.toBeInTheDocument();
+    expect(screen.getByText('政策主要内容')).toBeInTheDocument();
     expect(api.read).toHaveBeenCalledWith('CBD', expect.any(AbortSignal));
     unmount();
   });
@@ -404,7 +400,7 @@ describe('submarket research workspace', () => {
     await waitFor(() => expect(screen.getByRole('tab', { name: '区域画像' })).toBeInTheDocument());
   });
 
-  it('shows a park edition with citations and opens a curated park in the normal map path', async () => {
+  it('shows a clean park edition and opens a curated park in the normal map path', async () => {
     const research = submarketIntelligenceSchema.parse(shangdiEdition);
     const parkBuilding = { id: research.projects[0].buildingId, name: '软件园实测项目', grade: 'BP', submarket: '上地' };
     const onOpenBuilding = vi.fn();
@@ -417,10 +413,17 @@ describe('submarket research workspace', () => {
     expect(screen.queryByText('甲乙级项目')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: parkBuilding.name }));
     expect(onOpenBuilding).toHaveBeenCalledWith(parkBuilding.id);
+    fireEvent.click(screen.getByRole('tab', { name: '代表项目' }));
+    const projectPanel = within(screen.getByRole('tabpanel'));
+    expect(projectPanel.getByRole('button', { name: parkBuilding.name })).toBeInTheDocument();
+    expect(projectPanel.queryByRole('link')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: '区域研究' }));
-    expect(screen.getByText('18号线', { exact: true })).toBeInTheDocument();
-    fireEvent.click(screen.getByText('来源与口径（2）'));
-    expect(screen.getByText(research.sources[1].basis)).toBeInTheDocument();
+    const profilePanel = within(screen.getByRole('tabpanel'));
+    expect(profilePanel.getByText('18号线', { exact: true })).toBeInTheDocument();
+    expect(profilePanel.queryByText(/来源与口径|研究依据与口径/)).not.toBeInTheDocument();
+    expect(profilePanel.queryByText(research.sources[1].basis)).not.toBeInTheDocument();
+    expect(profilePanel.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByText('数据与统计口径')).not.toBeInTheDocument();
   });
 
   it('keeps the structured research signal and adaptive trend details in the same workspace', async () => {
@@ -434,11 +437,16 @@ describe('submarket research workspace', () => {
     await screen.findByText('同季度甲乙级租金差');
     const marketObservation = within(screen.getByRole('region', { name: '市场观察' }));
     for (const item of research.observations.slice(0, 4)) {
-      expect(marketObservation.getByRole('heading', { name: item.title, exact: true })).toBeVisible();
+      const title = item.kind === 'outlook' && !item.title.includes('展望') ? `展望：${item.title}` : item.title;
+      expect(marketObservation.getByRole('heading', { name: title, exact: true })).toBeVisible();
       expect(marketObservation.getByText(item.body, { exact: true })).toBeVisible();
     }
-    fireEvent.click(marketObservation.getByText('研究依据与口径'));
-    expect(marketObservation.getByRole('link', { name: research.sources[1].title })).toHaveAttribute('href', research.sources[1].url);
+    expect(marketObservation.queryByText('研究依据与口径')).not.toBeInTheDocument();
+    expect(marketObservation.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByText('已发布季度记录 · 授权子市场 · 按面积加权')).not.toBeInTheDocument();
+    for (const item of research.observations) {
+      expect(marketObservation.queryByText(item.limitation, { exact: true })).not.toBeInTheDocument();
+    }
     expect(screen.getByText(/2026Q2 甲级减乙级/)).toHaveTextContent('+40 元/㎡/月');
     const changes = within(screen.getByRole('region', { name: '季度变化' }));
     expect(changes.getByText('190.0 元/㎡/月')).toBeVisible();
@@ -450,6 +458,34 @@ describe('submarket research workspace', () => {
     fireEvent.click(trend.getByText('查看季度数据'));
     const table = within(trend.getByRole('table', { name: '季度租金与空置率' }));
     expect(table.getByRole('row', { name: /^2026Q1/ })).toHaveTextContent('未收录');
+  });
+
+  it('keeps all customer reading modes citation-free but retains evidence in the authorized editor', async () => {
+    const research = submarketIntelligenceSchema.parse(cbdEdition);
+    const current = { ...profile, research, headline: research.positioning };
+    api.read.mockResolvedValue({ ...payload, profile: current, draftProfile: current });
+    const { rerender } = render(<WorkspacePanelContext.Provider value={{ compact: false, mode: 'full', setMode: vi.fn() }}>
+      <SubmarketDetailPanel {...props} />
+    </WorkspacePanelContext.Provider>);
+    await screen.findByText(research.positioning);
+    expect(screen.queryByText(/研究依据与口径|来源与口径|数据与统计口径/)).not.toBeInTheDocument();
+    for (const item of research.observations) {
+      expect(screen.getAllByText(item.body, { exact: true })).toHaveLength(1);
+      expect(screen.queryByText(item.limitation, { exact: true })).not.toBeInTheDocument();
+    }
+    expect(screen.queryByRole('link', { name: research.sources[0].title })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
+    fireEvent.click(screen.getByText(`来源（${research.sources.length}）`));
+    expect(screen.getByDisplayValue(research.sources[0].url)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(research.sources[0].basis)).toBeInTheDocument();
+    expect(screen.getByText('数据与统计口径')).toBeInTheDocument();
+    expect(api.save).not.toHaveBeenCalled();
+    rerender(<WorkspacePanelContext.Provider value={{ compact: false, mode: 'full', setMode: vi.fn() }}>
+      <SubmarketDetailPanel {...props} canEdit={false} />
+    </WorkspacePanelContext.Provider>);
+    await waitFor(() => expect(screen.queryByDisplayValue(research.sources[0].url)).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: '维护资料' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/研究依据与口径|来源与口径|数据与统计口径/)).not.toBeInTheDocument();
   });
 
   it('loads an earlier structured edition into the form, then publishes using the current version token', async () => {

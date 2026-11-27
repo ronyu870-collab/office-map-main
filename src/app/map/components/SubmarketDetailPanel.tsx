@@ -128,7 +128,7 @@ function SubmarketWorkspace({
   const signal = research ? submarketResearchSignal(research.focus, payload?.trends, trendState) : null;
   const researchLead = research ? <SubmarketOverviewResearch research={research} /> : null;
   const marketSignal = signal ? <section className="submarket-intelligence-lead" aria-label="正式行情对比">
-    <div><h3>{signal.title}</h3><p>{signal.text}</p><p className="submarket-profile-meta">{signal.scope}</p></div>
+    <div><h3>{signal.title}</h3><p>{signal.text}</p></div>
   </section> : null;
   const quarter = React.useMemo(() => describeQuarterlyResearchMarket(allTrend), [allTrend]);
   const rentPeriod = quarter.rent.latest?.period;
@@ -176,7 +176,7 @@ function SubmarketWorkspace({
     beijingBenchmarkBuildings={beijingBenchmarkBuildings} showQuarterlySummary={!expanded}
     structured={!!research} parkOnly={parkOnly} />;
   const projects = (compact = false) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}
-    onOpen={onOpenBuilding} compact={compact} curated={research?.projects} sources={research?.sources} />;
+    onOpen={onOpenBuilding} compact={compact} curated={research?.projects} />;
 
   return <div hidden={suspended || undefined} aria-hidden={suspended || undefined}
     className={suspended ? 'map-submarket-workspace hidden' : 'map-submarket-workspace'}>
@@ -220,6 +220,8 @@ function SubmarketWorkspace({
             </div>
             <SubmarketProfileEditor name={name} value={detail.editor} saving={detail.saving} error={detail.saveError}
               onCancel={detail.cancelEditing} onSave={detail.save} buildings={getResearchBuildings?.() ?? buildings} />
+            {canEdit && !suspended && <SubmarketMarketDataDetails key={surface} name={name} summary={summary} buildings={buildings}
+              benchmarkBuildings={beijingBenchmarkBuildings} parkOnly={parkOnly} />}
           </div> : <>
             {!(showTabs && currentSection === 'profile' && profileState !== 'ready') && (detail.error || (detail.loading && payload)) ? <div className="submarket-read-status">
               <p role="status">{detail.loading ? '正在更新子市场资料…' : payload ? '更新失败，显示上次读取的数据。' : '子市场资料暂不可用。'}</p>
@@ -247,8 +249,6 @@ function SubmarketWorkspace({
                 {projects(true)}
               </div> : currentSection === 'trend' ? trend(false)
                 : currentSection === 'profile' ? profileChapter : projects()}
-            {!suspended && <SubmarketMarketDataDetails key={surface} name={name} summary={summary} buildings={buildings}
-              benchmarkBuildings={beijingBenchmarkBuildings} parkOnly={parkOnly} />}
           </>}
         </div>
       </div>
