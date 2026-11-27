@@ -1,18 +1,20 @@
 // Run against a fresh disposable localhost stack using PITCH_AUTH_STATUS.
 import assert from "node:assert/strict";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdir, open, readdir, readFile } from "node:fs/promises";
 import { setTimeout as pause } from "node:timers/promises";
 import { createClient } from "@supabase/supabase-js";
 import pg from "pg";
+import sharp from "sharp";
 import { grantBusiness, installBusinessFixture, seedBusiness } from "../../supabase/tests/ai-business-research/fixture.mjs";
 import { grantLeaseResearch, installLeaseResearchFixture, seedLeaseResearch } from "../../supabase/tests/ai-lease-research/fixture.mjs";
 import { grantQuery } from "../../supabase/tests/ai-query-authority/database.mjs";
 import { BUILDINGS } from "../../supabase/tests/ai-query-authority/snapshot-fixture.mjs";
 import { installPitchDataFixture } from "../../supabase/tests/pitch-studio/business-data-fixture.mjs";
-import { verifyPitchBuildingInspectorBrowser, verifyPitchChartRevisionBrowser, verifyPitchFlagshipBrowser } from "./pitch-workspace-browser.mjs";
+import { verifyPitchBuildingInspectorBrowser, verifyPitchChartRevisionBrowser, verifyPitchFlagshipBrowser,
+  verifyPitchImageReplacementBrowser } from "./pitch-workspace-browser.mjs";
 
 assert.equal(process.env.PITCH_TEST_ALLOW_LOCAL, "disposable");
 const settings = JSON.parse(await readFile(process.env.PITCH_AUTH_STATUS, "utf8"));
@@ -91,7 +93,60 @@ async function seed() {
   const client = createClient(settings.API_URL, settings.ANON_KEY, authOptions);
   const signed = await client.auth.signInWithPassword({ email, password });
   assert.equal(signed.error, null);
-  return { client, token: signed.data.session.access_token };
+  return { id, client, token: signed.data.session.access_token };
+}
+
+async function createImageReplacementFixture(who) {
+  await db.query("update private.pitch_grants set maintainer=true where user_id=$1", [who.id]);
+  const authorization = { Authorization: `Bearer ${who.token}` };
+  const request = async (path, command, write = true) => {
+    const response = await fetch(`${app}/api/intelligence/pitch/${path}${write ? "" : `?${new URLSearchParams(command)}`}`, {
+      method: write ? "POST" : "GET",
+      headers: write ? { ...authorization, "Content-Type": "application/json" } : authorization,
+      ...(write ? { body: JSON.stringify(command) } : {}),
+    });
+    const result = await response.json();
+    assert.ok(response.ok, `${path} ${command.action} HTTP ${response.status}: ${result.code ?? result.error ?? ""}`);
+    return result;
+  };
+  const scope = { organizationId: "synthetic-org", region: "华北", city: "北京", businessLine: "office" };
+  const category = await db.query("select id from public.pitch_asset_categories where system_code='general'");
+  assert.equal(category.rows.length, 1);
+  async function ingest(name, background) {
+    const image = await sharp({ create: { width: 960, height: 540, channels: 3, background } }).png().toBuffer();
+    const prepared = await request("library", { action: "prepare", requestId: randomUUID(), filename: `${name}.png`, mime: "image/png",
+      size: image.length, sha256: createHash("sha256").update(image).digest("hex"), metadata: { scope, language: "zh",
+        dataAsOf: "2026-09-30", validFrom: null, validUntil: null, visibility: "organization", source: "隔离换图测试",
+        tags: [], categoryId: category.rows[0].id, isTestData: true, allowClientExport: false } });
+    const part = await fetch(`${app}/api/intelligence/pitch/library?jobId=${prepared.job.id}&position=0`, {
+      method: "PUT", headers: { ...authorization, "Content-Type": "application/octet-stream" }, body: image,
+    });
+    assert.ok(part.ok, `image upload HTTP ${part.status}`);
+    await request("library", { action: "finish", jobId: prepared.job.id });
+    const deadline = Date.now() + 30_000;
+    let status;
+    do {
+      status = await request("library", { action: "status", jobId: prepared.job.id }, false);
+      assert.ok(status.job.state !== "failed" && Date.now() < deadline, `image ingest state ${status.job.state}`);
+      if (status.job.state === "queued") await request("library", { action: "step", jobId: prepared.job.id });
+      if (!["completed", "partially_completed"].includes(status.job.state)) await pause(200);
+    } while (!["completed", "partially_completed"].includes(status.job.state));
+    const pages = await request("library", { action: "search", kind: "pages", documentId: prepared.documentId }, false);
+    await request("library", { action: "confirm", items: pages.items.map(page => ({ assetId: page.asset_id, expectedVersion: 1 })),
+      acknowledgePartial: true });
+    const media = await request("library", { action: "search", kind: "media", documentId: prepared.documentId, state: "published" }, false);
+    assert.equal(media.items.length, 1);
+    const { id, version } = media.items[0];
+    return { id, version, documentId: prepared.documentId, name };
+  }
+  const first = await ingest("隔离原图", "#d0dae6");
+  const replacement = await ingest("隔离备选图", "#aec2b4");
+  const projectId = randomUUID();
+  const created = await request("workspace", { action: "create", projectId, title: "隔离素材换图", scope,
+    themeId: "colliers-default-v1", themeVersion: 2, context: {} });
+  await request("workspace", { action: "custom", projectId, expectedVersion: created.project.version,
+    title: "隔离图文页", body: "合成材料仅用于验收保存与导出。", image: { id: first.id, version: first.version, alt: "隔离原图" } });
+  return { projectId, first, replacement };
 }
 
 await mkdir("tmp", { recursive: true });
@@ -122,10 +177,12 @@ try {
   const quarterRevision = process.argv.includes("--quarter-revision");
   const marketRevision = process.argv.includes("--market-revision");
   const competitorRevision = process.argv.includes("--competitor-revision");
-  const verify = quarterRevision || competitorRevision || process.argv.includes("--building-inspector") ? verifyPitchBuildingInspectorBrowser
+  const imageReplacement = process.argv.includes("--image-replacement") ? await createImageReplacementFixture(who) : undefined;
+  const verify = imageReplacement ? verifyPitchImageReplacementBrowser
+    : quarterRevision || competitorRevision || process.argv.includes("--building-inspector") ? verifyPitchBuildingInspectorBrowser
     : process.argv.includes("--chart-revision") ? verifyPitchChartRevisionBrowser : verifyPitchFlagshipBrowser;
   await verify({
-    app, who, period: quarterRevision || marketRevision ? "2026-Q2" : "2026-Q3", quarterRevision, competitorRevision, marketRevision,
+    app, who, period: quarterRevision || marketRevision ? "2026-Q2" : "2026-Q3", quarterRevision, competitorRevision, marketRevision, imageReplacement,
     readProject: async (projectId) => {
       const result = await fetch(app + "/api/intelligence/pitch/workspace", {
         method: "POST",

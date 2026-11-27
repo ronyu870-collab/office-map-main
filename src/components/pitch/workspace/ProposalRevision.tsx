@@ -92,13 +92,20 @@ function matchesRegeneration(value: Extract<Plan, { status: "refresh-review" }>,
   const { project, workspace } = detail;
   const { regeneration, refreshPlan } = value;
   const reference = value.plan.refresh;
-  if (!regeneration || !("plan" in refreshPlan) || !reference || value.scope !== "document" || workspace.context.business !== "market-report") return false;
+  if (!regeneration || !("plan" in refreshPlan) || !reference || value.scope !== "document") return false;
   const { plan, brief } = refreshPlan;
-  return regeneration.projectId === project.id && regeneration.city === project.city &&
-    regeneration.language === workspace.context.language && brief.language === regeneration.language &&
-    regeneration.buildingIds.join() === workspace.context.buildingIds.join() && brief.buildingIds.join() === regeneration.buildingIds.join() &&
-    outlineQuarter.safeParse(brief.period).success && (!regeneration.period || regeneration.period === brief.period) &&
-    plan.id === reference.id && plan.version === reference.version && plan.contextFingerprint === reference.contextFingerprint;
+  const context = workspace.context;
+  if (regeneration.projectId !== project.id || regeneration.city !== project.city || brief.language !== regeneration.language ||
+    regeneration.buildingIds.join() !== context.buildingIds.join() || brief.buildingIds.join() !== regeneration.buildingIds.join() ||
+    !outlineQuarter.safeParse(brief.period).success || regeneration.period && regeneration.period !== brief.period ||
+    plan.id !== reference.id || plan.version !== reference.version || plan.contextFingerprint !== reference.contextFingerprint) return false;
+  const client = brief.targetClient ?? "";
+  const samePeriod = regeneration.period === context.period && brief.period === context.period;
+  if (regeneration.language !== context.language)
+    return samePeriod && brief.scenario === context.business && client === context.client;
+  if (client !== context.client)
+    return samePeriod && brief.scenario === "site-selection" && !!client && plan.slides.some(page => page.pageKind === "requirements");
+  return context.business === "market-report" && brief.scenario === "market-report";
 }
 
 function matchesPreview(value: Preview, detail: WorkspaceDetail) {
@@ -260,7 +267,12 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         {message && <p role="alert">{message}</p>}
       </>}
       {regeneration && onGenerated && <>
-        <p>按正式季度 {regeneration.data.brief.period} 生成新版报告，作为当前报告的衍生项目。</p>
+        <p>{regeneration.input.language === detail.workspace.context.language &&
+          (regeneration.data.brief.targetClient ?? "") === detail.workspace.context.client &&
+          regeneration.data.brief.scenario === "market-report"
+          ? `按正式季度 ${regeneration.data.brief.period} 生成新版报告，作为当前报告的衍生项目。`
+          : ["生成衍生项目", regeneration.data.brief.period, regeneration.input.language === "en" ? "英文" : "中文",
+            regeneration.data.brief.targetClient].filter(Boolean).join(" · ")}</p>
         <ProposalPreview key={regeneration.data.plan.id} call={call} projectId={projectId} projectVersion={expectedVersion}
           city={regeneration.input.city} question={regeneration.input.question} language={regeneration.input.language}
           period={regeneration.input.period ?? ""} buildingIds={regeneration.input.buildingIds} disabled={disabled}

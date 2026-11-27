@@ -27,18 +27,27 @@ const leaseSearchSourceSchema = z.strictObject({
   ({ from, to }) => from <= to && Number(to.slice(0, 4)) - Number(from.slice(0, 4)) <= 20,
 );
 export type PitchLeaseSearchSource = z.infer<typeof leaseSearchSourceSchema>;
+export const pitchStackingSourceSchema = z.strictObject({
+  kind: z.literal("stacking-plan"), buildingId: z.uuid(),
+  selection: z.strictObject({
+    towerIds: z.array(z.uuid()).min(1).max(2).refine(ids => new Set(ids).size === ids.length).optional(),
+    levelRange: z.tuple([z.number().int().min(-200).max(300), z.number().int().min(-200).max(300)])
+      .refine(([first, last]) => first <= last).optional(),
+  }).default({}),
+});
 
 const sourceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("buildings"), buildingIds: z.array(z.uuid()).min(1).max(20).refine(ids => new Set(ids).size === ids.length) }),
   z.object({ kind: z.literal("submarket"), key: z.string().trim().min(1).max(80) }),
   z.object({ kind: z.literal("analysis-result"), id: z.uuid() }),
   leaseSearchSourceSchema,
+  pitchStackingSourceSchema,
 ]);
 const navigationSchema = z.object({
   source: sourceSchema,
   period: z.string().regex(/^\d{4}-Q[1-4]$/).optional(),
   language: z.enum(["zh", "en"]).optional(),
-}).refine(input => input.source.kind !== "lease-search" || !input.period);
+}).refine(input => !["lease-search", "stacking-plan"].includes(input.source.kind) || !input.period);
 
 export type PitchHandoffNavigation = z.infer<typeof navigationSchema>;
 

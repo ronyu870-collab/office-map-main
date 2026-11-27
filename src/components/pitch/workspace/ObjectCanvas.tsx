@@ -42,7 +42,7 @@ export function splitLayers(svg: string): Layer[] {
   });
 }
 
-export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onSelectionChange, onApply, onClose }: {
+export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onSelectionChange, imageReplacement, onApply, onClose }: {
   call: Call;
   projectId: string;
   slideId: string;
@@ -54,6 +54,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   pendingOrder?: string[];
   pendingGroups?: ObjectGroup[];
   onSelectionChange?: (selection: { ids: string[]; dirty: boolean }) => void;
+  imageReplacement?: { identify: (id: string) => number | undefined; open: (index: number) => void };
   onApply: (changes: Changes) => void;
   onClose: () => void;
 }) {
@@ -237,6 +238,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   const picked = entries.find(entry => entry.id === selected);
   const pickedPosition = picked ? position(picked.id, picked.element) : null;
   const pickedScale = pickedPosition?.scale ?? 1;
+  const imageIndex = picked && !localEdits ? imageReplacement?.identify(picked.id) : undefined;
   const resizeCorner = picked ? rotateVector(picked.element.w * pickedScale / 2, picked.element.h * pickedScale / 2, pickedPosition?.rotation ?? 0) : null;
   function draggedScale(event: React.PointerEvent<HTMLButtonElement>, element: SlideScene["elements"][number]) {
     const start = drag.current;
@@ -451,6 +453,8 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
       </div>}
       {picked && !typing && canScaleObject(picked.element) && (
         <div className={styles.objectTools}>
+          {imageIndex !== undefined && imageReplacement &&
+            <Button variant="secondary" onClick={() => imageReplacement.open(imageIndex)}>更换所选图片</Button>}
           <Button variant="ghost" onClick={() => {
             const at = position(picked.id, picked.element);
             place(picked.id, resizeFrom(at, picked.element, (at.scale ?? 1) - .1));
