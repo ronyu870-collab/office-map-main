@@ -104,7 +104,9 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.full_only != 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # The targeted browser suites run after dependency install, lint, tests and build.
+    # Preserve all functional regressions; give the complete job a realistic budget.
+    timeout-minutes: ${{ needs.changes.outputs.browser_mode == 'targeted' && 30 || 15 }}
     steps:
       - uses: actions/checkout@v4
         with:
