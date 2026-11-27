@@ -8,7 +8,7 @@ import { layoutSlides } from "../layout/engine";
 import { LayoutError } from "../layout/metrics";
 import { objectId, textAnchors } from "../workspace/object-layout";
 import { pageEditSchema, workspaceCommandSchema, workspaceDetailSchema, type WorkspaceSave } from "../workspace/protocol";
-import { proposalRequestSchema, readProposalBrief, type ProposalRequest } from "./proposal-brief";
+import { proposalRequestSchema, readProposalBrief, type ProposalPriority, type ProposalRequest } from "./proposal-brief";
 import { compileProposalChartEdits, type ProposalChartChange } from "./proposal-chart-revision";
 import { previewProposalCompetitor, type ProposalCompetitorData, type ReviewProposalHandoff } from "./proposal-competitor-revision";
 import { resolveQuarterRevision } from "./proposal-quarter-revision";
@@ -34,6 +34,10 @@ const presentationThemes = {
   premium: "colliers-premium-portfolio",
   research: "colliers-market-intelligence",
 } as const;
+const focusTerms: Record<ProposalPriority, string> = {
+  cost: "租金与成本", availability: "面积与可租条件", commute: "通勤交通",
+  "leasing-strategy": "招商策略", "market-trend": "市场趋势", "building-quality": "楼宇设施",
+};
 const quoted = /(?:改为|改成|换成|替换为|replace (?:it )?with|change (?:it )?to)\s*(?:《([^》]+)》|「([^」]+)」|[“"＂]([^”"＂]+)[”"＂])/i;
 
 const quarterReviewSchema = z.object({
@@ -54,6 +58,7 @@ export type ProposalRevisionServices = {
   previewQuarter?: PreviewProposalQuarter;
   reviewHandoff?: ReviewProposalHandoff;
   competitorData?: ProposalCompetitorData;
+  prepareReplan?: typeof prepareProposal;
 };
 
 export async function planProposalRevision(ctx: PitchContext, input: ProposalRevisionRequest, providers?: PreviewProposalQuarter | ProposalRevisionServices) {
@@ -90,6 +95,45 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
       const pageEdits = new Map<string, WorkspaceSave["pages"][number]>(base.map(page => [page.id, { id: page.id }]));
       for (const operation of target.operations) {
         signal.throwIfAborted();
+        if (operation.kind === "set-language" || operation.kind === "retarget") {
+          if (scope !== "document" || target.operations.length !== 1 || base.some(page => page.manual)
+            || slides.some(slide => slide.content.disclosure === "restricted")) return null;
+          const prior = workspace.context;
+          const reorient = operation.kind === "retarget";
+          const scenario = reorient && /选址|site selection/i.test(input.question) ? "site-selection" : prior.business;
+          if (!Object.hasOwn(scenarioQuestions, scenario) || (reorient && scenario !== "site-selection")) return null;
+          const savedScenario = scenario as keyof typeof scenarioQuestions;
+          const language = reorient ? prior.language : operation.language;
+          const client = reorient ? operation.targetClient : prior.client;
+          if ((reorient && client === prior.client) || (!reorient && language === prior.language)
+            || (client && !/^[\p{L}\p{N} ()（）·&\-]{2,80}$/u.test(client))
+            || !prior.period || (savedScenario !== "market-report" && !prior.buildingIds.length)) return null;
+          const priorTitle = readProposalBrief(proposalRequestSchema.parse({ question: project.title }));
+          const stated = reorient ? readProposalBrief(proposalRequestSchema.parse({ question: input.question })) : null;
+          const attention = stated?.requestedPriorities.map(priority => focusTerms[priority]).join("、");
+          const question = [
+            client ? `面向「${client}」` : "", scenarioQuestions[savedScenario], prior.period,
+            priorTitle.submarkets.join("、"), ...(stated?.clientRequirements.map(requirement => requirement.text) ?? []),
+            attention ? `优先关注${attention}` : "",
+          ].filter(Boolean).join("，");
+          const request = proposalRequestSchema.safeParse({ question, projectId: project.id, city: project.city,
+            language, period: prior.period, buildingIds: prior.buildingIds });
+          if (!request.success) return null;
+          const draft = await (services?.prepareReplan ?? prepareProposal)(ctx, request.data);
+          if (draft.status !== "ready" || draft.generationAvailable === false || draft.brief.scenario !== savedScenario
+            || draft.brief.language !== language || draft.brief.period !== prior.period
+            || draft.brief.targetClient !== (client || null)
+            || draft.brief.buildingIds.join() !== prior.buildingIds.join()
+            || draft.brief.submarkets.join() !== priorTitle.submarkets.join()
+            || (reorient && !draft.plan.slides.some(page => page.pageKind === "requirements"))) return null;
+          refreshPlan = draft;
+          regeneration = request.data;
+          return {
+            id: randomUUID(), pages: [...pageEdits.values()],
+            refresh: { id: draft.plan.id, version: draft.plan.version, contextFingerprint: draft.plan.contextFingerprint },
+            gaps: draft.plan.gaps.map(gap => gap.reason),
+          };
+        }
         if (operation.kind === "set-chart") {
           if (target.operations.length !== 1 || !("chartPresentation" in pageEditSchema.shape)) return null;
           if (slides.some(slide => slide.scene.themeId !== project.theme_id || slide.scene.themeVersion !== project.theme_version)) return null;
