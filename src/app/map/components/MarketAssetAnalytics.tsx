@@ -24,6 +24,18 @@ const number = (value: number, decimals = 0) => researchNumber(value, decimals);
 type Analysis = ReturnType<typeof analyzeMarketAssets>;
 type Comparison = { label: string; analysis: Analysis };
 
+/** Keep label text separate from option content. An explicit association gives
+ * both assistive technology and real-browser exact label queries one stable name. */
+function AnalysisSelect({ label, value, onChange, children }: {
+  label: string; value: string | number; onChange: (value: string) => void; children: React.ReactNode;
+}) {
+  const id = React.useId();
+  return <div className={styles.field}>
+    <label htmlFor={id}>{label}</label>
+    <select id={id} value={value} onChange={event => onChange(event.currentTarget.value)}>{children}</select>
+  </div>;
+}
+
 function Bar({ value, max, vacancy = false }: { value: number; max: number; vacancy?: boolean }) {
   return <span className={styles.bar + (vacancy ? ' ' + styles.vacancyBar : '')} aria-hidden="true"><i style={{ width: Math.max(0, Math.min(100, value / Math.max(1, max) * 100)) + '%' }} /></span>;
 }
@@ -187,23 +199,28 @@ export function MarketAssetAnalytics({ buildings, submarket, onOpen, identity, a
   })), [payload, period, product, key]);
   if (!markets.includes(name)) return null;
   const quarters = [...new Set([period, ...Array.from({ length: 8 }, (_, index) => baseQuarter - index)])].sort((a, b) => b - a);
-  const updateOthers = (next: string[]) => setReading(previous => ({ ...previous, others: next }));
+  const updateOthers = (update: (current: string[]) => string[]) =>
+    setReading(previous => ({ ...previous, others: update(previous.others) }));
   return <section className={styles.analytics} aria-label="市场深度分析">
     <button className={styles.action} type="button" aria-expanded={opened} onClick={() => {
       setRead(null); setReading(previous => ({ ...previous, opened: !previous.opened }));
     }}>{opened ? '收起市场深度分析' : '市场深度分析与区域比较'}</button>
     {opened && <>
       <div className={styles.toolbar}>
-        <label>查询季度<select value={period} onChange={event => setReading(previous => ({ ...previous, period: Number(event.target.value) }))}>
+        <AnalysisSelect label="查询季度" value={period} onChange={value => setReading(previous => ({ ...previous, period: Number(value) }))}>
           {quarters.map(value => <option key={value} value={value}>{quarterLabel(value)}</option>)}
-        </select></label>
-        <label>产品范围<select value={product} onChange={event => setReading(previous => ({ ...previous, product: event.target.value as ResearchProductScope }))}>
+        </AnalysisSelect>
+        <AnalysisSelect label="产品范围" value={product} onChange={value => setReading(previous => ({ ...previous, product: value as ResearchProductScope }))}>
           {(['office', ...RESEARCH_PRODUCTS] as const).map(grade => <option key={grade} value={grade}>{productNames[grade]}</option>)}
-        </select></label>
-        {others.map((market, index) => <div key={index}><label>比较区域 {index + 1}<select value={market} onChange={event => updateOthers(others.map((value, i) => i === index ? event.target.value : value))}>
-          <option value="">选择区域</option>{markets.filter(item => item !== name && (!others.includes(item) || item === market)).map(item => <option key={item}>{item}</option>)}
-        </select></label><button type="button" className={styles.action} onClick={() => updateOthers(others.filter((_, i) => i !== index))}>移除比较区域 {index + 1}</button></div>)}
-        {others.length < 2 && <button type="button" className={styles.action} onClick={() => updateOthers([...others, ''])}>添加比较区域</button>}
+        </AnalysisSelect>
+        {others.map((market, index) => <div key={index}>
+          <AnalysisSelect label={'比较区域 ' + (index + 1)} value={market} onChange={value => updateOthers(current =>
+            current.map((item, i) => i === index ? value : item))}>
+            <option value="">选择区域</option>{markets.filter(item => item !== name && (!others.includes(item) || item === market)).map(item => <option key={item} value={item}>{item}</option>)}
+          </AnalysisSelect>
+          <button type="button" className={styles.action} onClick={() => updateOthers(current => current.filter((_, i) => i !== index))}>移除比较区域 {index + 1}</button>
+        </div>)}
+        {others.length < 2 && <button type="button" className={styles.action} onClick={() => updateOthers(current => current.length < 2 ? [...current, ''] : current)}>添加比较区域</button>}
       </div>
       <p className={styles.subtle}>{name} · {quarterLabel(period)} · 完整授权子市场，不改变地图筛选</p>
       {!payload ? read?.key === key && read.error ? <div role="status">分析暂不可用。<button type="button" className={styles.action} onClick={() => setRetry(value => value + 1)}>重试</button></div>

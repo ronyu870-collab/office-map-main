@@ -8,7 +8,9 @@
 .action:hover { text-decoration: underline; }
 .analytics :is(button,select):focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
 .toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: var(--cd-space-3); }
-.toolbar label { display: grid; gap: var(--cd-space-1); }
+.toolbar > div { min-width: 0; }
+.field { display: grid; gap: var(--cd-space-1); min-width: 0; }
+.field label { display: block; }
 .toolbar select { min-height: var(--cd-control-height-md); max-width: 100%; background: var(--cd-color-surface); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-md); padding-inline: var(--cd-space-2); color: inherit; font: inherit; }
 .stats { display: flex; flex-wrap: wrap; gap: var(--cd-space-2) var(--cd-space-4); font-variant-numeric: tabular-nums; }
 .stats > div { display: grid; gap: var(--cd-space-1); }

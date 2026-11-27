@@ -45,6 +45,17 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   const standard=page.locator('[data-map-submarket-panel][data-submarket-layout="standard"]');
   const expanded=page.locator('[data-map-submarket-panel][data-submarket-layout="expanded"]');
   const readyLayout=()=>page.locator('.map-workspace-layout[data-map-layout-ready="true"]').waitFor();
+  const exactAnalysisSelect=async(analysis,label)=>{
+    // Validate the accessible role and exact label separately. This catches
+    // accidental nested option text in labels before an opaque action timeout.
+    const control=analysis.getByRole('combobox',{name:label,exact:true});
+    await control.waitFor({state:'visible'});
+    assert.equal(await analysis.getByLabel(label,{exact:true}).count(),1,'exact associated label: '+label);
+    assert.equal(await control.evaluate((element,expected)=>element.labels?.length===1
+      && element.labels[0].textContent===expected && element.labels[0].htmlFor===element.id
+      && !element.labels[0].contains(element),label),true,'standalone native label: '+label);
+    return control;
+  };
   const openResearch=async()=>{
     await page.evaluate(()=>window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name:'CBD'}})));
     await panel.waitFor();
@@ -251,6 +262,8 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
     await analysis.getByRole('button',{name:'市场深度分析与区域比较',exact:true}).click();
     const distribution=analysis.getByRole('region',{name:'租金价格分布',exact:true});
     await distribution.waitFor();
+    await exactAnalysisSelect(analysis,'查询季度');
+    await exactAnalysisSelect(analysis,'产品范围');
     await analysis.getByRole('img',{name:'同季度楼宇净有效租金与空置率散点图',exact:true}).locator('canvas').waitFor();
     assert.equal(assetReads,1,'one request serves distribution and scatter');
     const ranges=distribution.getByRole('group',{name:'选择租金区间查看楼宇',exact:true});
@@ -260,9 +273,18 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
     await building.getByRole('button',{name:'返回子市场研究',exact:true}).click();
     await distribution.waitFor();
     await analysis.getByRole('button',{name:'添加比较区域',exact:true}).click();
-    await analysis.getByLabel('比较区域 1',{exact:true}).selectOption('上地');
+    const regionSelect=await exactAnalysisSelect(analysis,'比较区域 1');
+    await regionSelect.selectOption('上地');
     await analysis.getByRole('table',{name:'子市场同季度比较',exact:true}).waitFor();
     assert.equal(await analysis.getByRole('rowheader',{name:'上地',exact:true}).count(),1);
+    await analysis.getByRole('button',{name:'添加比较区域',exact:true}).click();
+    const second=await exactAnalysisSelect(analysis,'比较区域 2');
+    assert.equal(await second.locator('option[value="上地"]').count(),0,'selected markets cannot be added twice');
+    await second.selectOption('望京-酒仙桥');
+    await analysis.getByRole('rowheader',{name:'望京-酒仙桥',exact:true}).waitFor();
+    await analysis.getByRole('button',{name:'移除比较区域 2',exact:true}).click();
+    await analysis.getByRole('rowheader',{name:'上地',exact:true}).waitFor();
+    assert.equal(await analysis.getByRole('combobox',{name:'比较区域 2',exact:true}).count(),0);
     await analysis.getByRole('button',{name:'收起市场深度分析',exact:true}).click();
   }
 
@@ -327,10 +349,13 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
         await productPanel.getByRole('tab',{name:'代表项目',exact:true}).click();
         const analysis=productPanel.getByRole('region',{name:'市场深度分析',exact:true});
         await analysis.getByRole('button',{name:'市场深度分析与区域比较',exact:true}).click();
-        await analysis.getByLabel('产品范围',{exact:true}).selectOption('park');
-        await analysis.getByRole('region',{name:'租金价格分布',exact:true}).waitFor();
+        await exactAnalysisSelect(analysis,'查询季度');
+        const product=await exactAnalysisSelect(analysis,'产品范围');
+        await product.selectOption('park');
+        const distribution=analysis.getByRole('region',{name:'租金价格分布',exact:true});
+        await distribution.getByText(market==='上地'?'10 个楼宇样本 · 元/㎡/月':'5 个楼宇样本 · 元/㎡/月',{exact:true}).waitFor();
         await analysis.getByRole('img',{name:'同季度楼宇净有效租金与空置率散点图',exact:true}).locator('canvas').waitFor();
-        assert.equal(await analysis.getByLabel('产品范围',{exact:true}).inputValue(),'park');
+        assert.equal(await product.inputValue(),'park');
         await analysis.getByRole('button',{name:'收起市场深度分析',exact:true}).click();
       }
       await assertMapReady();
