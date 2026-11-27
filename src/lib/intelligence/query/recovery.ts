@@ -4,6 +4,7 @@ import { isResearchResult } from '../research/workspace';
 import { ResearchExecution } from '../research/execution';
 import { recheckResearchResult } from '../research/authorization';
 import { isBusinessResult } from '../business/protocol';
+import { sourcesForFormalAcl } from '../business/dossierProjection';
 import { recheckBusinessResults } from '../business/research';
 import { isLeaseResult } from '../lease/protocol';
 import { recheckLeaseResult } from '../lease/research';
@@ -185,7 +186,7 @@ async function recheckSelectedSnapshot(client: SupabaseClient, identity: Verifie
   const plans = [parseQueryPlan(result.parameters.executedPlan),
     ...z.array(z.unknown()).max(64).parse(result.parameters.exportPlans ?? []).map(parseQueryPlan)];
   plans.forEach(plan => authorizeRecoveryPlan(plan, authority));
-  const sources = result.sources.map(ref => ({ entity_id: ref.entityId, record_id: ref.recordId,
+  const sources = sourcesForFormalAcl(result.sources, result.parameters).map(ref => ({ entity_id: ref.entityId, record_id: ref.recordId,
     source_table: ref.table, field: ref.field, year: ref.period?.year ?? null, quarter: ref.period?.quarter ?? null }));
   const { data, error } = await client.rpc('ai_query_result_sources_allowed', {
     p_actor: identity.actorId, p_effective: identity.effectiveUserId, p_session: identity.sessionId,

@@ -155,7 +155,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.provider).not.toHaveBeenCalled();
   });
 
-  it('returns a partial management briefing with completed formal sections when lease access is denied', async () => {
+  it('returns a partial management briefing with independently governed field and domain access', async () => {
     const call = (name: string, args: object) => ({ model: 'deepseek-v4-pro', inputTokens: 50, outputTokens: 30,
       message: { role: 'assistant', content: null, tool_calls: [{ id: randomUUID(), type: 'function',
         function: { name, arguments: JSON.stringify(args) } }] } });
@@ -163,9 +163,12 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     const trend = formalTrend();
     const latest = { year: 2026, quarter: 4 };
     state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'query:quarter'], fields: ['netEffectiveRent', 'totalArea'] });
-    state.structured.mockResolvedValue({ result: trend, content: JSON.stringify({ status: 'ready', resultId: trend.resultId }) });
+    state.structured.mockImplementation(async (_env, _name, input) => {
+      if (input.metric === 'vacancy') throw Error('QUERY_DENIED');
+      return { result: trend, content: JSON.stringify({ status: 'ready', resultId: trend.resultId }) };
+    });
     state.provider.mockResolvedValueOnce(call('plan_research_task', { submarkets: ['CBD'],
-      start: { year: 2026, quarter: 2 }, end: { year: 2026, quarter: 3 }, metrics: ['rent'], leases: 'quarter', supply: true }))
+      start: { year: 2026, quarter: 2 }, end: { year: 2026, quarter: 3 }, metrics: ['rent', 'vacancy'], leases: 'quarter', supply: true }))
       .mockImplementationOnce(async messages => {
         const { taskId, afterStep } = taskFrom(messages);
         return call('advance_research_task', { taskId, afterStep });
@@ -176,7 +179,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
       });
     const supply = { allowed: true, version: 'business-research/1', permission_revision: authority.permissionRevision, export: false,
       records: [{ id: randomUUID(), name: '合成未来供应', buildingId: null, data: [] }] };
-    const response = await handleAgentSubmission(fakeRequest('请做 CBD 管理层简报，覆盖 2026Q1 至最新正式季度的净有效租金、成交与未来供应').request,
+    const response = await handleAgentSubmission(fakeRequest('请做 CBD 管理层简报，覆盖 2026 年第一季度至最新正式季度的净有效租金、空置率、成交与未来供应').request,
       deps(true, { allowed: false }, { permitted: [], snapshot: supply }, {
         version: 'authorized-periods/1', permission_revision: authority.permissionRevision,
         read_at: '2027-01-01T09:00:00Z', inventory_time: 'current_catalog', fields: ['netEffectiveRent', 'totalArea'],
@@ -188,6 +191,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(body.result.parameters.researchTask).toMatchObject({ start: { year: 2026, quarter: 1 }, end: latest });
     expect(body.result.parameters.researchTask.steps).toMatchObject([
       { id: 'market_rent', state: 'complete', resultId: trend.resultId },
+      { id: 'market_vacancy', state: 'blocked', error: 'RESEARCH_STEP_NOT_AUTHORIZED' },
       { id: 'leases_0', state: 'blocked', error: 'RESEARCH_STEP_NOT_AUTHORIZED' },
       { id: 'supply', state: 'complete' }, { id: 'review', state: 'pending' },
     ]);
@@ -336,6 +340,37 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     const switched = await (await handleAgentSubmission(fakeRequest('金融街呢？').request, deps())).json();
     expect(switched.result.parameters.executedPlan).toEqual({ ...original, scope: { ...original.scope, submarkets: ['金融街'] }, projection: ['vacancyRate'] });
     expect(switched.answerSelection.notice).toContain('建筑面积');
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
+  it('appends authorized dossier GFA to the same ranked row with its independent source and binding', async () => {
+    const period = { year: 2026, quarter: 2 }, id = randomUUID();
+    const name = '合成写字楼B座';
+    const prior = parseQueryPlan({ operation: 'rank', field: 'netEffectiveRent', period, direction: 'desc', limit: 4,
+      scope: { inventory: 'tracked', submarkets: ['丽泽'] } });
+    const actualPlan = parseQueryPlan({ ...prior, projection: ['vacancyRate'] });
+    const fact = (field: 'netEffectiveRent' | 'totalArea' | 'vacantArea', value: number) =>
+      resolveNumericFact(field, id, [source(id, field, value, period)], period);
+    const raw = buildRankResult({ ...fixture(period), expectedCount: 1, rows: [{ id, name, nameSource: nameSource(id, name), facts: {
+      netEffectiveRent: fact('netEffectiveRent', 202), totalArea: fact('totalArea', 18000), vacantArea: fact('vacantArea', 3600),
+    } }] }, 'netEffectiveRent', 4, 'desc', ['vacancyRate']);
+    const result = { ...raw, parameters: { ...raw.parameters, executedPlan: actualPlan } };
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'query:quarter', 'query:brochure'],
+      fields: ['netEffectiveRent', 'totalArea', 'vacantArea'], allBuildings: true, allSubmarkets: true });
+    state.history.mockResolvedValue(Object.assign([], { contextPlan: prior }));
+    state.structured.mockResolvedValue({ result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) });
+    const brochureId = randomUUID();
+    const snapshot = { allowed: true, version: 'business-research/1', permission_revision: authority.permissionRevision, export: false,
+      records: [{ id, name, buildingId: id, data: [{ table: 'buildings', id, version: 'a'.repeat(64),
+        recordedAt: null, asOf: null, period: null, values: { name } }, { table: 'building_brochure_data', id: brochureId,
+        version: 'b'.repeat(64), recordedAt: null, asOf: null, period: null, values: { gfaTotal: '48000' } }] }] };
+    const body = await (await handleAgentSubmission(fakeRequest('再加空置率和建筑面积').request,
+      deps(true, undefined, { permitted: ['gfaTotal'], snapshot }))).json();
+    expect(body.answerSelection.status).toBe('answered');
+    expect(body.result.parameters.executedPlan).toEqual(actualPlan);
+    expect(body.result.parameters.businessBindings[0].plan).toEqual({ tool: 'query_building_dossier', buildingIds: [id], fields: ['gfaTotal'] });
+    expect(body.result.table.rows[0]).toMatchObject({ entityId: id, cells: { vacancy: { value: { numeric: .2 } }, gfaTotal: { value: { numeric: 48000 } } } });
+    expect(body.result.sources.find((item: { field: string }) => item.field === 'gfa_total')).toMatchObject({ recordId: brochureId, entityId: id, period: null });
     expect(state.provider).not.toHaveBeenCalled();
   });
 

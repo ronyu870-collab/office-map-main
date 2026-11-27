@@ -12,8 +12,14 @@ export const siteSelectionSchema = z.strictObject({
   submarkets: z.array(z.string()).max(8).optional(),
   limit: z.number().int().min(1).max(20),
   mapRequested: z.boolean(),
+  preferences: z.array(z.enum(['transport', 'image', 'industry'])).optional(),
 });
 export type SiteSelectionRequest = z.infer<typeof siteSelectionSchema>;
+
+const excludedMap = /(?:不(?:要|用|需要)(?:在|生成|显示|打开|提供|标注|准备|给)?|禁止(?:打开|生成|提供|在)?)(?:楼宇)?地图(?:链接)?/u;
+const requestedMap = /(?:在地图(?:上|中)(?:展示|标记|标注|查看|显示)|(?:给出|提供|显示|准备|标注|打开|附上|输出)(?:楼宇)?地图(?:链接)?|地图链接)/u;
+
+export const mapExplicitlyExcluded = (question: string) => excludedMap.test(question.normalize('NFKC').replace(/\s+/gu, ''));
 
 /** Only use the provisional rent screen for a clear area and monthly unit
  * budget. Other pricing bases and explicit exclusions remain with the agent. */
@@ -31,13 +37,25 @@ export function readSiteSelectionRequest(question: string): SiteSelectionRequest
   const limit = /(?:推荐|筛选|给出|列出|初筛|前)(\d{1,3})(?:栋|座|处)/.exec(text);
   const grade = /(?:仅限|只看|限定|必须是|要求)(?:为)?(甲级|乙级|P级)(?!和|及|或|[+＋])/i.exec(text);
   const submarkets = inferSemanticScope(text).submarkets?.filter(market => market !== '其他' || text.includes('其他子市场'));
+  let remaining = text;
+  const recognized = [areas[0][0], budgets[0][0], period[0]?.[0], walk?.[0], limit?.[0], grade?.[0], ...(submarkets ?? [])];
+  for (const phrase of recognized) if (phrase) remaining = remaining.replaceAll(phrase, '');
+  remaining = remaining.replace(/CBD|望京|北京市?/gi, '').replace(excludedMap, '').replace(requestedMap, '')
+    .replace(/(?:最新正式|最新有数据的?|最近一期)季度|地铁站|地铁|通勤|交通(?:便利)?|重视形象|形象(?:优先|好)?|产业匹配/g, '')
+    .replace(/(?:金融|科技|咨询|保险|医药|贸易|专业服务)(?:类)?(?:企业|机构|公司)|办公选址|选址|想租|租赁|承租|找(?:办公楼|写字楼)|办公室|办公楼|写字楼|客户|优先|重视|需要|计划|拟|希望|帮我|请|建议|备选|候选|推荐|筛选|给出|找|租|坐落|位于|要求|面积(?:约|为)?|约|左右/g, '')
+    .replace(/以内|内|在|和|与|及|以及|并|的|为|附近|一组|一家|[，,。！？!?、：:；;()]/gu, '');
+  if (remaining) return undefined;
+  const preferences: SiteSelectionRequest['preferences'] = [];
+  if (/地铁|交通|通勤/.test(text)) preferences.push('transport');
+  if (/形象/.test(text)) preferences.push('image');
+  if (/(?:企业|机构|公司)|产业/.test(text)) preferences.push('industry');
   const parsed = siteSelectionSchema.safeParse({
     area: Number(areas[0][1]), budget: Number(budgets[0][1]),
     ...(walk ? { walkMeters: Number(walk[1]) } : {}),
     ...(grade ? { grade: ({ 甲级: 'A', 乙级: 'B', P级: 'P' } as const)[grade[1].toUpperCase() as '甲级' | '乙级' | 'P级'] } : {}),
     ...(period.length ? { period: { year: Number(period[0][1]), quarter: Number(period[0][2]) } } : {}),
     ...(submarkets?.length ? { submarkets } : {}),
-    limit: limit ? Number(limit[1]) : 8, mapRequested: /地图/.test(text),
+    limit: limit ? Number(limit[1]) : 8, mapRequested: !mapExplicitlyExcluded(text) && requestedMap.test(text), preferences,
   });
   return parsed.success ? parsed.data : undefined;
 }
@@ -55,6 +73,11 @@ export function siteSelectionPlan(request: SiteSelectionRequest, period: Quarter
 }
 
 export function siteSelectionNotice(request: SiteSelectionRequest): string {
-  return `候选按正式季度净有效租金与 ${request.budget} 元/㎡/月预算初筛。当前报价、${request.area} ㎡连续可租面积、形象和产业适配仍需经纪人核实。`
-    + (request.walkMeters ? `尚无可核验的 ${request.walkMeters} 米步行路径；楼书交通信息仅供初筛。` : '楼书交通信息仅供初筛，现场通勤条件需另行核实。');
+  const preferences = request.preferences ?? [];
+  const pending = ['当前报价', `${request.area} ㎡连续可租面积`];
+  if (preferences.includes('image')) pending.push('楼宇形象');
+  if (preferences.includes('industry')) pending.push('产业适配');
+  return `候选按正式季度净有效租金与 ${request.budget} 元/㎡/月预算初筛。${pending.join('、')}仍需经纪人核实。`
+    + (request.walkMeters ? `尚无可核验的 ${request.walkMeters} 米步行路径；楼书交通信息仅供初筛。`
+      : preferences.includes('transport') ? '楼书交通信息仅供初筛，现场通勤条件需另行核实。' : '');
 }

@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { loadAgentHandler } from './ai5-export-scenarios.mjs';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
+import { grantBusiness } from '../../supabase/tests/ai-business-research/fixture.mjs';
 
 export async function verifyAi6Runtime({ db, app, fixture, service, keys, output, check, person, artifact, recover, events, decrypt, exportCaps }) {
   const handle = await loadAgentHandler(output);
@@ -145,6 +146,26 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       for (const index of [1, 2, 3]) assert.ok(values.includes(catalog[index].name));
       for (const index of [0, 4, 5]) assert.ok(!values.includes(catalog[index].name));
       assert.equal((await artifact(other, download)).status, 403);
+      const licensed = await person('admin', 'ai6-dossier-projection');
+      const licensedIds = [catalog[0].id, catalog[1].id];
+      await grantQuery({ setup: db }, licensed.id, { capabilities: exportCaps, fields: ['netEffectiveRent', 'totalArea', 'vacantArea'],
+        allBuildings: false, buildingIds: licensedIds });
+      await grantBusiness(db, licensed.id, { modules: ['profile'], fields: ['gfaTotal'], allBuildings: false, buildingIds: licensedIds });
+      for (const [index, id] of licensedIds.entries()) await db.query(
+        'insert into public.building_brochure_data(id,building_id,gfa_total) values($1,$2,$3)', [randomUUID(), id, 50000 + index * 1000]);
+      const base = await submit(licensed, '2026Q2 CBD净有效租金前两栋');
+      assert.equal(base.status, 200, JSON.stringify(base.body));
+      const projectedGfa = await submit(licensed, '再加空置率和建筑面积', {
+        conversation: { id: base.body.conversation.id, parentRequestId: base.body.requestId },
+      });
+      assert.equal(projectedGfa.status, 200, JSON.stringify(projectedGfa.body));
+      assert.equal(projectedGfa.calls, 0);
+      assert.equal(projectedGfa.body.answerSelection.status, 'answered');
+      assert.deepEqual(idsIn(projectedGfa.body), licensedIds);
+      assert.deepEqual(projectedGfa.body.result.table.rows.map(row => row.cells.gfaTotal.value.numeric), [50000, 51000]);
+      assert.equal((await recover(licensed, projectedGfa.body.requestId)).status, 200);
+      await db.query('update private.ai_business_research_grants set enabled=false where user_id=$1', [licensed.id]);
+      assert.equal((await recover(licensed, projectedGfa.body.requestId)).status, 403);
     });
     await check('AI6 / 已重新鉴权的上一轮快照直接生成CSV与图表，不重新查数或调用供应商', async () => {
       const conversation = { id: grouped.body.conversation.id, parentRequestId: grouped.body.requestId };

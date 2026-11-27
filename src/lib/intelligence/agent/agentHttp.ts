@@ -12,6 +12,8 @@ import { generateResearchDeliverable } from '../research/deliverable';
 import { artifactFulfillment, artifactLabels } from './artifactFulfillment';
 import { BUSINESS_TOOL_NAMES, isBusinessResult, type BusinessToolName } from '../business/protocol';
 import { queryBusinessResearch, businessModelObservation, recheckBusinessResults, businessCapabilities } from '../business/research';
+import { addDossierGfa } from '../business/dossierProjection';
+import { resultBuildingRows } from '../query/buildingCards';
 import { isLeaseResult } from '../lease/protocol';
 import { queryLeaseResearch, leaseModelObservation } from '../lease/tool';
 import { recheckLeaseResult, recheckLeaseResults } from '../lease/research';
@@ -45,9 +47,10 @@ import { estimateAgentCostRange } from './agentCost';
 import { createModelRuntime, modelModeSchema } from './modelRuntime';
 import { validatedResultTableView } from '../query/tableView';
 import { precedingMarketComparison, resumesResearch, routeTask } from './taskRouting';
-import { siteSelectionPlan, siteSelectionScope } from './siteSelection';
+import { mapExplicitlyExcluded, siteSelectionPlan, siteSelectionScope } from './siteSelection';
 import { nextAgentMemory } from './agentMemory';
 import { queryVerifiedRealEstate, executeStructuredDataTool } from './verifiedDataTool';
+import { structuredQueryPlan } from './structuredQueryPlan';
 import { queryCapabilityManifest } from '../query/capabilityManifest';
 import { recordHistorySubmission } from '../query/historyStore';
 import { REGISTERED_AGENT_TOOL_NAMES, STRUCTURED_DATA_TOOL_NAMES, WORKSET_TOOL_NAMES, type StructuredDataToolName } from './toolRegistry';
@@ -384,6 +387,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         signal, onEvent,
         runTool: async function runTool(name, args): Promise<import('./agentOrchestrator').AgentToolObservation<QueryResult>> {
           if (!REGISTERED_AGENT_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
+          if (name === 'prepare_map_selection' && mapExplicitlyExcluded(valid.question)) throw new Error('AGENT_MAP_EXCLUDED');
           if (control.snapshot?.config.disabledTools.includes(name)) throw new Error('AGENT_TOOL_DISABLED');
           const toolSignal = AbortSignal.any([signal, AbortSignal.timeout(20000)]);
           const rechecked = await loadDataAuthority(client, actor, toolSignal);
@@ -409,15 +413,17 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           if (RESEARCH_TOOL_NAMES.has(name)) {
             researchTouched = true;
             if (name === 'plan_research_task') {
-              const question = valid.question.normalize('NFKC').replace(/\s+/gu, '');
+              const question = valid.question.normalize('NFKC').replace(/\s+/gu, '').replace(/(\d{4})年第?([一二三四1-4])季度/g,
+                (_, year, quarter) => `${year}Q${'一二三四'.includes(quarter) ? '一二三四'.indexOf(quarter) + 1 : quarter}`);
               if (!/(?:最新正式|最近有(?:正式)?数据的?)季度/u.test(question)) return research.plan(args);
               const { recentCompletedQuarters, ...spec } = researchSpecSchema.parse(args);
               const scope = { inventory: 'tracked' as const, submarkets: spec.submarkets,
                 ...(spec.buildingIds ? { buildingIds: spec.buildingIds } : {}) };
-              const groups = spec.metrics.map(metric => planOutputFields({ operation: 'aggregate', scope, metric, period: { year: 2000, quarter: 1 } }));
-              const end = (await readAvailablePeriodGroups(client, actor, authority, scope, groups, toolSignal)).periods.at(-1);
+              const groups = spec.metrics.map(metric => planOutputFields({ operation: 'aggregate', scope, metric, period: { year: 2000, quarter: 1 } }))
+                .filter(fields => rechecked.grants.includes('query:quarter') && fields.every(field => rechecked.fields.includes(field)));
+              const end = groups.length ? (await readAvailablePeriodGroups(client, actor, rechecked, scope, groups, toolSignal)).periods.at(-1) : undefined;
               if (!end) throw new Error('RESEARCH_FORMAL_PERIOD_UNAVAILABLE');
-              const namedStart = /(\d{4})[Qq]([1-4])(?:起)?(?:至|到)(?:最新正式|最近有(?:正式)?数据的?)季度/u.exec(question);
+              const namedStart = /(\d{4})[Qq]([1-4])(?:起)?(?:至|到|—|~|-)(?:最新正式|最近有(?:正式)?数据的?)季度/u.exec(question);
               const start = namedStart ? { year: Number(namedStart[1]), quarter: Number(namedStart[2]) }
                 : shiftQuarter(end, 1 - (recentCompletedQuarters ?? 4));
               return research.plan({ ...spec, start, end });
@@ -432,12 +438,17 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
                 } catch (error) {
                   await audit!.append(requestId, 'tool_finished', { protocol: 'research-step/1', taskId: research.task!.id,
                     tool, resultId: null, status: 'blocked' });
-                  if (error instanceof Error && error.message === 'QUERY_DENIED' && !toolSignal.aborted
-                    && (BUSINESS_TOOL_NAMES.has(tool) || KNOWLEDGE_TOOL_NAMES.has(tool) || tool === 'query_lease_transactions')) {
-                    // This must still pass all live checks for the identity and
-                    // prior accepted evidence before skipping an independent domain.
-                    await revalidateModel(toolSignal);
-                    throw new Error('RESEARCH_STEP_NOT_AUTHORIZED');
+                  if (error instanceof Error && error.message === 'QUERY_DENIED' && !toolSignal.aborted) {
+                    const restrictedFields = STRUCTURED_DATA_TOOL_NAMES.has(tool)
+                      && planOutputFields(structuredQueryPlan(tool as StructuredDataToolName, input).plan)
+                        .some(field => !rechecked.fields.includes(field)
+                          || !rechecked.grants.includes(numericFields[field].temporal === 'quarter' ? 'query:quarter' : 'query:brochure'));
+                    if (restrictedFields || BUSINESS_TOOL_NAMES.has(tool) || KNOWLEDGE_TOOL_NAMES.has(tool) || tool === 'query_lease_transactions') {
+                      // Recheck the authenticated identity and every accepted
+                      // source before treating a separate capability as limited.
+                      await revalidateModel(toolSignal);
+                      throw new Error('RESEARCH_STEP_NOT_AUTHORIZED');
+                    }
                   }
                   throw error;
                 }
@@ -626,14 +637,41 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           } else throw new Error('AGENT_UNREGISTERED_TOOL');
           if (observation.result && name === 'execute_query_plan'
             && (taskRoute.planNotices?.length || taskRoute.unavailableFields?.length || taskRoute.siteSelection)) {
-            observation.result = { ...observation.result,
-              parameters: { ...observation.result.parameters,
+            let result = observation.result;
+            let unavailableFields = taskRoute.unavailableFields ?? [];
+            const requestedBuildingArea = unavailableFields.includes('建筑面积');
+            let missingBuildingArea = 0;
+            if (requestedBuildingArea && ['rank', 'list'].includes(result.operation) && rechecked.grants.includes('query:brochure')) {
+              const ids = resultBuildingRows(result as AnswerSelection['results'][number]['result']).map(row => row.id);
+              if (ids.length && ids.length <= 20 && ids.length === result.table.rows.length) {
+                const access = await businessCapabilities(client, actor, toolSignal);
+                if ('profileFields' in access && access.profileFields?.includes('gfaTotal')) {
+                  try {
+                    const dossier = await queryBusinessResearch(client, actor, toolSignal, 'query_building_dossier', { buildingIds: ids, fields: ['gfaTotal'] });
+                    const enriched = addDossierGfa(result, dossier.result);
+                    if (enriched) {
+                      result = enriched.result;
+                      businessResults.set(dossier.result.resultId, dossier.result);
+                      unavailableFields = unavailableFields.filter(field => field !== '建筑面积');
+                      missingBuildingArea = enriched.missing;
+                    }
+                  } catch (error) {
+                    if (toolSignal.aborted || !(error instanceof Error)
+                      || !['QUERY_READ_UNAVAILABLE', 'QUERY_DENIED'].includes(error.message)) throw error;
+                    await revalidateModel(toolSignal);
+                  }
+                }
+              }
+            }
+            observation.result = { ...result,
+              parameters: { ...result.parameters,
                 ...(taskRoute.siteSelection ? { siteSelection: taskRoute.siteSelection } : {}),
                 ...(taskRoute.unavailableFields?.length ? { interpretation: {
-                  ...(observation.result.parameters.interpretation as object | undefined), unavailableFields: taskRoute.unavailableFields,
+                  ...(result.parameters.interpretation as object | undefined), unavailableFields,
+                  ...(requestedBuildingArea ? { requestedBuildingArea, missingBuildingArea } : {}),
                 } } : {}),
               },
-              limitations: [...new Set([...observation.result.limitations, ...(taskRoute.planNotices ?? [])])] };
+              limitations: [...new Set([...result.limitations, ...(taskRoute.planNotices ?? [])])] };
           }
           if (observation.result) {
             queriedIds.add(observation.result.resultId);

@@ -67,6 +67,14 @@ describe('AI6 full-condition execution routing', () => {
   it.each(['什么是净有效租金', '如何计算空置率', '请写一封邮件解释净有效租金'])('does not turn conceptual discussion into a database query: %s', q => {
     expect(routeTask(q).route).toBe('bounded_agent'); expect(modelToolCatalogue(q, 'deep', [])).toHaveLength(0);
   });
+  it('routes unresolved hard site conditions for interpretation and respects explicit map exclusion', () => {
+    const base = 'CBD选址租赁2000平方米，预算300元/平方米/月';
+    expect(routeTask(base + '，地铁步行800米内，不要地图')).toMatchObject({ route: 'deterministic_query',
+      siteSelection: { walkMeters: 800, mapRequested: false } });
+    for (const condition of ['必须具备独立电梯', '要能办环评', '指定在国贸站2号口附近']) {
+      expect(routeTask(`${base}，${condition}，不要地图`).siteSelection).toBeUndefined();
+    }
+  });
   it('keeps report-period policy tasks out of the narrow semantic extractor', () => {
     const q = '查询最近一个已结束季度的净有效租金，用于内部报告。';
     expect(routeTask(q).route).toBe('bounded_agent');

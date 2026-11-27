@@ -113,11 +113,13 @@ function classifyToolError(error: unknown): string {
     if (error.name === 'TimeoutError' || error.name === 'AbortError') return 'timeout';
     if (error.message.startsWith('REPORT_')) return 'invalid_report_spec';
     if (error.message.startsWith('CHART_')) return 'invalid_chart_spec';
+    if (error.message === 'AGENT_MAP_EXCLUDED') return 'map_excluded';
     if (error.message.startsWith('QUERY_') || error.message.startsWith('AGENT_')) return 'unsupported';
   }
   return 'tool_unavailable';
 }
 const errorHint: Record<string, string> = {
+  map_excluded: '用户明确不需要地图，继续其余获权任务，无需再次请求地图。',
   delivery_limit: '本轮附件已达到交付容量，请分次生成；已生成的附件仍可下载，不能称整项任务已完成。',
   research_formal_period_unavailable: '所选范围没有共同的获权正式季度。请分指标或调整范围；不要替换为日历季度。',
   research_step_limit: '研究超过8个数据步骤，请分成两个明确主题，不会静默丢弃模块。',
@@ -451,7 +453,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
         unresolved.set(name, code);
         if (attempt > AGENT_LIMITS.recoveriesPerTool) throw new Error('AGENT_TOOL_RECOVERY_EXHAUSTED');
         observation.content = JSON.stringify({ status: 'error', code,
-          retryable: !['export_not_authorized', 'unsupported', 'field_not_available'].includes(code) && attempt <= AGENT_LIMITS.recoveriesPerTool,
+          retryable: !['export_not_authorized', 'unsupported', 'field_not_available', 'map_excluded'].includes(code) && attempt <= AGENT_LIMITS.recoveriesPerTool,
           remainingRetries: Math.max(0, AGENT_LIMITS.recoveriesPerTool - attempt),
           message: errorHint[code] });
       } else {

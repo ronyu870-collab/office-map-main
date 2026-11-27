@@ -61,7 +61,8 @@ export function responseDecision(result: QueryResultView, task?: string, questio
   const buildings = resultBuildingRows(result);
   const numeric = responseFactCells(result, task);
   const leaseDetails = z.array(z.object({ plan: z.object({ mode: z.literal('details') }) })).safeParse(result.parameters.leaseBindings).success;
-  if (result.operation === 'rank' && Array.isArray(result.parameters.projection) && result.parameters.projection.length)
+  if (result.operation === 'rank' && (Array.isArray(result.parameters.projection) && result.parameters.projection.length
+    || result.table.columns.some(column => column.key === 'gfaTotal')))
     return { ...base, task: 'ranking', status: 'answered', primaryExpression: 'table', details: 'inline' };
   const prefs = answerDisplayPreferences(question);
   const inlineTable = preferTable(result, question);

@@ -171,10 +171,10 @@ export function routeTask(question: string, previousContext?: QueryPlan | Semant
   const resolution = standalone.kind === 'plan' || !context ? standalone
     : resolveSemanticQuestion({ question: query, context, now: new Date(), availablePeriods: [] });
   if (resolution.kind === 'plan') {
-    const previousFields = previousResult?.parameters.interpretation as { unavailableFields?: string[] } | undefined;
+    const previousFields = previousResult?.parameters.interpretation as { unavailableFields?: string[]; requestedBuildingArea?: boolean } | undefined;
     const inheritedFields = /呢$/u.test(query) && contextPlan?.operation === 'rank' && resolution.plan.operation === 'rank'
       && resolution.plan.scope.submarkets?.length === 1 && query === `${resolution.plan.scope.submarkets[0]}呢`
-      ? previousFields?.unavailableFields ?? [] : [];
+      ? [...(previousFields?.unavailableFields ?? []), ...(previousFields?.requestedBuildingArea ? ['建筑面积'] : [])] : [];
     return { route: 'deterministic_query', taskType: exportFormat ? 'artifact' : 'query',
       question: query, plan: resolution.plan, planNotices: resolution.interpretation.notices,
       unavailableFields: [...new Set([...(resolution.interpretation.unavailableFields ?? []), ...inheritedFields])],
