@@ -37,6 +37,22 @@ describe('P2 compact research result actions', () => {
       parameters: { base: { year: 2026, quarter: 2 }, current: { year: 2026, quarter: 3 } } }));
     expect(screen.queryByRole('link', { name: '将分析结果加入 Pitch' })).not.toBeInTheDocument();
   });
+  it('pins the selected result and its end quarter for an available archive replay', () => {
+    const plan = { operation: 'compare', scope: { inventory: 'tracked', submarkets: ['CBD'] },
+      metric: 'rent', mode: 'paired', base: { year: 2026, quarter: 2 }, current: { year: 2026, quarter: 3 } };
+    const workspace = (parameters: typeof result.parameters) => <PitchHandoffProvider enabled analysisReplay>
+      <HomeQueryResultActions result={{ ...result, operation: 'compare', parameters }}
+        requestId={requestId} scope={scope} internalExport />
+    </PitchHandoffProvider>;
+    const view = render(workspace({ executedPlan: plan }));
+    fireEvent.click(screen.getByText('更多操作'));
+    const link = screen.getByRole('link', { name: '将分析结果加入 Pitch' });
+    expect(readPitchHandoff(new URL(link.getAttribute('href')!, window.location.origin).hash)).toEqual({
+      source: { kind: 'analysis-result', id: requestId, resultId: result.resultId }, period: '2026-Q3',
+    });
+    view.rerender(workspace({ executedPlan: plan, dataDomain: 'lease' }));
+    expect(screen.queryByRole('link', { name: '将分析结果加入 Pitch' })).not.toBeInTheDocument();
+  });
   it('T08 copies only after backend approval, with period, unit and sample context', async () => {
     open(); fireEvent.click(screen.getByRole('button', { name: '复制结论' }));
     await waitFor(() => expect(clipboard).toHaveBeenCalledOnce());
