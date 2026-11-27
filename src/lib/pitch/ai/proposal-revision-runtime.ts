@@ -11,6 +11,7 @@ import { pageEditSchema, workspaceCommandSchema, workspaceDetailSchema, type Wor
 import { proposalRequestSchema, readProposalBrief } from "./proposal-brief";
 import { compileProposalChartEdits, type ProposalChartChange } from "./proposal-chart-revision";
 import { previewProposalCompetitor, type ProposalCompetitorData, type ReviewProposalHandoff } from "./proposal-competitor-revision";
+import { resolveQuarterRevision } from "./proposal-quarter-revision";
 import type { ProposalScenario } from "../integration-contracts";
 import { readProposalEdit, type ProposalRevisionRequest } from "./proposal-edit-intent";
 import { prepareProposal } from "./proposal-runtime";
@@ -112,19 +113,16 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
         }
         if (operation.kind === "set-period") {
           if (target.operations.length !== 1) return null;
-          if (previewQuarter && operation.period) {
-            const [year, quarter] = operation.period.split("-Q").map(Number);
-            const period = quarterSchema.parse({ year, quarter });
-            const requestedPages = scope === "document"
-              ? selected.filter(page => workspace.page_settings[page.id]?.origin === "data") : selected;
-            const slideId = requestedPages[0]?.id;
-            if (!slideId) return null;
+          if (previewQuarter) {
+            const resolved = await resolveQuarterRevision(ctx, current, selected.map(page => page.id), scope === "document", operation.period);
+            if (!resolved) return null;
+            const { period, slideId, pageIds } = resolved;
             const command = { action: "preview_data_refresh" as const, projectId: project.id, slideId, expectedVersion: project.version, period };
             const review = quarterReviewSchema.parse(await previewQuarter(ctx, command));
             if (review.projectVersion !== project.version) throw new Error("PITCH_CONFLICT");
             if (review.period.year !== period.year || review.period.quarter !== period.quarter) return null;
             const ids = new Set(review.changes.map(change => change.slideId));
-            if (ids.size !== review.changes.length || ids.size !== requestedPages.length || requestedPages.some(page => !ids.has(page.id))) return null;
+            if (ids.size !== review.changes.length || ids.size !== pageIds.length || pageIds.some(id => !ids.has(id))) return null;
             const id = randomUUID();
             quarterTransaction = { review, command: { ...command, action: "apply_data_refresh", fingerprint: review.fingerprint } };
             return { id, pages: [...pageEdits.values()], refresh: { id, version: 1, contextFingerprint: review.fingerprint } };
