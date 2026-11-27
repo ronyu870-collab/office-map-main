@@ -7,7 +7,7 @@
 | GET `document_bindings` | 传项目 ID。返回页面固定素材版本、披露、原始来源及内容块的业务／人工／素材来源。现有季度与成交快照记录字段、查询参数、政策、权限版本及业务日期。 |
 | POST `preview_data_refresh` | 传 `projectId`、`slideId`、`expectedVersion` 和可选正式 `period`。按所选页的快照复核同组关联页，比较数据值和真实来源版本，并返回审阅指纹及结论复核提示。 |
 | POST `apply_data_refresh` | 使用相同参数和审阅指纹。正式事实和来源、项目版本或权限出现变化时需重新核对。保存同时提交替换数据的私有归档及项目新版本，历史恢复沿用 `restore`。版式或分页无法安全保留时拒绝保存。含独立研究素材的组合页暂不开放自动刷新。 |
-| POST `apply_modification` | 传共享 `DocumentModificationPlan`，支持已有 `PageEdit` 的受控更新。默认 `scope: selected`，其余页自动保留。显式 `scope: document` 时传完整目标顺序和原始页版本，可复制、删除及排序。可选 `theme` 指定已注册主题版本。`PageEdit.manualNote` 保存页面标题区的人工说明，传 `null` 清除。`chartPresentation` 按块索引切换原生条形、柱状或折线图，系列和来源保持固定。刷新时沿用人工说明和图表类型。数据更新走带审阅指纹的刷新命令。 |
+| POST `apply_modification` | 传共享 `DocumentModificationPlan`，支持已有 `PageEdit` 的受控更新。默认 `scope: selected`，其余页自动保留。显式 `scope: document` 时传完整目标顺序和原始页版本，可复制、删除及排序。可选 `theme` 指定已注册主题版本。`PageEdit.manualNote` 保存页面标题区的人工说明，传 `null` 清除。`chartPresentation` 按块索引切换原生条形、柱状或折线图，系列和来源保持固定。经预览的正式数据更新可与这些页面编辑一次提交。 |
 | POST `review_handoff` | 传共享 `AddToPitch`。楼宇与子市场由当前账号查询授权及正式季度数据解析。Colliers AI `analysis-result.id` 接受获权查询的请求 ID，`resultId` 可固定其中一项结果。正式楼宇及季度查询保留原指标、字段、筛选、分组和期间。需要指定正式季度时返回 `period_required`。成交库可传 `lease-search`，包括 `dataset`、`from`、`to`、`buildingIds`、`submarkets`、`view` 与可选 `direction`。`view` 可为 `transactions`、`industry-count` 或 `industry-area`。服务端沿用成交查询的独立导出、明细权限和分组披露阈值。 |
 | POST `add_to_pitch` | 传相同 `handoff`、预览 `fingerprint`、稳定 `taskId` 和显式 `target`。追加使用 `mode: append, expectedVersion`；新建使用 `mode: create, projectId, title, scope, themeId, themeVersion`。新建和排队在同一事务。后台重新读取并核对事实，应用整个任务结果时持有项目版本锁。 |
 
@@ -24,6 +24,8 @@
 新版审阅式提案按对象返回其已归档的正式查询收据，包括实体、查询参数、字段、权限版本、资料日期和披露范围。对象依据版控素材中的精确引用关联收据。正文及画布编辑会保护带正式数据依据的段落，人工说明仍可单独录入。市场结论保留来源并以分析内容标识。
 
 同一生成任务内，相同查询参数的章节共享一次正式读取及一份归档结果。标题和经确认的研究说明仍按页保存。刷新预览会列出使用同一事实快照的相关页面，并在一次保存中更新这些页面。
+
+结构化修改可使用 `plan.refresh: { kind: "reviewed-data", slideId, period?, fingerprint }` 引用复核后的数据差异。调用方从 `preview_data_refresh` 取得变更页和指纹，将同一快照影响的所有页版本加入 `basePageVersions`。服务端重算差异，校验获权数据及绑定，再将快照、受控编辑和审计保存为同一个新版本。单页校验失败或审计写入失败时保留原稿。旧提案计划编号仍须获取有效差异预览后才能应用。
 
 季度研究交接传 `source: { kind: "quarterly-research", edition }`，版本沿用研究页的管理员可读版本清单。服务端从该版本确定季度，对北京甲级写字楼的获权跟踪样本重新读取已锁定的正式数据，保存实际样本 ID、统计口径、业务日期及授权版本。目标项目须在北京。
 
