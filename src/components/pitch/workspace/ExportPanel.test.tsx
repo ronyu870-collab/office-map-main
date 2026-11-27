@@ -116,7 +116,10 @@ it("requires a fresh review after a concurrent export conflict and preserves the
   const generate = screen.getByRole("button", { name: "生成文件" });
   await waitFor(() => expect(generate).toBeEnabled());
   await user.click(generate);
-  expect(await screen.findByText("项目已在其他窗口更新。请重新打开项目后再导出。")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByRole("alert")).toHaveTextContent("项目已在其他窗口更新。请重新打开项目后再导出。");
+    expect(call.mock.calls.filter(([command]) => command.action === "export_eligibility")).toHaveLength(2);
+  });
   expect(generate).toBeDisabled();
   expect(screen.queryByRole("button", { name: "下载已生成文件" })).not.toBeInTheDocument();
 

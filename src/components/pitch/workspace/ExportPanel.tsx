@@ -14,6 +14,7 @@ const eligibilitySchema = z.object({
 type Eligibility = z.infer<typeof eligibilitySchema>;
 const versionedExport = pitchCommandSchema.options.some(command =>
   command.shape.action.value === "export_start" && Object.hasOwn(command.shape, "expectedVersion"));
+const projectVersionConflictMessage = "项目已在其他窗口更新。请重新打开项目后再导出。";
 const exportReasons: Record<string, string> = {
   restricted: "页面受到披露限制",
   internal_only: "页面仅供内部使用",
@@ -211,7 +212,7 @@ export function ExportPanel({
         if (e.status === 403 || e.status === 409) setEligibilityAttempt(value => value + 1);
       }
       setError(e instanceof WorkspaceError && e.status === 409
-        ? "项目已在其他窗口更新。请重新打开项目后再导出。"
+        ? projectVersionConflictMessage
         : e instanceof Error ? e.message : "导出未启动。");
     } finally {
       setBusy(false);
@@ -313,7 +314,6 @@ export function ExportPanel({
             </select>
           </label>
           {eligibilityPending && <p role="status">正在核对所选用途的导出权限…</p>}
-          {eligibilityStale && <p role="alert">项目已在其他窗口更新。请重新打开项目后再导出。</p>}
           {audienceBlocked && <p role="alert">当前账号或项目范围无此用途的导出授权。</p>}
           {blockedPages.length > 0 && (
             <section aria-label="页面导出限制">
@@ -332,7 +332,7 @@ export function ExportPanel({
               <Button variant="ghost" onClick={() => setEligibilityAttempt(value => value + 1)}>重新核对导出权限</Button>
             </div>
           )}
-          {error && !eligibilityStale && <p role="alert">{error}</p>}
+          {(eligibilityStale || error) && <p role="alert">{eligibilityStale ? projectVersionConflictMessage : error}</p>}
           {pollFailed && running && (
             <Button
               variant="secondary"
