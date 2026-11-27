@@ -2,6 +2,7 @@
 // archives, recovery and built HTTP artifact downloads use the disposable stack.
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import sharp from 'sharp';
@@ -187,11 +188,61 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       assert.equal(selected.status, 200, JSON.stringify(selected.body));
       assert.deepEqual(selected.body.buildings.map(row => [row.id, row.located]), [[ids[0], true]]);
       assert.equal((await buildingContext(other, response.body, { mapSelection: true })).status, 403);
-      const walking = await submit(broker, '地铁步行不超过800米的办公选址');
+      const walking = await submit(broker, '步行不超过800米的办公选址');
       assert.equal(walking.status, 200, JSON.stringify(walking.body)); assert.equal(walking.calls, 0);
       assert.equal(walking.body.agent.executionStatus, 'limited');
       assert.equal(walking.body.result, undefined);
       assert.match(walking.body.message, /800 米.*目标地铁站.*直线距离初筛/);
+    });
+    await check('AI6 T16 / 站点和获权楼宇的直线初筛同源交付地图、Excel、历史和撤权', async () => {
+      const walker = await person('admin', 'ai6-metro-screening');
+      await grant(walker);
+      const publicMap = JSON.parse(await readFile(new URL('../../public/data/beijing_map_data.json', import.meta.url), 'utf8'));
+      const stationLine = publicMap.subways.find(line => line.stations.some(item => item.name === '国贸'));
+      const station = stationLine.stations.find(item => item.name === '国贸');
+      const [lng, lat] = station.center;
+      // One point coincides with the station. The second is 0.001 degrees
+      // north (about 111 metres). Put both an ungranted and a reference-only
+      // point inside the radius, plus a tracked building without coordinates.
+      for (const [index, latitude] of [[0, lat], [1, lat + .001], [2, lat], [3, null], [4, lat]])
+        await db.query('update public.buildings set location_lng=$2,location_lat=$3 where id=$1', [ids[index], latitude === null ? null : lng, latitude]);
+      const response = await submit(walker, '地铁国贸站步行不超过800米的办公选址，给出地图链接');
+      assert.equal(response.status, 200, JSON.stringify(response.body)); assert.equal(response.calls, 0);
+      assert.equal(response.body.agent.executionStatus, 'partial');
+      assert.equal(response.body.answerSelection.status, 'partial');
+      assert.match(response.body.message, /2 栋.*直线 800 米.*另有 1 栋.*实际步行路线待核验/);
+      const { result, requestId } = response.body;
+      assert.deepEqual(result.table.rows.map(row => [row.entityId, row.cells.metroStation.value, row.cells.metroStraightLine.value.numeric]),
+        [[ids[0], '国贸站', 0], [ids[1], '国贸站', 111]]);
+      const refs = result.table.rows[0].cells.metroStraightLine.sourceIds.map(id => result.sources.find(source => source.id === id));
+      assert.deepEqual(refs.map(source => [source.table, source.recordId, source.rawValue]),
+        [['buildings', ids[0], null], ['map_subway_stations', station.id, `国贸站 · ${stationLine.name}`]]);
+      const nearest = await submit(walker, '在CBD地铁步行不超过800米的办公选址，不要地图');
+      assert.equal(nearest.status, 200, JSON.stringify(nearest.body)); assert.equal(nearest.calls, 0);
+      assert.equal(nearest.body.result.parameters.agentMap, undefined);
+      assert.deepEqual(nearest.body.result.table.rows.map(row => [row.entityId, row.cells.metroStation.value]), [[ids[0], '国贸站'], [ids[1], '国贸站']]);
+      const selected = await buildingContext(walker, response.body, { mapSelection: true });
+      assert.equal(selected.status, 200, JSON.stringify(selected.body));
+      assert.deepEqual(selected.body.buildings.map(row => row.id), ids.slice(0, 2));
+      const request = { requestId, resultId: result.resultId, action: 'export', format: 'xlsx' };
+      const generated = await submit(walker, '把刚才的结果导出Excel',
+        { conversation: { id: response.body.conversation.id, parentRequestId: requestId } });
+      assert.equal(generated.status, 200, JSON.stringify(generated.body)); assert.equal(generated.calls, 0);
+      assert.deepEqual(generated.body.result.parameters.metroScreeningBindings, [result.parameters.metroScreening]);
+      const downloadable = await artifact(walker, { ...request, requestId: generated.body.requestId, resultId: generated.body.result.resultId });
+      assert.equal(downloadable.status, 200);
+      const workbook = XLSX.read(downloadable.bytes, { type: 'array' });
+      const table = XLSX.utils.sheet_to_json(workbook.Sheets['数据'], { header: 1 });
+      const distanceColumn = table[0].findIndex(label => String(label).includes('距站点直线距离'));
+      assert.notEqual(distanceColumn, -1);
+      assert.deepEqual(table.slice(1).map(row => row[distanceColumn]), [0, 111]);
+      assert.equal((await recover(walker, requestId)).body.result.resultId, result.resultId);
+      assert.equal((await recover(other, requestId)).status, 403);
+      await db.query('update public.buildings set location_lat=location_lat+.002 where id=$1', [ids[1]]);
+      assert.equal((await artifact(walker, request)).status, 403);
+      await db.query('update public.buildings set location_lat=$2 where id=$1', [ids[1], lat + .001]);
+      await db.query('update private.ai_query_grants set enabled=false where user_id=$1', [walker.id]);
+      assert.equal((await buildingContext(walker, response.body, { mapSelection: true })).status, 403);
     });
     await check('AI6 / 三市场澄清及六轮排名使用真实登录、正式快照与可读工作簿', async () => {
       const catalog = [

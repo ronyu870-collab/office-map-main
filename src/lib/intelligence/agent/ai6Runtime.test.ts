@@ -82,8 +82,8 @@ describe('AI6 full-condition execution routing', () => {
       expect(routeTask(`${base}，${condition}，不要地图`).siteSelection).toBeUndefined();
     }
   });
-  it.each([['地铁步行800米内办公选址', '800'], ['帮我找写字楼，距地铁站步行不超过500米', '500']])(
-    'reports the walking-only constraint without pretending a spatial query ran: %s', async (question, distance) => {
+  it.each([['步行800米内办公选址', '800'], ['帮我找写字楼，步行不超过500米', '500']])(
+    'requests an anchor when the walk question has no destination: %s', async (question, distance) => {
       const invoke = vi.fn(), runTool = vi.fn();
       const out = await runAgentLoop({ question, taskRoute: routeTask(question), invoke, runTool, signal: signal() });
       expect(out.executionStatus).toBe('limited');
@@ -94,6 +94,13 @@ describe('AI6 full-condition execution routing', () => {
       expect(runTool).not.toHaveBeenCalled();
     },
   );
+  it('recognizes named and nearest metro screening without silently dropping extra criteria', () => {
+    expect(routeTask('地铁国贸站步行不超过800米的办公选址，给出地图链接')).toMatchObject({ route: 'deterministic_query',
+      metroSelection: { radiusMeters: 800, stationName: '国贸', mapRequested: true }, walkingRouteUnavailable: true });
+    expect(routeTask('帮我找写字楼，距地铁站步行不超过500米，不要地图')).toMatchObject({ route: 'deterministic_query',
+      metroSelection: { radiusMeters: 500, mapRequested: false }, walkingRouteUnavailable: true });
+    expect(routeTask('地铁国贸站步行800米内找办公室，必须有独立电梯').metroSelection).toBeUndefined();
+  });
   it('keeps report-period policy tasks out of the narrow semantic extractor', () => {
     const q = '查询最近一个已结束季度的净有效租金，用于内部报告。';
     expect(routeTask(q).route).toBe('bounded_agent');

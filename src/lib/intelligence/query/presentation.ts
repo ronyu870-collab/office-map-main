@@ -34,7 +34,8 @@ export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.str
 });
 export type QueryResultView = z.infer<typeof resultViewSchema>;
 export type DisplayCell = z.infer<typeof resultCellSchema>;
-export const units: Record<string, string> = { m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', transaction_count: '笔', month: '月', lease_rent_raw: '原始单位待核验', lease_fee_raw: '原始单位待核验' };
+export const metroSource = { table: 'map_subway_stations', path: '/data/beijing_map_data.json', locationField: 'location_lng / location_lat' } as const;
+export const units: Record<string, string> = { m: '米', floor: '层', space: '个', m2: '㎡', coordinate: '定位坐标', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', transaction_count: '笔', month: '月', lease_rent_raw: '原始单位待核验', lease_fee_raw: '原始单位待核验' };
 export const unknownLabels = { missing: '未知：缺少数据', invalid: '未知：数据无效', conflict: '未知：来源冲突', unverified: '未知：尚未核验' } as const;
 
 /** Display rounding only; never calculates using the approximate chart projection. */

@@ -3,7 +3,7 @@ import * as React from 'react';
 import { z } from 'zod';
 import { Button } from '@/src/components/ui/Button';
 import { quarterSchema } from '@/src/lib/intelligence/query/contracts';
-import { units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
+import { metroSource, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { metricLabels, resultMetrics, resultMetricAnalysis } from '@/src/lib/intelligence/query/multiMetricView';
 import type { ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnalysisView';
 import { HomeQueryDetailContent } from './HomeQueryDetailPanel';
@@ -29,12 +29,13 @@ export function HomeQuerySources({ detailId, result, context, research = null, s
     <p>候选来源可能包含未参与计算的记录；具体指标以单元格关联的来源为准。</p>
       {!sources.length ? <p>该项没有关联的来源记录；范围与期间来自保存的查询条件。</p> : <>
         {sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => <div className={styles.source} key={source.id}><dl>
-          <dt>原始记录值</dt><dd>{source.rawValue === null || source.rawValue === undefined ? '未填写' : typeof source.rawValue === 'string' ? source.rawValue : JSON.stringify(source.rawValue)}</dd>
+          <dt>原始记录值</dt><dd>{source.table === 'buildings' && source.field === metroSource.locationField ? '使用获权楼宇定位，结果仅显示计算距离。' : source.rawValue === null || source.rawValue === undefined ? '未填写' : typeof source.rawValue === 'string' ? source.rawValue : JSON.stringify(source.rawValue)}</dd>
           <dt>期间与单位</dt><dd>{source.period ? `${source.period.year} 年第 ${source.period.quarter} 季度` : '未提供季度标签'}；{source.unit === 'snapshot' ? '来源快照（非计量单位）' : source.unit === 'text' ? '文字' : units[source.unit] ?? source.unit}</dd>
-          <dt>原始资料</dt><dd>{source.original ? `${source.original.documentId}，版本 ${source.original.version}${source.original.location ? `，${source.original.location}` : source.original.page ? `，第 ${source.original.page} 页` : ''}${source.original.sheet ? `，表 ${source.original.sheet}` : ''}${source.original.row ? `，第 ${source.original.row} 行` : ''}` : '尚未关联原件，仅能溯源到数据库记录。'}</dd>
+          <dt>原始资料</dt><dd>{source.table === metroSource.table ? <a href={metroSource.path} target="_blank" rel="noopener noreferrer">北京地图站点目录</a>
+            : source.original ? `${source.original.documentId}，版本 ${source.original.version}${source.original.location ? `，${source.original.location}` : source.original.page ? `，第 ${source.original.page} 页` : ''}${source.original.sheet ? `，表 ${source.original.sheet}` : ''}${source.original.row ? `，第 ${source.original.row} 行` : ''}` : '尚未关联原件，仅能溯源到数据库记录。'}</dd>
           <dt>核验状态</dt><dd>{{ database_only: '仅数据库记录', verified_original: '已核验原件', unreviewed: '未核验', historical: '历史来源' }[source.verification]}</dd>
           <dt>业务截至</dt><dd>{source.businessAsOf ?? '未知，不能用入库时间替代。'}</dd>
-        </dl><details><summary>记录技术信息</summary><dl><dt>数据库位置</dt><dd>{source.table} / {source.recordId} / {source.field}</dd><dt>记录版本</dt><dd>{source.recordVersion}</dd></dl></details></div>)}
+        </dl><details><summary>记录技术信息</summary><dl><dt>{source.table === metroSource.table ? '站点记录' : '数据库位置'}</dt><dd>{source.table} / {source.recordId} / {source.field}</dd><dt>记录版本</dt><dd>{source.recordVersion}</dd></dl></details></div>)}
         <div className={styles.tableFooter}><p>来源 {sourcePage * 10 + 1}–{Math.min((sourcePage + 1) * 10, sources.length)}，共 {sources.length} 条</p>
           {sources.length > 10 && <div className={styles.actions}><Button variant="ghost" disabled={!sourcePage} onClick={() => setSourcePage(value => value - 1)}>上一组来源</Button><Button variant="ghost" disabled={(sourcePage + 1) * 10 >= sources.length} onClick={() => setSourcePage(value => value + 1)}>下一组来源</Button></div>}
         </div>
@@ -73,6 +74,7 @@ export function sourceOverviewLabel(result: QueryResultView): string {
   if (result.parameters.domain === 'knowledge-research/1') return result.parameters.evidenceKind === 'external_public' ? '公开研究来源' : '获权知识资料';
   if (result.parameters.dataDomain === 'deep-research/1' || result.parameters.agentReport) return '组合研究来源，各部分保留原期间';
   if (result.parameters.dataDomain || result.parameters.domain) return [period, '获权数据来源'].filter(Boolean).join('，');
+  if (result.sources.some(item => item.table === metroSource.table)) return '获权楼宇定位与北京地图站点目录';
   const hasQuarter = result.sources.some(source => source.period !== null) || periods.length > 0;
   const source = hasQuarter ? scope?.inventory === 'tracked' ? '季度跟踪样本' : '楼宇季度数据'
     : result.sources.some(item => item.table === 'building_brochure_data') ? '楼宇目录及楼书参数'

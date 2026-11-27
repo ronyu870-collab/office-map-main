@@ -13,6 +13,7 @@ import { artifactFulfillment, artifactLabels } from './artifactFulfillment';
 import { BUSINESS_TOOL_NAMES, isBusinessResult, type BusinessToolName } from '../business/protocol';
 import { queryBusinessResearch, businessModelObservation, recheckBusinessResults, businessCapabilities } from '../business/research';
 import { addDossierGfa } from '../business/dossierProjection';
+import { attachMetroScreening, screenMetroCandidates } from '../query/metroScreening';
 import { resultBuildingRows } from '../query/buildingCards';
 import { isLeaseResult } from '../lease/protocol';
 import { queryLeaseResearch, leaseModelObservation } from '../lease/tool';
@@ -312,6 +313,18 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
 
     const previousResult = imported.length === 1 && !research.task ? imported[0] : undefined;
     const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextSemantic ?? history.contextPlan, !!research.task, !!previousResult, previousResult, (history.contextComparisonIds?.length ?? 0) > 1);
+    const metroScreening = taskRoute.metroSelection && await screenMetroCandidates(client, actor, authority, taskRoute.metroSelection, signal);
+    if (typeof metroScreening === 'string') {
+      taskRoute.route = 'direct_response';
+      taskRoute.reply = metroScreening;
+    } else if (metroScreening) {
+      const { candidates, locatedCount, matchedCount, missingCoordinates, radiusMeters, stationName } = metroScreening;
+      taskRoute.plan = parseQueryPlan({ operation: 'list', fields: [], period: null,
+        scope: { inventory: 'tracked', submarkets: taskRoute.metroSelection?.submarkets, buildingIds: candidates.map(item => item.buildingId) } });
+      taskRoute.reply = `在 ${locatedCount} 栋有坐标的获权楼宇中，${matchedCount} 栋距${stationName ? `「${stationName}」站` : '目录内最近地铁站'}直线 ${radiusMeters} 米以内。`
+        + (matchedCount > candidates.length ? `以下按距离列出前 ${candidates.length} 栋。` : '')
+        + (missingCoordinates ? `另有 ${missingCoordinates} 栋缺少有效坐标。` : '') + '实际步行路线待核验。';
+    }
     if (taskRoute.conceptExample && taskRoute.plan && (!authority.grants.includes('query:quarter')
       || planOutputFields(taskRoute.plan).some(field => !authority.fields.includes(field)))) {
       taskRoute.route = 'direct_response';
@@ -637,6 +650,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             observation = await executeStructuredDataTool({ client, keys, identity: actor, audit: audit!,
               requestId, authority, signal: toolSignal }, name as StructuredDataToolName, args);
           } else throw new Error('AGENT_UNREGISTERED_TOOL');
+          if (observation.result && name === 'execute_query_plan' && metroScreening && typeof metroScreening !== 'string')
+            observation.result = attachMetroScreening(observation.result, metroScreening);
           if (observation.result && name === 'execute_query_plan'
             && (taskRoute.planNotices?.length || taskRoute.unavailableFields?.length || taskRoute.siteSelection)) {
             let result = observation.result;
@@ -926,6 +941,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       else selectedAnswer = { ...selectedAnswer, results: selectedAnswer.results.map(item =>
         item.result.resultId === primary.resultId ? { ...item, result: primary as typeof item.result } : item) };
       selectedAnswer = applyAnswerPolicy(valid.question, selectedAnswer, execution.executionStatus);
+      if (primary.parameters.metroScreening && taskRoute.reply)
+        selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, taskRoute.reply].filter(Boolean).join(' ') };
       // Data-summary ownership must not swallow a separate, trusted action
       // outcome. Preparing a map never means that the browser opened it.
       const mapAttempted = execution.toolNames.includes('prepare_map_selection');
@@ -949,7 +966,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             ? '交付内容超过本轮容量，已有成果仍可下载；其余部分请分次生成，任务尚未全部完成。'
           : execution.unresolvedFailures.some(item => item.code === 'analysis_not_available')
             ? '文件已生成，但尚未取得可核验的分析结论；任务尚未全部完成。'
-          : onlyMapFailure || selectedAnswer.notice && execution.unresolvedFailures.every(item => item.tool === 'select_answer_results')
+          : onlyMapFailure || primary.parameters.metroScreening && execution.unresolvedFailures.every(item => item.tool === 'verified_data' && item.code === 'unsupported')
+            || selectedAnswer.notice && execution.unresolvedFailures.every(item => item.tool === 'select_answer_results')
               ? undefined : '部分步骤未取得可核验的完整结果，任务尚未全部完成。';
         selectedAnswer = { ...selectedAnswer, notice: [selectedAnswer.notice, executionNotice].filter(Boolean).join(' ') };
       }
@@ -1032,7 +1050,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       const workbookDelivered = generatedResults.some(result => result.parameters.agentWorkbook !== undefined);
       const supplementalDossierDenied = execution.unresolvedFailures.some(failure =>
         failure.tool === 'query_building_dossier' && failure.code === 'field_not_available');
-      if (preparedReport || researchAnswer || workbookDelivered || supplementalDossierDenied && execution.result) {
+      if (preparedReport || researchAnswer || workbookDelivered || execution.result && (supplementalDossierDenied || metroScreening && typeof metroScreening !== 'string')) {
         const read = await readOwnResult(client, actor, requestId, 'archive', signal);
         await recoverOwnResult(client, actor, keys, requestId, read, signal, workbookDelivered ? { exporting: true } : undefined);
       }

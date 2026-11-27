@@ -4,7 +4,8 @@ import { requiresDataFactEvidence } from './queryObligation';
 import type { QueryPlan } from '../query/plan';
 import { restoredResultTableView, type ResultTableView, type ResultTableReference } from '../query/tableView';
 import { externalModelForbidden } from './modelContext';
-import { readSiteSelectionRequest, walkingOnlyThreshold, type SiteSelectionRequest } from './siteSelection';
+import { readMetroScreeningRequest, readSiteSelectionRequest, walkingOnlyThreshold, type SiteSelectionRequest } from './siteSelection';
+import type { MetroScreeningRequest } from '../query/metroScreening';
 
 export type ExecutionRoute = 'direct_response' | 'deterministic_query' | 'single_interpretation' | 'bounded_agent' | 'deep_research';
 export type TaskRoute = {
@@ -18,6 +19,7 @@ export type TaskRoute = {
   reuseComparison?: boolean;
   catalogLookup?: 'location' | 'profile';
   siteSelection?: SiteSelectionRequest;
+  metroSelection?: MetroScreeningRequest;
   walkingRouteUnavailable?: true;
   pendingSemantic?: SemanticContext;
   conceptExample?: true;
@@ -156,6 +158,8 @@ export function routeTask(question: string, previousContext?: QueryPlan | Semant
   }
   const siteSelection = readSiteSelectionRequest(text);
   if (siteSelection) return { route: 'deterministic_query', taskType: 'query', question, siteSelection };
+  const metroSelection = readMetroScreeningRequest(text);
+  if (metroSelection) return { route: 'deterministic_query', taskType: 'query', question, metroSelection, walkingRouteUnavailable: true };
   const walkMeters = walkingOnlyThreshold(text);
   if (walkMeters) return { route: 'direct_response', taskType: 'query', question, walkingRouteUnavailable: true,
     reply: `目前没有可核验的步行路线，无法确认 ${walkMeters} 米以内的办公楼。请提供目标地铁站或子市场。地图的「地铁通勤辐射圈」可按指定站点做直线距离初筛，步行距离仍需核实。` };

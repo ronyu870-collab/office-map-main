@@ -9,6 +9,7 @@ import { sanitizeAuditContent } from '../query/auditStore';
 import { buildResultArtifact } from '../query/artifacts';
 import { resultViewSchema } from '../query/presentation';
 import { parseQueryPlan } from '../query/plan';
+import { metroScreeningBindings } from '../query/metroScreening';
 import { Decimal } from '../query/decimal';
 import { projectResultTable } from '../query/tableView';
 import type { QueryResult, ResultCell } from '../query/result';
@@ -142,6 +143,7 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
     parameters: result.parameters, analysis: result.analysis, rowCount: result.table.rows.length }));
   const leaseBindings = lease ? results.flatMap(result => leaseBindingSchema.array().min(1).max(64).parse(result.parameters.leaseBindings)) : [];
   const businessBindings=results.flatMap(r=>r.parameters.businessBindings?businessBindingSchema.array().min(1).max(64).parse(r.parameters.businessBindings):[]);
+  const metroBindings = results.flatMap(result => metroScreeningBindings(result.parameters));
   const exportPlans = lease || business ? [] : results.flatMap(result => Array.isArray(result.parameters.exportPlans)
     ? result.parameters.exportPlans.map(parseQueryPlan) : [parseQueryPlan(result.parameters.executedPlan)]);
   const outputColumns = [...(results.length > 1 ? [
@@ -157,6 +159,7 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
     parameters: { ...Object.fromEntries(Object.entries(base.parameters).filter(([key]) =>
       ['scope', 'period', 'executedPlan', 'relativeQuarterContext'].includes(key))), fields, exportPlans,
       ...(businessBindings.length?{businessBindings}:{}),
+      ...(metroBindings.length ? { metroScreeningBindings: metroBindings } : {}),
       ...(business?{dataDomain:BUSINESS_DOMAIN,businessTool:base.parameters.businessTool}:{}),
       ...(lease ? { dataDomain: LEASE_DOMAIN, leaseBindings, leaseProviderMinGroupSize: Math.max(...results.map(r => typeof r.parameters.leaseProviderMinGroupSize === 'number' ? r.parameters.leaseProviderMinGroupSize : 100)) } : {}),
       agentExport: { version: 'agent-export/1', format: args.format, singleSheet: args.singleSheet,

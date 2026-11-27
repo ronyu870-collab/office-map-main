@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { quarterSchema, type Quarter } from '../query/contracts';
 import { parseQueryPlan, type QueryPlan, type RankProjection } from '../query/plan';
 import { inferSemanticScope } from '../query/semanticPlanner';
+import type { MetroScreeningRequest } from '../query/metroScreening';
+import { QUESTION_SUBMARKETS } from '../query/question';
 
 export const siteSelectionSchema = z.strictObject({
   area: z.number().positive().max(1000000),
@@ -27,6 +29,21 @@ export function walkingOnlyThreshold(question: string): number | undefined {
   const match = /^(?:请|帮我)?(?:办公选址|选址|找办公楼|找写字楼|找办公室)?(?:要求)?(?:距|到|离)?(?:地铁站?)?步行(?:不超过|不高于|小于|约|<=|≤)?(\d{1,5})(?:米|m)(?:以内|内)?的?(?:办公选址|选址|找办公楼|找写字楼|找办公室)?$/iu.exec(text);
   const meters = Number(match?.[1]);
   return meters > 0 && meters <= 10000 ? meters : undefined;
+}
+
+export function readMetroScreeningRequest(question: string): MetroScreeningRequest | undefined {
+  const original = question.normalize('NFKC').replace(/\s+/gu, '');
+  const text = original.replace(excludedMap, '').replace(requestedMap, '').replace(/[，,。！？!?、]+/gu, '');
+  const office = '(?:办公选址|选址|找办公楼|找写字楼|找办公室|办公楼|写字楼)';
+  const markets = [...QUESTION_SUBMARKETS.filter(name => name !== '其他'), '望京'].join('|');
+  const intent = new RegExp(office, 'u');
+  if (!intent.test(text)) return undefined;
+  const match = new RegExp(`^(?:请|帮我)?(?:北京(?:市)?)?(?:在?(${markets}))?${office}?(?:要求)?(?:距|到|离)?(?:地铁站?|(?:地铁)?([\\p{L}\\p{N}·]{1,30})(?:地铁)?站)步行(?:不超过|不高于|小于|约|<=|≤)?(\\d{1,5})(?:米|m)(?:以内|内)?的?${office}?(?:并|同时)?$`, 'iu').exec(text);
+  const radiusMeters = Number(match?.[3]);
+  if (!(radiusMeters > 0 && radiusMeters <= 10000)) return undefined;
+  return { radiusMeters, stationName: match?.[2]?.replace(/地铁$/u, ''),
+    submarkets: match?.[1] ? inferSemanticScope(match[1]).submarkets : undefined,
+    mapRequested: !mapExplicitlyExcluded(original) && requestedMap.test(original) };
 }
 
 /** Only use the provisional rent screen for a clear area and monthly unit
