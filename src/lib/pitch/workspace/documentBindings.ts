@@ -11,10 +11,10 @@ import { digest, mediaRowSchema, pitchRpc, type PitchContext } from '../data/sto
 import type { BusinessDataBinding } from '../integration-contracts';
 import { layoutSlides } from '../layout/engine';
 import { assertSceneQuality } from '../layout/quality';
-import { stackingHandoffPartSchema, type WorkspaceCommand, type WorkspaceDetail } from './protocol';
+import { stackingHandoffPartSchema, type WorkspaceCommand, type WorkspaceDetail, type WorkspaceSave } from './protocol';
 import { blockQueryReceipts, captureKey, fieldIndex, readBindings, usesBusinessEvidence, type Block, type Capture } from './bindingStore';
 import { noteSubtitle, type PageNote } from './presentation-edits';
-import { commitPayload, getWorkspace } from './workflow';
+import { commitPayload, getWorkspace, prepareWorkspaceSave } from './workflow';
 
 type RefreshCommand = Extract<WorkspaceCommand, { action: 'preview_data_refresh' | 'apply_data_refresh' }>;
 const encode = (value: unknown) => JSON.stringify(value);
@@ -116,8 +116,8 @@ function mergeContent(page: SlideContent, previous: SlideContent, proposed: Slid
   };
 }
 
-async function prepareRefresh(ctx: PitchContext, command: RefreshCommand) {
-  const document = await getWorkspace(ctx, command.projectId);
+async function prepareRefresh(ctx: PitchContext, command: RefreshCommand, current?: WorkspaceDetail) {
+  const document = current ?? await getWorkspace(ctx, command.projectId);
   if (document.project.version !== command.expectedVersion) throw new Error('PITCH_CONFLICT');
   const { captures } = await readBindings(ctx, command.projectId, command.expectedVersion);
   const anchor = document.slides.find(page => page.id === command.slideId);
@@ -184,12 +184,22 @@ function preserveSceneEdits(before: SlideScene, rendered: SlideScene) {
   return slideSceneSchema.parse({ ...rendered, elements });
 }
 
-export async function applyDataRefresh(ctx: PitchContext, command: Extract<RefreshCommand, { action: 'apply_data_refresh' }>) {
-  const update = await prepareRefresh(ctx, command);
+export async function applyDataRefresh(
+  ctx: PitchContext, command: Extract<RefreshCommand, { action: 'apply_data_refresh' }>,
+  modification?: { current: WorkspaceDetail; save: WorkspaceSave; base: ReadonlyMap<string, number> },
+) {
+  const update = await prepareRefresh(ctx, command, modification?.current);
   if (command.fingerprint !== update.review.fingerprint) throw new Error('PITCH_DATA_REFRESH_CHANGED');
-  if (!update.review.changed) return update.document;
   const { document, fetched, original, pages, parameters, language } = update;
   const project = document.project;
+  if (!update.review.changed) {
+    if (!modification) return document;
+    const save = await prepareWorkspaceSave(ctx, document, modification.save);
+    await pitchRpc(ctx, { action: 'workspace_save', ...save });
+    return getWorkspace(ctx, project.id);
+  }
+  if (modification && pages.some(({ page }) => modification.base.get(page.id) !== page.version))
+    throw new Error('PITCH_DATA_REFRESH_SCOPE');
   const prepared = await prepareBusinessProject(ctx, generationSchema.parse({
     action: 'generate', projectId: randomUUID(), parentProjectId: project.id, title: project.title,
     scope: { organizationId: project.organization_id, region: project.region, city: project.city, businessLine: project.business_line },
@@ -200,6 +210,7 @@ export async function applyDataRefresh(ctx: PitchContext, command: Extract<Refre
     await pitchRpc(ctx, { action: 'preview_context', projectId: project.id }),
   ).media;
   const next = new Map<string, WorkspaceDetail['slides'][number]>();
+  const bindingContents = new Map<string, SlideContent>();
   const registry = new Map<string, Awaited<ReturnType<typeof studioRegistry>>>();
   for (const { page, capture, content } of pages) {
     const asset = prepared.capturedAssets.find(item => item.contentIndex === capture.content_index);
@@ -212,10 +223,15 @@ export async function applyDataRefresh(ctx: PitchContext, command: Extract<Refre
     const scene = preserveSceneEdits(page.scene, rendered[page.scene.pagination?.index ?? 0]);
     await assertSceneQuality(scene, theme, await loadMedia(ctx, mediaRows, [scene]));
     next.set(page.id, { ...page, content, scene, asset_id: asset.assetId, asset_version: 1 });
+    bindingContents.set(captureKey(asset.assetId, 1), fetched.content[capture.content_index]);
   }
   const settings = { ...document.workspace.page_settings };
   for (const { page, note } of pages) settings[page.id] = { ...settings[page.id], origin: 'data', note };
-  const save = await commitPayload(ctx, document, document.slides.map(page => next.get(page.id) ?? page), settings);
+  const slides = document.slides.map(page => next.get(page.id) ?? page);
+  const save = modification
+    ? await prepareWorkspaceSave(ctx, { ...document, slides, workspace: { ...document.workspace, page_settings: settings } },
+      modification.save, { mediaRows, bindingContents })
+    : await commitPayload(ctx, document, slides, settings);
   await pitchRpc(ctx, {
     action: 'workspace_data_refresh_commit', projectId: project.id, expectedVersion: project.version,
     generation: prepared.input, save,

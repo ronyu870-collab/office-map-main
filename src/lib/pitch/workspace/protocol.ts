@@ -65,11 +65,18 @@ export const saveSchema = z.strictObject({
   activeSlide: id.nullable(),
 });
 export type WorkspaceSave = z.infer<typeof saveSchema>;
+const reviewedDocumentRefreshSchema = z.strictObject({
+  kind: z.literal("reviewed-data"), slideId: id, period: quarterSchema.optional(),
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export type ReviewedDocumentRefresh = z.infer<typeof reviewedDocumentRefreshSchema>;
 const documentModificationSchema = z.strictObject({
   id, projectId: id, expectedVersion: z.number().int().positive(),
   basePageVersions: z.array(z.strictObject({ id, version: z.number().int().positive() })).max(50),
   pages: saveSchema.shape.pages,
-  refresh: z.strictObject({ id, version: z.number().int().positive(), contextFingerprint: z.string().regex(/^[a-f0-9]{64}$/) }).optional(),
+  refresh: z.union([reviewedDocumentRefreshSchema,
+    z.strictObject({ id, version: z.number().int().positive(), contextFingerprint: z.string().regex(/^[a-f0-9]{64}$/) }),
+  ]).optional(),
 });
 const dataRefreshOptions = {
   projectId: id, slideId: id, expectedVersion: z.number().int().positive(), period: quarterSchema.optional(),

@@ -2,7 +2,7 @@ import type { DataBinding, PitchDataSnapshot } from './business/adapter';
 import type { PitchScope, SlideContent, SourceReference } from './contracts/content';
 import type { LayoutId } from './contracts/scene';
 import type { ExportArtifact } from './contracts/entities';
-import type { ProjectContext, WorkspaceHandoffInput, WorkspaceSave } from './workspace/protocol';
+import type { ProjectContext, ReviewedDocumentRefresh, WorkspaceHandoffInput, WorkspaceSave } from './workspace/protocol';
 
 export type ProposalScenario = 'leasing-agency' | 'office-comparison' | 'market-report'
   | 'building-promotion' | 'site-selection' | 'analysis-briefing';
@@ -67,7 +67,7 @@ export type ProposalPlan = {
 export type DocumentModificationPlan = Pick<WorkspaceSave, 'projectId' | 'expectedVersion' | 'pages'> & {
   id: string;
   basePageVersions: { id: string; version: number }[];
-  refresh?: Pick<ProposalPlan, 'id' | 'version' | 'contextFingerprint'>;
+  refresh?: Pick<ProposalPlan, 'id' | 'version' | 'contextFingerprint'> | ReviewedDocumentRefresh;
 };
 
 /** Navigation or an explicit append action. The source ID must be resolved in the active session. */

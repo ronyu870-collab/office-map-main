@@ -177,6 +177,10 @@ export async function handleWorkspaceRequest(
       return reply({ code, error: "该查询缺少可核验的范围或转入参数。" }, 422);
     if (code === "PITCH_DATA_REFRESH_CHANGED")
       return reply({ code, error: "业务数据已更新，请重新核对预览。" }, 409);
+    if (code === "PITCH_DATA_REFRESH_SCOPE")
+      return reply({ code, error: "刷新会影响其他使用同一数据的页面。请核对这些页面后重新提交。" }, 409);
+    if (code === "PITCH_DATA_REFRESH_REVIEW_REQUIRED")
+      return reply({ code, error: "请先预览并核对正式数据的变更，再应用修改。" }, 422);
     if (code === "PITCH_DATA_REFRESH_LAYOUT" || code === "PITCH_DATA_REFRESH_UNAVAILABLE")
       return reply({ code, error: "当前页面无法保留原版式更新数据。原稿已保留。" }, 422);
     if (code === "PITCH_CONFLICT")

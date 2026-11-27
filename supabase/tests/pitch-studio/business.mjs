@@ -363,6 +363,75 @@ try {
    assert.equal(earlierPage.content.dataAsOf,'2026-06-30');
    assert.match(earlierPage.content.subtitle,/面积口径由团队复核/);
  });
+ await check('reviewed rebinding and selected AI edits form one revision and roll back together',async()=>{
+   const workspace=require('../../../src/lib/pitch/workspace/workflow.ts');
+   const {previewDataRefresh}=require('../../../src/lib/pitch/workspace/documentBindings.ts');
+   const {workspaceCommandSchema}=require('../../../src/lib/pitch/workspace/protocol.ts');
+   const part={mode:'dynamic',parameters:{...dynamicFixture,templateId:'building-profile',buildingIds:[BUILDINGS[0]],chart:'table'}};
+   const c=command([{...part,title:'企业楼宇档案'},{...part,title:'楼宇档案附录'}]);
+   await workflow.generateBusinessProject(admin,c);
+   const generated=await workspace.getWorkspace(admin,c.projectId);
+   const start=await workspace.customWorkspace(admin,{action:'custom',projectId:c.projectId,expectedVersion:generated.project.version,
+     title:'无关人工页',body:'这是独立保留的项目说明。'});
+   const projectId=c.projectId,expectedVersion=start.project.version;
+   const anchor=start.slides.find(page=>page.content.blocks.some(block=>block.kind==='table'));
+   const unrelated=start.slides.at(-1);
+   const period={year:2026,quarter:2};
+   const review=await previewDataRefresh(admin,{action:'preview_data_refresh',projectId,expectedVersion,slideId:anchor.id,period});
+   const affected=new Set(review.changes.map(change=>change.slideId));
+   const reviewedPages=start.slides.filter(page=>affected.has(page.id));
+   const methodology=reviewedPages.find(page=>(page.scene.pagination?.count??1)===1&&page.content.blocks.every(block=>block.kind==='paragraph'));
+   assert.ok(review.changed&&reviewedPages.length>1&&methodology);
+   const plan={id:randomUUID(),projectId,expectedVersion,
+     basePageVersions:reviewedPages.map(page=>({id:page.id,version:page.version})),
+     refresh:{kind:'reviewed-data',slideId:anchor.id,period,fingerprint:review.fingerprint},
+     pages:[{id:anchor.id,manualNote:'同一版本保留这条人工备注。'}]};
+   const apply=(changes=plan,ctx=admin)=>workspace.applyDocumentModification(ctx,workspaceCommandSchema.parse({
+     action:'apply_modification',scope:'selected',plan:changes,
+   }));
+   const childCount=async()=>(await db.setup.query('select count(*)::int as count from pitch_projects where parent_project_id=$1',[projectId])).rows[0].count;
+   const children=await childCount();
+   await assert.rejects(apply({...plan,basePageVersions:[{id:anchor.id,version:anchor.version}]}),/PITCH_DATA_REFRESH_SCOPE/);
+   await assert.rejects(apply({...plan,refresh:{...plan.refresh,fingerprint:'0'.repeat(64)}}),/PITCH_DATA_REFRESH_CHANGED/);
+   await assert.rejects(apply(plan,ordinary),/PITCH_DENIED/);
+   const paragraphs=methodology.content.blocks.map(block=>block.text);
+   paragraphs[0]='将业务口径替换为人工输入';
+   await assert.rejects(apply({...plan,pages:[...plan.pages,{id:methodology.id,paragraphs}]}),/PITCH_BOUND_VALUE_EDIT/);
+   assert.equal(await childCount(),children);
+
+   await db.setup.query(`create function private.reject_test_refresh_audit() returns trigger language plpgsql as
+     $$ begin if new.action='workspace_data_refresh_commit' then raise exception 'synthetic audit failure'; end if; return new; end $$;
+     create trigger reject_test_refresh_audit before insert on private.pitch_events
+     for each row execute function private.reject_test_refresh_audit()`);
+   try {
+     await assert.rejects(apply(),/PITCH_UNAVAILABLE/);
+     const afterFailure=await workspace.getWorkspace(admin,projectId);
+     assert.equal(afterFailure.project.version,expectedVersion);
+     assert.deepEqual(afterFailure.slides,start.slides);
+     assert.equal(await childCount(),children);
+   } finally {
+     await db.setup.query('drop trigger reject_test_refresh_audit on private.pitch_events; drop function private.reject_test_refresh_audit()');
+   }
+
+   const updated=await apply();
+   assert.equal(updated.project.version,expectedVersion+1);
+   assert.equal(await childCount(),children+1);
+   const changed=updated.slides.find(page=>page.id===anchor.id);
+   assert.equal(changed.content.dataAsOf,'2026-06-30');
+   assert.match(changed.content.subtitle,/同一版本保留这条人工备注/);
+   assert.notDeepEqual(changed.content.blocks,anchor.content.blocks);
+   assert.deepEqual(updated.slides.at(-1).content,unrelated.content);
+   assert.deepEqual(updated.slides.at(-1).scene,unrelated.scene);
+   await assert.rejects(apply(),/PITCH_CONFLICT/);
+   const sameFacts=await previewDataRefresh(admin,{action:'preview_data_refresh',projectId,expectedVersion:updated.project.version,slideId:anchor.id,period});
+   assert.equal(sameFacts.changed,false);
+   const withNote=await apply({...plan,expectedVersion:updated.project.version,basePageVersions:[{id:changed.id,version:changed.version}],
+     refresh:{...plan.refresh,fingerprint:sameFacts.fingerprint},pages:[{id:changed.id,manualNote:'仅更新人工备注。'}]});
+   assert.deepEqual(withNote.slides.find(page=>page.id===anchor.id).content.blocks,changed.content.blocks);
+   assert.equal(await childCount(),children+1);
+   const restored=await workspace.restoreWorkspace(admin,{action:'restore',projectId,expectedVersion:withNote.project.version,revision:expectedVersion});
+   assert.deepEqual(restored.slides.map(page=>page.content),start.slides.map(page=>page.content));
+ });
  await check('AI chart presentation changes retain bound values, refresh the series, and export the selected native chart',async()=>{
    const workspace=require('../../../src/lib/pitch/workspace/workflow.ts');
    const bindings=require('../../../src/lib/pitch/workspace/documentBindings.ts');

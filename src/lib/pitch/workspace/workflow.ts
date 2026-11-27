@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { slideContentSchema, type SlideContent } from "../contracts/content";
 import { type LayoutId } from "../contracts/scene";
-import { pitchRpc, digest, type PitchContext } from "../data/store";
+import { pitchRpc, digest, mediaRowSchema, type PitchContext } from "../data/store";
 import { loadMedia, studioRegistry } from "../data/renderWorkflow";
 import { layoutSlides, sceneSourceLine } from "../layout/engine";
 import { numberDeckPages } from "../layout/pagination";
@@ -99,6 +99,16 @@ export async function saveWorkspace(ctx: PitchContext, command: WorkspaceSave) {
   return saveCurrentWorkspace(ctx, current, command);
 }
 async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail, command: WorkspaceSave) {
+  const save = await prepareWorkspaceSave(ctx, current, command);
+  await pitchRpc(ctx, { action: "workspace_save", ...save });
+  return getWorkspace(ctx, command.projectId);
+}
+export async function prepareWorkspaceSave(
+  ctx: PitchContext,
+  current: WorkspaceDetail,
+  command: WorkspaceSave,
+  prepared?: { mediaRows: z.infer<typeof mediaRowSchema>[]; bindingContents: ReadonlyMap<string, SlideContent> },
+) {
   checkVersion(current, command.expectedVersion);
   if (new Set(command.pages.map((p) => p.id)).size !== command.pages.length)
     throw new Error("PITCH_INVALID");
@@ -107,14 +117,14 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
   ).theme.definition;
   const pages: Page[] = [],
     settings: Settings = { ...current.workspace.page_settings };
-  const mediaContext = z
-    .object({ media: z.array((await import("../data/store")).mediaRowSchema) })
+  const media = prepared ? [...prepared.mediaRows] : z
+    .object({ media: z.array(mediaRowSchema) })
     .parse(
       await pitchRpc(ctx, {
         action: "preview_context",
         projectId: command.projectId,
       }),
-    );
+    ).media;
   const bindings = command.pages.some(edit => edit.paragraphs || edit.objectTexts)
     ? await readBindings(ctx, command.projectId, command.expectedVersion) : undefined;
   for (const edit of command.pages) {
@@ -130,10 +140,10 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
     const historicalStacking = stackingHandoffPartSchema.safeParse(prior.part).success;
     if (historicalStacking && edit.images) throw new Error("PITCH_BOUND_VALUE_EDIT");
     const assetKey = captureKey(original.asset_id, original.asset_version);
-    const binding = bindings?.captures.get(assetKey);
+    const boundContent = prepared?.bindingContents.get(assetKey) ?? bindings?.captures.get(assetKey)?.content;
     const receipts = bindings?.receipts.get(assetKey);
     const isBound = (block: SlideContent['blocks'][number]) =>
-      Boolean(binding && usesBusinessEvidence(block, binding.content)) || blockQueryReceipts(block, receipts).length > 0;
+      Boolean(boundContent && usesBusinessEvidence(block, boundContent)) || blockQueryReceipts(block, receipts).length > 0;
     const changedParagraphs = new Set<number>();
     const noteChanged = edit.manualNote !== undefined && (edit.manualNote ?? undefined) !== prior.note?.text;
     let note = prior.note;
@@ -188,8 +198,8 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
         };
       });
       for (const image of edit.images) {
-        mediaContext.media.push(
-          (await import("../data/store")).mediaRowSchema.parse(
+        media.push(
+          mediaRowSchema.parse(
             await pitchRpc(ctx, {
               action: "library_media_file",
               mediaId: image.id,
@@ -222,7 +232,7 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
     if ((objectEdit && (relayoutRequested || edit.resetObjectLayout)) ||
       (relayoutRequested && hasObjectLayout && !edit.resetObjectLayout))
       throw new Error("PITCH_OBJECT_LAYOUT_RESET_REQUIRED");
-    const textChange = edit.objectTexts ? applyObjectTexts(original.scene, content, edit.objectTexts, prior.origin !== "data" || Boolean(binding)) : null;
+    const textChange = edit.objectTexts ? applyObjectTexts(original.scene, content, edit.objectTexts, prior.origin !== "data" || Boolean(boundContent)) : null;
     if (textChange && [...textChange.changedBlocks].some(index => isBound(original.content.blocks[index])))
       throw new Error("PITCH_BOUND_VALUE_EDIT");
     if (textChange) content = textChange.content;
@@ -276,8 +286,8 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
           throw new Error("PITCH_THEME_REPAGINATION");
         scenes = [scenes[original.scene.pagination!.index]];
       }
-      const media = await loadMedia(ctx, mediaContext.media, scenes);
-      for (const scene of scenes) await assertSceneQuality(scene, theme, media);
+      const sceneMedia = await loadMedia(ctx, media, scenes);
+      for (const scene of scenes) await assertSceneQuality(scene, theme, sceneMedia);
     }
     if (objectEdit) {
       let textScene = original.scene;
@@ -296,8 +306,8 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
       const positioned = edit.objectMoves ? applyObjectMoves(textScene, edit.objectMoves) : textScene;
       const ordered = edit.objectOrder ? applyObjectOrder(positioned, edit.objectOrder) : positioned;
       const scene = edit.objectGroups ? applyObjectGroups(ordered, edit.objectGroups) : ordered;
-      const media = await loadMedia(ctx, mediaContext.media, [scene]);
-      await assertSceneQuality(scene, theme, media);
+      const sceneMedia = await loadMedia(ctx, media, [scene]);
+      await assertSceneQuality(scene, theme, sceneMedia);
       scenes = [scene];
     }
     for (const [index, scene] of scenes.entries()) {
@@ -317,18 +327,14 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
       };
     }
   }
-  await pitchRpc(ctx, {
-    action: "workspace_save",
-    ...(await commitPayload(ctx, current, pages, settings, command)),
-  });
-  return getWorkspace(ctx, command.projectId);
+  return commitPayload(ctx, current, pages, settings, command);
 }
 export async function applyDocumentModification(
   ctx: PitchContext,
   command: Extract<WorkspaceCommand, { action: "apply_modification" }>,
 ) {
   const plan: DocumentModificationPlan = command.plan;
-  if (plan.refresh) throw new Error("PITCH_DATA_REFRESH_REVIEW_REQUIRED");
+  if (plan.refresh && !("kind" in plan.refresh)) throw new Error("PITCH_DATA_REFRESH_REVIEW_REQUIRED");
   const current = await getWorkspace(ctx, plan.projectId);
   checkVersion(current, plan.expectedVersion);
   const live = new Map(current.slides.map(page => [page.id, page.version]));
@@ -344,7 +350,7 @@ export async function applyDocumentModification(
   if (command.scope === "selected" && plan.pages.some(page => page.duplicateOf || !live.has(page.id)))
     throw new Error("PITCH_INVALID");
   const pages = command.scope === "document" ? plan.pages : current.slides.map(page => edit.get(page.id) ?? { id: page.id });
-  return saveCurrentWorkspace(ctx, current, {
+  const save: WorkspaceSave = {
     action: "save",
     projectId: plan.projectId,
     expectedVersion: plan.expectedVersion,
@@ -354,7 +360,16 @@ export async function applyDocumentModification(
     context: current.workspace.context,
     activeSlide: current.workspace.active_slide,
     pages,
-  });
+  };
+  if (plan.refresh) {
+    const { slideId, period, fingerprint } = plan.refresh;
+    if (!base.has(slideId) || !pages.some(page => page.id === slideId))
+      throw new Error("PITCH_DATA_REFRESH_SCOPE");
+    const { applyDataRefresh } = await import("./documentBindings");
+    return applyDataRefresh(ctx, { action: "apply_data_refresh", projectId: plan.projectId,
+      expectedVersion: plan.expectedVersion, slideId, period, fingerprint }, { current, save, base });
+  }
+  return saveCurrentWorkspace(ctx, current, save);
 }
 function editableCanvasPage(current: WorkspaceDetail, slideId: string) {
   const page = current.slides.find(candidate => candidate.id === slideId);
