@@ -824,11 +824,19 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           result.explicitTheme = requestedTheme;
 
           result.stage = "replacing a canvas photo directly";
+          await page.goto(app + "/intelligence/pitch?project=" + encodeURIComponent(styledId));
           await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
           const pinned = styled.slides[0].content.sources.find(source => source.visual?.kind === "photo").visual;
           const imageIndex = styled.slides[0].scene.elements.findIndex(item => item.kind === "image" && item.mediaAssetId === pinned.id);
           assert.ok(imageIndex >= 0);
-          await button("调整画布对象").click();
+          const [editorPreview] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch", "preview", response => {
+              const request = response.request().postDataJSON();
+              return request.projectId === styledId && request.editorSlideId === styled.slides[0].id;
+            }),
+            button("调整画布对象").click(),
+          ]);
+          assert.ok(editorPreview.ok(), `canvas preview HTTP ${editorPreview.status()} on the saved project`);
           const canvas = page.getByRole("region", { name: "画布对象编辑" });
           await canvas.getByRole("button", { name: new RegExp(`^对象 ${imageIndex + 1}：`) }).focus();
           const [canvasReviewHttp] = await Promise.all([
