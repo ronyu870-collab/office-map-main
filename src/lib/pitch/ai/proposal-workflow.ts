@@ -1,11 +1,13 @@
 import { stableId } from "../library/extract";
 import type { DocumentModificationPlan } from "../integration-contracts";
 import type { WorkspaceSave } from "../workspace/protocol";
+import type { PitchContext } from "../data/store";
 import type { ConfirmedProposal } from "./proposal-brief";
 import type { ProposalGenerationLease } from "./proposal-generation-lease";
 import { directProposal, type ProposalDirectorPorts, type ProposalPlanningResult } from "./proposal-director";
 import { readProposalEdit, type ProposalEditIntent, type ProposalRevisionRequest } from "./proposal-edit-intent";
 import type { ProposalModel } from "./proposal-interpretation";
+import { openProposalInterpretation } from "./proposal-interpretation-receipt";
 
 
 export type ReviewedProposal = Extract<ProposalPlanningResult, { status: "ready" }>;
@@ -33,11 +35,13 @@ export function assertProposalConfirmation(input: ConfirmedProposal, signal: Abo
 }
 
 export async function reviewConfirmedProposal(input: ConfirmedProposal, director: ProposalDirectorPorts,
-  signal: AbortSignal, model?: ProposalModelProvider): Promise<ReviewedProposal> {
+  signal: AbortSignal, model?: ProposalModelProvider, identity?: PitchContext["identity"]): Promise<ReviewedProposal> {
   assertProposalConfirmation(input, signal);
-  const allowedModel = typeof model === "function" ? await model() : model;
+  const slots = input.interpretationReceipt && identity ? openProposalInterpretation(identity, input) : undefined;
+  if (input.interpretationReceipt && !slots) throw new Error("PITCH_PROPOSAL_REVIEW_REQUIRED");
+  const allowedModel = slots ? undefined : typeof model === "function" ? await model() : model;
   signal.throwIfAborted();
-  const proposal = await directProposal(input.request, director, signal, allowedModel);
+  const proposal = await directProposal(input.request, director, signal, allowedModel, slots);
   signal.throwIfAborted();
   if (proposal.status !== "ready" || proposal.plan.id !== input.planId || proposal.plan.contextFingerprint !== input.contextFingerprint) {
     throw new Error("PITCH_PROPOSAL_REVIEW_REQUIRED");
@@ -47,13 +51,13 @@ export async function reviewConfirmedProposal(input: ConfirmedProposal, director
 
 export async function submitConfirmedProposal(
   input: ConfirmedProposal, director: ProposalDirectorPorts, workflow: ProposalGenerationPort,
-  signal: AbortSignal, model?: ProposalModelProvider,
+  signal: AbortSignal, model?: ProposalModelProvider, identity?: PitchContext["identity"],
 ) {
   assertProposalConfirmation(input, signal);
   const existing = await workflow.find(input, signal);
   signal.throwIfAborted();
   if (existing) return existing;
-  const proposal = await reviewConfirmedProposal(input, director, signal, model);
+  const proposal = await reviewConfirmedProposal(input, director, signal, model, identity);
   return workflow.enqueue(input, proposal, signal);
 }
 

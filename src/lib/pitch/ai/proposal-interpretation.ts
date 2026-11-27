@@ -4,7 +4,7 @@ import { externalModelForbidden } from "@/src/lib/intelligence/agent/modelContex
 import { ModelProviderError } from "@/src/lib/intelligence/agent/modelProvider";
 import {
   mergeProposalInterpretation, normalizeProposalQuestion, proposalScenarios, proposalStyles,
-  readProposalBrief, type ProposalRequest, type ProposalBrief,
+  proposalInterpretationSchema, readProposalBrief, type ProposalRequest, type ProposalBrief, type ProposalInterpretation,
 } from "./proposal-brief";
 
 export type ProposalModel = {
@@ -14,20 +14,28 @@ export type ProposalModel = {
   invoke: (messages: AgentMessage[], signal: AbortSignal) => Promise<AgentCompletion>;
 };
 
-type ModelStatus = "deterministic" | "interpreted" | "cached" | "unavailable" | "pending" | "timeout" | "invalid";
-type Interpretation = { brief: ProposalBrief; modelCalls: 0 | 1; modelStatus: ModelStatus };
+type ModelStatus = "deterministic" | "interpreted" | "cached" | "reviewed" | "unavailable" | "pending" | "timeout" | "invalid";
+type Interpretation = { brief: ProposalBrief; modelCalls: 0 | 1; modelStatus: ModelStatus; acceptedSlots?: ProposalInterpretation };
 const CACHE_ENTRIES = 96;
 const CACHE_TTL_MS = 5 * 60_000;
 const MODEL_TIMEOUT_MS = 8_000;
 const MAX_RESPONSE_BYTES = 8_192;
 
 export function createProposalInterpreter({ timeoutMs = MODEL_TIMEOUT_MS } = {}) {
-  const cache = new Map<string, { expiry: number; slots: unknown }>();
+  const cache = new Map<string, { expiry: number; slots: ProposalInterpretation }>();
   const inFlight = new Set<string>();
 
-  async function interpret(input: ProposalRequest, signal: AbortSignal, model?: ProposalModel): Promise<Interpretation> {
+  async function interpret(input: ProposalRequest, signal: AbortSignal, model?: ProposalModel,
+    reviewed?: ProposalInterpretation): Promise<Interpretation> {
     signal.throwIfAborted();
     const brief = readProposalBrief(input);
+    const question = normalizeProposalQuestion(input.question);
+    if (reviewed) {
+      const merged = brief.requiresInterpretation && !brief.periodConflict && !externalModelForbidden(input.question)
+        && mergeProposalInterpretation(brief, question, reviewed);
+      if (!merged) throw new Error("PITCH_PROPOSAL_REVIEW_REQUIRED");
+      return { brief: merged, modelCalls: 0, modelStatus: "reviewed" };
+    }
     if (!brief.requiresInterpretation || brief.periodConflict || externalModelForbidden(input.question)) {
       return { brief, modelCalls: 0, modelStatus: "deterministic" };
     }
@@ -36,12 +44,11 @@ export function createProposalInterpreter({ timeoutMs = MODEL_TIMEOUT_MS } = {})
     const modelSignal = AbortSignal.any([signal, bounds]);
     // Hash only the request and account/config binding. Only accepted intent slots
     // are cached. Every resumed run re-resolves identities and re-queries evidence.
-    const question = normalizeProposalQuestion(input.question);
     const key = createHash("sha256").update(JSON.stringify(["proposal-interpretation/1", model.cacheScope, question])).digest("hex");
     const hit = cache.get(key);
     if (hit) {
       const merged = hit.expiry > Date.now() ? mergeProposalInterpretation(brief, question, hit.slots) : null;
-      if (merged) return { brief: merged, modelCalls: 0, modelStatus: "cached" };
+      if (merged) return { brief: merged, modelCalls: 0, modelStatus: "cached", acceptedSlots: hit.slots };
       cache.delete(key);
     }
 
@@ -81,9 +88,9 @@ export function createProposalInterpreter({ timeoutMs = MODEL_TIMEOUT_MS } = {})
       return { brief, modelCalls: 1, modelStatus: "invalid" };
     }
 
-    let slots: unknown;
+    let slots: ProposalInterpretation;
     try {
-      slots = JSON.parse(result.message.content);
+      slots = proposalInterpretationSchema.parse(JSON.parse(result.message.content));
     } catch {
       return { brief, modelCalls: 1, modelStatus: "invalid" };
     }
@@ -91,7 +98,7 @@ export function createProposalInterpreter({ timeoutMs = MODEL_TIMEOUT_MS } = {})
     if (!merged) return { brief, modelCalls: 1, modelStatus: "invalid" };
     if (cache.size >= CACHE_ENTRIES) cache.delete(cache.keys().next().value!);
     cache.set(key, { expiry: Date.now() + CACHE_TTL_MS, slots });
-    return { brief: merged, modelCalls: 1, modelStatus: "interpreted" };
+    return { brief: merged, modelCalls: 1, modelStatus: "interpreted", acceptedSlots: slots };
   }
 
   return interpret;

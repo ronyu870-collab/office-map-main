@@ -14,6 +14,7 @@ import { getWorkspace } from "../workspace/workflow";
 import type { ProposalRequest } from "./proposal-brief";
 import { directProposal, type ComposedProposalPage, type ProposalComposerInput, type ProposalDirectorPorts } from "./proposal-director";
 import type { ProposalModel } from "./proposal-interpretation";
+import { sealProposalInterpretation } from "./proposal-interpretation-receipt";
 import { missingProposalTheme, requestedProposalTheme } from "./proposal-theme";
 
 const grantSchema = scopeSchema.extend({ canGenerate: z.boolean(), canClientExport: z.boolean(), canExternalAi: z.boolean() }).strip();
@@ -185,9 +186,12 @@ export async function prepareProposal(ctx: PitchContext, input: ProposalRequest,
   ports = createProposalDirectorPorts(ctx)) {
   const result = await directProposal(input, ports, ctx.signal, model);
   if (result.status !== "ready") return result;
+  const interpretationReceipt = result.acceptedSlots
+    ? sealProposalInterpretation(ctx.identity, input, result.plan, result.acceptedSlots) : undefined;
   return {
     status: result.status, plan: result.plan, brief: result.snapshot.brief, selection: result.selection,
     modelCalls: result.modelCalls, modelStatus: result.modelStatus,
+    ...(interpretationReceipt ? { interpretationReceipt } : {}),
     ...(result.snapshot.brief.scenario === "analysis-briefing" ? { generationAvailable: !!result.generation?.length } : {}),
   };
 }

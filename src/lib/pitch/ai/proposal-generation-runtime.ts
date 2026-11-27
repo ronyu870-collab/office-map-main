@@ -56,5 +56,6 @@ export async function generateConfirmedProposal(ctx: PitchContext, input: Confir
   };
   // Obtain a model permit only after a completed receipt lookup. Expired plans
   // are replanned under current source permissions before any new generation.
-  return submitConfirmedProposal(input, createProposalDirectorPorts(ctx), workflow, ctx.signal, () => authorizedProposalModel(ctx, input.request));
+  return submitConfirmedProposal(input, createProposalDirectorPorts(ctx), workflow, ctx.signal,
+    () => authorizedProposalModel(ctx, input.request), ctx.identity);
 }

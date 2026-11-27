@@ -81,7 +81,7 @@ it("uses the registered lease through the normal AI route and prepares the exact
   request.abort();
   await drain();
   expect(fixtures.model).toHaveBeenCalledOnce();
-  expect(fixtures.direct).toHaveBeenCalledWith(confirmation.request, director, expect.any(AbortSignal), undefined);
+  expect(fixtures.direct).toHaveBeenCalledWith(confirmation.request, director, expect.any(AbortSignal), undefined, undefined);
   expect(assemble).toHaveBeenCalledOnce();
   expect(lease.prepare).toHaveBeenCalledWith(expect.anything(), confirmation, expect.objectContaining({ plan }), generatedId);
   expect(verifySources).toHaveBeenCalledOnce();

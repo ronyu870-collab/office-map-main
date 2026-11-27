@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import JSZip from "jszip";
 import { describe, expect, it, vi } from "vitest";
-import type { PitchDependencies } from "../data/store";
+import type { PitchContext, PitchDependencies } from "../data/store";
 import { STUDIO_THEME } from "../design/theme";
 import { layoutSlides } from "../layout/engine";
 import { renderPitchPptx } from "../render/pptx";
@@ -10,13 +10,20 @@ import { composeRecipePages } from "./proposal-recipe";
 import { directProposal, type ComposedProposalPage, type ProposalDirectorPorts } from "./proposal-director";
 import { handleAiRequest } from "./http";
 import { proposalRequestSchema, type ConfirmedProposal } from "./proposal-brief";
+import { proposalGeneratedProjectId, type ProposalGenerationLease } from "./proposal-generation-lease";
+import type { ProposalModel } from "./proposal-interpretation";
 import { proposalRevisionRequestSchema } from "./proposal-edit-intent";
 import { previewProposalRevision, submitConfirmedProposal, type ProposalRevisionPort, type ReviewedProposal } from "./proposal-workflow";
 
+const modelAuthorization = vi.hoisted(() => vi.fn<() => Promise<ProposalModel | undefined>>());
 vi.mock("../data/store", async original => ({ ...await original<typeof import("../data/store")>(),
-  authorizePitch: async (incoming: Request) => ({ signal: incoming.signal }),
+  authorizePitch: async (incoming: Request) => ({ signal: incoming.signal, identity: {
+    actorId: projectId, effectiveUserId: projectId, sessionId: incoming.headers.get("x-test-session") ?? taskId,
+    expiresAt: Date.now() + 60 * 60_000,
+  } }),
 }));
-vi.mock("./proposal-model", () => ({ authorizedProposalModel: async () => undefined }));
+vi.mock("./proposal-model", () => ({ authorizedProposalModel: modelAuthorization }));
+vi.mock("@/src/lib/intelligence/query/http", () => ({ queryHttpDependencies: () => ({ keys: { digestKey: Buffer.alloc(32, 7) } }) }));
 
 const projectId = "10000000-0000-4000-8000-000000000123";
 const taskId = "10000000-0000-4000-8000-000000000124";
@@ -83,6 +90,70 @@ function recipePorts(scenario: "leasing-agency" | "office-comparison" | "market-
 }
 
 describe("Proposal Director review and generation", () => {
+  it.each([projectId, undefined])("replays a reviewed brief in the leased worker and rechecks formal evidence (initial project %s)", async initialProject => {
+    const director = recipePorts("market-report");
+    const periods = vi.spyOn(director, "periods");
+    const invoke = vi.fn<ProposalModel["invoke"]>().mockResolvedValue({ provider: "deepseek", model: "fixture", message: { role: "assistant",
+      content: JSON.stringify({ scenario: "market-report", priorities: ["market-trend"] }) }, inputTokens: 10, outputTokens: 10 });
+    modelAuthorization.mockResolvedValueOnce({ cacheScope: { actorId: projectId, sessionId: taskId,
+      configurationVersion: `review-fixture/${initialProject ?? "landing"}` }, invoke });
+    const queue: (() => Promise<void>)[] = [];
+    const stored = new Map<string, string>();
+    const evidence = vi.fn();
+    const lease = {
+      lookup: async () => null,
+      start: async (_ctx: PitchContext, input: ConfirmedProposal) => {
+        stored.set(input.taskId, JSON.stringify(input));
+        return { taskId: input.taskId, state: "queued" as const };
+      },
+      run: async (worker, _parent, task, prepare) => {
+        const input = JSON.parse(stored.get(task)!);
+        await prepare(worker, input, proposalGeneratedProjectId(worker, input), async () => undefined);
+      },
+      prepare: async (_ctx, input, reviewed, id) => {
+        evidence(reviewed);
+        return { action: "business_generate_commit", projectId: id, parentProjectId: input.projectId,
+          expectedParentVersion: input.expectedVersion, reviewedPlanId: input.planId };
+      },
+      verifyCompletion: async () => undefined,
+    } satisfies ProposalGenerationLease;
+    const call = (payload: object, session = taskId) => handleAiRequest(new Request("https://pitch.test/api/intelligence/pitch/ai", {
+      method: "POST", headers: { "content-type": "application/json", origin: "https://pitch.test", "x-test-session": session },
+      body: JSON.stringify(payload),
+    }), { enabled: true } as PitchDependencies, work => queue.push(work), undefined, () => ({ director, lease }));
+    const input = request("请按北京最新正式季度综合权衡市场走势，准备投资委员会决策材料");
+    const reviewed = await (await call({ action: "proposal_plan", input: { ...input, projectId: initialProject } })).json();
+    expect(reviewed).toMatchObject({ status: "ready", modelCalls: 1, interpretationReceipt: expect.any(String) });
+    expect(reviewed).not.toHaveProperty("acceptedSlots");
+    const confirmation = { projectId, taskId, expectedVersion: 1, request: input, planId: reviewed.plan.id,
+      contextFingerprint: reviewed.plan.contextFingerprint, interpretationReceipt: reviewed.interpretationReceipt };
+    const submit = (value = confirmation, session?: string) => call({ action: "proposal_generate", confirmation: value }, session);
+    expect((await submit(confirmation, randomUUID())).status).toBe(409);
+    expect((await submit({ ...confirmation, request: { ...input, audience: "client" } })).status).toBe(409);
+    const [payload, signature] = confirmation.interpretationReceipt.split(".");
+    const tampered = (signature.startsWith("A") ? "B" : "A") + signature.slice(1);
+    expect((await submit({ ...confirmation, interpretationReceipt: `${payload}.${tampered}` })).status).toBe(409);
+    const advanced = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31 * 60_000);
+    try {
+      expect((await submit()).status).toBe(409);
+    } finally {
+      advanced.mockRestore();
+    }
+    expect(stored.size).toBe(0);
+
+    modelAuthorization.mockImplementationOnce(async () => { throw new Error("unexpected planning in worker"); });
+    expect((await submit()).status).toBe(200);
+    await queue.shift()!();
+    expect(evidence).toHaveBeenCalledWith(expect.objectContaining({ plan: reviewed.plan, modelCalls: 0, modelStatus: "reviewed" }));
+    expect(periods).toHaveBeenCalledTimes(2);
+    periods.mockResolvedValue([{ period: "2026-Q3", status: "formal" }]);
+    expect((await submit({ ...confirmation, taskId: randomUUID() })).status).toBe(200);
+    await expect(queue.shift()!()).rejects.toThrow("PITCH_PROPOSAL_REVIEW_REQUIRED");
+    expect(evidence).toHaveBeenCalledOnce();
+    expect(invoke).toHaveBeenCalledOnce();
+    modelAuthorization.mockReset();
+  });
+
   it.each([
     ["为霄云路33号制作招商代理提案", "leasing-agency", "rent-position"],
     ["比较CBD五栋甲级写字楼", "office-comparison", "parameters"],
