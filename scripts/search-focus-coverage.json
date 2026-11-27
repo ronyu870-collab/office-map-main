@@ -594,6 +594,16 @@
     ]
   },
   {
+    "id": "pitch-workspace-image-replacement",
+    "roots": [
+      "src/components/pitch/workspace/ImageReplacement.tsx"
+    ],
+    "file": "src/components/pitch/workspace/ImageReplacement.focus.test.tsx",
+    "cases": [
+      "keeps the published image search focused and ignores stale replies before selecting a version"
+    ]
+  },
+  {
     "id": "pitch-ai-assist",
     "roots": [
       "src/components/pitch/workspace/AiAssist.tsx"
