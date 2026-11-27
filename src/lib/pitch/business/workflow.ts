@@ -18,6 +18,7 @@ import { assertBusinessScope, buildBusinessPages, caseDisplay, validateBusinessP
 import { runPitchDataAdapter, type PitchDataSnapshot } from './adapter';
 import { reviewedBuildingData } from './outline-data';
 import { readVisualGenerationPage } from '../visual-data/generation';
+import { layoutAuthorizedPhotoPage } from '../visual-data/photo-pages';
 import { fitResolvedVisualImages, getVisualPageReceipts, resolveReferencedVisualMedia } from '../visual-data/resolve';
 const hash=(v:unknown)=>digest(new TextEncoder().encode(JSON.stringify(v)));
 const storedSchema=z.object({asset:z.object({id:z.uuid(),current_version:z.number(),organization_id:z.string(),region:z.string(),city:z.string(),business_line:z.string()}).passthrough(),version:z.object({content:slideContentSchema}),profile:businessProfileSchema,media:z.array(mediaRowSchema)});
@@ -98,12 +99,28 @@ export async function generateBusinessProject(ctx:PitchContext,command:Generatio
   }
   const slides=[],generated=[];const changes:{group:number;reason:string}[]=[];
   for(const [group,page]of groups.entries()) {
-    const content=slideContentSchema.parse(page.content),assetId=randomUUID();
-    let parts;
-    try{await layoutSlides(content,theme,page.layoutId,page.variant);parts=[page];}
-    catch(error){if(!(error instanceof LayoutError)||PATTERN_BY_ID.has(page.layoutId))throw error;parts=await normalizationPlan(content,theme);changes.push({group,reason:error.code});}
-    generated.push({id:assetId,content,sha256:hash(content)});
-    for(const part of parts)for(const scene of await layoutSlides(part.content,theme,part.layoutId,part.variant))slides.push({slideId:randomUUID(),assetId,assetVersion:1,content:part.content,scene,theme});
+    const content = slideContentSchema.parse(page.content);
+    let parts: Awaited<ReturnType<typeof layoutAuthorizedPhotoPage>>;
+    let normalized = false;
+    try {
+      parts = await layoutAuthorizedPhotoPage(content, theme, page.layoutId, page.variant);
+      if (parts.length > 1) changes.push({ group, reason: 'PITCH_TEXT_CAPACITY' });
+    } catch (error) {
+      if (!(error instanceof LayoutError) || PATTERN_BY_ID.has(page.layoutId)) throw error;
+      parts = [];
+      for (const part of await normalizationPlan(content, theme)) {
+        parts.push({ content: part.content, scenes: await layoutSlides(part.content, theme, part.layoutId, part.variant) });
+      }
+      normalized = true;
+      changes.push({ group, reason: error.code });
+    }
+    const assetId = randomUUID();
+    if (normalized) generated.push({ id: assetId, content, sha256: hash(content) });
+    for (const [index, part] of parts.entries()) {
+      const id = normalized || index === 0 ? assetId : randomUUID();
+      if (!normalized) generated.push({ id, content: part.content, sha256: hash(part.content) });
+      for (const scene of part.scenes) slides.push({ slideId: randomUUID(), assetId: id, assetVersion: 1, content: part.content, scene, theme });
+    }
     if(slides.length>50)throw new DocumentError('PITCH_PAGE_LIMIT','本次生成超过 50 页，请拆为多个 Pitch；未静默删减内容。');
   }
   const referencedImages = sceneMediaReferences(slides.map(p=>p.scene));
