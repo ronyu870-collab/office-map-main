@@ -8,6 +8,7 @@ import { renderResultCopy } from '@/src/lib/intelligence/query/resultOutput';
 const client = vi.hoisted(() => ({ copy: vi.fn() }));
 vi.mock('@/src/services/trustedQueryClient', () => ({ trustedQueryClient: client }));
 import { HomeQueryResultActions } from '../HomeQueryResultActions';
+import { PitchHandoffProvider, readPitchHandoff } from '@/src/components/pitch/PitchHandoffLink';
 
 const scope = { actorId: 'one', effectiveId: 'one', sessionId: 'session', targetId: null };
 const requestId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -22,6 +23,20 @@ describe('P2 compact research result actions', () => {
   });
   afterEach(cleanup);
   const open = (internalExport = true) => render(<HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport} />);
+  it('carries the result period into Pitch and omits unsupported multi-quarter comparisons', () => {
+    const workspace = (value: typeof result) => <PitchHandoffProvider enabled>
+      <HomeQueryResultActions result={value} requestId={requestId} scope={scope} internalExport />
+    </PitchHandoffProvider>;
+    const view = render(workspace(result));
+    fireEvent.click(screen.getByText('更多操作'));
+    const link = screen.getByRole('link', { name: '将分析结果加入 Pitch' });
+    expect(readPitchHandoff(new URL(link.getAttribute('href')!, window.location.origin).hash)).toEqual({
+      source: { kind: 'analysis-result', id: requestId }, period: '2026-Q3',
+    });
+    view.rerender(workspace({ ...result, operation: 'compare',
+      parameters: { base: { year: 2026, quarter: 2 }, current: { year: 2026, quarter: 3 } } }));
+    expect(screen.queryByRole('link', { name: '将分析结果加入 Pitch' })).not.toBeInTheDocument();
+  });
   it('T08 copies only after backend approval, with period, unit and sample context', async () => {
     open(); fireEvent.click(screen.getByRole('button', { name: '复制结论' }));
     await waitFor(() => expect(clipboard).toHaveBeenCalledOnce());
