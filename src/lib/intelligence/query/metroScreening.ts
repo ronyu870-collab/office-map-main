@@ -23,6 +23,7 @@ const screeningSchema = z.strictObject({
   matchedCount: z.number().int().nonnegative(),
   candidates: z.array(z.strictObject({ buildingId: z.uuid(), locationVersion: digest,
     stationId: z.string().min(1).max(100), stationName: z.string().min(1).max(35), stationLine: z.string().min(1).max(80),
+    stationCenter: z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]).readonly(),
     meters: z.number().int().nonnegative() })).min(1).max(20),
 });
 export type MetroScreening = z.infer<typeof screeningSchema>;
@@ -98,7 +99,7 @@ export async function screenMetroCandidates(client: SupabaseClient, actor: Verif
       }
     }
     if (closest && distance <= request.radiusMeters) candidates.push({ buildingId, locationVersion: hash(point),
-      stationId: closest.id, stationName: closest.name, stationLine: closest.line, meters: Math.round(distance) });
+      stationId: closest.id, stationName: closest.name, stationLine: closest.line, stationCenter: closest.center, meters: Math.round(distance) });
   }
   const missingCoordinates = ids.length - locations.size;
   if (!candidates.length) return `在 ${locations.size} 栋有坐标的获权楼宇中，未找到距${request.stationName ? `「${request.stationName}」站` : '目录地铁站'}直线 ${request.radiusMeters} 米以内的楼宇。另有 ${missingCoordinates} 栋缺少有效坐标，实际步行路线待核验。`;
@@ -122,7 +123,8 @@ export function attachMetroScreening(result: QueryResult, screen: MetroScreening
       field: metroSource.locationField, recordVersion: item.locationVersion, rawValue: null, unit: 'coordinate', period: null,
       recordedAt: null, businessAsOf: null, verification: 'database_only', original: null });
     sources.set(transitId, { id: transitId, table: metroSource.table, recordId: item.stationId, entityId: item.stationId,
-      field: 'center', recordVersion: screen.datasetVersion, rawValue: `${stationLabel(item.stationName)} · ${item.stationLine}`, unit: 'coordinate', period: null,
+      field: 'center', recordVersion: screen.datasetVersion,
+      rawValue: `${stationLabel(item.stationName)} · ${item.stationLine} · ${item.stationCenter.join(', ')}`, unit: 'coordinate', period: null,
       recordedAt: screen.generatedAt, businessAsOf: null, verification: 'historical', original: null });
     const distance: ResultCell = { kind: 'number', value: { numeric: item.meters, exact: { numerator: String(item.meters), denominator: '1' } },
       sourceIds: [coordinateId, transitId] };
@@ -143,7 +145,7 @@ export function metroScreeningBindings(parameters: Readonly<Record<string, unkno
   return parameters.metroScreening === undefined ? [] : [screeningSchema.parse(parameters.metroScreening)];
 }
 
-/** Coordinates never travel in the archive. Re-read the authorized row's location
+/** Private building coordinates stay out of the archive. Re-read the row's location
  * fingerprint and keep the corresponding catalog identity in the existing ACL. */
 export async function recheckMetroSources(client: SupabaseClient, signal: AbortSignal, sources: readonly SourceRef[], parameters: Readonly<Record<string, unknown>>) {
   const screenings = metroScreeningBindings(parameters);
@@ -156,6 +158,8 @@ export async function recheckMetroSources(client: SupabaseClient, signal: AbortS
   for (const screen of screenings) for (const item of screen.candidates) {
     const point = points.get(item.buildingId);
     if (!point || hash(point) !== item.locationVersion || !formalIds.has(item.buildingId)) throw new Error('QUERY_DENIED');
+    const measured = straightLineMeters(point, item.stationCenter);
+    if (!validPoint(item.stationCenter) || measured > screen.radiusMeters || Math.round(measured) !== item.meters) throw new Error('QUERY_DENIED');
     locationIds.set(locationRef(item), item.buildingId); stationIds.set(stationRef(screen, item), item.stationId);
   }
   return sources.filter(source => !(source.table === 'buildings' && source.field === metroSource.locationField

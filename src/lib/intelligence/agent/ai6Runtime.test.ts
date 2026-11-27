@@ -99,6 +99,11 @@ describe('AI6 full-condition execution routing', () => {
       metroSelection: { radiusMeters: 800, stationName: '国贸', mapRequested: true }, walkingRouteUnavailable: true });
     expect(routeTask('帮我找写字楼，距地铁站步行不超过500米，不要地图')).toMatchObject({ route: 'deterministic_query',
       metroSelection: { radiusMeters: 500, mapRequested: false }, walkingRouteUnavailable: true });
+    expect(routeTask('在中关村地铁站步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: '中关村', submarkets: undefined });
+    expect(routeTask('在望京地铁站步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: '望京', submarkets: undefined });
+    expect(routeTask('在望京西站步行800米内办公选址').metroSelection).toMatchObject({ stationName: '望京西', submarkets: undefined });
+    expect(routeTask('请帮我找国贸地铁站步行不超过800米的办公楼').metroSelection).toMatchObject({ stationName: '国贸', submarkets: undefined });
+    expect(routeTask('在CBD地铁步行不超过800米的办公选址').metroSelection).toMatchObject({ stationName: undefined, submarkets: ['CBD'] });
     expect(routeTask('地铁国贸站步行800米内找办公室，必须有独立电梯').metroSelection).toBeUndefined();
   });
   it('keeps report-period policy tasks out of the narrow semantic extractor', () => {

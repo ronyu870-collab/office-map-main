@@ -31,7 +31,7 @@ export function HomeQuerySources({ detailId, result, context, research = null, s
         {sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => <div className={styles.source} key={source.id}><dl>
           <dt>原始记录值</dt><dd>{source.table === 'buildings' && source.field === metroSource.locationField ? '使用获权楼宇定位，结果仅显示计算距离。' : source.rawValue === null || source.rawValue === undefined ? '未填写' : typeof source.rawValue === 'string' ? source.rawValue : JSON.stringify(source.rawValue)}</dd>
           <dt>期间与单位</dt><dd>{source.period ? `${source.period.year} 年第 ${source.period.quarter} 季度` : '未提供季度标签'}；{source.unit === 'snapshot' ? '来源快照（非计量单位）' : source.unit === 'text' ? '文字' : units[source.unit] ?? source.unit}</dd>
-          <dt>原始资料</dt><dd>{source.table === metroSource.table ? <a href={metroSource.path} target="_blank" rel="noopener noreferrer">北京地图站点目录</a>
+          <dt>原始资料</dt><dd>{source.table === metroSource.table ? <a href={metroSource.path} target="_blank" rel="noopener noreferrer">现行北京地图站点目录</a>
             : source.original ? `${source.original.documentId}，版本 ${source.original.version}${source.original.location ? `，${source.original.location}` : source.original.page ? `，第 ${source.original.page} 页` : ''}${source.original.sheet ? `，表 ${source.original.sheet}` : ''}${source.original.row ? `，第 ${source.original.row} 行` : ''}` : '尚未关联原件，仅能溯源到数据库记录。'}</dd>
           <dt>核验状态</dt><dd>{{ database_only: '仅数据库记录', verified_original: '已核验原件', unreviewed: '未核验', historical: '历史来源' }[source.verification]}</dd>
           <dt>业务截至</dt><dd>{source.businessAsOf ?? '未知，不能用入库时间替代。'}</dd>
