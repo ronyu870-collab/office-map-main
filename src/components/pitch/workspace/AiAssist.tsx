@@ -7,10 +7,10 @@ import {
   type Understanding,
 } from "@/src/lib/pitch/ai/protocol";
 import type { Generation } from "@/src/lib/pitch/business/protocol";
-import { outlineBuildingIds, outlineQuarter, outlinePartSchema, type OutlinePart, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
+import { outlineBuildingIds, outlineQuarter, outlinePartSchema, type OutlinePart } from "@/src/lib/pitch/workspace/protocol";
 import type { PreparedPitch } from "@/src/lib/pitch/ai/routing";
 import type { Call } from "./client";
-import { ProposalRevision } from "./ProposalRevision";
+import { ProposalRevision, type ProposalRevisionProps } from "./ProposalRevision";
 import { ProposalPreview } from "./ProposalPreview";
 import { RevisionReview, type RevisionDestination, type CanvasRevisionTarget } from "./RevisionReview";
 import styles from "./workspace.module.css";
@@ -76,15 +76,7 @@ export function AiAssist({
   city?: string;
   projectVersion?: number;
   onProposalGenerated?: (id: string) => Promise<void>;
-  revision?: {
-    detail: WorkspaceDetail;
-    active?: string;
-    selected: string[];
-    objectIds: string[];
-    disabled: boolean;
-    onApplied: (result: WorkspaceDetail, expectedVersion: number) => void;
-    onOpenData: (period?: string) => void;
-  };
+  revision?: Omit<ProposalRevisionProps, "call" | "question">;
   projectId: string;
   buildingIds: string[];
   period: string;

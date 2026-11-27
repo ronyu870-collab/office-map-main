@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import JSZip from "jszip";
+import { PDFDocument } from "pdf-lib";
 
 async function launchBrowser() {
   const { chromium } = createRequire(import.meta.url)(
@@ -285,16 +286,21 @@ async function closeFlagshipBrowser(browser) {
   }
 }
 
-async function downloadPptx(page) {
+async function downloadPitchFile(page, format) {
   await page.getByRole("button", { name: "导出", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "导出 Pitch" });
+  await dialog.getByLabel("文件格式").selectOption(format);
   await dialog.getByRole("button", { name: "生成文件" }).click();
   const downloadButton = dialog.getByRole("button", { name: "下载已生成文件" });
   await downloadButton.waitFor({ timeout: 60_000 });
   const [download] = await Promise.all([page.waitForEvent("download"), downloadButton.click()]);
-  assert.match(download.suggestedFilename(), /\.pptx$/i);
+  assert.ok(download.suggestedFilename().toLowerCase().endsWith(`.${format}`));
   await dialog.getByRole("button", { name: "关闭", exact: true }).click();
-  return JSZip.loadAsync(await readFile(await download.path()), { checkCRC32: true });
+  return readFile(await download.path());
+}
+
+async function downloadPptx(page) {
+  return JSZip.loadAsync(await downloadPitchFile(page, "pptx"), { checkCRC32: true });
 }
 
 export async function verifyPitchChartRevisionBrowser({ app, who, readProject }) {
@@ -366,7 +372,7 @@ export async function verifyPitchChartRevisionBrowser({ app, who, readProject })
   }
 }
 
-export async function verifyPitchBuildingInspectorBrowser({ app, who, period, readProject }) {
+export async function verifyPitchBuildingInspectorBrowser({ app, who, period, readProject, quarterRevision = false, competitorRevision = false }) {
   assert.equal(new URL(app).hostname, "127.0.0.1");
   const browser = await launchBrowser();
   let stage = "creating";
@@ -400,7 +406,7 @@ export async function verifyPitchBuildingInspectorBrowser({ app, who, period, re
     assert.equal(preview.buildingIds.length, 1);
     assert.deepEqual(handoff.source.buildingIds, preview.buildingIds);
     const reviewDialog = page.getByRole("dialog", { name: "加入 Pitch" });
-    const rent = /\b103\b/;
+    const rent = new RegExp(`\\b${100 + Number(period.at(-1))}\\b`);
     const reviewedPage = preview.pages.find((slide) => slide.blocks.some((block) =>
       block.kind === "table" && block.rows.some((row) => row.some((value) => rent.test(String(value))))));
     assert.ok(reviewedPage, `source review did not contain the fixture rent: ${JSON.stringify(preview.pages.map(slide => ({
@@ -427,6 +433,94 @@ export async function verifyPitchBuildingInspectorBrowser({ app, who, period, re
     assert.ok(saved.slides[0].content.sources.length);
     assert.deepEqual(saved.workspace.context.buildingIds, preview.buildingIds);
     console.log("PASS building search, formal evidence, versioned append and saved preview");
+    if (quarterRevision) {
+      stage = "reviewing a formal quarter through the proposal assistant";
+      await button("提案助手").click();
+      await page.getByLabel("需要制作什么页面？").fill("把整套报告更新到最新季度");
+      const [proposed] = await Promise.all([
+        waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_revision"), button("预览修改").click(),
+      ]);
+      const revision = await proposed.json();
+      assert.ok(proposed.ok() && revision.status === "ready",
+        `quarter preview HTTP ${proposed.status()} / ${revision.status}: ${revision.message ?? revision.error ?? ""}`);
+      assert.equal(revision.command.action, "apply_data_refresh");
+      assert.deepEqual(revision.command.period, { year: 2026, quarter: 3 });
+      assert.deepEqual(revision.review.changes.map(change => change.slideId).sort(), saved.slides.map(slide => slide.id).sort());
+      const dialog = page.getByRole("dialog", { name: "核对 AI 修改" });
+      await dialog.getByText(/2026-Q3 · 影响 \d+ 页/).waitFor();
+      await dialog.getByRole("cell", { name: rent }).waitFor();
+      await dialog.getByRole("cell", { name: /\b103\b/ }).waitFor();
+      assert.equal((await readProject(project.id)).project.version, saved.project.version);
+
+      stage = "applying the exact reviewed quarter update";
+      const [applied] = await Promise.all([
+        waitForPitchCommand(page, workspace, "apply_data_refresh"), dialog.getByRole("button", { name: "应用修改" }).click(),
+      ]);
+      assert.deepEqual(applied.request().postDataJSON(), revision.command);
+      assert.ok(applied.ok(), `quarter apply HTTP ${applied.status()}`);
+      await dialog.waitFor({ state: "hidden" });
+      const refreshed = await readProject(project.id);
+      assert.ok(refreshed.project.version > saved.project.version);
+      assert.deepEqual(refreshed.slides.map(slide => slide.id), saved.slides.map(slide => slide.id));
+      for (const change of revision.review.changes) {
+        assert.equal(refreshed.slides.find(slide => slide.id === change.slideId).content.dataAsOf, change.after.dataAsOf);
+      }
+      const updatedSlide = refreshed.slides.find(slide => slide.content.title === reviewedPage.title);
+      assert.ok(updatedSlide?.content.blocks.some(block => block.kind === "table" && block.rows.some(row =>
+        row.some(value => /\b103\b/.test(String(value))))), "saved page contains the reviewed quarter rent");
+
+      stage = "undoing the quarter update";
+      const [restored] = await Promise.all([waitForPitchCommand(page, workspace, "restore"), button("撤销上次修改").click()]);
+      assert.ok(restored.ok(), `quarter restore HTTP ${restored.status()}`);
+      const reverted = await readProject(project.id);
+      assert.deepEqual(reverted.slides.map(slide => slide.content), saved.slides.map(slide => slide.content));
+      console.log("PASS AI quarter preview with formal before/after values, versioned apply and undo");
+    }
+    if (competitorRevision) {
+      stage = "reviewing a formal competitor comparison";
+      const before = await readProject(project.id);
+      await button("提案助手").click();
+      await page.getByLabel("需要制作什么页面？").fill("整套提案新增：加入「五矿广场」作为竞品");
+      const [proposed] = await Promise.all([
+        waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_revision"), button("预览修改").click(),
+      ]);
+      const revision = await proposed.json();
+      assert.ok(proposed.ok() && revision.mode === "append-comparison",
+        `competitor preview HTTP ${proposed.status()} / ${revision.status}: ${revision.message ?? revision.error ?? ""}`);
+      assert.deepEqual(revision.review.buildingIds, [...preview.buildingIds, revision.review.competitor.id]);
+      const dialog = page.getByRole("dialog", { name: "核对 AI 修改" });
+      await dialog.getByText(new RegExp(`五矿广场 · ${period} · 追加 \\d+ 页`)).waitFor();
+      const value = new RegExp(`\\b${112 + Number(period.at(-1))}\\b`);
+      const evidencePage = revision.review.pages.find(slide => slide.blocks.some(block => block.kind === "table" &&
+        block.rows.some(row => row.some(cell => value.test(String(cell))))));
+      assert.ok(evidencePage, "formal comparison contains the competitor rent");
+      const evidence = dialog.locator("details").filter({ has: page.getByText(evidencePage.title, { exact: true }) });
+      await evidence.waitFor();
+      if (await evidence.getAttribute("open") === null) await evidence.locator("summary").click();
+      await evidence.getByRole("cell", { name: value }).waitFor();
+      assert.equal((await readProject(project.id)).project.version, before.project.version);
+
+      stage = "appending the exact reviewed comparison";
+      const [queued] = await Promise.all([waitForPitchCommand(page, workspace, "add_to_pitch"),
+        dialog.getByRole("button", { name: "追加对比页" }).click()]);
+      assert.equal(queued.status(), 202);
+      assert.deepEqual(queued.request().postDataJSON(), revision.command);
+      await page.getByText("竞品对比页已追加。", { exact: true }).waitFor({ timeout: 60_000 });
+      const comparison = await readProject(project.id);
+      const savedSlide = ({ id, content, scene }) => ({ id, content, scene });
+      assert.deepEqual(comparison.slides.slice(0, before.slides.length).map(savedSlide), before.slides.map(savedSlide));
+      assert.equal(comparison.slides.length - before.slides.length, revision.review.pages.length);
+      const archive = await downloadPptx(page);
+      const appended = await archive.file(`ppt/slides/slide${before.slides.length + revision.review.pages.indexOf(evidencePage) + 1}.xml`)?.async("string");
+      assert.ok(appended?.includes("五矿广场") && value.test(appended), "PPTX includes the reviewed comparison name and value");
+
+      stage = "undoing the comparison append";
+      const [restored] = await Promise.all([waitForPitchCommand(page, workspace, "restore"), button("撤销上次修改").click()]);
+      assert.ok(restored.ok(), `competitor restore HTTP ${restored.status()}`);
+      const reverted = await readProject(project.id);
+      assert.deepEqual(reverted.slides.map(slide => slide.content), before.slides.map(slide => slide.content));
+      console.log("PASS AI competitor review, exact saved append, PPTX and undo");
+    }
   } catch (error) {
     console.error(`Building inspector failed while ${stage}`, error);
     throw error;
@@ -511,6 +605,8 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         const first = await archive.file("ppt/slides/slide1.xml").async("string");
         assert.ok(first.includes(editedTitle), "export omitted the saved title");
         assert.match(first, /<p:sp>/);
+        const pdf = await PDFDocument.load(await downloadPitchFile(page, "pdf"));
+        assert.equal(pdf.getPageCount(), reopened.slides.length);
         result.stage = "completed";
         result.pages = names.length;
       } catch (error) {
