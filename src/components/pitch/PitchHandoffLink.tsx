@@ -34,7 +34,7 @@ export function readPitchAnalysisPeriods(parameters: unknown) {
 }
 
 const prefix = "#add-to-pitch=";
-const leaseSearchSourceSchema = z.strictObject({
+export const pitchLeaseSearchSourceSchema = z.strictObject({
   kind: z.literal("lease-search"),
   dataset: z.enum(["live", "history", "combined"]),
   from: z.iso.date(),
@@ -46,7 +46,7 @@ const leaseSearchSourceSchema = z.strictObject({
 }).refine(
   ({ from, to }) => from <= to && Number(to.slice(0, 4)) - Number(from.slice(0, 4)) <= 20,
 );
-export type PitchLeaseSearchSource = z.infer<typeof leaseSearchSourceSchema>;
+export type PitchLeaseSearchSource = z.infer<typeof pitchLeaseSearchSourceSchema>;
 export const pitchStackingSourceSchema = z.strictObject({
   kind: z.literal("stacking-plan"), buildingId: z.uuid(),
   selection: z.strictObject({
@@ -61,7 +61,7 @@ const sourceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("submarket"), key: z.string().trim().min(1).max(80) }),
   z.strictObject({ kind: z.literal("quarterly-research"), edition: z.enum(researchEditions) }),
   z.strictObject({ kind: z.literal("analysis-result"), id: z.uuid(), resultId: z.uuid().optional() }),
-  leaseSearchSourceSchema,
+  pitchLeaseSearchSourceSchema,
   pitchStackingSourceSchema,
 ]);
 const navigationSchema = z.object({

@@ -58,6 +58,7 @@ import { TemplatePicker, type Template } from "./workspace/TemplatePicker";
 import { TemplateParameters, BuildingPicker, defaultDynamicParameters } from "./workspace/Parameters";
 import { readPitchHandoff, type PitchHandoffNavigation } from "./PitchHandoffLink";
 import { HandoffReview, type HandoffDestination } from "./workspace/HandoffReview";
+import { BuildingLeaseReview } from "./workspace/BuildingLeaseReview";
 import { LayoutVariants } from "./workspace/LayoutVariants";
 import { DataRefresh } from "./workspace/DataRefresh";
 import { paragraphBindingAccess, useDocumentBindings } from "./workspace/DocumentBindings";
@@ -515,6 +516,17 @@ function Studio({ session }: { session: AuthSessionResult }) {
       if (!life.current.signal.aborted) setBusy(false);
     }
   }
+  function reviewBuildingData(source: Extract<PitchHandoffNavigation["source"], { kind: "buildings" | "lease-search" }>) {
+    const projectId = detail?.project.id;
+    void run(async () => {
+      const saved = await flush();
+      if (saved.project.id !== projectId || current.current.detail?.project.id !== projectId || current.current.dirty)
+        throw new Error("项目或草稿已变化，请保存后再核对。");
+      const { period, language } = saved.workspace.context;
+      setHandoff({ source, ...(source.kind === "buildings" && period ? { period } : {}), language,
+        destination: { id: saved.project.id, title: saved.project.title } });
+    });
+  }
   const open = async (id: string) => {
     if (current.current.dirty) await flush();
     accept(
@@ -706,6 +718,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
   ] as const : [];
   const availableVisualActions = visualActions.filter(action =>
     templates.some(template => template.kind === "dynamic" && template.id === action.templateId));
+  const leaseTransactions = templates.some(template => template.kind === "dynamic" && template.id === "lease-representatives");
+  const leaseIndustry = templates.some(template => template.kind === "dynamic" && template.id === "lease-industry-distribution");
   const bindings = useDocumentBindings(call, detail?.project, !!page && (
     right && inspector === "data" || !!paragraphs.length && (
       right && (inspector === "properties" || inspector === "assist") || !!active && objectPage === active
@@ -854,6 +868,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
   }
   const rendering = !!task && ["queued", "processing"].includes(task.state);
   const generationPending = rendering || !!task?.unconfirmed;
+  const dataReviewDisabled = !canGenerate || busy || saving || generationPending || conflict || (objectPage === active && objectSelection.dirty);
   const editPage = (change: Partial<WorkspaceSave["pages"][number]>) => {
     if (active)
       edit((d) => ({
@@ -1907,28 +1922,24 @@ function Studio({ session }: { session: AuthSessionResult }) {
                           <BuildingPicker call={call} ids={buildingDataIds} disabled={busy || saving}
                             label="加入页面的楼宇" onChange={ids => setBuildingDataSelection({ projectId: detail.project.id, ids })} />
                           <Button variant="secondary"
-                            disabled={!buildingDataIds.length || !canGenerate || busy || saving || generationPending || conflict}
-                            onClick={() => void run(async () => {
-                              const saved = await flush();
-                              if (current.current.detail?.project.id !== saved.project.id) return;
-                              if (current.current.dirty) throw new Error("还有未保存的修改，请保存后再核对。");
-                              const { period, language } = saved.workspace.context;
-                              setHandoff({ source: { kind: "buildings", buildingIds: buildingDataIds }, period: period || undefined, language,
-                                destination: { id: saved.project.id, title: saved.project.title } });
-                            })}>
+                            disabled={!buildingDataIds.length || dataReviewDisabled}
+                            onClick={() => reviewBuildingData({ kind: "buildings", buildingIds: buildingDataIds })}>
                             核对季度数据
                           </Button>
                           {availableVisualActions.length > 0 && <details>
                             <summary>楼宇资料页</summary>
                             <div className={styles.form}>
                               {availableVisualActions.map(({ templateId, label }) => <Button key={templateId} variant="ghost"
-                                disabled={!canGenerate || busy || saving || generationPending || conflict ||
-                                  (objectPage === active && objectSelection.dirty)}
+                                disabled={dataReviewDisabled}
                                 onClick={() => void run(() => generate({ mode: "dynamic",
                                   parameters: defaultDynamicParameters(templateId, buildingDataIds, draft.context.period),
                                 }))}>{label}</Button>)}
                             </div>
                           </details>}
+                          {(leaseTransactions || leaseIndustry) && buildingDataIds.length > 0 && <BuildingLeaseReview
+                            key={draft.context.period} buildingIds={buildingDataIds} period={draft.context.period}
+                            transactions={leaseTransactions} industry={leaseIndustry} disabled={dataReviewDisabled}
+                            onReview={reviewBuildingData} />}
                         </div>}
                       </details>}
                       <details open={projectSettingsOpen} onToggle={event => setProjectSettingsOpen(event.currentTarget.open)}>
