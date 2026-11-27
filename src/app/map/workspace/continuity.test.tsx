@@ -5,7 +5,7 @@ import { createDefaultFilterState } from '../model/mapDomain';
 import { MapReadingContext, useMapReadingScroll, useMapReadingState, readMapReturn, saveMapReturn, restoreWorkspace, mapReturnToken, rememberMapEntry, type MapReturnSnapshot } from './continuity';
 
 const token = 'continuity-test-token';
-const saved = (): MapReturnSnapshot => ({ leedCatalogVersion: 2, savedAt: Date.now(), selected: 'a', camera: { center: [116.46, 39.91], zoom: 15 }, mode: 'rent', input: 'CBD', filters: null,
+const saved = (): MapReturnSnapshot => ({ leedCatalogVersion: 3, savedAt: Date.now(), selected: 'a', camera: { center: [116.46, 39.91], zoom: 15 }, mode: 'rent', input: 'CBD', filters: null,
   right: { kind: 'building', id: 'a' }, history: [{ kind: 'list' }, { kind: 'building', id: 'removed' }], leftOpen: false, widths: { building: 400, list: 320 },
   reading: { listQuery: 'CBD', listSort: 'rent', listScroll: 550, fullPaging: { queryKey: 'q', page: 3 }, sheetModes: { building: 'reading' }, buildings: { a: { tab: 'materials', scrollTop: 140 } } },
   comparison: [], competitors: ['a'], target: 'a', groups: [], research: null });
@@ -46,7 +46,7 @@ describe('map return context', () => {
       ...saved().reading, previousSheetModes: { building: 'reading' }, filterScroll: 120,
       submarkets: { CBD: { section: 'trend', grade: 'a', scrollTop: 180 } },
       supplyExpanded: { '2027': true }, supplyScroll: 90,
-      buildings: { 'existing:a': { tab: 'market', scrollTop: 80, scrolls: { overview: 150, market: 80 }, trendOpen: true, trendHeight: 640, trend: { metric: 'vac', tableOpen: true }, photo: { open: true, index: 1 } } },
+      buildings: { 'existing:a': { tab: 'market', scrollTop: 80, scrolls: { overview: 150, market: 80 }, trendOpen: true, trendHeight: 640, trend: { metric: 'vac', tableOpen: true }, photo: { open: true, index: 1 }, brochureOpen: true } },
     } } as unknown as MapReturnSnapshot;
     saveMapReturn('scope', token, value);
     expect(readMapReturn('scope', token)).toEqual(value);
@@ -139,6 +139,29 @@ it('upgrades the legacy full LEED catalog in return filters and research, preser
   expect(readMapReturn('scope',token)?.research?.filters.leeds).toContain('N');
   saveMapReturn('scope',token,value);
   expect(readMapReturn('scope',token)?.filters?.leeds).not.toContain('N');
+});
+
+it('migrates complete v2 return catalogs while preserving v2 exclusions and v3 explicit choices', () => {
+  const key = 'map-workspace-return:v1:scope:' + token;
+  const v2Catalog = ['Platinum', 'Gold', 'Silver', 'N', 'NULL'];
+  const filters = { ...createDefaultFilterState(), leeds: v2Catalog };
+  const original = { ...saved(), leedCatalogVersion: 2, filters, research: { filters, input: 'CBD', retained: true } };
+  sessionStorage.setItem(key, JSON.stringify(original));
+  const upgraded = readMapReturn('scope', token)!;
+  expect(upgraded.filters?.leeds).toEqual([...v2Catalog, 'Certified']);
+  expect(upgraded.research?.filters.leeds).toEqual([...v2Catalog, 'Certified']);
+  expect(upgraded.camera).toEqual(original.camera);
+  expect(upgraded.reading).toEqual(original.reading);
+
+  const excluded = { ...filters, leeds: ['Platinum', 'Gold', 'Silver', 'NULL'] };
+  sessionStorage.setItem(key, JSON.stringify({ ...original, filters: excluded, research: { ...original.research, filters: excluded } }));
+  expect(readMapReturn('scope', token)?.filters?.leeds).toEqual(excluded.leeds);
+  expect(readMapReturn('scope', token)?.research?.filters.leeds).toEqual(excluded.leeds);
+
+  // In v3, the five old choices may be an intentional exclusion of Certified.
+  const current = { ...saved(), filters, research: { filters, input: 'CBD', retained: true } };
+  saveMapReturn('scope', token, current);
+  expect(readMapReturn('scope', token)).toEqual(current);
 });
 
 it.each(['resize-first', 'scroll-first'])('preserves user reading across a fullscreen range clamp (%s)', order => {

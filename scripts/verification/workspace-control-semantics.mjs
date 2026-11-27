@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { clickWorkspaceAction } from './workspace-actions.mjs';
+import { clickWorkspaceAction, ensureWorkspacePhotoOpen } from './workspace-actions.mjs';
 export async function verifyControlSemantics(page,{width,base,role=width===1024?'admin':'viewer'}) {
   // Do not consume the combined suite's intentional first-photo 403.
   let releasePhoto, photoFailure = true;
@@ -35,10 +35,12 @@ export async function verifyControlSemantics(page,{width,base,role=width===1024?
   const list=page.getByRole('region',{name:'项目列表',exact:true});await list.waitFor();await inspect('list');
   await list.getByRole('button',{name:/^CBD甲楼/}).click();
   const detail=page.getByRole('region',{name:'CBD甲楼楼宇详情',exact:true});await detail.waitFor();
+  const compact = await page.locator('.map-workspace-layout').getAttribute('data-compact') !== null;
+  if (!compact) await detail.locator('[data-building-photo-trigger][aria-expanded="true"]').waitFor({state:'visible'});
   if(width<640||width===844)await clickWorkspaceAction(page,'全屏阅读工作区');
   await inspect('overview');
-  await detail.getByRole('button',{name:/看图/}).click();
-  await detail.getByRole('status').filter({hasText:'加载'}).waitFor();
+  await ensureWorkspacePhotoOpen(detail);
+  await detail.locator('[data-building-photo-status]').filter({hasText:'正在加载图片'}).waitFor({state:'visible'});
   await inspect('photo-loading');releasePhoto();
   await detail.getByRole('button',{name:'重试',exact:true}).waitFor();
   assert.ok((await detail.locator('[data-building-photo-status]').innerText()).trim().length>0, 'permission failure has visible explanatory text');

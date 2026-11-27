@@ -5,7 +5,7 @@
 "use client";
 import { mountBuildingContactDialog } from "./map/buildingContactDialog";
 import type { TrendChartReadingOptions } from "./map/trendChartReading";
-import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
+import { leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 import { coordinateIssue, fitMapExtent } from '@/src/app/map/runtime/mapExtent';
 
@@ -24,13 +24,15 @@ import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPa
 import { recordMapStartup } from "@/src/utils/mapStartupProbe";
 import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
 import { readMapVisibleArea, visibleMapRect, visibleProjectCenter } from "@/src/app/map/runtime/mapFocusViewport";
-import { mapOptionalNumber, observedVacantArea } from "@/src/app/map/model/vacancyMetrics";
+import { mapOptionalNumber } from "@/src/app/map/model/vacancyMetrics";
 import { futureSupplyDate, isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
 import { latestFormalMetric } from "@/src/app/map/model/quarterlyFacts";
 import { clearMapReadCache } from "./mapReadCache";
 import { bindBuildingPopup } from "./map/buildingPopup";
-import { summarizeSubmarkets, officeGrade } from "@/src/app/map/model/submarketOverview";
+import { officeGrade } from "@/src/app/map/model/submarketOverview";
+import { buildSubmarketBubbleEntries, mapLeedLevel } from "@/src/app/map/runtime/mapSubmarketOverview";
+import { createSubmarketBubble } from "@/src/app/map/runtime/mapSubmarketPresentation";
 import { normalizeMapSubmarket } from "@/src/app/map/model/mapDomain";
 import { getBuildingMediaPilot } from "@/src/lib/sales-materials/building-media-pilot";
 import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger, type GalleryPhoto } from "./map/buildingPhotoGallery";
@@ -262,11 +264,7 @@ function getMarkerStyle(
       else bgColor = "#10b981"; // 低空置健康 - 绿色
     }
   } else if (mode === "leed") {
-    const leed = (
-      building.leed_certification ??
-      building.leed ??
-      ""
-    ).toUpperCase();
+    const leed = mapLeedLevel(building.leed_certification ?? building.leed);
     if (leed.includes("PLATINUM")) {
       bgColor = "#d9edf3";
       borderColor = "#68aebf";
@@ -286,7 +284,7 @@ function getMarkerStyle(
       bgColor = "#eef1f4";
       borderColor = "#bdc6ce";
       textColor = "#6f7c89";
-      text = leedFallbackBadge(leed); // 缺失与明确未认证分开
+      text = leed === 'CERTIFIED' ? 'C' : leedFallbackBadge(leed); // 缺失与明确未认证分开
     }
   }
 
@@ -1985,7 +1983,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   renderMarkers(
     buildingsData: BuildingWithMetrics[],
     renderMode: RenderMode = "default",
-    districtLeedMap?: Map<string, { totalCount: number; leedCount: number }>,
+    _districtLeedMap?: Map<string, { totalCount: number; leedCount: number }>,
     comparisonGroups?: CompareGroup[],
     // Read by the installed overview renderers; legacy point rendering ignores it.
     _showAreaPlaceholders = false,
@@ -2058,215 +2056,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       this.markers.push(marker);
     }
 
-    const submarketMap = new Map<string, any>();
-    const visibleSubmarkets = new Set(items.map(b => normalizeMapSubmarket(b.submarket)));
-    const scopedSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? items);
-    for (const b of overviewBuildings ?? items) {
-      const sub = normalizeMapSubmarket(b.submarket);
-      if (!visibleSubmarkets.has(sub)) continue;
-      if (!sub || sub === "其他") continue;
-
-      if (!submarketMap.has(sub)) {
-        submarketMap.set(sub, {
-          name: sub,
-          lngSum: 0,
-          latSum: 0,
-          coordCount: 0,
-          count: 0,
-          totalArea: 0,
-          vacantArea: 0,
-          rentWeightSum: 0,
-          rentWeightAreaSum: 0,
-        });
-      }
-      const agg = submarketMap.get(sub);
-      if (officeGrade(b.grade) === 'a' || officeGrade(b.grade) === 'b') agg.count += 1;
-      if (hasMapCoordinates(b)) {
-        agg.lngSum += b.location_lng;
-        agg.latSum += b.location_lat;
-        agg.coordCount += 1;
-      }
-
-      const latest = pickLatestMetric(b.metrics);
-      if (latest) {
-        const area = Number(latest.total_area);
-        const rent = Number(latest.net_effective_rent);
-        const vacArea = observedVacantArea(latest);
-        if (Number.isFinite(area) && area > 0 && Number.isFinite(vacArea)) {
-          agg.totalArea += area;
-          agg.vacantArea += vacArea;
-        }
-        if (
-          Number.isFinite(area) &&
-          area > 0 &&
-          Number.isFinite(rent) &&
-          rent > 0
-        ) {
-          agg.rentWeightAreaSum += area;
-          agg.rentWeightSum += rent * area;
-        }
-      }
-    }
-
-    // ================ 按区域聚合 LEED 认证数据（如果未提供则现场计算）================
-    let computedDistrictLeedMap = districtLeedMap;
-    if (!computedDistrictLeedMap) {
-      computedDistrictLeedMap = new Map<
-        string,
-        { totalCount: number; leedCount: number }
-      >();
-      for (const b of items) {
-        const dist = b.district?.trim?.() ?? "";
-        if (!dist) continue;
-
-        if (!computedDistrictLeedMap.has(dist)) {
-          computedDistrictLeedMap.set(dist, { totalCount: 0, leedCount: 0 });
-        }
-        const distData = computedDistrictLeedMap.get(dist)!;
-        distData.totalCount += 1;
-
-        // 检查是否有 LEED 认证
-        if (hasLeedCertification(b.leed_certification)) {
-          distData.leedCount += 1;
-        }
-      }
-    }
-
-    for (const agg of Array.from(submarketMap.values())) {
-      if (agg.count === 0) continue;
-      if (agg.coordCount === 0) continue; // 该子市场所有建筑都无坐标，无法显示气泡
-      const centerLng = agg.lngSum / agg.coordCount;
-      const centerLat = agg.latSum / agg.coordCount;
-
-      // 计算用于数值比较的纯数字
-      const fullSummary = scopedSubmarketSummaries.get(agg.name);
-      const avgRentNum = fullSummary?.rent ?? 0;
-      const vacRateNum = fullSummary?.vacancyPct ?? Number.NaN;
-
-      // 显示用的文本
-      const avgRent = avgRentNum > 0 ? avgRentNum.toFixed(1) : "-";
-      const vacRate = Number.isFinite(vacRateNum) ? vacRateNum.toFixed(1) : "-";
-
-      // ================ 增加模式联动的气泡样式引擎 ================
-      let bgColor = "rgba(0, 62, 126, 0.92)"; // 默认底色（蓝）
-      let hoverColor = "rgba(0, 62, 126, 1)";
-
-      let extraContent = `
-        <div style="font-size: 11px; font-weight: 700; opacity: 0.95;">¥${avgRent} · ${vacRate === "-" ? "—" : `${vacRate}%`}</div>
-        <div style="font-size: 11px; font-weight: 700; color: #fcd34d;">甲乙级 ${fullSummary?.officeCount ?? 0} 个</div>
-      `;
-
-      if (renderMode === "rent") {
-        if (avgRentNum === 0) {
-          bgColor = "rgba(148, 163, 184, 0.92)";
-          hoverColor = "rgba(148, 163, 184, 1)";
-        } else if (avgRentNum >= 300) {
-          bgColor = "rgba(239, 68, 68, 0.92)";
-          hoverColor = "rgba(239, 68, 68, 1)";
-        } else if (avgRentNum >= 200) {
-          bgColor = "rgba(249, 115, 22, 0.92)";
-          hoverColor = "rgba(249, 115, 22, 1)";
-        } else if (avgRentNum >= 100) {
-          bgColor = "rgba(245, 158, 11, 0.92)";
-          hoverColor = "rgba(245, 158, 11, 1)";
-        } else {
-          bgColor = "rgba(16, 185, 129, 0.92)";
-          hoverColor = "rgba(16, 185, 129, 1)";
-        }
-
-        extraContent = `
-          <div style="font-size: 11px; font-weight: 700; opacity: 0.95;">¥${avgRent} · ${vacRate === "-" ? "—" : `${vacRate}%`}</div>
-          <div style="font-size: 11px; font-weight: 700; color: #fcd34d;">甲乙级 ${fullSummary?.officeCount ?? 0} 个</div>
-        `;
-      } else if (renderMode === "vacancy") {
-        if (vacRateNum === 0 && agg.totalArea === 0) {
-          bgColor = "rgba(148, 163, 184, 0.92)";
-          hoverColor = "rgba(148, 163, 184, 1)";
-        } else if (vacRateNum >= 30) {
-          bgColor = "rgba(239, 68, 68, 0.92)";
-          hoverColor = "rgba(239, 68, 68, 1)";
-        } else if (vacRateNum >= 20) {
-          bgColor = "rgba(249, 115, 22, 0.92)";
-          hoverColor = "rgba(249, 115, 22, 1)";
-        } else if (vacRateNum >= 10) {
-          bgColor = "rgba(245, 158, 11, 0.92)";
-          hoverColor = "rgba(245, 158, 11, 1)";
-        } else {
-          bgColor = "rgba(16, 185, 129, 0.92)";
-          hoverColor = "rgba(16, 185, 129, 1)";
-        }
-
-        extraContent = `
-          <div style="font-size: 11px; font-weight: 700; opacity: 0.95;">¥${avgRent} · ${vacRate === "-" ? "—" : `${vacRate}%`}</div>
-          <div style="font-size: 11px; font-weight: 700; color: #fcd34d;">甲乙级 ${fullSummary?.officeCount ?? 0} 个</div>
-        `;
-      } else if (renderMode === "leed") {
-        // 直接从子市场的楼宇计算 LEED 认证率
-        const buildingsInSubmarket = items.filter(
-          (b) => b.submarket === agg.name,
-        );
-
-        let totalCount = 0;
-        let leedCount = 0;
-
-        for (const b of buildingsInSubmarket) {
-          if (hasLeedCertification(b.leed_certification)) {
-            leedCount++;
-          }
-          totalCount++;
-        }
-
-        const leedPercentage =
-          totalCount > 0 ? ((leedCount / totalCount) * 100).toFixed(1) : "0.0";
-        const leedPercentageNum =
-          totalCount > 0 ? (leedCount / totalCount) * 100 : 0;
-
-        // 根据认证率设置颜色深浅（认证率越高，绿色越深）
-        if (leedPercentageNum === 0) {
-          bgColor = "rgba(148, 163, 184, 0.92)"; // 灰色 - 无认证
-          hoverColor = "rgba(148, 163, 184, 1)";
-        } else if (leedPercentageNum >= 60) {
-          bgColor = "rgba(5, 150, 105, 0.92)"; // 深绿 - 高认证率
-          hoverColor = "rgba(5, 150, 105, 1)";
-        } else if (leedPercentageNum >= 40) {
-          bgColor = "rgba(16, 185, 129, 0.92)"; // 中绿 - 中高认证率
-          hoverColor = "rgba(16, 185, 129, 1)";
-        } else if (leedPercentageNum >= 20) {
-          bgColor = "rgba(52, 211, 153, 0.92)"; // 浅绿 - 中等认证率
-          hoverColor = "rgba(52, 211, 153, 1)";
-        } else {
-          bgColor = "rgba(110, 231, 183, 0.92)"; // 极浅绿 - 低认证率
-          hoverColor = "rgba(110, 231, 183, 1)";
-        }
-
-        extraContent = `
-          <div style="font-size: 10px; font-weight: 700; color: #fef08a; margin-top: 2px;">LEED 认证率</div>
-          <div style="font-size: 12px; font-weight: 700; opacity: 0.95;">${leedPercentage}% · 甲乙级 ${fullSummary?.officeCount ?? 0} 个</div>
-        `;
-      }
-
-      const smMarkerEl = `
-        <div style="
-          width: 102px; height: 102px; border-radius: 50%;
-          background: ${bgColor}; border: 2px solid rgba(255,255,255,0.9);
-          box-shadow: 0 8px 24px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center;
-          color: #ffffff; cursor: pointer; transition: background-color 120ms;
-        " onmouseover="this.style.background='${hoverColor}';" onmouseout="this.style.background='${bgColor}';">
-          <div style="font-size: 13px; font-weight: 900; margin-bottom: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.4); line-height:1.2; text-align:center;">${agg.name.length > 5 ? escapeHtml(agg.name.slice(0, Math.ceil(agg.name.length / 2))) + "<br>" + escapeHtml(agg.name.slice(Math.ceil(agg.name.length / 2))) : escapeHtml(agg.name)}</div>
-          ${extraContent}
-        </div>
-      `;
-
-      const smMarker = new AMap.Marker({
-        position: [centerLng, centerLat],
-        content: smMarkerEl,
-        offset: new AMap.Pixel(-51, -51),
-        zIndex: 90,
-      });
-      smMarker.on("click", () => {
-        window.dispatchEvent(new CustomEvent("map-submarket-open", { detail: { name: agg.name } }));
-      });
-      this.submarketMarkers.push(smMarker);
+    for (const { name, center, summary } of buildSubmarketBubbleEntries(items, overviewBuildings ?? items, this._allBuildingsCache ?? items, _showAreaPlaceholders)) {
+      const element = createSubmarketBubble({ name, summary, mode: renderMode, selected: this.getWorkspaceSubmarket?.() === name });
+      const openBrief = () => window.dispatchEvent(new CustomEvent("map-submarket-open", { detail: { name } }));
+      element.addEventListener("click", event => { event.stopPropagation(); openBrief(); });
+      const marker = new AMap.Marker({ position: center, content: element, anchor: "center", zIndex: 92, topWhenClick: true });
+      marker.on("click", openBrief);
+      this.submarketMarkers.push(marker);
     }
 
     // ================ Level 3: 小圆点标记（zoom 12-14）================

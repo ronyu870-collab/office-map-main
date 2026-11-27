@@ -175,7 +175,7 @@ export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, 
               </button>
               <ProjectMetrics project={project} />
               <ProjectAssetMeta project={project} />
-              <p className="submarket-project-reason"><span className="submarket-project-role">{role}</span>{role.includes(gradeNames[project.grade]) ? '' : ` · ${gradeNames[project.grade]}`} · {compact ? reason : detailReason ?? reason}</p>
+              <p className="submarket-project-reason"><span className="submarket-project-role">{role}</span>{role.includes(gradeNames[project.grade]) ? '' : ` · ${gradeNames[project.grade]}`}{compact && ['同级项目租金中位区间','同类产品参照'].includes(reason) ? null : <> · {compact ? reason : detailReason ?? reason}</>}</p>
               </div>
               <ApprovedProjectPhotos project={project} active={active} />
               </div>

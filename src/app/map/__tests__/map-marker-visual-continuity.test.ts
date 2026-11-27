@@ -34,7 +34,7 @@ describe('map marker visual continuity', () => {
     expect(renderer).toContain("neutral: '#8794a4'");
   });
 
-  it('overlaps zoom tiers and uses hysteresis instead of hard boundary swapping', () => {
+  it('preserves zoom hysteresis and fully opaque submarket markers', () => {
     const renderer = read('src/app/map/runtime/mapNativeMarkerRenderer.ts');
 
     expect(renderer).toContain('submarketMax: 11.58');
@@ -44,7 +44,8 @@ describe('map marker visual continuity', () => {
     expect(renderer).toContain('nameMin: 14.05');
     expect(renderer).toContain('function stableMode');
     expect(renderer).toContain("active === 'dot' && zoom >= 11.14 && zoom < 13.18");
-    expect(renderer).toContain('smoothStep(11.08, 11.5, zoom)');
+    expect(renderer).toContain("marker.setOpacity?.(activeTier === 'submarket' ? 1 : 0)");
+    expect(renderer).toContain('smoothStep(11.08, 11.34, zoom)');
     expect(renderer).toContain("map.on?.('zoomchange', onZoomChange)");
   });
 

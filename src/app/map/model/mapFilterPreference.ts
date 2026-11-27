@@ -17,7 +17,7 @@ export const mapFilterCriteria = z.object({
   })).max(25),
   showFutureSupply: z.boolean(), futureSupplyGrades: strings, futureSupplyYears: strings,
 });
-const preference = z.object({ leedCatalogVersion: z.literal(2).optional(), input: z.string().max(200), filters: mapFilterCriteria.nullable() });
+const preference = z.object({ leedCatalogVersion: z.union([z.literal(2), z.literal(3)]).optional(), input: z.string().max(200), filters: mapFilterCriteria.nullable() });
 
 export function readMapFilterPreference(key: string) {
   if (typeof window === 'undefined') return null;

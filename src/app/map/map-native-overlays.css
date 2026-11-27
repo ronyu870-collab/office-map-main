@@ -18,8 +18,8 @@ body:has(#map-container) .map-submarket-bubble {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 10px 6px;
+  gap: 2px;
+  padding: 6px 4px;
   appearance: none;
   font: inherit;
   overflow: hidden;
@@ -33,7 +33,7 @@ body:has(#map-container) .map-submarket-bubble {
   contain: layout paint style;
   transform: translate3d(var(--sm-collision-x), var(--sm-collision-y), 0) scale(1);
   transform-origin: center;
-  transition: transform var(--cd-motion-normal) var(--cd-ease-out), opacity var(--cd-motion-fast) var(--cd-ease-state);
+  transition: transform var(--cd-motion-normal) var(--cd-ease-out), box-shadow var(--cd-motion-fast) var(--cd-ease-state);
 }
 
 body:has(#map-container) .map-submarket-bubble:focus-visible {
@@ -62,7 +62,7 @@ body:has(#map-container[data-marker-tier="building"]) .map-submarket-bubble {
   body:has(#map-container) .map-submarket-bubble:hover { filter: brightness(1.04); }
 }
 
-body:has(#map-container) .map-submarket-bubble[aria-pressed="true"] { outline: 2px solid #172033; outline-offset: 2px; }
+body:has(#map-container) .map-submarket-bubble[aria-pressed="true"] { outline: 2px solid #003e7e; outline-offset: 3px; box-shadow: 0 0 0 2px #fff; }
 body:has(#map-container) .map-submarket-bubble:active { transform: translate3d(var(--sm-collision-x), var(--sm-collision-y), 0) scale(.97); }
 
 body:has(#map-container) .map-submarket-bubble.is-expanding {
@@ -71,8 +71,8 @@ body:has(#map-container) .map-submarket-bubble.is-expanding {
 }
 
 body:has(#map-container) .map-submarket-bubble__name {
-  width: calc(var(--sm-render-size) - 26px);
-  max-height: 36px;
+  width: calc(var(--sm-render-size) - 22px);
+  max-height: 32px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -82,7 +82,7 @@ body:has(#map-container) .map-submarket-bubble__name {
   font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 600;
-  line-height: 18px;
+  line-height: 16px;
   letter-spacing: -0.01em;
   color: var(--sm-foreground, #ffffff);
 }
@@ -110,7 +110,7 @@ body:has(#map-container) .map-submarket-bubble__primary {
   font-size: 14px;
   font-weight: 600;
 }
-body:has(#map-container) .map-submarket-bubble__secondary { flex: 0 0 auto; }
+body:has(#map-container) .map-submarket-bubble__secondary { flex: 0 0 auto; font-weight: 400; }
 body:has(#map-container) .map-submarket-bubble__sep { flex: 0 0 auto; color: inherit; }
 body:has(#map-container) .map-submarket-bubble__count {
   font-size: 14px;
@@ -224,3 +224,11 @@ body:has(#map-container) .amap-info-content:not(:has(.building-popup)) [data-map
   body:has(#map-container) .amap-info-content,
   body:has(#map-container) .amap-info-content:not(:has(.building-popup)) [data-map-action] { transition: none !important; animation: none !important; }
 }
+
+/* Keep mixed-market composition legible without increasing the map marker diameter. */
+body:has(#map-container) .map-submarket-bubble__count { max-width: calc(var(--sm-render-size) - 16px); white-space: normal; text-align: center; line-height: 16px; }
+body:has(#map-container) .map-submarket-bubble[aria-pressed="true"]:focus-visible { outline: 3px solid #003e7e; outline-offset: 4px; }
+
+body:has(#map-container) .map-submarket-bubble__count--mixed { display:flex; flex-wrap:wrap; justify-content:center; align-items:baseline; gap:0 3px; }
+body:has(#map-container) .map-submarket-bubble__count-item { white-space:nowrap; }
+body:has(#map-container) .map-submarket-bubble__count-divider { display:none; }

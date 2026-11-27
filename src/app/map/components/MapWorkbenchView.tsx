@@ -16,7 +16,7 @@ import { MapWorkspaceLayout } from './MapWorkspaceLayout';
 import { WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { MapDisclosure } from './MapDisclosure';
 import { MapMarketDataDetails } from './MarketDataDetails';
-import { SUBMARKET_COLORS, SUBMARKET_NEUTRAL } from '../runtime/mapSubmarketPresentation';
+import { submarketScale, SUBMARKET_LEED_COLORS, SUBMARKET_NEUTRAL } from '../runtime/mapSubmarketPresentation';
 import { compactMarketArea } from '../model/mapMetricPresentation';
 import { futureSupplyImage } from '../runtime/mapSelectionMarker';
 import { animateWorkspace, WORKSPACE_MOTION } from '../runtime/workspaceMotion';
@@ -235,6 +235,7 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
       items: [
         { label: '未认证（N）', className: 'border border-[#bdc6ce] bg-[#eef1f4]' },
         { label: '未提供（–）', className: 'border border-[#bdc6ce] bg-[#eef1f4]' },
+        { label: '已认证（C）', className: 'border border-[#bdc6ce] bg-[#eef1f4]' },
         { label: '白银', className: 'border border-[#9ca8b3] bg-[#e7ebef]' },
         { label: '黄金', className: 'border border-[#b69a52] bg-[#eadfbd]' },
         { label: '铂金', className: 'border border-[#68aebf] bg-[#d9edf3]' },
@@ -244,14 +245,14 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
 
   const config: { title: string; items: LegendItem[] } = aggregate && (mode === 'rent' || mode === 'vacancy') ? {
     title: mode === 'rent' ? '子市场净有效租金（元/㎡/月）' : '子市场空置率',
-    items: metricConfig[mode].items.map((item, index) => ({ label: item.label, style: { backgroundColor: SUBMARKET_COLORS[index] ?? SUBMARKET_NEUTRAL } })),
+    items: metricConfig[mode].items.map((item, index) => ({ label: item.label, style: { backgroundColor: submarketScale(mode)[index] ?? SUBMARKET_NEUTRAL } })),
   } : aggregate && mode === 'leed' ? {
-    title: '子市场 LEED 认证率', items: [
-      { label: '<20%', style: { backgroundColor: SUBMARKET_COLORS[0] } },
-      { label: '20–<40%', style: { backgroundColor: SUBMARKET_COLORS[1] } },
-      { label: '40–<60%', style: { backgroundColor: SUBMARKET_COLORS[2] } },
-      { label: '≥60%', style: { backgroundColor: SUBMARKET_COLORS[3] } },
-      { label: '认证未收录 / 区域资料', style: { backgroundColor: SUBMARKET_NEUTRAL } },
+    title: '子市场 LEED 认证情况', items: [
+      { label: '<20%', style: { backgroundColor: SUBMARKET_LEED_COLORS[0] } },
+      { label: '20–<40%', style: { backgroundColor: SUBMARKET_LEED_COLORS[1] } },
+      { label: '40–<60%', style: { backgroundColor: SUBMARKET_LEED_COLORS[2] } },
+      { label: '≥60%', style: { backgroundColor: SUBMARKET_LEED_COLORS[3] } },
+      { label: '记录不全 / 区域资料', style: { backgroundColor: SUBMARKET_NEUTRAL } },
     ],
   } : aggregate && mode === 'default' ? {
     title: '子市场', items: [{ label: '租金 · 空置率 · 甲乙级数量 / 产业园', className: 'bg-[#245b78]' }, { label: '区域资料', style: { backgroundColor: SUBMARKET_NEUTRAL } }],
@@ -268,15 +269,15 @@ function MapLegend({ mode, compareGroups, active, futureVisible, pointsVisible, 
   return (
     <MapDisclosure width={320} active={active} className="map-workspace-legend" label={<><Info size={16} aria-hidden="true" /><span className="map-legend-label">图例</span></>}>
       <h2>{config.title}</h2>
-      <div className="flex items-center gap-3">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
         {config.items.map(item => (
-          <div key={item.label} className="flex items-center gap-1.5 text-[14px] text-slate-500">
+          <div key={item.label} className="flex min-w-0 items-center gap-1.5 text-[14px] text-slate-500">
             <span className={`map-legend-swatch rounded-full ${item.className ?? ''}`} style={item.style} aria-hidden="true" />
             {item.label}
           </div>
         ))}
       </div>
-      {aggregate ? <p className="map-legend-note">气泡等大，不表示市场规模。租金与空置率为甲乙级正式观测；产业园单列数量。颜色仅表示数值区间。</p> : null}
+      {aggregate ? <p className="map-legend-note">{mode === 'leed' ? '记录完整时显示认证率，否则仅显示已确认认证数量。' : '甲乙级与园区行情分别统计；纯园区展示园区行情。气泡颜色表示指标区间，不代表市场规模。'}</p> : null}
       <label className="map-legend-places">
         <input type="checkbox" checked={pointsVisible} disabled={!mapReady || !onPointsChange} onChange={event => onPointsChange?.(event.target.checked)} />
         底图地点标注
@@ -294,7 +295,7 @@ function MetricStrip({ stats, busy }: { stats: MapStatsState; busy: boolean }) {
   const metrics = [
     { label: '净有效租金', value: stats.avgRent, unit: '元/㎡/月', singleSample: stats.rentSample?.count === 1 },
     { label: '空置率', value: stats.overallVacancyPct, unit: '%', singleSample: stats.vacancySample?.count === 1 },
-    { label: '有坐标项目', value: stats.visibleProjectCount, unit: '个' },
+    { label: '地图项目', value: stats.visibleProjectCount, unit: '个' },
     { label: '存量面积', value: area.value, unit: area.unit, showsUpdating: true },
   ];
 

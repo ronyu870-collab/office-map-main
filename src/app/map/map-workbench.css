@@ -332,8 +332,8 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .workspace-panel-subtitle { margin: 4px 4px 0; color: #596779; overflow-wrap: anywhere; }
 .workspace-icon { display: inline-flex; justify-content: center; align-items: center; min-height: 32px; min-width: 32px; border-radius: 6px; color: #596779; }
 @media (hover: hover) { .workspace-icon:enabled:hover { color: var(--cd-color-text-primary); background: var(--cd-color-control-hover); } }
-.workspace-business-action:hover { border-color: #b2c6dd; background: var(--cd-color-brand-soft); }
-.workspace-icon:active, .workspace-business-action:active { background: #e1ebf5; }
+.workspace-business-action:not(:disabled):hover { border-color: #b2c6dd; background: var(--cd-color-brand-soft); }
+.workspace-icon:active, .workspace-business-action:not(:disabled):active { background: #e1ebf5; }
 .workspace-icon, .workspace-business-action { transition: color var(--cd-motion-fast) var(--cd-ease-state), background-color var(--cd-motion-fast) var(--cd-ease-state), border-color var(--cd-motion-fast) var(--cd-ease-state); }
 .workspace-title-count { font-size: 14px; font-weight: 400; color: #596779; }
 .workspace-sheet-states { display: flex; align-items: center; justify-content: end; gap: 4px; }
@@ -348,15 +348,16 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .workspace-building-scroll { padding: 12px 16px; }
 /* Reserve sticky-tab clearance for photos without changing market-tab restoration. */
 .workspace-building-scroll:has(.workspace-building-photos) { scroll-padding-top: 60px; }
-.workspace-building-photos { margin: 16px 0 0; }
+.workspace-building-photos { margin: 10px 0 12px; }
 .workspace-building-photos .building-pilot-photo-trigger { min-height: 36px; padding: 6px 10px; border: 1px solid var(--cd-color-border); border-radius: 6px; background: var(--cd-color-surface-alt); font-weight: 400; }
 .workspace-building-photos .building-pilot-photo-trigger span { gap: 6px; padding: 0; border: 0; font: inherit; }
 .workspace-building-photos .building-pilot-photo-trigger:hover, .workspace-building-photos .building-pilot-photo-trigger[aria-expanded="true"] { background: var(--cd-color-brand-soft); }
 .workspace-building-photos .building-pilot-photo-trigger span { background: transparent; }
-.workspace-building-photos .building-pilot-photo-stage { height: auto; min-height: 144px; aspect-ratio: var(--building-photo-ratio, 1.6); max-height: 52dvh; }
-.workspace-metric-summary { padding: 8px 12px 12px; border-radius: 6px; background: #eef3f6; }
+.workspace-building-photos .building-pilot-gallery > .building-photo-figure > .building-pilot-photo-stage { height: 128px; min-height: 128px; max-height: 128px; aspect-ratio: auto; }
+.map-workspace-layout[data-expanded] .workspace-building-photos .building-pilot-gallery > .building-photo-figure > .building-pilot-photo-stage { height: clamp(160px, 34dvh, 320px); min-height: 160px; max-height: 52dvh; }
+.workspace-metric-summary { padding: 4px 0 10px; border-bottom: 1px solid var(--cd-color-border); background: transparent; }
 .workspace-building-metrics { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.3fr); gap: 12px; margin: 4px 0 0; }
-.workspace-building-metrics > .workspace-rent-metric { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid #dce4eb; }
+.workspace-building-metrics > .workspace-rent-metric { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 2px; }
 .workspace-building-metrics dd { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 4px; font-weight: 600; }
 .workspace-building-metrics dd span, .workspace-market-facts dd span { font-weight: 400; color: #596779; white-space: nowrap; }
 .workspace-building dt, .workspace-period { color: #596779; overflow-wrap: anywhere; }
@@ -371,8 +372,8 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .workspace-building-tabs button { min-height: 36px; padding: 4px 8px; }
 .workspace-building-tabs [aria-selected="true"] { color: var(--cd-color-brand); border-bottom: 2px solid var(--cd-color-brand); }
 .workspace-building-facts { margin: 0; }
-.workspace-building-facts > div { display: grid; grid-template-columns: 5em minmax(0,1fr); gap: 16px; padding: 6px 0; }
-.workspace-detail-group { padding: 12px 0; border-bottom: 1px solid #e0e6ed; }
+.workspace-building-facts > div { display: grid; grid-template-columns: minmax(5em, 30%) minmax(0,1fr); gap: 12px; padding: 5px 0; align-items: baseline; }
+.workspace-detail-group { padding: 8px 0; border-bottom: 1px solid var(--cd-color-border); }
 .workspace-building-facts dd { margin: 0; }
 .workspace-business-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; padding: 12px 0; }
 .workspace-business-action { display: inline-flex; min-width: 0; min-height: 36px; justify-content: center; align-items: center; padding: 6px 8px; border: 1px solid var(--cd-color-border); border-radius: 6px; color: var(--cd-color-brand); background: var(--cd-color-surface-alt); text-align: center; }
@@ -678,3 +679,17 @@ body:has(#map-container) #map-container [data-building-id].map-marker-linked {
   filter: brightness(1.08);
 }
 .workspace-icon > svg { width: var(--cd-icon-md); height: var(--cd-icon-md); stroke-width: var(--cd-icon-stroke); }
+
+/* Comparison and analysis actions read as a quiet secondary action group. */
+.workspace-building [role="tabpanel"] .workspace-business-actions > .workspace-business-action { border-color: transparent; justify-content: flex-start; text-align: left; }
+.workspace-building [role="tabpanel"] .workspace-business-actions > [aria-expanded="true"] { background: var(--cd-color-brand-soft); border-color: var(--cd-color-border); }
+.workspace-building .workspace-business-action:disabled { color: var(--cd-color-text-secondary); cursor: default; }
+.workspace-building .workspace-building-facts dd { overflow-wrap: anywhere; }
+.workspace-building .workspace-business-actions { gap: 4px 8px; }
+
+.workspace-brochure-toggle { display:flex; width:100%; align-items:center; justify-content:space-between; min-height:36px; color:var(--cd-color-brand); font-weight:600; text-align:left; border-radius:var(--cd-radius-sm); padding:4px 0; }
+.workspace-brochure-toggle[aria-expanded="true"] > svg { transform:rotate(180deg); }
+.workspace-brochure-toggle:hover { color:var(--cd-color-text-primary); }
+.workspace-brochure-facts .workspace-period { margin:0 0 6px; text-align:left; }
+.workspace-brochure-facts .workspace-building-facts dd span { color:var(--cd-color-text-secondary); }
+@media (max-width:639px), (pointer:coarse) { .workspace-brochure-toggle { min-height:44px; } }

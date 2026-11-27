@@ -1,6 +1,6 @@
 'use client';
 import { createSubmarketBubble } from './mapSubmarketPresentation';
-import { hasLeedCertification, leedFallbackBadge } from '@/src/lib/leed-display';
+import { leedFallbackBadge } from '@/src/lib/leed-display';
 import { hasMapCoordinates } from '@/src/lib/map-coordinates';
 
 import { futureSupplyImage } from './mapSelectionMarker';
@@ -11,9 +11,7 @@ import type { MapController } from '@/src/services/MapController';
 import { mapOptionalNumber } from '../model/vacancyMetrics';
 import { latestFormalMetric } from '../model/quarterlyFacts';
 import { officeGrade } from '../model/marketIdentity';
-import { summarizeSubmarkets } from '../model/submarketOverview';
-import { normalizeMapSubmarket } from '../model/mapDomain';
-import { createAreaPlaceholder, getAreaPlaceholders } from './mapSubmarketOverview';
+import { buildSubmarketBubbleEntries, mapLeedLevel } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerMode = 'submarket' | 'dot' | 'building';
@@ -105,15 +103,6 @@ type BuildingVisual = {
   textColor: string;
   text: string;
   fontSize: number;
-};
-
-type SubmarketAggregate = {
-  name: string;
-  lngSum: number;
-  latSum: number;
-  coordCount: number;
-  count: number;
-  leedCount: number;
 };
 
 const MARKER_ZOOM = {
@@ -263,7 +252,7 @@ function buildingVisual(
     background = vacancyColor(pct, hasVacancy);
     fontSize = text.length > 3 ? 10.5 : 12;
   } else {
-    const leed = String(building?.leed_certification ?? '').toUpperCase();
+    const leed = mapLeedLevel(building?.leed_certification);
     if (leed.includes('PLATINUM')) {
       background = '#d9edf3';
       border = '#68aebf';
@@ -283,7 +272,7 @@ function buildingVisual(
       background = '#eef1f4';
       border = '#bdc6ce';
       textColor = '#6f7c89';
-      text = leedFallbackBadge(leed);
+      text = leed === 'CERTIFIED' ? 'C' : leedFallbackBadge(leed);
     }
   }
 
@@ -519,14 +508,13 @@ export function installNativeMarkerRenderer(
 
   const applyLayerOpacity = () => {
     const zoom = map.getZoom?.() ?? 14;
-    const submarketOpacity = 1 - smoothStep(11.08, 11.5, zoom);
     const dotIn = smoothStep(11.08, 11.34, zoom);
     const dotOut = 1 - smoothStep(12.84, 13.2, zoom);
     const dotOpacity = clamp(dotIn * dotOut, 0.16, 0.9);
     const detailOpacity = smoothStep(MARKER_ZOOM.detailMin, 13.16, zoom);
     const nameOpacity = smoothStep(MARKER_ZOOM.nameMin, 14.42, zoom);
 
-    for (const marker of submarketMarkers) marker.setOpacity?.(submarketOpacity);
+    for (const marker of submarketMarkers) marker.setOpacity?.(activeTier === 'submarket' ? 1 : 0);
     massMarks?.setOpacity?.(dotOpacity);
     detailLayer?.setOpacity?.(detailOpacity);
     nameLayer?.setOpacity?.(nameOpacity);
@@ -560,70 +548,14 @@ export function installNativeMarkerRenderer(
   };
 
   const buildSubmarkets = (buildings: any[], mode: RenderMode, showAreaPlaceholders: boolean, overviewBuildings?: any[]): MarkerLike[] => {
-    const summaries = summarizeSubmarkets(overviewBuildings ?? buildings);
-    const aggregateMap = new Map<string, SubmarketAggregate>();
-
-    for (const building of buildings) {
-      const name = normalizeMapSubmarket(building?.submarket);
-      if (!name || name === '其他') continue;
-
-      let item = aggregateMap.get(name);
-      if (!item) {
-        item = {
-          name,
-          lngSum: 0,
-          latSum: 0,
-          coordCount: 0,
-          count: 0,
-          leedCount: 0,
-        };
-        aggregateMap.set(name, item);
-      }
-
-      item.count += 1;
-      if (hasMapCoordinates(building)) {
-        item.lngSum += building.location_lng;
-        item.latSum += building.location_lat;
-        item.coordCount += 1;
-      }
-
-      if (hasLeedCertification(building?.leed_certification)) {
-        item.leedCount += 1;
-      }
-    }
-
     const result: MarkerLike[] = [];
-    const positionedNames = new Set<string>();
-    for (const item of aggregateMap.values()) {
-      if (item.coordCount === 0) continue;
-      positionedNames.add(item.name);
-
-      const center: [number, number] = [
-        item.lngSum / item.coordCount,
-        item.latSum / item.coordCount,
-      ];
-      const summary = summaries.get(item.name);
-      const leed = item.count > 0 ? (item.leedCount / item.count) * 100 : 0;
-      const element = createSubmarketBubble({ name: item.name, summary, mode, leed, selected: controller.getWorkspaceSubmarket?.() === item.name });
-      const openBrief = () => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: item.name } }));
+    for (const { name, center, summary } of buildSubmarketBubbleEntries(buildings, overviewBuildings ?? buildings, controller._allBuildingsCache ?? buildings, showAreaPlaceholders)) {
+      const element = createSubmarketBubble({ name, summary, mode, selected: controller.getWorkspaceSubmarket?.() === name });
+      const openBrief = () => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name } }));
       element.addEventListener('click', event => { event.stopPropagation(); openBrief(); });
-      const marker = new Marker({
-        position: center,
-        content: element,
-        anchor: 'center',
-        zooms: [3, MARKER_ZOOM.submarketMax],
-        zIndex: 92,
-        topWhenClick: true,
-      });
+      const marker = new Marker({ position: center, content: element, anchor: 'center', zooms: [3, MARKER_ZOOM.submarketMax], zIndex: 92, topWhenClick: true });
       marker.on?.('click', openBrief);
       result.push(marker);
-    }
-
-    for (const { name, center } of getAreaPlaceholders(showAreaPlaceholders, positionedNames)) {
-      const content = createAreaPlaceholder(name, () => {
-        if (activeTier === 'submarket') window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name } }));
-      }, mode, summaries.get(name), controller.getWorkspaceSubmarket?.() === name);
-      result.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, MARKER_ZOOM.submarketMax], zIndex: 92 }));
     }
     return result;
   };

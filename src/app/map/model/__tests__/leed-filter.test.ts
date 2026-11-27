@@ -38,3 +38,21 @@ it('upgrades only the old full LEED catalog when restoring preferences',async()=
   sessionStorage.setItem('leed-preference',JSON.stringify({input:'CBD',filters:{...filters,leeds:['Gold']}}));
   expect(readMapFilterPreference('leed-preference')?.filters?.leeds).toEqual(['Gold']);
 });
+
+it('keeps composite historical LEED levels and unclassified text in both stock filters', () => {
+  const data = [row('historic-gold', 'LEED-E8 金级 / LEED-E8 Gold'), row('historic-platinum', 'LEED O+M v4 铂金级'), row('mixed-gold', 'LEED金级 / LEED Gold'), row('unspecified', 'LEED'), row('confirmed', 'LEED CERTIFIED')];
+  const store = new MapDataStore(data);
+  for (const [leeds, ids] of [[createDefaultFilterState().leeds, data.map(b=>b.id)], [['Gold'], ['historic-gold','mixed-gold']], [['Platinum'], ['historic-platinum']], [['NULL'], ['unspecified']], [['Certified'], ['confirmed']]] as const) {
+    const filterState = {...createDefaultFilterState(), leeds: [...leeds]};
+    expect(store.filter({filterState, compareGroups:[]}).map(b=>b.id)).toEqual(ids);
+    expect(filterBuildings(data,filterState).map(b=>b.id)).toEqual(ids);
+  }
+});
+it('upgrades only the complete v2 catalog with the ungraded certified option', async () => {
+  const {readMapFilterPreference}=await import('../mapFilterPreference');
+  const filters={...createDefaultFilterState(),leeds:['Platinum','Gold','Silver','N','NULL']};
+  sessionStorage.setItem('leed-v3-preference',JSON.stringify({input:'CBD',filters,leedCatalogVersion:2}));
+  expect(readMapFilterPreference('leed-v3-preference')?.filters?.leeds).toContain('Certified');
+  sessionStorage.setItem('leed-v3-preference',JSON.stringify({input:'CBD',filters:{...filters,leeds:['Gold']},leedCatalogVersion:2}));
+  expect(readMapFilterPreference('leed-v3-preference')?.filters?.leeds).toEqual(['Gold']);
+});

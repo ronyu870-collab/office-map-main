@@ -1,6 +1,7 @@
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { leedFallbackBadge } from '@/src/lib/leed-display';
 import { markerTextColor } from './mapMarkerContrast';
+import { mapLeedLevel } from './mapSubmarketOverview';
 
 type Mode = 'default' | 'rent' | 'vacancy' | 'leed';
 type Visual = { background: string; border: string; textColor: string; text: string; fontSize: number };
@@ -23,11 +24,11 @@ export function futureSupplyImage(supply: { status?: unknown; leed_certification
   if (mode === 'rent' || mode === 'vacancy') {
     visual = { ...visual, background: '#94a3b8', text: '–', fontSize: 10 };
   } else if (mode === 'leed') {
-    const leed = String(supply.leed_certification ?? supply.leed ?? '').toUpperCase();
+    const leed = mapLeedLevel(supply.leed_certification ?? supply.leed);
     const colors = leed.includes('PLATINUM') ? ['#d9edf3', '#68aebf', '#225a68', 'P']
       : leed.includes('GOLD') ? ['#eadfbd', '#b69a52', '#6f5a25', 'G']
       : leed.includes('SILVER') ? ['#e7ebef', '#9ca8b3', '#52606d', 'S']
-      : ['#eef1f4', '#bdc6ce', '#6f7c89', leedFallbackBadge(leed)];
+      : ['#eef1f4', '#bdc6ce', '#6f7c89', leed === 'CERTIFIED' ? 'C' : leedFallbackBadge(leed)];
     visual = { ...visual, background: colors[0], border: colors[1], textColor: colors[2], text: colors[3] };
   }
   return badgeImage(visual, isPendingFutureSupply(supply) ? 'pending' : 'future', mode === 'default');

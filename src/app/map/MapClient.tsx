@@ -224,7 +224,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     try {
       // Strip SDK metadata while retaining the station identity and distance criteria.
       const filters = serializableMapFilters(filterState);
-      window.sessionStorage.setItem(preferenceKey, JSON.stringify({ leedCatalogVersion: 2, input: searchInput.slice(0, 200), filters }));
+      window.sessionStorage.setItem(preferenceKey, JSON.stringify({ leedCatalogVersion: 3, input: searchInput.slice(0, 200), filters }));
     } catch { /* Map filtering remains available when storage is blocked. */ }
   }, [preferenceKey, buildingFocus, initialIntelligenceHandoff, queryContext, filterState, searchInput]);
   const keyword = searchInput.trim();
@@ -990,7 +990,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           window.dispatchEvent(new CustomEvent('map-workspace-selection', { detail: workspace.history.at(-1)?.kind === 'building' ? (workspace.history.at(-1) as { kind: 'building'; building: FullListBuilding }).building : null }));
         }}
         buildingDetailPanel={buildingDetail && workspace.right?.kind === 'building' ? <BuildingDetailView
-          key={`${buildingDetail.building._dataType}:${buildingDetail.building.id}`} detail={{ ...buildingDetail, canEdit: buildingDetail.canEdit && !getImpersonationTargetUserId() }}
+          key={JSON.stringify([readingScope, buildingDetail.building._dataType, buildingDetail.building.id])} detail={{ ...buildingDetail, canEdit: buildingDetail.canEdit && !getImpersonationTargetUserId() }}
           outsideResults={!fullListBusy && !combinedBuildingList.some(item => item.id === buildingDetail.building.id && item._dataType === buildingDetail.building._dataType)}
           readingState={buildingReadingStates.get(`${buildingDetail.building._dataType}:${buildingDetail.building.id}`)}
           onReadingChange={state => buildingReadingStates.set(`${buildingDetail.building._dataType}:${buildingDetail.building.id}`, state)}

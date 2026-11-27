@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { clickWorkspaceAction } from './workspace-actions.mjs';
+import { clickWorkspaceAction, ensureWorkspacePhotoOpen } from './workspace-actions.mjs';
 
 export async function verifyContentHeight(page, { base, width }) {
   // Keep this layout read independent from the shared suite's one-shot 403
@@ -32,7 +32,7 @@ export async function verifyContentHeight(page, { base, width }) {
   });
   if (!compact && mapReachableBelowShortContent !== null) assert.equal(mapReachableBelowShortContent, true, 'map below the short card receives pointer input');
   await panel.getByRole('tab', { name: '概览', exact: true }).click();
-  await panel.getByRole('button', { name: /看图/ }).click();
+  await ensureWorkspacePhotoOpen(panel);
   await page.waitForFunction(() => document.querySelector('[data-building-photo]:not([hidden])')?.naturalWidth > 0);
   await panel.getByRole('button', { name: '查看大图', exact: true }).scrollIntoViewIfNeeded();
   await panel.getByRole('tab', { name: '行情', exact: true }).click();
