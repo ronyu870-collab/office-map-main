@@ -604,6 +604,11 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         await page.goto(app + "/intelligence/pitch?project=" + encodeURIComponent(projectId));
         await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
         assert.equal(await page.getByLabel("页面标题", { exact: true }).inputValue(), editedTitle);
+        await button("返回我的 Pitch").click();
+        await page.getByRole("button").filter({ hasText: reopened.project.title })
+          .filter({ hasText: `${reopened.slides.length} 页` }).click();
+        await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+        assert.equal(await page.getByLabel("页面标题", { exact: true }).inputValue(), editedTitle);
 
         result.stage = "presenting";
         await button("演示").click();
