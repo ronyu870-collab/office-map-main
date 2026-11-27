@@ -205,7 +205,31 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
     if (!observed?.result) failures.push({ tool: 'select_answer_results', code: 'result_not_found' });
   } else if (task.route === 'single_interpretation' || task.catalogLookup) {
     const observed = await run('query_verified_real_estate', { question: task.question });
-    if (observed) { const payload = JSON.parse(observed.content); if (payload.status === 'requires_clarification') clarification = payload.message; }
+    if (observed) {
+      const payload = JSON.parse(observed.content);
+      if (payload.status === 'requires_clarification') clarification = payload.message;
+    }
+    if (task.catalogLookup === 'profile' && observed?.result) {
+      const primary = resultViewSchema.parse(observed.result);
+      const plan = primary.parameters.executedPlan as QueryPlan | undefined;
+      const ids = plan?.scope.buildingIds;
+      if (ids?.length && ids.length <= 20 && primary.table.rows.length === ids.length
+        && primary.table.rows.every(row => ids.includes(row.entityId))) {
+        const available = await run('get_data_capabilities', {});
+        const profileFields = available && JSON.parse(available.content).business?.profileFields as string[] | undefined;
+        const fields = ['address', 'completionYear', 'completionDate', 'gfaTotal', 'gfaOffice', 'standardFloorArea', 'metro']
+          .filter(field => profileFields?.includes(field));
+        if (fields.length) {
+          const dossier = await run('query_building_dossier', { buildingIds: ids, fields });
+          if (dossier?.result) {
+            result = observed.result;
+            const evidence = resultViewSchema.parse(dossier.result);
+            await run('select_answer_results', { primaryResultId: primary.resultId,
+              auxiliary: [{ resultId: evidence.resultId, role: 'supporting' }], task: 'list', status: 'answered' });
+          }
+        }
+      }
+    }
   } else if (!task.reply) failures.push({ tool: 'verified_data', code: 'result_not_found' });
   if (task.tableView && result && !failures.length) {
     const view = resultViewSchema.parse(result); await run('apply_result_view', { resultId: view.resultId, view: task.tableView });

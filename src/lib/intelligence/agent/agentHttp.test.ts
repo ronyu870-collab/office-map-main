@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildTrendResult, buildListResult, buildAggregateResult, buildRankResult } from '../query/result';
-import { fixture, nameSource } from '../query/__tests__/fixtures';
+import { fixture, nameSource, source } from '../query/__tests__/fixtures';
+import { resolveNumericFact } from '../query/facts';
 import { parseQueryPlan } from '../query/plan';
 import { encryptAuditContent } from '../query/auditCrypto';
 import { attachResearchAnalysis } from '../query/researchAnalysis';
@@ -59,10 +60,15 @@ function fakeRequest(question = '你好') {
     body: JSON.stringify(input),
   }) };
 }
-function deps(allowed = true, leaseSnapshot?: object) {
-  const rpc = vi.fn((name: string) => {
+function deps(allowed = true, leaseSnapshot?: object, business?: { permitted: string[]; snapshot: object }) {
+  const rpc = vi.fn((name: string, args?: { p_plan?: { tool?: string } }) => {
     if(name==='ai_control_runtime')return {abortSignal:()=>Promise.resolve({data:null,error:{code:'PGRST202',message:'Could not find ai_control_runtime'}})};
     if (name === 'ai_lease_research_snapshot' && leaseSnapshot) return { abortSignal: async () => ({ data: leaseSnapshot, error: null }) };
+    if (name === 'ai_business_research_snapshot' && business) {
+      return { abortSignal: async () => ({ error: null, data: args?.p_plan?.tool === 'capabilities'
+        ? { allowed: true, modules: ['profile'], profileFields: business.permitted, submissions: false, export: false }
+        : business.snapshot }) };
+    }
     expect(name).toBe('ai_query_model_budget');
     return { abortSignal: () => Promise.resolve({ data: { allowed }, error: null }) };
   });
@@ -85,6 +91,47 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it.each([true, false])('uses the exact named tower to obtain independently authorized dossier fields (%s)', async allowed => {
+    const buildingId = randomUUID();
+    const period = { year: 2026, quarter: 2 };
+    const original = fixture(period);
+    const name = '海岳大厦A座';
+    const fact = (field: 'netEffectiveRent' | 'totalArea' | 'vacantArea', value: number) =>
+      resolveNumericFact(field, buildingId, [source(buildingId, field, value, period)], period);
+    const raw = buildListResult({ ...original, rows: [{ id: buildingId, name, nameSource: nameSource(buildingId, name), facts: {
+      netEffectiveRent: fact('netEffectiveRent', 180), totalArea: fact('totalArea', 18000), vacantArea: fact('vacantArea', 2700),
+    } }], expectedCount: 1 },
+      ['netEffectiveRent', 'totalArea', 'vacantArea'], true);
+    const result = { ...raw, parameters: { ...raw.parameters, interpretation: { buildingProfile: true },
+      executedPlan: parseQueryPlan({ operation: 'list', scope: { inventory: 'tracked', buildingIds: [buildingId] },
+        period, fields: ['netEffectiveRent', 'totalArea', 'vacantArea'] }) } };
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'query:quarter', 'query:brochure'] });
+    state.tool.mockResolvedValue({ result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) });
+    const snapshot = { allowed: true, version: 'business-research/1', permission_revision: authority.permissionRevision, export: false,
+      records: [{ id: buildingId, name, buildingId, data: [{ table: 'buildings', id: buildingId, version: 'a'.repeat(64),
+        recordedAt: null, asOf: null, period: null, values: { name } }, { table: 'building_brochure_data', id: randomUUID(),
+        version: 'b'.repeat(64), recordedAt: null, asOf: null, period: null, values: { address: '合成路2号', gfaTotal: '25000' } }] }] };
+    const dependencies = deps(true, undefined, { permitted: allowed ? ['address', 'gfaTotal'] : [], snapshot });
+    const response = await handleAgentSubmission(fakeRequest('请介绍海岳大厦A座，并附上照片、地址、建筑面积和最新正式季度净有效租金、空置率').request, dependencies);
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.result.resultId).toBe(result.resultId);
+    expect(body.answerSelection.results).toHaveLength(allowed ? 2 : 1);
+    if (allowed) {
+      expect(body.answerSelection.results[1].result.table.rows).toMatchObject([{ entityId: buildingId, cells: {
+        address: { value: '合成路2号' }, gfaTotal: { value: { numeric: 25000 } },
+      } }]);
+      expect(dependencies.client.rpc).toHaveBeenCalledWith('ai_business_research_snapshot', expect.objectContaining({
+        p_plan: { tool: 'query_building_dossier', buildingIds: [buildingId], fields: ['address', 'gfaTotal'] },
+      }));
+    } else {
+      expect(JSON.stringify(body)).not.toContain('合成路2号');
+      expect(body.answerSelection).toMatchObject({ status: 'partial', notice: expect.stringContaining('建筑面积') });
+      expect(dependencies.client.rpc).toHaveBeenCalledTimes(2);
+    }
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
   it('requires the individual area ranking even when the provider first proposes building totals', async () => {
     const tower = randomUUID();
     const row = (area: string) => ({ id: 'live:' + randomUUID(), source: 'live', fingerprint: 'a'.repeat(64),

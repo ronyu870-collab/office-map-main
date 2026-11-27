@@ -29,10 +29,17 @@ export function buildingLocationTarget(question: string): string | null {
   return target && !/[，,；;<>]|忽略|绕过|执行SQL/i.test(target) ? target : null;
 }
 function parseBuildingIntroduction(question: string): string | null {
-  const text = question.trim().replace(/[。？?]$/, '');
-  const match = /^(?:请)?(?:介绍(?:一下)?|了解一下)(.{2,80}?)$/.exec(text) ?? /^(.{2,80})的(?:楼宇|项目)(?:概况|信息)$/.exec(text);
-  if (!match || /[\u0000-\u001f<>]|忽略|绕过|SQL|建成|楼龄|建筑面积|报价|业主|联系方式|最近|季度|大于|小于|只要|不含|什么是|概念|定义|原理|市场走势|有哪些/i.test(match[1])) return null;
-  return match[1].replace(/的(?:楼宇|项目)?(?:概况|信息|资料)$/, '').trim();
+  const text = question.normalize('NFKC').trim().replace(/[。？?]$/, '');
+  const match = /^(?:请)?(?:介绍(?:一下)?|了解一下|查看|查一下)(.{2,80}?)$/.exec(text)
+    ?? /^(.{2,80})的(?:楼宇|项目)(?:概况|信息)$/.exec(text);
+  if (!match) return null;
+  const separator = /(?:[,，;；]+\s*(?:并(?:提供|附上|查看)?|再(?:提供|附上|查看)?|附上|包括|以及)?|(?:并提供|并附上|并查看|包含|包括|以及))/.exec(match[1]);
+  const subject = (separator ? match[1].slice(0, separator.index) : match[1])
+    .replace(/的?(?:楼宇|项目)?(?:概况|信息|档案|资料)$/, '').trim();
+  const details = separator ? match[1].slice(separator.index + separator[0].length) : '';
+  const fields = details.replace(/(?:最新正式|最新(?:有数据)?|正式)?季度|实景(?:照片|图片)|照片|图片|地址|建筑面积|办公面积|标准层面积|楼层数|建筑高度|竣工日期|建成年份|交通|地铁|净有效租金|空置率|楼书|地图位置|租金和空置率|[,，、;；\s]|以及|和|、|与/g, '');
+  if (fields || /[\u0000-\u001f<>]|忽略|绕过|SQL|建成|楼龄|建筑面积|报价|业主|联系方式|最近|季度|大于|小于|只要|不含|什么是|概念|定义|原理|市场走势|有哪些|列表|名录|排名|哪几|多少栋/i.test(subject)) return null;
+  return subject.length >= 2 ? subject : null;
 }
 export function buildingProfileTarget(question: string): string | null {
   const target = parseBuildingIntroduction(question);
@@ -138,5 +145,5 @@ export async function prepareBuildingIntent(input: { client: SupabaseClient; ide
     interpretation: { version: 'colliers-semantic-planner/1', method: 'bounded_semantic_rules', resolvedQuestion: intent === 'peers' ? '查询所选项目所属子市场的获权楼宇目录（包含所选项目）' : `${chosen.map(row => row.name).join('、')}：${intent === 'rent_trend' ? '近四个季度净有效租金趋势' : '楼宇信息与已有获权指标'}`,
       periodBasis: period ? `按所选楼宇获权有效记录定位 ${period.year}Q${period.quarter}，不是实时数据` : '没有可用季度时只展示目录与获权楼书参数',
       periods, availableThrough: period, unavailablePeriods: [], inherited: [], ...(buildingLocation ? { buildingLocation } : {}), ...(profileTarget ? { buildingProfile: true } : {}), notices: ['楼宇按明确主键匹配；项目级和同名候选必须确认。'] },
-    limitations: ['建成年份、建筑面积和地下层数尚未纳入 AI 可信字段授权，本结果不补造；楼层数按原来源口径。', ...(intent === 'peers' ? ['同子市场目录包含当前项目，不以名称排除或合并楼座。'] : [])] } };
+    limitations: ['本表中的楼层数按原来源口径。建筑面积、建成年份及地址以单独获权的目录或楼书资料为准。', ...(intent === 'peers' ? ['同子市场目录包含当前项目，不以名称排除或合并楼座。'] : [])] } };
 }

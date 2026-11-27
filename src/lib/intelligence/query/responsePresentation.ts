@@ -57,6 +57,7 @@ export function responseDecision(result: QueryResultView, task?: string, questio
   if (result.parameters.researchTask != null) return { ...base, task: 'research', status: 'answered', primaryExpression: 'research', details: 'none' };
   if (exported || report) return { ...base, task: 'delivery', status: 'answered', primaryExpression: 'file', details: 'on_demand' };
   if (resultAvailability(result)) return { ...base, task: 'fact', status: 'unavailable', primaryExpression: 'status', details: result.table.rows.length ? 'on_demand' : 'none' };
+  if (task === 'profile_evidence') return { ...base, task: 'list', status: 'answered', primaryExpression: 'table', details: 'inline' };
   const buildings = resultBuildingRows(result);
   const numeric = responseFactCells(result, task);
   const leaseDetails = z.array(z.object({ plan: z.object({ mode: z.literal('details') }) })).safeParse(result.parameters.leaseBindings).success;
@@ -163,7 +164,7 @@ export function composeResponse(message: string | undefined, result?: QueryResul
   else if (decision.primaryExpression !== 'status') {
     // A short lead is useful for comparisons/research, but repeating a fact or
     // an entity's fields above its formal visual adds no information.
-    if (['chart', 'table'].includes(decision.primaryExpression)) blocks.push({ type: 'summary', resultId });
+    if (task !== 'profile_evidence' && ['chart', 'table'].includes(decision.primaryExpression)) blocks.push({ type: 'summary', resultId });
     if (decision.primaryExpression === 'fact') blocks.push({ type: 'metrics', resultId });
     if (decision.primaryExpression === 'entity') blocks.push({ type: 'building', resultId });
     if (tableFirst) blocks.push({ type: 'table', resultId });
@@ -218,6 +219,7 @@ export function responseResultContent(result: QueryResultView, research: Researc
 export function responseTableTitle(result: QueryResultView): string {
   if (result.parameters.domain === 'knowledge-research/1') return '研究资料';
   if (result.parameters.dataDomain === 'lease-research/1') return '成交研究明细';
+  if (result.parameters.businessTool === 'query_building_dossier') return '楼宇资料';
   if (result.parameters.dataDomain === 'business-research/1') return '业务资料';
   const scope = z.object({ submarkets: z.array(z.string()).optional() }).safeParse(result.parameters.scope).data;
   const object = scope?.submarkets?.join('、') ?? '';

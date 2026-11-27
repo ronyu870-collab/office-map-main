@@ -90,6 +90,25 @@ export function applyAnswerPolicy(question: string, selection: AnswerSelection,
     ];
     next = { ...next, status: 'partial', notice: notices.filter(Boolean).join(' ') };
   }
+  if ((primary.parameters.interpretation as { buildingProfile?: boolean } | undefined)?.buildingProfile
+    && primary.table.rows.length && ['answered', 'partial'].includes(next.status)) {
+    const requirements = [
+      { label: '地址', key: 'address', requested: /地址/ },
+      { label: '建筑面积', key: 'gfaTotal', requested: /建筑面积/ },
+      { label: '办公面积', key: 'gfaOffice', requested: /办公面积/ },
+      { label: '标准层面积', key: 'standardFloorArea', requested: /标准层面积/ },
+      { label: '建成年份', key: 'completionYear', requested: /建成年份/ },
+      { label: '竣工日期', key: 'completionDate', requested: /竣工日期/ },
+      { label: '净有效租金', key: 'netEffectiveRent', requested: /净有效租金|租金和空置率/ },
+      { label: '空置率', key: 'vacancy', requested: /空置率/ },
+    ];
+    const evidence = selection.results.flatMap(item => item.result.table.rows);
+    const missing = requirements.filter(({ key, requested }) => requested.test(question)
+      && primary.table.rows.some(row => !evidence.some(candidate => candidate.entityId === row.entityId
+        && ['number', 'text'].includes(candidate.cells[key]?.kind ?? ''))));
+    if (missing.length) next = { ...next, status: 'partial', notice: [next.notice,
+      `部分楼宇的${missing.map(item => item.label).join('、')}缺少当前可查阅的明确记录。`].filter(Boolean).join(' ') };
+  }
   if (next.status === 'answered') {
     const issues = quarterlyAnswerIssues(question, primary);
     if (issues.length) next = { ...next, status: 'partial', notice: [next.notice, ...issues].filter(Boolean).join(' ') };
