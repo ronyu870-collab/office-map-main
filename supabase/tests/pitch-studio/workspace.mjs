@@ -1035,6 +1035,118 @@ try {
     },
   );
   await check(
+    "confirmed proposal work uses a private one-time lease and commits the child and receipt atomically",
+    async () => {
+      const { lookupProposalTask, startProposalTask, runProposalTask } = require("../../../src/lib/pitch/workspace/proposal-tasks.ts");
+      const parent = await create(ordinary, "准备整套提案");
+      const projectId = parent.project.id;
+      const confirmation = { taskId: randomUUID(), projectId, expectedVersion: parent.project.version,
+        planId: randomUUID(), contextFingerprint: "a".repeat(64), request: { projectId, question: "按已确认提纲生成" } };
+      const sourceId = randomUUID();
+      const status = taskId => db.rpc(OTHER, { action: "workspace_task_status", projectId, taskId });
+      const exists = async id => (await db.setup.query("select id from pitch_projects where id=$1", [id])).rowCount > 0;
+      const prepare = async (context, input, resultProject, assemble) => {
+        assert.equal(input.projectId, projectId);
+        await assemble();
+        const { input: generated } = await workflow.prepareBusinessProject(context, {
+          action: "generate", projectId: resultProject, parentProjectId: projectId,
+          title: "已确认提案", scope, language: "zh", themeId: parent.project.theme_id,
+          themeVersion: parent.project.theme_version, parts: [staticPart("corporate-overview", [ids.corporate])],
+        });
+        return { ...generated, expectedParentVersion: input.expectedVersion, reviewedPlanId: input.planId };
+      };
+      assert.equal(await lookupProposalTask(ordinary, confirmation, sourceId), null);
+      await assert.rejects(startProposalTask(owner, confirmation, sourceId), /PITCH_DENIED/);
+      const queued = await startProposalTask(ordinary, confirmation, sourceId);
+      assert.deepEqual(queued, { taskId: confirmation.taskId, state: "queued" });
+      assert.deepEqual(await startProposalTask(ordinary, confirmation, sourceId), queued);
+      assert.deepEqual(await lookupProposalTask(ordinary, confirmation, sourceId), queued);
+      await assert.rejects(startProposalTask(ordinary, confirmation, randomUUID()), /PITCH_CONFLICT/);
+      await assert.rejects(lookupProposalTask(ordinary, { ...confirmation, contextFingerprint: "b".repeat(64) }, sourceId), /PITCH_CONFLICT/);
+      assert.deepEqual(await db.rpc(OTHER, { action: "workspace_task_claim", projectId, taskId: confirmation.taskId, token: randomUUID() }), { claimed: false });
+      assert.equal(await exists(sourceId), false);
+
+      const reached = Promise.withResolvers(), resume = Promise.withResolvers();
+      const working = runProposalTask(ordinary, projectId, confirmation.taskId, async (...args) => {
+        const payload = await prepare(...args);
+        reached.resolve();
+        await resume.promise;
+        return payload;
+      });
+      try {
+        await Promise.race([reached.promise, working.then(() => assert.fail("proposal did not reach persistence"))]);
+        const receipt = await status(confirmation.taskId);
+        assert.equal(receipt.workflow, "proposal");
+        assert.equal(receipt.stage, "assembling");
+        assert.equal(receipt.token, undefined);
+        assert.equal(receipt.command, undefined);
+        assert.deepEqual(await startProposalTask(ordinary, confirmation, sourceId), { taskId: confirmation.taskId, state: "running" });
+        let duplicateRuns = 0;
+        await runProposalTask(ordinary, projectId, confirmation.taskId, async () => { duplicateRuns++; });
+        assert.equal(duplicateRuns, 0);
+        assert.equal(await exists(sourceId), false);
+      } finally {
+        resume.resolve();
+        await working;
+      }
+      assert.equal((await status(confirmation.taskId)).attempts, 1);
+      assert.deepEqual(await startProposalTask(ordinary, confirmation, sourceId),
+        { taskId: confirmation.taskId, state: "completed", projectId: sourceId });
+      assert.ok((await workspace.getWorkspace(ordinary, sourceId)).slides.length);
+      assert.equal((await workspace.getWorkspace(ordinary, projectId)).project.version, parent.project.version);
+
+      const cancelled = { ...confirmation, taskId: randomUUID() }, cancelledId = randomUUID();
+      await startProposalTask(ordinary, cancelled, cancelledId);
+      await runProposalTask(ordinary, projectId, cancelled.taskId, async (...args) => {
+        const payload = await prepare(...args);
+        await db.rpc(OTHER, { action: "workspace_task_cancel", projectId, taskId: cancelled.taskId });
+        return payload;
+      });
+      assert.equal((await status(cancelled.taskId)).state, "cancelled");
+      assert.equal(await exists(cancelledId), false);
+
+      const retry = { ...confirmation, taskId: randomUUID() }, retryId = randomUUID();
+      await startProposalTask(ordinary, retry, retryId);
+      await db.setup.query(`create function private.reject_test_proposal_audit() returns trigger language plpgsql as
+        $$begin if new.action='workspace_proposal_complete' then raise exception 'isolated audit outage'; end if; return new; end$$;
+        create trigger reject_test_proposal_audit before insert on private.pitch_events
+          for each row execute function private.reject_test_proposal_audit()`);
+      try {
+        await runProposalTask(ordinary, projectId, retry.taskId, prepare);
+        assert.equal((await status(retry.taskId)).state, "failed");
+        assert.equal(await exists(retryId), false);
+      } finally {
+        await db.setup.query("drop trigger reject_test_proposal_audit on private.pitch_events");
+      }
+      await db.rpc(OTHER, { action: "workspace_task_retry", projectId, taskId: retry.taskId });
+      await runProposalTask(ordinary, projectId, retry.taskId, prepare);
+      assert.equal((await status(retry.taskId)).attempts, 2);
+      assert.equal((await status(retry.taskId)).source_project_id, retryId);
+      assert.equal(await exists(retryId), true);
+
+      const interrupted = { ...confirmation, taskId: randomUUID() }, interruptedId = randomUUID();
+      const interrupt = new AbortController();
+      await startProposalTask(ordinary, interrupted, interruptedId);
+      await runProposalTask({ ...ordinary, signal: interrupt.signal }, projectId, interrupted.taskId, async (...args) => {
+        const payload = await prepare(...args);
+        interrupt.abort();
+        return payload;
+      });
+      assert.equal((await status(interrupted.taskId)).state, "failed");
+      assert.equal(await exists(interruptedId), false);
+
+      const stale = { ...confirmation, taskId: randomUUID() }, staleId = randomUUID();
+      await startProposalTask(ordinary, stale, staleId);
+      await runProposalTask(ordinary, projectId, stale.taskId, async (...args) => {
+        const payload = await prepare(...args);
+        await workspace.saveWorkspace(ordinary, save(parent, { title: "确认后修改父项目" }));
+        return payload;
+      });
+      assert.equal((await status(stale.taskId)).error_code, "PITCH_CONFLICT");
+      assert.equal(await exists(staleId), false);
+    },
+  );
+  await check(
     "cancelled generation is never committed, even when cancellation races after source generation",
     async () => {
       const taskId = randomUUID(),
