@@ -1,20 +1,10 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
-import { z } from "zod";
 import { layoutFixture } from "@/src/lib/pitch/fixtures/layouts";
 import { workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { ProposalRevision } from "./ProposalRevision";
 import { WorkspaceError, type Call } from "./client";
-
-vi.mock("@/src/lib/pitch/contracts/content", async original => {
-  const schemas = await original<typeof import("@/src/lib/pitch/contracts/content")>();
-  if ("visual" in schemas.sourceReferenceSchema.shape) return schemas;
-  const sourceReferenceSchema = schemas.sourceReferenceSchema.safeExtend({ visual: z.unknown().optional() });
-  return { ...schemas, sourceReferenceSchema, slideContentSchema: schemas.slideContentSchema.safeExtend({
-    sources: z.array(sourceReferenceSchema).min(1).max(100),
-  }) };
-});
 
 afterEach(cleanup);
 const projectId = "11111111-1111-4111-8111-111111111111";

@@ -241,12 +241,13 @@ try {
     : quarterRevision || competitorRevision || process.argv.includes("--building-inspector") ? verifyPitchBuildingInspectorBrowser
     : process.argv.includes("--chart-revision") ? verifyPitchChartRevisionBrowser : verifyPitchFlagshipBrowser;
   const readWorkspace = async (action, projectId) => {
-    const result = await fetch(app + "/api/intelligence/pitch/workspace", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + who.token, "Content-Type": "application/json" },
-      body: JSON.stringify({ action, projectId }),
-    });
-    assert.equal(result.status, 200);
+    const url = new URL("/api/intelligence/pitch/workspace", app);
+    const headers = { Authorization: "Bearer " + who.token };
+    const options = action === "get" ? { method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ action, projectId }) } : { headers };
+    if (action !== "get") url.search = new URLSearchParams({ action, projectId }).toString();
+    const result = await fetch(url, options);
+    assert.equal(result.status, 200, `${action} HTTP ${result.status()}`);
     return result.json();
   };
   await verify({
