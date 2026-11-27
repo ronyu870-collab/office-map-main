@@ -29,6 +29,11 @@ const scenarioQuestions: Record<Exclude<ProposalScenario, "analysis-briefing">, 
   "building-promotion": "为所选楼宇制作项目推介",
   "site-selection": "为所选楼宇制作选址方案",
 };
+const presentationThemes = {
+  professional: "colliers-corporate-executive",
+  premium: "colliers-premium-portfolio",
+  research: "colliers-market-intelligence",
+} as const;
 const quoted = /(?:改为|改成|换成|替换为|replace (?:it )?with|change (?:it )?to)\s*(?:《([^》]+)》|「([^」]+)」|[“"＂]([^”"＂]+)[”"＂])/i;
 
 const quarterReviewSchema = z.object({
@@ -57,7 +62,7 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   const current = versionedWorkspace.parse(await pitchRpc(ctx, { action: "workspace_get", projectId: input.projectId }));
   const { project, workspace, slides } = current;
   if (project.version !== input.expectedVersion) throw new Error("PITCH_CONFLICT");
-  await pitchRpc(ctx, { action: "catalog" });
+  const catalog = await pitchRpc(ctx, { action: "catalog" });
   const intention = readProposalEdit(input);
   if (intention.kind === "intent" && intention.operations.length === 1 && intention.operations[0].kind === "add-competitor") {
     if (intention.target.kind === "pages" && intention.target.pageIds.some(id => !slides.some(slide => slide.id === id))) {
@@ -144,8 +149,9 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
         if (operation.kind === "set-style") {
           if (scope !== "document" || base.some(page => page.manual)) return null;
           const data = z.object({ themes: z.array(z.object({ id: z.string(), current_version: z.number().int().positive() })) })
-            .parse(await pitchRpc(ctx, { action: "catalog" }));
-          const matches = data.themes.filter(value => value.id.split("-").includes(operation.style));
+            .safeParse(catalog);
+          if (!data.success) return null;
+          const matches = data.data.themes.filter(value => value.id === presentationThemes[operation.style]);
           if (matches.length !== 1) return null;
           theme = { id: matches[0].id, version: matches[0].current_version };
           continue;

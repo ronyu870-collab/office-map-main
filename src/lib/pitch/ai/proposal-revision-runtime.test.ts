@@ -34,6 +34,7 @@ let separateSnapshot: boolean;
 let comparisons: boolean;
 let availableQuarters: { year: number; quarter: number }[];
 let revisionDeck: { id: string; content: SlideContent; manual?: true }[] | undefined;
+let themes: { id: string; current_version: number }[];
 
 beforeAll(async () => {
   [scene] = await layoutSlides(content, STUDIO_THEME, "two-columns");
@@ -44,6 +45,7 @@ beforeEach(() => {
   separateSnapshot = false;
   comparisons = false;
   revisionDeck = undefined;
+  themes = [];
   availableQuarters = [{ year: 2026, quarter: 1 }, { year: 2026, quarter: 2 }, { year: 2026, quarter: 3 }];
   quarterRpc.mockReset().mockImplementation((action, args) => {
     if (action === "ai_query_authority") return { abortSignal: async () => ({ error: null, data: {
@@ -59,7 +61,7 @@ beforeEach(() => {
     throw new Error("Unexpected metadata lookup");
   });
   vi.mocked(pitchRpc).mockReset().mockImplementation(async (_ctx, command) => {
-    if (command.action === "catalog") return {};
+    if (command.action === "catalog") return { themes };
     if (command.action === "workspace_document_bindings") {
       const period = { year: 2026, quarter: 2 };
       return (separateSnapshot ? [sourceId, separateAsset] : [sourceId]).map((assetId, index) => ({
@@ -98,6 +100,22 @@ function request(question: string, pageIds: string[] = []) {
 }
 
 describe("proposal revision transaction previews", () => {
+  it.each([
+    ["商务", "colliers-corporate-executive"],
+    ["高端", "colliers-premium-portfolio"],
+    ["研究", "colliers-market-intelligence"],
+  ])("resolves the %s style to the installed catalogue entry and its current version", async (style, id) => {
+    await expect(planProposalRevision(context, request(`整套换成${style}风格`))).resolves.toMatchObject({ status: "unavailable" });
+    themes = [{ id, current_version: 7 }, { id: "other-premium-library", current_version: 1 }];
+    await expect(planProposalRevision(context, request(`整套换成${style}风格`))).resolves.toMatchObject({
+      status: "ready", theme: { id, version: 7 },
+      command: { action: "apply_modification", scope: "document", theme: { id, version: 7 },
+        plan: { pages: [{ id: firstPage }, { id: secondPage }] } },
+    });
+    expect(vi.mocked(pitchRpc).mock.calls.map(([, command]) => command.action))
+      .toEqual(["workspace_get", "catalog", "workspace_get", "catalog"]);
+  });
+
   it("shortens a whole deck while retaining manual work, evidence pages, and every cited source", async () => {
     const id = (index: number) => `10000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
     const page = (index: number, title: string, patch: Partial<SlideContent> = {}) => ({
