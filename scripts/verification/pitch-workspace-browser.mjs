@@ -601,7 +601,7 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         const reopened = await readProject(projectId);
         assert.ok(reopened.project.version > created.project.version);
         assert.equal(reopened.slides[0].content.title, editedTitle);
-        await page.reload();
+        await page.goto(app + "/intelligence/pitch?project=" + encodeURIComponent(projectId));
         await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
         assert.equal(await page.getByLabel("页面标题", { exact: true }).inputValue(), editedTitle);
 
