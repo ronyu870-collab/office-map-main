@@ -340,9 +340,10 @@ export async function directProposal(
     const brief: ProposalBrief = { scenario, buildingIds, city, submarkets, language: understood.language,
       style: understood.style, audience: input.audience, title, targetClient: client, period, start, pages: understood.pages };
     signal.throwIfAborted();
+    const modelStyle = (acceptedSlots ?? reviewed)?.style;
     const composed = await ports.compose({ brief, scope, projectId: input.projectId, buildings: target.buildings, priorities: understood.priorities,
       requestedPriorities: understood.requestedPriorities, clientRequirements: understood.clientRequirements,
-      requestedStyle: understood.explicitStyle,
+      requestedStyle: understood.explicitStyle ?? (modelStyle === understood.style ? modelStyle : undefined),
       assetIds: input.assetIds, analysisResultId: input.analysisResultId }, signal);
     signal.throwIfAborted();
     const ready = buildPlan(brief, scope, composed, understood.requestedPriorities);

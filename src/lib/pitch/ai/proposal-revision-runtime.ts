@@ -112,10 +112,11 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
       for (const operation of target.operations) {
         signal.throwIfAborted();
         if (operation.kind === "set-language" || operation.kind === "retarget") {
-          if (scope !== "document" || target.operations.length !== 1 || base.some(page => page.manual)
+          const reorient = operation.kind === "retarget";
+          const manualPages = base.filter(page => page.manual);
+          if (scope !== "document" || target.operations.length !== 1 || (!reorient && manualPages.length > 0)
             || slides.some(slide => slide.content.disclosure === "restricted")) return null;
           const prior = workspace.context;
-          const reorient = operation.kind === "retarget";
           const scenario = reorient && /选址|site selection/i.test(input.question) ? "site-selection" : prior.business;
           if (!Object.hasOwn(scenarioQuestions, scenario) || (reorient && scenario !== "site-selection")) return null;
           const savedScenario = scenario as keyof typeof scenarioQuestions;
@@ -144,10 +145,14 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
             || (reorient && !draft.plan.slides.some(page => page.pageKind === "requirements"))) return null;
           refreshPlan = draft;
           regeneration = request.data;
+          const gaps = draft.plan.gaps.map(gap => gap.reason);
+          if (manualPages.length) gaps.push(language === "en"
+            ? `${manualPages.length} manually edited pages stay in the source project with their history. The related project uses the reviewed brief for the new client.`
+            : `原项目保留 ${manualPages.length} 页人工编辑及其历史。关联项目按本次审阅的新客户需求生成。`);
           return {
             id: randomUUID(), pages: [...pageEdits.values()],
             refresh: { id: draft.plan.id, version: draft.plan.version, contextFingerprint: draft.plan.contextFingerprint },
-            gaps: draft.plan.gaps.map(gap => gap.reason),
+            gaps,
           };
         }
         if (operation.kind === "set-chart") {
