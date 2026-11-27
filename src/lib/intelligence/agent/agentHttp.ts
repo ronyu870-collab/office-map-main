@@ -43,7 +43,7 @@ import type { QueryResult } from '../query/result';
 import { estimateAgentCostRange } from './agentCost';
 import { createModelRuntime, modelModeSchema } from './modelRuntime';
 import { validatedResultTableView } from '../query/tableView';
-import { routeTask } from './taskRouting';
+import { precedingMarketComparison, routeTask } from './taskRouting';
 import { nextAgentMemory } from './agentMemory';
 import { queryVerifiedRealEstate, executeStructuredDataTool } from './verifiedDataTool';
 import { queryCapabilityManifest } from '../query/capabilityManifest';
@@ -187,7 +187,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       currentSignal.throwIfAborted();
       if (budget.error || budget.data?.allowed !== true) throw new ModelProviderError('budget_exceeded', budget.error ? 'admission_service_unavailable' : 'account_admission');
     };
-    const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal);
+    const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal,
+      precedingMarketComparison(valid.question));
     const research = new ResearchExecution(history.contextResult && isResearchResult(history.contextResult) ? history.contextResult : undefined);
     let researchTouched = false;
     const reportHistory = /PDF/i.test(valid.question) && !research.task && authority.grants.includes('export:internal')

@@ -45,6 +45,13 @@ function englishQuery(text: string): string {
   return text;
 }
 
+export function precedingMarketComparison(question: string): boolean {
+  const reference = '(?:这两(?:个|处)?(?:子市场|市场|区域)?|两者|两地)';
+  const compare = '(?:并排)?(?:比较|对比)(?:一下)?';
+  return new RegExp(`^(?:请)?(?:(?:把|将)?${reference}${compare}|${compare}${reference})$`, 'u')
+    .test(question.normalize('NFKC').replace(/[\s。！？.!?]+/gu, ''));
+}
+
 /** Full consumption is owned by the existing semantic planner. Wrappers below
  * remove only an entire, supported delivery suffix, never arbitrary conditions. */
 export function routeTask(question: string, contextPlan?: QueryPlan, research = false, hasPreviousResult = false, previousResult?: ResultTableReference, hasPreviousComparison = false): TaskRoute {
@@ -72,6 +79,11 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
     return { route: 'direct_response', taskType: 'query', question, capabilities: true, availablePeriods: true };
   if (buildingLocationTarget(text)) return { route: 'deterministic_query', taskType: 'query', catalogLookup: 'location', question: text };
   if (buildingProfileTarget(text)) return { route: 'deterministic_query', taskType: 'query', catalogLookup: 'profile', question: text };
+  if (precedingMarketComparison(text)) {
+    if (hasPreviousComparison) return { route: 'deterministic_query', taskType: 'query', question, reuseComparison: true };
+    if ((contextPlan?.scope.submarkets?.length ?? 0) < 2)
+      return { route: 'direct_response', taskType: 'query', question, reply: '当前会话没有两份查询条件一致且可重新核验的结果。请明确要比较的两个子市场及指标。' };
+  }
   const priorComparison = /^(?:请)?(?:把|将)(?:刚才|上次|前面)的?(?:对比|比较)(?:结果|表格)?\s*导出(?:为|成)?\s*(Excel|xlsx|CSV)(?:文件)?$/i.exec(text)
     ?? /^(?:请)?导出(?:刚才|上次|前面)的?(?:对比|比较)(?:结果|表格)?(?:为|成)?\s*(Excel|xlsx|CSV)?(?:文件)?$/i.exec(text);
   if (priorComparison) {
@@ -135,8 +147,16 @@ export function routeTask(question: string, contextPlan?: QueryPlan, research = 
   const standalone = resolveSemanticQuestion({ question: query, now: new Date(), availablePeriods: [] });
   const resolution = standalone.kind === 'plan' || !context ? standalone
     : resolveSemanticQuestion({ question: query, context, now: new Date(), availablePeriods: [] });
-  if (resolution.kind === 'plan') return { route: 'deterministic_query', taskType: exportFormat ? 'artifact' : 'query',
-    question: query, plan: resolution.plan, planNotices: resolution.interpretation.notices, unavailableFields: resolution.interpretation.unavailableFields, ...(exportFormat ? { exportFormat } : {}), ...(chartType ? { chartType } : {}) };
+  if (resolution.kind === 'plan') {
+    const previousFields = previousResult?.parameters.interpretation as { unavailableFields?: string[] } | undefined;
+    const inheritedFields = /呢$/u.test(query) && contextPlan?.operation === 'rank' && resolution.plan.operation === 'rank'
+      && resolution.plan.scope.submarkets?.length === 1 && query === `${resolution.plan.scope.submarkets[0]}呢`
+      ? previousFields?.unavailableFields ?? [] : [];
+    return { route: 'deterministic_query', taskType: exportFormat ? 'artifact' : 'query',
+      question: query, plan: resolution.plan, planNotices: resolution.interpretation.notices,
+      unavailableFields: [...new Set([...(resolution.interpretation.unavailableFields ?? []), ...inheritedFields])],
+      ...(exportFormat ? { exportFormat } : {}), ...(chartType ? { chartType } : {}) };
+  }
   // A narrow semantic extraction gets no domain tools and cannot recurse into
   // the Agent. Unknown conditions stay fail-closed in the formal planner.
   if (!/成交|租赁|楼书|文档|资料|报告|Stacking|供应|地图|图|横轴|纵轴|[xy]轴|原因|为什么|分析差异|核对|检查|并|综合|研究|lease|transaction|document|report|axis|why|research/i.test(query)

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { buildTrendResult, buildListResult, buildAggregateResult } from '../query/result';
+import { buildTrendResult, buildListResult, buildAggregateResult, buildRankResult } from '../query/result';
 import { fixture, nameSource } from '../query/__tests__/fixtures';
 import { parseQueryPlan } from '../query/plan';
 import { encryptAuditContent } from '../query/auditCrypto';
@@ -108,6 +108,51 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(body.result.table.rows.map((row: { cells: { area: { value: { numeric: number } } } }) => row.cells.area.value.numeric))
       .toEqual([1800, 1200]);
     expect(JSON.stringify(state.provider.mock.calls)).not.toContain('合成楼宇');
+  });
+
+  it('appends vacancy to a ranking and switches markets with the same period, filter and projection', async () => {
+    const period = { year: 2026, quarter: 2 };
+    const original = parseQueryPlan({ operation: 'rank', field: 'netEffectiveRent', direction: 'desc', limit: 10, period,
+      scope: { inventory: 'tracked', submarkets: ['CBD'] }, filter: { field: 'grade', operator: 'eq', value: 'A' } });
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'query:quarter'], allSubmarkets: true,
+      allBuildings: true, fields: ['netEffectiveRent', 'totalArea', 'vacantArea'] });
+    state.structured.mockImplementation(async (_env, _name, { plan }: { plan: import('../query/plan').QueryPlan }) => {
+      if (plan.operation !== 'rank') throw Error('expected ranking');
+      const raw = buildRankResult(fixture(period), plan.field, plan.limit, plan.direction, plan.projection);
+      return { result: { ...raw, parameters: { ...raw.parameters, executedPlan: plan } },
+        content: JSON.stringify({ status: 'ready', resultId: raw.resultId }) };
+    });
+    state.history.mockResolvedValue(Object.assign([], { contextPlan: original }));
+    const added = await (await handleAgentSubmission(fakeRequest('再加空置率和建筑面积').request, deps())).json();
+    expect(added.result.parameters.executedPlan).toEqual({ ...original, projection: ['vacancyRate'] });
+    expect(added.result.table.columns.map((col: { key: string }) => col.key)).toContain('vacancy');
+    expect(added.answerSelection.status).toBe('partial');
+    state.history.mockResolvedValue(Object.assign([], { contextPlan: added.result.parameters.executedPlan, contextResult: added.result }));
+    const switched = await (await handleAgentSubmission(fakeRequest('金融街呢？').request, deps())).json();
+    expect(switched.result.parameters.executedPlan).toEqual({ ...original, scope: { ...original.scope, submarkets: ['金融街'] }, projection: ['vacancyRate'] });
+    expect(switched.answerSelection.notice).toContain('建筑面积');
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+
+  it('compares the two previously authorized snapshots without querying again', async () => {
+    const left = buildRankResult(fixture(), 'height', 2, 'desc');
+    const right = buildRankResult(fixture(), 'height', 2, 'desc');
+    const withPlan = (result: typeof left, market: string) => ({ ...result, parameters: { ...result.parameters,
+      executedPlan: parseQueryPlan({ operation: 'rank', field: 'height', limit: 2, direction: 'desc', period: null,
+        scope: { inventory: 'all_authorized', submarkets: [market] } }) } });
+    const first = withPlan(left, 'CBD'), second = withPlan(right, '金融街');
+    const contextRecheck = vi.fn().mockResolvedValue(undefined);
+    state.history.mockResolvedValue(Object.assign([], { contextResult: second, contextResults: [first, second],
+      contextComparisonIds: [first.resultId, second.resultId], contextRecheck }));
+    const response = await handleAgentSubmission(fakeRequest('把这两个子市场并排对比').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.answerSelection).toMatchObject({ status: 'answered', task: 'comparison', results: [
+      { role: 'primary', result: { resultId: first.resultId } }, { role: 'comparison', result: { resultId: second.resultId } },
+    ] });
+    expect(body.agent.modelCalls).toBe(0);
+    expect(state.structured).not.toHaveBeenCalled();
+    expect(contextRecheck).toHaveBeenCalled();
   });
 
   it('exports only the reauthorized comparison snapshots and avoids a fresh model or catalog query', async () => {

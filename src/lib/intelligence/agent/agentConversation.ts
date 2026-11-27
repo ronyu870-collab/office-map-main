@@ -27,7 +27,7 @@ export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemor
  * RPC; never accept arbitrary client-provided history text as context. */
 export async function readAgentHistory(
   client: SupabaseClient, identity: VerifiedQueryIdentity, keys: AuditKeys,
-  authority: DataAuthority, conversation: QueryConversation, signal: AbortSignal,
+  authority: DataAuthority, conversation: QueryConversation, signal: AbortSignal, comparePrecedingMarkets = false,
 ): Promise<AgentHistory> {
   if (!conversation.parentRequestId) return [];
   const requestId = conversation.parentRequestId;
@@ -103,6 +103,28 @@ export async function readAgentHistory(
     }
     history.contextRecheck = restored.recheck;
     if (chartContext) history.contextChart = chartContext;
+  }
+  if (comparePrecedingMarkets && history.contextResult && history.contextPlan?.scope.submarkets?.length === 1
+    && (history.contextResults?.length ?? 0) <= 1 && !history.contextResult.parameters.agentTableView
+    && !history.contextResult.parameters.agentChart && !history.contextResult.parameters.agentExport) {
+    const earlierRequestId = restored?.parentRequestId;
+    if (earlierRequestId && earlierRequestId !== requestId) {
+      const earlier = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, earlierRequestId, signal);
+      const raw = earlier.result?.parameters.executedPlan;
+      if (earlier.result && raw && (earlier.answerSelection?.results.length ?? 0) <= 1
+        && !earlier.result.parameters.agentTableView && !earlier.result.parameters.agentChart && !earlier.result.parameters.agentExport) {
+        const earlierPlan = parseQueryPlan(raw);
+        const { submarkets: earlierMarkets } = earlierPlan.scope;
+        const withEarlierMarket = { ...history.contextPlan, scope: { ...history.contextPlan.scope, submarkets: earlierMarkets } };
+        if (earlierMarkets?.length === 1 && earlierMarkets[0] !== history.contextPlan.scope.submarkets[0]
+          && JSON.stringify(earlierPlan) === JSON.stringify(withEarlierMarket)) {
+          const recheckLatest = history.contextRecheck;
+          history.contextRecheck = async () => { await recheckLatest?.(); await earlier.recheck(); };
+          history.contextResults = [earlier.result as QueryResult, history.contextResult];
+          history.contextComparisonIds = history.contextResults.map(result => result.resultId);
+        }
+      }
+    }
   }
   return history;
 }

@@ -195,7 +195,11 @@ async function runPlannedTask<T>(input: AgentDependencies<T>, task: TaskRoute): 
   } else if (task.plan) await run('execute_query_plan', { plan: task.plan });
   else if (task.reuseComparison && task.exportFormat && input.previousComparisonIds?.length)
     await run('export_table', { resultIds: input.previousComparisonIds, format: task.exportFormat });
-  else if (task.reusePrevious && input.previousResultId) {
+  else if (task.reuseComparison && input.previousComparisonIds && input.previousComparisonIds.length >= 2) {
+    const [primaryResultId, ...comparisons] = input.previousComparisonIds;
+    await run('select_answer_results', { primaryResultId,
+      auxiliary: comparisons.map(resultId => ({ role: 'comparison', resultId })), task: 'comparison', status: 'answered' });
+  } else if (task.reusePrevious && input.previousResultId) {
     // Materialize the full authorized result through the executor, no snapshot read.
     const observed = await run('select_answer_results', { primaryResultId: input.previousResultId, auxiliary: [], task: task.tableView ? 'fact' : 'file', status: 'answered' });
     if (!observed?.result) failures.push({ tool: 'select_answer_results', code: 'result_not_found' });
