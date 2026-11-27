@@ -114,7 +114,7 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       assert.equal(scopeDenied.agent.executionStatus, 'limited');
       assert.match(scopeDenied.message, /该案例指标或范围的查询资格/);
 
-      const absent = verify(await submit(owner, vacancy.replace('Q2', 'Q3')), definition);
+      const absent = verify(await submit(owner, '解释空置率的定义。用2026Q3 CBD的实际数据举例。'), definition);
       assert.equal(absent.result.table.rows[0].cells.value.kind, 'unknown');
       assert.equal(absent.answerSelection.status, 'partial');
       assert.equal(absent.agent.executionStatus, 'partial');
@@ -140,6 +140,11 @@ export async function verifyAi6Runtime({ db, app, fixture, service, keys, output
       const retried = verify(await submit(owner, vacancy, { conversation: { id: outage.conversation.id, parentRequestId: outage.requestId } }), definition);
       assert.equal(retried.conversation.id, outage.conversation.id);
       assert.equal(retried.result.table.rows[0].cells.value.value.numeric, sample.value.numeric);
+      assert.equal((await narrow.client.auth.signOut({ scope: 'local' })).error, null);
+      const signedOut = await submit(narrow, vacancy);
+      assert.ok([401, 403].includes(signedOut.status));
+      assert.equal(signedOut.body.result, undefined);
+      assert.equal(signedOut.calls, 0);
     });
     const buildingContext = async (who, reply, options = {}) => {
       const response = await originalFetch(app + '/api/intelligence/query/buildings', { method: 'POST',

@@ -153,6 +153,21 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     if (stateOfSource === 'denied') expect(state.structured).not.toHaveBeenCalled();
     expect(state.provider).not.toHaveBeenCalled();
   });
+  it('denies a concept answer when the case failure coincides with permission revision changing', async () => {
+    const allowed = { ...authority, grants: ['query:catalog', 'query:quarter'],
+      fields: ['vacantArea', 'totalArea'], allBuildings: true, allSubmarkets: true };
+    state.authority.mockResolvedValue(allowed);
+    state.structured.mockImplementation(async () => {
+      state.authority.mockResolvedValue({ ...allowed, permissionRevision: 'revoked-permission-revision' });
+      throw Error('QUERY_DENIED');
+    });
+    const response = await handleAgentSubmission(fakeRequest('请解释空置率的定义，并用2026Q2 CBD的实际数据举例。').request, deps());
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.status).toBe('denied');
+    expect(body.result).toBeUndefined();
+    expect(state.provider).not.toHaveBeenCalled();
+  });
 
   it('clarifies the rent basis and retains all nine market/metric cells after a short confirmed choice', async () => {
     const period = { year: 2026, quarter: 2 };
