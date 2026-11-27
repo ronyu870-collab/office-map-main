@@ -36,8 +36,7 @@ export async function verifyAi5ModelOperations({ db, service, keys, output, chec
     if (scenario.revoke) { await db.query('update private.ai_query_grants set enabled=false where user_id=$1', [scenario.revoke]); return Response.json({}, { status: 429 }); }
     if (scenario.cancel) { activeController.abort(); init.signal.throwIfAborted(); }
     if (scenario.failure && provider === 'deepseek') {
-      const code = scenario.failure === 429 ? scenario.quota ? 'insufficient_quota' : 'rate_limit_exceeded'
-        : scenario.failure >= 500 ? 'server_error' : 'invalid_api_key';
+      const code = ({ 402: 'insufficient_balance', 403: 'invalid_api_key', 429: 'rate_limit_exceeded' })[scenario.failure] ?? 'server_error';
       return Response.json({ error: { code, message: 'private supplier error' } }, { status: scenario.failure });
     }
     const hasTool = provider === 'openai' ? body.input.some(i => i.type === 'function_call_output') : body.messages.some(m => m.role === 'tool');
@@ -99,8 +98,8 @@ export async function verifyAi5ModelOperations({ db, service, keys, output, chec
       const reply = await submit(who, { failure: 503 }); assert.equal(reply.status, 200, JSON.stringify(reply.body));
       assert.deepEqual(reply.calls.map(c => c.provider), ['deepseek', 'openai']); const records = await attempts(reply.body.requestId);
       assert.equal(records[0].usageStatus, 'unknown_reserved'); assert.equal(records[1].fallback, true);
-      for (const [failure, quota, errorCode] of [[429, false, 'rate_limited'], [429, true, 'payment_required'], [403, false, 'unauthorized']]) {
-        const denied = await submit(who, { failure, quota });
+      for (const [failure, errorCode] of [[429, 'rate_limited'], [402, 'payment_required'], [403, 'unauthorized']]) {
+        const denied = await submit(who, { failure });
         assert.equal(denied.status, 503, JSON.stringify(denied.body));
         assert.deepEqual(denied.calls.map(c => c.provider), ['deepseek']);
         const recorded = await attempts(denied.body.requestId);
@@ -111,6 +110,30 @@ export async function verifyAi5ModelOperations({ db, service, keys, output, chec
       }
       env({ DEEPSEEK_API_KEY: '' }); const missing = await submit(who); assert.equal(missing.status, 200, JSON.stringify(missing.body)); assert.deepEqual(missing.calls.map(c => c.provider), ['openai']);
       assert.equal((await attempts(missing.body.requestId))[0].usageStatus, 'not_sent'); env({ DEEPSEEK_API_KEY: 'synthetic-ds' });
+    });
+    await check('AI6模型运营 / 真实 Auth 后的快速、专业、深度请求实传 DeepSeek Thinking 与 Pro 档', async () => {
+      const who = await actor('thinking');
+      const routed = { AI_PROVIDER_QUICK: 'deepseek', AI_PROVIDER_PROFESSIONAL: 'deepseek', AI_PROVIDER_DEEP: 'deepseek',
+        DEEPSEEK_CHAT_MODEL_QUICK: 'deepseek-flash', DEEPSEEK_CHAT_MODEL_PROFESSIONAL: 'deepseek-flash',
+        DEEPSEEK_CHAT_MODEL_DEEP: 'deepseek-v4-pro', AI_MODEL_FALLBACK_ENABLED: 'false' };
+      const before = Object.entries(routed).map(([name]) => [name, process.env[name]]);
+      env(routed);
+      try {
+        for (const [mode, model, effort] of [['quick', 'deepseek-flash', undefined], ['professional', 'deepseek-flash', 'low'], ['deep', 'deepseek-v4-pro', 'high']]) {
+          const reply = await submit(who, { input: { idempotencyKey: randomUUID(), question: '解释风险的含义', conversation: { id: randomUUID() }, mode } });
+          assert.equal(reply.status, 200, JSON.stringify(reply.body));
+          assert.equal(reply.calls.length, 1);
+          assert.equal(reply.calls[0].provider, 'deepseek');
+          assert.equal(reply.calls[0].body.model, model);
+          assert.deepEqual(reply.calls[0].body.thinking, { type: effort ? 'enabled' : 'disabled' });
+          assert.equal(reply.calls[0].body.reasoning_effort, effort);
+          const records = await attempts(reply.body.requestId);
+          assert.equal(records.length, 1);
+          assert.equal(records[0].reasoningEffort, effort ?? null);
+        }
+      } finally {
+        for (const [name, value] of before) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
+      }
     });
     await check('AI5模型运营 / 真实HTTP流有可信完成凭据，流中断无完成事件与混合输出', async () => {
       const who = await actor('stream'); env({ AI_PROVIDER_QUICK: 'openai', AI_MODEL_FALLBACK_ENABLED: 'false' });
