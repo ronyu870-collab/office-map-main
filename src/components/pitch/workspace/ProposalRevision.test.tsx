@@ -132,17 +132,24 @@ it("shows formal before and after values and applies the reviewed quarter withou
   const value = (dataAsOf: string, rent: number) => ({
     dataAsOf, blocks: [{ kind: "metric", label: "平均净有效租金", unit: "元/㎡/月", value: rent }],
   });
+  const original = value("2026-06-30", 100);
+  const updated = value("2026-09-30", 120);
+  const withData = (snapshot: typeof original, base: WorkspaceDetail) => ({
+    ...base, slides: [{ ...base.slides[0], content: { ...base.slides[0].content, dataAsOf: snapshot.dataAsOf,
+      blocks: snapshot.blocks.map(block => ({ ...block, kind: "metric" as const, sourceIds: [content.sources[0].id] })) } }],
+  });
+  const matchingResult = withData(updated, refreshed);
   const { user, call, onApplied, onOpenData } = setup({
     status: "ready", scope: "selected", plan: refreshPlan, gaps: [], command: quarterCommand,
     review: { projectVersion: version, fingerprint, changed: true, needsConclusionReview: true, period,
-      changes: [{ slideId: pageId, changed: true, before: value("2026-06-30", 100), after: value("2026-09-30", 120) }] },
-  }, "把这页更新到2026-Q3");
+      changes: [{ slideId: pageId, changed: true, before: original, after: updated }] },
+  }, "把这页更新到2026-Q3", () => matchingResult, withData(original, detail));
   await user.click(screen.getByRole("button", { name: "预览修改" }));
   expect(await screen.findByText("100 元/㎡/月")).toBeInTheDocument();
   expect(screen.getByText("120 元/㎡/月")).toBeInTheDocument();
   expect(screen.getByText("应用后请复核相关分析结论。")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "应用修改" }));
-  await waitFor(() => expect(onApplied).toHaveBeenCalledWith(refreshed, version));
+  await waitFor(() => expect(onApplied).toHaveBeenCalledWith(matchingResult, version));
   expect(call.mock.calls[1][0]).toEqual(quarterCommand);
   expect(onOpenData).not.toHaveBeenCalled();
 });
@@ -155,6 +162,18 @@ it("passes the server-resolved quarter to the data inspector when an individual 
   await user.click(screen.getByRole("button", { name: "预览修改" }));
   expect(await screen.findByText(/正式季度 2026-Q3/)).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "打开数据检查器" }));
+  expect(onOpenData).toHaveBeenCalledWith("2026-Q3");
+  expect(call).toHaveBeenCalledTimes(1);
+});
+
+it("offers the data inspector for an explicitly dated change that requires formal verification", async () => {
+  const workspace = { ...detail, workspace: { ...detail.workspace,
+    page_settings: { [pageId]: { origin: "data" as const } } } };
+  const { user, call, onOpenData } = setup({
+    status: "unavailable", requiresVerification: true, operations: [{ kind: "set-period", period: "2026-Q3" }],
+  }, "把这页更新到2026-Q3", undefined, workspace);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  await user.click(await screen.findByRole("button", { name: "在当前页核对 2026-Q3" }));
   expect(onOpenData).toHaveBeenCalledWith("2026-Q3");
   expect(call).toHaveBeenCalledTimes(1);
 });

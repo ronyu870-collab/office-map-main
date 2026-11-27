@@ -7,7 +7,8 @@ import { contentBlockSchema, sourceReferenceSchema } from "@/src/lib/pitch/contr
 import { outlineQuarter, saveSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { objectId } from "@/src/lib/pitch/workspace/object-layout";
 import { themeLabel, workspaceResponseSchema as workspaceDetailSchema, WorkspaceError, type Call } from "./client";
-import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel } from "./DataRefreshReview";
+import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, matchesAppliedDataRefresh,
+  matchesDataRefreshReview, refreshPeriodLabel } from "./DataRefreshReview";
 import { EvidencePages } from "./BusinessEvidence";
 import { LayoutRevisionReview, matchesAppliedLayout, requestedLayoutPages, reviewLayoutChanges, type LayoutReview } from "./LayoutRevision";
 import { matchesEditionReview, ProposalEditionComparison, proposalEditionReviewSchema } from "./ProposalEditionReview";
@@ -85,13 +86,17 @@ const outcomeSchema = z.union([
     editionReview: proposalEditionReviewSchema.optional(),
   }),
   z.object({ status: z.literal("clarification"), message: z.string(), candidates: z.array(buildingSchema).max(10).optional() }),
-  z.object({ status: z.literal("unavailable"), message: z.string().optional() }),
+  z.object({
+    status: z.literal("unavailable"), message: z.string().optional(),
+    requiresVerification: z.boolean().optional(), operations: z.array(z.unknown()).optional(),
+  }),
 ]);
 type StandardPreview = Extract<z.infer<typeof outcomeSchema>, { status: "ready" | "refresh-review" }>;
 type Preview = StandardPreview | z.infer<typeof photoReviewSchema> | LayoutReview
   | z.infer<typeof languageReviewSchema> | z.infer<typeof pendingLanguageSchema>;
 type Plan = Extract<Preview, { plan: unknown }>;
 const chartLabels = { bar: "条形图", column: "柱状图", line: "折线图" } as const;
+const verifiedQuarterIntent = z.tuple([z.object({ kind: z.literal("set-period"), period: outlineQuarter })]);
 
 function wholeDeckRequest(question: string) {
   const phrase = question.normalize("NFKC").replace(/\s+/gu, "").replace(/[。.!！]$/u, "");
@@ -148,11 +153,9 @@ function matchesPreview(value: StandardPreview, detail: WorkspaceDetail) {
   if (value.status === "refresh-review" && (value.regeneration || value.editionReview) && !matchesRegeneration(value, detail)) return false;
   if (command?.action === "apply_data_refresh") {
     return !!review?.period && command.projectId === plan.projectId && command.expectedVersion === plan.expectedVersion &&
-      review.projectVersion === plan.expectedVersion && command.fingerprint === review.fingerprint &&
+      command.fingerprint === review.fingerprint &&
       command.fingerprint === plan.refresh?.contextFingerprint &&
-      refreshPeriodLabel(command.period) === refreshPeriodLabel(review.period) &&
-      review.changes.some(change => change.slideId === command.slideId) &&
-      review.changes.every(change => detail.slides.some(slide => slide.id === change.slideId));
+      matchesDataRefreshReview(review, detail, command.slideId, refreshPeriodLabel(command.period));
   }
   if (command && (JSON.stringify(command.plan) !== JSON.stringify(plan) || command.scope !== value.scope ||
     JSON.stringify(command.theme) !== JSON.stringify(value.theme))) return false;
@@ -196,6 +199,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   const [working, setWorking] = useState<"preview" | "apply">();
   const [regenerating, setRegenerating] = useState(false);
   const [message, setMessage] = useState("");
+  const [inspectQuarter, setInspectQuarter] = useState<{ key: string; period: string }>();
   const request = useRef<AbortController | null>(null);
   const projectId = detail.project.id;
   const expectedVersion = detail.project.version;
@@ -208,6 +212,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
   const comparison = visible && "mode" in visible ? visible : undefined;
   const current: Plan | undefined = visible && "plan" in visible ? visible : undefined;
   const quarterReview = current?.command?.action === "apply_data_refresh" ? current.review : undefined;
+  const suggestedInspectorPeriod = inspectQuarter?.key === key ? inspectQuarter.period : undefined;
   useEffect(() => () => request.current?.abort(), []);
 
   async function run(action: "preview" | "apply", competitorBuildingId?: string, languageTexts?: LanguageTexts) {
@@ -219,6 +224,7 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
     try {
       if (action === "preview") {
         setCandidates(undefined);
+        setInspectQuarter(undefined);
         const layoutPages = requestedLayoutPages(question, detail, active, selected);
         if (layoutPages) {
           const result = await reviewLayoutChanges(call, detail, layoutPages, controller.signal);
@@ -244,6 +250,15 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         } else {
           if (!languageTexts || !pendingLanguage) setReview(undefined);
           if (result.status === "clarification" && result.candidates?.length) setCandidates({ key, items: result.candidates });
+          if (result.status === "unavailable" && result.requiresVerification && active && !objectIds.length &&
+            (!selected.length || selected.length === 1 && selected[0] === active) &&
+            detail.workspace.page_settings[active]?.origin === "data") {
+            const dates = verifiedQuarterIntent.safeParse(result.operations);
+            if (dates.success) {
+              setInspectQuarter({ key, period: dates.data[0].period });
+              return;
+            }
+          }
           const feedback = "message" in result ? result.message : undefined;
           setMessage(feedback || "当前资料或版式无法生成可应用的修改。请缩小范围或指定要更改的内容。");
         }
@@ -277,6 +292,8 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
         };
         const result = workspaceDetailSchema.parse(await call(command, true, "workspace", controller.signal));
         if (controller.signal.aborted) return;
+        if (quarterReview && !matchesAppliedDataRefresh(quarterReview, detail, result))
+          throw new Error("无法核对保存后的正式数据，请重新打开项目。");
         setReview(undefined);
         onApplied(result, expectedVersion);
       }
@@ -309,6 +326,10 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
       预览修改
     </Button>
     {message && !visible && <p role="status">{message}</p>}
+    {suggestedInspectorPeriod && <Button variant="secondary" disabled={disabled || !!working}
+      onClick={() => { setInspectQuarter(undefined); onOpenData(suggestedInspectorPeriod); }}>
+      在当前页核对 {suggestedInspectorPeriod}
+    </Button>}
     {candidates?.key === key && <div className={styles.form} aria-label="匹配的竞品">
       {candidates.items.map(candidate => <Button key={candidate.id} variant="secondary" disabled={disabled || !!working}
         onClick={() => void run("preview", candidate.id)}>{candidate.name}{candidate.submarket && ` · ${candidate.submarket}`}</Button>)}
