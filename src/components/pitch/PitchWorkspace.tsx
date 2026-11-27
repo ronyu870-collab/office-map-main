@@ -55,7 +55,7 @@ import {
   type Call,
 } from "./workspace/client";
 import { TemplatePicker, type Template } from "./workspace/TemplatePicker";
-import { TemplateParameters, BuildingPicker } from "./workspace/Parameters";
+import { TemplateParameters, BuildingPicker, defaultDynamicParameters } from "./workspace/Parameters";
 import { readPitchHandoff, type PitchHandoffNavigation } from "./PitchHandoffLink";
 import { HandoffReview, type HandoffDestination } from "./workspace/HandoffReview";
 import { LayoutVariants } from "./workspace/LayoutVariants";
@@ -106,6 +106,13 @@ const inspectorTabs: { id: Inspector; label: string }[] = [
 type OutlineStart = Extract<WorkspaceCommand, { action: "start" }> & { part: OutlinePart };
 type TaskReceipt = { id: string; state: string; attempts?: number; error_code?: string; stage?: string };
 type WorkspaceTask = TaskReceipt & { outline?: boolean; unconfirmed?: OutlineStart; revisionBase?: number };
+const taskFailureMessages = new Map([
+  ["PITCH_CONFLICT", "项目已更新，请按最新参数重新生成。"],
+  ["PITCH_OUTLINE_SOURCE_CHANGED", "素材版本已变化，请重新推荐并确认提纲。"],
+  ["PITCH_OUTLINE_DATA_CHANGED", "楼宇数据、季度或权限已变化，请重新核对正式数据。"],
+  ["PITCH_DATA_UNAVAILABLE", "当前范围没有可用的业务资料，请核对楼宇或数据范围。"],
+  ["QUERY_DENIED", "当前账号无法使用所选楼宇数据，请核对楼宇范围和访问权限。"],
+]);
 type SavedCanvasHistory = {
   projectId: string;
   slideId: string;
@@ -210,7 +217,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [assistOpened, setAssistOpened] = React.useState(false),
     [pageRevisionBatches, setPageRevisionBatches] = React.useState<Record<string, string>>({}),
     [chosen, setChosen] = React.useState<Template | null>(null),
-    [regenerating, setRegenerating] = React.useState(false);
+    [regeneratePageId, setRegeneratePageId] = React.useState<string>();
   const [selected, setSelected] = React.useState<string[]>([]),
     [task, setTask] = React.useState<WorkspaceTask | null>(null),
     [customOpen, setCustomOpen] = React.useState(false),
@@ -517,6 +524,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     );
     setPanel("quick");
     setChosen(null);
+    setRegeneratePageId(undefined);
     setMobile("preview");
     setLeftTab("pages");
     setAssistSeed("");
@@ -550,7 +558,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
   };
   async function choose(template: Template) {
     setChosen(template);
-    setRegenerating(false);
+    setRegeneratePageId(undefined);
     if (!detail) {
       setCreateOpen(true);
     } else {
@@ -560,19 +568,16 @@ function Studio({ session }: { session: AuthSessionResult }) {
       setMobile("edit");
     }
   }
-  async function generate(part: Generation["parts"][number]) {
+  async function generate(part: Generation["parts"][number], replacePageId?: string) {
     const saved = await flush(),
       taskId = crypto.randomUUID();
-    const ids =
-      regenerating && draft?.activeSlide
-        ? saved.slides
-            .filter(
-              (p) =>
-                p.asset_id ===
-                saved.slides.find((s) => s.id === draft.activeSlide)?.asset_id,
-            )
-            .map((p) => p.id)
-        : [];
+    if (saved.project.id !== detail?.project.id || current.current.detail?.project.id !== saved.project.id || current.current.dirty)
+      throw new Error("项目或草稿已变化，请保存后再生成。");
+    const templateId = part.mode === "dynamic" ? part.parameters.templateId : part.templateId;
+    const replacement = saved.slides.find(slide => slide.id === replacePageId);
+    if (replacePageId && !replacement) throw new Error("原页面已变化，请重新选择。");
+    const ids = !replacement ? [] : part.mode === "dynamic" ? [replacement.id]
+      : saved.slides.filter(slide => slide.asset_id === replacement.asset_id).map(slide => slide.id);
     const start = async () => {
       await call(
         {
@@ -589,8 +594,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
       const value = {
         ...preferences,
         recent: [
-          chosen?.id ?? "",
-          ...preferences.recent.filter((id) => id !== chosen?.id),
+          templateId,
+          ...preferences.recent.filter((id) => id !== templateId),
         ]
           .filter(Boolean)
           .slice(0, 20),
@@ -656,7 +661,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                 }
                 setTask(result);
                 setChosen(null);
-                setRegenerating(false);
+                setRegeneratePageId(undefined);
                 setMobile("preview");
                 if (result.outline) {
                   setLeftTab("pages");
@@ -695,6 +700,12 @@ function Studio({ session }: { session: AuthSessionResult }) {
   const paragraphs = page?.content.blocks.flatMap((block, index) => block.kind === "paragraph" ? [{ block, index }] : []) ?? [];
   const buildingDataIds = buildingDataSelection && buildingDataSelection.projectId === detail?.project.id
     ? buildingDataSelection.ids : draft?.context.buildingIds ?? [];
+  const visualActions = draft?.context.language === "zh" && buildingDataIds.length > 0 ? [
+    { templateId: "competition-map", label: "添加区位图" },
+    ...(buildingDataIds.length === 1 ? [{ templateId: "stacking-plan", label: "添加历史堆叠图" } as const] : []),
+  ] as const : [];
+  const availableVisualActions = visualActions.filter(action =>
+    templates.some(template => template.kind === "dynamic" && template.id === action.templateId));
   const bindings = useDocumentBindings(call, detail?.project, !!page && (
     right && inspector === "data" || !!paragraphs.length && (
       right && (inspector === "properties" || inspector === "assist") || !!active && objectPage === active
@@ -798,7 +809,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
   }
   function openInspector(tab: Inspector) {
     setChosen(null);
-    setRegenerating(false);
+    setRegeneratePageId(undefined);
     setFocusedCanvas(false);
     setRight(true);
     setMobile("edit");
@@ -1390,13 +1401,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                     <>
                       <span>
                         生成未完成，原页面已保留。
-                        {task.error_code === "PITCH_CONFLICT"
-                          ? "项目已更新，请按最新参数重新生成。"
-                          : task.error_code === "PITCH_OUTLINE_SOURCE_CHANGED"
-                            ? "素材版本已变化，请重新推荐并确认提纲。"
-                            : task.error_code === "PITCH_OUTLINE_DATA_CHANGED"
-                              ? "楼宇数据、季度或权限已变化，请重新核对正式数据。"
-                              : ""}
+                        {task.error_code && taskFailureMessages.get(task.error_code)}
                       </span>
                       <Button
                         variant="secondary"
@@ -1718,22 +1723,23 @@ function Studio({ session }: { session: AuthSessionResult }) {
                         variant="ghost"
                         onClick={() => {
                           setChosen(null);
-                          setRegenerating(false);
+                          setRegeneratePageId(undefined);
                         }}
                       >
                         返回页面编辑
                       </Button>
                       <TemplateParameters
-                        key={chosen.id + ":" + String(regenerating)}
+                        key={chosen.id + ":" + (regeneratePageId ?? "new")}
                         call={call}
                         template={chosen}
                         buildingIds={draft.context.buildingIds}
                         period={draft.context.period}
-                        busy={rendering || busy || conflict}
-                        onGenerate={generate}
+                        busy={rendering || busy || saving || generationPending || conflict}
+                        onGenerate={part => generate(part, regeneratePageId)}
+                        actionLabel={regeneratePageId ? "重新生成页面" : undefined}
                         initial={
-                          regenerating && page
-                            ? (detail.workspace.page_settings[page.id]?.part as
+                          regeneratePageId
+                            ? (detail.workspace.page_settings[regeneratePageId]?.part as
                                 | Generation["parts"][number]
                                 | undefined)
                             : undefined
@@ -1870,7 +1876,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                                 setChosen(
                                   templates.find((t) => t.id === id) ?? null,
                                 );
-                                setRegenerating(true);
+                                setRegeneratePageId(page.id);
                               }}
                             >
                               调整参数并重新生成
@@ -1912,6 +1918,17 @@ function Studio({ session }: { session: AuthSessionResult }) {
                             })}>
                             核对季度数据
                           </Button>
+                          {availableVisualActions.length > 0 && <details>
+                            <summary>楼宇资料页</summary>
+                            <div className={styles.form}>
+                              {availableVisualActions.map(({ templateId, label }) => <Button key={templateId} variant="ghost"
+                                disabled={!canGenerate || busy || saving || generationPending || conflict ||
+                                  (objectPage === active && objectSelection.dirty)}
+                                onClick={() => void run(() => generate({ mode: "dynamic",
+                                  parameters: defaultDynamicParameters(templateId, buildingDataIds, draft.context.period),
+                                }))}>{label}</Button>)}
+                            </div>
+                          </details>}
                         </div>}
                       </details>}
                       <details open={projectSettingsOpen} onToggle={event => setProjectSettingsOpen(event.currentTarget.open)}>
