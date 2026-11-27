@@ -94,6 +94,50 @@ try {
    await installPitchDataFixture(db);await db.setup.query('update private.ai_query_control set enabled=true');await grantQuery(db,ADMIN,{capabilities:['query:catalog','query:brochure','query:quarter','export:internal'],fields:['height','floors','parking','totalArea','vacantArea','netEffectiveRent']});
    dynamicProject=command([{mode:'dynamic',parameters:dynamicFixture}]);dynamicProject.parts[0].researchAssetId=ids.research;const generated=await workflow.generateBusinessProject(admin,dynamicProject);assert.ok(generated.pages>=2);const receipt=await db.rpc(ADMIN,{action:'business_generation',projectId:dynamicProject.projectId});assert.ok(receipt.bindings.some(b=>b.id===ids.research));assert.ok(receipt.snapshots[0].content.some(c=>c.blocks.some(b=>b.kind==='chart')&&c.blocks.some(b=>b.kind==='insight')));await db.setup.query('begin read only');try{await db.setup.query("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({sub:ADMIN,session_id:sessionFor(ADMIN)})]);await db.setup.query('set local role authenticated');assert.equal((await db.setup.query('select * from pitch_business_generations where project_id=$1',[dynamicProject.projectId])).rowCount,0);}finally{await db.setup.query('rollback');}assert.equal(receipt.snapshots[0].results[0].operation,'trend');assert.equal(receipt.snapshots[0].dataAsOf,'2026-09-30');assert.equal(receipt.snapshots[0].parameters.period.quarter,3);assert.ok(receipt.snapshots[0].results[0].sources.every(s=>s.table==='building_metrics'||s.table==='buildings'));await assert.rejects(workflow.generateBusinessProject(ordinary,command([{mode:'dynamic',parameters:dynamicFixture}])),/QUERY_DENIED/);
  });
+ await check('the reviewed generation transaction preserves a referenced catalog image through reopen and export preparation', async () => {
+   const { getWorkspace, saveWorkspace } = require('../../../src/lib/pitch/workspace/workflow.ts');
+   const { pinVisual } = require('../../../src/lib/pitch/visual-data/reference.ts');
+   const { layoutSlides } = require('../../../src/lib/pitch/layout/engine.ts');
+   const { STUDIO_THEME } = require('../../../src/lib/pitch/design/theme.ts');
+   const parent = await getWorkspace(admin, dynamicProject.projectId);
+   const receipt = await db.rpc(ADMIN, { action: 'business_generation', projectId: dynamicProject.projectId });
+   const reference = pinVisual({ id: randomUUID(), kind: 'map', buildingIds: [BUILDINGS[0]],
+     origin: { type: 'building-locations', buildingIds: [BUILDINGS[0]] }, contentHash: 'c'.repeat(64),
+     disclosure: 'internal', dimensions: { width: 1600, height: 900 }, businessDate: null, sourceDateBasis: 'catalog-observed',
+     rights: { scope: 'internal', holder: null, attribution: '隔离楼宇目录', licenseName: null, sourceUrl: null,
+       licenseUrl: null, cropAllowed: false, clientDistribution: false, externalAi: false },
+     source: { kind: 'record', label: '隔离目录', recordId: BUILDINGS[0], locator: '隔离区位图', dataAsOf: '2026-09-30' } }, 'isolated-map');
+   const content = { protocol: 'colliers-pitch/1', locale: 'zh', title: '隔离区位图', disclosure: 'internal', isTestData: true,
+     dataAsOf: reference.source.dataAsOf, sources: [reference.source], blocks: [
+       { kind: 'image', mediaAssetId: reference.id, mediaVersion: reference.version, alt: '隔离点位', sourceIds: [reference.source.id] },
+       { kind: 'paragraph', text: '隔离生成事务回归', sourceIds: [reference.source.id] },
+     ] };
+   const [scene] = await layoutSlides(content, STUDIO_THEME, 'hero-caption');
+   const projectId = randomUUID(), assetId = randomUUID(), slideId = randomUUID();
+   const commit = { action: 'business_generate_commit', projectId, parentProjectId: parent.project.id,
+     expectedParentVersion: parent.project.version, title: '隔离提案', scope, themeId: STUDIO_THEME.id, themeVersion: STUDIO_THEME.version,
+     requestKey: 'a'.repeat(64), reviewedPlanId: randomUUID(), proposalContext: { buildingIds: [BUILDINGS[0]], period: '2026-Q3' },
+     snapshots: receipt.snapshots, bindings: [], recipes: [], changes: [],
+     generated: [{ id: assetId, content, sha256: digest(Buffer.from(JSON.stringify(content))) }],
+     slides: [{ slideId, assetId, assetVersion: 1, content, scene }] };
+   const mismatched = structuredClone(commit);
+   mismatched.projectId = randomUUID();
+   mismatched.slides[0].content.blocks[0].sourceIds = [randomUUID()];
+   await assert.rejects(db.rpc(ADMIN, mismatched), error => error.code === '42501');
+   assert.equal((await db.rpc(ADMIN, commit)).projectId, projectId);
+   let workspace = await getWorkspace(admin, projectId);
+   assert.deepEqual(workspace.slides[0].content.sources[0].visual, reference.source.visual);
+   assert.deepEqual(workspace.workspace.context.buildingIds, [BUILDINGS[0]]);
+   assert.equal(workspace.workspace.active_slide, slideId);
+   await assert.rejects(getWorkspace(ordinary, projectId), /PITCH_DENIED/);
+   workspace = await saveWorkspace(admin, { action: 'save', projectId, expectedVersion: workspace.project.version,
+     title: '已改名隔离提案', themeId: STUDIO_THEME.id, themeVersion: STUDIO_THEME.version, pages: [{ id: slideId }] });
+   assert.deepEqual(workspace.slides[0].content.sources[0].visual, reference.source.visual);
+   const exportId = randomUUID();
+   await render.prepareRenderExport(admin, { action: 'export_start', projectId, exportId, audience: 'internal', format: 'pdf' });
+   const stored = await db.setup.query('select visual_source_snapshot from pitch_exports where id=$1',[exportId]);
+   assert.deepEqual(stored.rows[0].visual_source_snapshot, [reference.source]);
+ });
  await check('zero vacancy differs from missing/invalid data and comparison keeps the verified formula',async()=>{
    await db.setup.query('update building_metrics set vacant_area=0 where building_id=$1 and record_year=2026 and record_quarter=3',[BUILDINGS[0]]);
    const c=command([{mode:'dynamic',parameters:{...dynamicFixture,templateId:'vacancy-comparison',buildingIds:BUILDINGS,targetBuildingId:BUILDINGS[0],chart:'bar'}}]);await workflow.generateBusinessProject(admin,c);const receipt=await db.rpc(ADMIN,{action:'business_generation',projectId:c.projectId});const chart=receipt.snapshots[0].content[0].blocks[0];assert.equal(chart.kind,'chart');assert.ok(chart.series[0].values.includes(0));assert.equal(chart.series[0].values.filter(v=>v===null).length,2);assert.ok(chart.categories.some(s=>s.includes('目标')));assert.ok(receipt.snapshots[0].results[0].table.rows.find(r=>r.entityId===BUILDINGS[3]).cells.vacancyRatio.kind==='unknown');
@@ -279,6 +323,24 @@ try {
  });
  await check('a separately confirmed English asset renders using the same business templates',async()=>{
   const id=await asset('corporate',9,owner,'en');const input={...command([staticPart('corporate-overview',[id])]),language:'en'};const r=await workflow.generateBusinessProject(ordinary,input);assert.ok(r.pages);const p=await db.rpc(OTHER,{action:'get_project',projectId:input.projectId});assert.equal(p.slides[0].content.locale,'en');
+ });
+ await check('published research receipts still require the original independent export grant and revision', async () => {
+   const migration = await readFile(new URL('../../migrations/20261121142158_ai_business_research.sql', import.meta.url), 'utf8');
+   const grantTable = migration.slice(migration.indexOf('create table private.ai_business_research_grants'), migration.indexOf('-- Fixed evidence envelope'));
+   assert.ok(grantTable.includes('ai_business_research_changes'));
+   await db.setup.query(grantTable);
+   await db.setup.query(`insert into private.ai_business_research_grants(user_id, enabled, valid_until, modules, allow_export, change_reference)
+     values($1,true,now()+interval '1 day',array['submarket'],true,'isolated proposal test')`, [ADMIN]);
+   const { rows: [{ revision }] } = await db.setup.query(`select encode(sha256(convert_to(jsonb_build_array(
+     public.ai_query_authority($1,$1,$2)->>'permission_revision',to_jsonb(g))::text,'UTF8')),'hex') revision
+     from private.ai_business_research_grants g where g.user_id=$1`, [ADMIN,sessionFor(ADMIN)]);
+   const source = { domain: 'business', permissionRevision: revision, policyVersion: 'business-research/1' };
+   const allowed = async binding => (await db.setup.query('select private.pitch_business_data_allowed($1,$2,$3::jsonb) allowed',
+     [ADMIN,sessionFor(ADMIN),JSON.stringify([{ binding }])])).rows[0].allowed;
+   assert.equal(await allowed(source), true);
+   assert.equal(await allowed({ ...source, permissionRevision: 'different' }), false);
+   await db.setup.query('update private.ai_business_research_grants set allow_export=false where user_id=$1',[ADMIN]);
+   assert.equal(await allowed(source), false);
  });
  console.log(`PASS ${count} business asset/template/real quarterly PostgreSQL closure groups; isolated synthetic data only`);
 }finally{await db.close();}

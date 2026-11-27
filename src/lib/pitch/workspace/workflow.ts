@@ -6,6 +6,8 @@ import { slideContentSchema, type SlideContent } from "../contracts/content";
 import { type LayoutId } from "../contracts/scene";
 import { pitchRpc, digest, type PitchContext } from "../data/store";
 import { loadMedia, studioRegistry } from "../data/renderWorkflow";
+import { sceneMediaReferences } from "../render/media";
+import { fitResolvedVisualImages, getVisualPageReceipts, resolveReferencedVisualMedia } from "../visual-data/resolve";
 import { layoutSlides, sceneSourceLine } from "../layout/engine";
 import { numberDeckPages } from "../layout/pagination";
 import { sceneComponents } from "../layout/components";
@@ -269,7 +271,9 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
           throw new Error("PITCH_THEME_REPAGINATION");
         scenes = [scenes[original.scene.pagination!.index]];
       }
-      const media = await loadMedia(ctx, mediaContext.media, scenes);
+      const resolved = await resolveReferencedVisualMedia(ctx, getVisualPageReceipts([content]), sceneMediaReferences(scenes), 'internal');
+      scenes = scenes.map(scene => fitResolvedVisualImages(scene, resolved));
+      const media = await loadMedia(ctx, mediaContext.media, scenes, { resolved });
       for (const scene of scenes) await assertSceneQuality(scene, theme, media);
     }
     if (objectEdit) {
@@ -288,8 +292,10 @@ async function saveCurrentWorkspace(ctx: PitchContext, current: WorkspaceDetail,
       content = slideContentSchema.parse(content);
       const positioned = edit.objectMoves ? applyObjectMoves(textScene, edit.objectMoves) : textScene;
       const ordered = edit.objectOrder ? applyObjectOrder(positioned, edit.objectOrder) : positioned;
-      const scene = edit.objectGroups ? applyObjectGroups(ordered, edit.objectGroups) : ordered;
-      const media = await loadMedia(ctx, mediaContext.media, [scene]);
+      const arranged = edit.objectGroups ? applyObjectGroups(ordered, edit.objectGroups) : ordered;
+      const resolved = await resolveReferencedVisualMedia(ctx, getVisualPageReceipts([content]), sceneMediaReferences([arranged]), 'internal');
+      const scene = fitResolvedVisualImages(arranged, resolved);
+      const media = await loadMedia(ctx, mediaContext.media, [scene], { resolved });
       await assertSceneQuality(scene, theme, media);
       scenes = [scene];
     }

@@ -16,7 +16,7 @@ export type UnifiedProposalReaders = {
   load(ctx: PitchContext, brief: ProposalBrief): Promise<UnifiedProposalContext>;
   options(ctx: PitchContext, input: ProposalComposerInput): Promise<Omit<ProposalOptions, "targetBuildingId">>;
   photos(ctx: PitchContext, input: { buildingIds: string[]; use: "profile" | "comparison" }): Promise<readonly {
-    buildingId: string; primary: Photo | null; alternatives: readonly Photo[];
+    buildingId: string; primary: Photo | null; alternatives: readonly Photo[]; cover?: { reference: Photo };
   }[]>;
   location(ctx: PitchContext, selection: LocationSelection, targetId?: string): Promise<VisualRead>;
   stacking?(ctx: PitchContext, buildingId: string): Promise<VisualRead>;
@@ -97,7 +97,8 @@ async function readVisuals(ctx: PitchContext, brief: ProposalBrief, authorized: 
   for (const choice of photos) {
     const id = choice.buildingId;
     if (!ids.includes(id)) continue;
-    const candidates = [choice.primary, ...choice.alternatives].filter((photo): photo is Photo => !!photo
+    const cover = focused && id === target ? choice.cover?.reference : undefined;
+    const candidates = [cover, choice.primary, ...choice.alternatives].filter((photo): photo is Photo => !!photo
       && photo.buildingIds.length === 1 && allows(photo, "photo", [id]));
     const exterior = candidates.find(photo => photo.category === "exterior");
     const interior = promotion ? candidates.filter(photo => Object.hasOwn(photoKinds, photo.category) && photo.category !== "exterior").slice(0, 3) : [];

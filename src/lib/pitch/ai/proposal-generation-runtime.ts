@@ -1,12 +1,54 @@
+import { recheckBusinessResults } from "@/src/lib/intelligence/business/research";
+import { z } from "zod";
 import { generationSchema } from "../business/protocol";
-import { generateBusinessProject } from "../business/workflow";
-import { pitchRpc, type PitchContext } from "../data/store";
+import { checkGenerationSize, generateBusinessProject, prepareBusinessPages } from "../business/workflow";
+import { studioRegistry } from "../data/renderWorkflow";
+import { digest, pitchRpc, type PitchContext } from "../data/store";
 import { stableId } from "../library/extract";
+import { projectContextSchema } from "../workspace/protocol";
 import { getWorkspace } from "../workspace/workflow";
 import type { ConfirmedProposal } from "./proposal-brief";
 import { authorizedProposalModel } from "./proposal-model";
 import { createProposalDirectorPorts, proposalEvidenceVersion } from "./proposal-runtime";
-import { submitConfirmedProposal, type ProposalGenerationPort } from "./proposal-workflow";
+import { submitConfirmedProposal, type ProposalGenerationPort, type ReviewedProposal } from "./proposal-workflow";
+
+const receiptBinding = z.object({
+  domain: z.enum(['quarter', 'lease', 'business']), dataVersion: z.string(), dataAsOf: z.iso.date().nullable(),
+  permissionRevision: z.string(), policyVersion: z.string(), disclosure: z.literal('internal'),
+});
+
+async function persistReviewedPages(ctx: PitchContext, command: ConfirmedProposal, reviewed: ReviewedProposal, projectId: string) {
+  const { snapshot, plan, queryReceipts } = reviewed;
+  if (snapshot.brief.audience !== 'internal' || !queryReceipts?.length || !plan.theme)
+    throw new Error('PITCH_PROPOSAL_GENERATION_UNAVAILABLE');
+  const { id: themeId, version: themeVersion } = plan.theme;
+  const { theme } = await studioRegistry(ctx, themeId, themeVersion);
+  const pages = reviewed.pages.map(page => {
+    if (!page.layoutId) throw new Error('PITCH_PROPOSAL_RECIPE_BINDING_MISMATCH');
+    return { content: page.content, layoutId: page.layoutId, variant: 'standard' as const };
+  });
+  const { generated, slides, changes } = await prepareBusinessPages(ctx, pages, theme.definition, []);
+  const bindings = [...new Map(plan.slides.flatMap(page => page.materialReferences).map(binding => [binding.id, binding])).values()];
+  const snapshots = queryReceipts.map(({ id, entityId, binding: unverified, result }) => {
+    const binding = receiptBinding.parse(unverified);
+    return { id, entityId, binding, dataVersion: binding.dataVersion, dataAsOf: binding.dataAsOf,
+      results: [{ resultId: result.resultId, operation: result.operation, parameters: result.parameters, table: result.table,
+        scopeFingerprint: result.scopeFingerprint, registryVersion: result.registryVersion,
+        sourceFingerprint: digest(Buffer.from(JSON.stringify(result.sources))) }] };
+  });
+  const input = {
+    action: 'business_generate_commit', projectId, parentProjectId: command.projectId, expectedParentVersion: command.expectedVersion,
+    title: plan.title, scope: snapshot.scope, language: snapshot.brief.language, themeId, themeVersion,
+    proposalBrief: snapshot.brief, reviewedPlanId: plan.id, requestKey: plan.contextFingerprint,
+    proposalContext: projectContextSchema.parse({ buildingIds: snapshot.brief.buildingIds, client: snapshot.brief.targetClient ?? '',
+      business: snapshot.brief.scenario, language: snapshot.brief.language, period: snapshot.brief.period ?? '' }),
+    generated, slides, changes, snapshots, bindings, recipes: [],
+  };
+  checkGenerationSize(input);
+  await recheckBusinessResults(ctx.client, ctx.identity, ctx.signal, queryReceipts.map(receipt => receipt.result), true);
+  ctx.signal.throwIfAborted();
+  await pitchRpc(ctx, input);
+}
 
 export async function generateConfirmedProposal(ctx: PitchContext, input: ConfirmedProposal) {
   const current = await getWorkspace(ctx, input.projectId);
@@ -31,22 +73,23 @@ export async function generateConfirmedProposal(ctx: PitchContext, input: Confir
       const context = { ...ctx, signal };
       const { project } = current;
       if (project.version !== input.expectedVersion) throw new Error("PITCH_CONFLICT");
-      if (!reviewed.generation?.length) throw new Error("PITCH_PROPOSAL_GENERATION_UNAVAILABLE");
-      const command = generationSchema.parse({ action: "generate", projectId: generatedId, parentProjectId: input.projectId,
-        title: reviewed.plan.title, scope: reviewed.snapshot.scope, language: reviewed.snapshot.brief.language,
-        themeId: project.theme_id, themeVersion: project.theme_version, parts: reviewed.generation.map(entry => entry.part) });
-      const expectedEvidence = reviewed.generation.map(item => item.evidenceVersion);
-      await generateBusinessProject(context, { ...command, expectedParentVersion: input.expectedVersion }, undefined, undefined, false, async snapshots => {
-        signal.throwIfAborted();
-        if (JSON.stringify(snapshots.map(item => proposalEvidenceVersion(item.results))) !== JSON.stringify(expectedEvidence)) {
-          throw new Error("PITCH_PROPOSAL_REVIEW_REQUIRED");
-        }
+      if (!reviewed.generation?.length) {
         await reviewed.verifySources?.();
-        signal.throwIfAborted();
-        const latest = await getWorkspace(context, input.projectId);
-        signal.throwIfAborted();
-        if (latest.project.version !== input.expectedVersion) throw new Error("PITCH_CONFLICT");
-      });
+        await persistReviewedPages(context, input, reviewed, generatedId);
+      } else {
+        const command = generationSchema.parse({ action: "generate", projectId: generatedId, parentProjectId: input.projectId,
+          title: reviewed.plan.title, scope: reviewed.snapshot.scope, language: reviewed.snapshot.brief.language,
+          themeId: project.theme_id, themeVersion: project.theme_version, parts: reviewed.generation.map(entry => entry.part) });
+        const expectedEvidence = reviewed.generation.map(item => item.evidenceVersion);
+        await generateBusinessProject(context, { ...command, expectedParentVersion: input.expectedVersion }, undefined, undefined, false, async snapshots => {
+          signal.throwIfAborted();
+          if (JSON.stringify(snapshots.map(item => proposalEvidenceVersion(item.results))) !== JSON.stringify(expectedEvidence)) {
+            throw new Error("PITCH_PROPOSAL_REVIEW_REQUIRED");
+          }
+          await reviewed.verifySources?.();
+          signal.throwIfAborted();
+        });
+      }
       // Read the existing persisted result before reporting completion.
       const projectWithSlides = await getWorkspace(context, generatedId);
       if (!projectWithSlides.slides.length) throw new Error("PITCH_PROPOSAL_GENERATION_UNAVAILABLE");

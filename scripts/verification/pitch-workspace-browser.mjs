@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import JSZip from "jszip";
+import { PDFDocument } from "pdf-lib";
 
 async function launchBrowser() {
   const { chromium } = createRequire(import.meta.url)(
@@ -436,6 +437,12 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         const first = await archive.file("ppt/slides/slide1.xml").async("string");
         assert.ok(first.includes(editedTitle), "export omitted the saved title");
         assert.match(first, /<p:sp>/);
+        await exportDialog.getByLabel('文件格式').selectOption('pdf');
+        await exportDialog.getByRole('button', { name: '生成文件' }).click();
+        await downloadButton.waitFor({ timeout: 60_000 });
+        const [pdf] = await Promise.all([page.waitForEvent('download'), downloadButton.click()]);
+        assert.match(pdf.suggestedFilename(), /\.pdf$/i);
+        assert.equal((await PDFDocument.load(await readFile(await pdf.path()))).getPageCount(), reopened.slides.length);
         result.stage = "completed";
         result.pages = names.length;
       } catch (error) {

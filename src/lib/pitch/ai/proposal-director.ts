@@ -215,6 +215,13 @@ function buildPlan(
         citedReceipts.add(match.receipt);
         return { ...source, recordId: match.key, locator: match.key };
       }
+      if (source.locator.startsWith('map_submarket_profiles/')) {
+        const editorial = [...receipts.values()].find(({ receipt }) => receipt.id === 'submarket-research'
+          && receipt.result.sources.some(item => item.table === 'map_submarket_profiles' && item.recordId === source.recordId
+            && item.recordVersion === source.version && source.locator === `map_submarket_profiles/${item.recordId}/${item.field}`));
+        if (!editorial) throw new Error('PITCH_PROPOSAL_RECIPE_BINDING_MISMATCH');
+        citedReceipts.add(editorial.receipt);
+      }
       return source;
     });
     return {

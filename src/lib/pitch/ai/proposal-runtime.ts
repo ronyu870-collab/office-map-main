@@ -6,14 +6,20 @@ import { readAvailablePeriodGroups } from "@/src/lib/intelligence/query/availabl
 import { quarterKey } from "@/src/lib/intelligence/query/contracts";
 import type { QueryResultView } from "@/src/lib/intelligence/query/presentation";
 import type { NumericField } from "@/src/lib/intelligence/query/registry";
-import { runPitchDataAdapter, type PitchDataSnapshot } from "../business/adapter";
+import { loadUnifiedPitchContext, runPitchDataAdapter, type PitchDataSnapshot } from "../business/adapter";
+import { requestFromProposalBrief } from "../business/unified-context-protocol";
 import { dynamicParametersSchema, type DynamicParameters } from "../business/protocol";
 import { scopeSchema } from "../contracts/content";
 import { pitchRpc, type PitchContext } from "../data/store";
+import { studioRegistry } from "../data/renderWorkflow";
+import { PRESENTATION_THEME_CANDIDATES } from "../design/theme";
+import { readPitchLocation } from "../visual-data/derived-assets";
+import { getBuildingPhotoChoices } from "../visual-data/photos";
 import { getWorkspace } from "../workspace/workflow";
 import type { ProposalRequest } from "./proposal-brief";
 import { directProposal, type ComposedProposalPage, type ProposalComposerInput, type ProposalDirectorPorts } from "./proposal-director";
 import type { ProposalModel } from "./proposal-interpretation";
+import { createUnifiedProposalComposer } from "./proposal-unified-runtime";
 
 const grantSchema = scopeSchema.extend({ canGenerate: z.boolean(), canClientExport: z.boolean(), canExternalAi: z.boolean() }).strip();
 const parseScope = (raw: z.infer<typeof grantSchema>) => scopeSchema.parse({
@@ -35,8 +41,6 @@ export async function resolveProposalScope(ctx: PitchContext, input: ProposalReq
   };
 }
 
-// Existing trusted query contracts already provide this lower-cost route.
-// The shared integration can supply the unified data/visual/recipe composer.
 export function createProposalDirectorPorts(ctx: PitchContext, overrides: Partial<ProposalDirectorPorts> = {}): ProposalDirectorPorts {
   return {
     scope: (input, signal) => resolveProposalScope({ ...ctx, signal }, input, input.city),
@@ -64,7 +68,19 @@ export function createProposalDirectorPorts(ctx: PitchContext, overrides: Partia
       const available = await readAvailablePeriodGroups(ctx.client, ctx.identity, authority, selection, eligible, signal);
       return available.periods.map(period => ({ period: quarterKey(period), status: "formal" }));
     },
-    compose: createStandardComposer(ctx),
+    compose: createUnifiedProposalComposer(ctx, {
+      load: (actor, brief) => loadUnifiedPitchContext(actor, requestFromProposalBrief(brief)),
+      photos: (actor, selection) => getBuildingPhotoChoices(actor, selection, selection.buildingIds[0]),
+      location: readPitchLocation,
+      options: async (actor, { projectId, brief }) => {
+        const project = projectId ? (await getWorkspace(actor, projectId)).project : undefined;
+        const profile = brief.style === 'research' ? 'market-intelligence'
+          : brief.style === 'premium' || brief.scenario === 'building-promotion' ? 'premium-portfolio' : 'corporate-executive';
+        const theme = PRESENTATION_THEME_CANDIDATES.find(candidate => candidate.profile === profile)!;
+        const registry = await studioRegistry(actor, project?.theme_id ?? theme.id, project?.theme_version ?? theme.version);
+        return { theme: registry.theme.definition };
+      },
+    }, createStandardComposer(ctx)),
     ...overrides,
   };
 }

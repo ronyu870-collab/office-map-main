@@ -1,12 +1,13 @@
 // Run against a fresh disposable localhost stack using PITCH_AUTH_STATUS.
 import assert from "node:assert/strict";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdir, open, readdir, readFile } from "node:fs/promises";
 import { setTimeout as pause } from "node:timers/promises";
 import { createClient } from "@supabase/supabase-js";
 import pg from "pg";
+import sharp from "sharp";
 import { grantQuery } from "../../supabase/tests/ai-query-authority/database.mjs";
 import { BUILDINGS } from "../../supabase/tests/ai-query-authority/snapshot-fixture.mjs";
 import { installPitchDataFixture } from "../../supabase/tests/pitch-studio/business-data-fixture.mjs";
@@ -30,6 +31,21 @@ const env = {
   NEXT_PUBLIC_AMAP_KEY: "syntheticfixture",
 };
 const directory = new URL("../../supabase/migrations/", import.meta.url);
+const gallery = 'building-sales-materials';
+
+async function addPhoto(buildingId, index) {
+  const id = randomUUID();
+  const path = `building-photos/v1/${buildingId}/${id}/isolated-fixture.png`;
+  const width = 1120, height = 720;
+  const image = await sharp({ create: { width, height, channels: 3,
+    background: { r: 36 + index * 19, g: 85, b: 116 } } }).png().toBuffer();
+  const uploaded = await service.storage.from(gallery).upload(path, image, { contentType: 'image/png' });
+  assert.equal(uploaded.error, null);
+  await db.query(`insert into public.building_photos(id,building_id,storage_path,sha256,file_size,width,height,
+    photo_kind,caption,sort_order,source_url,source_name,attribution_text,collected_at,status)
+    values($1,$2,$3,$4,$5,$6,$7,'exterior','隔离合成视觉素材',0,'https://example.com/fixture','隔离测试','合成样本',now(),'ready')`,
+  [id,buildingId,path,createHash('sha256').update(image).digest('hex'),image.length,width,height]);
+}
 
 async function seed() {
   await db.query(`create schema if not exists private;
@@ -55,16 +71,24 @@ async function seed() {
     capabilities: ["query:catalog", "query:brochure", "query:quarter", "export:internal"],
     fields: ["height", "floors", "parking", "totalArea", "vacantArea", "netEffectiveRent"],
   });
+  await db.query(`create table public.building_photos(id uuid primary key, building_id uuid not null references public.buildings(id),
+    storage_path text, sha256 text, file_size integer, width integer, height integer, photo_kind text, caption text, sort_order integer,
+    source_url text, source_name text, license_url text, attribution_text text, collected_at timestamptz, status text);
+    alter table public.building_photos enable row level security;
+    grant select on public.building_photos, public.buildings to service_role;`);
+  const bucket = await service.storage.createBucket(gallery, { public: false });
+  assert.equal(bucket.error, null);
   // The catalogue queries use real landmark names with synthetic quarterly values.
-  await db.query("update public.buildings set grade='B' where id=any($1::uuid[])", [BUILDINGS]);
+  await db.query("update public.buildings set grade='B',city='北京' where id=any($1::uuid[])", [BUILDINGS]);
   const buildings = [
     ["霄云路33号", "燕莎"], ["五矿广场", "东二环"], ["国贸写字楼1座", "CBD"], ["国际财源中心（IFC）", "CBD"],
     ["新华保险大厦（NCI）", "CBD"], ["大家保险大厦B座", "CBD"], ["泰康金融大厦", "CBD"],
   ];
   for (const [index, [name, submarket]] of buildings.entries()) {
     const buildingId = randomUUID();
-    await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,$2,$3,'A','tracked')",
-      [buildingId, name, submarket]);
+    await db.query(`insert into public.buildings(id,name,submarket,grade,tracking_scope,city,location_lat,location_lng)
+      values($1,$2,$3,'A','tracked','北京',$4,$5)`, [buildingId, name, submarket, 39.90 + index * 0.006, 116.43 + index * 0.007]);
+    await addPhoto(buildingId, index);
     await db.query("insert into public.building_brochure_data(building_id,building_height,parking_total) values($1,$2,$3)",
       [buildingId, 180 + index, 400 + index]);
     for (const [year, quarter] of [[2025, 4], [2026, 1], [2026, 2], [2026, 3]]) {
@@ -108,6 +132,8 @@ try {
   const verify = process.argv.includes("--building-inspector") ? verifyPitchBuildingInspectorBrowser : verifyPitchFlagshipBrowser;
   await verify({
     app, who, period: "2026-Q3",
+    requiredVisuals: { 'leasing-agency': ['photo', 'map'], 'site-selection': ['photo', 'map'],
+      'market-report': ['map'], 'building-promotion': ['photo', 'map'] },
     readProject: async (projectId) => {
       const result = await fetch(app + "/api/intelligence/pitch/workspace", {
         method: "POST",

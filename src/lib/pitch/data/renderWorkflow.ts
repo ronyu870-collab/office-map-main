@@ -119,20 +119,21 @@ export async function runRenderExport(ctx: PitchContext, command: { projectId: s
     const pins = getVisualPageReceipts([{ sources: context.export.visual_source_snapshot }]);
     assertArtifactVisualSources(pins, getVisualPageReceipts(slides.map(s => s.content)));
     const format = context.export.format, scenes = slides.map(s => s.scene);
-    const file = await prepareVisualDelivery(ctx, pins, sceneMediaReferences(scenes), { format, audience: command.audience, stage: 'export' }, async resolved => {
+    const file = await prepareVisualDelivery(ctx, pins, sceneMediaReferences(scenes), { format, audience: command.audience ?? 'internal', stage: 'export' }, async resolved => {
       const media = await loadMedia(ctx, context.media, scenes, { resolved });
       const pages = scenes.map(scene => ({ scene: fitResolvedVisualImages(scene, resolved), theme: pageTheme(scene, context.themes) }));
       await pitchRpc(ctx, { action: 'export_progress', ...args, progress: 30 });
       let bytes: Uint8Array;
       if (format === 'pptx') bytes = await (await import('../render/pptx')).renderPitchPptx(context.project.title, pages, media);
       else if (format === 'xlsx') bytes = await (await import('../render/xlsx')).renderSceneXlsx(pages.map(p => p.scene));
+      else if (format === 'pdf') bytes = await (await import('../render/pdf')).renderScenePdf(pages, media, ctx.signal);
       else {
         if (pages.length !== 1) throw new Error('PITCH_SINGLE_PAGE_REQUIRED');
         const renderer = await import('../render/svg');
         bytes = format === 'png' ? await renderer.renderScenePng(pages[0].scene, pages[0].theme, media) : new TextEncoder().encode(await renderer.renderSceneSvg(pages[0].scene, pages[0].theme, media));
       }
       if (bytes.length > 16 * 1024 * 1024) throw new Error('PITCH_EXPORT_LIMIT');
-      await pitchRpc(ctx, { action: 'export_context', ...args });
+      await pitchRpc(ctx, { action: context.selected ? 'export_verify' : 'export_context', ...args });
       await pitchRpc(ctx, { action: 'export_progress', ...args, progress: 85 });
       const prepared = makeFile(context.export.storage_path, MIME[format], bytes);
       await uploadFile(ctx, prepared, bytes);

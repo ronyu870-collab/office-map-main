@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { assetInputSchema } from '../contracts/content';
+import { editableAssetInputSchema } from '../contracts/content';
 import { uploadMetadataSchema, MAX_FILE } from './protocol';
 const id = z.uuid(), short = z.string().trim().min(1).max(120);
 export const libraryCommandSchema = z.discriminatedUnion('action', [
  z.strictObject({ action: z.literal('prepare'), requestId: id, filename: z.string().min(1).max(300), mime: z.string().max(150), size: z.number().int().positive().max(MAX_FILE), sha256: z.string().regex(/^[a-f0-9]{64}$/), metadata: uploadMetadataSchema, versionOf: id.optional() }),
  z.strictObject({ action: z.literal('finish'), jobId: id }),
  z.strictObject({ action: z.literal('step'), jobId: id }), z.strictObject({ action: z.literal('cancel'), jobId: id }), z.strictObject({ action: z.literal('retry'), jobId: id }),
- z.strictObject({ action: z.literal('save_asset'), assetId: id, expectedVersion: z.number().int().min(0), pageId: id.optional(), asset: assetInputSchema, acknowledgePartial: z.boolean().default(false) }),
+ z.strictObject({ action: z.literal('save_asset'), assetId: id, expectedVersion: z.number().int().min(0), pageId: id.optional(), asset: editableAssetInputSchema, acknowledgePartial: z.boolean().default(false) }),
  z.strictObject({ action: z.literal('confirm'), items: z.array(z.strictObject({ assetId: id, expectedVersion: z.number().int().positive() })).min(1).max(30), acknowledgePartial: z.boolean() }),
  z.strictObject({ action: z.literal('document_save'), documentId: id, expectedRevision: z.number().int().positive(), categoryId: id, tags: z.array(z.string().min(1).max(60)).max(30), state: z.enum(['draft','archived']).optional() }),
  z.strictObject({ action: z.literal('normalize'), projectId: id, assetId: id, title: z.string().trim().min(1).max(160), themeId: short, themeVersion: z.number().int().positive() }),

@@ -1,7 +1,7 @@
 import { PATTERN_BY_ID } from '../layout/patterns/catalog';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { designThemeSchema } from '../design/theme';
+import { designThemeSchema, type DesignTheme } from '../design/theme';
 import { slideContentSchema } from '../contracts/content';
 import { pitchRpc, mediaRowSchema, digest, type PitchContext } from '../data/store';
 import { loadMedia } from '../data/renderWorkflow';
@@ -13,6 +13,8 @@ import { normalizationPlan } from '../library/normalize';
 import { numberDeckPages } from '../layout/pagination';
 import { LayoutError } from '../layout/metrics';
 import { assertSceneQuality } from '../layout/quality';
+import { fitResolvedVisualImages, getVisualPageReceipts, resolveReferencedVisualMedia } from '../visual-data/resolve';
+import { sceneMediaReferences } from '../render/media';
 import { businessProfileSchema, recipeSchema, type Generation, type BusinessProfile } from './protocol';
 import { assertBusinessScope, buildBusinessPages, caseDisplay, validateBusinessProfile, type BusinessAsset, type BusinessPage } from './content';
 import { runPitchDataAdapter, type DataBinding, type PitchDataSnapshot } from './adapter';
@@ -20,6 +22,8 @@ import { documentDataVersion } from './document-version';
 import { reviewedBuildingData } from './outline-data';
 const hash=(v:unknown)=>digest(new TextEncoder().encode(JSON.stringify(v)));
 type BusinessGenerationCommand = Generation & { expectedParentVersion?: number };
+type PageGroup = BusinessPage & { capture?: { snapshotIndex:number; contentIndex:number } };
+type MediaRow = z.infer<typeof mediaRowSchema>;
 const storedSchema=z.object({asset:z.object({id:z.uuid(),current_version:z.number(),organization_id:z.string(),region:z.string(),city:z.string(),business_line:z.string()}).passthrough(),version:z.object({content:slideContentSchema}),profile:businessProfileSchema,media:z.array(mediaRowSchema)});
 export function profileMedia(profile:BusinessProfile) {
   if(profile.kind==='team')return profile.photo?[profile.photo]:[];
@@ -41,7 +45,7 @@ export async function saveBusinessProfile(ctx:PitchContext,c:{assetId:string;exp
 }
 export async function prepareBusinessProject(ctx:PitchContext,command:BusinessGenerationCommand,expectedAssetVersions?:ReadonlyMap<string,number>, expectedDataFingerprint?:string, compareOutline = false, preparedSnapshot?: PitchDataSnapshot, expectedBinding?: DataBinding & { dataVersion:string }) {
   const registry=z.object({theme:z.object({definition:designThemeSchema})}).parse(await pitchRpc(ctx,{action:'registry',templateId:'business-content',templateVersion:1,themeId:command.themeId,themeVersion:command.themeVersion}));
-  const theme=registry.theme.definition,bindings:{id:string;version:number}[]=[],snapshots:PitchDataSnapshot[]=[],recipes:{id:string;revision:number}[]=[],groups:(BusinessPage & { capture?: { snapshotIndex:number; contentIndex:number } })[]=[],mediaRows:z.infer<typeof mediaRowSchema>[]=[];
+  const theme=registry.theme.definition,bindings:{id:string;version:number}[]=[],snapshots:PitchDataSnapshot[]=[],recipes:{id:string;revision:number}[]=[],groups:PageGroup[]=[],mediaRows:MediaRow[]=[];
   const currentPeriods=command.parts.filter(p=>p.mode==='dynamic'&&!p.parameters.templateId.endsWith('-trend')&&!p.parameters.templateId.startsWith('lease-')).map(p=>p.mode==='dynamic'?JSON.stringify(p.parameters.period):'');
   if(new Set(currentPeriods).size>1)throw new DocumentError('PITCH_PERIOD_MISMATCH','同一 Pitch 的项目对比页面需要采用同一正式季度。');
   for(const part of command.parts) {
@@ -94,6 +98,17 @@ export async function prepareBusinessProject(ctx:PitchContext,command:BusinessGe
     }
     for(const page of buildBusinessPages(recipe,assets,command.language,part.length,part.variant))groups.push({...page,content:part.title?{...page.content,title:part.title}:page.content});
   }
+  const { capturedAssets, ...rendered } = await prepareBusinessPages(ctx, groups, theme, mediaRows);
+  const input={...command,action:'business_generate_commit',requestKey:hash(command),bindings,snapshots,recipes,...rendered};
+  checkGenerationSize(input);
+  return { input, capturedAssets };
+}
+
+export function checkGenerationSize(input: unknown) {
+  if(Buffer.byteLength(JSON.stringify(input))>8*1024*1024)throw new DocumentError('PITCH_PAGE_LIMIT','本次内容超过生成容量，请缩小范围或拆分提案。');
+}
+
+export async function prepareBusinessPages(ctx: PitchContext, groups: readonly PageGroup[], theme: DesignTheme, mediaRows: MediaRow[]) {
   const slides=[],generated=[];const changes:{group:number;reason:string}[]=[];
   const capturedAssets: { assetId:string; snapshotIndex:number; contentIndex:number }[]=[];
   for(const [group,page]of groups.entries()) {
@@ -112,13 +127,16 @@ export async function prepareBusinessProject(ctx:PitchContext,command:BusinessGe
     for(const part of parts)for(const scene of part.scenes)slides.push({slideId:randomUUID(),assetId,assetVersion:1,content:part.content,scene,theme});
     if(slides.length>50)throw new DocumentError('PITCH_PAGE_LIMIT','本次生成超过 50 页，请拆为多个 Pitch；未静默删减内容。');
   }
-  const media = await loadMedia(ctx, mediaRows, slides.map(page => page.scene), { missing: 'PITCH_DENIED' });
-  for (const page of slides) await assertSceneQuality(page.scene, theme, media);
+  const scenes = slides.map(page => page.scene);
+  const pins = getVisualPageReceipts(slides.map(page => page.content));
+  const resolved = await resolveReferencedVisualMedia(ctx, pins, sceneMediaReferences(scenes), 'internal');
+  const media = await loadMedia(ctx, mediaRows, scenes, { missing: 'PITCH_DENIED', resolved });
+  for (const page of slides) {
+    page.scene = fitResolvedVisualImages(page.scene, resolved);
+    await assertSceneQuality(page.scene, theme, media);
+  }
   const numbered=numberDeckPages(slides).map(({slideId,assetId,assetVersion,content,scene})=>({slideId,assetId,assetVersion,content,scene}));
-  const requestKey=hash(command);
-  const input={...command,action:'business_generate_commit',requestKey,bindings,snapshots,recipes,changes,generated,slides:numbered};
-  if(Buffer.byteLength(JSON.stringify(input))>8*1024*1024)throw new DocumentError('PITCH_PAGE_LIMIT','本次内容超过生成容量，请缩小范围或拆分提案。');
-  return { input, capturedAssets };
+  return { changes, generated, slides: numbered, capturedAssets };
 }
 export async function generateBusinessProject(
   ctx: PitchContext, command: BusinessGenerationCommand, expectedAssetVersions?: ReadonlyMap<string, number>,
