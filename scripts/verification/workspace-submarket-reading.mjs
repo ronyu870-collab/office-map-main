@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { clickWorkspaceAction } from './workspace-actions.mjs';
 
 export async function verifySubmarketReading(page,{width,base,evidencePrefix='map-submarket'}) {
   const points=[['2025Q4',180,10],['2026Q1',0,0],['2026Q2',null,null],['2026Q3',170,13],['2026Q4',165,10],['2027Q1',160,9]].map(([period,rent,vacancyPct])=>({period,year:Number(period.slice(0,4)),quarter:Number(period.at(-1)),rent,vacancyPct,rentSamples:rent==null?0:2,vacancySamples:vacancyPct==null?0:3,rentArea:100,vacancyArea:100}));
-  let withTrend=true;
+  let withTrend=true, withStructured=false;
+  const cbdEdition=JSON.parse(await readFile(new URL('../../data/submarket-research/2026-11-27/cbd.json',import.meta.url),'utf8'));
   await page.route('**/api/map/submarket?*',route=>route.fulfill({json:{
     submarket:'CBD',stockCount:3,profileAvailable:true,profilePublished:true,
-    profile:{submarket:'CBD',headline:'国际商务集聚区',overview:'区域介绍与已收录办公项目。',industries:'',transport:'',demographics:[],policies:[],insights:[],updatedAt:'2026-11-18T00:00:00Z',updatedBy:null},
+    profile:{submarket:'CBD',headline:withStructured?cbdEdition.positioning:'国际商务集聚区',overview:'区域介绍与已收录办公项目。',industries:'',transport:'',demographics:[],policies:[],insights:[],updatedAt:'2026-11-18T00:00:00Z',updatedBy:null,...(withStructured?{research:cbdEdition}:{})},
     trends:{all:withTrend?points:[],a:withTrend?points:[],b:[]},trendError:false,quarterMethod:'same quarter',source:'building_metrics',
   }}));
   const layout=page.locator('.map-workspace-layout');
@@ -222,7 +224,30 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   assert.ok((await empty.boundingBox()).height<=120,'settled empty trend uses content height');
   assert.equal(await trend.locator('canvas').count(),0);
   await assertMapReady();
+  // Exercise the actual published CBD edition separately from the legacy fixture.
+  withStructured=true;withTrend=true;
+  await page.reload();await page.waitForFunction(()=>window.__workspaceMap?.getCenter());
+  await openResearch();await openTabbedReading();await overviewTab.click();
+  await page.locator('[data-map-submarket-panel][data-submarket-featured="true"]').waitFor();
+  const lead=overview.getByRole('region',{name:'市场观察',exact:true});
+  await lead.getByRole('heading',{name:cbdEdition.observations[0].title,exact:true}).waitFor();
+  assert.ok((await metrics.boundingBox()).y<(await lead.boundingBox()).y,'CBD core metrics precede the single lead');
+  assert.equal(await lead.getByRole('heading',{level:3}).count(),1,'CBD overview is not four research paragraphs');
+  assert.equal(await overview.locator('canvas').count(),0,'CBD overview remains independent of chart runtime');
+  assert.equal(await panel.locator('.workspace-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,'CBD overview fits its reading width');
+  await clickWorkspaceAction(page,'全屏阅读工作区');await expanded.waitFor();
+  const fullMetrics=panel.getByRole('region',{name:'市场核心指标',exact:true});
+  const fullSupply=panel.getByRole('region',{name:'供应与竞争格局',exact:true});
+  await fullSupply.waitFor();
+  assert.ok((await fullMetrics.boundingBox()).y<(await fullSupply.boundingBox()).y,'full CBD research starts with market data');
+  assert.ok((await panel.getByRole('region',{name:'产业及租赁需求',exact:true}).boundingBox()).y>(await fullSupply.boundingBox()).y,'research chapters use successive thematic rows');
+  assert.equal(await panel.locator('.workspace-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,'full CBD research has no horizontal overflow');
+  for(const source of cbdEdition.sources.filter(item=>item.scopeType==='external_market')){
+    assert.ok(!(await panel.innerText()).includes(source.publisher),'client research excludes provider names');
+  }
+  await clickWorkspaceAction(page,'返回地图分屏');await standard.waitFor();await assertMapReady();
   return {width,height:page.viewportSize().height,identityOnlyExpandedForReading:identityOnly,coreMetricsFirst:true,primaryActionInTitleRow:true,
+    structuredCbdCoreFirst:true,structuredCbdThematicRows:true,structuredCbdNoHorizontalOverflow:true,
     overviewCompositionAndPublishedIntro:true,adaptiveMapBudget,fullReadingPreservesMapCanvas:true,trendTabPreserved:true,
     canvasRendered:true,gradeNavigation:true,keyboardQuarterTable:true,zeroAndMissingRemainDistinct:true,tableFitsPanel:true,
     representativeProjectRoundTripPreservesTab:true,listRoundTripPreservesRegion:true,settledEmptyTrendUsesContentHeight:true};
