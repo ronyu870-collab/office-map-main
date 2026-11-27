@@ -554,7 +554,8 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         assert.equal(plan.brief.period, period);
         assert.equal(plan.brief.buildingIds.length, scenario.buildings);
         const pageKinds = new Set(plan.plan.slides.map((slide) => slide.pageKind));
-        const visualKinds = new Set(plan.plan.slides.flatMap((slide) => slide.visuals ?? []).map((visual) => visual.kind));
+        const plannedVisuals = plan.plan.slides.flatMap(slide => slide.visuals ?? []);
+        const visualKinds = new Set(plannedVisuals.map(visual => visual.kind));
         result.missingPages = scenario.pages.filter((kind) => !pageKinds.has(kind));
         result.missingVisuals = (requiredVisuals[scenario.scenario] ?? []).filter((kind) => !visualKinds.has(kind));
         if (result.missingPages.length || result.missingVisuals.length) result.gaps = plan.plan.gaps;
@@ -605,8 +606,19 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         assert.equal(names.length, reopened.slides.length);
         const first = await archive.file("ppt/slides/slide1.xml").async("string");
         const texts = [...first.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(([, value]) => value);
-        assert.ok(texts.join("").includes(editedTitle), `export omitted the saved title: ${texts.slice(0, 6).join(" | ")}`);
+        const withoutWhitespace = value => value.replace(/\s+/g, "");
+        assert.ok(withoutWhitespace(texts.join("")).includes(withoutWhitespace(editedTitle)),
+          `export omitted the saved title: ${texts.slice(0, 6).join(" | ")}`);
         assert.match(first, /<p:sp>/);
+        result.missingExportedVisuals = [];
+        for (const kind of requiredVisuals[scenario.scenario] ?? []) {
+          const references = plannedVisuals.filter(visual => visual.kind === kind);
+          const index = reopened.slides.findIndex(slide => slide.content.blocks.some(block => block.kind === "image" &&
+            references.some(visual => block.mediaAssetId === visual.id && block.mediaVersion === visual.version &&
+              block.sourceIds.includes(visual.source.id))));
+          const slide = await archive.file(`ppt/slides/slide${index + 1}.xml`)?.async("string");
+          if (!slide?.includes("<p:pic>")) result.missingExportedVisuals.push(kind);
+        }
         const pdf = await PDFDocument.load(await downloadPitchFile(page, "pdf"));
         assert.equal(pdf.getPageCount(), reopened.slides.length);
         result.stage = "completed";
@@ -616,7 +628,8 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
       }
     }
     console.log(JSON.stringify(report));
-    assert.ok(report.every((value) => value.stage === "completed" && !value.missingPages.length && !value.missingVisuals.length),
+    assert.ok(report.every(value => value.stage === "completed" && !value.missingPages.length &&
+      !value.missingVisuals.length && !value.missingExportedVisuals.length),
       "one or more flagship paths or required evidence are incomplete");
   } finally {
     await closeFlagshipBrowser(browser);

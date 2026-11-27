@@ -7,6 +7,8 @@ import { mkdir, open, readdir, readFile } from "node:fs/promises";
 import { setTimeout as pause } from "node:timers/promises";
 import { createClient } from "@supabase/supabase-js";
 import pg from "pg";
+import { grantBusiness, installBusinessFixture, seedBusiness } from "../../supabase/tests/ai-business-research/fixture.mjs";
+import { grantLeaseResearch, installLeaseResearchFixture, seedLeaseResearch } from "../../supabase/tests/ai-lease-research/fixture.mjs";
 import { grantQuery } from "../../supabase/tests/ai-query-authority/database.mjs";
 import { BUILDINGS } from "../../supabase/tests/ai-query-authority/snapshot-fixture.mjs";
 import { installPitchDataFixture } from "../../supabase/tests/pitch-studio/business-data-fixture.mjs";
@@ -55,24 +57,36 @@ async function seed() {
     capabilities: ["query:catalog", "query:brochure", "query:quarter", "export:internal"],
     fields: ["height", "floors", "parking", "totalArea", "vacantArea", "netEffectiveRent"],
   });
+  const leaseFixture = await readFile(new URL("../../supabase/tests/lease-expiry/fixture.sql", import.meta.url), "utf8");
+  await db.query(leaseFixture.slice(leaseFixture.indexOf("create table public.lease_transactions("),
+    leaseFixture.indexOf("create table public.lease_transactions_history(")));
+  await db.query("alter table public.lease_transactions alter column submitter_id type varchar using submitter_id::text");
+  await installLeaseResearchFixture(db);
+  await grantLeaseResearch(db, id);
+  await installBusinessFixture(db);
+  await grantBusiness(db, id, { allSubmarkets: true });
   // The catalogue queries use real landmark names with synthetic quarterly values.
   await db.query("update public.buildings set grade='B' where id=any($1::uuid[])", [BUILDINGS]);
   const buildings = [
     ["霄云路33号", "燕莎"], ["五矿广场", "东二环"], ["国贸写字楼1座", "CBD"], ["国际财源中心（IFC）", "CBD"],
     ["新华保险大厦（NCI）", "CBD"], ["大家保险大厦B座", "CBD"], ["泰康金融大厦", "CBD"],
   ];
+  const buildingIds = [];
   for (const [index, [name, submarket]] of buildings.entries()) {
     const buildingId = randomUUID();
+    buildingIds.push(buildingId);
     await db.query("insert into public.buildings(id,name,submarket,grade,tracking_scope) values($1,$2,$3,'A','tracked')",
       [buildingId, name, submarket]);
-    await db.query("insert into public.building_brochure_data(building_id,building_height,parking_total) values($1,$2,$3)",
-      [buildingId, 180 + index, 400 + index]);
+    await db.query("insert into public.building_brochure_data(building_id,building_height,parking_total,building_floors) values($1,$2,$3,$4)",
+      [buildingId, 180 + index, 400 + index, 39 + index]);
     for (const [year, quarter] of [[2025, 4], [2026, 1], [2026, 2], [2026, 3]]) {
       await db.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,
         vacant_area,is_draft,is_locked,locked_at,locked_by) values($1,$2,$3,$4,$5,$6,false,true,now(),$7)`,
         [buildingId, year, quarter, 30000 + index * 2000, 100 + index * 12 + quarter, 1500 + index * 210, id]);
     }
   }
+  await seedLeaseResearch(db, buildingIds);
+  await seedBusiness(db, buildingIds, id);
   await db.query("notify pgrst,'reload schema'");
   const client = createClient(settings.API_URL, settings.ANON_KEY, authOptions);
   const signed = await client.auth.signInWithPassword({ email, password });
