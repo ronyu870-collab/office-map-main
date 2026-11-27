@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SubmarketDetailPayload } from '@/src/services/mapDataClient';
+import { PitchHandoffProvider, readPitchHandoff } from '@/src/components/pitch/PitchHandoffLink';
 import { aggregateMarket } from '../model/marketStatistics';
 import type { SubmarketSummary } from '../model/submarketOverview';
 import { submarketIntelligenceSchema } from '../model/submarketIntelligence';
@@ -281,7 +282,10 @@ describe('submarket research workspace', () => {
       makePoint('2026Q3', null, null),
     ];
     api.read.mockResolvedValueOnce({ ...payload, trends: { all: series, a: [], b: [] } });
-    render(<SubmarketDetailPanel {...props} />);
+    render(<PitchHandoffProvider enabled><SubmarketDetailPanel {...props} /></PitchHandoffProvider>);
+    const handoff = await screen.findByRole('link', { name: '将子市场行情加入 Pitch' });
+    expect(readPitchHandoff(new URL(handoff.getAttribute('href')!, window.location.origin).hash))
+      .toEqual({ source: { kind: 'submarket', key: 'CBD' }, period: '2026-Q2' });
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
     const digest = within(await screen.findByRole('region', { name: '指标走势' }));
     const rent = digest.getByRole('heading', { name: '净有效租金' }).closest('figure');
@@ -296,7 +300,10 @@ describe('submarket research workspace', () => {
 
   it('distinguishes temporarily unavailable trend data from genuine missing observations', async () => {
     api.read.mockResolvedValueOnce({ ...payload, trendError: true, trends: emptyTrend });
-    render(<SubmarketDetailPanel {...props} />);
+    render(<PitchHandoffProvider enabled><SubmarketDetailPanel {...props} /></PitchHandoffProvider>);
+    const handoff = await screen.findByRole('link', { name: '将子市场行情加入 Pitch' });
+    expect(readPitchHandoff(new URL(handoff.getAttribute('href')!, window.location.origin).hash))
+      .toEqual({ source: { kind: 'submarket', key: 'CBD' } });
     fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
     const trend = within(screen.getByRole('region', { name: '季度行情' }));
     await waitFor(() => expect(trend.getByRole('status')).toHaveTextContent('历史行情暂不可用'));

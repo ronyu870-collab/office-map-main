@@ -137,6 +137,7 @@ function SubmarketWorkspace({
   const quarter = React.useMemo(() => describeQuarterlyResearchMarket(allTrend), [allTrend]);
   const rentPeriod = quarter.rent.latest?.period;
   const vacancyPeriod = quarter.vacancy.latest?.period;
+  const handoffPeriod = trendState === 'ready' ? [rentPeriod, vacancyPeriod].sort().findLast(Boolean) : undefined;
   const periodLabel = rentPeriod && rentPeriod === vacancyPeriod ? `正式行情 · ${rentPeriod}`
     : [rentPeriod && `租金 ${rentPeriod}`, vacancyPeriod && `空置率 ${vacancyPeriod}`].filter(Boolean).join(' · ');
   const layout = quick && !editing ? 'quick' : expanded ? 'expanded' : 'standard';
@@ -182,8 +183,9 @@ function SubmarketWorkspace({
   const projects = (compact = false) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}
     onOpen={onOpenBuilding} compact={compact} curated={research?.projects} />;
 
-  const pitchHandoff = !parkOnly && !isDemo && !getImpersonationTargetUserId()
+  const pitchHandoff = !detail.loading && !parkOnly && !isDemo && !getImpersonationTargetUserId()
     ? <PitchHandoffLink source={{ kind: 'submarket', key: name }}
+        period={handoffPeriod?.replace('Q', '-Q')}
         className="workspace-business-action workspace-resource-action" label="将子市场行情加入 Pitch" />
     : null;
 
