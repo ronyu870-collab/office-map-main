@@ -37,6 +37,25 @@ describe('SubmarketRepresentativeProjects', () => {
     expect(selectRepresentativeProjects([visible[7]], '望京-酒仙桥')[0].project.id).toBe('错误坐标');
   });
 
+  it('prefers a locatable project among tied central rents without dropping unlocated observations or curated projects', () => {
+    const rows = [
+      building('未定位楼', 'A', [metric(1000, 146.1)], { submarket: 'CBD', location_lng: null, location_lat: null }),
+      building('坐标越界楼', 'A', [metric(1000, 146.1)], { submarket: 'CBD', location_lat: 116 }),
+      building('CBD甲楼', 'A', [metric(1000, 146.1)], { submarket: 'CBD' }),
+      building('较早楼宇', 'A', [metric(1000, 146.1, { record_quarter: 1 })], { submarket: 'CBD' }),
+    ];
+    for (const order of [rows, [...rows].reverse()]) {
+      const examples = selectRepresentativeProjects(order, 'CBD');
+      const central = examples.find(({ role }) => role === '甲级租金参照');
+      expect(central?.project.id).toBe('CBD甲楼');
+      expect(central?.detailReason).toContain('3 个同级有效项目，中位数 146.1');
+    }
+    const curated = selectRepresentativeProjects([rows[0]], 'CBD')[0];
+    expect(selectRepresentativeProjects(rows, 'CBD', [curated])[0].project.id).toBe('未定位楼');
+    expect(selectRepresentativeProjects(rows.slice(0, 2), 'CBD')).toHaveLength(1);
+    expect(selectRepresentativeProjects([rows[0]], 'CBD')[0].project.id).toBe('未定位楼');
+  });
+
   it('uses official eligible rent samples for reference, not zero or drafts', () => {
     const buildings = [0, 100, 200].map(rent => building(`项目 ${rent}`, 'A', [metric(1000, rent)]));
     expect(selectRepresentativeProjects(buildings, '望京-酒仙桥').some(({ role }) => role.includes('租金参照'))).toBe(false);

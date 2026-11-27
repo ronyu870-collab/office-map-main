@@ -218,8 +218,13 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
 
   await projectsTab.click();
   const projects=panel.getByRole('tabpanel',{name:'代表项目',exact:true}).getByRole('region',{name:'代表性项目',exact:true});
-  // Use the host's located CBD fixture and the actual project button, not a synthetic open event.
-  await projects.getByRole('button',{name:'CBD甲楼',exact:true}).click();
+  // The host fixture has three identical same-quarter rents, two with unusable
+  // coordinates. The actual representative must prefer its locatable equivalent,
+  // rather than relying on Chinese/Latin name collation or a synthetic open event.
+  const representative=projects.getByRole('button',{name:'CBD甲楼',exact:true});
+  await projects.getByRole('heading',{name:'代表性项目',exact:true}).waitFor();
+  await representative.waitFor({state:'visible'});
+  await representative.click();
   const building=page.getByRole('region',{name:'CBD甲楼楼宇详情',exact:true});
   await building.waitFor();
   await building.getByRole('button',{name:'返回子市场研究',exact:true}).click();
