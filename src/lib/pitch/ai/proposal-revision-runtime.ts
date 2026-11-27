@@ -9,9 +9,11 @@ import { LayoutError } from "../layout/metrics";
 import { objectId, textAnchors } from "../workspace/object-layout";
 import { pageEditSchema, workspaceCommandSchema, workspaceDetailSchema, type WorkspaceSave } from "../workspace/protocol";
 import { proposalRequestSchema, readProposalBrief, type ProposalPriority, type ProposalRequest } from "./proposal-brief";
+import { installedLanguageCanvasServices, type CanvasServices } from "./proposal-canvas-services";
 import { compileProposalChartEdits, type ProposalChartChange } from "./proposal-chart-revision";
 import { previewProposalCompetitor, type ProposalCompetitorData, type ReviewProposalHandoff } from "./proposal-competitor-revision";
 import { reviewProposalPhotoReplacement, type ProposalPhotoServices } from "./proposal-photo-revision";
+import { reviewProposalLanguage } from "./proposal-language-revision";
 import { resolveQuarterRevision } from "./proposal-quarter-revision";
 import type { ProposalScenario } from "../integration-contracts";
 import { readProposalEdit, type ProposalRevisionRequest } from "./proposal-edit-intent";
@@ -61,10 +63,11 @@ export type ProposalRevisionServices = {
   competitorData?: ProposalCompetitorData;
   prepareReplan?: typeof prepareProposal;
   photo?: ProposalPhotoServices;
+  language?: CanvasServices;
 };
 
 export async function planProposalRevision(ctx: PitchContext, input: ProposalRevisionRequest,
-  providers?: PreviewProposalQuarter | ProposalRevisionServices, confirmedPhoto?: string,
+  providers?: PreviewProposalQuarter | ProposalRevisionServices, confirmation?: { kind: "photo" | "language"; fingerprint: string },
 ) {
   const services = typeof providers === "function" ? { previewQuarter: providers } : providers;
   const previewQuarter = services?.previewQuarter;
@@ -73,10 +76,19 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
   if (project.version !== input.expectedVersion) throw new Error("PITCH_CONFLICT");
   const catalog = await pitchRpc(ctx, { action: "catalog" });
   const intention = readProposalEdit(input);
-  if (intention.kind === "intent" && intention.operations.length === 1 && intention.operations[0].kind === "replace-photo" && services?.photo) {
-    return reviewProposalPhotoReplacement(ctx, current, input, intention.target, intention.operations[0].category, services.photo, confirmedPhoto);
+  const operation = intention.kind === "intent" && intention.operations.length === 1 ? intention.operations[0] : undefined;
+  if (intention.kind === "intent" && operation?.kind === "replace-photo" && services?.photo && confirmation?.kind !== "language") {
+    return reviewProposalPhotoReplacement(ctx, current, input, intention.target, operation.category, services.photo, confirmation?.fingerprint);
   }
-  if (confirmedPhoto) throw new Error("PITCH_INVALID");
+  if (intention.kind === "intent" && operation?.kind === "set-language" && confirmation?.kind !== "photo") {
+    const manual = slides.some(slide => workspace.page_settings[slide.id]?.manual === true ||
+      workspace.page_settings[slide.id]?.origin === "user" || slide.scene.elements.some(element => element.editorId !== undefined));
+    const requested = Boolean(confirmation || input.languageTexts || input.languageReceipts ||
+      !services?.prepareReplan && manual);
+    const language = requested ? services?.language ?? await installedLanguageCanvasServices() : undefined;
+    if (language) return reviewProposalLanguage(ctx, current, input, intention.target, operation.language, language, confirmation?.fingerprint);
+  }
+  if (confirmation || input.languageTexts || input.languageReceipts) throw new Error("PITCH_INVALID");
   if (intention.kind === "intent" && intention.operations.length === 1 && intention.operations[0].kind === "add-competitor") {
     if (intention.target.kind === "pages" && intention.target.pageIds.some(id => !slides.some(slide => slide.id === id))) {
       throw new Error("PITCH_INVALID");
