@@ -1,6 +1,7 @@
 // Optional implementation layout check against actual local Auth/Next/Pitch APIs.
 // No API scene, project, generation or export response is mocked.
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import JSZip from "jszip";
@@ -285,6 +286,87 @@ async function closeFlagshipBrowser(browser) {
   }
 }
 
+async function downloadPptx(page) {
+  await page.getByRole("button", { name: "导出", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "导出 Pitch" });
+  await dialog.getByRole("button", { name: "生成文件" }).click();
+  const downloadButton = dialog.getByRole("button", { name: "下载已生成文件" });
+  await downloadButton.waitFor({ timeout: 60_000 });
+  const [download] = await Promise.all([page.waitForEvent("download"), downloadButton.click()]);
+  assert.match(download.suggestedFilename(), /\.pptx$/i);
+  await dialog.getByRole("button", { name: "关闭", exact: true }).click();
+  return JSZip.loadAsync(await readFile(await download.path()), { checkCRC32: true });
+}
+
+export async function verifyPitchChartRevisionBrowser({ app, who, readProject }) {
+  assert.equal(new URL(app).hostname, "127.0.0.1");
+  const projectId = randomUUID();
+  const pitch = "/api/intelligence/pitch";
+  const period = { year: 2026, quarter: 3 };
+  const generated = await fetch(app + pitch + "/business", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + who.token, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "generate", projectId, title: "隔离图表换型", language: "zh",
+      scope: { organizationId: "synthetic-org", region: "华北", city: "北京", businessLine: "office" },
+      themeId: "colliers-default-v1", themeVersion: 2,
+      parts: [{ mode: "dynamic", parameters: {
+        templateId: "rent-trend", buildingIds: [], submarkets: ["CBD"], inventory: "tracked",
+        period, start: { year: 2026, quarter: 1 }, end: period, fields: [], direction: "asc", chart: "line",
+        from: "2026-01-01", to: "2026-09-30", leaseSource: "combined", measure: "count",
+      } }],
+    }),
+  });
+  assert.ok(generated.ok, `seed formal chart HTTP ${generated.status}`);
+  const initial = await readProject(projectId);
+  const chart = initial.slides[0].content.blocks.find(block => block.kind === "chart");
+  assert.equal(chart?.chartType, "line");
+  const browser = await launchBrowser();
+  try {
+    const context = await openWorkspaceContext(browser, app, who, 1440);
+    const page = await context.newPage();
+    page.setDefaultTimeout(15_000);
+    const button = name => page.getByRole("button", { name, exact: true });
+    await page.goto(`${app}/intelligence/pitch?project=${projectId}`);
+    await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
+    await button("提案助手").click();
+    await page.getByLabel("需要制作什么页面？").fill("将折线图改为柱状图");
+    const [preview] = await Promise.all([waitForPitchCommand(page, pitch + "/ai", "proposal_revision"), button("预览修改").click()]);
+    const revision = await preview.json();
+    assert.ok(preview.ok() && revision.status === "ready", `chart preview HTTP ${preview.status()} / ${revision.status}`);
+    const review = page.getByRole("dialog", { name: "核对 AI 修改" });
+    await review.getByText(/折线图 → 柱状图/).waitFor();
+    assert.equal((await readProject(projectId)).project.version, initial.project.version);
+    const [saved] = await Promise.all([waitForPitchCommand(page, pitch + "/workspace", "apply_modification"),
+      review.getByRole("button", { name: "应用修改" }).click()]);
+    assert.deepEqual(saved.request().postDataJSON(), revision.command);
+    assert.ok(saved.ok(), `chart apply HTTP ${saved.status()}`);
+    await review.waitFor({ state: "hidden" });
+    const updated = await readProject(projectId);
+    assert.deepEqual(updated.slides[0].content.blocks.find(block => block.kind === "chart"), { ...chart, chartType: "column" });
+    assert.equal(updated.slides[0].scene.elements.find(element => element.kind === "chart")?.chartType, "column");
+    const archive = await downloadPptx(page);
+    const chartFile = archive.file(/^ppt\/charts\/chart\d+\.xml$/)[0];
+    assert.ok(chartFile, "PPTX contains a native chart");
+    const chartXml = await chartFile.async("string");
+    assert.match(chartXml, /<c:barChart>/);
+    assert.match(chartXml, /<c:barDir val="col"/);
+    const rent = chart.series[0].values.find(value => value !== null);
+    assert.ok(chartXml.includes(`<c:v>${rent}</c:v>`), "native chart retains the reviewed values");
+    const [restored] = await Promise.all([waitForPitchCommand(page, pitch + "/workspace", "restore"),
+      button("撤销上次修改").click()]);
+    assert.ok(restored.ok(), `chart restore HTTP ${restored.status()}`);
+    const undo = await readProject(projectId);
+    assert.deepEqual(undo.slides[0].content.blocks.find(block => block.kind === "chart"), chart);
+    console.log("PASS reviewed chart change, native PPTX export, unchanged values and undo");
+  } catch (error) {
+    console.error("Chart revision browser failure", error);
+    throw error;
+  } finally {
+    await closeFlagshipBrowser(browser);
+  }
+}
+
 export async function verifyPitchBuildingInspectorBrowser({ app, who, period, readProject }) {
   assert.equal(new URL(app).hostname, "127.0.0.1");
   const browser = await launchBrowser();
@@ -424,14 +506,7 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         await presentation.getByRole("button", { name: "退出演示" }).click();
 
         result.stage = "exporting";
-        await button("导出").click();
-        const exportDialog = page.getByRole("dialog", { name: "导出 Pitch" });
-        await exportDialog.getByRole("button", { name: "生成文件" }).click();
-        const downloadButton = exportDialog.getByRole("button", { name: "下载已生成文件" });
-        await downloadButton.waitFor({ timeout: 60_000 });
-        const [download] = await Promise.all([page.waitForEvent("download"), downloadButton.click()]);
-        assert.match(download.suggestedFilename(), /\.pptx$/i);
-        const archive = await JSZip.loadAsync(await readFile(await download.path()), { checkCRC32: true });
+        const archive = await downloadPptx(page);
         const names = Object.keys(archive.files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name));
         assert.equal(names.length, reopened.slides.length);
         const first = await archive.file("ppt/slides/slide1.xml").async("string");

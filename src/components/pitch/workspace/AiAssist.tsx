@@ -83,7 +83,7 @@ export function AiAssist({
     objectIds: string[];
     disabled: boolean;
     onApplied: (result: WorkspaceDetail, expectedVersion: number) => void;
-    onOpenData: () => void;
+    onOpenData: (period?: string) => void;
   };
   projectId: string;
   buildingIds: string[];

@@ -11,7 +11,7 @@ import sharp from "sharp";
 import { grantQuery } from "../../supabase/tests/ai-query-authority/database.mjs";
 import { BUILDINGS } from "../../supabase/tests/ai-query-authority/snapshot-fixture.mjs";
 import { installPitchDataFixture } from "../../supabase/tests/pitch-studio/business-data-fixture.mjs";
-import { verifyPitchBuildingInspectorBrowser, verifyPitchFlagshipBrowser } from "./pitch-workspace-browser.mjs";
+import { verifyPitchBuildingInspectorBrowser, verifyPitchChartRevisionBrowser, verifyPitchFlagshipBrowser } from "./pitch-workspace-browser.mjs";
 
 assert.equal(process.env.PITCH_TEST_ALLOW_LOCAL, "disposable");
 const settings = JSON.parse(await readFile(process.env.PITCH_AUTH_STATUS, "utf8"));
@@ -129,7 +129,8 @@ try {
     if (!ready) await pause(200);
   }
   assert.ok(ready && server.exitCode === null, "Local Next app did not start");
-  const verify = process.argv.includes("--building-inspector") ? verifyPitchBuildingInspectorBrowser : verifyPitchFlagshipBrowser;
+  const verify = process.argv.includes("--building-inspector") ? verifyPitchBuildingInspectorBrowser
+    : process.argv.includes("--chart-revision") ? verifyPitchChartRevisionBrowser : verifyPitchFlagshipBrowser;
   await verify({
     app, who, period: "2026-Q3",
     requiredVisuals: { 'leasing-agency': ['photo', 'map'], 'site-selection': ['photo', 'map'],
