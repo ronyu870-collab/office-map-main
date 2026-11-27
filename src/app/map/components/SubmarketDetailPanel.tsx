@@ -7,6 +7,8 @@ import { WorkspacePanelContext, WorkspacePanelHeader } from './WorkspacePanelHea
 import { SubmarketProfileEditor } from './SubmarketProfileEditor';
 import { SubmarketOverviewResearch } from './SubmarketIntelligenceBrief';
 import { OfficeResearchCoreMetrics, ResearchChapters, ResearchLead, ResearchQuarterPulse } from './SubmarketResearchPresentation';
+import { ProductResearchCore, ProductResearchStructure } from './SubmarketProductResearch';
+import { configuredResearchMarketType, completeProductExamples, representativeProductTrend } from '../model/submarketProductResearch';
 import { buildResearchPresentation } from '../model/submarketResearchPresentation';
 import { hasSubmarketProfileContent, SubmarketResearchProfile } from './SubmarketResearchProfile';
 import { SubmarketResearchOverview, SubmarketResearchTrend, type SubmarketResearchFutureState } from './SubmarketResearchData';
@@ -24,10 +26,12 @@ import './submarket-research.css';
 const sections = [
   ['overview', '市场概览'], ['trend', '行情趋势'], ['profile', '区域画像'], ['buildings', '代表项目'],
 ] as const;
-const gradeNames = [['all', '甲乙级'], ['a', '甲级'], ['b', '乙级']] as const;
+const officeGradeNames = [['all', '甲乙级'], ['a', '甲级'], ['b', '乙级']] as const;
+const parkGradeNames = [['park', '产业园']] as const;
+const mixedGradeNames = [['all', '甲乙级办公'], ['park', '产业园']] as const;
 const emptyTrend = [] as const;
 type Section = (typeof sections)[number][0];
-type Grade = (typeof gradeNames)[number][0];
+type Grade = (typeof officeGradeNames)[number][0] | 'park';
 const initialReading: { section: Section; grade: Grade; scrollTop: number; trendRange?: MarketTrendRange } = {
   section: 'overview', grade: 'all', scrollTop: 0,
 };
@@ -66,8 +70,13 @@ function SubmarketWorkspace({
   const expanded = workspace?.mode === 'full';
   const quick = Boolean(workspace?.compact && workspace.mode === 'compact');
   const [reading, setReading] = useMapObjectReadingState('submarkets', identity, initialReading);
-  const { grade, section } = reading;
+  const { grade: savedGrade, section } = reading;
   const detail = useSubmarketWorkspaceDetail(name);
+  const marketType = detail.payload?.marketProducts?.type ?? configuredResearchMarketType(name);
+  const parkOnly = marketType === 'park';
+  const productResearch = marketType !== 'office';
+  const gradeNames: readonly (readonly [Grade, string])[] = parkOnly ? parkGradeNames : productResearch ? mixedGradeNames : officeGradeNames;
+  const grade = gradeNames.some(([id]) => id === savedGrade) ? savedGrade : gradeNames[0][0];
   const editing = canEdit && detail.editor != null;
   const canExit = React.useCallback(() => !detail.saving && (!editing || window.confirm('当前编辑尚未保存，确定放弃更改并离开子市场介绍吗？')), [editing, detail.saving]);
   React.useEffect(() => {
@@ -94,7 +103,7 @@ function SubmarketWorkspace({
   const profileReady = hasSubmarketProfileContent(profile);
   const currentSection = sections.some(([id]) => id === section) ? section : 'overview';
   const auditSection = expanded || quick ? 'overview' : currentSection;
-  const auditGrade = quick ? 'all' : grade;
+  const auditGrade = quick ? (parkOnly ? 'park' : 'all') : grade;
   const lastReading = React.useRef('');
   React.useEffect(() => {
     if (suspended) { lastReading.current = ''; return; }
@@ -126,10 +135,12 @@ function SubmarketWorkspace({
 
   const allTrend = payload?.trends.all ?? emptyTrend;
   const research = profile?.research;
-  // Goal 01 activates the new presentation only for the published CBD edition.
-  const presentation = React.useMemo(() => research?.market === 'CBD' ? buildResearchPresentation(research, 'office') : null, [research]);
-  const parkOnly = Boolean(research?.focus === 'stock' && payload?.stockCount === 0 && trendState === 'ready');
-  const signal = research ? submarketResearchSignal(research.focus, payload?.trends, trendState) : null;
+  const presentation = React.useMemo(() => research && (research.market === 'CBD' || productResearch)
+    ? buildResearchPresentation(research, marketType) : null, [research, marketType, productResearch]);
+  const featured = Boolean(presentation || productResearch);
+  const selectedTrend = payload?.trends[grade] ?? emptyTrend;
+  const displayedTrend = React.useMemo(() => productResearch ? representativeProductTrend(selectedTrend) : selectedTrend, [productResearch, selectedTrend]);
+  const signal = research && !productResearch ? submarketResearchSignal(research.focus, payload?.trends, trendState) : null;
   const researchLead = research && !presentation ? <SubmarketOverviewResearch research={research} /> : null;
   const marketSignal = signal && !presentation ? <section className="submarket-intelligence-lead" aria-label="正式行情对比">
     <div><h3>{signal.title}</h3><p>{signal.text}</p></div>
@@ -168,37 +179,42 @@ function SubmarketWorkspace({
         workspace.setMode('full');
       }}>展开图表</button> : null}
     </div>
-    <div role="group" aria-label="楼宇等级" className="submarket-grade-selector">
+    {!parkOnly && <div role="group" aria-label={productResearch ? '研究产品类型' : '楼宇等级'} className="submarket-grade-selector">
       {gradeNames.map(([id, label]) => <button type="button" key={id} aria-pressed={grade === id}
         onClick={() => setReading(previous => ({ ...previous, grade: id }))}>{label}</button>)}
-    </div>
-    <SubmarketResearchTrend data={payload?.trends[grade] ?? emptyTrend} state={trendState}
+    </div>}
+    {productResearch && trendState === 'ready' && selectedTrend.some(point => point.rentSamples === 1 || point.vacancySamples === 1)
+      && <p className="submarket-v3-context">单项目观测不构成区域行情。</p>}
+    <SubmarketResearchTrend data={displayedTrend} state={trendState} productMarket={productResearch}
       gradeLabel={gradeNames.find(([id]) => id === grade)?.[1] ?? '甲乙级'} onRetry={detail.error ? undefined : retry}
-      series={payload?.trends} active={!suspended} range={reading.trendRange ?? 'default'}
+      series={grade === 'park' ? undefined : payload?.trends} active={!suspended} range={reading.trendRange ?? 'default'}
       onRangeChange={trendRange => setReading(previous => ({ ...previous, trendRange }))} />
   </section>;
-  const marketOverview = <SubmarketResearchOverview name={name} summary={summary} buildings={buildings} trendData={allTrend}
+  const marketOverview = <>{productResearch && <ProductResearchStructure type={marketType} series={payload?.trends} state={trendState} />}<SubmarketResearchOverview name={name} summary={summary} buildings={buildings} trendData={allTrend}
     trendState={trendState} futureState={futureState} futureCount={futureCount} futureArea={futureArea} futureAreaSamples={futureAreaSamples}
     beijingBenchmarkBuildings={beijingBenchmarkBuildings} showQuarterlySummary={!expanded}
-    structured={!!research} parkOnly={parkOnly} part={presentation ? 'composition' : 'all'} />;
-  const coreMetrics = presentation ? <OfficeResearchCoreMetrics name={name} summary={summary} buildings={buildings} beijingBenchmarkBuildings={beijingBenchmarkBuildings} measured={layout !== 'quick'} /> : null;
-  const overview = presentation ? <div className="submarket-v3-overview">
+    structured={!!research} parkOnly={parkOnly} part={productResearch ? 'future' : presentation ? 'composition' : 'all'} /></>;
+  const coreMetrics = productResearch ? <ProductResearchCore type={marketType} inventory={payload?.marketProducts} filteredOfficeCount={summary.officeCount} filteredParkCount={summary.parkCount} series={payload?.trends} state={trendState} measured={layout !== 'quick'} />
+    : presentation ? <OfficeResearchCoreMetrics name={name} summary={summary} buildings={buildings} beijingBenchmarkBuildings={beijingBenchmarkBuildings} measured={layout !== 'quick'} /> : null;
+  const overview = featured ? <div className="submarket-v3-overview">
     {coreMetrics}
-    {!expanded && <ResearchLead presentation={presentation} mode="standard" />}
-    <ResearchQuarterPulse data={allTrend} state={trendState} showValues={!expanded || grade !== 'all'} />
+    {!expanded && presentation && <ResearchLead presentation={presentation} mode="standard" />}
+    {!productResearch && <ResearchQuarterPulse data={allTrend} state={trendState} showValues={!expanded || grade !== 'all'} />}
     {!expanded && marketOverview}
   </div> : marketOverview;
   const projects = (compact = false) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}
-    onOpen={onOpenBuilding} compact={compact} curated={presentation?.projects ?? research?.projects} />;
+    onOpen={onOpenBuilding} compact={compact} curated={productResearch
+      ? completeProductExamples(buildings, name, marketType, presentation?.projects ?? research?.projects)
+      : presentation?.projects ?? research?.projects} />;
 
   return <div hidden={suspended || undefined} aria-hidden={suspended || undefined}
     className={suspended ? 'map-submarket-workspace hidden' : 'map-submarket-workspace'}>
-    <section data-map-submarket-panel data-submarket-compact={quick && !editing || undefined} data-submarket-layout={layout} data-submarket-featured={presentation ? 'true' : undefined}
+    <section data-map-submarket-panel data-submarket-compact={quick && !editing || undefined} data-submarket-layout={layout} data-submarket-featured={featured ? 'true' : undefined} data-submarket-market-type={marketType}
       aria-labelledby="submarket-dialog-heading" className="map-submarket-workspace-panel submarket-research-panel">
       <WorkspacePanelHeader title={name} titleId="submarket-dialog-heading" onClose={closePanel} closeLabel="关闭子市场介绍"
         metadata={!editing ? <div className="submarket-header-context">
           {profile?.headline && <p className="submarket-headline" title={quick ? (presentation?.positioning ?? profile.headline) : undefined}>{presentation?.positioning ?? profile.headline}</p>}
-          {!presentation && !quick && periodLabel && trendState !== 'error' ? <p>{periodLabel}</p> : null}
+          {!featured && !quick && periodLabel && trendState !== 'error' ? <p>{periodLabel}</p> : null}
         </div> : null}
         primaryAction={!editing ? <button type="button" className="workspace-panel-primary-action" aria-label="查看全部项目" onClick={onShowAll}>全部项目</button> : null}
         actions={canEdit && payload?.profileAvailable && !editing && !detail.loading && !detail.error
@@ -242,15 +258,15 @@ function SubmarketWorkspace({
             </div> : null}
             {layout === 'quick' ? <QuickSummary summary={summary} parkOnly={parkOnly} onRead={() => openStandard()}
                 onViewProjects={() => openStandard('buildings')}
-                featured={presentation ? <>{coreMetrics}<ResearchLead presentation={presentation} mode="quick" /></> : undefined}>
-                {!parkOnly && !presentation && trendState === 'ready' && <MarketTrendSummary data={allTrend} compact />}
+                featured={featured ? <>{coreMetrics}{presentation && <ResearchLead presentation={presentation} mode="quick" />}</> : undefined}>
+                {!featured && trendState === 'ready' && <MarketTrendSummary data={allTrend} compact />}
               </QuickSummary>
               : layout === 'expanded' ? <div className="submarket-brief">
                 <section className="submarket-research-chapter submarket-brief-overview" aria-labelledby="submarket-brief-overview">
                   <h3 id="submarket-brief-overview">市场概览</h3>{researchLead}{marketSignal}{overview}
                 </section>
                 <div className="submarket-brief-trend">{trend(true)}</div>
-                {presentation && <div className="submarket-brief-composition">{marketOverview}</div>}
+                {featured && <div className="submarket-brief-composition">{marketOverview}</div>}
                 <div className="submarket-brief-profile">{profileChapter}</div>
                 <div className="submarket-brief-projects">{projects()}</div>
                 {presentation && presentation.chapters.some(chapter => chapter.theme === 'outlook') &&

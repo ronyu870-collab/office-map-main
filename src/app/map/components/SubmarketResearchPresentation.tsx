@@ -16,12 +16,13 @@ export type ResearchCoreMetric = {
 };
 
 /** Shared KPI surface: supply the authorized values and their context; it never calculates market statistics. */
-export function ResearchCoreMetrics({ items, scope, measured = true }: {
+export function ResearchCoreMetrics({ items, scope, measured = true, label = '市场核心指标' }: {
   items: readonly ResearchCoreMetric[];
   scope: string;
   measured?: boolean;
+  label?: string;
 }) {
-  return <section className="submarket-v3-core" aria-label="市场核心指标" data-workspace-summary={measured || undefined}>
+  return <section className="submarket-v3-core" aria-label={label} data-workspace-summary={measured || undefined}>
     <p className="submarket-v3-context">{scope}</p>
     <dl className="submarket-v3-kpis">
       {items.map(item => <div key={item.key}>

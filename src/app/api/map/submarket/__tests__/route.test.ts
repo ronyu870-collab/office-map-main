@@ -33,9 +33,12 @@ vi.mock('@supabase/supabase-js', () => ({
 const baseUrl = 'https://synthetic.invalid/api/map/submarket?submarket=CBD';
 const user = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', email: 'synthetic@invalid.test' };
 const buildingRows = [
-  { id: 'a', grade: 'A' }, { id: 'b', grade: 'B' }, { id: 'park', grade: 'BP' },
+  { id: 'a', grade: 'A' }, { id: 'b', grade: 'B' }, { id: 'park', grade: 'BP' }, { id: 'park2', grade: 'BP' },
 ];
 const quarterRows = [
+  { building_id: 'park', record_year: 2026, record_quarter: 2, total_area: 100, net_effective_rent: 60, vacant_area: 20, is_draft: false, is_locked: true },
+  { building_id: 'park2', record_year: 2026, record_quarter: 2, total_area: 300, net_effective_rent: 100, vacant_area: 60, is_draft: false, is_locked: true },
+  { building_id: 'park', record_year: 2026, record_quarter: 3, total_area: 100, net_effective_rent: 900, vacant_area: 99, is_draft: true, is_locked: true },
   { building_id: 'a', record_year: 2023, record_quarter: 4, total_area: 100,
     net_effective_rent: 150, vacant_area: 0, is_draft: false, is_locked: true },
   { building_id: 'a', record_year: 2026, record_quarter: 3, total_area: 100,
@@ -120,7 +123,10 @@ describe('authorized submarket GET', () => {
     expect(mocks.calls).toContainEqual({ table: 'buildings', action: 'eq', args: ['is_active', true] });
     expect(mocks.calls).toContainEqual({ table: 'buildings', action: 'eq', args: ['tracking_scope', 'tracked'] });
     const metricsQuery = mocks.calls.find(record => record.table === 'building_metrics' && record.action === 'in');
-    expect(metricsQuery?.args).toEqual(['building_id', ['a', 'b']]);
+    expect(metricsQuery?.args).toEqual(['building_id', ['a', 'b', 'park', 'park2']]);
+    expect(mocks.calls.filter(record => record.table === 'building_metrics' && record.action === 'in')).toHaveLength(1);
+    expect(result.marketProducts).toEqual({ type: 'mixed', officeCount: 2, parkCount: 2 });
+    expect(result.trends.park.at(-1)).toMatchObject({ period: '2026Q2', rent: 90, vacancyPct: 20, rentSamples: 2, vacancySamples: 2, rentArea: 400, vacancyArea: 400 });
   });
 
   it('projects a structured edition without legacy draft fields and blocks viewer history', async () => {
@@ -153,7 +159,7 @@ describe('authorized submarket GET', () => {
     const response = await GET(new NextRequest(baseUrl));
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      stockCount: 0, trendError: true, trends: { all: [], a: [], b: [] },
+      stockCount: 2, marketProducts: { type: 'mixed', officeCount: 2, parkCount: 2 }, trendError: true, trends: { all: [], a: [], b: [], park: [] },
     });
   });
 

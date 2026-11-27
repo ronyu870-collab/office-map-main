@@ -3,9 +3,9 @@ import { withCriticalAudit } from '@/src/lib/serverAudit';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { MAP_SUBMARKETS, MAP_SUBMARKETS_SECONDARY, normalizeMapSubmarket } from '@/src/app/map/model/mapDomain';
-import { computeSubmarketTrends, type TrendMetricRow } from '@/src/app/map/model/submarketMarketTrend';
+import { computeParkSubmarketTrend, computeSubmarketTrends, type TrendMetricRow } from '@/src/app/map/model/submarketMarketTrend';
 import { submarketDatabaseNames } from '@/src/app/map/model/marketIdentity';
-import { officeGrade } from '@/src/app/map/model/submarketOverview';
+import { classifyResearchMarket, belongsToResearchProduct } from '@/src/app/map/model/submarketProductResearch';
 import { readSubmarketProfileRow, submarketProfileSchema } from '@/src/app/map/model/submarketProfile';
 import { readSubmarketIntelligence, type SubmarketIntelligence } from '@/src/app/map/model/submarketIntelligence';
 import { publicBriefReviewErrors, visibleSubmarketProfile } from '@/src/app/map/model/submarketPublication';
@@ -81,18 +81,33 @@ async function validateResearchProjects(client: SupabaseClient, research: Submar
   return data?.length === ids.length;
 }
 
-async function readTrend(client: SupabaseClient, name: string, signal: AbortSignal) {
-  const { data: stock, error } = await client.from('buildings')
-    .select('id,grade')
-    .eq('is_active', true)
-    .eq('tracking_scope', 'tracked')
-    .or('project_type.neq.future,project_type.is.null')
-    .in('submarket', submarketDatabaseNames(name))
-    .abortSignal(signal);
-  if (error) throw new Error('SUBMARKET_BUILDINGS_UNAVAILABLE');
+type StockMember = { id: string; grade?: string | null };
 
-  const offices = (stock ?? []).filter(building => ['a', 'b'].includes(officeGrade(building.grade)));
-  const ids = [...new Set(offices.map(building => String(building.id)))];
+async function readStock(client: SupabaseClient, name: string, signal: AbortSignal): Promise<StockMember[]> {
+  const stock: StockMember[] = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await client.from('buildings')
+      .select('id,grade')
+      .eq('is_active', true)
+      .eq('tracking_scope', 'tracked')
+      .or('project_type.neq.future,project_type.is.null')
+      .in('submarket', submarketDatabaseNames(name))
+      .order('id', { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1)
+      .abortSignal(signal);
+    if (error) throw new Error('SUBMARKET_BUILDINGS_UNAVAILABLE');
+    stock.push(...(data ?? []).map(row => ({ id: String(row.id), grade: row.grade })));
+    if (stock.length > MAX_TREND_ROWS) throw new Error('SUBMARKET_TREND_TOO_LARGE');
+    if ((data?.length ?? 0) < PAGE_SIZE) return stock;
+  }
+}
+
+async function readTrend(client: SupabaseClient, name: string, stock: StockMember[], signal: AbortSignal) {
+  const products = classifyResearchMarket(name, stock);
+  const offices = stock.filter(building => belongsToResearchProduct(building.grade, 'office'));
+  const parks = stock.filter(building => belongsToResearchProduct(building.grade, 'park'));
+  // Both products share the single authorized stock read and bounded history batches.
+  const ids = [...new Set([...offices, ...parks].map(building => building.id))];
   const rows: TrendMetricRow[] = [];
   const currentYear = new Date().getUTCFullYear();
 
@@ -119,11 +134,11 @@ async function readTrend(client: SupabaseClient, name: string, signal: AbortSign
   }
 
   return {
-    trends: computeSubmarketTrends(offices, rows, 'available'),
+    trends: { ...computeSubmarketTrends(offices, rows, 'available', products.type === 'mixed'), park: computeParkSubmarketTrend(parks, rows, 'available') },
     scope: 'authorized_market', membershipTime: 'current_catalog', publication: 'locked_non_draft',
     quarterMethod: 'same_quarter_area_weighted',
     source: 'building_metrics',
-    stockCount: ids.length,
+    stockCount: products.officeCount,
   };
 }
 
@@ -149,9 +164,11 @@ export async function GET(request: NextRequest) {
 
     // Text and time-series are independent: a failure in one must not
     // suppress the usable, already-authorized part of the client brief.
-    const [profileRead, trendRead] = await Promise.allSettled([
+    const stock = readStock(client, name, request.signal);
+    const [profileRead, stockRead, trendRead] = await Promise.allSettled([
       readProfile(client, name),
-      readTrend(client, name, request.signal),
+      stock,
+      stock.then(rows => readTrend(client, name, rows, request.signal)),
     ]);
     if (profileRead.status === 'rejected' && trendRead.status === 'rejected') {
       throw new Error('SUBMARKET_READ_UNAVAILABLE');
@@ -161,10 +178,12 @@ export async function GET(request: NextRequest) {
       : { available: false, published: false, profile: readSubmarketProfileRow(null, name) };
     const visibleToClients = profile.published && publicBriefReviewErrors(profile.profile).length === 0;
     const trend = trendRead.status === 'fulfilled' ? trendRead.value
-      : { trends: { all: [], a: [], b: [] }, stockCount: 0,
+      : { trends: { all: [], a: [], b: [], park: [] }, stockCount: 0,
           quarterMethod: 'same_quarter_area_weighted', source: 'building_metrics' };
+    const marketProducts = stockRead.status === 'fulfilled' ? classifyResearchMarket(name, stockRead.value) : undefined;
     return json({
       submarket: name, ...trend, trendError: trendRead.status === 'rejected',
+      ...(marketProducts ? { marketProducts, stockCount: marketProducts.officeCount } : {}),
       profile: visibleSubmarketProfile(profile.profile, visibleToClients),
       profileAvailable: profile.available,
       profilePublished: visibleToClients,

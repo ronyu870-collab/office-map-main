@@ -6,11 +6,21 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   const points=[['2025Q4',180,10],['2026Q1',0,0],['2026Q2',null,null],['2026Q3',170,13],['2026Q4',165,10],['2027Q1',160,9]].map(([period,rent,vacancyPct])=>({period,year:Number(period.slice(0,4)),quarter:Number(period.at(-1)),rent,vacancyPct,rentSamples:rent==null?0:2,vacancySamples:vacancyPct==null?0:3,rentArea:100,vacancyArea:100}));
   let withTrend=true, withStructured=false;
   const cbdEdition=JSON.parse(await readFile(new URL('../../data/submarket-research/2026-11-27/cbd.json',import.meta.url),'utf8'));
-  await page.route('**/api/map/submarket?*',route=>route.fulfill({json:{
+  await page.route('**/api/map/submarket?*',route=>{
+    const market=new URL(route.request().url()).searchParams.get('submarket');
+    if(['上地','望京-酒仙桥','四季青'].includes(market)){
+      const mixed=market==='望京-酒仙桥', sparse=market==='四季青';
+      const park=points.filter(p=>p.period==='2026Q4').map(p=>({...p,rent:101,vacancyPct:20,rentSamples:sparse?1:3,vacancySamples:sparse?1:3,stockArea:50000,stockSamples:sparse?1:3}));
+      return route.fulfill({json:{submarket:market,stockCount:mixed?3:0,
+        marketProducts:{type:mixed?'mixed':'park',officeCount:mixed?3:0,parkCount:sparse?6:3},
+        profileAvailable:true,profilePublished:false,profile:{submarket:market,headline:'',overview:'',industries:'',transport:'',demographics:[],policies:[],insights:[],updatedAt:null,updatedBy:null},
+        trends:{all:mixed?points:[],a:[],b:[],park},trendError:false,quarterMethod:'same quarter',source:'building_metrics'}});
+    }
+    return route.fulfill({json:{
     submarket:'CBD',stockCount:3,profileAvailable:true,profilePublished:true,
     profile:{submarket:'CBD',headline:withStructured?cbdEdition.positioning:'国际商务集聚区',overview:'区域介绍与已收录办公项目。',industries:'',transport:'',demographics:[],policies:[],insights:[],updatedAt:'2026-11-18T00:00:00Z',updatedBy:null,...(withStructured?{research:cbdEdition}:{})},
     trends:{all:withTrend?points:[],a:withTrend?points:[],b:[]},trendError:false,quarterMethod:'same quarter',source:'building_metrics',
-  }}));
+  }});});
   const layout=page.locator('.map-workspace-layout');
   const panel=page.getByRole('region',{name:'CBD',exact:true});
   const primary=panel.getByRole('button',{name:'查看全部项目',exact:true});
@@ -246,6 +256,35 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
     assert.ok(!(await panel.innerText()).includes(source.publisher),'client research excludes provider names');
   }
   await clickWorkspaceAction(page,'返回地图分屏');await standard.waitFor();await assertMapReady();
+  // The synthetic API is the regression fixture, not published market data.
+  if(width===1536){
+    for(const market of ['上地','望京-酒仙桥','四季青']){
+      await page.evaluate(name=>window.dispatchEvent(new CustomEvent('map-submarket-open',{detail:{name}})),market);
+      const productPanel=page.getByRole('region',{name:market,exact:true});
+      await productPanel.waitFor();
+      if(await productPanel.getAttribute('data-submarket-layout')==='quick'){
+        const read=productPanel.getByRole('button',{name:'阅读完整研究',exact:true});
+        if(await read.isVisible())await read.click();else await clickWorkspaceAction(page,'展开到阅读高度');
+      }
+      await productPanel.getByRole('tab',{name:'市场概览',exact:true}).click();
+      const type=market==='望京-酒仙桥'?'mixed':'park';
+      await productPanel.getByText('完整子市场 · 产业园',{exact:true}).waitFor();
+      assert.equal(await productPanel.getAttribute('data-submarket-market-type'),type);
+      if(type==='mixed')await productPanel.getByRole('region',{name:'同季度产品比较'}).waitFor();
+      if(market==='四季青')await productPanel.getByText(/暂不形成区域行情/).waitFor();
+      else await productPanel.locator('[data-research-product="park"]').getByText('101.0',{exact:true}).waitFor();
+      await productPanel.getByRole('tab',{name:'行情趋势',exact:true}).click();
+      if(type==='mixed')await productPanel.getByRole('group',{name:'研究产品类型'}).getByRole('button',{name:'产业园',exact:true}).click();
+      else assert.equal(await productPanel.getByRole('group',{name:'楼宇等级'}).count(),0);
+      if(market==='四季青'){
+        await productPanel.getByText('暂无具代表性的季度行情。',{exact:true}).waitFor();
+        assert.equal(await productPanel.locator('canvas').count(),0);
+      }
+      await productPanel.getByText('完整子市场 · 产业园',{exact:true}).waitFor();
+      await assertMapReady();
+    }
+    await openResearch();await openTabbedReading();
+  }
   return {width,height:page.viewportSize().height,identityOnlyExpandedForReading:identityOnly,coreMetricsFirst:true,primaryActionInTitleRow:true,
     structuredCbdCoreFirst:true,structuredCbdThematicRows:true,structuredCbdNoHorizontalOverflow:true,
     overviewCompositionAndPublishedIntro:true,adaptiveMapBudget,fullReadingPreservesMapCanvas:true,trendTabPreserved:true,
