@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { layoutFixture } from "@/src/lib/pitch/fixtures/layouts";
 import { workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
+import { languageReviewSchema, matchesAppliedLanguage } from "./LanguageRevisionReview";
 import { ProposalRevision } from "./ProposalRevision";
 import { PhotoReplacementPicker } from "./PhotoReplacementPicker";
 import { WorkspaceError, type Call } from "./client";
@@ -324,13 +325,20 @@ it("collects a missing translation before reviewing and applying a language chan
   } } };
   const updated = { ...original, project: refreshed.project, slides: [{ ...original.slides[0], version: 3,
     content: { ...original.slides[0].content, locale: "en", title: "Quarterly rent" } }] };
+  const review = languageReviewSchema.parse({ status: "language-review", language: "en", projectVersion: version, fingerprint, command,
+    translated: [{ pageId, pageVersion: 2, original: "zh", changes: [{ ref: "title", before: "季度租金", after: "Quarterly rent" }] }] });
+  const wrongNumericReceipt = structuredClone(updated);
+  const chart = wrongNumericReceipt.slides[0].content.blocks.find(block => block.kind === "chart");
+  if (chart?.kind !== "chart") throw new Error("Expected a chart in the fixture.");
+  chart.series[0].values[0] = 999;
+  expect(matchesAppliedLanguage(review, original, wrongNumericReceipt)).toBe(false);
+
   const { user, call, onApplied } = setup(input => {
     if (!(input.input as { languageTexts?: unknown }).languageTexts) {
       return { status: "language-translation-required", language: "en", translated: [],
         pending: [{ pageId, pageVersion: 2, ref: "title", text: "季度租金" }] };
     }
-    return { status: "language-review", language: "en", projectVersion: version, fingerprint, command,
-      translated: [{ pageId, pageVersion: 2, original: "zh", changes: [{ ref: "title", before: "季度租金", after: "Quarterly rent" }] }] };
+    return review;
   }, question, () => ({ status: "language-applied", workspace: updated }), original);
   await user.click(screen.getByRole("button", { name: "预览修改" }));
   await user.type(await screen.findByRole("textbox", { name: "第 1 页 · 季度租金" }), languageTexts[0].text);

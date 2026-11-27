@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { layoutFixture } from '../fixtures/layouts';
 import { workspaceDetailSchema } from './protocol';
-import { proposalEditionReviewSchema, reviewProposalEdition } from './proposal-edition-review';
+import { matchesProposalEditionReview, proposalEditionReviewSchema, reviewProposalEdition } from './proposal-edition-review';
 
 const originalId = '11111111-1111-4111-8111-111111111111';
 const removedId = '22222222-2222-4222-8222-222222222222';
@@ -48,6 +48,12 @@ it('uses one-to-one page mappings and includes changed figures, added or removed
   expect(review.pages[1].after).toBeUndefined();
   expect(review.pages[2].before).toBeUndefined();
   expect(review.pages[0].changes[0].after).not.toHaveProperty('sourceIds');
+  expect(matchesProposalEditionReview(review, old, '2026-Q2')).toBe(true);
+  const changedBefore = structuredClone(review);
+  const chart = changedBefore.pages[0].changes[0].before;
+  if (chart?.kind !== 'chart') throw new Error('Expected a chart in the original page.');
+  chart.series[0].values[0] = 99;
+  expect(matchesProposalEditionReview(changedBefore, old, '2026-Q2')).toBe(false);
 });
 
 it('ignores chart presentation changes and still calls out a revised analytical conclusion', () => {

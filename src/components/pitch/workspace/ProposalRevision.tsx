@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
 import { contentBlockSchema, sourceReferenceSchema } from "@/src/lib/pitch/contracts/content";
 import { outlineQuarter, saveSchema, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
-import { proposalEditionReviewSchema } from "@/src/lib/pitch/workspace/proposal-edition-review";
+import { matchesProposalEditionReview, proposalEditionReviewSchema } from "@/src/lib/pitch/workspace/proposal-edition-review";
 import { objectId } from "@/src/lib/pitch/workspace/object-layout";
 import { themeLabel, WorkspaceError, type Call } from "./client";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, ProposalEditionComparison, refreshPeriodLabel } from "./DataRefreshReview";
@@ -123,14 +123,14 @@ function matchesRegeneration(value: Extract<Plan, { status: "refresh-review" }>,
     plan.id !== reference.id || plan.version !== reference.version || plan.contextFingerprint !== reference.contextFingerprint) return false;
   const client = brief.targetClient ?? "";
   const samePeriod = regeneration.period === context.period && brief.period === context.period;
+  if (value.editionReview) return regeneration.language === context.language && client === context.client &&
+    context.business === "market-report" && brief.scenario === "market-report" &&
+    matchesProposalEditionReview(value.editionReview, detail, brief.period);
   if (regeneration.language !== context.language)
     return samePeriod && brief.scenario === context.business && client === context.client;
   if (client !== context.client)
     return samePeriod && brief.scenario === "site-selection" && !!client && plan.slides.some(page => page.pageKind === "requirements");
-  const edition = value.editionReview;
-  return context.business === "market-report" && brief.scenario === "market-report" &&
-    (!edition || edition.beforePeriod === context.period && edition.afterPeriod === brief.period &&
-      edition.pages.every(page => !page.before || detail.slides[page.before.position - 1]?.id === page.before.id));
+  return context.business === "market-report" && brief.scenario === "market-report";
 }
 
 function matchesPreview(value: StandardPreview, detail: WorkspaceDetail) {
@@ -147,7 +147,7 @@ function matchesPreview(value: StandardPreview, detail: WorkspaceDetail) {
   }
   const { plan, command, review } = value;
   if (plan.projectId !== detail.project.id || plan.expectedVersion !== detail.project.version) return false;
-  if (value.status === "refresh-review" && value.regeneration && !matchesRegeneration(value, detail)) return false;
+  if (value.status === "refresh-review" && (value.regeneration || value.editionReview) && !matchesRegeneration(value, detail)) return false;
   if (command?.action === "apply_data_refresh") {
     return !!review?.period && command.projectId === plan.projectId && command.expectedVersion === plan.expectedVersion &&
       review.projectVersion === plan.expectedVersion && command.fingerprint === review.fingerprint &&

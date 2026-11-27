@@ -185,8 +185,9 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         setTaskProgress(undefined);
         if (receipt.state !== "completed") {
           submission.current = { ...entry, taskId: crypto.randomUUID() };
-          setError(receipt.errorCode === "PITCH_EDITION_LAYOUT" ? "新一季度的内容无法与部分已编辑页面对应。请核对原稿布局和文字后重新生成。"
+          setError(receipt.errorCode === "PITCH_EDITION_LAYOUT" ? "新季度内容无法与部分已编辑页面对应。请核对原稿布局和文字后再预览。"
             : receipt.state === "cancelled" ? "生成已取消。可以重新生成。" : "生成失败。可以重新生成。");
+          if (receipt.errorCode === "PITCH_EDITION_LAYOUT") setResult(undefined);
           return;
         }
         entry.completedProject = receipt.projectId;
@@ -198,7 +199,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         if (!projectId) entry.source = undefined;
         setTaskProgress(undefined);
         setResult(undefined);
-        setError("项目或资料已更新，请重新规划正式提案。");
+        setError(reviewed ? "项目或资料已更新，请关闭核对窗口后重新预览修改。" : "项目或资料已更新，请重新规划正式提案。");
       } else {
         setRecovery(true);
         setError(cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "生成结果暂时无法读取。");
@@ -219,7 +220,7 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   }, [following, taskProgress]);
 
   return <section className={styles.proposalReview} aria-label="业务提案规划">
-    {(!reviewed || !visible) && <Button variant="secondary" disabled={disabled || !question.trim() || !validPeriod || !!taskState || working === "generate"}
+    {!reviewed && <Button variant="secondary" disabled={disabled || !question.trim() || !validPeriod || !!taskState || working === "generate"}
       loading={working === "plan"} loadingLabel="正在核对范围与正式资料…" onClick={() => void preview()}>
       规划正式提案
     </Button>}

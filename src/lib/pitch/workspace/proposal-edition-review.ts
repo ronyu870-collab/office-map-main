@@ -114,3 +114,32 @@ export function reviewProposalEdition(current: WorkspaceDetail, next: readonly P
     needsConclusionReview: pages.some(page => page.conclusionChanged || hasConclusions && page.changes.length > 0),
   };
 }
+
+export function matchesProposalEditionReview(review: ProposalEditionReview, detail: WorkspaceDetail, nextPeriod: string | null) {
+  if (review.beforePeriod !== detail.workspace.context.period || review.afterPeriod !== nextPeriod ||
+    review.beforePeriod === review.afterPeriod) return false;
+
+  const beforeIds = new Set<string>();
+  const afterIds = new Set<string>();
+  const afterPositions = new Set<number>();
+  return review.pages.every(({ before, after, changes }) => {
+    if (after) {
+      if (afterIds.has(after.id) || afterPositions.has(after.position)) return false;
+      afterIds.add(after.id);
+      afterPositions.add(after.position);
+    } else if (changes.some(change => change.after)) return false;
+    if (!before) return changes.every(change => !change.before);
+    const slide = detail.slides[before.position - 1];
+    if (slide?.id !== before.id || beforeIds.has(before.id) ||
+      slide.content.title !== before.title || slide.content.dataAsOf !== before.dataAsOf) return false;
+    beforeIds.add(before.id);
+    const values = evidence(slide).map(value => JSON.stringify(evidenceSchema.parse(value)));
+    return changes.every(change => {
+      if (!change.before) return true;
+      const index = values.indexOf(JSON.stringify(change.before));
+      if (index < 0) return false;
+      values.splice(index, 1);
+      return true;
+    });
+  });
+}
