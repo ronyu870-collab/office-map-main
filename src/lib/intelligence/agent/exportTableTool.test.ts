@@ -159,6 +159,21 @@ describe('authorized Agent table exports read real final XLSX/CSV bytes', () => 
       .toThrow('AGENT_EXPORT_INCOMPATIBLE_COLUMNS');
   });
 
+  it('respects separate sheets for same-column snapshots only when explicitly requested', async () => {
+    const first = fullResult(3, true), second = fullResult(2, true);
+    const selection = { resultIds: [first.resultId, second.resultId], format: 'xlsx' };
+    const merged = prepareExportResult([first, second], selection);
+    expect(merged.parameters.agentWorkbook).toBeUndefined();
+    const separate = prepareExportResult([first, second], { ...selection, separateSheets: true });
+    const book = XLSX.read((await fileFor(separate)).bytes, { type: 'array' });
+    const sheetNames = book.SheetNames.slice(0, 2);
+    expect(sheetNames).toEqual(['楼宇参数', '楼宇参数 2']);
+    expect(sheetNames.map(name => XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1 }).length))
+      .toEqual([first.table.rows.length + 1, second.table.rows.length + 1]);
+    expect(() => prepareExportResult([first, second], { ...selection, singleSheet: true, separateSheets: true }))
+      .toThrow('AGENT_EXPORT_INCOMPATIBLE_COLUMNS');
+  });
+
   it('exports combined metric summaries without retaining incompatible renderer metadata or stale research findings', async () => {
     const combined = combineMetricResults(['rent', 'vacancy'].map(metric => ({ metric: metric as 'rent' | 'vacancy',
       result: buildAggregateResult(fixture(), metric as 'rent' | 'vacancy') })));

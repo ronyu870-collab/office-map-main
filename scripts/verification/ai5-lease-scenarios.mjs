@@ -25,6 +25,15 @@ export async function verifyAi5Leases({ db, app, service, keys, output, check, p
           const content=JSON.stringify(messages);
           for(const secret of ['合成保密客户_禁止模型日志','synthetic-lease-7','agency_person','submitter_name']) assert.equal(content.includes(secret),false);
           const step=scenario.round++;
+          if (scenario.workbookQueries) {
+            if (step === 0) return completion(scenario.workbookQueries.map(([name, args]) => tool(name, args)));
+            if (step === 1) {
+              const [primaryResultId, ...supporting] = scenario.workbookQueries.map(([name]) => observedResultReference(messages, name));
+              return completion([tool('select_answer_results', { primaryResultId, task: 'list', status: 'answered',
+                auxiliary: supporting.map(resultId => ({ resultId, role: 'supporting' })) })]);
+            }
+            return completion();
+          }
           if(step===0) {
             if(scenario.textOnly) return completion([tool('select_answer_results',{primaryResultId:scenario.reuseResultId,task:'list',status:'answered'})]);
             if(scenario.importResultId) { assert.ok(content.includes(scenario.importResultId)); return completion([tool('export_table',{resultIds:[scenario.importResultId],format:'xlsx'})]); }
@@ -125,6 +134,98 @@ export async function verifyAi5Leases({ db, app, service, keys, output, check, p
       const audit = (await events(file.headers.get('x-audit-attempt-id'))).map(decrypt);
       assert.ok(audit.some(e=>e.content?.result?.artifact?.kind==='download'&&e.content.result.artifact.format==='xlsx'));
       exported=r;
+    });
+    await check('AI6 T17 / 同一会话的三类获权快照经真实登录生成工作簿，逐表回读并在撤权后拒绝', async () => {
+      const analyst = await person('admin', 'ai6-workbook');
+      const grantWorkbook = actor => grantQuery({ setup: db }, actor.id, { capabilities: exportCaps,
+        fields: ['height', 'netEffectiveRent', 'totalArea'], allBuildings: false, buildingIds: buildingIds.slice(0, 3) });
+      await grantWorkbook(analyst);
+      await grantWorkbook(other);
+      await grantLeaseResearch(db, analyst.id);
+      await grantLeaseResearch(db, other.id);
+      const markerId = randomUUID();
+      await db.query(`insert into public.lease_transactions(id,company,new_building,industry,sub_market,area_sqm,transaction_year,transaction_quarter,transaction_date)
+        values($1,'合成保密客户_禁止模型日志','=1+1','TMT','CBD',600,2026,'Q1','2026-02-02')`, [markerId]);
+      try {
+        const scope = { inventory: 'tracked', submarkets: ['CBD'], buildingIds: buildingIds.slice(0, 3) };
+        const quarter = { year: 2026, quarter: 2 };
+        const lease = { source: 'live', from: '2026-01-01', to: '2026-06-30', submarkets: ['CBD'], mode: 'details', fields: ['building', 'area'] };
+        const source = await submit(lease, {
+          question: '分别列出获权楼宇的建筑高度、2026Q2净有效租金汇总，另给出2026年上半年CBD逐笔租赁成交。',
+          workbookQueries: [['list_buildings', { scope, fields: ['height'], period: null }],
+            ['query_quarterly_metrics', { scope: { ...scope, buildingIds: buildingIds.slice(0, 2) }, period: quarter, metric: 'rent' }],
+            ['query_lease_transactions', lease]],
+        }, analyst);
+        assert.equal(source.status, 200, JSON.stringify(source.body));
+        assert.equal(source.body.agent.executionStatus, 'completed', JSON.stringify(source.body));
+        const originals = source.body.answerSelection.results.map(entry => entry.result);
+        assert.deepEqual(originals.map(result => result.operation), ['list', 'aggregate', 'list']);
+        const ids = originals.map(result => result.resultId);
+        const expectedRent = Number((await db.query(`select sum(total_area*net_effective_rent)/sum(total_area) as rent
+          from public.building_metrics where building_id=any($1::uuid[]) and record_year=2026 and record_quarter=2 and is_locked and not is_draft`,
+        [buildingIds.slice(0, 2)])).rows[0].rent);
+        const conversation = { id: source.body.conversation.id, parentRequestId: source.body.requestId };
+        const askExport = async question => {
+          const response = await fetch(app + '/api/intelligence/query/agent', { method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + analyst.token },
+            body: JSON.stringify({ idempotencyKey: randomUUID(), question, conversation }) });
+          return { status: response.status, body: await response.json() };
+        };
+        for (const question of ['请把刚才三份结果分别放到一个 Excel 工作簿。', '把刚才的结果导出Excel。']) {
+          const exported = await askExport(question);
+          assert.equal(exported.status, 200, JSON.stringify(exported.body));
+          assert.equal(exported.body.agent.executionStatus, 'completed', JSON.stringify(exported.body));
+          assert.equal(exported.body.agent.modelCalls, 0);
+          assert.equal(exported.body.agent.toolCalls, 1);
+          assert.equal(exported.body.conversation.id, conversation.id);
+          const result = exported.body.result;
+          assert.deepEqual(result.parameters.agentExport.selection.resultIds, ids);
+          const sheets = result.parameters.agentWorkbook.sheets;
+          assert.deepEqual(sheets.map(sheet => sheet.snapshot), originals);
+          const names = ['楼宇参数', '季度指标', '成交明细'];
+          assert.deepEqual(sheets.map(sheet => sheet.name), names);
+          assert.deepEqual((await recover(analyst, exported.body.requestId)).body.result, result);
+          const file = await download({ ...exported, actor: analyst });
+          assert.equal(file.status, 200, JSON.stringify(file.body));
+          const book = XLSX.read(file.bytes, { type: 'array' });
+          assert.deepEqual(book.SheetNames, [...names, '来源', '口径与快照']);
+          const read = name => XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1, defval: null });
+          const citations = read('来源');
+          for (const [index, name] of names.entries()) {
+            const [header, ...rows] = read(name);
+            const snapshot = originals[index];
+            assert.equal(rows.length, snapshot.table.rows.length);
+            assert.equal(header.length, snapshot.table.columns.length + 1);
+            assert.equal(header[0], '实体编号');
+            assert.deepEqual(rows.map(row => row[0]), snapshot.table.rows.map(row => row.entityId));
+            for (const cell of Object.values(book.Sheets[name])) assert.equal(cell?.f, undefined);
+            const rowsForSheet = citations.filter(row => row[0] === name && row[1] === ids[index]);
+            assert.ok(rowsForSheet.some(row => row[3] && row[5] && (index !== 1 || row[7] === '2026Q2')));
+          }
+          const valueColumn = (index, column) => originals[index].table.columns.findIndex(item => item.key === column) + 1;
+          const listing = read(names[0]);
+          assert.match(listing[0][valueColumn(0, 'height')], /建筑高度.*米/);
+          assert.deepEqual(buildingIds.slice(0, 3).map(id => listing.find(row => row[0] === id)[valueColumn(0, 'height')]), [210, 198, null]);
+          assert.equal(read(names[1])[1][valueColumn(1, 'value')], expectedRent);
+          const detailRows = read(names[2]);
+          const areaIndex = valueColumn(2, 'area');
+          const buildingIndex = valueColumn(2, 'building');
+          assert.deepEqual(detailRows.slice(1).map(row => row[areaIndex]).sort(), [0, 100.25, 200.5, 600, null].sort());
+          assert.equal(detailRows.find(row => row[areaIndex] === 600)[buildingIndex], '=1+1');
+          assert.ok(!JSON.stringify(citations).includes('合成保密客户'));
+          assert.ok(!JSON.stringify(detailRows).includes('合成保密客户'));
+          assert.equal((await download({ ...exported, actor: analyst }, other)).status, 403);
+          assert.equal((await recover(other, exported.body.requestId)).status, 403);
+          if (question.startsWith('把刚才')) {
+            await db.query('update private.ai_lease_research_grants set allow_export=false where user_id=$1', [analyst.id]);
+            assert.equal((await download({ ...exported, actor: analyst })).status, 403);
+            assert.equal((await recover(analyst, exported.body.requestId)).status, 403);
+            assert.equal((await recover(analyst, source.body.requestId)).status, 200);
+          }
+        }
+      } finally {
+        await db.query('delete from public.lease_transactions where id=$1', [markerId]);
+      }
     });
     await check('AI5成交 / CSV中文与来源ZIP真实回读，延续原有公式防护',async()=>{
       const file=await download(exported,who,'csv_zip');assert.equal(file.status,200);

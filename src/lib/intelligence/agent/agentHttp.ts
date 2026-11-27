@@ -312,7 +312,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       && (!selectedAnswer || comparisonRequested && !selectedAnswer.results.some(item => item.role === 'comparison'));
 
     const previousResult = imported.length === 1 && !research.task ? imported[0] : undefined;
-    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextSemantic ?? history.contextPlan, !!research.task, !!previousResult, previousResult, (history.contextComparisonIds?.length ?? 0) > 1);
+    const taskRoute = routeTask(redactSubmittedCredentials(valid.question).text, history.contextSemantic ?? history.contextPlan,
+      !!research.task, !!previousResult, previousResult, (history.contextComparisonIds?.length ?? 0) > 1, imported.length);
     const metroScreening = taskRoute.metroSelection && await screenMetroCandidates(client, actor, authority, taskRoute.metroSelection, signal);
     if (typeof metroScreening === 'string') {
       taskRoute.route = 'direct_response';
@@ -353,7 +354,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
         taskRoute, previousResultId: history.contextResults?.length === 1 ? history.contextResults[0].resultId : history.contextResult?.resultId,
-        previousComparisonIds: history.contextComparisonIds, history, memory: history.memory, limits: runtime.limits,
+        previousComparisonIds: history.contextComparisonIds,
+        ...(taskRoute.reusePriorExport ? { priorExportResultIds: imported.map(result => result.resultId) } : {}),
+        history, memory: history.memory, limits: runtime.limits,
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
         contextChart: history.contextChart,

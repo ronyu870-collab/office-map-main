@@ -129,6 +129,26 @@ describe('AI6 full-condition execution routing', () => {
     expect(routeTask('把刚才的结果画成图', plan, false, true)).toMatchObject({ reusePrevious: true, chartType: 'auto' });
     expect(routeTask('把刚才的结果导出Excel', plan).route).toBe('bounded_agent');
   });
+  it.each([
+    ['把刚才的结果导出Excel', false],
+    ['请把刚才三份结果分别放到一个 Excel 工作簿', true],
+    ['将前面的3个结果导出为同一个xlsx，每份一张工作表', true],
+  ])('exports all rechecked prior results without asking a model: %s', async (request, separateSheets) => {
+    const ids = [randomUUID(), randomUUID(), randomUUID()];
+    const task = routeTask(request, plan, false, false, undefined, false, ids.length);
+    expect(task).toMatchObject({ route: 'deterministic_query', reusePriorExport: separateSheets ? 'separate' : 'auto', exportFormat: 'xlsx' });
+    const invoke = vi.fn(), runTool = vi.fn().mockResolvedValue({ result: buildListResult(fixture(), []), content: '{"status":"ready"}' });
+    await runAgentLoop({ question: request, taskRoute: task, priorExportResultIds: ids, invoke, runTool, signal: signal() });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(runTool).toHaveBeenCalledExactlyOnceWith('export_table', { resultIds: ids, format: 'xlsx', filters: [], singleSheet: false,
+      ...(separateSheets ? { separateSheets: true } : {}) }, expect.any(AbortSignal));
+  });
+  it('keeps a missing sheet or additional deliverable visible', () => {
+    expect(routeTask('把刚才三份结果分别放到一个Excel', plan, false, true, undefined, false, 2))
+      .toMatchObject({ route: 'direct_response', reply: expect.stringContaining('2 份') });
+    expect(routeTask('把刚才三份结果分别放到一个Excel，再生成一份PDF', plan, false, true, undefined, false, 3).reusePriorExport)
+      .toBeUndefined();
+  });
   it('applies complete sort, numeric filter and page edits only to an existing authorized column', async () => {
     const prior = resultViewSchema.parse(buildListResult(fixture(), ['height', 'netEffectiveRent']));
     const sorted = routeTask('按高度从高到低排列', undefined, false, true, prior);

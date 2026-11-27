@@ -24,7 +24,7 @@ function compare(a: ResultCell, b: ResultCell): number {
 }
 
 function prepareMixedWorkbook(results: readonly QueryResult[], args: ReturnType<typeof exportTableSchema.parse>): QueryResult {
-  if (args.format !== 'xlsx' || args.singleSheet || args.fields || args.filters.length || args.sort || args.topN)
+  if (results.length < 2 || args.format !== 'xlsx' || args.singleSheet || args.fields || args.filters.length || args.sort || args.topN)
     throw new Error('AGENT_EXPORT_INCOMPATIBLE_COLUMNS');
   if (results.some(result => isKnowledgeResult(result) || result.parameters.researchTask || result.parameters.agentExport))
     throw new Error('AGENT_EXPORT_DENIED');
@@ -81,7 +81,7 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
   const differentDomains = results.some(result => isLeaseResult(result) !== lease || isBusinessResult(result) !== business
     || business && result.parameters.businessTool !== base.parameters.businessTool);
   const differentColumns = results.some(result => JSON.stringify(result.table.columns) !== JSON.stringify(base.table.columns));
-  if (differentDomains || differentColumns) return validateExportResult(prepareMixedWorkbook(results, args));
+  if (args.separateSheets || differentDomains || differentColumns) return validateExportResult(prepareMixedWorkbook(results, args));
   const columns = base.table.columns;
   const check = (key: string) => {
     if (!columns.some(column => column.key === key)) throw new Error('AGENT_FIELD_NOT_AVAILABLE');

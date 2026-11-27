@@ -17,6 +17,7 @@ export type TaskRoute = {
   exportFormat?: 'xlsx' | 'csv_zip';
   reusePrevious?: boolean;
   reuseComparison?: boolean;
+  reusePriorExport?: 'auto' | 'separate';
   catalogLookup?: 'location' | 'profile';
   siteSelection?: SiteSelectionRequest;
   metroSelection?: MetroScreeningRequest;
@@ -67,16 +68,24 @@ export function resumesResearch(question: string, previousQuestion?: string): bo
     || /(?:刚才|上次|当前|这份|未完成).{0,8}(?:研究|简报|报告|任务)|(?:审查|导出|下载).{0,6}(?:研究|简报|报告)(?:成果|文件|状态|进度)?[。！？.!?]*$/u.test(question);
 }
 
+function priorWorkbookRequest(text: string) {
+  const match = /^(?:请)?(?:把|将)(?:刚才|上次|前面|当前)的?(?:([二两三23])(?:个|份|张))?(?:结果|表格|数据)(分别)?(?:放到|写入|导出到|导出(?:为|成)?|生成|输出)\s*(?:同一个|一个|一份)?\s*(?:Excel|xlsx)\s*(?:文件|工作簿)?(?:[,，]\s*(每份一张工作表|每个结果一张工作表|分别放在独立工作表中?))?$/iu.exec(text);
+  if (!match) return undefined;
+  const [, countText, separately, instruction] = match;
+  return { count: countText ? /^[三3]$/u.test(countText) ? 3 : 2 : undefined,
+    separate: !!(separately || instruction) };
+}
+
 /** Full consumption is owned by the existing semantic planner. Wrappers below
  * remove only an entire, supported delivery suffix, never arbitrary conditions. */
-export function routeTask(question: string, previousContext?: QueryPlan | SemanticContext, research = false, hasPreviousResult = false, previousResult?: ResultTableReference, hasPreviousComparison = false): TaskRoute {
+export function routeTask(question: string, previousContext?: QueryPlan | SemanticContext, research = false, hasPreviousResult = false, previousResult?: ResultTableReference, hasPreviousComparison = false, priorResultCount = 0): TaskRoute {
   const savedContext = previousContext && 'version' in previousContext ? previousContext : undefined;
   const contextPlan = previousContext && 'operation' in previousContext ? previousContext : savedContext?.lastPlan;
   const text = question.normalize('NFKC').trim().replace(/[。！？.!?]+$/u, '').trim();
   if (externalModelForbidden(text)) {
     const local = text.replace(/[,，;；]?\s*(?:不要|不得|禁止)(?:发送给?|发给|传给)(?:外部模型|第三方模型|外部供应商)$/u, '').trim();
     if (local && local !== text) {
-      const task = routeTask(local, previousContext, research, hasPreviousResult, previousResult, hasPreviousComparison);
+      const task = routeTask(local, previousContext, research, hasPreviousResult, previousResult, hasPreviousComparison, priorResultCount);
       if (['direct_response', 'deterministic_query'].includes(task.route)) return { ...task, question, modelForbidden: true };
     }
     return { route: 'direct_response', taskType: 'analysis', question, modelForbidden: true,
@@ -112,6 +121,14 @@ export function routeTask(question: string, previousContext?: QueryPlan | Semant
     if (comparison)
       return { route: 'deterministic_query', taskType: 'artifact', question, reusePrevious: true, exportFormat: format };
     return { route: 'direct_response', taskType: 'artifact', question, reply: '当前会话没有可重新核验的对比结果。请打开原对比后再导出。' };
+  }
+  const workbook = !research && priorWorkbookRequest(text);
+  if (workbook && (priorResultCount > 1 || workbook.count || workbook.separate)) {
+    if (priorResultCount < 2 || workbook.count && priorResultCount !== workbook.count)
+      return { route: 'direct_response', taskType: 'artifact', question,
+        reply: `上一轮有 ${priorResultCount} 份可重新核验的结果。请打开包含所需结果的回答后再导出。` };
+    return { route: 'deterministic_query', taskType: 'artifact', question,
+      reusePriorExport: workbook.separate ? 'separate' : 'auto', exportFormat: 'xlsx' };
   }
   if (previousResult && hasPreviousResult) {
     const exportedChart = /^(?:请)?(?:(?:把|将)?(?:刚才|当前)的?(?:图表|图))?导出(?:为)?(PNG|SVG)$/i.exec(text)
