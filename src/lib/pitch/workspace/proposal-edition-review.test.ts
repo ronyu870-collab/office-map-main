@@ -62,3 +62,13 @@ it('ignores chart presentation changes and still calls out a revised analytical 
     pages: [{ changes: [], conclusionChanged: true }], needsConclusionReview: true,
   });
 });
+
+
+it('flags the narrative of an analytical recipe page even when expressed as paragraphs', () => {
+  const before = old.slides[0];
+  const paragraph = (text: string) => ({ kind: 'paragraph' as const, text, sourceIds: [before.content.sources[0].id] });
+  const prior = { ...before, content: { ...before.content, blocks: [paragraph('原市场判断')] } };
+  const next = { ...prior, id: updatedId, content: { ...prior.content, blocks: [paragraph('新季度判断')] } };
+  const review = reviewProposalEdition({ ...old, slides: [prior] }, [next], new Map([[originalId, updatedId]]), '2026-Q2', new Set([updatedId]));
+  expect(review).toMatchObject({ pages: [{ changes: [], conclusionChanged: true }], needsConclusionReview: true });
+});
