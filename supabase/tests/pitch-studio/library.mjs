@@ -4,12 +4,14 @@ import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { mkdir,writeFile } from 'node:fs/promises';
 import JSZip from 'jszip';
+import pg from 'pg';
 import {createPitchDatabase,OWNER,OTHER,ADMIN,VIEWER,sessionFor} from './database.mjs';
 import {materialFixtures,NOTE_SECRET,HIDDEN_SECRET} from './library-fixtures.mjs';
 const require=createRequire(import.meta.url),workflow=require('../../../src/lib/pitch/library/workflow.ts'),{digest}=require('../../../src/lib/pitch/data/store.ts'),{CHUNK_SIZE,formats}=require('../../../src/lib/pitch/library/protocol.ts'),render=require('../../../src/lib/pitch/data/renderWorkflow.ts');
+const {handleLibraryRequest}=require('../../../src/lib/pitch/library/http.ts');
 const db=await createPitchDatabase(),fixtures=await materialFixtures(),files=new Map(),scope={organizationId:'synthetic-org',region:'test-region',city:'test-city',businessLine:'test-line'};let n=0;
 const check=async(name,fn)=>{await fn();n++;console.log('PASS '+name);};
-function ctx(uid){return {identity:{actorId:uid,effectiveUserId:uid,sessionId:sessionFor(uid),expiresAt:Date.now()+120000},signal:new AbortController().signal,client:{rpc(name,args){assert.equal(name,'pitch_studio_access');return {async abortSignal(){try{return {data:await db.rpc(args.p_actor,args.p_input),error:null};}catch(e){return {data:null,error:{code:e.code,message:e.message}};}}};},storage:{from(){return {async upload(path,bytes){if(files.has(path))return {error:{message:'exists'}};files.set(path,new Uint8Array(bytes));return {error:null};},async download(path){const bytes=files.get(path);return bytes?{data:new Blob([bytes]),error:null}:{data:null,error:{message:'missing'}};}};}}}};}
+function ctx(uid,connection){return {identity:{actorId:uid,effectiveUserId:uid,sessionId:sessionFor(uid),expiresAt:Date.now()+120000},signal:new AbortController().signal,client:{rpc(name,args){assert.equal(name,'pitch_studio_access');return {async abortSignal(){try{return {data:await db.rpc(args.p_actor,args.p_input,connection),error:null};}catch(e){return {data:null,error:{code:e.code,message:e.message}};}}};},storage:{from(){return {async upload(path,bytes){if(files.has(path))return {error:{message:'exists'}};files.set(path,new Uint8Array(bytes));return {error:null};},async download(path){const bytes=files.get(path);return bytes?{data:new Blob([bytes]),error:null}:{data:null,error:{message:'missing'}};}};}}}};}
 const owner=ctx(OWNER),ordinary=ctx(OTHER);let metadata,prepared,assetIds,caseAsset,projectId,exportCommand;
 const prep=(bytes,name='隔离测试.pptx',extra={})=>workflow.prepareImport(owner,{action:'prepare',requestId:randomUUID(),filename:name,mime:formats[name.split('.').pop()],size:bytes.length,sha256:digest(bytes),metadata,...extra});
 const upload=async(receipt,bytes)=>{for(let i=0;i<Math.ceil(bytes.length/CHUNK_SIZE);i++)await workflow.uploadPart(owner,receipt.job.id,i,bytes.slice(i*CHUNK_SIZE,(i+1)*CHUNK_SIZE));await workflow.finishUpload(owner,receipt.job.id);};
@@ -27,7 +29,75 @@ try{
  await check('supported historical charts regenerate as native editable PowerPoint charts without inventing an insight',async()=>{const id=randomUUID();await workflow.normalizeAsset(ordinary,{action:'normalize',projectId:id,assetId:assetIds[3],title:'隔离历史图表',themeId:'colliers-default-v1',themeVersion:2});const project=await db.rpc(OTHER,{action:'get_project',projectId:id});assert.ok(project.slides.some(s=>s.scene.elements.some(e=>e.kind==='chart')));const command={...exportCommand,projectId:id,exportId:randomUUID()};await render.prepareRenderExport(ordinary,command);await render.runRenderExport(ordinary,command);const file=await render.downloadArtifact(ordinary,command),zip=await JSZip.loadAsync(file.bytes);assert.ok(zip.file('ppt/charts/chart1.xml'));assert.match(await zip.file('ppt/charts/chart1.xml').async('string'),/100/);await writeFile('tmp/pitch-material-fixtures/隔离市场_原生图表.pptx',file.bytes);});
  await check('timeout, cancellation, bounded retry and exact checkpoint resume converge durably',async()=>{const job=await prep(new TextEncoder().encode('隔离公司介绍\n完整业务正文'),'任务测试.txt');await upload(job,new TextEncoder().encode('隔离公司介绍\n完整业务正文'));await db.rpc(OWNER,{action:'library_job_claim',jobId:job.job.id,workerToken:randomUUID()});await db.setup.query("update pitch_parse_jobs set lease_until=now()-interval '1 second' where id=$1",[job.job.id]);const current=await db.rpc(OWNER,{action:'library_job_status',jobId:job.job.id});assert.equal(current.job.state,'queued');assert.equal(current.job.attempts,1);await db.rpc(OWNER,{action:'library_job_cancel',jobId:job.job.id});assert.equal((await db.rpc(OWNER,{action:'library_job_claim',jobId:job.job.id,workerToken:randomUUID()})).claimed,false);await db.rpc(OWNER,{action:'library_job_retry',jobId:job.job.id});await workflow.runParseSlice(owner,job.job.id);assert.equal((await db.rpc(OWNER,{action:'library_job_status',jobId:job.job.id})).job.state,'completed');});
  await check('corruption fails explicitly, unknown business dates stay manual and no guessed candidates are published',async()=>{const damaged=await prep(new Uint8Array([1,2,3]),'损坏.pptx');await upload(damaged,new Uint8Array([1,2,3]));await workflow.runParseSlice(owner,damaged.job.id);assert.equal((await db.rpc(OWNER,{action:'library_job_status',jobId:damaged.job.id})).job.state,'failed');const raw=new TextEncoder().encode('公司介绍\n未知日期的完整原文'),unknown=await prep(raw,'未知日期.txt',{metadata:{...metadata,dataAsOf:null}});await upload(unknown,raw);await workflow.runParseSlice(owner,unknown.job.id);const p=(await db.setup.query('select * from pitch_source_pages where document_id=$1',[unknown.documentId])).rows[0];assert.equal(p.asset_id,null);assert.match(p.structure.warnings.join(' '),/日期未知/);});
- await check('maintainers can edit/review scoped enterprise drafts; version source references cannot disappear',async()=>{const current=await workflow.assetContext(ctx(ADMIN),caseAsset),input=workflow.assetInput(current.asset,current.version.content);input.names.zh='人工确认的案例标题';input.content.title=input.names.zh;input.state='draft';await workflow.saveLibraryAsset(ctx(ADMIN),{action:'save_asset',assetId:caseAsset,expectedVersion:2,asset:input,acknowledgePartial:true});assert.equal((await workflow.assetContext(owner,caseAsset)).asset.current_version,3);const bad=structuredClone(input);bad.content.sources[0].sha256='c'.repeat(64);await assert.rejects(workflow.saveLibraryAsset(owner,{action:'save_asset',assetId:caseAsset,expectedVersion:3,asset:bad,acknowledgePartial:true}),/PITCH_SOURCE_REQUIRED/);await workflow.confirmAssets(owner,{action:'confirm',items:[{assetId:caseAsset,expectedVersion:3}],acknowledgePartial:true});});
+ await check('maintainers can edit/review scoped enterprise drafts; version source references cannot disappear',async()=>{const current=await workflow.assetContext(ctx(ADMIN),caseAsset),input=workflow.assetInput(current.asset,current.version.content);input.names.zh='人工确认的案例标题';input.content.title=input.names.zh;input.content.dataAsOf='2026-03-31';input.state='draft';await workflow.saveLibraryAsset(ctx(ADMIN),{action:'save_asset',assetId:caseAsset,expectedVersion:2,asset:input,acknowledgePartial:true});assert.equal((await workflow.assetContext(owner,caseAsset)).asset.current_version,3);const bad=structuredClone(input);bad.content.sources[0].sha256='c'.repeat(64);await assert.rejects(workflow.saveLibraryAsset(owner,{action:'save_asset',assetId:caseAsset,expectedVersion:3,asset:bad,acknowledgePartial:true}),/PITCH_SOURCE_REQUIRED/);await workflow.confirmAssets(owner,{action:'confirm',items:[{assetId:caseAsset,expectedVersion:3}],acknowledgePartial:true});});
+ await check('a reviewed prior material version can be reused after publishing a newer revision', async () => {
+   const id = randomUUID();
+   const pinned = { action:'normalize', projectId:id, assetId:caseAsset, assetVersion:2, title:'隔离版本锁定',
+     themeId:'colliers-default-v1', themeVersion:2 };
+   const latest = await workflow.assetContext(ordinary, caseAsset);
+   assert.equal(latest.asset.current_version, 4);
+   const original = await db.rpc(OTHER, { action:'library_asset', assetId:caseAsset, version:2 });
+   const token = 'fixture.'+Buffer.from(JSON.stringify({
+     sub:OTHER,session_id:sessionFor(OTHER),exp:Math.floor(Date.now()/1000)+120,
+   })).toString('base64url')+'.fixture';
+   const request = (input,context=ordinary) => handleLibraryRequest(new Request('http://localhost/api/intelligence/pitch/library',{
+     method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(input),
+   }),{enabled:true,client:{
+     ...context.client,
+     auth:{async getUser(value) { assert.equal(value,token);return {data:{user:{id:OTHER}},error:null}; }},
+     from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:{role:'editor'},error:null})})})}),
+   }});
+   assert.equal((await request({...pinned,assetVersion:'2'})).status,400);
+   const concurrent = new pg.Client({...db.config,database:db.database});
+   await concurrent.connect();
+   let receipts;
+   try {
+     const replies=await Promise.all([request(pinned),request(pinned,ctx(OTHER,concurrent))]);
+     receipts=await Promise.all(replies.map(async reply=>{
+       const body=await reply.json();assert.equal(reply.status,200,JSON.stringify(body));return body;
+     }));
+   } finally { await concurrent.end(); }
+   assert.ok(receipts.every(receipt => receipt.projectId === id));
+   assert.equal(receipts.filter(receipt => receipt.replayed).length, 1);
+   const rendered = await db.rpc(OTHER, { action:'workspace_get', projectId:id });
+   assert.ok(rendered.slides.length >= 2);
+   assert.equal(rendered.workspace.active_slide, rendered.slides[0].id);
+   assert.ok(rendered.slides.every(slide => slide.asset_version === 2 && slide.content.title === original.version.content.title));
+   assert.deepEqual(rendered.slides[0].source_snapshot, original.version.content.sources);
+   assert.equal(rendered.project.normalization_report.assetVersion, 2);
+   assert.equal(rendered.project.data_as_of, '2025-12-31');
+
+   const skipLayout = { ...ordinary, client: { ...ordinary.client, rpc(name, args) {
+     assert.notEqual(args.p_input.action, 'registry', 'replaying a receipt need not lay out the pages again');
+     return ordinary.client.rpc(name,args);
+   } } };
+   assert.equal((await workflow.normalizeAsset(skipLayout, pinned)).replayed, true);
+   await assert.rejects(workflow.normalizeAsset(owner, pinned), /PITCH_CONFLICT/);
+   assert.equal((await request({...pinned,assetVersion:4})).status,409);
+   await assert.rejects(workflow.normalizeAsset(owner, { ...pinned, assetVersion:3, projectId:randomUUID() }), /PITCH_DENIED/);
+   const current = { ...pinned, projectId:randomUUID(), assetVersion:4 };
+   await workflow.normalizeAsset(ordinary, current);
+   const regenerated = await db.rpc(OTHER, { action:'get_project', projectId:current.projectId });
+   assert.ok(regenerated.slides.every(slide => slide.asset_version === 4 && slide.content.title === latest.version.content.title));
+   assert.equal(regenerated.project.data_as_of, '2026-03-31');
+
+   const command = { ...exportCommand, projectId:id, exportId:randomUUID() };
+   await render.prepareRenderExport(ordinary, command);
+   await render.runRenderExport(ordinary, command);
+   const file = await render.downloadArtifact(ordinary, command);
+   const packageFile = await JSZip.loadAsync(file.bytes, { checkCRC32:true });
+   const slides = Object.values(packageFile.files).filter(item => /^ppt\/slides\/slide\d+\.xml$/.test(item.name));
+   const xml = (await Promise.all(slides.map(item => item.async('string')))).join('');
+   assert.match(xml, /<a:tbl>/);
+   assert.ok(!xml.includes(latest.version.content.title));
+   await db.setup.query("update public.pitch_source_documents set state='archived' where id=$1", [prepared.documentId]);
+   try {
+     assert.equal((await request(pinned)).status,403);
+     await assert.rejects(render.downloadArtifact(ordinary, command), /PITCH_DENIED/);
+   } finally {
+     await db.setup.query("update public.pitch_source_documents set state='published' where id=$1", [prepared.documentId]);
+   }
+ });
  await check('publishing one candidate cannot expose other unconfirmed pages, media or raw original',async()=>{const receipt=await prep(fixtures.pptx,'仅一页发布.pptx');await upload(receipt,fixtures.pptx);await workflow.runParseSlice(owner,receipt.job.id);await workflow.runParseSlice(owner,receipt.job.id);const pages=(await db.setup.query('select id,asset_id,ordinal from pitch_source_pages where document_id=$1 order by ordinal',[receipt.documentId])).rows;await workflow.confirmAssets(owner,{action:'confirm',items:[{assetId:pages[2].asset_id,expectedVersion:1}],acknowledgePartial:true});const visible=await db.rpc(OTHER,{action:'library_search',kind:'pages',documentId:receipt.documentId});assert.equal(visible.length,1);await assert.rejects(db.rpc(OTHER,{action:'library_page',pageId:pages[0].id}),e=>e.code==='42501');assert.equal((await db.rpc(OTHER,{action:'library_media',documentId:receipt.documentId})).length,0);assert.equal((await db.asUser(OTHER,'select id from pitch_source_pages where document_id=$1',[receipt.documentId])).rowCount,1);});
  await check('file versions are immutable and a cancelled incomplete upload can be imported again',async()=>{const bytes=new TextEncoder().encode('公司介绍版本二\n明确标记隔离数据。'),v=await prep(bytes,'版本二.txt',{versionOf:prepared.documentId});await upload(v,bytes);const history=await db.rpc(OWNER,{action:'library_versions',documentId:v.documentId});assert.equal(history[0].version,2);assert.ok(history.some(r=>r.id===prepared.documentId));assert.equal(digest((await workflow.sourceFile(owner,prepared.documentId)).bytes),digest(fixtures.pptx));const abandoned=await prep(new TextEncoder().encode('取消后重新导入'),'取消.txt');await db.rpc(OWNER,{action:'library_job_cancel',jobId:abandoned.job.id});const retry=await prep(new TextEncoder().encode('取消后重新导入'),'取消.txt');assert.notEqual(retry.documentId,abandoned.documentId);});
  await check('exact image dedup never shares access across private and enterprise scopes',async()=>{const shared=await prep(fixtures.image,'去重.png'),personal=await prep(fixtures.image,'去重.png',{metadata:{...metadata,visibility:'private'}});for(const receipt of [shared,personal]){await upload(receipt,fixtures.image);await workflow.runParseSlice(owner,receipt.job.id);}assert.notEqual(shared.documentId,personal.documentId);const media=(await db.setup.query('select m.storage_path,p.document_id,m.id from pitch_media_assets m join pitch_source_pages p on p.id=m.source_page_id where p.document_id=any($1::uuid[])',[[shared.documentId,personal.documentId]])).rows;assert.equal(media.length,2);assert.notEqual(media[0].storage_path,media[1].storage_path);await assert.rejects(db.rpc(ADMIN,{action:'library_document',documentId:personal.documentId}),e=>e.code==='42501');await assert.rejects(db.rpc(ADMIN,{action:'library_media_file',mediaId:media.find(m=>m.document_id===personal.documentId).id,version:1}),e=>e.code==='42501');});
