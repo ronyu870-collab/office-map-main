@@ -1,4 +1,3 @@
-import { z } from "zod";
 import glossary from "@/src/i18n/professional-glossary.json";
 import { type SlideContent } from "../contracts/content";
 
@@ -30,9 +29,6 @@ export function knownTranslation(text: string, language: ProposalLanguage) {
   return translated !== undefined && sameTranslationNumbers(source, translated) ? translated : undefined;
 }
 
-const optionalImageText = z.object({ caption: z.string().optional() });
-const optionalScatterText = z.object({ xAxis: z.object({ label: z.string() }).passthrough().optional() });
-
 function translateBlock(block: SlideContent["blocks"][number], index: number, text: Text): SlideContent["blocks"][number] {
   const base = "block:" + index;
   switch (block.kind) {
@@ -41,7 +37,7 @@ function translateBlock(block: SlideContent["blocks"][number], index: number, te
     case "metric":
       return { ...block, label: text(base + ":label", block.label) };
     case "image": {
-      const { caption } = optionalImageText.parse(block);
+      const { caption } = block;
       return { ...block, alt: text(base + ":alt", block.alt),
         ...(caption === undefined ? {} : { caption: text(base + ":caption", caption) }) };
     }
@@ -49,7 +45,7 @@ function translateBlock(block: SlideContent["blocks"][number], index: number, te
       return { ...block, columns: block.columns.map((column, i) => text(`${base}:column:${i}`, column)),
         rows: block.rows.map((row, i) => row.map((cell, j) => typeof cell === "string" ? text(`${base}:cell:${i}:${j}`, cell) : cell)) };
     case "chart": {
-      const { xAxis } = optionalScatterText.parse(block);
+      const { xAxis } = block;
       return { ...block, categories: block.categories.map((category, i) => text(`${base}:category:${i}`, category)),
         series: block.series.map((series, i) => ({ ...series, name: text(`${base}:series:${i}`, series.name) })),
         ...(xAxis ? { xAxis: { ...xAxis, label: text(base + ":xaxis", xAxis.label) } } : {}) };

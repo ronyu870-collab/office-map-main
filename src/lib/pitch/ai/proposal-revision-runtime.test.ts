@@ -130,7 +130,10 @@ describe("proposal revision transaction previews", () => {
       refreshPlan: { brief: { targetClient: "保险企业" }, plan: { slides: [expect.objectContaining({ pageKind: "requirements" })] } },
     });
     expect(prepareReplan.mock.calls[0][1].question).toContain("优先关注面积与可租条件、通勤交通");
-    expect(await planProposalRevision(context, request("本页改成英文"), { prepareReplan })).toMatchObject({ status: "unavailable" });
+    expect(await planProposalRevision(context, request("本页改成英文"), { prepareReplan })).toMatchObject({
+      status: "language-translation-required", language: "en",
+      pending: expect.arrayContaining([expect.objectContaining({ pageId: firstPage })]),
+    });
     revisionDeck = [{ id: firstPage, content, manual: true }, { id: secondPage, content }];
     expect(await planProposalRevision(context, request("整套改成英文"), { prepareReplan })).toMatchObject({ status: "unavailable" });
     expect(prepareReplan).toHaveBeenCalledOnce();

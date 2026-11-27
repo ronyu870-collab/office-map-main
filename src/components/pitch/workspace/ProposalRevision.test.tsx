@@ -308,3 +308,31 @@ it("requires the saved workspace to contain the reviewed version and source", as
   expect(await screen.findByRole("status")).toHaveTextContent("无法核对保存后的照片");
   expect(onApplied).not.toHaveBeenCalled();
 });
+
+it("collects a missing translation before reviewing and applying a language change to the same page", async () => {
+  const question = "本页改成英文";
+  const original = { ...detail, slides: [{ ...detail.slides[0], version: 2,
+    content: { ...detail.slides[0].content, locale: "zh", title: "季度租金" } }] };
+  const languageTexts = [{ pageId, ref: "title", text: "Quarterly rent" }];
+  const command = { action: "proposal_apply_language", confirmation: { fingerprint, input: {
+    projectId, expectedVersion: version, question, currentPageId: pageId, pageIds: [], objectIds: [], languageTexts,
+  } } };
+  const updated = { ...original, project: refreshed.project, slides: [{ ...original.slides[0], version: 3,
+    content: { ...original.slides[0].content, locale: "en", title: "Quarterly rent" } }] };
+  const { user, call, onApplied } = setup(input => {
+    if (!(input.input as { languageTexts?: unknown }).languageTexts) {
+      return { status: "language-translation-required", language: "en", translated: [],
+        pending: [{ pageId, pageVersion: 2, ref: "title", text: "季度租金" }] };
+    }
+    return { status: "language-review", language: "en", projectVersion: version, fingerprint, command,
+      translated: [{ pageId, pageVersion: 2, original: "zh", changes: [{ ref: "title", before: "季度租金", after: "Quarterly rent" }] }] };
+  }, question, () => ({ status: "language-applied", workspace: updated }), original);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  await user.type(await screen.findByRole("textbox", { name: "第 1 页 · 季度租金" }), languageTexts[0].text);
+  await user.click(screen.getByRole("button", { name: "预览译文" }));
+  await screen.findByText("Quarterly rent");
+  expect(onApplied).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "确认语言切换" }));
+  await waitFor(() => expect(onApplied).toHaveBeenCalledWith(updated, version));
+  expect(call.mock.calls[2][0]).toEqual(command);
+});

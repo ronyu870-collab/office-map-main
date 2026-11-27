@@ -779,6 +779,42 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           assert.equal(changed.slides[0].content.title, editedTitle);
           assert.ok(changed.slides[0].content.sources.some(source => source.visual?.id === change.after.pin.id));
           result.replacedBuildingPhoto = true;
+
+          result.stage = "redesigning a slide";
+          await page.getByLabel("需要制作什么页面？").fill("重新设计第 2 页");
+          await button("预览修改").click();
+          await dialog.getByRole("img", { name: "第 2 页新布局预览" }).waitFor();
+          const [savedLayout] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/workspace", "save"),
+            dialog.getByRole("button", { name: "应用新布局" }).click(),
+          ]);
+          assert.ok(savedLayout.ok(), `targeted layout save HTTP ${savedLayout.status()}`);
+          await dialog.waitFor({ state: "hidden" });
+          const redesigned = await readProject(projectId);
+          assert.deepEqual(redesigned.slides.map(slide => [slide.id, slide.content]), changed.slides.map(slide => [slide.id, slide.content]));
+          for (const [index, original] of changed.slides.entries()) {
+            if (index === 1) assert.notDeepEqual(redesigned.slides[index].scene.elements, original.scene.elements);
+            else assert.deepEqual(redesigned.slides[index].scene, original.scene);
+          }
+          result.redesignedSlide = true;
+
+          result.stage = "generating requested theme";
+          const requestedTheme = "colliers-market-intelligence";
+          assert.notEqual(redesigned.project.theme_id, requestedTheme);
+          await page.getByLabel("需要制作什么页面？").fill("为五矿广场制作项目推介，采用研究风格");
+          const [styleHttp] = await Promise.all([
+            waitForPitchCommand(page, "/api/intelligence/pitch/ai", "proposal_plan"),
+            button("规划正式提案").click(),
+          ]);
+          const styledPlan = await styleHttp.json();
+          assert.ok(styleHttp.ok() && styledPlan.status === "ready", styledPlan.error ?? styledPlan.message ?? styledPlan.status);
+          assert.equal(styledPlan.plan.theme.id, requestedTheme);
+          const styledId = await confirmFlagshipProposal(page, button("确认并生成 Pitch"));
+          const styled = await readProject(styledId);
+          assert.equal(styled.project.parent_project_id, projectId);
+          assert.equal(styled.project.theme_id, requestedTheme);
+          assert.equal(styled.project.theme_version, styledPlan.plan.theme.version);
+          result.explicitTheme = requestedTheme;
         }
         result.stage = "completed";
       } catch (error) {

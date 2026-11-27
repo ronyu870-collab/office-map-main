@@ -80,7 +80,7 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
     const manual = slides.some(slide => workspace.page_settings[slide.id]?.manual === true ||
       workspace.page_settings[slide.id]?.origin === "user" || slide.scene.elements.some(element => element.editorId !== undefined));
     const requested = Boolean(confirmation || input.languageTexts || input.languageReceipts ||
-      !services?.prepareReplan && manual);
+      intention.target.kind !== "deck" || (!services?.prepareReplan && manual));
     const language = requested ? services?.language ?? await installedLanguageCanvasServices() : undefined;
     if (language) return reviewProposalLanguage(ctx, current, input, intention.target, operation.language, language, confirmation?.fingerprint);
   }
