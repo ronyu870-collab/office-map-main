@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PitchContext } from "../data/store";
 import { STUDIO_THEME } from "../design/theme";
 import type { VisualAssetReference } from "../integration-contracts";
 import { id, period } from "../proposals/__tests__/fixture";
+import { STUDIO_TEMPLATE } from "../templates/registry";
 import type { UnifiedProposalContext } from "../proposals/unified-projection";
 import { confirmedProposalSchema, proposalRequestSchema } from "./proposal-brief";
 import { directProposal, type ProposalDirectorPorts } from "./proposal-director";
@@ -12,6 +13,7 @@ import { submitConfirmedProposal } from "./proposal-workflow";
 
 const rpc = vi.hoisted(() => vi.fn());
 vi.mock("../data/store", async original => ({ ...await original<typeof import("../data/store")>(), pitchRpc: rpc }));
+beforeEach(() => { rpc.mockReset(); });
 
 const scope = { organizationId: "test", region: "华北", city: "北京", businessLine: "office" };
 const buildings = [
@@ -76,6 +78,33 @@ function contextWithDossier(resultId: string, dataVersion = "brochure/1"): Unifi
 }
 
 describe("authorized proposal recipe sources", () => {
+  it("applies an explicitly requested theme over the existing project and rejects confirmation after its version changes", async () => {
+    const { director, signal } = fixture();
+    const id = "colliers-premium-portfolio";
+    let version = 7;
+    rpc.mockImplementation(async (_ctx, command) => {
+      if (command.action === "catalog") return { themes: [{ id, current_version: version }] };
+      if (command.action === "registry" && command.themeId === id && command.themeVersion === version) {
+        return { theme: { definition: { ...STUDIO_THEME, id, version } }, template: { config: STUDIO_TEMPLATE } };
+      }
+      throw new Error("Unexpected theme read");
+    });
+    const input = promotion();
+    const reviewed = await directProposal(input, director, signal);
+    if (reviewed.status !== "ready") throw new Error(reviewed.code);
+    expect(reviewed.plan.theme).toEqual({ id, version: 7 });
+    expect(reviewed.plan.gaps.map(gap => gap.pageKind)).not.toContain("theme");
+    const confirmed = confirmedProposalSchema.parse({
+      projectId: input.projectId, request: input, taskId: buildings[0].id, expectedVersion: 1,
+      planId: reviewed.plan.id, contextFingerprint: reviewed.plan.contextFingerprint,
+    });
+    const workflow = { find: async () => null, enqueue: vi.fn() };
+    version++;
+    await expect(submitConfirmedProposal(confirmed, director, workflow, signal))
+      .rejects.toThrow("PITCH_PROPOSAL_REVIEW_REQUIRED");
+    expect(workflow.enqueue).not.toHaveBeenCalled();
+  });
+
   it("uses the requested analysis focus to retain the right page under a tight length while preserving the cover and closing", async () => {
     const { director, signal } = fixture();
     const question = proposalRequestSchema.parse({ question: "为霄云路33号制作高端项目推介，控制在3页" });
@@ -212,6 +241,6 @@ describe("authorized proposal recipe sources", () => {
     expect(reviewed.plan.slides.find(slide => slide.pageKind === "team")?.materialReferences).toEqual([{ id: assetId, version: 4 }]);
     rpc.mockClear();
     await directProposal({ ...promotion(), assetIds: [assetId] }, director, signal);
-    expect(rpc).not.toHaveBeenCalled();
+    expect(rpc.mock.calls.map(([, command]) => command.action)).toEqual(["catalog"]);
   });
 });

@@ -75,6 +75,7 @@ export type ProposalBrief = {
   scenario: (typeof proposalScenarios)[number] | null;
   language: "zh" | "en";
   style: (typeof proposalStyles)[number];
+  explicitStyle?: (typeof proposalStyles)[number];
   targetClient: string | null;
   city: string | null;
   submarkets: string[];
@@ -147,15 +148,17 @@ export function readProposalBrief(input: ProposalRequest): ProposalBrief {
       .map(([text]) => text).filter(text => text.length <= 100));
     return [...values].slice(0, 2).map(text => ({ kind, text }));
   });
-  const style = /高端|精致|premium|luxury/i.test(question) ? "premium"
-    : scenario === "market-report" || /研究风格|research style/i.test(question) ? "research" : "professional";
+  const explicitStyle = /高端|精致|premium|luxury/i.test(question) ? "premium"
+    : /研究(?:风格|主题)|research (?:style|theme)/i.test(question) ? "research"
+      : /(?:商务|专业)(?:风格|主题)|(?:professional|business) (?:style|theme)/i.test(question) ? "professional" : undefined;
+  const style = explicitStyle ?? (scenario === "market-report" ? "research" : "professional");
   const namedClient = /(?:为|面向|给|代表)\s*「([^「」\r\n]{2,80})」(?=\s*(?:制作|生成|做|选址|撰写|汇报|[，,。]|$))/u.exec(question)?.[1]
     ?? /(?:为|面向|给|代表)\s*(.{2,70}?(?:银行|保险|券商|企业|基金|业主|集团|投资方))(?=\s*(?:制作|生成|做|选址|撰写|汇报|[，,。]|$))/i.exec(question)?.[1];
 
   return {
     scenario,
     language: explicitLanguage ?? input.language ?? (/[\p{Script=Han}]/u.test(question) ? "zh" : "en"),
-    style,
+    style, ...(explicitStyle ? { explicitStyle } : {}),
     targetClient: namedClient ?? null,
     city: city ?? input.city ?? null,
     submarkets: QUESTION_SUBMARKETS.filter(value =>
@@ -207,7 +210,7 @@ export function mergeProposalInterpretation(
     pages: parsed.scenario ? parsed.pages : defaults.pages,
     targetClient: parsed.targetClient ?? value.targetClient ?? null,
     buildingQueries: parsed.buildingQueries.length ? parsed.buildingQueries : value.buildingQueries ?? [],
-    style: parsed.style === "professional" ? value.style ?? parsed.style : parsed.style,
+    style: !parsed.explicitStyle && parsed.style === "professional" ? value.style ?? parsed.style : parsed.style,
     priorities: [...new Set([...(value.priorities ?? []), ...parsed.priorities, ...(!parsed.scenario ? defaults.priorities : [])])],
     requestedPriorities: [...new Set([...parsed.requestedPriorities, ...(value.priorities ?? [])])],
   };

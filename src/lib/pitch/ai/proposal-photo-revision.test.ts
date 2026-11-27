@@ -115,7 +115,8 @@ it("uses the exact building receipt, rechecks before confirmation and preserves 
   expect(updated.content.blocks[1]).toEqual(page.content.blocks[1]);
   expect(updated.content.sources).toEqual([workSource, lobby.source]);
   expect(updated.scene.elements.find(element => element.editorId === sceneImageId))
-    .toMatchObject({ x: page.scene.elements.find(element => element.editorId === sceneImageId)!.x, mediaAssetId: lobby.image.mediaAssetId });
+    .toMatchObject({ x: page.scene.elements.find(element => element.editorId === sceneImageId)!.x,
+      mediaAssetId: lobby.image.mediaAssetId, fit: "contain" });
   expect(updated.scene.elements.find(element => element.editorId === "object-107"))
     .toEqual(page.scene.elements.find(element => element.editorId === "object-107"));
 });

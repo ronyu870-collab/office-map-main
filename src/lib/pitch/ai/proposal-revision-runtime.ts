@@ -14,6 +14,7 @@ import { compileProposalChartEdits, type ProposalChartChange } from "./proposal-
 import { previewProposalCompetitor, type ProposalCompetitorData, type ReviewProposalHandoff } from "./proposal-competitor-revision";
 import { reviewProposalPhotoReplacement, type ProposalPhotoServices } from "./proposal-photo-revision";
 import { reviewProposalLanguage } from "./proposal-language-revision";
+import { registeredProposalTheme } from "./proposal-theme";
 import { resolveQuarterRevision } from "./proposal-quarter-revision";
 import type { ProposalScenario } from "../integration-contracts";
 import { readProposalEdit, type ProposalRevisionRequest } from "./proposal-edit-intent";
@@ -32,11 +33,6 @@ const scenarioQuestions: Record<Exclude<ProposalScenario, "analysis-briefing">, 
   "building-promotion": "为所选楼宇制作项目推介",
   "site-selection": "为所选楼宇制作选址方案",
 };
-const presentationThemes = {
-  professional: "colliers-corporate-executive",
-  premium: "colliers-premium-portfolio",
-  research: "colliers-market-intelligence",
-} as const;
 const focusTerms: Record<ProposalPriority, string> = {
   cost: "租金与成本", availability: "面积与可租条件", commute: "通勤交通",
   "leasing-strategy": "招商策略", "market-trend": "市场趋势", "building-quality": "楼宇设施",
@@ -213,12 +209,8 @@ export async function planProposalRevision(ctx: PitchContext, input: ProposalRev
         }
         if (operation.kind === "set-style") {
           if (scope !== "document" || base.some(page => page.manual)) return null;
-          const data = z.object({ themes: z.array(z.object({ id: z.string(), current_version: z.number().int().positive() })) })
-            .safeParse(catalog);
-          if (!data.success) return null;
-          const matches = data.data.themes.filter(value => value.id === presentationThemes[operation.style]);
-          if (matches.length !== 1) return null;
-          theme = { id: matches[0].id, version: matches[0].current_version };
+          theme = registeredProposalTheme(catalog, operation.style);
+          if (!theme) return null;
           continue;
         }
         if (operation.kind === "shorten") {
