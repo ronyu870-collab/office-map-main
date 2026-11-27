@@ -20,6 +20,7 @@ import { assertBusinessScope, buildBusinessPages, caseDisplay, validateBusinessP
 import { runPitchDataAdapter, type DataBinding, type PitchDataSnapshot } from './adapter';
 import { documentDataVersion } from './document-version';
 import { reviewedBuildingData } from './outline-data';
+import { readVisualGenerationPage } from '../visual-data/generation';
 const hash=(v:unknown)=>digest(new TextEncoder().encode(JSON.stringify(v)));
 type BusinessGenerationCommand = Generation & { expectedParentVersion?: number };
 type PageGroup = BusinessPage & { capture?: { snapshotIndex:number; contentIndex:number } };
@@ -50,6 +51,12 @@ export async function prepareBusinessProject(ctx:PitchContext,command:BusinessGe
   if(new Set(currentPeriods).size>1)throw new DocumentError('PITCH_PERIOD_MISMATCH','同一 Pitch 的项目对比页面需要采用同一正式季度。');
   for(const part of command.parts) {
     if(part.mode==='dynamic') {
+      if (['competition-map', 'stacking-plan'].includes(part.parameters.templateId)) {
+        if (part.researchAssetId || expectedDataFingerprint || preparedSnapshot || expectedBinding) throw new Error('PITCH_DATA_UNAVAILABLE');
+        const page = await readVisualGenerationPage(ctx, part.parameters, theme, command.scope.city, command.language);
+        groups.push({ ...page, content: part.title ? { ...page.content, title: part.title } : page.content });
+        continue;
+      }
       const snapshot=preparedSnapshot ?? await runPitchDataAdapter(ctx,part.parameters,command.language,compareOutline);
       if (expectedBinding && (documentDataVersion(snapshot.results) !== expectedBinding.dataVersion || snapshot.binding.domain !== expectedBinding.domain ||
         snapshot.binding.permissionRevision !== expectedBinding.permissionRevision || snapshot.binding.policyVersion !== expectedBinding.policyVersion))
@@ -99,7 +106,8 @@ export async function prepareBusinessProject(ctx:PitchContext,command:BusinessGe
     for(const page of buildBusinessPages(recipe,assets,command.language,part.length,part.variant))groups.push({...page,content:part.title?{...page.content,title:part.title}:page.content});
   }
   const { capturedAssets, ...rendered } = await prepareBusinessPages(ctx, groups, theme, mediaRows);
-  const input={...command,action:'business_generate_commit',requestKey:hash(command),bindings,snapshots,recipes,...rendered};
+  const visualSources = getVisualPageReceipts(rendered.slides.map(page => page.content));
+  const input={...command,action:'business_generate_commit',requestKey:hash(visualSources.length ? [command,visualSources] : command),bindings,snapshots,recipes,...rendered};
   checkGenerationSize(input);
   return { input, capturedAssets };
 }
@@ -146,6 +154,7 @@ export async function generateBusinessProject(
   const expectedBinding = typeof evidence === 'function' ? undefined : evidence;
   const { input } = await prepareBusinessProject(ctx, command, expectedAssetVersions, expectedDataFingerprint, compareOutline, undefined, expectedBinding);
   if (typeof evidence === 'function') await evidence(input.snapshots);
+  await resolveReferencedVisualMedia(ctx, getVisualPageReceipts(input.slides.map(page => page.content)), [], 'internal');
   return pitchRpc(ctx,input);
 }
 export async function restoreBusinessProject(ctx:PitchContext,command:{projectId:string;sourceProjectId:string;title:string}) {

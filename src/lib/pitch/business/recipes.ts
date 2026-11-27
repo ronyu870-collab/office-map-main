@@ -31,6 +31,6 @@ export const DYNAMIC_CAPABILITIES = [
   ['lease-representatives','近期代表性租赁成交','available','独立成交权限；确定性按面积排序，并非主观推荐'],
   ['lease-area-distribution','成交面积区间分布','unavailable','现有可信成交查询未提供面积区间分组接口；不另建冲突计算'],
   ['lease-industry-distribution','成交行业分布','available','独立成交权限；笔数或面积、缺失行业及有效样本分别保留'],
-  ['competition-map','竞争项目分布地图','unavailable','尚无 Pitch 对客地图素材授权与统一坐标披露适配器'],
-  ['stacking-plan','Stacking Plan','unavailable','保留原有入口权限；尚无获批 Pitch 导出适配器'],
+  ['competition-map','竞争项目分布地图','available','按当前获权楼宇目录生成内部坐标示意图，保留观察日期和来源'],
+  ['stacking-plan','Stacking Plan','available','仅限获权管理员使用历史来源快照，独立复核导出权限和审计'],
 ].map(([id,name,status,reason])=>({id,name,status,reason,export:'internal-only'}));

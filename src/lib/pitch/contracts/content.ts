@@ -67,11 +67,6 @@ export const assetInputSchema = z.strictObject({
   validFrom: z.iso.date().nullable(), validUntil: z.iso.date().nullable(),
 }).refine(v => !v.validFrom || !v.validUntil || v.validFrom <= v.validUntil, 'Invalid validity period')
   .refine(v => !v.allowClientExport || v.content.disclosure === 'client_approved', 'Client disclosure requires approval')
-  .refine(v => !v.allowExternalAi || v.content.sources.every(source => !source.visual), 'Visual sources are limited to internal rendering')
+  .refine(v => v.content.sources.every(source => !source.visual), 'Visual sources can only be bound by server-side generation')
   .refine(v => !v.content.isTestData || !v.allowClientExport && !v.allowExternalAi, 'Test data cannot be sent to clients or AI');
 export type ContentAssetInput = z.infer<typeof assetInputSchema>;
-
-// Original-source media is attached by the authorized composer and never by
-// a browser submitting an ordinary library asset.
-export const editableAssetInputSchema = assetInputSchema.refine(asset => !asset.content.sources.some(source => source.visual),
-  { message: 'Visual receipts are resolved by the server', path: ['content', 'sources'] });

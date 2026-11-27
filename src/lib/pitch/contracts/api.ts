@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { editableAssetInputSchema, localizedTextSchema, scopeSchema } from './content';
+import { assetInputSchema, localizedTextSchema, scopeSchema } from './content';
 import { templateParametersSchema } from '../templates/registry';
 import { layoutIdSchema, variantSchema } from './scene';
 import { exportFormats } from '../render/format';
@@ -10,7 +10,7 @@ export const pitchCommandSchema = z.discriminatedUnion('action', [
   z.strictObject({ action: z.literal('project_compose'), projectId: z.uuid(), title: z.string().trim().min(1).max(160), parts: z.array(compositionPartSchema).min(1).max(12), themeId: z.string().min(1).max(100), themeVersion: z.number().int().positive() }),
   z.strictObject({ action: z.literal('preview'), projectId: z.uuid(), page: z.number().int().min(0).max(49), editorSlideId: z.uuid().optional(), layoutId: layoutIdSchema.optional(), variant: variantSchema.optional(), themeId: z.string().max(100).optional(), themeVersion: z.number().int().positive().optional() }),
   z.strictObject({ action: z.literal('export_start'), projectId: z.uuid(), exportId: z.uuid(), audience: z.enum(['internal', 'client']), format: formatSchema, page: z.number().int().min(0).max(49).optional(), pages: z.array(z.number().int().min(0).max(49)).min(1).max(50).refine(v => new Set(v).size === v.length).optional() }),
-  z.strictObject({ action: z.literal('asset_save'), assetId: z.uuid(), expectedVersion: z.number().int().min(0), asset: editableAssetInputSchema }),
+  z.strictObject({ action: z.literal('asset_save'), assetId: z.uuid(), expectedVersion: z.number().int().min(0), asset: assetInputSchema }),
   z.strictObject({ action: z.literal('project_create'), projectId: z.uuid(), assetId: z.uuid(), title: z.string().trim().min(1).max(160),
     templateId: z.string().min(1).max(100), templateVersion: z.number().int().positive(), themeId: z.string().min(1).max(100), themeVersion: z.number().int().positive(), parameters: templateParametersSchema }),
   z.strictObject({ action: z.literal('project_theme_upgrade'), sourceProjectId: z.uuid(), projectId: z.uuid(), expectedVersion: z.number().int().positive(), themeId: z.string().min(1).max(100), themeVersion: z.number().int().positive() }),
