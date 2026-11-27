@@ -195,5 +195,5 @@ export async function prepareProposalEdition({ current, baseline, nextPeriod, fr
     settings[page.id] = { origin: 'data' };
   }
   if (!output.length || output.length > 50) throw new Error('PITCH_PAGE_LIMIT');
-  return { pages: output, settings, activeSlide: preserved.get(current.workspace.active_slide ?? '') ?? output[0].id };
+  return { pages: output, settings, preserved, activeSlide: preserved.get(current.workspace.active_slide ?? '') ?? output[0].id };
 }
