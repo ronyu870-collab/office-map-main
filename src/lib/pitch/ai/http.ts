@@ -94,7 +94,7 @@ export async function handleAiRequest(
         const { submitConfirmedProposal } = await import("./proposal-workflow");
         const actor = ctx;
         return reply(await submitConfirmedProposal(c.confirmation, execution.director, execution.workflow, actor.signal,
-          () => authorizedProposalModel(actor, c.confirmation.request)));
+          () => authorizedProposalModel(actor, c.confirmation.request), actor.identity));
       }
       const { generateConfirmedProposal } = await import("./proposal-generation-runtime");
       return reply(await generateConfirmedProposal(ctx, c.confirmation, schedule));

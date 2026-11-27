@@ -6,7 +6,7 @@ import type {
   BusinessDataBinding, PitchContextSnapshot, ProposalBrief, ProposalPlan, SlideIntent, VisualAssetReference,
 } from "../integration-contracts";
 import type { UnifiedProposalContext } from "../proposals/unified-projection";
-import type { ClientRequirement, ProposalPriority, ProposalRequest } from "./proposal-brief";
+import type { ClientRequirement, ProposalInterpretation, ProposalPriority, ProposalRequest } from "./proposal-brief";
 import { interpretProposal, type ProposalModel } from "./proposal-interpretation";
 import {
   resolveProposalBuildings, resolveProposalPeriod, type FormalProposalPeriod, type ProposalBuildingCandidate,
@@ -91,6 +91,7 @@ type PlanState = { status: "clarification" | "unavailable"; code: string; messag
     generation: NonNullable<ComposedProposalPage["generation"]>[] | null;
     queryReceipts?: readonly QueryReceipt[];
     verifySources?: () => Promise<void>;
+    acceptedSlots?: ProposalInterpretation;
   };
 export type ProposalPlanningResult = PlanState & ModelRoute;
 
@@ -290,9 +291,10 @@ export async function directProposal(
   ports: ProposalDirectorPorts,
   signal: AbortSignal,
   model?: ProposalModel,
+  reviewed?: ProposalInterpretation,
 ): Promise<ProposalPlanningResult> {
   signal.throwIfAborted();
-  const { brief: understood, ...route } = await interpretProposal(input, signal, model);
+  const { brief: understood, acceptedSlots, ...route } = await interpretProposal(input, signal, model, reviewed);
   const fail = (code: keyof typeof failureMessages, unavailable = false, candidates?: ProposalBuildingCandidate[]): ProposalPlanningResult => ({
     status: unavailable ? "unavailable" : "clarification", code,
     message: failureMessages[code][understood.language === "en" ? 1 : 0],
@@ -345,7 +347,7 @@ export async function directProposal(
     signal.throwIfAborted();
     const ready = buildPlan(brief, scope, composed, understood.requestedPriorities);
     if (!ready) return fail("no-evidence", true);
-    return { status: "ready", selection: target.selection, ...ready, ...route };
+    return { status: "ready", selection: target.selection, ...ready, ...route, ...(acceptedSlots ? { acceptedSlots } : {}) };
   } catch (error) {
     signal.throwIfAborted();
     if (error instanceof Error && ["PITCH_DENIED", "QUERY_DENIED"].includes(error.message)) {

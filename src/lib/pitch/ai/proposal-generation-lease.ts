@@ -3,6 +3,7 @@ import { stableId } from "../library/extract";
 import { confirmedProposalSchema, type ConfirmedProposal, type ProposalRequest } from "./proposal-brief";
 import type { ProposalDirectorPorts } from "./proposal-director";
 import type { ProposalModel } from "./proposal-interpretation";
+import { openProposalInterpretation } from "./proposal-interpretation-receipt";
 import { assertProposalConfirmation, reviewConfirmedProposal, type ProposalGenerationReceipt, type ReviewedProposal } from "./proposal-workflow";
 
 type PrepareClaim = (ctx: PitchContext, confirmation: unknown, generatedId: string, assemble: () => Promise<void>) =>
@@ -28,6 +29,7 @@ export async function scheduleConfirmedProposal(ctx: PitchContext, input: Confir
   const existing = await lease.lookup(ctx, input, generatedId);
   ctx.signal.throwIfAborted();
   if (!schedule && (!existing || existing.state === "queued")) throw new Error("PITCH_WORKER_UNAVAILABLE");
+  if (!existing) openProposalInterpretation(ctx.identity, input);
   const receipt = existing ?? await lease.start(ctx, input, generatedId);
   ctx.signal.throwIfAborted();
   if (receipt.taskId !== input.taskId || (receipt.state === "completed" && receipt.projectId !== generatedId)) {
@@ -40,7 +42,8 @@ export async function scheduleConfirmedProposal(ctx: PitchContext, input: Confir
         const claimed = confirmedProposalSchema.parse(storedConfirmation);
         if (claimed.projectId !== input.projectId || claimed.taskId !== input.taskId ||
           targetId !== generatedId || proposalGeneratedProjectId(worker, claimed) !== targetId) throw new Error("PITCH_INVALID");
-        const reviewed = await reviewConfirmedProposal(claimed, director(worker), worker.signal, () => model(worker, claimed.request));
+        const reviewed = await reviewConfirmedProposal(claimed, director(worker), worker.signal,
+          () => model(worker, claimed.request), worker.identity);
         await assemble();
         worker.signal.throwIfAborted();
         const generation = await lease.prepare(worker, claimed, reviewed, targetId);

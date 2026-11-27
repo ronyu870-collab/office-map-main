@@ -61,12 +61,14 @@ export const proposalRequestSchema = z.strictObject({
 });
 export type ProposalRequest = z.infer<typeof proposalRequestSchema>;
 
+export const proposalInterpretationReceiptSchema = z.string().max(8192).regex(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/);
 export const confirmedProposalSchema = z.strictObject({
   projectId: z.uuid(),
   expectedVersion: z.number().int().positive(),
   taskId: z.uuid(),
   planId: z.uuid(),
   contextFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  interpretationReceipt: proposalInterpretationReceiptSchema.optional(),
   request: proposalRequestSchema.extend({ projectId: z.uuid() }),
 }).refine(input => input.projectId === input.request.projectId);
 export type ConfirmedProposal = z.infer<typeof confirmedProposalSchema>;
