@@ -614,6 +614,32 @@ describe("Pitch workspace continuous editing", () => {
     });
     expect(writes.some(entry => entry.action === "save")).toBe(false);
   });
+  it("forwards a building-detail handoff to a new pitch with the original quarter and exact workspace scope", async () => {
+    templateCapabilities = ["building-profile"];
+    promotionPlanBuilding = assetId;
+    const user = userEvent.setup();
+    const original = window.location.href;
+    const source = { source: { kind: "buildings", buildingIds: [assetId] }, period: "2026-Q2" };
+    window.history.replaceState(null, "", "#add-to-pitch=" + encodeURIComponent(JSON.stringify(source)));
+    try {
+      render(<PitchWorkspace />);
+      const handoff = await screen.findByRole("dialog", { name: "加入 Pitch" });
+      await user.click(within(handoff).getByRole("button", { name: "新建楼宇推介" }));
+      const promotion = await screen.findByRole("dialog", { name: "新建楼宇推介" });
+      await within(promotion).findByText("写字楼项目介绍");
+      expect(writes.find(entry => entry.action === "proposal_plan")?.input).toMatchObject({
+        buildingIds: [assetId], period: "2026-Q2",
+      });
+      expect(writes.some(entry => entry.action === "create" || entry.action === "add_to_pitch")).toBe(false);
+      await user.click(within(promotion).getByRole("button", { name: "确认并生成 Pitch" }));
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "新建楼宇推介" })).not.toBeInTheDocument());
+      const created = writes.find(entry => entry.action === "create")!;
+      expect(created.scope).toEqual({ organizationId: "test", region: "test", city: "test", businessLine: "test" });
+      expect(created.context).toMatchObject({ buildingIds: [assetId], period: "2026-Q2" });
+    } finally {
+      window.history.replaceState(null, "", original);
+    }
+  });
   it.each([
     ["competition-map", "添加区位图", "添加历史堆叠图"],
     ["stacking-plan", "添加历史堆叠图", "添加区位图"],

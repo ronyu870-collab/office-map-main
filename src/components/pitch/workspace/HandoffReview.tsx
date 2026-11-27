@@ -40,6 +40,7 @@ type Target = { mode: "append"; expectedVersion: number } | ({
 type Submit = { action: "add_to_pitch"; handoff: AddToPitch; target: Target; fingerprint: string; taskId: string };
 
 export type HandoffDestination = { id: string; title: string };
+export type BuildingPromotionSelection = { buildingId: string; scope: PitchScope; language: "zh" | "en"; period: string };
 
 function matchesSourceScope(source: AddToPitch["source"], preview: Ready) {
   const same = (left: string[], right: string[]) => left.length === right.length &&
@@ -59,12 +60,13 @@ function matchesLeaseScope(source: PitchLeaseSearchSource, preview: Ready) {
     parameters.chart === (details ? "table" : "bar") && parameters.measure === (source.view === "industry-area" ? "area" : "count");
 }
 
-export function HandoffReview({ source, call, grants, theme, destination, onOpen, onClose }: {
+export function HandoffReview({ source, call, grants, theme, destination, onPlanBuilding, onOpen, onClose }: {
   source: PitchHandoffNavigation;
   call: Call;
   grants: PitchScope[];
   theme?: { id: string; current_version: number };
   destination?: HandoffDestination;
+  onPlanBuilding?: (selection: BuildingPromotionSelection) => void;
   onOpen: (id: string) => Promise<void>;
   onClose: () => void;
 }) {
@@ -97,6 +99,10 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
   const canCreate = !!grants[scopeIndex] && !!theme && eligibleForSource;
   const validPeriod = !period || outlineQuarter.safeParse(period).success;
   const reviewOnOpen = !!destination && (!!source.period || !!lease);
+  const selectedScope = grants[scopeIndex];
+  const singleBuilding = source.source.kind === "buildings" && source.source.buildingIds.length === 1 ? source.source.buildingIds[0] : undefined;
+  const canPlanBuilding = onPlanBuilding && singleBuilding && !destination && !projectId && selectedScope &&
+    grants.filter(grant => grant.city.normalize("NFKC") === selectedScope.city.normalize("NFKC")).length === 1;
 
   useEffect(() => {
     if (destination) return;
@@ -246,13 +252,17 @@ export function HandoffReview({ source, call, grants, theme, destination, onOpen
     ? `${reviewedAnalysisStart} 至 ${reviewedPeriod}` : reviewedPeriod;
 
   return <Dialog open onOpenChange={value => { if (!value && !busy) onClose(); }}
-    title="加入 Pitch" size="md" footer={
-      review ? <Button disabled={busy === "review" || (!projectId && (!title.trim() || !canCreate))}
+    title="加入 Pitch" size="md" footer={<>
+      {canPlanBuilding && <Button variant="ghost" disabled={!!busy || submitted || !validPeriod}
+        onClick={() => onPlanBuilding({ buildingId: singleBuilding, scope: selectedScope, language: source.language ?? "zh", period })}>
+        新建楼宇推介
+      </Button>}
+      {review ? <Button disabled={busy === "review" || (!projectId && (!title.trim() || !canCreate))}
         loading={busy === "submit"} onClick={() => void submit()}>
         {submitted ? "重新查询或继续提交" : projectId ? "确认并追加" : "确认并创建"}
       </Button> : <Button disabled={(!projectId && !canCreate) || !validPeriod}
-        loading={busy === "review"} onClick={() => void checkSource()}>核对来源</Button>
-    }>
+        loading={busy === "review"} onClick={() => void checkSource()}>核对来源</Button>}
+    </>}>
     <div className={`${styles.studio} ${styles.form}`}>
       <div>
         <p>{sourceLabel}</p>

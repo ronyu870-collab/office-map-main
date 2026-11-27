@@ -59,7 +59,7 @@ import {
 import { TemplatePicker, type Template } from "./workspace/TemplatePicker";
 import { TemplateParameters, BuildingPicker, defaultDynamicParameters } from "./workspace/Parameters";
 import { readPitchHandoff, type PitchHandoffNavigation } from "./PitchHandoffLink";
-import { HandoffReview, type HandoffDestination } from "./workspace/HandoffReview";
+import { HandoffReview, type BuildingPromotionSelection, type HandoffDestination } from "./workspace/HandoffReview";
 import { BuildingLeaseReview } from "./workspace/BuildingLeaseReview";
 import { LayoutVariants } from "./workspace/LayoutVariants";
 import { DataRefresh } from "./workspace/DataRefresh";
@@ -207,7 +207,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
   const [dataBuildingsOpen, setDataBuildingsOpen] = React.useState(false);
   const [projectSettingsOpen, setProjectSettingsOpen] = React.useState(false);
   const [buildingDataSelection, setBuildingDataSelection] = React.useState<{ projectId: string; ids: string[] }>();
-  const [buildingPromotion, setBuildingPromotion] = React.useState<{ buildingId: string; scope: PitchScope; language: "zh" | "en"; period: string }>();
+  const [buildingPromotion, setBuildingPromotion] = React.useState<BuildingPromotionSelection>();
   const [refreshSuggestion, setRefreshSuggestion] = React.useState<{ projectId: string; period: string }>();
   const suggestedPeriod = refreshSuggestion && refreshSuggestion.projectId === detail?.project.id
     ? refreshSuggestion.period : undefined;
@@ -783,8 +783,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
     promotionGrant.region === detail.project.region && promotionGrant.businessLine === detail.project.business_line
     ? { organizationId: detail.project.organization_id, region: detail.project.region,
       city: detail.project.city, businessLine: detail.project.business_line } : undefined;
-  const canPlanBuilding = !!promotionScope && buildingDataIds.length === 1 &&
-    templates.some(template => template.kind === "dynamic" && template.id === "building-profile");
+  const buildingProfileAvailable = templates.some(template => template.kind === "dynamic" && template.id === "building-profile");
+  const canPlanBuilding = !!promotionScope && buildingDataIds.length === 1 && buildingProfileAvailable;
   const promotionQuestion = buildingPromotion?.language === "en"
     ? "Create a property showcase for the selected building" : "为所选楼宇制作项目推介";
   const slidesForDisplay = draft?.pages.map((p) => {
@@ -2052,7 +2052,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
       )}
       {handoff && catalog && <HandoffReview source={handoff} call={call} theme={catalog.themes[0]} destination={handoff.destination}
         grants={grants.flatMap(scope => scope.region && scope.city && scope.businessLine
-          ? [{ ...scope, region: scope.region, city: scope.city, businessLine: scope.businessLine }] : [])}
+          ? [{ organizationId: scope.organizationId, region: scope.region, city: scope.city, businessLine: scope.businessLine }] : [])}
+        onPlanBuilding={buildingProfileAvailable ? selection => { setHandoff(null); setBuildingPromotion(selection); } : undefined}
         onOpen={open} onClose={() => setHandoff(null)} />}
       {photoTarget && detail && photoTarget.projectId === detail.project.id && photoTarget.version === detail.project.version &&
         photoTarget.pageId === active && <PhotoReplacementPicker key={`${photoTarget.pageId}:${photoTarget.objectId}:${photoTarget.version}`}
