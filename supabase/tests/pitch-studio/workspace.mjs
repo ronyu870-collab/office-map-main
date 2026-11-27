@@ -731,6 +731,14 @@ try {
         page: 0,
         audience: "internal",
       };
+      const png = { ...c, page: 1, exportId: randomUUID() };
+      await render.prepareRenderExport(ordinary, png);
+      await render.runRenderExport(ordinary, png);
+      const image = Buffer.from((await render.downloadArtifact(ordinary, png)).bytes);
+      assert.equal(image.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+      assert.equal(image.subarray(12, 16).toString("ascii"), "IHDR");
+      assert.equal(image.readUInt32BE(16), 2560);
+      assert.ok(Math.abs(image.readUInt32BE(20) - 1440) <= 1);
       await render.prepareRenderExport(ordinary, c);
       deck = await workspace.saveWorkspace(
         ordinary,
