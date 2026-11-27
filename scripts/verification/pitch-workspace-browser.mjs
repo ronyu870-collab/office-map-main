@@ -742,15 +742,20 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           const oldCandidate = replacementCandidates.find(candidate => selected.includes(candidate.id));
           const newCandidate = replacementCandidates.find(candidate => !selected.includes(candidate.id));
           assert.ok(oldCandidate && newCandidate);
+          const expected = [...selected.filter(id => id !== oldCandidate.id), newCandidate.id];
           await button("数据").click();
-          await page.getByText("查找楼宇数据", { exact: true }).click();
-          await page.getByRole("button", { name: "移除" + oldCandidate.name, exact: true }).click();
-          await page.getByLabel("搜索楼宇", { exact: true }).fill(newCandidate.name);
-          await button(newCandidate.name).click();
+          await page.getByText("项目设置", { exact: true }).click();
+          const projectBuildings = page.getByRole("group", { name: "关联项目", exact: true });
+          const search = projectBuildings.getByLabel("搜索楼宇", { exact: true });
+          await search.fill(oldCandidate.name);
+          await projectBuildings.getByRole("button", { name: "移除" + oldCandidate.name, exact: true }).click();
+          await search.fill(newCandidate.name);
+          await projectBuildings.getByRole("button", { name: newCandidate.name, exact: true }).click();
           const [savedCandidates] = await Promise.all([
             waitForPitchCommand(page, "/api/intelligence/pitch/workspace", "save"), button("保存").click(),
           ]);
           assert.ok(savedCandidates.ok());
+          assert.deepEqual((await savedCandidates.json()).workspace.context.buildingIds, expected);
           await button("提案助手").click();
           const question = "制作CBD五个甲级写字楼的选址对比。";
           await page.getByLabel("需要制作什么页面？").fill(question);
@@ -759,7 +764,6 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
           ]);
           const replacement = await replacementHttp.json();
           assert.ok(replacementHttp.ok() && replacement.status === "ready", replacement.error ?? replacement.message ?? replacement.status);
-          const expected = [...selected.filter(id => id !== oldCandidate.id), newCandidate.id];
           assert.deepEqual(replacement.brief.buildingIds, expected);
           const child = await confirmFlagshipProposal(page, button("确认并生成 Pitch"));
           const changed = await readProject(child);
