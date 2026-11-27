@@ -2,6 +2,7 @@
 
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { proposalInterpretationReceiptSchema } from "@/src/lib/pitch/ai/proposal-brief";
 import { outlineQuarter } from "@/src/lib/pitch/workspace/protocol";
 import { Button } from "@/src/components/ui";
 import type { Call } from "./client";
@@ -12,6 +13,7 @@ const projectThemeSchema = z.object({ id: z.string().min(1).max(100), version: z
 const responseSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("ready"),
+    interpretationReceipt: proposalInterpretationReceiptSchema.optional(),
     plan: z.object({
       id: z.uuid(),
       title: z.string(),
@@ -143,7 +145,8 @@ export function ProposalPreview({ call, projectId, city, question, language, per
   async function generate() {
     if (!result || visible?.status !== "ready" || disabled || working || request.current) return;
     const { id: planId, contextFingerprint } = visible.plan;
-    const key = JSON.stringify([inputKey, planId, contextFingerprint]);
+    const { interpretationReceipt } = visible;
+    const key = JSON.stringify([inputKey, planId, contextFingerprint, interpretationReceipt]);
     if (submission.current?.key !== key) submission.current = {
       key, taskId: crypto.randomUUID(), sourceId: projectId ?? crypto.randomUUID(),
     };
@@ -169,7 +172,8 @@ export function ProposalPreview({ call, projectId, city, question, language, per
         const receipt = receiptSchema.parse(await call({
           action: "proposal_generate",
           confirmation: { taskId: entry.taskId, projectId: source.id, expectedVersion: source.version,
-            planId, contextFingerprint, request: { ...result.input, projectId: source.id } },
+            planId, contextFingerprint, ...(interpretationReceipt ? { interpretationReceipt } : {}),
+            request: { ...result.input, projectId: source.id } },
         }, true, "ai", current.signal));
         if (current.signal.aborted) return;
         if (receipt.taskId !== entry.taskId) throw new Error("生成任务编号不匹配，请重新查询。");
