@@ -93,6 +93,15 @@ type Preview = StandardPreview | z.infer<typeof photoReviewSchema> | LayoutRevie
 type Plan = Extract<Preview, { plan: unknown }>;
 const chartLabels = { bar: "条形图", column: "柱状图", line: "折线图" } as const;
 
+function wholeDeckRequest(question: string) {
+  const phrase = question.normalize("NFKC").replace(/\s+/gu, "").replace(/[。.!！]$/u, "");
+  if (/^(?:请)?(?:把|将)?(?:(?:所有|全部)(?:图片|照片)|(?:图片|照片)(?:全部|都|统一))(?:换成|替换为|改成)楼宇(?:外观|外景|外立面)(?:照片|图片)?$/u.test(phrase))
+    return "整套提案换用楼宇外立面照片";
+  if (/^(?:请)?(?:把|将)?(?:整套|全套)(?:PPT|提案|幻灯片)(?:改得|做得|变得)(?:更|更加)?简洁$/iu.test(phrase))
+    return "整套提案精简";
+  return undefined;
+}
+
 function removedPages(plan: Plan | undefined, slides: WorkspaceDetail["slides"]) {
   if (plan?.scope !== "document") return [];
   const retained = new Set(plan.plan.pages.map(page => page.id));
@@ -213,9 +222,10 @@ export function ProposalRevision({ call, detail, question, active, selected, obj
           if (!controller.signal.aborted) setReview({ key, value: result });
           return;
         }
+        const deckRequest = wholeDeckRequest(question);
         const input = {
-          projectId, expectedVersion, question: question.trim(), currentPageId: active,
-          pageIds: selected, objectIds,
+          projectId, expectedVersion, question: deckRequest ?? question.trim(), currentPageId: active,
+          pageIds: deckRequest ? [] : selected, objectIds: deckRequest ? [] : objectIds,
           ...(competitorBuildingId ? { competitorBuildingId } : {}),
           ...(languageTexts ? { languageTexts } : {}),
         };

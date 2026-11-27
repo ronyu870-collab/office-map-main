@@ -835,6 +835,15 @@
   overflow-wrap: anywhere;
 }
 
+.photoThumbnail {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-block-start: 8px;
+  object-fit: contain;
+  background: var(--pitch-workspace, var(--cd-color-workspace));
+}
+
 .revisionImage {
   display: block;
   width: 100%;

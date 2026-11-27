@@ -4,7 +4,12 @@ import { afterEach, expect, it, vi } from "vitest";
 import { layoutFixture } from "@/src/lib/pitch/fixtures/layouts";
 import { workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { ProposalRevision } from "./ProposalRevision";
+import { PhotoReplacementPicker } from "./PhotoReplacementPicker";
 import { WorkspaceError, type Call } from "./client";
+
+vi.mock("./PhotoPreviewImage", () => ({
+  PhotoPreviewImage: ({ caption }: { caption: string }) => <span>{caption}</span>,
+}));
 
 afterEach(cleanup);
 const projectId = "11111111-1111-4111-8111-111111111111";
@@ -335,4 +340,55 @@ it("collects a missing translation before reviewing and applying a language chan
   await user.click(screen.getByRole("button", { name: "确认语言切换" }));
   await waitFor(() => expect(onApplied).toHaveBeenCalledWith(updated, version));
   expect(call.mock.calls[2][0]).toEqual(command);
+});
+
+it("queries the exact canvas object and confirms the selected replacement category", async () => {
+  const workspace = photoWorkspace(exterior);
+  const saved = photoWorkspace(lobby, version + 1);
+  const call = vi.fn(async (command: Record<string, unknown>) => {
+    if (command.action === "proposal_apply_photo") return { status: "photo-applied", workspace: saved };
+    const input = command.input as typeof photoInput;
+    if (input.question !== photoQuestion) return { status: "unavailable", message: "请选择已登记的图片类型。" };
+    return { ...photoReply, command: { ...photoCommand, confirmation: { input, fingerprint } } };
+  });
+  const onApplied = vi.fn();
+  const onClose = vi.fn();
+  const user = userEvent.setup();
+  render(<PhotoReplacementPicker call={call as unknown as Call} detail={workspace} pageId={pageId}
+    objectId={selectedPhoto} onApplied={onApplied} onClose={onClose} />);
+  expect(await screen.findByText("请选择已登记的图片类型。")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "确认换图" })).not.toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText("备选照片类型"), "lobby");
+  expect(await screen.findByText(lobby.caption)).toBeInTheDocument();
+  expect(screen.getByText("备选照片预览")).toBeInTheDocument();
+  expect(call.mock.calls[1][0]).toEqual({ action: "proposal_revision", input: photoInput });
+  expect(onApplied).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "确认换图" }));
+  await waitFor(() => expect(onApplied).toHaveBeenCalledWith(saved, version));
+  expect(call.mock.calls[2][0]).toEqual(photoCommand);
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
+it("checks an explicit photo category before offering confirmation", async () => {
+  const call = vi.fn(async (command: Record<string, unknown>) => ({
+    ...photoReply, command: { ...photoCommand, confirmation: { input: command.input, fingerprint } },
+  }));
+  render(<PhotoReplacementPicker call={call as unknown as Call} detail={photoWorkspace(exterior)} pageId={pageId}
+    objectId={selectedPhoto} onApplied={vi.fn()} onClose={vi.fn()} />);
+  await screen.findByRole("button", { name: "确认换图" });
+  await userEvent.selectOptions(screen.getByLabelText("备选照片类型"), "exterior");
+  expect(await screen.findByText("无法核对这张备选照片，请重新查询。")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "确认换图" })).not.toBeInTheDocument();
+});
+
+it.each([
+  ["图片全部换成楼宇外观", "整套提案换用楼宇外立面照片"],
+  ["把整套PPT改得更简洁", "整套提案精简"],
+])("keeps an explicit deck request at document scope even while an object is selected", async (text, command) => {
+  const { user, call } = setup({ status: "unavailable", message: "没有适用的修改。" }, text, undefined, photoWorkspace(exterior), [selectedPhoto]);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  expect(await screen.findByText("没有适用的修改。")).toBeInTheDocument();
+  expect(call.mock.calls[0][0]).toEqual({ action: "proposal_revision", input: {
+    projectId, expectedVersion: version, question: command, currentPageId: pageId, pageIds: [], objectIds: [],
+  } });
 });
