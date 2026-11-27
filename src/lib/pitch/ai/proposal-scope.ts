@@ -22,6 +22,15 @@ type ResolvedBuildings = {
 const matchKey = (text: string) => text.normalize("NFKC").toLocaleLowerCase("en").replace(/[\s·・]/g, "");
 const gradeA = (text: string | null | undefined) => !!text && /^(?:甲级(?:写字楼)?|[aA]|[gG]rade\s*[aA])$/.test(text.trim());
 
+export function findNamedProposalBuildings(phrase: string, candidates: readonly ProposalBuildingCandidate[]) {
+  const query = matchKey(phrase);
+  if (!query) return [];
+  const distinct = [...new Map(candidates.map(building => [building.id, building])).values()];
+  const exact = distinct.filter(building => [building.name, ...(building.aliases ?? [])].some(name => matchKey(name) === query));
+  return exact.length ? exact : distinct.filter(building => query.length >= 3 &&
+    [building.name, ...(building.aliases ?? [])].some(name => matchKey(name).includes(query)));
+}
+
 export function resolveProposalBuildings(
   brief: ProposalBrief,
   authorizedCandidates: readonly ProposalBuildingCandidate[],
@@ -42,11 +51,7 @@ export function resolveProposalBuildings(
     resolved.push(candidate);
   }
   for (const phrase of brief.buildingQueries) {
-    const query = matchKey(phrase);
-    if (!query) return { status: "needs-selection", code: "missing-building" };
-    const exact = inScope.filter(building => [building.name, ...(building.aliases ?? [])].some(name => matchKey(name) === query));
-    const candidates = exact.length ? exact : inScope.filter(building => query.length >= 3 &&
-      [building.name, ...(building.aliases ?? [])].some(name => matchKey(name).includes(query)));
+    const candidates = findNamedProposalBuildings(phrase, inScope);
     const selected = candidates.filter(candidate => brief.buildingIds.includes(candidate.id));
     if (selected.length === 1) continue;
     if (candidates.length > 1) return { status: "needs-selection", code: "ambiguous-building", candidates: candidates.slice(0, 10) };

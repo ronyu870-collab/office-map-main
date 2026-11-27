@@ -14,6 +14,7 @@ export const proposalRevisionRequestSchema = z.strictObject({
   expectedVersion: z.number().int().positive(),
   question: z.string().trim().min(1).max(1000),
   currentPageId: z.uuid().optional(),
+  competitorBuildingId: z.uuid().optional(),
   pageIds: pageIds.default([]),
   objectIds: objectIds.default([]),
 });
@@ -65,9 +66,12 @@ function editOperation(question: string, literal: string): ProposalEditIntent | 
   if ((periods.length === 1 && /更新|改用|切到|换成|切换|改为|改成|update|switch/i.test(question)) || /(?:更新|改用|切到|换成|切换|update|switch).{0,20}(?:最新|latest).{0,10}(?:季度|quarter)/i.test(question)) {
     return { kind: "set-period", period: periods[0] ?? null };
   }
-  const competitor = /(?:增加|添加|加入|补充|add)\s*(?:(?:一个|一栋|真实|real)\s*)?(?:(?:竞品|楼宇|competitor)\s*[为是:：]?\s*)?(.{2,80}?)\s*(?:(?:作为|为|到|加入)(?:竞品|对比)|(?:竞品|competitor)|$)/i.exec(question);
-  if (competitor && /竞品|对比|competitor/.test(question)) {
-    const buildingQuery = competitor[1].replace(/^[「“"]|[」”"。.!！]$/g, "").trim();
+  const namedBeforeVerb = /(?:把|将)\s*([^,，。]{2,80}?)\s*(?:加入|添加到)\s*(?:目前的?|当前的?)?(?:竞品|对比)/iu.exec(question)?.[1];
+  const quotedCompetitor = /(?:新增|增加|添加|加入|补充|追加|add).{0,18}?[「“"]([^」”"]{2,80})[」”"]/i.exec(question)?.[1];
+  const competitor = /(?:新增|增加|添加|加入|补充|追加|\badd\b)\s*(?:(?:一个|一栋|真实|real)\s*)?(?:竞品\s*[为是:：]?\s*|(?:楼宇|competitor)(?:\s+|[:：]\s*))?(.{2,80}?)\s*(?:(?:作为|为|到|加入)(?:竞品|对比)|\bas (?:a )?competitor\b|\bto (?:the )?comparison\b|竞品|\bcompetitor\b|$)/i.exec(question);
+  const competitorPhrase = namedBeforeVerb ?? quotedCompetitor ?? competitor?.[1];
+  if (competitorPhrase && /竞品|对比|competitor|comparison/i.test(question)) {
+    const buildingQuery = competitorPhrase.replace(/^[「“"]|[」”"。.!！]$/g, "").trim();
     return buildingQuery.length >= 2 ? { kind: "add-competitor", buildingQuery } : null;
   }
   if (/(?:换|替换|改用|更新|replace|swap).{0,35}(?:照片|图片|实景|photo)/i.test(question)) {
