@@ -7,12 +7,13 @@ import { pitchRpc, type PitchContext } from "@/src/lib/pitch/data/store";
 import { STUDIO_THEME } from "@/src/lib/pitch/design/theme";
 import { layoutFixture } from "@/src/lib/pitch/fixtures/layouts";
 import { layoutSlides } from "@/src/lib/pitch/layout/engine";
+import { LayoutError } from "@/src/lib/pitch/layout/metrics";
 import { numberDeckPages } from "@/src/lib/pitch/layout/pagination";
 import { STUDIO_TEMPLATE } from "@/src/lib/pitch/templates/registry";
 import { saveSchema, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import { saveWorkspace } from "@/src/lib/pitch/workspace/workflow";
 import { ProposalRevision } from "./ProposalRevision";
-import type { Call } from "./client";
+import { WorkspaceError, type Call } from "./client";
 
 vi.mock("@/src/lib/pitch/data/store", async original => ({
   ...await original<typeof import("@/src/lib/pitch/data/store")>(), pitchRpc: vi.fn(),
@@ -24,9 +25,10 @@ const projectId = id(30);
 const ctx = { signal: new AbortController().signal } as PitchContext;
 const selected = [id(2), id(3)];
 
-async function fixture() {
-  const content = layoutFixture("two-columns");
-  const [scene] = await layoutSlides(content, STUDIO_THEME, "two-columns");
+async function fixture(layout = "two-columns") {
+  const source = layoutFixture(layout);
+  const content = { ...source, blocks: source.blocks.filter(block => block.kind !== "image") };
+  const [scene] = await layoutSlides(content, STUDIO_THEME, layout);
   return workspaceDetailSchema.parse({
     project: { id: projectId, version: 8, title: "选址提案", theme_id: STUDIO_THEME.id, theme_version: 2,
       organization_id: "test", region: "华北", city: "北京", business_line: "office" },
@@ -39,7 +41,7 @@ async function fixture() {
   });
 }
 
-function setup(detail: WorkspaceDetail, question: string) {
+function setup(detail: WorkspaceDetail, question: string, identicalCoverVariant = false) {
   let stored = detail;
   vi.mocked(pitchRpc).mockImplementation(async (_ctx, input) => {
     if (input.action === "workspace_get") return stored;
@@ -58,7 +60,16 @@ function setup(detail: WorkspaceDetail, question: string) {
     const context = { ...ctx, signal: signal ?? ctx.signal };
     if (path === "") {
       const command = pitchCommandSchema.parse(input);
-      if (command.action === "preview") return previewPage(context, command);
+      if (command.action === "preview") {
+        try {
+          const result = await previewPage(context, command);
+          if (!identicalCoverVariant || command.layoutId !== "cover") return result;
+          return { ...result, scene: { ...result.scene, elements: stored.slides[command.page].scene.elements } };
+        } catch (error) {
+          if (error instanceof LayoutError) throw new WorkspaceError(error.message, 422);
+          throw error;
+        }
+      }
     }
     if (path === "workspace") return saveWorkspace(context, saveSchema.parse(input));
     throw new Error("Unexpected request " + input.action);
@@ -96,6 +107,13 @@ it("previews only the current page for a direct change-design request", async ()
   await user.click(screen.getByRole("button", { name: "预览修改" }));
   expect(await screen.findByRole("img", { name: "第 1 页新布局预览" })).toBeInTheDocument();
   expect(call.mock.calls.map(([input]) => input.page)).toEqual([0]);
+});
+
+it("continues to a compatible layout when a cover variation renders identical geometry", async () => {
+  const { user, call } = setup(await fixture("cover"), "换一种设计", true);
+  await user.click(screen.getByRole("button", { name: "预览修改" }));
+  expect(await screen.findByRole("img", { name: "第 1 页新布局预览" })).toBeInTheDocument();
+  expect(call.mock.calls.map(([input]) => input.layoutId)).toEqual(["cover", "image-text", "two-columns"]);
 });
 
 it("keeps grouped or positioned objects intact and withholds a partial change for the selected range", async () => {
