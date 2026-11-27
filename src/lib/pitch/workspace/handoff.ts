@@ -70,8 +70,10 @@ async function prepareHandoff(ctx: PitchContext, input: Handoff, stackingPort?: 
   const buildingIds = source.kind === 'buildings' ? source.buildingIds : lease?.buildingIds ?? resolved?.buildingIds ?? [];
   const submarkets = source.kind === 'submarket' ? [source.key] : lease?.submarkets ?? resolved?.submarkets ?? [];
   const language = input.language ?? current?.workspace.context.language ?? 'zh';
+  const archivedPeriod = resolved?.period && `${resolved.period.year}-Q${resolved.period.quarter}`;
+  if (archivedPeriod && input.period && input.period !== archivedPeriod) throw new Error('PITCH_HANDOFF_CHANGED');
   const periodKey = lease ? '' : research ? research.edition.replace('Q', '-Q')
-    : input.period || (resolved?.period ? `${resolved.period.year}-Q${resolved.period.quarter}` : current?.workspace.context.period);
+    : archivedPeriod || input.period || current?.workspace.context.period;
   if (!lease && !periodKey) return { status: 'period_required' as const, buildingIds, submarkets, language };
   const period = quarterSchema.parse(lease
     ? { year: Number(lease.to.slice(0, 4)), quarter: Math.ceil(Number(lease.to.slice(5, 7)) / 3) }
