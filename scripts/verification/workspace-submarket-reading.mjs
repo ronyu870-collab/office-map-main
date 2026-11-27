@@ -70,7 +70,9 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   const metrics=overview.getByRole('region',{name:'市场核心指标',exact:true});
   const composition=overview.getByRole('region',{name:'楼宇构成',exact:true});
   await panel.getByText('国际商务集聚区',{exact:true}).waitFor();
-  await overview.getByText('区域介绍与已收录办公项目。',{exact:true}).waitFor();
+  await panel.getByRole('tab',{name:'区域画像',exact:true}).click();
+  await panel.getByRole('tabpanel',{name:'区域画像',exact:true}).getByText('区域介绍与已收录办公项目。',{exact:true}).waitFor();
+  await overviewTab.click();
   await composition.getByText('甲级写字楼',{exact:true}).waitFor();
   await composition.getByText('乙级写字楼',{exact:true}).waitFor();
   assert.equal(await overview.locator('canvas').count(),0,'overview does not duplicate the trend charts');
@@ -150,7 +152,7 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
       const metric=fullMetrics.getByText(label,{exact:true}).locator('..');
       await metric.scrollIntoViewIfNeeded();
       const box=await metric.boundingBox(), reading=await scroller.boundingBox();
-      assert.ok(box.y>=reading.y-1 && box.y+box.height<=reading.y+reading.height+1,'expanded reading exposes each full metric and its sample note');
+      assert.ok(box.y>=reading.y-1 && box.y+box.height<=reading.y+reading.height+1,'expanded reading exposes each full metric');
     }
   }
 
@@ -194,6 +196,15 @@ export async function verifySubmarketReading(page,{width,base,evidencePrefix='ma
   await building.getByRole('button',{name:'返回子市场研究',exact:true}).click();
   await projects.waitFor();
   assert.equal(await projectsTab.getAttribute('aria-selected'),'true','building round trip preserves the representative projects tab');
+
+  const methodology = panel.locator('.map-methodology-trigger > summary');
+  await methodology.scrollIntoViewIfNeeded();
+  await methodology.press('Enter');
+  const methodologyPanel=page.getByRole('region',{name:'数据与统计口径',exact:true});
+  await methodologyPanel.getByRole('heading',{name:'当前筛选的存量',exact:true}).waitFor();
+  await page.keyboard.press('Escape');
+  await page.locator('.map-disclosure-content').waitFor({state:'detached'});
+  assert.ok(await methodology.evaluate(el=>el===document.activeElement),'research methodology closes without leaving the reading workspace');
 
   await visitAllProjects();
   await projects.waitFor();

@@ -141,18 +141,17 @@ export function SubmarketRepresentativeProjects({ buildings, submarket, onOpen, 
     : selectRepresentativeProjects(buildings, submarket), [buildings, submarket, curatedExamples]);
   const heading = React.useId();
   return (
-    <section aria-labelledby={heading} className="submarket-research submarket-projects rounded-[9px] border border-[#d9e0e8] bg-white px-4 py-3">
-      <h3 id={heading} className="m-0 text-[14px] font-semibold text-[#172033]">代表性项目</h3>
-      <p className="mb-0 mt-1 text-[14px] leading-5 text-[#667085]">{curatedExamples.length ? '按区域研究选取，跟随当前项目筛选。' : '从当前筛选内可定位的甲乙级项目选取，不作为推荐排名。'}</p>
-      {!examples.length ? <p className="mb-0 mt-3 text-[14px] text-[#667085]">当前筛选内暂无可定位的甲乙级项目。</p> : (
-        <ul className="submarket-project-grid m-0 mt-2 grid list-none gap-x-5 p-0">
+    <section aria-labelledby={heading} className="submarket-research submarket-projects">
+      <h3 id={heading} className="submarket-project-heading">代表性项目</h3>
+      {!examples.length ? <p className="submarket-project-empty">当前筛选内暂无代表项目。</p> : (
+        <ul className="submarket-project-grid">
           {examples.map(({ project, role, reason, detailReason, sourceIds }) => (
-            <li key={project.id} className="min-w-0 border-t border-[#d9e0e8] pb-3">
-              <button type="button" onClick={() => onOpen(project.id)} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-[4px] text-left text-[14px] font-semibold text-[#003e7e] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]">
-                <span className="min-w-0 break-words">{project.name}</span><ChevronRight size={15} aria-hidden="true" className="shrink-0" />
+            <li key={project.id} className="submarket-project-row">
+              <button type="button" onClick={() => onOpen(project.id)} className="submarket-project-link">
+                <span className="min-w-0 break-words">{project.name}</span><ChevronRight size={16} aria-hidden="true" className="shrink-0" />
               </button>
               {!compact && <ProjectMetrics project={project} />}
-              <p className="m-0 text-[14px] leading-5 text-[#667085]"><span className="font-semibold text-[#172033]">{role}</span>{role === `${gradeNames[project.grade]}样本` ? '' : ` · ${gradeNames[project.grade]}`} · {compact ? reason : detailReason ?? reason}</p>
+              <p className="submarket-project-reason"><span className="submarket-project-role">{role}</span>{role === `${gradeNames[project.grade]}样本` ? '' : ` · ${gradeNames[project.grade]}`} · {compact ? reason : detailReason ?? reason}</p>
               {!compact && sourceIds ? sources?.filter(source => sourceIds.includes(source.id)).map(source =>
                 <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" className="submarket-link-action">{source.title}</a>) : null}
               {!compact && <ApprovedProjectPhotos project={project} />}
@@ -169,7 +168,7 @@ function ProjectMetrics({ project }: { project: Project }) {
   const metrics = [period];
   if (rent >= 0) metrics.push(`净有效租金 ${number.format(rent)} 元/㎡/月`);
   if (vacancy >= 0 && vacancy <= 1) metrics.push(`空置率 ${number.format(vacancy * 100)}%`);
-  return metrics.length > 1 ? <p className="m-0 text-[14px] leading-5 text-[#172033]">{metrics.join(' · ')}</p> : null;
+  return metrics.length > 1 ? <p className="submarket-project-metrics">{metrics.join(' · ')}</p> : null;
 }
 
 function ApprovedProjectPhotos({ project }: { project: Project }) {

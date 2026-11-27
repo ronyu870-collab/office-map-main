@@ -353,7 +353,7 @@ describe('complete list with the existing map workbench', () => {
     controller.fetchMapData.mockResolvedValue(rows);
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList();
-    expect(within(list).getAllByText('各楼宇数据季度可能不同')).toHaveLength(1);
+    expect(within(list).getAllByText('混合季度')).toHaveLength(1);
     expect(within(list).queryByText(/2026Q[23]|数据期间按楼宇标注/)).not.toBeInTheDocument();
   });
 

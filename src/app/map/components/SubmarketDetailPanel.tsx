@@ -11,6 +11,7 @@ import { SubmarketProfileEditor } from './SubmarketProfileEditor';
 import { hasSubmarketProfileContent, SubmarketResearchProfile } from './SubmarketResearchProfile';
 import { SubmarketResearchOverview, SubmarketResearchTrend, type SubmarketResearchFutureState } from './SubmarketResearchData';
 import { MarketTrendSummary } from './MarketTrendSummary';
+import { SubmarketMarketDataDetails } from './MarketDataDetails';
 import { SubmarketRepresentativeProjects } from './SubmarketRepresentativeProjects';
 import { useSubmarketWorkspaceDetail } from './useSubmarketWorkspaceDetail';
 import { submarketResearchSignal } from '../model/submarketResearchSignal';
@@ -131,7 +132,7 @@ function SubmarketWorkspace({
   const signal = research ? submarketResearchSignal(research.focus, payload?.trends, trendState) : null;
   const researchLead = insight ? <section className="submarket-intelligence-lead" aria-label="市场观察">
     <div><h3>{insight.title}</h3><p>{insight.body}</p></div>
-    {signal ? <div><h3>{signal.title}</h3><p>{signal.text}</p><p className="submarket-profile-meta">{signal.scope}</p></div> : null}
+    {signal ? <div><h3>{signal.title}</h3><p>{signal.text}</p></div> : null}
   </section> : null;
   const quarter = React.useMemo(() => describeQuarterlyResearchMarket(allTrend), [allTrend]);
   const rentPeriod = quarter.rent.latest?.period;
@@ -177,7 +178,7 @@ function SubmarketWorkspace({
   const overview = <SubmarketResearchOverview name={name} summary={summary} buildings={buildings} trendData={allTrend}
     trendState={trendState} futureState={futureState} futureCount={futureCount} futureArea={futureArea} futureAreaSamples={futureAreaSamples}
     beijingBenchmarkBuildings={beijingBenchmarkBuildings} showQuarterlySummary={!expanded}
-    structured={!!research} hasResearchSignal={!!signal} parkOnly={parkOnly} />;
+    structured={!!research} parkOnly={parkOnly} />;
   const projects = (compact = false) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}
     onOpen={onOpenBuilding} compact={compact} curated={research?.projects} sources={research?.sources} />;
 
@@ -192,8 +193,8 @@ function SubmarketWorkspace({
       aria-labelledby="submarket-dialog-heading" className="map-submarket-workspace-panel submarket-research-panel">
       <WorkspacePanelHeader title={name} titleId="submarket-dialog-heading" onClose={closePanel} closeLabel="关闭子市场介绍"
         metadata={!editing ? <div className="submarket-header-context">
-          <p className="submarket-headline">{profile?.headline || `${name}办公市场概览`}</p>
-          {periodLabel && trendState !== 'error' ? <p>{periodLabel}</p> : null}
+          {profile?.headline && <p className="submarket-headline" title={quick ? profile.headline : undefined}>{profile.headline}</p>}
+          {!quick && periodLabel && trendState !== 'error' ? <p>{periodLabel}</p> : null}
         </div> : null}
         primaryAction={!editing ? <button type="button" className="workspace-panel-primary-action" aria-label="查看全部项目" onClick={onShowAll}>全部项目</button> : null}
         actions={canEdit && payload?.profileAvailable && !editing && !detail.loading && !detail.error
@@ -230,7 +231,7 @@ function SubmarketWorkspace({
               onCancel={detail.cancelEditing} onSave={detail.save} buildings={getResearchBuildings?.() ?? buildings} />
           </div> : <>
             {!(showTabs && currentSection === 'profile' && profileState !== 'ready') && (detail.error || (detail.loading && payload)) ? <div className="submarket-read-status">
-              <p role="status">{detail.loading ? '正在重新读取子市场资料…' : payload ? '刷新失败，保留上次读取的区域资料。' : '子市场资料暂不可用。'}</p>
+              <p role="status">{detail.loading ? '正在更新子市场资料…' : payload ? '更新失败，显示上次读取的数据。' : '子市场资料暂不可用。'}</p>
               {!detail.loading ? <button type="button" className="submarket-quiet-action" onClick={retry}>重新加载</button> : null}
             </div> : null}
             {layout === 'quick' ? <QuickSummary summary={summary} parkOnly={parkOnly} onRead={() => openStandard()}
@@ -252,18 +253,13 @@ function SubmarketWorkspace({
                 {pitchHandoff}
                 {payload?.trendError ? <div className="submarket-read-status"><p role="status">历史行情暂不可用</p>
                   <button type="button" className="submarket-quiet-action" disabled={detail.loading} onClick={retry}>重新加载</button></div> : null}
-                {research || profile?.overview ? <div className="submarket-overview-profile">
-                  {!research ? <p>{profile?.overview}</p> : null}
-                  <button type="button" className="submarket-link-action" onClick={() => setSection('profile')}>{research ? '区域研究与来源' : '完整区域画像'} <ChevronRight size={14} aria-hidden="true" /></button>
-                </div> : profileUnavailable ? <div className="submarket-read-status"><p role="status">区域画像暂不可用。</p>
+                {profileUnavailable ? <div className="submarket-read-status"><p role="status">区域画像暂不可用。</p>
                   <button type="button" className="submarket-quiet-action" disabled={detail.loading} onClick={retry}>重试区域画像</button></div> : null}
-                <div className="submarket-overview-actions">
-                  <button type="button" className="submarket-link-action" onClick={() => setSection('trend')}>查看趋势 <ChevronRight size={14} aria-hidden="true" /></button>
-                  <button type="button" className="submarket-link-action" onClick={() => setSection('buildings')}>查看项目 <ChevronRight size={14} aria-hidden="true" /></button>
-                </div>
                 {projects(true)}
               </div> : currentSection === 'trend' ? trend(false)
                 : currentSection === 'profile' ? profileChapter : projects()}
+            {!suspended && <SubmarketMarketDataDetails key={surface} name={name} summary={summary} buildings={buildings}
+              benchmarkBuildings={beijingBenchmarkBuildings} parkOnly={parkOnly} />}
           </>}
         </div>
       </div>
@@ -274,15 +270,15 @@ function SubmarketWorkspace({
 function QuickSummary({ summary, parkOnly, onRead, onViewProjects, children }: {
   summary: SubmarketSummary; parkOnly: boolean; onRead: () => void; onViewProjects: () => void; children: React.ReactNode;
 }) {
-  const metric = (value: number | null, unit: string, precision = 1) => value != null && Number.isFinite(value)
-    ? <>{researchNumber(value, precision)} <span>{unit}</span></> : <span>未收录</span>;
+  const metric = (value: number | null, unit: string, precision = 1, singleSample = false) => value != null && Number.isFinite(value)
+    ? <>{researchNumber(value, precision)} <span>{unit}{singleSample && ' · 单项目样本'}</span></> : <span>未收录</span>;
   return <section className="submarket-quick-summary" aria-label="市场核心指标">
     {/* Keep the existing sheet measurement; the extra details stay in the scroller. */}
     <div data-workspace-summary>
-      <p>{parkOnly ? '当前筛选 · 产业园存量' : '当前筛选 · 甲乙级存量 · 最新发布记录'}</p>
+      <p>{parkOnly ? '当前筛选 · 产业园存量' : '当前筛选 · 甲乙级存量'}</p>
       {parkOnly ? <dl><div><dt>产业园项目</dt><dd>{metric(summary.parkCount, '个', 0)}</dd></div></dl> : <dl>
-        <div><dt>平均净有效租金</dt><dd>{metric(summary.rent, '元/㎡/月')}</dd></div>
-        <div><dt>平均空置率</dt><dd>{metric(summary.vacancyPct, '%')}</dd></div>
+        <div><dt>平均净有效租金</dt><dd>{metric(summary.rent, '元/㎡/月', 1, summary.rentSampleCount === 1)}</dd></div>
+        <div><dt>平均空置率</dt><dd>{metric(summary.vacancyPct, '%', 1, summary.vacancySampleCount === 1)}</dd></div>
         <div><dt>甲乙级项目</dt><dd>{metric(summary.officeCount, '个', 0)}</dd></div>
       </dl>}
       <button type="button" className="submarket-link-action" onClick={onRead}>阅读完整研究 <ChevronRight size={14} aria-hidden="true" /></button>

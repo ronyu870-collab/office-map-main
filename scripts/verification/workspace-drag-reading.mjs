@@ -91,9 +91,12 @@ export async function verifyDragReading(page, { base, reducedMotion = false }) {
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } })));
   const research = page.getByRole('region', { name: 'CBD', exact: true });
   const overview = research.getByRole('tabpanel', { name: '市场概览', exact: true });
-  await overview.getByText(/超长区域介绍与产业结构、企业分布和交通联系/).waitFor();
+  await overview.waitFor();
   assert.equal(await overview.locator('canvas').count(), 0, 'overview does not duplicate the charts');
-  await measure('research-overview-long-text');
+  await research.getByRole('tab', { name: '区域画像', exact: true }).click();
+  const profile = research.getByRole('tabpanel', { name: '区域画像', exact: true });
+  await profile.getByText(/超长区域介绍与产业结构、企业分布和交通联系/).waitFor();
+  await measure('research-profile-long-text');
   await research.getByRole('tab', { name: '行情趋势', exact: true }).click();
   await research.locator('canvas').first().waitFor();
   await measure('research-trend');

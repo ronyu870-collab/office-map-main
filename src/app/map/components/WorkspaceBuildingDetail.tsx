@@ -6,6 +6,7 @@ import { coordinateNotice } from '@/src/lib/map-coordinates';
 import * as React from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, ChevronRight, FileText, LocateFixed, Rows3 } from 'lucide-react';
+import { MarketDataDetails } from './MarketDataDetails';
 import { WorkspacePanelHeader, WorkspacePanelContext } from './WorkspacePanelHeader';
 import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger } from '@/src/services/map/buildingPhotoGallery';
 import { displayListGrade, hasBuildingLocation, listVacancyPercent, finiteMetric } from '../model/fullBuildingList';
@@ -159,12 +160,13 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
       </div>
       <div data-map-proposal-slot hidden />
       {!future ? <div ref={trendHost} className="workspace-project-trend-host" hidden={tab !== 'market'} aria-busy={trendPending || undefined} style={{ minHeight: trendPending ? state.current.trendHeight : undefined }}><section id="info-chart-panel" aria-label="项目历史趋势" style={{ display: 'none' }}>
-        <div className="workspace-chart-heading"><h3>租金与空置率趋势</h3>{workspace ? <button type="button" className="workspace-business-action" onClick={() => workspace.setMode('full')}>展开图表</button> : null}</div>
-        <p className="workspace-note">最新季度与此前五年年末；缺失数据不补零。</p>
+        <div className="workspace-chart-heading"><h3>租金与空置率趋势</h3>{workspace && workspace.mode !== 'full' ? <button type="button" className="workspace-business-action" onClick={() => workspace.setMode('full')}>展开图表</button> : null}</div>
         <div className="workspace-trend-switch" role="group" aria-label="趋势指标"><button type="button" id="chart-btn-rent" aria-pressed="true" data-chart="rent">净有效租金</button><button type="button" id="chart-btn-vac" aria-pressed="false" data-chart="vac">空置率</button></div>
         <div id="info-chart-container" style={{ height: 280 }} />
         <div data-building-trend-data />
-        <p className="workspace-note">来源：本项目正式季度记录。各期间独立展示，不代表连续季度变化。</p>
+        <MarketDataDetails>
+          <p>来源为本项目已发布的季度记录。展示最新季度与此前五年的年末观测，缺失值留空。</p>
+        </MarketDataDetails>
       </section></div> : null}
     </div>
   </section>;
