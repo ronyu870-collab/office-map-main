@@ -9,6 +9,7 @@ import { renderPitchPptx } from "../render/pptx";
 import { confirmedProposalSchema, proposalRequestSchema } from "./proposal-brief";
 import { generateConfirmedProposal } from "./proposal-generation-runtime";
 import { prepareProposal } from "./proposal-runtime";
+import { createProposalTaskFixture } from "./proposal-task-fixture";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), data: vi.fn(), archived: vi.fn(), recheck: vi.fn() }));
 vi.mock("../data/store", async original => ({ ...await original<typeof import("../data/store")>(), pitchRpc: mocks.rpc }));
@@ -57,8 +58,10 @@ let committed: { projectId: string; slides: {
   slideId: string; assetId: string; assetVersion: number; content: unknown; scene: unknown;
 }[] } | undefined;
 
+let tasks: ReturnType<typeof createProposalTaskFixture>;
 beforeEach(() => {
   committed = undefined;
+  tasks = createProposalTaskFixture(generation => { committed = generation as typeof committed; });
   mocks.data.mockReset().mockImplementation(async () => replay());
   mocks.recheck.mockReset().mockResolvedValue(undefined);
   mocks.archived.mockReset().mockImplementation(async () => ({ result: archived(), recheck: mocks.recheck }));
@@ -68,7 +71,7 @@ beforeEach(() => {
     if (command.action === "workspace_capabilities") return { allowedDynamic: ["building-profile"] };
     if (command.action === "registry") return { theme: { definition: STUDIO_THEME } };
     if (command.action === "business_generation") return {};
-    if (command.action === "business_generate_commit") { committed = command; return {}; }
+    if (command.action.startsWith("workspace_proposal_")) return tasks.rpc(command);
     if (command.action === "workspace_get") {
       if (command.projectId === projectId) return { ...workspace, project: parent, slides: [] };
       if (committed && command.projectId === committed.projectId) return { ...workspace,
@@ -97,7 +100,10 @@ describe("reviewed archive transfer to existing proposal generation", () => {
   it("generates and recovers the reviewed content through the actual standard workflow", async () => {
     const ctx = actor();
     const input = await confirm(ctx);
-    const receipt = await generateConfirmedProposal(ctx, input);
+    await expect(generateConfirmedProposal(ctx, input, tasks.schedule)).resolves.toMatchObject({ state: "queued", taskId });
+    expect(committed).toBeUndefined();
+    await tasks.finish();
+    const receipt = await generateConfirmedProposal(ctx, input, tasks.schedule);
     expect(receipt).toMatchObject({ state: "completed", taskId, projectId: committed?.projectId });
     expect(committed?.slides[0]).toMatchObject({ content: { blocks: [{ kind: "table", rows: [["120"]] }] },
       scene: { elements: expect.arrayContaining([expect.objectContaining({ kind: "table" })]) } });
@@ -112,7 +118,7 @@ describe("reviewed archive transfer to existing proposal generation", () => {
     expect(mocks.recheck).toHaveBeenCalledTimes(3);
     await expect(generateConfirmedProposal(ctx, input)).resolves.toEqual(receipt);
     expect(mocks.data).toHaveBeenCalledTimes(3);
-    expect(mocks.rpc.mock.calls.filter(([, command]) => command.action === "business_generate_commit")).toHaveLength(1);
+    expect(mocks.rpc.mock.calls.filter(([, command]) => command.action === "workspace_proposal_complete")).toHaveLength(1);
   });
 
   it("preserves the archived review when source provenance differs with identical displayed numbers", async () => {
@@ -130,7 +136,9 @@ describe("reviewed archive transfer to existing proposal generation", () => {
     const differentSource = archived();
     differentSource.sources[0].recordVersion = "changed";
     mocks.data.mockResolvedValueOnce(replay()).mockResolvedValueOnce(replay(differentSource));
-    await expect(generateConfirmedProposal(ctx, input)).rejects.toThrow("PITCH_PROPOSAL_REVIEW_REQUIRED");
+    await generateConfirmedProposal(ctx, input, tasks.schedule);
+    await tasks.finish();
+    expect(tasks.inspect(taskId)).toMatchObject({ state: "failed", errorCode: "PITCH_PROPOSAL_REVIEW_REQUIRED" });
     expect(committed).toBeUndefined();
   });
 
@@ -138,7 +146,9 @@ describe("reviewed archive transfer to existing proposal generation", () => {
     const ctx = actor();
     const input = await confirm(ctx);
     mocks.recheck.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("QUERY_DENIED"));
-    await expect(generateConfirmedProposal(ctx, input)).rejects.toThrow("QUERY_DENIED");
+    await generateConfirmedProposal(ctx, input, tasks.schedule);
+    await tasks.finish();
+    expect(tasks.inspect(taskId)).toMatchObject({ state: "failed", errorCode: "PITCH_DENIED" });
     expect(committed).toBeUndefined();
   });
 
@@ -146,11 +156,9 @@ describe("reviewed archive transfer to existing proposal generation", () => {
     const controller = new AbortController();
     const ctx = actor(controller.signal);
     const input = await confirm(ctx);
-    mocks.data.mockResolvedValueOnce(replay()).mockImplementationOnce(async () => {
-      controller.abort(new Error("fixture cancelled"));
-      return replay();
-    });
-    await expect(generateConfirmedProposal(ctx, input)).rejects.toThrow("fixture cancelled");
+    controller.abort(new Error("fixture cancelled"));
+    await expect(generateConfirmedProposal(ctx, input, tasks.schedule)).rejects.toThrow("fixture cancelled");
+    expect(tasks.inspect(taskId)).toBeUndefined();
     expect(committed).toBeUndefined();
   });
 });

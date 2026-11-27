@@ -4,6 +4,7 @@ import { STUDIO_THEME } from '../design/theme';
 import { STUDIO_TEMPLATE } from '../templates/registry';
 import { id, period } from '../proposals/__tests__/fixture';
 import { handleAiRequest } from './http';
+import { createProposalTaskFixture } from './proposal-task-fixture';
 
 const fixture = vi.hoisted(() => ({ rpc: vi.fn(), context: vi.fn(), authorize: vi.fn() }));
 vi.mock('../data/store', async original => ({ ...await original<typeof import('../data/store')>(),
@@ -38,6 +39,14 @@ it('uses the normal AI HTTP actions to review and persist the exact unified page
   });
   const projects = new Map<string, { parentId: string; slides: unknown[] }>([[parentId, { parentId, slides: [] }]]);
   const writes: Record<string, unknown>[] = [];
+  const tasks = createProposalTaskFixture(command => {
+    const slides = command.slides as {
+      slideId: string; assetId: string; assetVersion: number; content: unknown; scene: unknown;
+    }[];
+    writes.push(command);
+    projects.set(String(command.projectId), { parentId: String(command.parentProjectId), slides: slides.map(slide => ({ id: slide.slideId, asset_id: slide.assetId, asset_version: slide.assetVersion,
+      template_id: 'business-content', template_version: 1, content: slide.content, scene: slide.scene })) });
+  });
   fixture.rpc.mockImplementation(async (_actor, command) => {
     if (command.action === 'catalog') return { scopes: [{ ...scope, canGenerate: true, canClientExport: false, canExternalAi: false }] };
     if (command.action === 'registry') return { template: { config: STUDIO_TEMPLATE }, theme: { definition: STUDIO_THEME } };
@@ -49,18 +58,13 @@ it('uses the normal AI HTTP actions to review and persist the exact unified page
         slides: current.slides, workspace: { context: {}, page_settings: {}, active_slide: null }, history: [], tasks: [], exports: [] };
     }
     if (command.action === 'business_generation') return {};
-    if (command.action !== 'business_generate_commit') throw new Error(`Unexpected action ${command.action}`);
-    writes.push(command);
-    projects.set(command.projectId, { parentId: command.parentProjectId, slides: command.slides.map((slide: {
-      slideId: string; assetId: string; assetVersion: number; content: unknown; scene: unknown;
-    }) => ({ id: slide.slideId, asset_id: slide.assetId, asset_version: slide.assetVersion,
-      template_id: 'business-content', template_version: 1, content: slide.content, scene: slide.scene })) });
-    return { projectId: command.projectId };
+    if (command.action.startsWith('workspace_proposal_')) return tasks.rpc(command);
+    throw new Error(`Unexpected action ${command.action}`);
   });
 
   const call = (payload: Record<string, unknown>) => handleAiRequest(new Request('https://pitch.test/api/intelligence/pitch/ai', {
     method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://pitch.test' }, body: JSON.stringify(payload),
-  }), {} as PitchDependencies);
+  }), {} as PitchDependencies, tasks.schedule);
   const request = { question: '制作隔离商务大厦的项目推介，使用2026年二季度', projectId: parentId, buildingIds: [id(41)] };
   const reviewResponse = await call({ action: 'proposal_plan', input: request });
   const review = await reviewResponse.json();
@@ -70,8 +74,11 @@ it('uses the normal AI HTTP actions to review and persist the exact unified page
   const confirmation = { projectId: parentId, expectedVersion: 1, request, taskId, planId: review.plan.id, contextFingerprint: review.plan.contextFingerprint };
   const command = { action: 'proposal_generate', confirmation };
   const generated = await call(command);
-  const receipt = await generated.json();
   expect(generated.status).toBe(200);
+  expect(await generated.json()).toEqual({ state: 'queued', taskId });
+  expect(writes).toHaveLength(0);
+  await tasks.finish();
+  const receipt = await (await call(command)).json();
   expect(receipt).toMatchObject({ state: 'completed', taskId });
   expect(writes[0]).toMatchObject({ expectedParentVersion: 1, reviewedPlanId: review.plan.id,
     snapshots: [expect.objectContaining({ binding })], slides: expect.arrayContaining([expect.objectContaining({
