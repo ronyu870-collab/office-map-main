@@ -382,7 +382,7 @@ describe("Pitch workspace continuous editing", () => {
       { kind: "text", x: 1, y: 2, w: 9, h: 1, text: official, role: "body", bold: false },
       { kind: "text", x: 1, y: 4, w: 9, h: 1, text: manual, role: "body", bold: false },
     );
-    bindingResponse = () => ({ projectVersion: detail.project.version, pages: [{ id: pageId, objects: [
+    bindingResponse = () => ({ projectVersion: detail.project.version, pages: [{ id: pageId, materials: { incompatible: true }, objects: [
       { index: 0, kind: "paragraph", sourceIds: [sourceId], valueOrigin: "business", receipts: [{
         sourceId, receiptId: "formal-rent", resultId: assetId,
         binding: { dataAsOf: "2026-01-01" }, query: { fields: ["netEffectiveRent"] },
@@ -412,6 +412,51 @@ describe("Pitch workspace continuous editing", () => {
       pages: [{ id: pageId, paragraphs: [official, "已核对联络安排"] }],
     }));
     await waitFor(() => expect(bindingReads()).toHaveLength(2));
+  });
+  it("opens the exact bound visual receipt from the canvas and omits unmatched versions", async () => {
+    const page = detail.slides[0];
+    const imageId = "66666666-6666-4666-8666-666666666666";
+    const documentId = "77777777-7777-4777-8777-777777777777";
+    const documentSourceId = "88888888-8888-4888-8888-888888888888";
+    const otherImageId = "99999999-9999-4999-8999-999999999999";
+    const digest = "a".repeat(64), version = "b".repeat(64), documentDigest = "c".repeat(64);
+    const date = "2026-06-15";
+    page.content = { ...page.content, blocks: [
+      { kind: "image", mediaAssetId: imageId, mediaVersion: 2, alt: "已选楼宇外观", sourceIds: [sourceId] },
+      { kind: "image", mediaAssetId: otherImageId, mediaVersion: 1, alt: "其他成稿图片", sourceIds: [documentSourceId] },
+    ], sources: [
+      { ...page.content.sources[0], label: "图库已核对来源", locator: "外立面", version, sha256: digest, dataAsOf: date },
+      { id: documentSourceId, kind: "document", documentId, label: "获权历史案例", locator: "第 8 页", version: "4",
+        sha256: documentDigest, dataAsOf: "2026-01-01" },
+    ] } as unknown as typeof page.content;
+    page.scene.elements.push(
+      { kind: "image", x: 1, y: 2, w: 4, h: 3, mediaAssetId: imageId, mediaVersion: 2, fit: "contain", alt: "已选楼宇外观" },
+      { kind: "image", x: 7, y: 2, w: 4, h: 3, mediaAssetId: otherImageId, mediaVersion: 1, fit: "contain", alt: "其他成稿图片" },
+    );
+    bindingResponse = () => ({ projectVersion: detail.project.version, pages: [{ id: pageId, objects: [
+      { index: 0, kind: "image", valueOrigin: "asset", sourceIds: [sourceId], mediaRefs: [{ id: imageId, version: 2 }] },
+      { index: 1, kind: "image", valueOrigin: "asset", sourceIds: [documentSourceId], mediaRefs: [{ id: otherImageId, version: 1 }] },
+    ], materials: { asset: { id: assetId, version: 1 },
+      documents: [{ sourceId: documentSourceId, documentId, pageId: null, version: 4, sha256: documentDigest, dataAsOf: null }],
+      media: [{ id: otherImageId, version: 2, documentId, pageId, documentVersion: 4, sha256: digest, dataAsOf: null }],
+      visuals: [{ id: imageId, version: 2, sourceId, kind: "photo", sha256: digest, versionHash: version, sourceDate: date,
+        dataAsOf: null, buildingIds: [assetId] }],
+    } }] });
+    const user = await enter();
+    await user.click(screen.getByRole("button", { name: "调整画布对象" }));
+    await user.click(await screen.findByRole("button", { name: "对象 3：其他成稿图片" }));
+    expect(screen.queryByRole("button", { name: "查看素材来源" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "对象 2：已选楼宇外观" }));
+    await user.click(await screen.findByRole("button", { name: "查看素材来源" }));
+    expect(screen.getByText("素材来源", { selector: "summary" })).toHaveFocus();
+    expect(screen.getByText(`图库登记日 ${date}`)).toBeVisible();
+    expect(screen.queryByText("获权历史案例")).not.toBeInTheDocument();
+    await user.click(screen.getByText("版本校验", { selector: "summary" }));
+    expect(screen.getByText(`SHA-256 ${digest}`)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "查看本页全部来源" }));
+    expect(screen.getByText("第 8 页 · 原件版本 4")).toBeVisible();
+    expect(screen.getByText("业务日期待确认")).toBeVisible();
+    expect(screen.queryByText("素材图片版本 2 · 原件版本 4")).not.toBeInTheDocument();
   });
   it("keeps paragraph editing locked until bindings for the current revision arrive", async () => {
     let fresh = false;

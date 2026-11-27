@@ -61,7 +61,8 @@ import { HandoffReview, type HandoffDestination } from "./workspace/HandoffRevie
 import { BuildingLeaseReview } from "./workspace/BuildingLeaseReview";
 import { LayoutVariants } from "./workspace/LayoutVariants";
 import { DataRefresh } from "./workspace/DataRefresh";
-import { paragraphBindingAccess, useDocumentBindings } from "./workspace/DocumentBindings";
+import { materialMediaKey, paragraphBindingAccess, readMaterialEvidence, useDocumentBindings } from "./workspace/DocumentBindings";
+import { PageSources } from "./workspace/MaterialEvidence";
 import { CurrentPageRevision } from "./workspace/CurrentPageRevision";
 import { ImageReplacement, libraryImagesForReplacement } from "./workspace/ImageReplacement";
 import { PhotoReplacementPicker } from "./workspace/PhotoReplacementPicker";
@@ -241,6 +242,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     [historyOpen, setHistoryOpen] = React.useState(false),
     [objectPage, setObjectPage] = React.useState<string | null>(null),
     [objectSelection, setObjectSelection] = React.useState<{ ids: string[]; dirty: boolean }>({ ids: [], dirty: false }),
+    [materialTarget, setMaterialTarget] = React.useState<{ projectId: string; pageId: string; key: string }>(),
     [imageTarget, setImageTarget] = React.useState<{ slideId: string; index: number; openId: number }>(),
     [photoTarget, setPhotoTarget] = React.useState<{ projectId: string; version: number; pageId: string; objectId: string }>(),
     [reviewUndo, setReviewUndo] = React.useState<{ version: number; revision: number; projectId: string }>(),
@@ -546,6 +548,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
     setObjectPage(null);
     setImageTarget(undefined);
     setPhotoTarget(undefined);
+    setMaterialTarget(undefined);
   };
   async function copyProjectLink(id: string) {
     const url = new URL("/intelligence/pitch", window.location.origin);
@@ -721,10 +724,13 @@ function Studio({ session }: { session: AuthSessionResult }) {
   const leaseTransactions = templates.some(template => template.kind === "dynamic" && template.id === "lease-representatives");
   const leaseIndustry = templates.some(template => template.kind === "dynamic" && template.id === "lease-industry-distribution");
   const bindings = useDocumentBindings(call, detail?.project, !!page && (
-    right && inspector === "data" || !!paragraphs.length && (
-      right && (inspector === "properties" || inspector === "assist") || !!active && objectPage === active
-    )
+    right && (inspector === "data" || !!paragraphs.length && (inspector === "properties" || inspector === "assist")) ||
+    !!active && objectPage === active
   ));
+  const materialEvidence = readMaterialEvidence(bindings, page);
+  const materialKeys = new Set([...(materialEvidence?.media ?? []), ...(materialEvidence?.visuals ?? [])].map(materialMediaKey));
+  const materialFocus = materialTarget && materialTarget.projectId === detail?.project.id && materialTarget.pageId === page?.id &&
+    materialKeys.has(materialTarget.key) ? materialTarget.key : undefined;
   const paragraphAccess = paragraphBindingAccess(bindings, page, !!page && detail?.workspace.page_settings[page.id]?.origin === "data");
   const canvasRevisionTarget = detail && page && active === page.id && page.content.disclosure === "internal" &&
     !dirty && !saving && !detail.workspace.page_settings[page.id]?.manual &&
@@ -824,6 +830,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
   function openInspector(tab: Inspector) {
     setChosen(null);
     setRegeneratePageId(undefined);
+    setMaterialTarget(undefined);
     setFocusedCanvas(false);
     setRight(true);
     setMobile("edit");
@@ -1615,6 +1622,15 @@ function Studio({ session }: { session: AuthSessionResult }) {
                           canOpen: id => !!pinnedBuildingPhoto(page, id),
                           open: objectId => setPhotoTarget({ projectId: detail.project.id, version: detail.project.version, pageId: active, objectId }),
                         } : undefined}
+                      materialSource={materialKeys.size > 0 ? {
+                        canOpen: element => element.kind === "image" && materialKeys.has(materialMediaKey({ id: element.mediaAssetId, version: element.mediaVersion })),
+                        open: element => {
+                          if (element.kind !== "image") return;
+                          openInspector("data");
+                          setMaterialTarget({ projectId: detail.project.id, pageId: page.id,
+                            key: materialMediaKey({ id: element.mediaAssetId, version: element.mediaVersion }) });
+                        },
+                      } : undefined}
                       onClose={() => setObjectPage(null)}
                       onApply={({ moves, texts, order, groups }) => {
                         editPage({ objectMoves: moves.length ? moves : undefined, objectTexts: texts.length ? texts : undefined, objectOrder: order, objectGroups: groups });
@@ -1897,22 +1913,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
                               调整参数并重新生成
                             </Button>
                           )}
-                          <details>
-                            <summary>数据与来源</summary>
-                            <p>数据截至 {page.content.dataAsOf}</p>
-                            <p>
-                              {detail.workspace.page_settings[page.id]?.manual
-                                ? "含用户输入，仅供内部使用"
-                                : "内容来自已授权素材或业务数据"}
-                            </p>
-                            <ul>
-                              {page.content.sources.map((s) => (
-                                <li key={s.id}>
-                                  {s.label} · {s.locator} · {s.dataAsOf}
-                                </li>
-                              ))}
-                            </ul>
-                          </details>
+                          <PageSources content={page.content} manual={!!detail.workspace.page_settings[page.id]?.manual}
+                            evidence={materialEvidence} focus={materialFocus} onClear={() => setMaterialTarget(undefined)} />
                         </>
                       ) : <p>选择页面以查看数据和来源。</p>}
                       {buildingSearch && <details open={dataBuildingsOpen}

@@ -42,7 +42,7 @@ export function splitLayers(svg: string): Layer[] {
   });
 }
 
-export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, lockedParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onSelectionChange, imageReplacement, photoReplacement, onApply, onClose }: {
+export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, lockedParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onSelectionChange, imageReplacement, photoReplacement, materialSource, onApply, onClose }: {
   call: Call;
   projectId: string;
   slideId: string;
@@ -57,6 +57,7 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   onSelectionChange?: (selection: { ids: string[]; dirty: boolean }) => void;
   imageReplacement?: { identify: (id: string) => number | undefined; open: (index: number) => void };
   photoReplacement?: { canOpen: (id: string) => boolean; open: (id: string) => void };
+  materialSource?: { canOpen: (element: SceneElement) => boolean; open: (element: SceneElement) => void };
   onApply: (changes: Changes) => void;
   onClose: () => void;
 }) {
@@ -468,6 +469,8 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
             <Button variant="secondary" onClick={() => imageReplacement.open(imageIndex)}>更换所选图片</Button>}
           {canReplacePhoto && photoReplacement &&
             <Button variant="secondary" onClick={() => photoReplacement.open(picked.id)}>更换楼宇照片</Button>}
+          {materialSource?.canOpen(picked.element) && marked.length <= 1 &&
+            <Button variant="ghost" onClick={() => materialSource.open(picked.element)}>查看素材来源</Button>}
           <Button variant="ghost" onClick={() => {
             const at = position(picked.id, picked.element);
             place(picked.id, resizeFrom(at, picked.element, (at.scale ?? 1) - .1));

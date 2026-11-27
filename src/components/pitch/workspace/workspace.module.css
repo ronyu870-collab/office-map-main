@@ -882,6 +882,7 @@
 
 .handoffPages { margin: 0; padding-inline-start: 20px; }
 .handoffPages > li { padding-block: 4px; }
+.sourceDigest { overflow-wrap: anywhere; }
 
 .layoutVariants { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .layoutVariants button { min-width: 0; min-height: 44px; text-align: start; padding: 4px; color: inherit; background: var(--pitch-surface); border: 1px solid var(--pitch-border); border-radius: var(--cd-radius-md, 6px); }
