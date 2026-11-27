@@ -1,52 +1,9 @@
 {
-  "version": 1,
-  "market": "亚奥",
-  "positioning": "奥林匹克中心区会展设施与北部总部办公相互邻接的市场",
-  "updatedOn": "2026-11-27",
-  "focus": "matched-vacancy",
-  "sources": [
-    {
-      "id": "venue",
-      "title": "国家会议中心二期正式投运",
-      "publisher": "北京市人民政府外事办公室",
-      "url": "https://wb.beijing.gov.cn/home/index/wsjx/202505/t20250516_4090543.html",
-      "publishedOn": "2025-05-15",
-      "observedAt": "2025-05-13投运",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "国家会议中心二期会展场馆",
-      "basis": "以中国—拉共体论坛部长级会议为节点正式投运。"
-    },
-    {
-      "id": "events",
-      "title": "亚奥国家会议中心二期投运及会展联动",
-      "publisher": "朝阳区人民政府",
-      "url": "https://www.beijing.gov.cn/ywdt/gqrd/202505/t20250522_4095771.html",
-      "publishedOn": "2025-05-22",
-      "observedAt": "2025年5月",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "奥林匹克中心区亚奥商圈",
-      "basis": "二期在一期北侧，亚奥商圈联盟围绕商业、场馆、赛事、演艺组织联动。"
-    },
-    {
-      "id": "aiib",
-      "title": "亚投行总部公开地址",
-      "publisher": "亚洲基础设施投资银行",
-      "url": "https://www.aiib.org/en/contact/index.html",
-      "publishedOn": null,
-      "observedAt": "机构现行联络地址",
-      "verifiedOn": "2026-11-27",
-      "scope": "朝阳区天辰东路1号亚投行总部与亚洲金融大厦",
-      "scopeType": "project",
-      "basis": "公开联络地址列为天辰东路1号亚洲金融大厦A座。"
-    }
-  ],
   "facts": [
     {
-      "title": "会展设施已投入运营",
       "body": "国家会议中心二期于2025年5月投入运营，与一期共同提供会展设施。",
       "kind": "place",
+      "title": "会展设施已投入运营",
       "status": "observed",
       "sourceIds": [
         "venue",
@@ -54,48 +11,162 @@
       ]
     },
     {
-      "title": "活动服务跨越单一场馆",
       "body": "公开资料记录亚奥商圈联盟开展赛事、场馆与演艺联动。",
       "kind": "industry",
+      "title": "活动服务跨越单一场馆",
       "status": "observed",
       "sourceIds": [
         "events"
       ]
     },
     {
-      "title": "亚奥的国际机构办公节点",
       "body": "亚投行公开联络地址设在天辰东路1号亚洲金融大厦A座。该办公节点与奥林匹克中心区会展设施相邻。",
       "kind": "industry",
+      "title": "亚奥的国际机构办公节点",
       "status": "observed",
       "sourceIds": [
         "aiib",
         "events"
       ]
-    }
-  ],
-  "observations": [
+    },
     {
-      "title": "会展资源首先改善访客动线",
-      "body": "经常办活动、接待客户的机构，可以比较会议空间到写字楼的步行与车辆落客路径；常驻团队则要分别评估重大活动日的访客组织和日常通勤。空置变化仍应回到正式办公样本。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "亚奥会展节点周边办公",
-      "limitation": "会展场馆投运和活动客流没有直接对应可出租办公室面积。",
+      "body": "莱坊Q3监测亚奥空置率环比回落。",
+      "kind": "supply",
+      "title": "甲级空置率",
+      "status": "observed",
+      "measure": {
+        "unit": "%",
+        "value": "21.6"
+      },
       "sourceIds": [
-        "venue",
-        "events",
-        "aiib"
+        "knight-q3"
+      ]
+    },
+    {
+      "body": "CBRE记录奥体科技企业扩租和升级需求。",
+      "kind": "industry",
+      "title": "科技需求支持去化",
+      "status": "observed",
+      "sourceIds": [
+        "market-q3"
       ]
     }
   ],
+  "focus": "matched-vacancy",
+  "market": "亚奥",
+  "sources": [
+    {
+      "id": "venue",
+      "url": "https://wb.beijing.gov.cn/home/index/wsjx/202505/t20250516_4090543.html",
+      "basis": "以中国—拉共体论坛部长级会议为节点正式投运。",
+      "scope": "国家会议中心二期会展场馆",
+      "title": "国家会议中心二期正式投运",
+      "publisher": "北京市人民政府外事办公室",
+      "scopeType": "project",
+      "observedAt": "2025-05-13投运",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2025-05-15"
+    },
+    {
+      "id": "events",
+      "url": "https://www.beijing.gov.cn/ywdt/gqrd/202505/t20250522_4095771.html",
+      "basis": "二期在一期北侧，亚奥商圈联盟围绕商业、场馆、赛事、演艺组织联动。",
+      "scope": "奥林匹克中心区亚奥商圈",
+      "title": "亚奥国家会议中心二期投运及会展联动",
+      "publisher": "朝阳区人民政府",
+      "scopeType": "functional",
+      "observedAt": "2025年5月",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2025-05-22"
+    },
+    {
+      "id": "aiib",
+      "url": "https://www.aiib.org/en/contact/index.html",
+      "basis": "公开联络地址列为天辰东路1号亚洲金融大厦A座。",
+      "scope": "朝阳区天辰东路1号亚投行总部与亚洲金融大厦",
+      "title": "亚投行总部公开地址",
+      "publisher": "亚洲基础设施投资银行",
+      "scopeType": "project",
+      "observedAt": "机构现行联络地址",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": null
+    },
+    {
+      "id": "market-q3",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "basis": "Q3奥体受益于科技企业升级搬迁及扩租。",
+      "scope": "奥体办公楼监测",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-12"
+    },
+    {
+      "id": "knight-q3",
+      "url": "https://data.eastmoney.com/report/zw_industry.jshtml?infocode=AP202611041831395195",
+      "basis": "Q3亚奥空置率21.6%，较上季下降。",
+      "scope": "亚奥甲级写字楼样本",
+      "title": "北京甲级写字楼市场季度报告（2026Q3）",
+      "publisher": "莱坊（东方财富转载）",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-11-04"
+    }
+  ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "c8b8387b-e707-4e01-9a6f-0f2a080a03e7",
       "role": "国际机构邻近办公载体",
       "reason": "该记录对应亚洲金融大厦CDE座。同一综合体的A座为亚投行公开联络地址。",
       "sourceIds": [
         "aiib"
-      ]
+      ],
+      "buildingId": "c8b8387b-e707-4e01-9a6f-0f2a080a03e7"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "北部总部办公与国际机构节点，科技需求改善去化而项目空置压力仍存在",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "CBRE将奥体列为科技企业升级扩租活跃板块；莱坊监测亚奥甲级空置率较上季降至21.6%。需求改善与仍有较丰富的可选空间并存。",
+      "kind": "inference",
+      "scope": "奥体与亚奥独立监测",
+      "title": "北部科技需求带来阶段性去化",
+      "sourceIds": [
+        "market-q3",
+        "knight-q3"
+      ],
+      "limitation": "两家机构的区域边界不同。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "国家会议中心二期于2025年投入运营，亚投行总部位于亚洲金融大厦。高频国际访问、会议和总部接待团队可利用相邻商务服务；会展客流不能直接转化为办公需求。",
+      "kind": "inference",
+      "scope": "奥林匹克中心区",
+      "title": "国际机构与会展构成特色商务场景",
+      "sourceIds": [
+        "venue",
+        "events",
+        "aiib"
+      ],
+      "limitation": "会展使用与办公租赁独立。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "需要北部研发团队协作与客户接待的企业可同时比较亚奥、中关村和望京；重点判断是否需要标准办公、研发面积或国际会议邻近，而不是仅按区域均价排序。",
+      "kind": "inference",
+      "scope": "亚奥及北部办公市场",
+      "title": "北部总部与科技研发板块互补",
+      "sourceIds": [
+        "market-q3",
+        "venue",
+        "aiib"
+      ],
+      "limitation": "选址推论，具体通勤和面积须验证。"
     }
   ]
 }

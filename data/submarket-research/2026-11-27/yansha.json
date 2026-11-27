@@ -1,68 +1,135 @@
 {
-  "version": 1,
-  "market": "燕莎",
-  "positioning": "亮马河、使馆区和东三环共同支撑的涉外商务市场",
-  "updatedOn": "2026-11-27",
-  "focus": "matched-rent",
-  "sources": [
-    {
-      "id": "river",
-      "title": "亮马河河道治理与商圈联系",
-      "publisher": "北京市水务局",
-      "url": "https://swj.beijing.gov.cn/swdt/ztzl/sstxczl/sstzx/202412/t20241202_3954886.html",
-      "publishedOn": "2024-12-02",
-      "observedAt": "2024-12报道",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "亮马河第二、第三使馆区及沿岸商圈",
-      "basis": "亮马河经过第二、第三使馆区，连接燕莎、蓝色港湾和朝阳公园等节点。"
-    },
-    {
-      "id": "route",
-      "title": "亮马河国际风情水岸运营报道",
-      "publisher": "首都之窗",
-      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202403/t20240317_3591494.html",
-      "publishedOn": "2024-03-17",
-      "observedAt": "2024年春首航",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "燕莎—亮马河沿岸",
-      "basis": "报道列明游览线路串起使馆区和商圈，沿岸包含燕莎友谊商城、凯宾斯基饭店等既有服务设施。"
-    }
-  ],
   "facts": [
     {
-      "title": "沿河的涉外区位",
       "body": "亮马河经过第二、第三使馆区，再连接燕莎及蓝色港湾等商圈。",
       "kind": "place",
+      "title": "沿河的涉外区位",
       "status": "observed",
       "sourceIds": [
         "river"
       ]
     },
     {
-      "title": "接待配套与办公同处一个走廊",
       "body": "燕莎友谊商城及凯宾斯基饭店提供沿河商务接待和会面场景。",
       "kind": "place",
+      "title": "接待配套与办公同处一个走廊",
       "status": "observed",
       "sourceIds": [
         "route"
       ]
-    }
-  ],
-  "observations": [
+    },
     {
-      "title": "与CBD的可替代性主要来自涉外接待需求",
-      "body": "驻华团队或高频国际访客可把使馆区、酒店、会议地点的实际步行联系纳入筛选。预算比较宜按同等级和同一季度做，临河配套、可达性和较旧楼宇的机电条件优先现场核对。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "亮马河沿线及平台燕莎办公项目",
-      "limitation": "公开的涉外设施只能解释区位价值，现有证据不足以推出租户国别占比。",
+      "body": "CBRE监测燕莎Q3净吸纳为负。",
+      "kind": "industry",
+      "title": "存量退租压力",
+      "status": "observed",
       "sourceIds": [
-        "river",
-        "route"
+        "market-q3"
+      ]
+    },
+    {
+      "body": "仲量联行记录CBD核心区集中入市及升级置换需求。",
+      "kind": "supply",
+      "title": "东部高品质供给增加",
+      "status": "observed",
+      "sourceIds": [
+        "jll-q3"
       ]
     }
   ],
-  "projects": []
+  "focus": "matched-rent",
+  "market": "燕莎",
+  "sources": [
+    {
+      "id": "river",
+      "url": "https://swj.beijing.gov.cn/swdt/ztzl/sstxczl/sstzx/202412/t20241202_3954886.html",
+      "basis": "亮马河经过第二、第三使馆区，连接燕莎、蓝色港湾和朝阳公园等节点。",
+      "scope": "亮马河第二、第三使馆区及沿岸商圈",
+      "title": "亮马河河道治理与商圈联系",
+      "publisher": "北京市水务局",
+      "scopeType": "functional",
+      "observedAt": "2024-12报道",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2024-12-02"
+    },
+    {
+      "id": "route",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202403/t20240317_3591494.html",
+      "basis": "报道列明游览线路串起使馆区和商圈，沿岸包含燕莎友谊商城、凯宾斯基饭店等既有服务设施。",
+      "scope": "燕莎—亮马河沿岸",
+      "title": "亮马河国际风情水岸运营报道",
+      "publisher": "首都之窗",
+      "scopeType": "functional",
+      "observedAt": "2024年春首航",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2024-03-17"
+    },
+    {
+      "id": "market-q3",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "basis": "Q3燕莎受退租影响录得负净吸纳。",
+      "scope": "燕莎办公楼市场",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-12"
+    },
+    {
+      "id": "jll-q3",
+      "url": "https://www.jll.cn/zh-cn/insights/jll-q3-2026-beijing-cre-market-review-outlook",
+      "basis": "东部受到新增供应冲击，租户由普通甲乙级项目向CBD新增及优质存量迁移。",
+      "scope": "北京东部甲级办公市场",
+      "title": "2026年第三季度北京商业地产市场回顾与展望",
+      "publisher": "仲量联行",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-27"
+    }
+  ],
+  "version": 1,
+  "projects": [],
+  "updatedOn": "2026-11-27",
+  "positioning": "涉外商务和酒店服务构成区位差异，成熟存量办公面临退租与升级竞争",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "CBRE Q3记录燕莎负净吸纳，表明租户释放面积超过新增承接。CBD新供给强化东部市场竞争，成熟商圈区位不能单独保证项目的租赁表现。",
+      "kind": "inference",
+      "scope": "燕莎及东部办公市场",
+      "title": "成熟涉外商务区存量去化承压",
+      "sourceIds": [
+        "market-q3",
+        "jll-q3"
+      ],
+      "limitation": "没有证据证明退租全部来自外资企业。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "亮马河串联第二、第三使馆区及燕莎商圈，酒店和会面设施对高频国际访客、品牌接待等团队具有实际价值。这与CBD超甲级总部形象形成不同的区位选择。",
+      "kind": "inference",
+      "scope": "燕莎—亮马河涉外商务走廊",
+      "title": "使馆邻近和国际接待仍是差异化价值",
+      "sourceIds": [
+        "river",
+        "route"
+      ],
+      "limitation": "接待设施不是办公需求统计。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "一般办公可比较燕莎与CBD、望京的综合租赁成本和品质；确实依赖涉外区位的团队应优先比较使馆及酒店的步行联系。",
+      "kind": "outlook",
+      "scope": "燕莎与相邻商务区",
+      "title": "存量项目应以产品适配争取留租",
+      "sourceIds": [
+        "river",
+        "route",
+        "jll-q3"
+      ],
+      "limitation": "没有公开跨区租户迁移规模。"
+    }
+  ]
 }

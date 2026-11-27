@@ -1,106 +1,174 @@
 {
-  "version": 1,
-  "market": "通惠河传媒走廊",
-  "positioning": "由广告、影像和文化创意载体构成的CBD东向园区市场",
-  "updatedOn": "2026-11-27",
-  "focus": "stock",
-  "sources": [
-    {
-      "id": "ad",
-      "title": "北京国家广告产业园与通惠河畔更新",
-      "publisher": "首都之窗转引北京发布",
-      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202610/t20261030_4925085.html",
-      "publishedOn": "2026-10-30",
-      "observedAt": "2026-10-29重开；2012年前后园区建设回顾",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "北京国家广告产业园与毗邻的通惠河畔项目",
-      "basis": "报道确认国家广告产业园为CBD—定福庄国际传媒产业走廊的一部分；相邻欧式小镇已重开。"
-    },
-    {
-      "id": "media",
-      "title": "朝阳区数字视听产业专项行动计划解读",
-      "publisher": "首都之窗",
-      "url": "https://www.beijing.gov.cn/ywdt/gqrd/202601/t20260127_4469823.html",
-      "publishedOn": "2026-01-27",
-      "observedAt": "2026年行动计划发布",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "functional",
-      "scope": "朝阳区数字视听产业及CBD—定福庄走廊",
-      "basis": "公开解读将传媒走廊作为数字视听方向的功能载体。"
-    },
-    {
-      "id": "art",
-      "title": "方寸数字艺术馆开进莱锦产业园",
-      "publisher": "首都之窗转引北京日报",
-      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202405/t20240529_3697539.html",
-      "publishedOn": "2024-05-29",
-      "observedAt": "2024年5月开馆报道",
-      "verifiedOn": "2026-11-27",
-      "scope": "莱锦文化创意产业园",
-      "scopeType": "project",
-      "basis": "报道记录莱锦园区中的数字艺术馆开馆，提供园区文化内容的实际运营案例。"
-    }
-  ],
   "facts": [
     {
-      "title": "广告产业有明确的园区节点",
       "body": "北京国家广告产业园是CBD—定福庄国际传媒产业走廊的已建产业载体。",
       "kind": "industry",
+      "title": "广告产业有明确的园区节点",
       "status": "observed",
       "sourceIds": [
         "ad"
       ]
     },
     {
-      "title": "莱锦园区的内容与展示空间",
       "body": "方寸数字艺术馆于2024年在莱锦产业园落地，体现园区能够承载内容展示活动。",
       "kind": "place",
+      "title": "莱锦园区的内容与展示空间",
       "status": "observed",
       "sourceIds": [
         "art"
       ]
     },
     {
-      "title": "数字视听属于功能区政策方向",
       "body": "朝阳区公开行动计划把传媒走廊纳入数字视听产业发展的空间布局。",
       "kind": "policy",
+      "title": "数字视听属于功能区政策方向",
+      "status": "planned",
+      "sourceIds": [
+        "media"
+      ]
+    },
+    {
+      "body": "朝阳区公开报道影视特色园区审批服务与数字影棚等场景落地。",
+      "kind": "industry",
+      "title": "数字内容产业服务进展",
+      "status": "observed",
+      "sourceIds": [
+        "culture2026"
+      ]
+    },
+    {
+      "body": "2026—2028年计划将数字广告、AI动漫及影视版权等与传媒走廊联系。",
+      "kind": "policy",
+      "title": "传媒产业升级方向",
       "status": "planned",
       "sourceIds": [
         "media"
       ]
     }
   ],
-  "observations": [
+  "focus": "stock",
+  "market": "通惠河传媒走廊",
+  "sources": [
     {
-      "title": "制作空间与客户办公室需要不同的筛选条件",
-      "body": "需要影棚、后期机房或装卸通道的企业，可从特色园区逐栋核对层高、隔声、供电和消防。以客户接待为主的前台团队，还可把CBD标准写字楼纳入拆分选址。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "通惠河沿线产业办公与CBD客户接口",
-      "limitation": "政策方向和园区身份无法证明具体楼栋可搭建摄影棚或有当前空租。",
-      "sourceIds": [
-        "ad",
-        "media"
-      ]
+      "id": "ad",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202610/t20261030_4925085.html",
+      "basis": "报道确认国家广告产业园为CBD—定福庄国际传媒产业走廊的一部分；相邻欧式小镇已重开。",
+      "scope": "北京国家广告产业园与毗邻的通惠河畔项目",
+      "title": "北京国家广告产业园与通惠河畔更新",
+      "publisher": "首都之窗转引北京发布",
+      "scopeType": "project",
+      "observedAt": "2026-10-29重开；2012年前后园区建设回顾",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-30"
+    },
+    {
+      "id": "media",
+      "url": "https://www.beijing.gov.cn/ywdt/gqrd/202601/t20260127_4469823.html",
+      "basis": "公开解读将传媒走廊作为数字视听方向的功能载体。",
+      "scope": "朝阳区数字视听产业及CBD—定福庄走廊",
+      "title": "朝阳区数字视听产业专项行动计划解读",
+      "publisher": "首都之窗",
+      "scopeType": "functional",
+      "observedAt": "2026年行动计划发布",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-01-27"
+    },
+    {
+      "id": "art",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202405/t20240529_3697539.html",
+      "basis": "报道记录莱锦园区中的数字艺术馆开馆，提供园区文化内容的实际运营案例。",
+      "scope": "莱锦文化创意产业园",
+      "title": "方寸数字艺术馆开进莱锦产业园",
+      "publisher": "首都之窗转引北京日报",
+      "scopeType": "project",
+      "observedAt": "2024年5月开馆报道",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2024-05-29"
+    },
+    {
+      "id": "culture2026",
+      "url": "https://www.beijing.gov.cn/ywdt/gqrd/202610/t20261021_4913357.html",
+      "basis": "8家影视特色园区设审批帮办窗口，数字影棚等场景落地，覆盖朝阳全区。",
+      "scope": "朝阳区数字影视及文化产业",
+      "title": "北京朝阳构筑高水平文化开放新格局",
+      "publisher": "朝阳区人民政府",
+      "scopeType": "administrative",
+      "observedAt": "2026-10报道",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-21"
     }
   ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "367fb521-0a07-4710-b4a8-1e69b9975196",
       "role": "广告产业载体",
       "reason": "公开材料和平台均将北京国家广告产业园识别为该传媒走廊的项目。",
       "sourceIds": [
         "ad"
-      ]
+      ],
+      "buildingId": "367fb521-0a07-4710-b4a8-1e69b9975196"
     },
     {
-      "buildingId": "b34e04c2-02f5-49fd-9c23-ff083fb605fe",
       "role": "内容展示型园区",
       "reason": "莱锦有可追溯的数字艺术展示场地，提供与广告产业园不同的文创载体案例。",
       "sourceIds": [
         "art"
-      ]
+      ],
+      "buildingId": "b34e04c2-02f5-49fd-9c23-ff083fb605fe"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "CBD东向传媒及数字内容园区，特色制作与展示空间和总部商务形成互补",
+  "observations": [
+    {
+      "asOf": "2026-11",
+      "body": "国家广告产业园和莱锦园区提供明确的传媒及文化载体。数字艺术展示等运营案例体现制作、展示与协作功能，区域产品价值不能简单等同于普通写字楼。",
+      "kind": "inference",
+      "scope": "通惠河传媒走廊及园区案例",
+      "title": "内容制作空间存在独立的租赁需求逻辑",
+      "sourceIds": [
+        "ad",
+        "art"
+      ],
+      "limitation": "案例不能推导整个区域租赁需求。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "朝阳区行动计划将数字广告、AI动漫、影视版权列为产业方向，2026年10月报道记录数字影棚与影视园区服务进展。制作和后期团队对隔声、层高、机房和电力有差异化要求。",
+      "kind": "inference",
+      "scope": "朝阳数字视听与传媒产业布局",
+      "title": "数字视听升级可能推动专业空间需求",
+      "sourceIds": [
+        "media",
+        "culture2026"
+      ],
+      "limitation": "区级项目不等于全部发生在通惠河；政策不等于租赁成交。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "传媒企业可以比较将客户接待与品牌管理放在标准办公楼、将制作及展示团队安排在特色园区的方案，而不是只比较区域租金。",
+      "kind": "inference",
+      "scope": "传媒走廊与CBD",
+      "title": "与CBD形成制作及总部前台互补",
+      "sourceIds": [
+        "ad",
+        "art",
+        "media"
+      ],
+      "limitation": "未统计企业实际拆分选址比例。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "若数字内容业务形成持续租赁需求，具备真实制作和展示条件的园区更具针对性；普通办公型项目则仍需在交通、交付和成本方面竞争。",
+      "kind": "outlook",
+      "scope": "传媒走廊短期市场",
+      "title": "项目运营能力决定专业空间的竞争力",
+      "sourceIds": [
+        "media",
+        "culture2026",
+        "art"
+      ],
+      "limitation": "没有覆盖区域的公开净吸纳，不给出未经核实的预测。"
     }
   ]
 }

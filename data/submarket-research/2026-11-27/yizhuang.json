@@ -1,81 +1,163 @@
 {
-  "version": 1,
-  "market": "亦庄",
-  "positioning": "北京经开区先进制造产业链周边的园区办公和生产协同空间",
-  "updatedOn": "2026-11-27",
+  "facts": [
+    {
+      "body": "2025年经开区公开回顾覆盖汽车、集成电路、生物医药和机器人制造等产业，并披露省级以上研发机构数量。",
+      "kind": "industry",
+      "title": "制造和研发在同一经开区统计口径内",
+      "status": "observed",
+      "measure": {
+        "unit": "家",
+        "value": "400余"
+      },
+      "sourceIds": [
+        "industry"
+      ]
+    },
+    {
+      "body": "亦城财富中心公开列入经开区楼宇招商资源清单，作为区内办公空间案例。",
+      "kind": "place",
+      "title": "荣华中路有专门商务载体",
+      "status": "observed",
+      "sourceIds": [
+        "asset"
+      ]
+    },
+    {
+      "body": "CBRE记录亦庄Q3为园区重要去化区域，受半导体集聚支撑。",
+      "kind": "industry",
+      "title": "半导体产业带动去化",
+      "status": "observed",
+      "sourceIds": [
+        "market-q3"
+      ]
+    },
+    {
+      "body": "2025年度工作报告记录公共技术服务平台数量超过70个。",
+      "kind": "industry",
+      "title": "公共技术服务平台",
+      "status": "observed",
+      "measure": {
+        "unit": "个",
+        "value": "70"
+      },
+      "sourceIds": [
+        "rd2025"
+      ]
+    }
+  ],
   "focus": "stock",
+  "market": "亦庄",
   "sources": [
     {
       "id": "industry",
+      "url": "https://kfqgw.beijing.gov.cn/zwgkkfq/ztzl/lqztkfq/lqzx/zxxx/202601/t20260116_4436823.html",
+      "basis": "年度回顾列出汽车、集成电路、生物医药、机器人等产业集群，省级以上研发机构400余家。",
+      "scope": "北京经济技术开发区统计口径",
       "title": "北京经开区产业集群与研发机构年度数据",
       "publisher": "北京经济技术开发区管委会",
-      "url": "https://kfqgw.beijing.gov.cn/zwgkkfq/ztzl/lqztkfq/lqzx/zxxx/202601/t20260116_4436823.html",
-      "publishedOn": "2026-01-08",
+      "scopeType": "administrative",
       "observedAt": "2025年度",
       "verifiedOn": "2026-11-27",
-      "scopeType": "administrative",
-      "scope": "北京经济技术开发区统计口径",
-      "basis": "年度回顾列出汽车、集成电路、生物医药、机器人等产业集群，省级以上研发机构400余家。"
+      "publishedOn": "2026-01-08"
     },
     {
       "id": "asset",
+      "url": "https://open.beijing.gov.cn/front/resourceDetail.do?id=354",
+      "basis": "招商清单记录项目的地址与办公招商信息。",
+      "scope": "亦城财富中心，荣华中路22号院",
       "title": "经开区亦城财富中心招商资料",
       "publisher": "开放北京",
-      "url": "https://open.beijing.gov.cn/front/resourceDetail.do?id=354",
-      "publishedOn": null,
+      "scopeType": "project",
       "observedAt": "招商资源名录",
       "verifiedOn": "2026-11-27",
-      "scopeType": "project",
-      "scope": "亦城财富中心，荣华中路22号院",
-      "basis": "招商清单记录项目的地址与办公招商信息。"
-    }
-  ],
-  "facts": [
-    {
-      "title": "制造和研发在同一经开区统计口径内",
-      "body": "2025年经开区公开回顾覆盖汽车、集成电路、生物医药和机器人制造等产业，并披露省级以上研发机构数量。",
-      "kind": "industry",
-      "status": "observed",
-      "sourceIds": [
-        "industry"
-      ],
-      "measure": {
-        "value": "400余",
-        "unit": "家"
-      }
+      "publishedOn": null
     },
     {
-      "title": "荣华中路有专门商务载体",
-      "body": "亦城财富中心公开列入经开区楼宇招商资源清单，作为区内办公空间案例。",
-      "kind": "place",
-      "status": "observed",
-      "sourceIds": [
-        "asset"
-      ]
-    }
-  ],
-  "observations": [
+      "id": "market-q3",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "basis": "Q3亦庄受半导体产业链带动，与东升、大兴合计贡献全市园区净吸纳94%。",
+      "scope": "亦庄及北京商务园区",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-12"
+    },
     {
-      "title": "从研发—生产往返组织反推办公落点",
-      "body": "把样品送检、客户进厂、工程师跨园区通勤的频率列为选址条件，再比较园区办公、独立研发单元和临产线空间。金融、商务配套团队可另看荣华中路办公节点。",
-      "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "亦庄平台园区与北京经开区制造节点",
-      "limitation": "政府产业统计采用经开区范围，无法据此推算平台园区的实际租户比例。",
-      "sourceIds": [
-        "industry",
-        "asset"
-      ]
+      "id": "rd2025",
+      "url": "https://kfqgw.beijing.gov.cn/zwgkkfq/ghjh/zfgzbg/202605/t20260526_4666777.html",
+      "basis": "省级以上研发机构400余家、公共技术服务平台超70个，共性技术平台超30个。",
+      "scope": "北京经开区",
+      "title": "北京经济技术开发区2025年度工作报告",
+      "publisher": "经开区管委会",
+      "scopeType": "administrative",
+      "observedAt": "2025年度",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-05-26"
     }
   ],
+  "version": 1,
   "projects": [
     {
-      "buildingId": "e027b2d7-a88c-4023-9491-311ac5245ea6",
       "role": "园区商务办公样本",
       "reason": "招商公开名录可核对亦城财富中心的位置及办公用途。",
       "sourceIds": [
         "asset"
-      ]
+      ],
+      "buildingId": "e027b2d7-a88c-4023-9491-311ac5245ea6"
+    }
+  ],
+  "updatedOn": "2026-11-27",
+  "positioning": "先进制造与半导体产业链拉动园区需求，研发、商务办公和生产协同形成分层",
+  "observations": [
+    {
+      "asOf": "2026Q3",
+      "body": "CBRE记录Q3亦庄受半导体产业集聚带动，与东升、大兴合计贡献全市商务园区净吸纳94%。研发和生产协作需求为项目去化提供实际基础。",
+      "kind": "inference",
+      "scope": "亦庄及全市商务园区",
+      "title": "园区去化由产业链需求驱动",
+      "sourceIds": [
+        "market-q3"
+      ],
+      "limitation": "94%是三个区域合计，不是亦庄份额。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "经开区2025年拥有400余家省级以上研发机构和超70个公共技术服务平台。汽车、芯片、生物医药和机器人等产业可产生研发、验证及生产协作空间需求。",
+      "kind": "inference",
+      "scope": "北京经开区行政口径",
+      "title": "研发平台与制造场景构成区位优势",
+      "sourceIds": [
+        "industry",
+        "rd2025"
+      ],
+      "limitation": "机构数不等于园区办公租户数。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "荣华中路亦城财富中心等标准商务办公更适合管理、客户接待；研发和试验团队需要按物流、供电、设备与专业用途选择园区。",
+      "kind": "inference",
+      "scope": "亦庄商务办公及专业产业载体",
+      "title": "商务办公与临生产线空间承担不同职能",
+      "sourceIds": [
+        "asset",
+        "industry",
+        "rd2025"
+      ],
+      "limitation": "需核实具体项目可租及用途。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "若半导体与成长型制造企业持续释放需求，专业化载体更可能受益；通用园区仍需依赖价格、交付和配套争取需求。",
+      "kind": "outlook",
+      "scope": "亦庄短期园区市场",
+      "title": "产业生态优势不保证所有项目同步去化",
+      "sourceIds": [
+        "market-q3",
+        "rd2025"
+      ],
+      "limitation": "条件判断，不预测具体价格。"
     }
   ]
 }

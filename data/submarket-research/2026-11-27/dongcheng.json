@@ -1,71 +1,142 @@
 {
-  "version": 1,
-  "market": "东城商务区",
-  "positioning": "东直门至朝阳门一带的东二环总部走廊，与历史街区相邻",
-  "updatedOn": "2026-11-27",
-  "focus": "grade-rent",
-  "sources": [
-    {
-      "id": "street",
-      "title": "东四街道概况",
-      "publisher": "东四街道",
-      "url": "https://www.bjdch.gov.cn/ztzl/dcqjdfw/jdsqgkjs/202208/t20220826_3036171.html",
-      "publishedOn": "2026-05-12",
-      "observedAt": "网页发布时点",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "administrative",
-      "scope": "东四街道",
-      "basis": "东部列有保利、五矿及中海油地标楼宇，西部为传统胡同街区；该资料适用街道，不能外推至整个子市场。"
-    },
-    {
-      "id": "rail",
-      "title": "3号线一期、12号线及昌平线南延开通公告",
-      "publisher": "首都之窗转引北京市交通委",
-      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202412/t20241213_3964726.html",
-      "publishedOn": "2024-12-13",
-      "observedAt": "2024-12-15起",
-      "verifiedOn": "2026-11-27",
-      "scopeType": "network",
-      "scope": "东四十条至东坝北段",
-      "basis": "3号线一期以东四十条为一期首端，东向衔接北京朝阳站。"
-    }
-  ],
   "facts": [
     {
-      "title": "东二环总部节点",
       "body": "东四街道公开资料确认东部街区拥有保利、五矿和中海油等楼宇地标，与西侧胡同片区呈现明显差异。",
       "kind": "industry",
+      "title": "东二环总部节点",
       "status": "observed",
       "sourceIds": [
         "street"
       ]
     },
     {
-      "title": "东四十条向东的轨道联系",
       "body": "3号线一期自东四十条开行，提供到北京朝阳站方向的轨道联系。",
       "kind": "transit",
+      "lines": [
+        "3号线"
+      ],
+      "title": "东四十条向东的轨道联系",
       "status": "observed",
       "sourceIds": [
         "rail"
-      ],
-      "lines": [
-        "3号线"
+      ]
+    },
+    {
+      "body": "第一太平戴维斯监测Q3租金环比下降。",
+      "kind": "supply",
+      "title": "东二环租金下调幅度",
+      "status": "observed",
+      "measure": {
+        "unit": "%",
+        "value": "5.5"
+      },
+      "sourceIds": [
+        "savills-q3"
+      ]
+    },
+    {
+      "body": "CBRE Q3监测东二环净吸纳为负。",
+      "kind": "industry",
+      "title": "存量退租",
+      "status": "observed",
+      "sourceIds": [
+        "market-q3"
       ]
     }
   ],
+  "focus": "grade-rent",
+  "market": "东城商务区",
+  "sources": [
+    {
+      "id": "street",
+      "url": "https://www.bjdch.gov.cn/ztzl/dcqjdfw/jdsqgkjs/202208/t20220826_3036171.html",
+      "basis": "东部列有保利、五矿及中海油地标楼宇，西部为传统胡同街区；该资料适用街道，不能外推至整个子市场。",
+      "scope": "东四街道",
+      "title": "东四街道概况",
+      "publisher": "东四街道",
+      "scopeType": "administrative",
+      "observedAt": "网页发布时点",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-05-12"
+    },
+    {
+      "id": "rail",
+      "url": "https://www.beijing.gov.cn/fuwu/bmfw/sy/jrts/202412/t20241213_3964726.html",
+      "basis": "3号线一期以东四十条为一期首端，东向衔接北京朝阳站。",
+      "scope": "东四十条至东坝北段",
+      "title": "3号线一期、12号线及昌平线南延开通公告",
+      "publisher": "首都之窗转引北京市交通委",
+      "scopeType": "network",
+      "observedAt": "2024-12-15起",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2024-12-13"
+    },
+    {
+      "id": "market-q3",
+      "url": "https://www.cbre.com.cn/press-releases/2026q3-beijing-mv",
+      "basis": "Q3东二环受退租拖累录得负净吸纳。",
+      "scope": "东二环办公楼监测",
+      "title": "2026年第三季度北京房地产市场回顾",
+      "publisher": "世邦魏理仕",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": "2026-10-12"
+    },
+    {
+      "id": "savills-q3",
+      "url": "https://pdf.savills.asia/asia-pacific-research/china-research/beijing-research/beijing-office/26q3-beijing-office-cn.pdf",
+      "basis": "Q3租金环比下降5.5%，部分项目租户结构调整。",
+      "scope": "东二环甲级办公楼市场",
+      "title": "北京办公楼市场简报（2026Q3）",
+      "publisher": "第一太平戴维斯",
+      "scopeType": "external_market",
+      "observedAt": "2026Q3",
+      "verifiedOn": "2026-11-27",
+      "publishedOn": null
+    }
+  ],
+  "version": 1,
+  "projects": [],
+  "updatedOn": "2026-11-27",
+  "positioning": "东二环成熟总部走廊，存量退租与楼宇调整带来价格竞争",
   "observations": [
     {
-      "title": "沿东二环做总部通勤半径，再逐栋比选",
-      "body": "对需要中心城区客户访问、铁路换乘的团队，可先沿东直门、东四十条、朝阳门划定通勤半径。之后将甲乙级同季租金、访客安防与楼宇大堂条件纳入表内。",
+      "asOf": "2026Q3",
+      "body": "CBRE Q3记录东二环负吸纳，第一太平戴维斯监测甲级租金环比下降5.5%。区位优势没有消失，但项目退租、租户调整及竞争性报价影响当前市场表现。",
       "kind": "inference",
-      "asOf": "2026-11",
-      "scope": "东二环平台存量项目",
-      "limitation": "街道的地标案例没有覆盖整个商务带，无法估计行业租赁份额。",
+      "scope": "东二环外部监测",
+      "title": "成熟总部走廊当前仍在调整",
+      "sourceIds": [
+        "market-q3",
+        "savills-q3"
+      ],
+      "limitation": "东二环报告边界不等于平台东城商务区。"
+    },
+    {
+      "asOf": "2026Q3",
+      "body": "东四街道东部的保利、五矿、中海油楼宇反映总部办公基础，与西侧传统街区形成不同产品形态。东直门、东四十条及朝阳门应按微观通勤和楼宇条件区分。",
+      "kind": "inference",
+      "scope": "东四街道及东二环",
+      "title": "总部节点与传统城区形成不同空间",
       "sourceIds": [
         "street",
         "rail"
-      ]
+      ],
+      "limitation": "街道案例不能代表整个区域租户结构。"
+    },
+    {
+      "asOf": "2026-11",
+      "body": "3号线一期东向联系扩大东四十条通达范围。对于需要中心城区及东部客户访问、但非必须国贸核心的团队，东二环有比选价值，楼宇更新与实际净租需逐栋比较。",
+      "kind": "inference",
+      "scope": "东二环办公及交通",
+      "title": "存量办公具有中心城区替代价值",
+      "sourceIds": [
+        "rail",
+        "savills-q3",
+        "street"
+      ],
+      "limitation": "轨道开通不等于租赁需求。"
     }
-  ],
-  "projects": []
+  ]
 }

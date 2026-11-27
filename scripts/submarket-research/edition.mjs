@@ -27,7 +27,7 @@ export function readEdition() {
     for (const source of data.sources) {
       const url = new URL(source.url);
       assert.ok(url.hostname.endsWith('.beijing.gov.cn') || url.hostname === 'www.bjsubway.com' ||
-        ['www.cbre.com.cn', 'www.jll.cn', 'data.eastmoney.com', 'www.bjdch.gov.cn', 'www.bjhd.gov.cn', 'zyk.bjhd.gov.cn', 'www.bjft.gov.cn', 'www.aiib.org'].includes(url.hostname),
+        ['www.cbre.com.cn', 'www.jll.cn', 'data.eastmoney.com', 'pdf.savills.asia', 'www.ncsti.gov.cn', 'www.bjdch.gov.cn', 'www.bjhd.gov.cn', 'zyk.bjhd.gov.cn', 'www.bjft.gov.cn', 'www.aiib.org'].includes(url.hostname),
       `${data.market} 来源需要确认其公开发布单位 ${url.hostname}`);
     }
     const signature = trigrams([data.positioning, ...data.observations.map(item => item.body)].join(' '));
