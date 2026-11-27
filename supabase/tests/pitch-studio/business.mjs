@@ -720,6 +720,102 @@ try {
    const changed = await build(admin, randomUUID(), applied.target);
    assert.equal(await probeQuarterCorrection(admin, revised, changed.snapshots), 'unchanged');
  });
+ await check('a named recipient can present frozen quarterly values within their own fields and buildings', async()=>{
+   const {getWorkspace,saveWorkspace}=require('../../../src/lib/pitch/workspace/workflow.ts');
+   const {renderSharedSlide}=require('../../../src/lib/pitch/workspace/sharing.ts');
+   const ownerScope={capabilities:['query:catalog','query:brochure','query:quarter','export:internal'],
+     fields:['totalArea','vacantArea','netEffectiveRent','height']};
+   const readerScope={capabilities:['query:catalog','query:quarter'],fields:['netEffectiveRent'],allBuildings:false,buildingIds:[BUILDINGS[0]]};
+   await db.setup.query("update public.user_roles set role='admin' where user_id=$1",[OWNER]);
+   await grantQuery(db,OWNER,ownerScope);
+   const metricsScope=[BUILDINGS[0]];
+   const metricBefore=(await db.setup.query("select net_effective_rent from building_metrics where building_id=$1 and record_year=2026 and record_quarter=3",metricsScope)).rows[0].net_effective_rent;
+   try {
+     const c=command([{mode:'dynamic',parameters:{...dynamicFixture,templateId:'building-profile',
+       buildingIds:[BUILDINGS[0]],fields:['netEffectiveRent'],chart:'table'}}]);
+     await workflow.generateBusinessProject(owner,c);
+     const doc=await getWorkspace(owner,c.projectId);
+     const table=doc.slides.find(page=>page.content.blocks.some(block=>block.kind==='table'));
+     assert.ok(table);
+     const request={action:'workspace_share_create',projectId:c.projectId,expectedVersion:doc.project.version,
+       shareId:randomUUID(),recipientId:OTHER,slideIds:[table.id]};
+     const denied=error=>error.code==='42501';
+     await assert.rejects(db.rpc(OWNER,request),denied);
+     await db.setup.query("update public.user_roles set role='admin' where user_id=$1",[OTHER]);
+     await grantQuery(db,OTHER,{...readerScope,fields:['totalArea']});
+     await assert.rejects(db.rpc(OWNER,request),denied);
+     await grantQuery(db,OTHER,{...readerScope,buildingIds:[BUILDINGS[1]]});
+     await assert.rejects(db.rpc(OWNER,request),denied);
+     await grantQuery(db,OTHER,readerScope);
+     const share=await db.rpc(OWNER,request);
+     assert.deepEqual(share.pageIds,[table.id]);
+     assert.deepEqual(await db.rpc(OWNER,request),share);
+     const open={action:'workspace_shared_presentation',shareId:share.id};
+     const input={shareId:share.id,slideId:table.id};
+     const presented=await db.rpc(OTHER,open);
+     assert.deepEqual(presented.pages,[{id:table.id,title:table.content.title}]);
+     await assert.rejects(db.rpc(ADMIN,open),denied);
+     await assert.rejects(getWorkspace(ordinary,c.projectId),/PITCH_DENIED/);
+     const opened=await renderSharedSlide(ordinary,input);
+     assert.match(opened.svg,/<svg/);
+     const {captureReviewedQuery}=require('../../../src/lib/pitch/business/document-version.ts');
+     const {layoutSlides}=require('../../../src/lib/pitch/layout/engine.ts');
+     const {STUDIO_THEME}=require('../../../src/lib/pitch/design/theme.ts');
+     const [formal]=(await db.rpc(OWNER,{action:'business_generation',projectId:c.projectId})).snapshots;
+     const [result]=formal.results;
+     const archived={id:'reviewed-building',entityId:BUILDINGS[0],dataVersion:formal.dataVersion,dataAsOf:formal.dataAsOf,
+       binding:{...formal.binding,dataVersion:formal.dataVersion,dataAsOf:formal.dataAsOf,disclosure:'internal'},
+       results:[captureReviewedQuery(result)]};
+     const source={id:result.resultId,kind:'record',recordId:result.resultId,label:'已审阅正式楼宇来源',
+       version:formal.dataVersion,locator:archived.id+' · '+result.resultId,dataAsOf:formal.dataAsOf};
+     const publishReviewed=async evidence=>{
+       const projectId=randomUUID(),assetId=randomUUID(),slideId=randomUUID();
+       const content={...table.content,sources:[evidence],blocks:table.content.blocks.map(block=>({...block,sourceIds:[evidence.id]}))};
+       const [scene]=await layoutSlides(content,STUDIO_THEME,table.scene.layoutId,table.scene.variant);
+       await db.rpc(OWNER,{action:'business_generate_commit',projectId,title:'隔离已审阅正式提案',
+         themeId:STUDIO_THEME.id,themeVersion:STUDIO_THEME.version,scope,language:'zh',requestKey:digest(Buffer.from(projectId)),
+         parentProjectId:c.projectId,expectedParentVersion:doc.project.version,
+         reviewedPlanId:randomUUID(),proposalContext:doc.workspace.context,snapshots:[archived],bindings:[],recipes:[],changes:[],
+         generated:[{id:assetId,content,sha256:digest(Buffer.from(JSON.stringify(content)))}],
+         slides:[{slideId,assetId,assetVersion:1,content,scene}]});
+       const version=(await getWorkspace(owner,projectId)).project.version;
+       return {action:'workspace_share_create',projectId,expectedVersion:version,shareId:randomUUID(),recipientId:OTHER,slideIds:[slideId]};
+     };
+     const linked=await publishReviewed(source);
+     const linkedShare=await db.rpc(OWNER,linked);
+     assert.match((await renderSharedSlide(ordinary,{shareId:linkedShare.id,slideId:linked.slideIds[0]})).svg,/<svg/);
+     const unlinked=await publishReviewed({...source,version:'unverified-source-version'});
+     await assert.rejects(db.rpc(OWNER,unlinked),denied);
+     await db.setup.query("update auth.sessions set not_after=now()-interval '1 second' where id=$1",[sessionFor(OTHER)]);
+     try {
+       await assert.rejects(db.rpc(OTHER,open),denied);
+     } finally {
+       await db.setup.query("update auth.sessions set not_after=now()+interval '1 day' where id=$1",[sessionFor(OTHER)]);
+     }
+     await db.setup.query("update building_metrics set net_effective_rent=net_effective_rent+1 where building_id=$1 and record_year=2026 and record_quarter=3",metricsScope);
+     await saveWorkspace(owner,{action:'save',projectId:c.projectId,expectedVersion:doc.project.version,title:'修改后的隔离项目',
+       themeId:doc.project.theme_id,themeVersion:doc.project.theme_version,context:doc.workspace.context,
+       activeSlide:table.id,pages:doc.slides.map(page=>({id:page.id,title:page.id===table.id?'修改后的隔离页':undefined}))});
+     assert.deepEqual(await renderSharedSlide(ordinary,input),opened);
+     await db.setup.query("update private.ai_query_grants set enabled=false where user_id=$1",[OTHER]);
+     await assert.rejects(db.rpc(OTHER,open),denied);
+     await assert.rejects(renderSharedSlide(ordinary,input),/PITCH_DENIED/);
+     await grantQuery(db,OTHER,readerScope);
+     assert.deepEqual(await renderSharedSlide(ordinary,input),opened);
+     await db.setup.query("update private.pitch_grants set enabled=false where user_id=$1",[OWNER]);
+     await assert.rejects(db.rpc(OTHER,open),denied);
+     await db.setup.query("update private.pitch_grants set enabled=true where user_id=$1",[OWNER]);
+     await db.setup.query("update private.ai_query_grants set enabled=false where user_id=$1",[OWNER]);
+     await assert.rejects(db.rpc(OTHER,open),denied);
+     await grantQuery(db,OWNER,ownerScope);
+     await assert.rejects(renderSharedSlide(ordinary,input),/PITCH_DENIED/);
+   } finally {
+     await db.setup.query("update building_metrics set net_effective_rent=$2 where building_id=$1 and record_year=2026 and record_quarter=3",[...metricsScope,metricBefore]);
+     await db.setup.query("update private.pitch_grants set enabled=true where user_id=$1",[OWNER]);
+     await db.setup.query("delete from private.ai_query_grants where user_id=any($1::uuid[])",[[OWNER,OTHER]]);
+     await db.setup.query("update public.user_roles set role='editor' where user_id=any($1::uuid[])",[[OWNER,OTHER]]);
+   }
+ });
  await check('dynamic snapshots cannot be client-exported or reused after independent data permission revocation',async()=>{
    const c={action:'export_start',projectId:dynamicProject.projectId,exportId:randomUUID(),audience:'internal',format:'pptx'};await render.prepareRenderExport(admin,c);await render.runRenderExport(admin,c);const file=await render.downloadArtifact(admin,c);await writeFile('tmp/pitch-business-fixtures/隔离正式数据_原生趋势.pptx',file.bytes);const zip=await JSZip.loadAsync(file.bytes);const chart=Object.values(zip.files).find(f=>/^ppt\/charts\/chart\d+\.xml$/.test(f.name));assert.ok(chart);assert.match(await chart.async('string'),/lineChart/);await assert.rejects(render.prepareRenderExport(admin,{...c,exportId:randomUUID(),audience:'client'}),/PITCH_DENIED/);
    const p=await db.rpc(ADMIN,{action:'get_project',projectId:dynamicProject.projectId});
@@ -764,6 +860,29 @@ try {
   assert.deepEqual(appendedReceipt.snapshots[0].plans[0].submarkets,leaseInput.source.submarkets);
   assert.doesNotMatch(JSON.stringify(appendedReceipt),/合成保密客户/);
   const exp={action:'export_start',projectId:input.projectId,exportId:randomUUID(),audience:'internal',format:'pptx'};await render.prepareRenderExport(admin,exp);await render.runRenderExport(admin,exp);assert.ok((await render.downloadArtifact(admin,exp)).bytes.length>1000);
+  const mixedSources=command([
+    {mode:'dynamic',title:'单楼正式季度指标',parameters:{...dynamicFixture,templateId:'building-profile',
+      buildingIds:[BUILDINGS[0]],fields:['netEffectiveRent'],chart:'table'}},
+    {...input.parts[0],title:'独立租赁分析'},
+  ]);
+  await workflow.generateBusinessProject(admin,mixedSources);
+  const mixedDoc=await workspace.getWorkspace(admin,mixedSources.projectId);
+  const quarterly=mixedDoc.slides.find(page=>page.content.title==='单楼正式季度指标'&&page.content.blocks.some(block=>block.kind==='table'));
+  const leases=mixedDoc.slides.find(page=>page.content.title==='独立租赁分析');
+  assert.ok(quarterly&&leases);
+  await db.setup.query("update public.user_roles set role='admin' where user_id=$1",[OTHER]);
+  await grantQuery(db,OTHER,{capabilities:['query:catalog','query:quarter'],fields:['netEffectiveRent'],allBuildings:false,buildingIds:[BUILDINGS[0]]});
+  try {
+    const base={action:'workspace_share_create',projectId:mixedDoc.project.id,expectedVersion:mixedDoc.project.version,
+      shareId:randomUUID(),recipientId:OTHER};
+    await assert.rejects(db.rpc(ADMIN,{...base,slideIds:[quarterly.id,leases.id]}),error=>error.code==='42501');
+    const selection=await db.rpc(ADMIN,{...base,slideIds:[quarterly.id]});
+    assert.deepEqual((await db.rpc(OTHER,{action:'workspace_shared_presentation',shareId:selection.id})).pages.map(page=>page.id),[quarterly.id]);
+    await assert.rejects(db.rpc(OTHER,{action:'workspace_shared_slide',shareId:selection.id,slideId:leases.id}),error=>error.code==='42501');
+  } finally {
+    await db.setup.query("delete from private.ai_query_grants where user_id=$1",[OTHER]);
+    await db.setup.query("update public.user_roles set role='editor' where user_id=$1",[OTHER]);
+  }
   await db.setup.query('update private.ai_lease_research_grants set enabled=false where user_id=$1',[ADMIN]);await assert.rejects(render.downloadArtifact(admin,exp),/PITCH_DENIED/);
   await assert.rejects(handoff.startHandoff(admin,append),/PITCH_DENIED/);
  });
