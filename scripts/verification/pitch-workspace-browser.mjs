@@ -643,13 +643,20 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         assert.ok(cited.some(receipt => receipt.binding.domain === "quarter"), "formal objects lost their query receipts");
         if (scenario.scenario === "leasing-agency") assert.ok(cited.some(receipt => receipt.receiptId === "submarket-research"));
         if (scenario.scenario === "market-report") assert.ok(cited.some(receipt => receipt.query.parameters.groupBy === "grade"));
+        const appendixIndex = created.slides.findIndex(slide => slide.content.sources.some(source => source.visual?.kind === "stacking-plan"));
+        const appendix = created.slides[appendixIndex];
+        const appendixTitle = "历史楼层附页 · 实地核对待补";
         if ((requiredVisuals[scenario.scenario] ?? []).includes("stacking-plan")) {
-          const appendix = created.slides.find(slide => slide.content.sources.some(source => source.visual?.kind === "stacking-plan"));
           assert.equal(appendix?.content.disclosure, "restricted");
           assert.equal(appendix?.content.dataAsOf, "2026-11-18");
         }
         const editedTitle = `隔离验收 · ${scenario.button}`;
         await page.getByLabel("页面标题", { exact: true }).fill(editedTitle);
+        if (appendix) {
+          await button(`打开第 ${appendixIndex + 1} 页：${appendix.content.title}`).click();
+          await page.getByLabel("页面标题", { exact: true }).fill(appendixTitle);
+          await page.getByRole("button", { name: /^打开第 1 页：/ }).click();
+        }
         const [savedResponse] = await Promise.all([
           waitForPitchCommand(page, "/api/intelligence/pitch/workspace", "save"),
           button("保存").click(),
@@ -658,6 +665,13 @@ export async function verifyPitchFlagshipBrowser({ app, who, period, readProject
         const reopened = await readProject(projectId);
         assert.ok(reopened.project.version > created.project.version);
         assert.equal(reopened.slides[0].content.title, editedTitle);
+        if (appendix) {
+          const updated = reopened.slides[appendixIndex].content;
+          assert.equal(updated.title, appendixTitle);
+          assert.equal(updated.disclosure, "restricted");
+          assert.equal(updated.dataAsOf, appendix.content.dataAsOf);
+          assert.deepEqual(updated.blocks, appendix.content.blocks);
+        }
         await page.goto(app + "/intelligence/pitch?project=" + encodeURIComponent(projectId));
         await page.getByRole("region", { name: "页面预览", exact: true }).getByRole("img").waitFor({ timeout: 45_000 });
         assert.equal(await page.getByLabel("页面标题", { exact: true }).inputValue(), editedTitle);
