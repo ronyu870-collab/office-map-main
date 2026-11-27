@@ -33,26 +33,27 @@ export function ResearchCoreMetrics({ items, scope, measured = true }: {
   </section>;
 }
 
-export function OfficeResearchCoreMetrics({ name, summary, buildings, measured }: {
+export function OfficeResearchCoreMetrics({ name, summary, buildings, beijingBenchmarkBuildings, measured }: {
   name: string;
   summary: SubmarketSummary;
   buildings: readonly MarketBuilding[];
+  beijingBenchmarkBuildings?: readonly MarketBuilding[];
   measured?: boolean;
 }) {
-  const current = useMemo(() => describeCurrentResearchMarket(name, buildings), [name, buildings]);
+  const current = useMemo(() => describeCurrentResearchMarket(name, buildings, beijingBenchmarkBuildings), [name, buildings, beijingBenchmarkBuildings]);
   const rentPeriods = current.rent.periods;
   const vacancyPeriods = current.vacancyPct.periods;
   const sharedPeriod = available(summary.rent) && available(summary.vacancyPct) &&
     rentPeriods.length === 1 && vacancyPeriods.length === 1 && rentPeriods[0] === vacancyPeriods[0] ? rentPeriods[0] : '';
-  const context = (value: number | null, periods: readonly string[], samples: number) =>
-    [available(value) && !sharedPeriod && (periods.length > 1 ? '跨季度' : periods[0] || '期间未收录'),
-      samples === 1 && '单项目样本'].filter(Boolean).join(' · ');
+  const context = (value: number | null, periods: readonly string[], samples: number, benchmark: number | undefined, unit: string) =>
+    [available(value) && !sharedPeriod && (periods.length > 1 ? `跨期 ${periods[0]}–${periods[periods.length - 1]}` : periods[0] || '期间未收录'),
+      samples === 1 && '单项目样本', available(benchmark) && `较北京同口径 ${signedResearchNumber(benchmark)} ${unit}`].filter(Boolean).join(' · ');
   return <ResearchCoreMetrics measured={measured} scope={'当前筛选 · 甲乙级' + (sharedPeriod ? ' · 租金／空置率 ' + sharedPeriod : '')}
     items={[
       { key: 'rent', label: '平均净有效租金', value: summary.rent, unit: '元/㎡/月',
-        context: context(summary.rent, rentPeriods, summary.rentSampleCount) },
+        context: context(summary.rent, rentPeriods, summary.rentSampleCount, measured === false ? undefined : current.rent.benchmark?.difference, '元/㎡/月') },
       { key: 'vacancy', label: '平均空置率', value: summary.vacancyPct, unit: '%',
-        context: context(summary.vacancyPct, vacancyPeriods, summary.vacancySampleCount) },
+        context: context(summary.vacancyPct, vacancyPeriods, summary.vacancySampleCount, measured === false ? undefined : current.vacancyPct.benchmark?.difference, '个百分点') },
       { key: 'projects', label: '甲乙级项目', value: summary.officeCount, unit: '个', precision: 0 },
     ]} />;
 }
@@ -73,7 +74,7 @@ export function ResearchQuarterPulse({ data, state, showValues = true }: {
       key: 'rent', label: '净有效租金', period: rent.latest.period, value: rent.latest.rent, unit: ' 元/㎡/月',
       change: available(rent.qoqPct) ? (rent.scopeChanged ? '市场样本环比 ' : '环比 ') + signedResearchNumber(rent.qoqPct) + '%'
         : available(rent.qoqAbsolute) ? (rent.scopeChanged ? '市场样本环比 ' : '环比 ') + signedResearchNumber(rent.qoqAbsolute) + ' 元/㎡/月' : '',
-      matched: matched && matched.samples >= 2 && available(matched.rentPct) ? '同样本 ' + signedResearchNumber(matched.rentPct) + '%' : '',
+      matched: matched && matched.samples >= 2 && available(matched.rentPct) ? '同样本环比 ' + signedResearchNumber(matched.rentPct) + '%' : '',
     });
   }
   if (vacancy.latest && available(vacancy.latest.vacancyPct)) {
@@ -81,7 +82,7 @@ export function ResearchQuarterPulse({ data, state, showValues = true }: {
     rows.push({
       key: 'vacancy', label: '空置率', period: vacancy.latest.period, value: vacancy.latest.vacancyPct, unit: '%',
       change: available(vacancy.qoqPp) ? (vacancy.scopeChanged ? '市场样本环比 ' : '环比 ') + signedResearchNumber(vacancy.qoqPp) + ' 个百分点' : '',
-      matched: matched && matched.samples >= 2 && available(matched.vacancyPp) ? '同样本 ' + signedResearchNumber(matched.vacancyPp) + ' 个百分点' : '',
+      matched: matched && matched.samples >= 2 && available(matched.vacancyPp) ? '同样本环比 ' + signedResearchNumber(matched.vacancyPp) + ' 个百分点' : '',
     });
   }
   const visible = showValues ? rows : rows.filter(row => row.change || row.matched);

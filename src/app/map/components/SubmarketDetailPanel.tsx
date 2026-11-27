@@ -181,11 +181,11 @@ function SubmarketWorkspace({
     trendState={trendState} futureState={futureState} futureCount={futureCount} futureArea={futureArea} futureAreaSamples={futureAreaSamples}
     beijingBenchmarkBuildings={beijingBenchmarkBuildings} showQuarterlySummary={!expanded}
     structured={!!research} parkOnly={parkOnly} part={presentation ? 'composition' : 'all'} />;
-  const coreMetrics = presentation ? <OfficeResearchCoreMetrics name={name} summary={summary} buildings={buildings} measured={layout !== 'quick'} /> : null;
+  const coreMetrics = presentation ? <OfficeResearchCoreMetrics name={name} summary={summary} buildings={buildings} beijingBenchmarkBuildings={beijingBenchmarkBuildings} measured={layout !== 'quick'} /> : null;
   const overview = presentation ? <div className="submarket-v3-overview">
     {coreMetrics}
     {!expanded && <ResearchLead presentation={presentation} mode="standard" />}
-    <ResearchQuarterPulse data={allTrend} state={trendState} showValues={!expanded} />
+    <ResearchQuarterPulse data={allTrend} state={trendState} showValues={!expanded || grade !== 'all'} />
     {!expanded && marketOverview}
   </div> : marketOverview;
   const projects = (compact = false) => <SubmarketRepresentativeProjects buildings={buildings} submarket={name}

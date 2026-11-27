@@ -109,7 +109,7 @@ function evidenceContext(research: SubmarketIntelligence, sourceIds: readonly st
   const periods = [...new Set((asOf ? [asOf] : sources.map(source => source.observedAt)).map(dateLabel).filter(Boolean))];
   // Scope labels describe the evidence, not an attribution or a new data source.
   const scope = sources.some(source => source.scopeType === 'external_market')
-    ? (/甲级.*空置率/.test(title) || /空置率/.test(title) ? '公开甲级办公样本' : '公开市场研究')
+    ? (/甲级.*空置率/.test(title) || /空置率/.test(title) ? '公开甲级办公样本（独立监测）' : '公开市场研究')
     : sources.some(source => source.scopeType === 'functional') ? research.market + '功能区' : '';
   return [...periods, scope].filter(Boolean).join(' · ');
 }
@@ -167,7 +167,7 @@ export function buildResearchPresentation(research: SubmarketIntelligence, marke
     : ['competition', 'demand', 'location', 'outlook'];
   const chapters = themeOrder.map(theme => ({
     theme, title: chapterTitles[theme],
-    observations: observations.filter(item => item.theme === theme),
+    observations: observations.filter(item => item.theme === theme).sort((a, b) => Number(b.key === lead?.key) - Number(a.key === lead?.key)),
     facts: facts.filter(item => item.theme === theme),
   })).filter(chapter => chapter.observations.length || chapter.facts.length);
   const positioning = customerResearchText(research.positioning, research);

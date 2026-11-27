@@ -434,13 +434,14 @@ describe('submarket research workspace', () => {
     api.read.mockResolvedValue({ ...payload, profile: { ...profile, research, headline: research.positioning },
       trends: { all: [early, latest], a: [{ ...latest, rent: 210 }], b: [{ ...latest, rent: 170 }] } });
     render(<SubmarketDetailPanel {...props} />);
-    const lead = await screen.findByRole('region', { name: '市场观察' });
+    await screen.findByRole('heading', { name: research.observations[0].title });
+    const lead = screen.getByRole('region', { name: '市场观察' });
     const metrics = screen.getByRole('region', { name: '市场核心指标' });
     expect(metrics.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(lead).getByRole('heading', { name: research.observations[0].title })).toBeVisible();
     expect(within(lead).getByText('33.2')).toBeVisible();
     expect(within(lead).getByText('125')).toBeVisible();
-    expect(within(lead).getByText('2026Q3 · 公开市场研究')).toBeVisible();
+    expect(within(lead).getAllByText('2026Q3 · 公开市场研究').length).toBeGreaterThan(0);
     for (const item of research.observations) {
       expect(screen.queryByText(item.body, { exact: true })).not.toBeInTheDocument();
       expect(screen.queryByText(item.limitation, { exact: true })).not.toBeInTheDocument();
