@@ -106,6 +106,7 @@ try {
      reviewedPlanId:randomUUID(),generated:[{id:assetId,content,sha256:digest(Buffer.from(JSON.stringify(content)))}],
      slides:[{slideId,assetId,assetVersion:1,content,scene}],changes:[],bindings:[],recipes:[],snapshots:[snapshot]});
    const first = await workspace.getWorkspace(admin,projectId);
+   assert.deepEqual(await db.rpc(ADMIN,{action:'workspace_document_bindings',projectId,expectedVersion:first.project.version}),[]);
    const bound = (await readDocumentBindings(admin,projectId)).pages[0];
    assert.deepEqual(bound.objects.map(object=>object.valueOrigin),['manual','business','asset']);
    assert.deepEqual(bound.objects[1].receipts[0],{sourceId:official.id,generationId:projectId,receiptId:snapshot.id,

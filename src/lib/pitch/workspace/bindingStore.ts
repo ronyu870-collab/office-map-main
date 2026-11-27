@@ -33,7 +33,7 @@ const queryReceiptSchema = z.object({
 type QueryReceipt = z.infer<typeof queryReceiptSchema>;
 
 export async function readBindings(ctx: PitchContext, projectId: string, version: number) {
-  const result = await pitchRpc(ctx, { action: 'workspace_document_bindings', projectId, expectedVersion: version });
+  const result = await pitchRpc(ctx, { action: 'workspace_document_bindings', projectId, expectedVersion: version, includeQueryReceipts: true });
   const captures = new Map<string, Capture>();
   const receipts = new Map<string, QueryReceipt[]>();
   for (const row of z.array(z.union([captureSchema, queryReceiptSchema])).parse(result)) {
