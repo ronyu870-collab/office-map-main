@@ -1223,6 +1223,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
               <AssetPicker
                 call={call}
                 onAdd={addAssets}
+                categories={catalog.categories}
                 busy={busy || addingAssets || !canGenerate}
               />
             </div>
@@ -1806,7 +1807,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       />
                     </>
                   ) : inspector === "assets" ? (
-                    <AssetPicker key={detail.project.id} call={call} onAdd={addAssets} projectId={detail.project.id}
+                    <AssetPicker key={detail.project.id} call={call} onAdd={addAssets} categories={catalog.categories} projectId={detail.project.id}
                       busy={busy || addingAssets || generationPending || conflict || !canGenerate} />
                   ) : inspector === "properties" ? (
                     <div className={styles.form}>

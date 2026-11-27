@@ -889,3 +889,40 @@
 .layoutVariants button[aria-pressed="true"] { border-color: var(--cd-color-brand, #003e7e); opacity: 1; }
 .layoutVariants img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: contain; }
 .revisionSlide { display: block; width: 100%; aspect-ratio: 16/9; object-fit: contain; border: 1px solid var(--pitch-border); border-radius: var(--cd-radius-md, 6px); }
+
+.assetFilters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 8px;
+}
+.studio .assetRows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.assetRows > li {
+  border-bottom: 1px solid var(--pitch-border);
+}
+.assetRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-block: 4px;
+  overflow-wrap: anywhere;
+}
+.assetRow button { flex-shrink: 0; }
+.assetPreview {
+  display: grid;
+  gap: 8px;
+  padding: 0 0 12px 24px;
+  overflow-wrap: anywhere;
+}
+.assetPreview :is(p, dl, dd, ul) { margin: 0; }
+.assetPreview dt { font-weight: 600; }
+.assetPreview dd + dt { margin-top: 8px; }
+.studio .assetPreview ul { padding-inline-start: 1em; }
+
+@media (pointer: coarse), (max-width: 700px) {
+  .assetRow button, .assetRow .check { min-height: 44px; }
+}
