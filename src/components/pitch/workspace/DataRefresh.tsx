@@ -5,29 +5,13 @@ import { z } from "zod";
 import { Button, Dialog } from "@/src/components/ui";
 import { catalogDimensions, numericFields } from "@/src/lib/intelligence/query/registry";
 import { outlineQuarter, workspaceDetailSchema, type WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
-import { WorkspaceError, type Call } from "./client";
+import type { Call } from "./client";
+import type { DocumentBindings } from "./DocumentBindings";
 import { DataRefreshComparison, dataRefreshPeriodSchema, dataRefreshReviewSchema, refreshPeriodLabel,
   type DataRefreshReview } from "./DataRefreshReview";
 import styles from "./workspace.module.css";
 
-const queryReceiptSchema = z.object({
-  sourceId: z.uuid(), receiptId: z.string(), resultId: z.uuid(),
-  binding: z.object({ dataAsOf: z.iso.date().nullable() }),
-  query: z.object({ fields: z.array(z.string()) }),
-});
 const fieldNames: Record<string, { label: string }> = { ...catalogDimensions, ...numericFields };
-const bindingsSchema = z.object({
-  projectVersion: z.number().int(),
-  pages: z.array(z.object({
-    id: z.uuid(),
-    objects: z.array(z.object({
-      valueOrigin: z.enum(["manual", "asset", "business"]),
-      binding: z.object({ domain: z.enum(["quarter", "lease", "business"]) }).optional(),
-      query: z.object({ period: dataRefreshPeriodSchema.optional() }).optional(),
-      receipts: z.array(queryReceiptSchema).optional(),
-    })),
-  })),
-});
 type DataRefreshProps = {
   call: Call;
   detail: WorkspaceDetail;
@@ -37,28 +21,10 @@ type DataRefreshProps = {
   onApplied: (workspace: WorkspaceDetail, expectedVersion: number) => void;
 };
 
-export function DataRefresh(props: DataRefreshProps) {
-  const { call, detail, slideId, suggestedPeriod } = props;
-  const [binding, setBinding] = useState<z.infer<typeof bindingsSchema>>();
-  const [loadingError, setLoadingError] = useState("");
-  const [attempt, setAttempt] = useState(0);
-  const projectId = detail.project.id;
-  const expectedVersion = detail.project.version;
-
-  useEffect(() => {
-    const request = new AbortController();
-    void call({ action: "document_bindings", projectId }, false, "workspace", request.signal)
-      .then(bindingsSchema.parse)
-      .then((result) => { if (!request.signal.aborted) setBinding(result); })
-      .catch((cause: unknown) => {
-        if (request.signal.aborted || cause instanceof WorkspaceError && [400, 404].includes(cause.status)) return;
-        setLoadingError(cause instanceof Error && !(cause instanceof z.ZodError) ? cause.message : "数据绑定暂时无法读取。");
-      });
-    return () => request.abort();
-  }, [attempt, call, projectId, expectedVersion]);
-
-  const pageBindings = binding?.projectVersion === expectedVersion
-    ? binding.pages.find(page => page.id === slideId)?.objects ?? [] : [];
+export function DataRefresh({ bindings, ...props }: DataRefreshProps & { bindings: DocumentBindings }) {
+  const { detail, slideId, suggestedPeriod } = props;
+  const pageBindings = bindings.status === "ready"
+    ? bindings.data.pages.find(page => page.id === slideId)?.objects ?? [] : [];
   const business = pageBindings.find(item => item.valueOrigin === "business" &&
     (item.binding?.domain === "quarter" || item.binding?.domain === "lease"));
   const receipts = new Map(pageBindings.flatMap(item => (item.receipts ?? []).map(receipt =>
@@ -68,8 +34,8 @@ export function DataRefresh(props: DataRefreshProps) {
     const source = page?.content.sources.find(source => source.id === receipt.sourceId);
     return source ? [{ key, source, ...receipt }] : [];
   });
-  if (!business && !evidence.length) return loadingError ? <div role="alert">
-    <p>{loadingError}</p><Button variant="ghost" onClick={() => { setLoadingError(""); setAttempt(value => value + 1); }}>重试读取绑定</Button>
+  if (!business && !evidence.length) return bindings.status === "error" ? <div role="alert">
+    <p>{bindings.message}</p><Button variant="ghost" onClick={bindings.retry}>重试读取绑定</Button>
   </div> : null;
   return <section className={styles.form} aria-label="正式数据绑定">
     <h2>正式数据绑定</h2>

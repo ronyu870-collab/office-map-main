@@ -1,9 +1,11 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
+import type { ComponentProps } from "react";
 import type { WorkspaceDetail } from "@/src/lib/pitch/workspace/protocol";
 import type { Call } from "./client";
 import { DataRefresh } from "./DataRefresh";
+import { useDocumentBindings } from "./DocumentBindings";
 
 afterEach(cleanup);
 
@@ -20,6 +22,13 @@ const workspace = {
   workspace: { context: {}, page_settings: {}, active_slide: null },
   slides: [], tasks: [], exports: [], history: [],
 } as unknown as WorkspaceDetail;
+
+function Inspector(props: Omit<ComponentProps<typeof DataRefresh>, "bindings">) {
+  const bindings = useDocumentBindings(props.call, props.detail.project, true);
+  return <DataRefresh {...props} bindings={bindings} />;
+}
+
+const object = { index: 0, kind: "metric", sourceIds: [sourceId] };
 
 it("keeps the quarter field focused while typing, then applies only the reviewed quarter and fingerprint", async () => {
   const user = userEvent.setup();
@@ -38,9 +47,9 @@ it("keeps the quarter field focused while typing, then applies only the reviewed
   const call = vi.fn(async (input: Record<string, unknown>) => {
     if (input.action === "document_bindings") {
       return { projectVersion: expectedVersion, pages: [
-        { id: stackingPage, objects: [{ valueOrigin: "business", binding: { domain: "business", dataAsOf: null },
+        { id: stackingPage, objects: [{ ...object, valueOrigin: "business", binding: { domain: "business", dataAsOf: null },
           query: { kind: "stacking-plan" } }] },
-        { id: slideId, objects: [{ valueOrigin: "business", binding: { domain: "quarter", dataAsOf: "2026-09-30" },
+        { id: slideId, objects: [{ ...object, valueOrigin: "business", binding: { domain: "quarter", dataAsOf: "2026-09-30" },
           query: { period: { year: 2026, quarter: 3 } } }] },
       ] };
     }
@@ -49,7 +58,7 @@ it("keeps the quarter field focused while typing, then applies only the reviewed
   }) as unknown as Call;
   const onApplied = vi.fn();
   const props = { call, detail: workspace, disabled: false, onApplied };
-  const { rerender } = render(<DataRefresh {...props} slideId={slideId} />);
+  const { rerender } = render(<Inspector {...props} slideId={slideId} />);
   const quarter = await screen.findByLabelText("目标季度");
   await user.type(quarter, "2026-Q");
   expect(quarter).toHaveFocus();
@@ -58,9 +67,9 @@ it("keeps the quarter field focused while typing, then applies only the reviewed
   await user.keyboard("4");
   expect(quarter).toHaveFocus();
   expect(quarter).toHaveValue("2026-Q4");
-  rerender(<DataRefresh {...props} slideId={stackingPage} />);
+  rerender(<Inspector {...props} slideId={stackingPage} />);
   expect(screen.queryByRole("button", { name: "预览数据更新" })).not.toBeInTheDocument();
-  rerender(<DataRefresh {...props} slideId={slideId} />);
+  rerender(<Inspector {...props} slideId={slideId} />);
   const resumedQuarter = screen.getByLabelText("目标季度");
   expect(resumedQuarter).toHaveValue("");
   expect(vi.mocked(call)).toHaveBeenCalledTimes(1);
@@ -91,9 +100,11 @@ it("shows cited formal query receipts for reviewed pages without exposing an uns
   const source = { id: sourceId, label: "正式楼宇季度数据库" };
   const document = { ...workspace, slides: [{ id: slideId, content: { sources: [source] } }] } as WorkspaceDetail;
   const call = vi.fn(async () => ({ projectVersion: expectedVersion, pages: [{
-    id: slideId, objects: [{ valueOrigin: "business", receipts: [receipt] }, { valueOrigin: "asset", receipts: [receipt] }],
+    id: slideId, objects: [
+      { ...object, valueOrigin: "business", receipts: [receipt] }, { ...object, index: 1, valueOrigin: "asset", receipts: [receipt] },
+    ],
   }] })) as unknown as Call;
-  render(<DataRefresh call={call} detail={document} slideId={slideId} disabled={false} onApplied={vi.fn()} />);
+  render(<Inspector call={call} detail={document} slideId={slideId} disabled={false} onApplied={vi.fn()} />);
   await userEvent.click(await screen.findByText("正式查询依据"));
   expect(screen.getAllByText(source.label)).toHaveLength(1);
   expect(screen.getByText("数据截至 2026-09-30 · 仅供内部使用")).toBeVisible();

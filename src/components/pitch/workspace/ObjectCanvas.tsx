@@ -42,13 +42,14 @@ export function splitLayers(svg: string): Layer[] {
   });
 }
 
-export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onSelectionChange, imageReplacement, photoReplacement, onApply, onClose }: {
+export function ObjectCanvas({ call, projectId, slideId, scene, content, allowParagraphs, lockedParagraphs, pendingMoves, pendingTexts, pendingOrder, pendingGroups, onSelectionChange, imageReplacement, photoReplacement, onApply, onClose }: {
   call: Call;
   projectId: string;
   slideId: string;
   scene: SlideScene;
   content: SlideContent;
   allowParagraphs: boolean;
+  lockedParagraphs?: ReadonlySet<number>;
   pendingMoves?: ObjectMove[];
   pendingTexts?: ObjectText[];
   pendingOrder?: string[];
@@ -86,7 +87,15 @@ export function ObjectCanvas({ call, projectId, slideId, scene, content, allowPa
   const selectedGroup = selected ? groupFor(selected) : undefined;
   const currentOrder = validOrder && order ? order : originalOrder;
   const layerById = React.useMemo(() => new Map(layers.map(layer => [layer.id, layer])), [layers]);
-  const anchors = React.useMemo(() => textAnchors(scene, content, allowParagraphs), [scene, content, allowParagraphs]);
+  const anchors = React.useMemo(() => {
+    const editable = textAnchors(scene, content, allowParagraphs);
+    if (lockedParagraphs?.size) {
+      for (const [id, anchor] of editable) {
+        if (anchor.kind === "paragraph" && lockedParagraphs.has(anchor.block)) editable.delete(id);
+      }
+    }
+    return editable;
+  }, [scene, content, allowParagraphs, lockedParagraphs]);
   const canonicalText = (id: string) => {
     const anchor = anchors.get(id);
     if (anchor?.kind === "title") return content.title;

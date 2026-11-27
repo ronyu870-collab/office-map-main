@@ -60,6 +60,7 @@ import { readPitchHandoff, type PitchHandoffNavigation } from "./PitchHandoffLin
 import { HandoffReview, type HandoffDestination } from "./workspace/HandoffReview";
 import { LayoutVariants } from "./workspace/LayoutVariants";
 import { DataRefresh } from "./workspace/DataRefresh";
+import { paragraphBindingAccess, useDocumentBindings } from "./workspace/DocumentBindings";
 import { CurrentPageRevision } from "./workspace/CurrentPageRevision";
 import { ImageReplacement, libraryImagesForReplacement } from "./workspace/ImageReplacement";
 import { PhotoReplacementPicker } from "./workspace/PhotoReplacementPicker";
@@ -162,6 +163,7 @@ export function PitchWorkspace() {
   );
 }
 function Studio({ session }: { session: AuthSessionResult }) {
+  const paragraphLabelPrefix = React.useId();
   const [panel, setPanel] = React.useState<Panel>("home"),
     [catalog, setCatalog] = React.useState<Catalog | null>(null),
     [templates, setTemplates] = React.useState<Template[]>([]),
@@ -687,9 +689,17 @@ function Studio({ session }: { session: AuthSessionResult }) {
     canGenerate = catalog?.scopes.some((s) => s.canGenerate) ?? false,
     canManage =
       catalog?.scopes.some((s) => s.canMaintain || s.canAdmin) ?? false;
+  const paragraphs = page?.content.blocks.flatMap((block, index) => block.kind === "paragraph" ? [{ block, index }] : []) ?? [];
+  const bindings = useDocumentBindings(call, detail?.project, !!page && (
+    right && inspector === "data" || !!paragraphs.length && (
+      right && (inspector === "properties" || inspector === "assist") || !!active && objectPage === active
+    )
+  ));
+  const paragraphAccess = paragraphBindingAccess(bindings, page, !!page && detail?.workspace.page_settings[page.id]?.origin === "data");
   const canvasRevisionTarget = detail && page && active === page.id && page.content.disclosure === "internal" &&
     !dirty && !saving && !detail.workspace.page_settings[page.id]?.manual &&
     detail.workspace.page_settings[page.id]?.origin !== "data" && !detail.workspace.page_settings[page.id]?.example &&
+    !paragraphAccess.locked.size &&
     !page.scene.elements.some(element => element.editorId) && (page.scene.pagination?.count ?? 1) === 1 ? {
       projectId: detail.project.id, slideId: page.id, expectedVersion: detail.project.version,
       assetId: page.asset_id, assetVersion: page.asset_version,
@@ -1554,7 +1564,8 @@ function Studio({ session }: { session: AuthSessionResult }) {
                       slideId={page.id}
                       scene={page.scene}
                       content={page.content}
-                      allowParagraphs={detail.workspace.page_settings[page.id]?.origin !== "data"}
+                      allowParagraphs={paragraphAccess.allowCanvasParagraphs}
+                      lockedParagraphs={paragraphAccess.locked}
                       pendingMoves={pageEdit?.objectMoves}
                       pendingTexts={pageEdit?.objectTexts}
                       pendingOrder={pageEdit?.objectOrder}
@@ -1787,49 +1798,33 @@ function Studio({ session }: { session: AuthSessionResult }) {
                               }
                             />
                           </label>
-                          {page.content.blocks.some(
-                            (b) => b.kind === "paragraph",
-                          ) && (detail.workspace.page_settings[page.id]?.origin === "data" ? (
-                            <Button variant="ghost" onClick={() => openInspector("data")}>查看数据与来源</Button>
-                          ) : (
-                            <>
-                              {(page.scene.pagination?.count ?? 1) > 1 ? (
-                                <p>
-                                  此内容已分页。请在素材库修改后重新生成整组。
-                                </p>
-                              ) : (
-                                page.content.blocks
-                                  .filter((b) => b.kind === "paragraph")
-                                  .map((b, i) => (
-                                    <label key={i}>
-                                      正文 {i + 1}
-                                      <textarea
-                                        rows={5}
-                                        maxLength={4000}
-                                        value={
-                                          pageEdit?.paragraphs?.[i] ?? b.text
-                                        }
-                                        onChange={(e) => {
-                                          const paragraphs =
-                                            pageEdit?.paragraphs ??
-                                            page.content.blocks.flatMap((b) =>
-                                              b.kind === "paragraph"
-                                                ? [b.text]
-                                                : [],
-                                            );
-                                          editPage({
-                                            paragraphs: paragraphs.map(
-                                              (p, n) =>
-                                                n === i ? e.target.value : p,
-                                            ),
-                                          });
-                                        }}
-                                      />
-                                    </label>
-                                  ))
-                              )}
-                            </>
-                          ))}
+                          {paragraphs.length > 0 && ((page.scene.pagination?.count ?? 1) > 1 ? (
+                            <p>此内容已分页。请在素材库修改后重新生成整组。</p>
+                          ) : <>
+                            {!paragraphAccess.current && bindings.status === "loading" && <p role="status">正在核对正文的数据来源…</p>}
+                            {!paragraphAccess.current && bindings.status !== "loading" && <div>
+                              <p role="alert">{bindings.status === "error" ? bindings.message : "正文与数据绑定未能核对。"}</p>
+                              <Button variant="ghost" onClick={bindings.retry}>重试读取绑定</Button>
+                            </div>}
+                            {paragraphAccess.current && paragraphAccess.locked.size > 0 && (
+                              <Button variant="ghost" onClick={() => openInspector("data")}>查看数据与来源</Button>
+                            )}
+                            {paragraphs.map(({ block, index }, i) => {
+                              const locked = paragraphAccess.locked.has(index);
+                              const labelId = `${paragraphLabelPrefix}-${index}`;
+                              return <label key={index}>
+                                <span id={labelId}>正文 {i + 1}{locked && paragraphAccess.current && " · 只读"}</span>
+                                <textarea aria-labelledby={labelId} rows={5} maxLength={4000} readOnly={locked}
+                                  value={locked ? block.text : pageEdit?.paragraphs?.[i] ?? block.text}
+                                  onChange={locked ? undefined : event => {
+                                    const text = event.target.value;
+                                    editPage({ paragraphs: paragraphs.map((paragraph, n) =>
+                                      n === i ? text : paragraphAccess.locked.has(paragraph.index)
+                                        ? paragraph.block.text : pageEdit?.paragraphs?.[n] ?? paragraph.block.text) });
+                                  }} />
+                              </label>;
+                            })}
+                          </>)}
                           {libraryImages && <ImageReplacement
                             key={`${active}:${pictureTarget?.openId ?? 0}`}
                             call={call} originals={libraryImages} pending={pageEdit?.images} selectedIndex={pictureTarget?.index}
@@ -1846,7 +1841,7 @@ function Studio({ session }: { session: AuthSessionResult }) {
                         <>
                           {active === page.id && (
                             <DataRefresh key={`${detail.project.id}:${detail.project.version}`}
-                              call={call} detail={detail} slideId={page.id}
+                              call={call} detail={detail} slideId={page.id} bindings={bindings}
                               suggestedPeriod={suggestedPeriod}
                               disabled={dirty || saving || busy || addingAssets || generationPending || conflict}
                               onApplied={(result, expectedVersion) => {
