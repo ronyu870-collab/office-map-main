@@ -18,8 +18,8 @@ body:has(#map-container) .map-submarket-bubble {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 10px 6px;
+  gap: 2px;
+  padding: 6px 4px;
   appearance: none;
   font: inherit;
   overflow: hidden;
@@ -71,8 +71,8 @@ body:has(#map-container) .map-submarket-bubble.is-expanding {
 }
 
 body:has(#map-container) .map-submarket-bubble__name {
-  width: calc(var(--sm-render-size) - 26px);
-  max-height: 36px;
+  width: calc(var(--sm-render-size) - 22px);
+  max-height: 32px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -82,7 +82,7 @@ body:has(#map-container) .map-submarket-bubble__name {
   font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 600;
-  line-height: 18px;
+  line-height: 16px;
   letter-spacing: -0.01em;
   color: var(--sm-foreground, #ffffff);
 }

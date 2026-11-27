@@ -249,7 +249,7 @@ try {
   await keyboardReach(page,detail.locator('[role="tab"][aria-selected="true"]'));
   for(let step=0;step<3 && await detail.getByRole('tab',{name:'概览',exact:true}).getAttribute('aria-selected')!=='true';step++) await page.keyboard.press('ArrowRight');
   const photo=detail.getByRole('button',{name:/看图 · 1张/});
-  await keyboardActivate(page,photo);
+  if(await photo.getAttribute('aria-expanded')!=='true') await keyboardActivate(page,photo);
   const image=detail.locator('[data-building-photo]:visible');
   await image.waitFor(); await page.waitForFunction(()=>document.querySelector('[data-building-photo]:not([hidden])')?.naturalWidth>0);
   await keyboardActivate(page,detail.getByRole('button',{name:'查看大图',exact:true}));

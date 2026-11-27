@@ -348,12 +348,13 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 .workspace-building-scroll { padding: 12px 16px; }
 /* Reserve sticky-tab clearance for photos without changing market-tab restoration. */
 .workspace-building-scroll:has(.workspace-building-photos) { scroll-padding-top: 60px; }
-.workspace-building-photos { margin: 16px 0 0; }
+.workspace-building-photos { margin: 10px 0 12px; }
 .workspace-building-photos .building-pilot-photo-trigger { min-height: 36px; padding: 6px 10px; border: 1px solid var(--cd-color-border); border-radius: 6px; background: var(--cd-color-surface-alt); font-weight: 400; }
 .workspace-building-photos .building-pilot-photo-trigger span { gap: 6px; padding: 0; border: 0; font: inherit; }
 .workspace-building-photos .building-pilot-photo-trigger:hover, .workspace-building-photos .building-pilot-photo-trigger[aria-expanded="true"] { background: var(--cd-color-brand-soft); }
 .workspace-building-photos .building-pilot-photo-trigger span { background: transparent; }
-.workspace-building-photos .building-pilot-photo-stage { height: auto; min-height: 144px; aspect-ratio: var(--building-photo-ratio, 1.6); max-height: 52dvh; }
+.workspace-building-photos .building-pilot-gallery > .building-photo-figure > .building-pilot-photo-stage { height: 128px; min-height: 128px; max-height: 128px; aspect-ratio: auto; }
+.map-workspace-layout[data-expanded] .workspace-building-photos .building-pilot-gallery > .building-photo-figure > .building-pilot-photo-stage { height: clamp(160px, 34dvh, 320px); min-height: 160px; max-height: 52dvh; }
 .workspace-metric-summary { padding: 4px 0 10px; border-bottom: 1px solid var(--cd-color-border); background: transparent; }
 .workspace-building-metrics { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.3fr); gap: 12px; margin: 4px 0 0; }
 .workspace-building-metrics > .workspace-rent-metric { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 2px; }

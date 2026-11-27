@@ -133,13 +133,12 @@ function modeFor(zoom: number, active: MarkerMode | null): MarkerMode {
   return zoom < 11.32 ? 'submarket' : zoom < 13 ? 'dot' : 'building';
 }
 
-function setOpacity(set: LayerSet | null, zoom: number, multiplier = 1): void {
+function setOpacity(set: LayerSet | null, zoom: number, multiplier = 1, tier: MarkerMode | null = null): void {
   if (!set) return;
-  const sub = (1 - smoothStep(ZOOM.submarketFadeStart, ZOOM.submarketFadeEnd, zoom)) * multiplier;
   const dot = clamp(smoothStep(ZOOM.dotFadeInStart, ZOOM.dotFadeInEnd, zoom) * (1 - smoothStep(ZOOM.dotFadeOutStart, ZOOM.dotFadeOutEnd, zoom))) * multiplier;
   const detail = smoothStep(ZOOM.detailFadeInStart, ZOOM.detailFadeInEnd, zoom) * multiplier;
   const names = smoothStep(ZOOM.nameFadeInStart, ZOOM.nameFadeInEnd, zoom) * multiplier;
-  set.submarkets.forEach(marker => marker.setOpacity?.(sub >= .5 ? 1 : 0));
+  set.submarkets.forEach(marker => marker.setOpacity?.(tier === 'submarket' && multiplier === 1 ? 1 : 0));
   set.mass?.setOpacity?.(dot);
   set.detail?.setOpacity?.(detail);
   set.names?.setOpacity?.(names);
@@ -287,7 +286,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   const apply = () => {
     const zoom = map.getZoom?.() ?? 14;
     activeTier = modeFor(zoom, activeTier); c.currentRenderMode = activeTier; container.dataset.markerTier = activeTier;
-    setOpacity(current, zoom, 1); setOpacity(outgoing, zoom, 0.12);
+    setOpacity(current, zoom, 1, activeTier); setOpacity(outgoing, zoom, 0.12);
 
   };
 

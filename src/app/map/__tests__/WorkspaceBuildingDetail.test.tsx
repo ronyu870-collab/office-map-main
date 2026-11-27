@@ -13,6 +13,9 @@ it('keeps the photo trigger bound after a same-project parent render', () => {
   const view = render(<WorkspaceBuildingDetail detail={detail} {...callbacks} />);
   view.rerender(<WorkspaceBuildingDetail detail={{ ...detail }} {...callbacks} />);
   const trigger = screen.getByRole('button', { name: /看图/ });
+  expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  fireEvent.click(trigger);
+  expect(trigger).toHaveAttribute('aria-expanded', 'false');
   fireEvent.click(trigger);
   expect(trigger).toHaveAttribute('aria-expanded', 'true');
   expect(view.container.querySelector('[data-building-photo-gallery]')).not.toHaveAttribute('hidden');

@@ -508,14 +508,13 @@ export function installNativeMarkerRenderer(
 
   const applyLayerOpacity = () => {
     const zoom = map.getZoom?.() ?? 14;
-    const submarketOpacity = 1 - smoothStep(11.08, 11.5, zoom);
     const dotIn = smoothStep(11.08, 11.34, zoom);
     const dotOut = 1 - smoothStep(12.84, 13.2, zoom);
     const dotOpacity = clamp(dotIn * dotOut, 0.16, 0.9);
     const detailOpacity = smoothStep(MARKER_ZOOM.detailMin, 13.16, zoom);
     const nameOpacity = smoothStep(MARKER_ZOOM.nameMin, 14.42, zoom);
 
-    for (const marker of submarketMarkers) marker.setOpacity?.(submarketOpacity >= .5 ? 1 : 0);
+    for (const marker of submarketMarkers) marker.setOpacity?.(activeTier === 'submarket' ? 1 : 0);
     massMarks?.setOpacity?.(dotOpacity);
     detailLayer?.setOpacity?.(detailOpacity);
     nameLayer?.setOpacity?.(nameOpacity);

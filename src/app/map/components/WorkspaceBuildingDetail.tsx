@@ -21,6 +21,9 @@ type Action = 'locate' | 'nearby' | 'contact' | 'trend' | 'edit';
 export type BuildingReadingState = { tab: string; scrollTop: number; scrolls?: Record<string, number>; trendOpen?: boolean; trend?: TrendChartReading; trendHeight?: number; photo?: { open: boolean; index: number } };
 function Photos({ detail, reading, onChange }: { detail: Detail; reading?: BuildingReadingState['photo']; onChange: (photo: NonNullable<BuildingReadingState['photo']>) => void }) {
   const root = React.useRef<HTMLDivElement>(null);
+  const panel = React.useContext(WorkspacePanelContext);
+  const active = panel?.active !== false;
+  const [defaultOpen] = React.useState(() => !panel?.compact || panel.mode !== 'compact');
   const id = detail.building._dataType === 'future' ? detail.building.building_id : detail.building.id;
   const galleryId = `workspace-gallery-${id}`;
   const readingRef = React.useRef(reading);
@@ -29,9 +32,9 @@ function Photos({ detail, reading, onChange }: { detail: Detail; reading?: Build
   const safeName = (detail.building.name ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
   const markup = React.useMemo(() => ({ __html: buildPhotoTrigger(galleryId, detail.photos.length) + buildPhotoGallery(galleryId, safeName, detail.photos) }), [galleryId, safeName, detail.photos]);
   React.useEffect(() => {
-    if (!root.current || !id || !detail.photos.length) return;
-    return bindBuildingPhotoGallery(root.current, id, detail.photos, { initial: readingRef.current, onChange: photo => changeRef.current(photo) }) ?? undefined;
-  }, [id, detail.photos, detail.isDemo, markup]);
+    if (!active || !root.current || !id || !detail.photos.length) return;
+    return bindBuildingPhotoGallery(root.current, id, detail.photos, { initial: readingRef.current ?? { open: defaultOpen, index: 0 }, onChange: photo => changeRef.current(photo) }) ?? undefined;
+  }, [active, defaultOpen, id, detail.photos, detail.isDemo, markup]);
   if (detail.isDemo) return null;
   if (!id || !detail.photos.length) return <p className="workspace-note">暂无项目图片</p>;
   return <div ref={root} className="workspace-building-photos" dangerouslySetInnerHTML={markup} />;
@@ -124,8 +127,8 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
             <div><dt>{future ? '预计入市' : '入市时间'}</dt><dd>{future ? futureSupplyDate(building) : String(building.completion_year ?? '').trim() || '未提供'}</dd></div>
             {!future ? <div><dt>LEED</dt><dd>{leedDisplayValue(building.leed_certification)}</dd></div> : null}
           </dl></section>
-          <section className="workspace-detail-group" aria-label="业主与物业"><dl className="workspace-building-facts">{ownership.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{typeof value === 'string' && !value.trim() ? '未提供' : value}</dd></div>)}</dl></section>
           <Photos detail={detail} reading={state.current.photo} onChange={photo => report({ photo })} />
+          <section className="workspace-detail-group" aria-label="业主与物业"><dl className="workspace-building-facts">{ownership.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{typeof value === 'string' && !value.trim() ? '未提供' : value}</dd></div>)}</dl></section>
         </> : null}
         {tab === 'market' ? <>
           <dl className="workspace-building-facts workspace-market-facts"><div><dt>表面租金</dt><dd>{number(metric?.face_rent)} <span>元/㎡/月</span></dd></div><div><dt>物业费</dt><dd>{number(metric?.management_fee)} <span>元/㎡/月</span></dd></div></dl>

@@ -273,7 +273,7 @@ export function installSubmarketCollisionAvoidance(
         x: anchorX + previousX,
         y: anchorY + previousY,
         radius,
-        name: element.title || element.textContent || '',
+        name: element.dataset.submarket || element.title || element.textContent || '',
       });
     }
     if (!nodes.length) return;
